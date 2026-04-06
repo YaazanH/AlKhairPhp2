@@ -1,0 +1,122 @@
+<?php
+
+return [
+    'scope_pills' => [
+        'academic_filtered' => 'Academic year filtered',
+        'all_academic_years' => 'All academic years',
+        'single_group' => 'Single group in focus',
+        'all_groups' => 'All groups in scope',
+        'custom_date_range' => 'Custom date range',
+        'all_dates' => 'All available dates',
+    ],
+    'hero' => [
+        'eyebrow' => 'Reporting cockpit',
+        'title' => 'Reports and exports',
+        'subtitle' => 'Review attendance, memorization, assessments, points, and finance from one high-density workspace without leaving the operational data flow.',
+    ],
+    'financial_readout' => [
+        'title' => 'Financial readout',
+        'invoice_billed' => 'Invoice billed',
+        'invoice_collected' => 'Invoice collected',
+        'activity_net' => 'Activity net',
+    ],
+    'filters' => [
+        'eyebrow' => 'Filters',
+        'title' => 'Scope the dataset',
+        'subtitle' => 'Use academic, group, and date filters to narrow the view without changing any records.',
+        'academic_year' => 'Academic year',
+        'all_academic_years' => 'All academic years',
+        'group' => 'Group',
+        'all_groups' => 'All groups',
+        'date_from' => 'Date from',
+        'date_to' => 'Date to',
+        'clear' => 'Clear filters',
+    ],
+    'exports' => [
+        'eyebrow' => 'Exports',
+        'title' => 'Download CSV packs',
+        'subtitle' => 'Generate filtered extracts for operational review, finance reconciliation, or offline sharing.',
+        'attendance' => 'Export Attendance',
+        'memorization' => 'Export Memorization',
+        'points' => 'Export Points',
+        'assessments' => 'Export Assessments',
+    ],
+    'headline' => [
+        'students_in_scope' => [
+            'label' => 'Students in scope',
+            'hint' => 'Learners currently included in the filtered dataset.',
+        ],
+        'active_enrollments' => [
+            'label' => 'Active enrollments',
+            'hint' => 'Live student-group links still marked active.',
+        ],
+        'memorized_pages' => [
+            'label' => 'Memorized pages',
+            'hint' => 'Recorded memorization pages across the selected scope.',
+        ],
+        'net_points' => [
+            'label' => 'Net points',
+            'hint' => 'Positive and negative point movement combined.',
+        ],
+        'invoiced_amount' => [
+            'label' => 'Invoiced amount',
+            'hint' => 'Total billed value from invoices in the same reporting window.',
+        ],
+        'cash_collected' => [
+            'label' => 'Cash collected',
+            'hint' => 'Actual collected payments and cleared balances.',
+        ],
+    ],
+    'attendance' => [
+        'eyebrow' => 'Attendance',
+        'title' => 'Status breakdown',
+        'days_recorded' => 'Attendance days recorded: :count',
+    ],
+    'assessments' => [
+        'eyebrow' => 'Assessments',
+        'title' => 'Performance snapshot',
+        'subtitle' => 'Result performance for the current reporting scope.',
+        'results_recorded' => 'Results recorded',
+        'average_score' => 'Average score',
+        'passed' => 'Passed',
+        'failed' => 'Failed',
+    ],
+    'leaderboard' => [
+        'eyebrow' => 'Leaderboard',
+        'points_title' => 'Top students by points',
+        'points_empty' => 'No point transactions match the current filters.',
+        'memorization_title' => 'Top students by memorization',
+        'memorization_empty' => 'No memorization sessions match the current filters.',
+        'headers' => [
+            'student' => 'Student',
+            'net_points' => 'Net points',
+            'transactions' => 'Transactions',
+            'pages' => 'Pages',
+            'sessions' => 'Sessions',
+        ],
+        'unknown_student' => 'Unknown student',
+    ],
+    'finance' => [
+        'eyebrow' => 'Finance',
+        'title' => 'Billing and activities',
+        'subtitle' => 'Billing, collections, and activity flows for the same reporting window.',
+        'invoice_billed' => 'Invoice billed',
+        'invoice_collected' => 'Invoice collected',
+        'activity_expected' => 'Activity expected',
+        'activity_collected' => 'Activity collected',
+        'activity_expenses' => 'Activity expenses',
+        'activity_net' => 'Activity net',
+    ],
+    'outstanding' => [
+        'eyebrow' => 'Collections',
+        'title' => 'Outstanding invoices',
+        'empty' => 'No outstanding invoices match the current filters.',
+        'headers' => [
+            'invoice' => 'Invoice',
+            'parent' => 'Parent',
+            'issue_date' => 'Issue date',
+            'status' => 'Status',
+            'balance' => 'Balance',
+        ],
+    ],
+];
