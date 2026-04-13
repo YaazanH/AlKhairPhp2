@@ -8,6 +8,7 @@ use App\Models\Group;
 use App\Models\GroupAttendanceDay;
 use App\Models\StudentAttendanceRecord;
 use App\Services\PointLedgerService;
+use App\Services\StudentAttendanceDayService;
 use Livewire\Volt\Component;
 
 new class extends Component {
@@ -91,16 +92,21 @@ new class extends Component {
         ]);
 
         $day = GroupAttendanceDay::query()
+            ->with('studentAttendanceDay')
             ->where('group_id', $this->currentGroup->id)
             ->whereDate('attendance_date', $validated['attendance_date'])
             ->first();
 
-        if (! $day) {
-            $day = GroupAttendanceDay::query()->create([
-                'group_id' => $this->currentGroup->id,
-                'attendance_date' => $validated['attendance_date'],
-                'created_by' => auth()->id(),
-            ]);
+        if (! $day || ! $day->student_attendance_day_id) {
+            $parentDay = app(StudentAttendanceDayService::class)->createOrSyncDay(
+                $validated['attendance_date'],
+                collect([$this->currentGroup]),
+                auth()->user(),
+            );
+
+            $day = $parentDay->groupAttendanceDays()
+                ->where('group_id', $this->currentGroup->id)
+                ->firstOrFail();
         }
 
         $day->update([
@@ -135,21 +141,22 @@ new class extends Component {
 
             $ledger->voidSourceTransactions('student_attendance_record', $record->id, __('workflow.student_attendance.messages.void_reason'));
             $status = AttendanceStatus::query()->find($statusId);
-            $policy = $ledger->resolvePolicy('attendance', $status?->code ?? '', $enrollment->student?->grade_level_id);
 
-            if ($policy?->pointType) {
-                $ledger->recordAutomaticPoints(
+            if ($status) {
+                $ledger->recordAttendanceStatusPoints(
                     $enrollment,
                     'student_attendance_record',
                     $record->id,
-                    $policy->pointType,
-                    $policy,
-                    $policy->points,
+                    $status,
                     __('workflow.student_attendance.messages.automatic_points', ['status' => $status->name]),
                 );
             }
 
             $ledger->syncEnrollmentCaches($enrollment->fresh());
+        }
+
+        if ($day->studentAttendanceDay) {
+            app(StudentAttendanceDayService::class)->syncAggregateStatus($day->studentAttendanceDay);
         }
 
         $this->attendanceDayId = $day->id;

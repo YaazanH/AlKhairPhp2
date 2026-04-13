@@ -38,7 +38,7 @@ class FinanceService
     {
         $expectedRevenue = ActivityRegistration::query()
             ->where('activity_id', $activity->id)
-            ->where('status', '!=', 'cancelled')
+            ->whereNotIn('status', ['cancelled', 'declined'])
             ->sum('fee_amount');
 
         $collectedRevenue = ActivityPayment::query()

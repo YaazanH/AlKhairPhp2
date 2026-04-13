@@ -16,6 +16,7 @@ use App\Models\Student;
 use App\Models\Teacher;
 use App\Models\Group;
 use App\Models\User;
+use App\Services\ActivityAudienceService;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Volt\Volt;
@@ -146,6 +147,78 @@ class FinanceAndActivitiesTest extends TestCase
 
         $this->assertNotNull($payment->fresh()->voided_at);
         $this->assertSame('issued', $invoice->fresh()->status);
+    }
+
+    public function test_parent_users_can_view_and_respond_to_targeted_activities(): void
+    {
+        $this->seed();
+
+        [$parent, $student, $group, $enrollment] = $this->financeContext();
+
+        $parentUser = User::factory()->create([
+            'username' => 'family-parent',
+            'phone' => '0992222333',
+        ]);
+        $parentUser->assignRole('parent');
+        $parent->update(['user_id' => $parentUser->id]);
+
+        $otherTeacher = Teacher::create([
+            'first_name' => 'Other',
+            'last_name' => 'Teacher',
+            'phone' => '0944000999',
+            'status' => 'active',
+        ]);
+
+        $otherGroup = Group::create([
+            'course_id' => $group->course_id,
+            'academic_year_id' => $group->academic_year_id,
+            'teacher_id' => $otherTeacher->id,
+            'name' => 'Other Family Group',
+            'capacity' => 20,
+            'is_active' => true,
+        ]);
+
+        $targetedActivity = Activity::create([
+            'title' => 'Family Picnic',
+            'activity_date' => '2026-10-20',
+            'audience_scope' => 'multiple_groups',
+            'fee_amount' => 18,
+            'is_active' => true,
+        ]);
+
+        app(ActivityAudienceService::class)->syncTargets($targetedActivity, 'multiple_groups', null, [$group->id, $otherGroup->id]);
+
+        $hiddenActivity = Activity::create([
+            'title' => 'Hidden Trip',
+            'activity_date' => '2026-11-05',
+            'audience_scope' => 'single_group',
+            'group_id' => $otherGroup->id,
+            'fee_amount' => 22,
+            'is_active' => true,
+        ]);
+
+        app(ActivityAudienceService::class)->syncTargets($hiddenActivity, 'single_group', $otherGroup->id);
+
+        $response = $this->actingAs($parentUser)->get(route('activities.family'));
+
+        $response
+            ->assertOk()
+            ->assertSee('Family Picnic')
+            ->assertSee('18.00')
+            ->assertDontSee('Hidden Trip');
+
+        $this->actingAs($parentUser);
+
+        Volt::test('activities.family')
+            ->call('respond', $targetedActivity->id, $student->id, 'registered')
+            ->assertHasNoErrors();
+
+        $registration = $targetedActivity->registrations()->firstOrFail();
+
+        $this->assertSame($student->id, $registration->student_id);
+        $this->assertSame($enrollment->id, $registration->enrollment_id);
+        $this->assertSame('registered', $registration->status);
+        $this->assertSame('18.00', $targetedActivity->fresh()->expected_revenue_cached);
     }
 
     private function financeContext(): array

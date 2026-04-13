@@ -144,6 +144,7 @@ return [
             'default_points' => 'النقاط الافتراضية',
             'color' => 'اللون',
             'counts_as_present' => 'يُحسب حضوراً',
+            'default_attendance_status' => 'قيمة الحضور الافتراضية',
             'is_active' => 'نشط',
             'is_scored' => 'تقييم بدرجات',
             'sort_order' => 'ترتيب الفرز',
@@ -167,6 +168,7 @@ return [
         'labels' => [
             'present_status' => 'حالة حضور',
             'non_present_status' => 'حالة غير حضور',
+            'default_attendance_status' => 'الافتراضية للحضور الجديد',
             'scored' => 'بدرجات',
             'unscored' => 'بدون درجات',
         ],
@@ -189,6 +191,8 @@ return [
         ],
         'errors' => [
             'attendance_status_delete_linked' => 'لا يمكن حذف حالة الحضور هذه ما دامت سجلات الحضور تستخدمها.',
+            'default_attendance_required' => 'يجب أن تبقى قيمة حضور نشطة واحدة على الأقل كقيمة افتراضية للطلاب.',
+            'default_requires_student_scope' => 'يجب أن تكون قيمة الحضور الافتراضية نشطة ومتاحة للطلاب.',
             'assessment_type_delete_linked' => 'لا يمكن حذف نوع التقييم هذا ما دامت التقييمات أو نطاقات الدرجات تستخدمه.',
             'quran_test_type_delete_linked' => 'لا يمكن حذف نوع اختبار القرآن هذا ما دامت سجلات الاختبارات تستخدمه.',
         ],
@@ -219,7 +223,7 @@ return [
             'name' => 'الاسم',
             'code' => 'الرمز',
             'category' => 'الفئة',
-            'default_points' => 'النقاط الافتراضية',
+            'default_points' => 'قيمة النقاط',
             'allow_manual_entry' => 'السماح بالإدخال اليدوي',
             'allow_negative' => 'السماح بالقيم السالبة',
             'point_type' => 'نوع النقطة',
@@ -237,6 +241,7 @@ return [
         'table' => [
             'type' => 'النوع',
             'category' => 'الفئة',
+            'amount' => 'القيمة',
             'usage' => 'الاستخدام',
             'policy' => 'السياسة',
             'trigger' => 'المشغل',
@@ -268,6 +273,7 @@ return [
         'errors' => [
             'point_type_delete_linked' => 'لا يمكن حذف نوع النقطة هذا ما دامت السياسات أو نطاقات الدرجات أو المعاملات تستخدمه.',
             'point_policy_delete_linked' => 'لا يمكن حذف سياسة النقاط هذه ما دامت معاملات النقاط تشير إليها.',
+            'manual_point_amount_required' => 'يجب أن تكون قيمة نوع النقطة اليدوي غير صفرية.',
             'range_invalid' => 'يجب أن تكون القيمة العظمى أكبر من أو تساوي القيمة الصغرى.',
         ],
     ],

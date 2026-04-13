@@ -11,10 +11,12 @@ use App\Models\Student;
 use App\Models\Teacher;
 use Illuminate\Validation\Rule;
 use Livewire\Volt\Component;
+use Livewire\WithPagination;
 
 new class extends Component {
     use AuthorizesPermissions;
     use AuthorizesTeacherAssignments;
+    use WithPagination;
 
     public ?int $editingId = null;
     public ?int $course_id = null;
@@ -30,6 +32,7 @@ new class extends Component {
     public bool $is_active = true;
     public string $search = '';
     public string $statusFilter = 'all';
+    public int $perPage = 15;
     public bool $showFormModal = false;
     public ?int $rosterGroupId = null;
     public ?int $roster_student_id = null;
@@ -65,8 +68,10 @@ new class extends Component {
             ->orderByDesc('is_active')
             ->orderBy('name');
 
+        $filteredCount = (clone $filteredQuery)->count();
+
         return [
-            'groups' => $filteredQuery->get(),
+            'groups' => $filteredQuery->paginate($this->perPage),
             'courses' => Course::query()->where('is_active', true)->orderBy('name')->get(['id', 'name']),
             'academicYears' => AcademicYear::query()->where('is_active', true)->orderByDesc('starts_on')->get(['id', 'name']),
             'teachers' => $this->scopeTeachersQuery(Teacher::query()->where('status', '!=', 'blocked'))->orderBy('first_name')->orderBy('last_name')->get(['id', 'first_name', 'last_name']),
@@ -95,8 +100,18 @@ new class extends Component {
                 'all' => $baseQuery->count(),
                 'active' => $this->scopeGroupsQuery(Group::query()->where('is_active', true))->count(),
             ],
-            'filteredCount' => (clone $filteredQuery)->count(),
+            'filteredCount' => $filteredCount,
         ];
+    }
+
+    public function updatedSearch(): void
+    {
+        $this->resetPage();
+    }
+
+    public function updatedStatusFilter(): void
+    {
+        $this->resetPage();
     }
 
     public function rules(): array
@@ -458,6 +473,12 @@ new class extends Component {
                     </tbody>
                 </table>
             </div>
+
+            @if ($groups->hasPages())
+                <div class="border-t border-white/8 px-5 py-4 lg:px-6">
+                    {{ $groups->links() }}
+                </div>
+            @endif
         @endif
     </section>
 

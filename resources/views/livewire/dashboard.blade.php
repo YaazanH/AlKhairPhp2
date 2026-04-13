@@ -30,23 +30,34 @@ new class extends Component {
     {
         $user = Auth::user();
 
-        if ($user?->hasAnyRole(['admin', 'manager'])) {
+        if (! $user) {
+            return 'unassigned';
+        }
+
+        if ($this->canUseManagerDashboard($user)) {
             return 'manager';
         }
 
-        if ($user?->hasRole('teacher')) {
+        if ($user->teacherProfile || $user->can('dashboard.teacher.view')) {
             return 'teacher';
         }
 
-        if ($user?->hasRole('parent')) {
+        if ($user->parentProfile || $user->can('dashboard.parent.view')) {
             return 'parent';
         }
 
-        if ($user?->hasRole('student')) {
+        if ($user->studentProfile || $user->can('dashboard.student.view')) {
             return 'student';
         }
 
         return 'unassigned';
+    }
+
+    protected function canUseManagerDashboard($user): bool
+    {
+        return $user->can('dashboard.admin.view')
+            || $user->can('dashboard.manager.view')
+            || $user->hasAnyRole(['super_admin', 'admin', 'manager']);
     }
 
     protected function managerData($user): array
@@ -212,8 +223,10 @@ new class extends Component {
                     'title' => __('dashboard.parent.cards.family.title'),
                     'body' => __('dashboard.parent.cards.family.body'),
                     'links' => collect([
+                        ['label' => __('crud.common.actions.progress'), 'route' => auth()->user()->can('students.view') && $students->count() === 1 ? route('students.progress', $students->first()) : null],
                         ['label' => __('ui.nav.students'), 'route' => auth()->user()->can('students.view') ? route('students.index') : null],
                         ['label' => __('ui.nav.enrollments'), 'route' => auth()->user()->can('enrollments.view') ? route('enrollments.index') : null],
+                        ['label' => __('ui.nav.family_activities'), 'route' => auth()->user()->can('activities.responses.view') ? route('activities.family') : null],
                         ['label' => __('ui.nav.invoices'), 'route' => auth()->user()->can('invoices.view') ? route('invoices.index') : null],
                     ])->filter(fn (array $link) => $link['route']),
                 ],
@@ -271,6 +284,7 @@ new class extends Component {
                     'title' => __('dashboard.student.cards.student.title'),
                     'body' => __('dashboard.student.cards.student.body'),
                     'links' => collect([
+                        ['label' => __('crud.common.actions.progress'), 'route' => auth()->user()->can('students.view') ? route('students.progress', $student) : null],
                         ['label' => __('ui.nav.students'), 'route' => auth()->user()->can('students.view') ? route('students.index') : null],
                         ['label' => __('ui.nav.enrollments'), 'route' => auth()->user()->can('enrollments.view') ? route('enrollments.index') : null],
                     ])->filter(fn (array $link) => $link['route']),

@@ -17,6 +17,7 @@ use App\Models\Payment;
 use App\Models\PointTransaction;
 use App\Models\Student;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Cache;
 
 class ReportingService
 {
@@ -76,16 +77,20 @@ class ReportingService
     {
         $filters = $this->normalizeFilters($filters);
 
-        return [
-            'filters' => $filters,
-            'headline' => $this->headline($filters),
-            'attendance' => $this->attendance($filters),
-            'assessments' => $this->assessments($filters),
-            'memorization_leaderboard' => $this->memorizationLeaderboard($filters),
-            'points_leaderboard' => $this->pointsLeaderboard($filters),
-            'finance' => $this->finance($filters),
-            'outstanding_invoices' => $this->outstandingInvoices($filters),
-        ];
+        return Cache::remember(
+            $this->overviewCacheKey($filters),
+            now()->addSeconds((int) config('performance.report_cache_ttl_seconds', 30)),
+            fn () => [
+                'filters' => $filters,
+                'headline' => $this->headline($filters),
+                'attendance' => $this->attendance($filters),
+                'assessments' => $this->assessments($filters),
+                'memorization_leaderboard' => $this->memorizationLeaderboard($filters),
+                'points_leaderboard' => $this->pointsLeaderboard($filters),
+                'finance' => $this->finance($filters),
+                'outstanding_invoices' => $this->outstandingInvoices($filters),
+            ],
+        );
     }
 
     public function memorizationRows(array $filters = []): array
@@ -533,6 +538,18 @@ class ReportingService
     protected function decimal(mixed $value): float
     {
         return round((float) ($value ?? 0), 2);
+    }
+
+    protected function overviewCacheKey(array $filters): string
+    {
+        $user = auth()->user();
+
+        return 'reports.overview.'.md5(json_encode([
+            'filters' => $filters,
+            'locale' => app()->getLocale(),
+            'roles' => $user?->getRoleNames()->values()->all() ?? [],
+            'user_id' => $user?->id,
+        ]));
     }
 
     protected function normalizeNullableInteger(mixed $value): ?int

@@ -8,6 +8,7 @@ use App\Models\Course;
 use App\Models\Enrollment;
 use App\Models\Group;
 use App\Models\Invoice;
+use App\Models\MemorizationSession;
 use App\Models\ParentProfile;
 use App\Models\Student;
 use App\Models\Teacher;
@@ -30,12 +31,17 @@ class ManagementPagesTest extends TestCase
             route('teachers.index', absolute: false),
             route('students.index', absolute: false),
             route('students.files', $student, absolute: false),
+            route('memorization.index', absolute: false),
+            route('student-attendance.index', absolute: false),
             route('courses.index', absolute: false),
             route('groups.index', absolute: false),
             route('groups.schedules', $group, absolute: false),
             route('enrollments.index', absolute: false),
             route('student-notes.index', absolute: false),
+            route('quran-tests.index', absolute: false),
+            route('points.index', absolute: false),
             route('activities.index', absolute: false),
+            route('activities.family', absolute: false),
             route('activities.finance', $activity, absolute: false),
             route('invoices.index', absolute: false),
             route('invoices.payments', $invoice, absolute: false),
@@ -64,11 +70,15 @@ class ManagementPagesTest extends TestCase
             route('teachers.index', absolute: false),
             route('students.index', absolute: false),
             route('students.files', $student, absolute: false),
+            route('memorization.index', absolute: false),
+            route('student-attendance.index', absolute: false),
             route('courses.index', absolute: false),
             route('groups.index', absolute: false),
             route('groups.schedules', $group, absolute: false),
             route('enrollments.index', absolute: false),
             route('student-notes.index', absolute: false),
+            route('quran-tests.index', absolute: false),
+            route('points.index', absolute: false),
             route('activities.index', absolute: false),
             route('activities.finance', $activity, absolute: false),
             route('invoices.index', absolute: false),
@@ -90,11 +100,15 @@ class ManagementPagesTest extends TestCase
             route('students.files', $teacherStudent, absolute: false),
             route('groups.index', absolute: false),
             route('groups.attendance', $teacherGroup, absolute: false),
+            route('student-attendance.index', absolute: false),
             route('groups.schedules', $teacherGroup, absolute: false),
             route('enrollments.index', absolute: false),
+            route('memorization.index', absolute: false),
             route('enrollments.memorization', $teacherEnrollment, absolute: false),
             route('enrollments.quran-tests', $teacherEnrollment, absolute: false),
             route('enrollments.points', $teacherEnrollment, absolute: false),
+            route('quran-tests.index', absolute: false),
+            route('points.index', absolute: false),
         ] as $path) {
             $this->get($path)->assertOk();
         }
@@ -132,13 +146,65 @@ class ManagementPagesTest extends TestCase
             ->assertSeeText('Parent Group')
             ->assertDontSeeText('Other Group');
 
+        MemorizationSession::create([
+            'enrollment_id' => $ownEnrollment->id,
+            'student_id' => $ownEnrollment->student_id,
+            'teacher_id' => $ownEnrollment->group->teacher_id,
+            'recorded_on' => '2026-09-10',
+            'entry_type' => 'new',
+            'from_page' => 3,
+            'to_page' => 5,
+            'pages_count' => 3,
+        ]);
+
+        MemorizationSession::create([
+            'enrollment_id' => $otherEnrollment->id,
+            'student_id' => $otherEnrollment->student_id,
+            'teacher_id' => $otherEnrollment->group->teacher_id,
+            'recorded_on' => '2026-09-11',
+            'entry_type' => 'new',
+            'from_page' => 6,
+            'to_page' => 8,
+            'pages_count' => 3,
+        ]);
+
+        $this->get(route('memorization.index', absolute: false))
+            ->assertOk()
+            ->assertSeeText('Parent Student')
+            ->assertDontSeeText('Other Student');
+
         $this->get(route('invoices.index', absolute: false))
             ->assertOk()
             ->assertSeeText($ownInvoice->invoice_no)
             ->assertDontSeeText($otherInvoice->invoice_no);
 
+        Activity::create([
+            'title' => 'Parent Activity',
+            'activity_date' => '2026-09-22',
+            'audience_scope' => 'single_group',
+            'group_id' => $ownEnrollment->group_id,
+            'fee_amount' => 15,
+            'is_active' => true,
+        ]);
+
+        Activity::create([
+            'title' => 'Hidden Parent Activity',
+            'activity_date' => '2026-09-23',
+            'audience_scope' => 'single_group',
+            'group_id' => $otherEnrollment->group_id,
+            'fee_amount' => 18,
+            'is_active' => true,
+        ]);
+
+        $this->get(route('activities.family', absolute: false))
+            ->assertOk()
+            ->assertSeeText('Parent Activity')
+            ->assertDontSeeText('Hidden Parent Activity');
+
         foreach ([
             route('students.files', $ownStudent, absolute: false),
+            route('quran-tests.index', absolute: false),
+            route('points.index', absolute: false),
             route('enrollments.memorization', $ownEnrollment, absolute: false),
             route('enrollments.quran-tests', $ownEnrollment, absolute: false),
             route('enrollments.points', $ownEnrollment, absolute: false),
@@ -172,8 +238,37 @@ class ManagementPagesTest extends TestCase
             ->assertSeeText('Student Scope Group')
             ->assertDontSeeText('Other Group');
 
+        MemorizationSession::create([
+            'enrollment_id' => $ownEnrollment->id,
+            'student_id' => $ownEnrollment->student_id,
+            'teacher_id' => $ownEnrollment->group->teacher_id,
+            'recorded_on' => '2026-09-12',
+            'entry_type' => 'new',
+            'from_page' => 9,
+            'to_page' => 11,
+            'pages_count' => 3,
+        ]);
+
+        MemorizationSession::create([
+            'enrollment_id' => $otherEnrollment->id,
+            'student_id' => $otherEnrollment->student_id,
+            'teacher_id' => $otherEnrollment->group->teacher_id,
+            'recorded_on' => '2026-09-13',
+            'entry_type' => 'new',
+            'from_page' => 12,
+            'to_page' => 14,
+            'pages_count' => 3,
+        ]);
+
+        $this->get(route('memorization.index', absolute: false))
+            ->assertOk()
+            ->assertSeeText($studentRecord->first_name.' '.$studentRecord->last_name)
+            ->assertDontSeeText('Other Student');
+
         foreach ([
             route('students.files', $studentRecord, absolute: false),
+            route('quran-tests.index', absolute: false),
+            route('points.index', absolute: false),
             route('enrollments.memorization', $ownEnrollment, absolute: false),
             route('enrollments.quran-tests', $ownEnrollment, absolute: false),
             route('enrollments.points', $ownEnrollment, absolute: false),

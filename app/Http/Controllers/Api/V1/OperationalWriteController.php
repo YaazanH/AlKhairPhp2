@@ -23,6 +23,7 @@ use App\Services\AccessScopeService;
 use App\Services\AssessmentService;
 use App\Services\PointLedgerService;
 use App\Services\QuranProgressionService;
+use App\Services\StudentAttendanceDayService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -68,17 +69,25 @@ class OperationalWriteController extends Controller
             ->keyBy('id');
 
         $day = DB::transaction(function () use ($request, $group, $validated, $enrollments, $attendanceStatuses) {
-            $day = GroupAttendanceDay::query()->updateOrCreate(
-                [
-                    'group_id' => $group->id,
-                    'attendance_date' => $validated['attendance_date'],
-                ],
-                [
-                    'created_by' => $request->user()->id,
-                    'notes' => blank($validated['notes'] ?? null) ? null : $validated['notes'],
-                    'status' => $validated['status'] ?? 'completed',
-                ],
+            $notes = blank($validated['notes'] ?? null) ? null : $validated['notes'];
+            $status = $validated['status'] ?? 'completed';
+            $studentAttendanceDay = app(StudentAttendanceDayService::class)->createOrSyncDay(
+                $validated['attendance_date'],
+                collect([$group]),
+                $request->user(),
+                $notes,
+                $status,
             );
+            $day = GroupAttendanceDay::query()
+                ->where('student_attendance_day_id', $studentAttendanceDay->id)
+                ->where('group_id', $group->id)
+                ->firstOrFail();
+
+            $day->update([
+                'created_by' => $day->created_by ?? $request->user()->id,
+                'notes' => $notes,
+                'status' => $status,
+            ]);
 
             $ledger = app(PointLedgerService::class);
 
@@ -99,22 +108,18 @@ class OperationalWriteController extends Controller
 
                 $ledger->voidSourceTransactions('student_attendance_record', $record->id, 'Superseded by an integration API attendance update.');
 
-                $policy = $ledger->resolvePolicy('attendance', $attendanceStatus->code, $enrollment->student?->grade_level_id);
-
-                if ($policy) {
-                    $ledger->recordAutomaticPoints(
-                        $enrollment,
-                        'student_attendance_record',
-                        $record->id,
-                        $policy->pointType,
-                        $policy,
-                        $policy->points,
-                        'Automatic attendance points from the integration API.',
-                    );
-                }
+                $ledger->recordAttendanceStatusPoints(
+                    $enrollment,
+                    'student_attendance_record',
+                    $record->id,
+                    $attendanceStatus,
+                    'Automatic attendance points from the integration API.',
+                );
 
                 $ledger->syncEnrollmentCaches($enrollment->fresh(['student']));
             }
+
+            app(StudentAttendanceDayService::class)->syncAggregateStatus($studentAttendanceDay);
 
             return $day->fresh(['records.status', 'records.enrollment.student']);
         });

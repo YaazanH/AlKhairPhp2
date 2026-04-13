@@ -37,7 +37,7 @@ return new class extends Migration
             $table->timestamps();
             $table->softDeletes();
 
-            $table->unique(['activity_id', 'student_id']);
+            $table->unique(['activity_id', 'student_id'], 'ac_id_st_id_unique');
         });
 
         Schema::create('activity_expenses', function (Blueprint $table) {

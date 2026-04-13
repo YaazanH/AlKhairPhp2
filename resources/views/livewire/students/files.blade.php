@@ -124,144 +124,163 @@ new class extends Component {
     }
 }; ?>
 
-<div class="flex w-full flex-1 flex-col gap-6 p-6 lg:p-8">
-    <div class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-            <a href="{{ route('students.index') }}" wire:navigate class="text-sm font-medium text-neutral-500 hover:text-neutral-900 dark:hover:text-white">{{ __('media.student_files.back') }}</a>
-            <flux:heading size="xl" class="mt-2">{{ __('media.student_files.heading') }}</flux:heading>
-            <flux:subheading>{{ __('media.student_files.subheading') }}</flux:subheading>
-        </div>
+<div class="page-stack">
+    <section class="page-hero p-6 lg:p-8">
+        <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+                <a href="{{ route('students.index') }}" wire:navigate class="text-sm font-medium text-neutral-200/80 hover:text-white">{{ __('media.student_files.back') }}</a>
+                <div class="eyebrow mt-4">{{ __('ui.nav.people') }}</div>
+                <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('media.student_files.heading') }}</h1>
+                <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ __('media.student_files.subheading') }}</p>
+            </div>
 
-        <div class="rounded-2xl border border-neutral-200 bg-white px-5 py-4 shadow-sm dark:border-neutral-700 dark:bg-neutral-900">
-            <div class="text-sm font-medium">{{ $studentRecord->first_name }} {{ $studentRecord->last_name }}</div>
-            <div class="mt-1 text-sm text-neutral-500">{{ $studentRecord->parentProfile?->father_name ?: __('media.student_files.profile.no_parent') }}</div>
-            <div class="mt-1 text-sm text-neutral-500">{{ $studentRecord->gradeLevel?->name ?: __('media.student_files.profile.no_grade') }}</div>
+            <div class="surface-panel px-5 py-4">
+                <div class="text-sm font-semibold text-white">{{ $studentRecord->first_name }} {{ $studentRecord->last_name }}</div>
+                <div class="mt-1 text-sm text-neutral-400">{{ $studentRecord->parentProfile?->father_name ?: __('media.student_files.profile.no_parent') }}</div>
+                <div class="mt-1 text-sm text-neutral-400">{{ $studentRecord->gradeLevel?->name ?: __('media.student_files.profile.no_grade') }}</div>
+            </div>
         </div>
-    </div>
+    </section>
 
     @if (session('status'))
-        <div class="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+        <div class="flash-success px-4 py-3 text-sm">
             {{ session('status') }}
         </div>
     @endif
 
+    <section class="admin-kpi-grid">
+        <article class="stat-card">
+            <div class="kpi-label">{{ __('media.student_files.files.stored') }}</div>
+            <div class="metric-value mt-3">{{ number_format($studentFiles->count()) }}</div>
+        </article>
+        <article class="stat-card">
+            <div class="kpi-label">{{ __('media.student_files.photo.title') }}</div>
+            <div class="mt-4 text-lg font-semibold text-white">{{ $photoUrl ? __('crud.common.status_options.active') : __('crud.common.not_available') }}</div>
+        </article>
+        <article class="stat-card">
+            <div class="kpi-label">{{ __('crud.students.form.fields.grade_level') }}</div>
+            <div class="mt-4 text-lg font-semibold text-white">{{ $studentRecord->gradeLevel?->name ?: __('media.student_files.profile.no_grade') }}</div>
+        </article>
+    </section>
+
     <div class="grid gap-6 xl:grid-cols-[24rem_minmax(0,1fr)]">
         <section class="space-y-6">
-            <div class="rounded-xl border border-neutral-200 p-5 dark:border-neutral-700">
-                <div class="mb-4">
-                    <h2 class="text-lg font-semibold">{{ __('media.student_files.photo.title') }}</h2>
-                    <p class="text-sm text-neutral-500">{{ __('media.student_files.photo.description') }}</p>
+            <div class="surface-panel p-5 lg:p-6">
+                <div class="admin-section-card__header">
+                    <div class="admin-section-card__title">{{ __('media.student_files.photo.title') }}</div>
+                    <p class="admin-section-card__copy">{{ __('media.student_files.photo.description') }}</p>
                 </div>
 
-                <div class="mb-4 flex justify-center">
+                <div class="mt-5 flex justify-center">
                     @if ($photo_upload)
-                        <img src="{{ $photo_upload->temporaryUrl() }}" alt="{{ __('media.student_files.photo.preview_alt') }}" class="h-44 w-44 rounded-2xl object-cover shadow-sm">
+                        <img src="{{ $photo_upload->temporaryUrl() }}" alt="{{ __('media.student_files.photo.preview_alt') }}" class="h-44 w-44 rounded-3xl object-cover shadow-sm">
                     @elseif ($photoUrl)
-                        <img src="{{ $photoUrl }}" alt="{{ __('media.student_files.photo.alt') }}" class="h-44 w-44 rounded-2xl object-cover shadow-sm">
+                        <img src="{{ $photoUrl }}" alt="{{ __('media.student_files.photo.alt') }}" class="h-44 w-44 rounded-3xl object-cover shadow-sm">
                     @else
-                        <div class="flex h-44 w-44 items-center justify-center rounded-2xl border border-dashed border-neutral-300 text-center text-sm text-neutral-500 dark:border-neutral-700">
+                        <div class="flex h-44 w-44 items-center justify-center rounded-3xl border border-dashed border-white/15 text-center text-sm text-neutral-400">
                             {{ __('media.student_files.photo.empty') }}
                         </div>
                     @endif
                 </div>
 
                 @if (auth()->user()->can('students.photo.update'))
-                    <form wire:submit="savePhoto" class="space-y-4">
+                    <form wire:submit="savePhoto" class="mt-5 space-y-4">
                         <div>
                             <label for="student-photo-upload" class="mb-1 block text-sm font-medium">{{ __('media.student_files.photo.upload') }}</label>
-                            <input id="student-photo-upload" wire:model="photo_upload" type="file" accept="image/*" class="block w-full text-sm">
+                            <input id="student-photo-upload" wire:model="photo_upload" type="file" accept="image/*" class="block w-full text-sm text-neutral-300">
                             @error('photo_upload')
-                                <div class="mt-1 text-sm text-red-600">{{ $message }}</div>
+                                <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                             @enderror
                         </div>
 
-                        <div class="flex items-center gap-3">
-                            <button type="submit" class="rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white dark:bg-white dark:text-neutral-900">
+                        <div class="flex flex-wrap items-center gap-3">
+                            <button type="submit" class="pill-link pill-link--accent">
                                 {{ __('media.student_files.photo.save') }}
                             </button>
 
                             @if ($photoUrl)
-                                <button type="button" wire:click="removePhoto" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="rounded-lg border border-red-300 px-4 py-2 text-sm font-medium text-red-700 dark:border-red-800 dark:text-red-300">
+                                <button type="button" wire:click="removePhoto" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link border-red-400/25 text-red-200 hover:border-red-300/35 hover:bg-red-500/12">
                                     {{ __('media.student_files.photo.remove') }}
                                 </button>
                             @endif
                         </div>
                     </form>
                 @else
-                    <p class="text-sm text-neutral-500">{{ __('media.student_files.photo.readonly') }}</p>
+                    <div class="mt-5 soft-callout px-4 py-4 text-sm leading-6">
+                        {{ __('media.student_files.photo.readonly') }}
+                    </div>
                 @endif
-            </div>
-
-            <div class="rounded-xl border border-neutral-200 p-5 dark:border-neutral-700">
-                <div class="mb-2 text-sm text-neutral-500">{{ __('media.student_files.files.stored') }}</div>
-                <div class="text-3xl font-semibold">{{ number_format($studentFiles->count()) }}</div>
             </div>
         </section>
 
-        <section class="overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700">
-            <div class="border-b border-neutral-200 px-5 py-4 dark:border-neutral-700">
-                <h2 class="text-lg font-semibold">{{ __('media.student_files.files.title') }}</h2>
-                <p class="mt-1 text-sm text-neutral-500">{{ __('media.student_files.files.description') }}</p>
+        <section class="surface-table">
+            <div class="admin-grid-meta">
+                <div>
+                    <div class="admin-grid-meta__title">{{ __('media.student_files.files.title') }}</div>
+                    <div class="admin-grid-meta__summary">{{ __('crud.common.badges.in_view', ['count' => number_format($studentFiles->count())]) }}</div>
+                </div>
             </div>
 
-            <div class="space-y-6 p-5">
+            <div class="space-y-6 p-5 lg:p-6">
                 @if (auth()->user()->can('students.files.manage'))
-                    <form wire:submit="uploadFile" class="grid gap-4 rounded-xl border border-neutral-200 p-4 dark:border-neutral-700 md:grid-cols-[12rem_minmax(0,1fr)_auto] md:items-end">
-                        <div>
-                            <label for="student-file-type" class="mb-1 block text-sm font-medium">{{ __('media.student_files.files.fields.type') }}</label>
-                            <input id="student-file-type" wire:model="file_type" type="text" placeholder="{{ __('media.student_files.files.placeholder') }}" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
-                            @error('file_type')
-                                <div class="mt-1 text-sm text-red-600">{{ $message }}</div>
-                            @enderror
-                        </div>
+                    <form wire:submit="uploadFile" class="rounded-3xl border border-white/10 bg-white/[0.03] p-4">
+                        <div class="grid gap-4 md:grid-cols-[12rem_minmax(0,1fr)_auto] md:items-end">
+                            <div>
+                                <label for="student-file-type" class="mb-1 block text-sm font-medium">{{ __('media.student_files.files.fields.type') }}</label>
+                                <input id="student-file-type" wire:model="file_type" type="text" placeholder="{{ __('media.student_files.files.placeholder') }}" class="w-full rounded-xl px-4 py-3 text-sm">
+                                @error('file_type')
+                                    <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
+                                @enderror
+                            </div>
 
-                        <div>
-                            <label for="student-file-upload" class="mb-1 block text-sm font-medium">{{ __('media.student_files.files.fields.file') }}</label>
-                            <input id="student-file-upload" wire:model="file_upload" type="file" class="block w-full text-sm">
-                            @error('file_upload')
-                                <div class="mt-1 text-sm text-red-600">{{ $message }}</div>
-                            @enderror
-                        </div>
+                            <div>
+                                <label for="student-file-upload" class="mb-1 block text-sm font-medium">{{ __('media.student_files.files.fields.file') }}</label>
+                                <input id="student-file-upload" wire:model="file_upload" type="file" class="block w-full text-sm text-neutral-300">
+                                @error('file_upload')
+                                    <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
+                                @enderror
+                            </div>
 
-                        <button type="submit" class="rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white dark:bg-white dark:text-neutral-900">
-                            {{ __('media.student_files.files.upload') }}
-                        </button>
+                            <button type="submit" class="pill-link pill-link--accent">
+                                {{ __('media.student_files.files.upload') }}
+                            </button>
+                        </div>
                     </form>
                 @endif
 
                 @if ($studentFiles->isEmpty())
-                    <div class="rounded-xl border border-dashed border-neutral-300 px-4 py-10 text-center text-sm text-neutral-500 dark:border-neutral-700">
+                    <div class="admin-empty-state">
                         {{ __('media.student_files.files.empty') }}
                     </div>
                 @else
                     <div class="overflow-x-auto">
-                        <table class="min-w-full divide-y divide-neutral-200 text-sm dark:divide-neutral-700">
-                            <thead class="bg-neutral-50 dark:bg-neutral-900/60">
+                        <table class="text-sm">
+                            <thead>
                                 <tr>
-                                    <th class="px-4 py-3 text-left font-medium">{{ __('media.student_files.files.headers.file') }}</th>
-                                    <th class="px-4 py-3 text-left font-medium">{{ __('media.student_files.files.headers.type') }}</th>
-                                    <th class="px-4 py-3 text-left font-medium">{{ __('media.student_files.files.headers.uploaded_by') }}</th>
-                                    <th class="px-4 py-3 text-left font-medium">{{ __('media.student_files.files.headers.uploaded_at') }}</th>
-                                    <th class="px-4 py-3 text-right font-medium">{{ __('media.student_files.files.headers.actions') }}</th>
+                                    <th class="px-4 py-4 text-left lg:px-5">{{ __('media.student_files.files.headers.file') }}</th>
+                                    <th class="px-4 py-4 text-left lg:px-5">{{ __('media.student_files.files.headers.type') }}</th>
+                                    <th class="px-4 py-4 text-left lg:px-5">{{ __('media.student_files.files.headers.uploaded_by') }}</th>
+                                    <th class="px-4 py-4 text-left lg:px-5">{{ __('media.student_files.files.headers.uploaded_at') }}</th>
+                                    <th class="px-4 py-4 text-right lg:px-5">{{ __('media.student_files.files.headers.actions') }}</th>
                                 </tr>
                             </thead>
-                            <tbody class="divide-y divide-neutral-200 dark:divide-neutral-700">
+                            <tbody class="divide-y divide-white/6">
                                 @foreach ($studentFiles as $studentFile)
                                     <tr>
-                                        <td class="px-4 py-3">
-                                            <div class="font-medium">{{ $studentFile->original_name }}</div>
+                                        <td class="px-4 py-4 lg:px-5">
+                                            <div class="font-medium text-white">{{ $studentFile->original_name }}</div>
                                             <div class="text-xs text-neutral-500">{{ $studentFile->file_path }}</div>
                                         </td>
-                                        <td class="px-4 py-3">{{ $studentFile->file_type }}</td>
-                                        <td class="px-4 py-3">{{ $studentFile->uploader?->name ?: __('media.student_files.files.system') }}</td>
-                                        <td class="px-4 py-3">{{ $studentFile->created_at?->format('Y-m-d H:i') }}</td>
-                                        <td class="px-4 py-3">
-                                            <div class="flex justify-end gap-2">
-                                                <a href="{{ asset('storage/'.ltrim($studentFile->file_path, '/')) }}" target="_blank" class="rounded-lg border border-neutral-300 px-3 py-1.5 dark:border-neutral-700">
+                                        <td class="px-4 py-4 text-neutral-300 lg:px-5">{{ $studentFile->file_type }}</td>
+                                        <td class="px-4 py-4 text-neutral-300 lg:px-5">{{ $studentFile->uploader?->name ?: __('media.student_files.files.system') }}</td>
+                                        <td class="px-4 py-4 text-neutral-300 lg:px-5">{{ $studentFile->created_at?->format('Y-m-d H:i') }}</td>
+                                        <td class="px-4 py-4 lg:px-5">
+                                            <div class="admin-action-cluster admin-action-cluster--end">
+                                                <a href="{{ asset('storage/'.ltrim($studentFile->file_path, '/')) }}" target="_blank" class="pill-link pill-link--compact">
                                                     {{ __('media.student_files.files.open') }}
                                                 </a>
                                                 @can('students.files.manage')
-                                                    <button type="button" wire:click="deleteFile({{ $studentFile->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="rounded-lg border border-red-300 px-3 py-1.5 text-red-700 dark:border-red-800 dark:text-red-300">
+                                                    <button type="button" wire:click="deleteFile({{ $studentFile->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link pill-link--compact border-red-400/25 text-red-200 hover:border-red-300/35 hover:bg-red-500/12">
                                                         {{ __('crud.common.actions.delete') }}
                                                     </button>
                                                 @endcan

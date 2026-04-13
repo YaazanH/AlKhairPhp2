@@ -109,6 +109,11 @@ class User extends Authenticatable // implements MustVerifyEmail
         return $this->hasOne(Student::class);
     }
 
+    public function studentAttendanceDays(): HasMany
+    {
+        return $this->hasMany(StudentAttendanceDay::class, 'created_by');
+    }
+
     public function teacherProfile(): HasOne
     {
         return $this->hasOne(Teacher::class);

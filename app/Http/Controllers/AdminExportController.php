@@ -94,6 +94,7 @@ class AdminExportController extends Controller
                 $builder
                     ->where('first_name', 'like', '%'.$search.'%')
                     ->orWhere('last_name', 'like', '%'.$search.'%')
+                    ->orWhere('student_number', 'like', '%'.$search.'%')
                     ->orWhere('school_name', 'like', '%'.$search.'%')
                     ->orWhereHas('parentProfile', fn ($parentQuery) => $parentQuery
                         ->where('father_name', 'like', '%'.$search.'%')
@@ -105,8 +106,9 @@ class AdminExportController extends Controller
             $query->where('status', $request->string('status')->value());
         }
 
-        return $this->streamCsv('students', ['Student', 'Parent', 'School', 'Grade', 'Current Juz', 'Enrollments', 'Status'], $query->get()->map(fn (Student $student) => [
+        return $this->streamCsv('students', ['Student', 'Student Number', 'Parent', 'School', 'Grade', 'Current Juz', 'Enrollments', 'Status'], $query->get()->map(fn (Student $student) => [
             trim($student->first_name.' '.$student->last_name),
+            $student->student_number,
             $student->parentProfile?->father_name,
             $student->school_name,
             $student->gradeLevel?->name,

@@ -24,6 +24,7 @@ return [
             'memorization' => 'Memorization',
             'tests' => 'Tests',
             'points' => 'Points',
+            'progress' => 'Progress',
         ],
         'badges' => [
             'in_view' => ':count in view',
@@ -47,7 +48,9 @@ return [
             'female' => 'Female',
         ],
         'confirm_delete' => [
+            'confirm' => 'Continue',
             'message' => 'Are you sure you want to delete this record? This action cannot be undone.',
+            'title' => 'Confirm action',
         ],
     ],
     'parents' => [
@@ -224,6 +227,7 @@ return [
                 'parent' => 'Parent',
                 'first_name' => 'First name',
                 'last_name' => 'Last name',
+                'student_number' => 'Student number',
                 'birth_date' => 'Birth date',
                 'gender' => 'Gender',
                 'school' => 'School',
@@ -261,6 +265,7 @@ return [
             'empty' => 'No student records yet.',
             'headers' => [
                 'student' => 'Student',
+                'student_number' => 'Student No.',
                 'parent' => 'Parent',
                 'grade' => 'Grade',
                 'juz' => 'Juz',

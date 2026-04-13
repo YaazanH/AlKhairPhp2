@@ -24,6 +24,7 @@ new class extends Component {
     public string $filter_visibility = '';
     public ?int $context_student_id = null;
     public ?int $context_enrollment_id = null;
+    public bool $showForm = false;
 
     public function mount(): void
     {
@@ -99,6 +100,14 @@ new class extends Component {
         $this->resetValidation('enrollment_id');
     }
 
+    public function create(): void
+    {
+        $this->authorizePermission('student-notes.create');
+
+        $this->cancel(closeForm: false);
+        $this->showForm = true;
+    }
+
     public function save(): void
     {
         $this->authorizePermission($this->editingId ? 'student-notes.update' : 'student-notes.create');
@@ -152,11 +161,12 @@ new class extends Component {
         $this->visibility = $note->visibility;
         $this->noted_at = $note->noted_at?->format('Y-m-d\TH:i') ?? now()->format('Y-m-d\TH:i');
         $this->body = $note->body;
+        $this->showForm = true;
 
         $this->resetValidation();
     }
 
-    public function cancel(): void
+    public function cancel(bool $closeForm = true): void
     {
         $this->editingId = null;
         $this->student_id = $this->context_student_id;
@@ -168,6 +178,10 @@ new class extends Component {
 
         if ($this->context_student_id) {
             $this->filter_student_id = $this->context_student_id;
+        }
+
+        if ($closeForm) {
+            $this->showForm = false;
         }
 
         $this->resetValidation();
@@ -333,39 +347,52 @@ new class extends Component {
     }
 }; ?>
 
-<div class="flex w-full flex-1 flex-col gap-6 p-6 lg:p-8">
-    <div>
-        <flux:heading size="xl">{{ __('notes.heading') }}</flux:heading>
-        <flux:subheading>{{ __('notes.subheading') }}</flux:subheading>
-    </div>
+<div class="page-stack">
+    <section class="page-hero p-6 lg:p-8">
+        <div class="eyebrow">{{ __('ui.nav.students') }}</div>
+        <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('notes.heading') }}</h1>
+        <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ __('notes.subheading') }}</p>
+    </section>
 
     @if (session('status'))
-        <div class="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+        <div class="flash-success px-4 py-3 text-sm">
             {{ session('status') }}
         </div>
     @endif
 
-    <div class="grid gap-4 md:grid-cols-3">
-        <div class="rounded-xl border border-neutral-200 p-5 dark:border-neutral-700">
-            <div class="text-sm text-neutral-500">{{ __('notes.stats.all') }}</div>
-            <div class="mt-2 text-3xl font-semibold">{{ number_format($totals['all']) }}</div>
-        </div>
+    <section class="admin-kpi-grid">
+        <article class="stat-card">
+            <div class="kpi-label">{{ __('notes.stats.all') }}</div>
+            <div class="metric-value mt-3">{{ number_format($totals['all']) }}</div>
+        </article>
 
-        <div class="rounded-xl border border-neutral-200 p-5 dark:border-neutral-700">
-            <div class="text-sm text-neutral-500">{{ __('notes.stats.parent_visible') }}</div>
-            <div class="mt-2 text-3xl font-semibold">{{ number_format($totals['parent_visible']) }}</div>
-        </div>
+        <article class="stat-card">
+            <div class="kpi-label">{{ __('notes.stats.parent_visible') }}</div>
+            <div class="metric-value mt-3">{{ number_format($totals['parent_visible']) }}</div>
+        </article>
 
-        <div class="rounded-xl border border-neutral-200 p-5 dark:border-neutral-700">
-            <div class="text-sm text-neutral-500">{{ __('notes.stats.today') }}</div>
-            <div class="mt-2 text-3xl font-semibold">{{ number_format($totals['today']) }}</div>
-        </div>
-    </div>
+        <article class="stat-card">
+            <div class="kpi-label">{{ __('notes.stats.today') }}</div>
+            <div class="metric-value mt-3">{{ number_format($totals['today']) }}</div>
+        </article>
+    </section>
 
-    <div class="grid gap-6 xl:grid-cols-[29rem_minmax(0,1fr)]">
-        <section class="rounded-xl border border-neutral-200 p-5 dark:border-neutral-700">
+    <div class="space-y-6">
+        @if ($showForm)
+        <section class="admin-modal" role="dialog" aria-modal="true">
+            <div class="admin-modal__backdrop" wire:click="cancel"></div>
+            <div class="admin-modal__viewport">
+                <div class="admin-modal__dialog admin-modal__dialog--3xl">
+                    <div class="admin-modal__header">
+                        <div>
+                            <div class="admin-modal__title">{{ $editingId ? __('notes.form.edit_title') : __('notes.form.create_title') }}</div>
+                            <p class="admin-modal__description">{{ $teacherMode ? __('notes.form.teacher_help') : __('notes.form.manager_help') }}</p>
+                        </div>
+                        <button type="button" wire:click="cancel" class="admin-modal__close" aria-label="{{ __('crud.common.actions.cancel') }}">×</button>
+                    </div>
+                    <div class="admin-modal__body">
             @if (auth()->user()->can('student-notes.create') || auth()->user()->can('student-notes.update'))
-                <div class="mb-4">
+                <div class="mb-4 md:hidden">
                     <h2 class="text-lg font-semibold">{{ $editingId ? __('notes.form.edit_title') : __('notes.form.create_title') }}</h2>
                     <p class="text-sm text-neutral-500">
                         @if ($teacherMode)
@@ -448,13 +475,17 @@ new class extends Component {
             @else
                 <div class="text-sm text-neutral-500">{{ __('notes.read_only') }}</div>
             @endif
+                    </div>
+                </div>
+            </div>
         </section>
+        @endif
 
-        <section class="overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700">
-            <div class="flex flex-col gap-4 border-b border-neutral-200 px-5 py-4 dark:border-neutral-700 lg:flex-row lg:items-end lg:justify-between">
+        <section class="surface-table">
+            <div class="admin-grid-meta">
                 <div>
-                    <div class="text-sm font-medium">{{ __('notes.log.title') }}</div>
-                    <div class="text-xs text-neutral-500">{{ __('notes.log.subtitle') }}</div>
+                    <div class="admin-grid-meta__title">{{ __('notes.log.title') }}</div>
+                    <div class="admin-grid-meta__summary">{{ __('notes.log.subtitle') }}</div>
                 </div>
 
                 <div class="grid gap-3 md:grid-cols-3">
@@ -485,6 +516,12 @@ new class extends Component {
                         </button>
                     </div>
                 </div>
+
+                @can('student-notes.create')
+                    <button type="button" wire:click="create" class="pill-link pill-link--accent">
+                        {{ __('notes.form.create_title') }}
+                    </button>
+                @endcan
             </div>
 
             @if ($notes->isEmpty())

@@ -51,12 +51,27 @@ class MasterDataSeeder extends Seeder
         ], ['name'], ['sort_order', 'is_active', 'updated_at']);
 
         DB::table('attendance_statuses')->upsert([
-            ['name' => 'Present', 'code' => 'present', 'scope' => 'both', 'default_points' => 0, 'color' => 'green', 'is_present' => true, 'is_active' => true, 'created_at' => $now, 'updated_at' => $now],
-            ['name' => 'Absent', 'code' => 'absent', 'scope' => 'both', 'default_points' => 0, 'color' => 'red', 'is_present' => false, 'is_active' => true, 'created_at' => $now, 'updated_at' => $now],
-            ['name' => 'Late', 'code' => 'late', 'scope' => 'both', 'default_points' => 0, 'color' => 'amber', 'is_present' => false, 'is_active' => true, 'created_at' => $now, 'updated_at' => $now],
-            ['name' => 'Excused', 'code' => 'excused', 'scope' => 'both', 'default_points' => 0, 'color' => 'blue', 'is_present' => false, 'is_active' => true, 'created_at' => $now, 'updated_at' => $now],
-            ['name' => 'Early Leave', 'code' => 'early-leave', 'scope' => 'student', 'default_points' => 0, 'color' => 'orange', 'is_present' => false, 'is_active' => true, 'created_at' => $now, 'updated_at' => $now],
-        ], ['code'], ['name', 'scope', 'default_points', 'color', 'is_present', 'is_active', 'updated_at']);
+            ['name' => 'Present', 'code' => 'present', 'scope' => 'both', 'default_points' => 2, 'color' => 'green', 'is_present' => true, 'is_default' => true, 'is_active' => true, 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Absent', 'code' => 'absent', 'scope' => 'both', 'default_points' => 0, 'color' => 'red', 'is_present' => false, 'is_default' => false, 'is_active' => true, 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Late', 'code' => 'late', 'scope' => 'both', 'default_points' => 1, 'color' => 'amber', 'is_present' => false, 'is_default' => false, 'is_active' => true, 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Excused', 'code' => 'excused', 'scope' => 'both', 'default_points' => 0, 'color' => 'blue', 'is_present' => false, 'is_default' => false, 'is_active' => true, 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Early Leave', 'code' => 'early-leave', 'scope' => 'student', 'default_points' => 0, 'color' => 'orange', 'is_present' => false, 'is_default' => false, 'is_active' => true, 'created_at' => $now, 'updated_at' => $now],
+        ], ['code'], ['name', 'scope', 'default_points', 'color', 'is_present', 'is_default', 'is_active', 'updated_at']);
+
+        $defaultAttendanceStatusId = DB::table('attendance_statuses')
+            ->where('is_default', true)
+            ->where('code', '!=', 'present')
+            ->where('is_active', true)
+            ->whereIn('scope', ['student', 'both'])
+            ->orderBy('id')
+            ->value('id') ?? DB::table('attendance_statuses')
+                ->where('code', 'present')
+                ->value('id');
+
+        if ($defaultAttendanceStatusId) {
+            DB::table('attendance_statuses')->update(['is_default' => false]);
+            DB::table('attendance_statuses')->where('id', $defaultAttendanceStatusId)->update(['is_default' => true]);
+        }
 
         DB::table('assessment_types')->upsert([
             ['name' => 'Exam', 'code' => 'exam', 'is_scored' => true, 'is_active' => true, 'created_at' => $now, 'updated_at' => $now],
@@ -72,53 +87,63 @@ class MasterDataSeeder extends Seeder
 
         DB::table('point_types')->upsert([
             ['name' => 'Memorization Page', 'code' => 'memorization-page', 'category' => 'memorization', 'default_points' => 0, 'allow_manual_entry' => false, 'allow_negative' => false, 'is_active' => true, 'created_at' => $now, 'updated_at' => $now],
-            ['name' => 'Attendance Present', 'code' => 'attendance-present', 'category' => 'attendance', 'default_points' => 0, 'allow_manual_entry' => false, 'allow_negative' => false, 'is_active' => true, 'created_at' => $now, 'updated_at' => $now],
-            ['name' => 'Attendance Late', 'code' => 'attendance-late', 'category' => 'attendance', 'default_points' => 0, 'allow_manual_entry' => false, 'allow_negative' => true, 'is_active' => true, 'created_at' => $now, 'updated_at' => $now],
             ['name' => 'Quiz Score', 'code' => 'quiz-score', 'category' => 'assessment', 'default_points' => 0, 'allow_manual_entry' => false, 'allow_negative' => false, 'is_active' => true, 'created_at' => $now, 'updated_at' => $now],
             ['name' => 'Worksheet Score', 'code' => 'worksheet-score', 'category' => 'assessment', 'default_points' => 0, 'allow_manual_entry' => false, 'allow_negative' => false, 'is_active' => true, 'created_at' => $now, 'updated_at' => $now],
             ['name' => 'Exam Score', 'code' => 'exam-score', 'category' => 'assessment', 'default_points' => 0, 'allow_manual_entry' => false, 'allow_negative' => false, 'is_active' => true, 'created_at' => $now, 'updated_at' => $now],
-            ['name' => 'Bonus', 'code' => 'bonus', 'category' => 'manual', 'default_points' => 0, 'allow_manual_entry' => true, 'allow_negative' => false, 'is_active' => true, 'created_at' => $now, 'updated_at' => $now],
-            ['name' => 'Penalty', 'code' => 'penalty', 'category' => 'manual', 'default_points' => 0, 'allow_manual_entry' => true, 'allow_negative' => true, 'is_active' => true, 'created_at' => $now, 'updated_at' => $now],
         ], ['code'], ['name', 'category', 'default_points', 'allow_manual_entry', 'allow_negative', 'is_active', 'updated_at']);
 
         $pointTypeIds = DB::table('point_types')
-            ->whereIn('code', ['memorization-page', 'attendance-present', 'attendance-late'])
+            ->whereIn('code', ['memorization-page'])
             ->pluck('id', 'code');
 
         foreach ([
             [
                 'point_type_id' => $pointTypeIds['memorization-page'] ?? null,
-                'name' => 'Memorization Page Reward',
+                'name' => 'Memorization 1 Page Tier',
                 'source_type' => 'memorization',
                 'trigger_key' => 'page',
                 'grade_level_id' => null,
-                'from_value' => null,
-                'to_value' => null,
-                'points' => 1,
-                'priority' => 100,
+                'from_value' => 1,
+                'to_value' => 1,
+                'points' => 10,
+                'priority' => 300,
                 'is_active' => true,
                 'created_at' => $now,
                 'updated_at' => $now,
             ],
             [
-                'point_type_id' => $pointTypeIds['attendance-present'] ?? null,
-                'name' => 'Attendance Present Reward',
-                'source_type' => 'attendance',
-                'trigger_key' => 'present',
+                'point_type_id' => $pointTypeIds['memorization-page'] ?? null,
+                'name' => 'Memorization 2 Pages Tier',
+                'source_type' => 'memorization',
+                'trigger_key' => 'page',
                 'grade_level_id' => null,
-                'from_value' => null,
-                'to_value' => null,
-                'points' => 2,
-                'priority' => 100,
+                'from_value' => 2,
+                'to_value' => 2,
+                'points' => 25,
+                'priority' => 290,
                 'is_active' => true,
                 'created_at' => $now,
                 'updated_at' => $now,
             ],
             [
-                'point_type_id' => $pointTypeIds['attendance-late'] ?? null,
-                'name' => 'Attendance Late Reward',
-                'source_type' => 'attendance',
-                'trigger_key' => 'late',
+                'point_type_id' => $pointTypeIds['memorization-page'] ?? null,
+                'name' => 'Memorization 3 Pages Tier',
+                'source_type' => 'memorization',
+                'trigger_key' => 'page',
+                'grade_level_id' => null,
+                'from_value' => 3,
+                'to_value' => 3,
+                'points' => 40,
+                'priority' => 280,
+                'is_active' => true,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ],
+            [
+                'point_type_id' => $pointTypeIds['memorization-page'] ?? null,
+                'name' => 'Memorization Page Reward',
+                'source_type' => 'memorization',
+                'trigger_key' => 'page',
                 'grade_level_id' => null,
                 'from_value' => null,
                 'to_value' => null,

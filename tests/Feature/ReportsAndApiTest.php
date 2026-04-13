@@ -104,7 +104,7 @@ class ReportsAndApiTest extends TestCase
         $invoices->assertJsonPath('data.0.balance', 20);
     }
 
-    public function test_teacher_api_assessments_are_scoped_and_other_management_endpoints_are_forbidden(): void
+    public function test_teacher_api_read_endpoints_are_scoped(): void
     {
         $this->seed();
 
@@ -156,6 +156,46 @@ class ReportsAndApiTest extends TestCase
             'is_active' => true,
         ]);
 
+        $assignedParent = ParentProfile::create([
+            'father_name' => 'Assigned API Parent',
+            'father_phone' => '0944000501',
+        ]);
+
+        $otherParent = ParentProfile::create([
+            'father_name' => 'Other API Parent',
+            'father_phone' => '0944000502',
+        ]);
+
+        $assignedStudent = Student::create([
+            'parent_id' => $assignedParent->id,
+            'first_name' => 'Assigned',
+            'last_name' => 'API Student',
+            'birth_date' => '2014-05-12',
+            'status' => 'active',
+        ]);
+
+        $otherStudent = Student::create([
+            'parent_id' => $otherParent->id,
+            'first_name' => 'Other',
+            'last_name' => 'API Student',
+            'birth_date' => '2014-05-13',
+            'status' => 'active',
+        ]);
+
+        Enrollment::create([
+            'student_id' => $assignedStudent->id,
+            'group_id' => $assignedGroup->id,
+            'enrolled_at' => now()->toDateString(),
+            'status' => 'active',
+        ]);
+
+        Enrollment::create([
+            'student_id' => $otherStudent->id,
+            'group_id' => $otherGroup->id,
+            'enrolled_at' => now()->toDateString(),
+            'status' => 'active',
+        ]);
+
         Assessment::create([
             'group_id' => $assignedGroup->id,
             'assessment_type_id' => $quizTypeId,
@@ -172,7 +212,11 @@ class ReportsAndApiTest extends TestCase
 
         Sanctum::actingAs($teacherUser);
 
-        $this->getJson('/api/v1/students')->assertForbidden();
+        $this->getJson('/api/v1/students')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.first_name', 'Assigned')
+            ->assertJsonPath('data.0.last_name', 'API Student');
 
         $this->getJson('/api/v1/assessments')
             ->assertOk()

@@ -16,6 +16,7 @@ class AttendanceStatus extends Model
         'default_points',
         'color',
         'is_present',
+        'is_default',
         'is_active',
     ];
 
@@ -24,6 +25,7 @@ class AttendanceStatus extends Model
         return [
             'default_points' => 'integer',
             'is_present' => 'boolean',
+            'is_default' => 'boolean',
             'is_active' => 'boolean',
         ];
     }

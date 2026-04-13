@@ -190,164 +190,179 @@ new class extends Component {
     $invoiceTypeLabel = trans()->has('print.invoice.types.'.$invoiceRecord->invoice_type)
         ? __('print.invoice.types.'.$invoiceRecord->invoice_type)
         : \Illuminate\Support\Str::headline((string) $invoiceRecord->invoice_type);
+    $balanceDue = max((float) $invoiceRecord->total - (float) $activePaidTotal, 0);
 @endphp
 
-<div class="flex w-full flex-1 flex-col gap-6 p-6 lg:p-8">
-    <div class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+<div class="page-stack">
+    <section class="page-hero p-6 lg:p-8">
+        <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-            <a href="{{ route('invoices.index') }}" wire:navigate class="text-sm font-medium text-neutral-500 hover:text-neutral-900 dark:hover:text-white">{{ __('invoices.detail.back') }}</a>
-            <flux:heading size="xl" class="mt-2">{{ __('invoices.detail.heading') }}</flux:heading>
-            <flux:subheading>{{ __('invoices.detail.subheading') }}</flux:subheading>
+            <a href="{{ route('invoices.index') }}" wire:navigate class="text-sm font-medium text-neutral-200/80 hover:text-white">{{ __('invoices.detail.back') }}</a>
+            <div class="eyebrow mt-4">{{ __('ui.nav.finance') }}</div>
+            <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('invoices.detail.heading') }}</h1>
+            <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ __('invoices.detail.subheading') }}</p>
         </div>
         <div class="flex flex-col gap-3 lg:items-end">
-            <a href="{{ route('invoices.print', $invoiceRecord) }}" target="_blank" class="rounded-lg border border-neutral-300 px-4 py-2 text-sm font-medium dark:border-neutral-700">
+            <a href="{{ route('invoices.print', $invoiceRecord) }}" target="_blank" class="pill-link">
                 {{ __('invoices.detail.print') }}
             </a>
-            <div class="rounded-2xl border border-neutral-200 bg-white px-5 py-4 shadow-sm dark:border-neutral-700 dark:bg-neutral-900">
-                <div class="text-sm font-medium">{{ $invoiceRecord->invoice_no }}</div>
-                <div class="mt-1 text-sm text-neutral-500">{{ $invoiceRecord->parentProfile?->father_name ?: '-' }} | {{ $invoiceTypeLabel }}</div>
-                <div class="mt-1 text-sm text-neutral-500">{{ __('invoices.detail.summary.status', ['status' => $invoiceStatusLabel]) }}</div>
+            <div class="surface-panel px-5 py-4">
+                <div class="text-sm font-semibold text-white">{{ $invoiceRecord->invoice_no }}</div>
+                <div class="mt-1 text-sm text-neutral-400">{{ $invoiceRecord->parentProfile?->father_name ?: '-' }} | {{ $invoiceTypeLabel }}</div>
+                <div class="mt-1 text-sm text-neutral-400">{{ __('invoices.detail.summary.status', ['status' => $invoiceStatusLabel]) }}</div>
             </div>
         </div>
-    </div>
+        </div>
+    </section>
 
     @if (session('status'))
-        <div class="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">{{ session('status') }}</div>
+        <div class="flash-success px-4 py-3 text-sm">{{ session('status') }}</div>
     @endif
 
-    <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <div class="rounded-xl border border-neutral-200 p-5 dark:border-neutral-700"><div class="text-sm text-neutral-500">{{ __('invoices.detail.summary.subtotal') }}</div><div class="mt-2 text-3xl font-semibold">{{ number_format((float) $invoiceRecord->subtotal, 2) }}</div></div>
-        <div class="rounded-xl border border-neutral-200 p-5 dark:border-neutral-700"><div class="text-sm text-neutral-500">{{ __('invoices.detail.summary.discount') }}</div><div class="mt-2 text-3xl font-semibold">{{ number_format((float) $invoiceRecord->discount, 2) }}</div></div>
-        <div class="rounded-xl border border-neutral-200 p-5 dark:border-neutral-700"><div class="text-sm text-neutral-500">{{ __('invoices.detail.summary.paid') }}</div><div class="mt-2 text-3xl font-semibold">{{ number_format((float) $activePaidTotal, 2) }}</div></div>
-        <div class="rounded-xl border border-neutral-200 p-5 dark:border-neutral-700"><div class="text-sm text-neutral-500">{{ __('invoices.detail.summary.balance') }}</div><div class="mt-2 text-3xl font-semibold">{{ number_format(max((float) $invoiceRecord->total - (float) $activePaidTotal, 0), 2) }}</div></div>
-    </div>
+    <section class="admin-kpi-grid">
+        <article class="stat-card"><div class="kpi-label">{{ __('invoices.detail.summary.subtotal') }}</div><div class="metric-value mt-3">{{ number_format((float) $invoiceRecord->subtotal, 2) }}</div></article>
+        <article class="stat-card"><div class="kpi-label">{{ __('invoices.detail.summary.discount') }}</div><div class="metric-value mt-3">{{ number_format((float) $invoiceRecord->discount, 2) }}</div></article>
+        <article class="stat-card"><div class="kpi-label">{{ __('invoices.detail.summary.paid') }}</div><div class="metric-value mt-3">{{ number_format((float) $activePaidTotal, 2) }}</div></article>
+        <article class="stat-card"><div class="kpi-label">{{ __('invoices.detail.summary.balance') }}</div><div class="metric-value mt-3">{{ number_format($balanceDue, 2) }}</div></article>
+    </section>
 
     <div class="grid gap-6 xl:grid-cols-[23rem_23rem_minmax(0,1fr)]">
         <section class="space-y-6">
-            <div class="rounded-xl border border-neutral-200 p-5 dark:border-neutral-700">
-                <div class="mb-4 text-lg font-semibold">{{ $editingItemId ? __('invoices.detail.item_form.edit_title') : __('invoices.detail.item_form.create_title') }}</div>
-                <form wire:submit="saveItem" class="space-y-4">
+            <div class="surface-panel p-5 lg:p-6">
+                <div class="admin-section-card__header">
+                    <div class="admin-section-card__title">{{ $editingItemId ? __('invoices.detail.item_form.edit_title') : __('invoices.detail.item_form.create_title') }}</div>
+                    <p class="admin-section-card__copy">{{ __('invoices.detail.tables.items.title') }}</p>
+                </div>
+                <form wire:submit="saveItem" class="mt-5 space-y-4">
                     <div>
                         <label class="mb-1 block text-sm font-medium">{{ __('invoices.detail.item_form.fields.description') }}</label>
-                        <input wire:model="item_description" type="text" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
-                        @error('item_description') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+                        <input wire:model="item_description" type="text" class="w-full rounded-xl px-4 py-3 text-sm">
+                        @error('item_description') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
                     </div>
 
                     <div>
                         <label class="mb-1 block text-sm font-medium">{{ __('invoices.detail.item_form.fields.student') }}</label>
-                        <select wire:model="item_student_id" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                        <select wire:model="item_student_id" class="w-full rounded-xl px-4 py-3 text-sm">
                             <option value="">{{ __('invoices.detail.item_form.placeholders.student') }}</option>
                             @foreach ($students as $student)
                                 <option value="{{ $student->id }}">{{ $student->first_name }} {{ $student->last_name }}</option>
                             @endforeach
                         </select>
-                        @error('item_student_id') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+                        @error('item_student_id') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
                     </div>
 
                     <div>
                         <label class="mb-1 block text-sm font-medium">{{ __('invoices.detail.item_form.fields.enrollment') }}</label>
-                        <select wire:model="item_enrollment_id" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                        <select wire:model="item_enrollment_id" class="w-full rounded-xl px-4 py-3 text-sm">
                             <option value="">{{ __('invoices.detail.item_form.placeholders.enrollment') }}</option>
                             @foreach ($enrollments as $enrollment)
                                 <option value="{{ $enrollment->id }}">{{ $enrollment->student?->first_name }} {{ $enrollment->student?->last_name }} | {{ $enrollment->group?->name }}</option>
                             @endforeach
                         </select>
-                        @error('item_enrollment_id') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+                        @error('item_enrollment_id') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
                     </div>
 
                     <div>
                         <label class="mb-1 block text-sm font-medium">{{ __('invoices.detail.item_form.fields.activity') }}</label>
-                        <select wire:model="item_activity_id" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                        <select wire:model="item_activity_id" class="w-full rounded-xl px-4 py-3 text-sm">
                             <option value="">{{ __('invoices.detail.item_form.placeholders.activity') }}</option>
                             @foreach ($activities as $activity)
                                 <option value="{{ $activity->id }}">{{ $activity->title }} | {{ $activity->activity_date?->format('Y-m-d') }}</option>
                             @endforeach
                         </select>
-                        @error('item_activity_id') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+                        @error('item_activity_id') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
                     </div>
 
                     <div class="grid gap-4 md:grid-cols-2">
                         <div>
                             <label class="mb-1 block text-sm font-medium">{{ __('invoices.detail.item_form.fields.quantity') }}</label>
-                            <input wire:model="item_quantity" type="number" min="0" step="0.01" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
-                            @error('item_quantity') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+                            <input wire:model="item_quantity" type="number" min="0" step="0.01" class="w-full rounded-xl px-4 py-3 text-sm">
+                            @error('item_quantity') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
                         </div>
                         <div>
                             <label class="mb-1 block text-sm font-medium">{{ __('invoices.detail.item_form.fields.unit_price') }}</label>
-                            <input wire:model="item_unit_price" type="number" min="0" step="0.01" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
-                            @error('item_unit_price') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+                            <input wire:model="item_unit_price" type="number" min="0" step="0.01" class="w-full rounded-xl px-4 py-3 text-sm">
+                            @error('item_unit_price') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
                         </div>
                     </div>
 
-                    <div class="flex gap-3">
-                        <button type="submit" class="rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white dark:bg-white dark:text-neutral-900">{{ $editingItemId ? __('invoices.detail.item_form.update') : __('invoices.detail.item_form.save') }}</button>
+                    <div class="flex flex-wrap gap-3">
+                        <button type="submit" class="pill-link pill-link--accent">{{ $editingItemId ? __('invoices.detail.item_form.update') : __('invoices.detail.item_form.save') }}</button>
                         @if ($editingItemId)
-                            <button type="button" wire:click="cancelItem" class="rounded-lg border border-neutral-300 px-4 py-2 text-sm font-medium dark:border-neutral-700">{{ __('crud.common.actions.cancel') }}</button>
+                            <button type="button" wire:click="cancelItem" class="pill-link">{{ __('crud.common.actions.cancel') }}</button>
                         @endif
                     </div>
                 </form>
             </div>
 
-            <div class="rounded-xl border border-neutral-200 p-5 dark:border-neutral-700">
-                <div class="mb-4 text-lg font-semibold">{{ __('invoices.detail.payment_form.title') }}</div>
-                <form wire:submit="savePayment" class="space-y-4">
+            <div class="surface-panel p-5 lg:p-6">
+                <div class="admin-section-card__header">
+                    <div class="admin-section-card__title">{{ __('invoices.detail.payment_form.title') }}</div>
+                    <p class="admin-section-card__copy">{{ __('invoices.detail.tables.payments.title') }}</p>
+                </div>
+                <form wire:submit="savePayment" class="mt-5 space-y-4">
                     <div>
                         <label class="mb-1 block text-sm font-medium">{{ __('invoices.detail.payment_form.fields.method') }}</label>
-                        <select wire:model="payment_method_id" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                        <select wire:model="payment_method_id" class="w-full rounded-xl px-4 py-3 text-sm">
                             <option value="">{{ __('invoices.detail.payment_form.placeholders.method') }}</option>
                             @foreach ($paymentMethods as $method)
                                 <option value="{{ $method->id }}">{{ $method->name }}</option>
                             @endforeach
                         </select>
-                        @error('payment_method_id') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+                        @error('payment_method_id') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
                     </div>
 
                     <div class="grid gap-4 md:grid-cols-2">
                         <div>
                             <label class="mb-1 block text-sm font-medium">{{ __('invoices.detail.payment_form.fields.paid_at') }}</label>
-                            <input wire:model="paid_at" type="date" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
-                            @error('paid_at') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+                            <input wire:model="paid_at" type="date" class="w-full rounded-xl px-4 py-3 text-sm">
+                            @error('paid_at') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
                         </div>
                         <div>
                             <label class="mb-1 block text-sm font-medium">{{ __('invoices.detail.payment_form.fields.amount') }}</label>
-                            <input wire:model="payment_amount" type="number" min="0" step="0.01" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
-                            @error('payment_amount') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+                            <input wire:model="payment_amount" type="number" min="0" step="0.01" class="w-full rounded-xl px-4 py-3 text-sm">
+                            @error('payment_amount') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
                         </div>
                     </div>
                     <div>
                         <label class="mb-1 block text-sm font-medium">{{ __('invoices.detail.payment_form.fields.reference') }}</label>
-                        <input wire:model="payment_reference_no" type="text" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
-                        @error('payment_reference_no') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+                        <input wire:model="payment_reference_no" type="text" class="w-full rounded-xl px-4 py-3 text-sm">
+                        @error('payment_reference_no') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
                     </div>
                     <div>
                         <label class="mb-1 block text-sm font-medium">{{ __('invoices.detail.payment_form.fields.notes') }}</label>
-                        <textarea wire:model="payment_notes" rows="3" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900"></textarea>
+                        <textarea wire:model="payment_notes" rows="3" class="w-full rounded-xl px-4 py-3 text-sm"></textarea>
                     </div>
-                    <button type="submit" class="rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white dark:bg-white dark:text-neutral-900">{{ __('invoices.detail.payment_form.save') }}</button>
+                    <button type="submit" class="pill-link pill-link--accent">{{ __('invoices.detail.payment_form.save') }}</button>
                 </form>
             </div>
         </section>
 
         <section class="space-y-6 xl:col-span-2">
-            <div class="overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700">
-                <div class="border-b border-neutral-200 px-5 py-4 text-sm font-medium dark:border-neutral-700">{{ __('invoices.detail.tables.items.title') }}</div>
+            <div class="surface-table">
+                <div class="admin-grid-meta">
+                    <div>
+                        <div class="admin-grid-meta__title">{{ __('invoices.detail.tables.items.title') }}</div>
+                        <div class="admin-grid-meta__summary">{{ __('crud.common.badges.in_view', ['count' => number_format($items->count())]) }}</div>
+                    </div>
+                </div>
                 <div class="overflow-x-auto">
-                    <table class="min-w-full divide-y divide-neutral-200 text-sm dark:divide-neutral-700">
-                        <thead class="bg-neutral-50 dark:bg-neutral-900/60"><tr><th class="px-5 py-3 text-left font-medium">{{ __('invoices.detail.tables.items.headers.description') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('invoices.detail.tables.items.headers.links') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('invoices.detail.tables.items.headers.qty') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('invoices.detail.tables.items.headers.amount') }}</th><th class="px-5 py-3 text-right font-medium">{{ __('invoices.detail.tables.items.headers.actions') }}</th></tr></thead>
-                        <tbody class="divide-y divide-neutral-200 dark:divide-neutral-700">
+                    <table class="text-sm">
+                        <thead><tr><th class="px-5 py-4 text-left lg:px-6">{{ __('invoices.detail.tables.items.headers.description') }}</th><th class="px-5 py-4 text-left lg:px-6">{{ __('invoices.detail.tables.items.headers.links') }}</th><th class="px-5 py-4 text-left lg:px-6">{{ __('invoices.detail.tables.items.headers.qty') }}</th><th class="px-5 py-4 text-left lg:px-6">{{ __('invoices.detail.tables.items.headers.amount') }}</th><th class="px-5 py-4 text-right lg:px-6">{{ __('invoices.detail.tables.items.headers.actions') }}</th></tr></thead>
+                        <tbody class="divide-y divide-white/6">
                             @forelse ($items as $item)
                                 <tr>
-                                    <td class="px-5 py-3">
-                                        <div class="font-medium">{{ $item->description }}</div>
+                                    <td class="px-5 py-4 lg:px-6">
+                                        <div class="font-medium text-white">{{ $item->description }}</div>
                                         <div class="text-xs text-neutral-500">{{ __('invoices.detail.item_form.unit_price', ['amount' => number_format((float) $item->unit_price, 2)]) }}</div>
                                     </td>
-                                    <td class="px-5 py-3">
-                                        <div>{{ $item->student ? $item->student->first_name.' '.$item->student->last_name : '-' }}</div>
+                                    <td class="px-5 py-4 lg:px-6">
+                                        <div class="text-neutral-200">{{ $item->student ? $item->student->first_name.' '.$item->student->last_name : '-' }}</div>
                                         <div class="text-xs text-neutral-500">{{ $item->activity?->title ?: ($item->enrollment?->group?->name ?: '-') }}</div>
                                     </td>
-                                    <td class="px-5 py-3">{{ number_format((float) $item->quantity, 2) }}</td>
-                                    <td class="px-5 py-3">{{ number_format((float) $item->amount, 2) }}</td>
-                                    <td class="px-5 py-3"><div class="flex justify-end gap-2"><button type="button" wire:click="editItem({{ $item->id }})" class="rounded-lg border border-neutral-300 px-3 py-1.5 dark:border-neutral-700">{{ __('crud.common.actions.edit') }}</button><button type="button" wire:click="deleteItem({{ $item->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="rounded-lg border border-red-300 px-3 py-1.5 text-red-700 dark:border-red-800 dark:text-red-300">{{ __('crud.common.actions.delete') }}</button></div></td>
+                                    <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ number_format((float) $item->quantity, 2) }}</td>
+                                    <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ number_format((float) $item->amount, 2) }}</td>
+                                    <td class="px-5 py-4 lg:px-6"><div class="admin-action-cluster admin-action-cluster--end"><button type="button" wire:click="editItem({{ $item->id }})" class="pill-link pill-link--compact">{{ __('crud.common.actions.edit') }}</button><button type="button" wire:click="deleteItem({{ $item->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link pill-link--compact border-red-400/25 text-red-200 hover:border-red-300/35 hover:bg-red-500/12">{{ __('crud.common.actions.delete') }}</button></div></td>
                                 </tr>
                             @empty
                                 <tr><td colspan="5" class="px-5 py-10 text-center text-sm text-neutral-500">{{ __('invoices.detail.item_form.empty') }}</td></tr>
@@ -357,23 +372,28 @@ new class extends Component {
                 </div>
             </div>
 
-            <div class="overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700">
-                <div class="border-b border-neutral-200 px-5 py-4 text-sm font-medium dark:border-neutral-700">{{ __('invoices.detail.tables.payments.title') }}</div>
+            <div class="surface-table">
+                <div class="admin-grid-meta">
+                    <div>
+                        <div class="admin-grid-meta__title">{{ __('invoices.detail.tables.payments.title') }}</div>
+                        <div class="admin-grid-meta__summary">{{ __('crud.common.badges.in_view', ['count' => number_format($payments->count())]) }}</div>
+                    </div>
+                </div>
                 <div class="overflow-x-auto">
-                    <table class="min-w-full divide-y divide-neutral-200 text-sm dark:divide-neutral-700">
-                        <thead class="bg-neutral-50 dark:bg-neutral-900/60"><tr><th class="px-5 py-3 text-left font-medium">{{ __('invoices.detail.tables.payments.headers.date') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('invoices.detail.tables.payments.headers.method') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('invoices.detail.tables.payments.headers.amount') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('invoices.detail.tables.payments.headers.state') }}</th><th class="px-5 py-3 text-right font-medium">{{ __('invoices.detail.tables.payments.headers.actions') }}</th></tr></thead>
-                        <tbody class="divide-y divide-neutral-200 dark:divide-neutral-700">
+                    <table class="text-sm">
+                        <thead><tr><th class="px-5 py-4 text-left lg:px-6">{{ __('invoices.detail.tables.payments.headers.date') }}</th><th class="px-5 py-4 text-left lg:px-6">{{ __('invoices.detail.tables.payments.headers.method') }}</th><th class="px-5 py-4 text-left lg:px-6">{{ __('invoices.detail.tables.payments.headers.amount') }}</th><th class="px-5 py-4 text-left lg:px-6">{{ __('invoices.detail.tables.payments.headers.state') }}</th><th class="px-5 py-4 text-right lg:px-6">{{ __('invoices.detail.tables.payments.headers.actions') }}</th></tr></thead>
+                        <tbody class="divide-y divide-white/6">
                             @forelse ($payments as $payment)
                                 <tr class="{{ $payment->voided_at ? 'opacity-60' : '' }}">
-                                    <td class="px-5 py-3">{{ $payment->paid_at?->format('Y-m-d') }}</td>
-                                    <td class="px-5 py-3">{{ $payment->paymentMethod?->name ?: '-' }}</td>
-                                    <td class="px-5 py-3">{{ number_format((float) $payment->amount, 2) }}</td>
-                                    <td class="px-5 py-3">{{ __('print.states.'.($payment->voided_at ? 'voided' : 'active')) }}</td>
-                                    <td class="px-5 py-3">
-                                        <div class="flex justify-end gap-2">
-                                            <a href="{{ route('payments.receipt', $payment) }}" target="_blank" class="rounded-lg border border-neutral-300 px-3 py-1.5 dark:border-neutral-700">{{ __('invoices.detail.tables.payments.receipt') }}</a>
+                                    <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $payment->paid_at?->format('Y-m-d') }}</td>
+                                    <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $payment->paymentMethod?->name ?: '-' }}</td>
+                                    <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ number_format((float) $payment->amount, 2) }}</td>
+                                    <td class="px-5 py-4 lg:px-6"><span class="status-chip {{ $payment->voided_at ? 'status-chip--rose' : 'status-chip--emerald' }}">{{ __('print.states.'.($payment->voided_at ? 'voided' : 'active')) }}</span></td>
+                                    <td class="px-5 py-4 lg:px-6">
+                                        <div class="admin-action-cluster admin-action-cluster--end">
+                                            <a href="{{ route('payments.receipt', $payment) }}" target="_blank" class="pill-link pill-link--compact">{{ __('invoices.detail.tables.payments.receipt') }}</a>
                                             @if (! $payment->voided_at)
-                                                <button type="button" wire:click="voidPayment({{ $payment->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="rounded-lg border border-red-300 px-3 py-1.5 text-red-700 dark:border-red-800 dark:text-red-300">{{ __('invoices.detail.tables.payments.void') }}</button>
+                                                <button type="button" wire:click="voidPayment({{ $payment->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link pill-link--compact border-red-400/25 text-red-200 hover:border-red-300/35 hover:bg-red-500/12">{{ __('invoices.detail.tables.payments.void') }}</button>
                                             @endif
                                         </div>
                                     </td>

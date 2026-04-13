@@ -12,6 +12,7 @@ use App\Models\Invoice;
 use App\Models\InvoiceItem;
 use App\Models\Payment;
 use App\Models\Student;
+use App\Services\ActivityAudienceService;
 use App\Services\FinanceService;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -360,7 +361,7 @@ class FinanceWriteController extends Controller
             'enrollment_id' => ['nullable', 'integer', Rule::exists('enrollments', 'id')->whereNull('deleted_at')],
             'fee_amount' => ['required', 'numeric', 'min:0'],
             'notes' => ['nullable', 'string'],
-            'status' => ['required', Rule::in(['registered', 'cancelled', 'attended'])],
+            'status' => ['required', Rule::in(['registered', 'declined', 'cancelled', 'attended'])],
             'student_id' => [
                 'required',
                 'integer',
@@ -373,6 +374,7 @@ class FinanceWriteController extends Controller
 
         if ($validated['enrollment_id'] ?? null) {
             $enrollment = Enrollment::query()->findOrFail($validated['enrollment_id']);
+            $audience = app(ActivityAudienceService::class);
 
             if ($enrollment->student_id !== (int) $validated['student_id']) {
                 abort(response()->json([
@@ -380,9 +382,9 @@ class FinanceWriteController extends Controller
                 ], 422));
             }
 
-            if ($activity->group_id && $enrollment->group_id !== $activity->group_id) {
+            if (! $audience->enrollmentMatches($activity, $enrollment)) {
                 abort(response()->json([
-                    'message' => 'The selected enrollment must belong to this activity group.',
+                    'message' => 'The selected enrollment must belong to this activity target audience.',
                 ], 422));
             }
         }

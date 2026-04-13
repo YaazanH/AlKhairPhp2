@@ -13,11 +13,13 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Livewire\Volt\Component;
+use Livewire\WithPagination;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 
 new class extends Component {
     use AuthorizesPermissions;
+    use WithPagination;
 
     public ?int $editingId = null;
     public string $name = '';
@@ -35,6 +37,7 @@ new class extends Component {
     public string $search = '';
     public string $roleFilter = 'all';
     public string $statusFilter = 'all';
+    public int $perPage = 15;
     public bool $showFormModal = false;
 
     public function mount(): void
@@ -59,9 +62,11 @@ new class extends Component {
             ->when(in_array($this->statusFilter, ['active', 'inactive'], true), fn ($query) => $query->where('is_active', $this->statusFilter === 'active'))
             ->orderBy('name');
 
+        $filteredCount = (clone $filteredQuery)->count();
+
         return [
-            'users' => $filteredQuery->get(),
-            'filteredCount' => (clone $filteredQuery)->count(),
+            'users' => $filteredQuery->paginate($this->perPage),
+            'filteredCount' => $filteredCount,
             'availableRoles' => RoleRegistry::sortCollection(Role::query()->get()),
             'availableScopeGroups' => Group::query()->with('course')->orderBy('name')->get(),
             'availableScopeParents' => ParentProfile::query()->withCount('students')->orderBy('father_name')->get(),
@@ -72,6 +77,21 @@ new class extends Component {
                 ->get()
                 ->groupBy(fn (Permission $permission): string => Str::of($permission->name)->before('.')->replace('-', ' ')->headline()->toString()),
         ];
+    }
+
+    public function updatedSearch(): void
+    {
+        $this->resetPage();
+    }
+
+    public function updatedRoleFilter(): void
+    {
+        $this->resetPage();
+    }
+
+    public function updatedStatusFilter(): void
+    {
+        $this->resetPage();
     }
 
     public function rules(): array
@@ -407,6 +427,12 @@ new class extends Component {
                     </tbody>
                 </table>
             </div>
+
+            @if ($users->hasPages())
+                <div class="border-t border-white/8 px-5 py-4 lg:px-6">
+                    {{ $users->links() }}
+                </div>
+            @endif
         @endif
     </section>
 

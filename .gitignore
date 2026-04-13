@@ -22,3 +22,7 @@ yarn-error.log
 /.nova
 /.vscode
 /.zed
+/.vs/
+*.mov
+/.vs/AlKhairPhp/FileContentIndex
+/.vs/AlKhairPhp/FileContentIndex

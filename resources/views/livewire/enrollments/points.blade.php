@@ -15,7 +15,6 @@ new class extends Component {
     public Enrollment $currentEnrollment;
     public ?int $editingTransactionId = null;
     public ?int $manual_point_type_id = null;
-    public string $manual_points = '';
     public string $manual_notes = '';
 
     public function mount(Enrollment $enrollment): void
@@ -43,6 +42,8 @@ new class extends Component {
             'manualPointTypes' => PointType::query()
                 ->where('is_active', true)
                 ->where('allow_manual_entry', true)
+                ->where('default_points', '!=', 0)
+                ->where(fn ($query) => $query->where('allow_negative', true)->orWhere('default_points', '>', 0))
                 ->orderBy('name')
                 ->get(),
             'transactions' => $transactions,
@@ -61,14 +62,20 @@ new class extends Component {
 
         $validated = $this->validate([
             'manual_point_type_id' => ['required', 'exists:point_types,id'],
-            'manual_points' => ['required', 'integer'],
             'manual_notes' => ['nullable', 'string'],
         ]);
 
         $pointType = PointType::query()->findOrFail($validated['manual_point_type_id']);
+        $points = (int) $pointType->default_points;
 
-        if (! $pointType->allow_negative && (int) $validated['manual_points'] < 0) {
-            $this->addError('manual_points', __('workflow.points.errors.negative_not_allowed'));
+        if (! $pointType->is_active || ! $pointType->allow_manual_entry || $points === 0) {
+            $this->addError('manual_point_type_id', __('workflow.points.errors.invalid_manual_point_type'));
+
+            return;
+        }
+
+        if (! $pointType->allow_negative && $points < 0) {
+            $this->addError('manual_point_type_id', __('workflow.points.errors.negative_not_allowed'));
 
             return;
         }
@@ -79,14 +86,14 @@ new class extends Component {
                 ->findOrFail($this->editingTransactionId);
 
             if ($transaction->source_type !== 'manual' || $transaction->voided_at) {
-                $this->addError('manual_points', __('workflow.points.errors.edit_manual_only'));
+                $this->addError('manual_point_type_id', __('workflow.points.errors.edit_manual_only'));
 
                 return;
             }
 
             $transaction->update([
                 'point_type_id' => $pointType->id,
-                'points' => (int) $validated['manual_points'],
+                'points' => $points,
                 'notes' => $validated['manual_notes'] ?: null,
             ]);
         } else {
@@ -97,7 +104,7 @@ new class extends Component {
                 'policy_id' => null,
                 'source_type' => 'manual',
                 'source_id' => null,
-                'points' => (int) $validated['manual_points'],
+                'points' => $points,
                 'entered_by' => auth()->id(),
                 'entered_at' => now(),
                 'notes' => $validated['manual_notes'] ?: null,
@@ -125,14 +132,13 @@ new class extends Component {
             ->findOrFail($transactionId);
 
         if ($transaction->source_type !== 'manual' || $transaction->voided_at) {
-            $this->addError('manual_points', __('workflow.points.errors.edit_manual_only'));
+            $this->addError('manual_point_type_id', __('workflow.points.errors.edit_manual_only'));
 
             return;
         }
 
         $this->editingTransactionId = $transaction->id;
         $this->manual_point_type_id = $transaction->point_type_id;
-        $this->manual_points = (string) $transaction->points;
         $this->manual_notes = $transaction->notes ?? '';
 
         $this->resetValidation();
@@ -142,7 +148,6 @@ new class extends Component {
     {
         $this->editingTransactionId = null;
         $this->manual_point_type_id = null;
-        $this->manual_points = '';
         $this->manual_notes = '';
 
         $this->resetValidation();
@@ -235,7 +240,7 @@ new class extends Component {
                         <select id="manual-point-type" wire:model="manual_point_type_id" class="w-full rounded-xl px-4 py-3 text-sm">
                             <option value="">{{ __('workflow.points.form.select_point_type') }}</option>
                             @foreach ($manualPointTypes as $pointType)
-                                <option value="{{ $pointType->id }}">{{ $pointType->name }}</option>
+                                <option value="{{ $pointType->id }}">{{ $pointType->name }} ({{ $pointType->default_points > 0 ? '+'.$pointType->default_points : $pointType->default_points }})</option>
                             @endforeach
                         </select>
                         @error('manual_point_type_id')
@@ -243,22 +248,12 @@ new class extends Component {
                         @enderror
                     </div>
 
-                    <div class="grid gap-4 md:grid-cols-[12rem_minmax(0,1fr)]">
-                        <div>
-                            <label for="manual-points" class="mb-1 block text-sm font-medium">{{ __('workflow.points.form.points') }}</label>
-                            <input id="manual-points" wire:model="manual_points" type="number" class="w-full rounded-xl px-4 py-3 text-sm">
-                            @error('manual_points')
-                                <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
-                            @enderror
-                        </div>
-
-                        <div>
-                            <label for="manual-notes" class="mb-1 block text-sm font-medium">{{ __('workflow.points.form.notes') }}</label>
-                            <textarea id="manual-notes" wire:model="manual_notes" rows="4" class="w-full rounded-xl px-4 py-3 text-sm"></textarea>
-                            @error('manual_notes')
-                                <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
-                            @enderror
-                        </div>
+                    <div>
+                        <label for="manual-notes" class="mb-1 block text-sm font-medium">{{ __('workflow.points.form.notes') }}</label>
+                        <textarea id="manual-notes" wire:model="manual_notes" rows="4" class="w-full rounded-xl px-4 py-3 text-sm"></textarea>
+                        @error('manual_notes')
+                            <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
+                        @enderror
                     </div>
 
                     <div class="flex flex-wrap items-center gap-3">

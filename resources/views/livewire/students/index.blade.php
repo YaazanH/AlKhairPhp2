@@ -10,10 +10,12 @@ use App\Services\ManagedUserService;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Livewire\Volt\Component;
+use Livewire\WithPagination;
 
 new class extends Component {
     use AuthorizesPermissions;
     use AuthorizesTeacherAssignments;
+    use WithPagination;
 
     public ?int $editingId = null;
     public ?int $parent_id = null;
@@ -36,6 +38,7 @@ new class extends Component {
     public ?string $issued_password = null;
     public string $search = '';
     public string $statusFilter = 'all';
+    public int $perPage = 15;
     public bool $showFormModal = false;
     public bool $showAccountModal = false;
     public bool $showQuickParentForm = false;
@@ -63,6 +66,7 @@ new class extends Component {
                     $builder
                         ->where('first_name', 'like', '%'.$this->search.'%')
                         ->orWhere('last_name', 'like', '%'.$this->search.'%')
+                        ->orWhere('student_number', 'like', '%'.$this->search.'%')
                         ->orWhere('school_name', 'like', '%'.$this->search.'%')
                         ->orWhereHas('parentProfile', fn ($parentQuery) => $parentQuery
                             ->where('father_name', 'like', '%'.$this->search.'%')
@@ -73,8 +77,10 @@ new class extends Component {
             ->orderBy('last_name')
             ->orderBy('first_name');
 
+        $filteredCount = (clone $filteredQuery)->count();
+
         return [
-            'students' => $filteredQuery->get(),
+            'students' => $filteredQuery->paginate($this->perPage),
             'parents' => $this->scopeParentsQuery(ParentProfile::query()->where('is_active', true))->orderBy('father_name')->get(['id', 'father_name']),
             'gradeLevels' => GradeLevel::query()->where('is_active', true)->orderBy('sort_order')->get(['id', 'name']),
             'juzs' => QuranJuz::query()->orderBy('juz_number')->get(['id', 'juz_number']),
@@ -83,10 +89,20 @@ new class extends Component {
                 'active' => $this->scopeStudentsQuery(Student::query()->where('status', 'active'))->count(),
                 'graduated' => $this->scopeStudentsQuery(Student::query()->where('status', 'graduated'))->count(),
             ],
-            'filteredCount' => (clone $filteredQuery)->count(),
+            'filteredCount' => $filteredCount,
             'genders' => ['male', 'female'],
             'statuses' => ['active', 'inactive', 'graduated', 'blocked'],
         ];
+    }
+
+    public function updatedSearch(): void
+    {
+        $this->resetPage();
+    }
+
+    public function updatedStatusFilter(): void
+    {
+        $this->resetPage();
     }
 
     public function rules(): array
@@ -517,6 +533,7 @@ new class extends Component {
                     <thead>
                         <tr>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.students.table.headers.student') }}</th>
+                            <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.students.table.headers.student_number') }}</th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.students.table.headers.parent') }}</th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.students.table.headers.grade') }}</th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.students.table.headers.juz') }}</th>
@@ -538,16 +555,17 @@ new class extends Component {
                                 };
                             @endphp
                             <tr>
-                                <td class="px-5 py-4 lg:px-6">
-                                    <div class="student-inline">
-                                        <x-student-avatar :student="$student" size="sm" />
-                                        <div class="student-inline__body">
-                                            <div class="student-inline__name">{{ $student->first_name }} {{ $student->last_name }}</div>
-                                            <div class="student-inline__meta">{{ $student->school_name ?: __('crud.students.table.no_school') }}</div>
-                                        </div>
-                                    </div>
-                                </td>
-                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $student->parentProfile?->father_name ?: __('crud.common.not_available') }}</td>
+                                  <td class="px-5 py-4 lg:px-6">
+                                      <div class="student-inline">
+                                          <x-student-avatar :student="$student" size="sm" />
+                                          <div class="student-inline__body">
+                                              <div class="student-inline__name">{{ $student->first_name }} {{ $student->last_name }}</div>
+                                              <div class="student-inline__meta">{{ $student->school_name ?: __('crud.students.table.no_school') }}</div>
+                                          </div>
+                                      </div>
+                                  </td>
+                                  <td class="px-5 py-4 font-mono text-white lg:px-6">{{ $student->student_number ?: $student->id }}</td>
+                                   <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $student->parentProfile?->father_name ?: __('crud.common.not_available') }}</td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $student->gradeLevel?->name ?: __('crud.common.not_available') }}</td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $student->quranCurrentJuz ? __('crud.students.labels.juz_number', ['number' => $student->quranCurrentJuz->juz_number]) : __('crud.common.not_available') }}</td>
                                 <td class="px-5 py-4 text-white lg:px-6">{{ $student->enrollments_count }}</td>
@@ -555,6 +573,9 @@ new class extends Component {
                                 @if (auth()->user()->can('students.view') || auth()->user()->can('students.update') || auth()->user()->can('students.delete'))
                                     <td class="px-5 py-4 lg:px-6">
                                         <div class="flex flex-wrap justify-end gap-2">
+                                            <a href="{{ route('students.progress', $student) }}" wire:navigate class="pill-link pill-link--compact">
+                                                {{ __('crud.common.actions.progress') }}
+                                            </a>
                                             @can('student-notes.view')
                                                 <a href="{{ route('student-notes.index', ['student' => $student->id]) }}" wire:navigate class="pill-link pill-link--compact">
                                                     {{ __('crud.common.actions.notes') }}
@@ -586,6 +607,12 @@ new class extends Component {
                     </tbody>
                 </table>
             </div>
+
+            @if ($students->hasPages())
+                <div class="border-t border-white/8 px-5 py-4 lg:px-6">
+                    {{ $students->links() }}
+                </div>
+            @endif
         @endif
     </section>
 

@@ -50,25 +50,7 @@ class OperationalWriteApiTest extends TestCase
         $partialType = QuranTestType::query()->where('code', 'partial')->firstOrFail();
         $paymentMethod = PaymentMethod::query()->where('is_active', true)->firstOrFail();
 
-        $attendancePointType = PointType::query()->create([
-            'allow_manual_entry' => false,
-            'allow_negative' => false,
-            'category' => 'attendance',
-            'code' => 'api-attendance-bonus',
-            'default_points' => 5,
-            'is_active' => true,
-            'name' => 'API Attendance Bonus',
-        ]);
-        PointPolicy::query()->create([
-            'grade_level_id' => $context['gradeLevel']->id,
-            'is_active' => true,
-            'name' => 'API Attendance Present',
-            'point_type_id' => $attendancePointType->id,
-            'points' => 5,
-            'priority' => 10,
-            'source_type' => 'attendance',
-            'trigger_key' => $studentAttendanceStatus->code,
-        ]);
+        $studentAttendanceStatus->update(['default_points' => 5]);
 
         $memorizationPointType = PointType::query()->create([
             'allow_manual_entry' => false,
@@ -137,7 +119,6 @@ class OperationalWriteApiTest extends TestCase
         ]);
         $this->assertDatabaseHas('point_transactions', [
             'enrollment_id' => $context['enrollment']->id,
-            'point_type_id' => $attendancePointType->id,
             'points' => 5,
             'source_type' => 'student_attendance_record',
         ]);

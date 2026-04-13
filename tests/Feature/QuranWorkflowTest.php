@@ -99,7 +99,7 @@ class QuranWorkflowTest extends TestCase
             'enrollment_id' => $enrollment->id,
             'source_type' => 'memorization_session',
             'source_id' => $session->id,
-            'points' => 3,
+            'points' => 40,
         ]);
 
         Volt::test('enrollments.memorization', ['enrollment' => $enrollment])
@@ -116,7 +116,7 @@ class QuranWorkflowTest extends TestCase
             'enrollment_id' => $enrollment->id,
             'source_type' => 'memorization_session',
             'source_id' => $session->id,
-            'points' => 2,
+            'points' => 25,
             'voided_at' => null,
         ]);
 
@@ -128,6 +128,48 @@ class QuranWorkflowTest extends TestCase
             ->set('to_page', '6')
             ->call('saveMemorization')
             ->assertHasErrors(['from_page']);
+    }
+
+    public function test_memorization_point_tiers_are_calculated_per_day(): void
+    {
+        [, $enrollment] = $this->workflowContext('tiered-memorization');
+
+        Volt::test('enrollments.memorization', ['enrollment' => $enrollment])
+            ->set('recorded_on', '2026-09-07')
+            ->set('teacher_id', $enrollment->group->teacher_id)
+            ->set('entry_type', 'new')
+            ->set('from_page', '10')
+            ->set('to_page', '10')
+            ->call('saveMemorization')
+            ->assertHasNoErrors();
+
+        $this->assertSame(10, PointTransaction::query()
+            ->where('enrollment_id', $enrollment->id)
+            ->where('source_type', 'memorization_session')
+            ->whereNull('voided_at')
+            ->sum('points'));
+
+        Volt::test('enrollments.memorization', ['enrollment' => $enrollment])
+            ->set('recorded_on', '2026-09-07')
+            ->set('teacher_id', $enrollment->group->teacher_id)
+            ->set('entry_type', 'new')
+            ->set('from_page', '11')
+            ->set('to_page', '11')
+            ->call('saveMemorization')
+            ->assertHasNoErrors();
+
+        $this->assertSame(2, MemorizationSession::query()->where('enrollment_id', $enrollment->id)->count());
+        $this->assertSame(2, StudentPageAchievement::query()->where('student_id', $enrollment->student_id)->count());
+        $this->assertSame(1, PointTransaction::query()
+            ->where('enrollment_id', $enrollment->id)
+            ->where('source_type', 'memorization_session')
+            ->whereNull('voided_at')
+            ->count());
+        $this->assertSame(25, PointTransaction::query()
+            ->where('enrollment_id', $enrollment->id)
+            ->where('source_type', 'memorization_session')
+            ->whereNull('voided_at')
+            ->sum('points'));
     }
 
     public function test_quran_test_progression_blocks_final_until_four_partials_pass(): void
@@ -180,11 +222,18 @@ class QuranWorkflowTest extends TestCase
     public function test_point_ledger_allows_manual_entries_and_voiding(): void
     {
         [, $enrollment] = $this->workflowContext();
-        $bonus = PointType::query()->where('code', 'bonus')->firstOrFail();
+        $bonus = PointType::query()->create([
+            'name' => 'Manual Reward',
+            'code' => 'manual-reward',
+            'category' => 'manual',
+            'default_points' => 5,
+            'allow_manual_entry' => true,
+            'allow_negative' => false,
+            'is_active' => true,
+        ]);
 
         Volt::test('enrollments.points', ['enrollment' => $enrollment])
             ->set('manual_point_type_id', $bonus->id)
-            ->set('manual_points', '5')
             ->set('manual_notes', 'Manual reward')
             ->call('saveManual')
             ->assertHasNoErrors();
@@ -194,17 +243,16 @@ class QuranWorkflowTest extends TestCase
 
         Volt::test('enrollments.points', ['enrollment' => $enrollment])
             ->call('editManual', $transaction->id)
-            ->set('manual_points', '3')
             ->set('manual_notes', 'Adjusted reward')
             ->call('saveManual')
             ->assertHasNoErrors();
 
         $this->assertDatabaseHas('point_transactions', [
             'id' => $transaction->id,
-            'points' => 3,
+            'points' => 5,
             'notes' => 'Adjusted reward',
         ]);
-        $this->assertSame(3, $enrollment->fresh()->final_points_cached);
+        $this->assertSame(5, $enrollment->fresh()->final_points_cached);
 
         Volt::test('enrollments.points', ['enrollment' => $enrollment])
             ->call('void', $transaction->id);

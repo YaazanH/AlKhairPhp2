@@ -19,6 +19,7 @@ use App\Models\Payment;
 use App\Models\PointTransaction;
 use App\Models\Student;
 use App\Models\StudentAttendanceRecord;
+use App\Models\StudentAttendanceDay;
 use App\Models\StudentNote;
 use App\Models\Teacher;
 use App\Models\TeacherAttendanceRecord;
@@ -27,10 +28,13 @@ use App\Models\UserScopeOverride;
 use App\Support\RoleRegistry;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\Relation;
 
 class AccessScopeService
 {
     protected array $memoizedIds = [];
+
+    protected array $memoizedUserRelations = [];
 
     public function syncUserOverrides(User $user, array $scopes, ?int $assignedBy = null): void
     {
@@ -93,6 +97,16 @@ class AccessScopeService
         return in_array((int) $group->id, $this->accessibleGroupIds($user), true);
     }
 
+    public function canAccessGroupAttendanceDay(?User $user, GroupAttendanceDay $groupAttendanceDay): bool
+    {
+        if ($this->isUnrestricted($user)) {
+            return true;
+        }
+
+        return $groupAttendanceDay->group_id !== null
+            && in_array((int) $groupAttendanceDay->group_id, $this->accessibleGroupIds($user), true);
+    }
+
     public function canAccessInvoice(?User $user, Invoice $invoice): bool
     {
         if ($this->isUnrestricted($user)) {
@@ -134,6 +148,23 @@ class AccessScopeService
         }
 
         return in_array((int) $student->id, $this->accessibleStudentIds($user), true);
+    }
+
+    public function canAccessStudentAttendanceDay(?User $user, StudentAttendanceDay $studentAttendanceDay): bool
+    {
+        if ($this->isUnrestricted($user)) {
+            return true;
+        }
+
+        $groupIds = $this->accessibleGroupIds($user);
+
+        if ($groupIds === []) {
+            return false;
+        }
+
+        return $studentAttendanceDay->groupAttendanceDays()
+            ->whereIn('group_id', $groupIds)
+            ->exists();
     }
 
     public function canAccessTeacher(?User $user, Teacher $teacher): bool
@@ -259,19 +290,14 @@ class AccessScopeService
 
     public function isUnrestricted(?User $user): bool
     {
+        if ($user) {
+            $user->loadMissing('roles');
+        }
+
         return $user?->hasAnyRole(RoleRegistry::unrestrictedRoles()) ?? false;
     }
 
     public function scopeActivities(Builder $query, ?User $user): Builder
-    {
-        if ($this->isUnrestricted($user)) {
-            return $query;
-        }
-
-        return $this->applyScopedIds($query, 'group_id', $this->accessibleGroupIds($user));
-    }
-
-    public function scopeActivityExpenses(Builder $query, ?User $user): Builder
     {
         if ($this->isUnrestricted($user)) {
             return $query;
@@ -283,7 +309,24 @@ class AccessScopeService
             return $query->whereRaw('1 = 0');
         }
 
-        return $query->whereHas('activity', fn (Builder $builder) => $builder->whereIn('group_id', $groupIds));
+        $qualifiedGroupColumn = $query->getModel()->qualifyColumn('group_id');
+        $qualifiedAudienceColumn = $query->getModel()->qualifyColumn('audience_scope');
+
+        return $query->where(function (Builder $builder) use ($groupIds, $qualifiedAudienceColumn, $qualifiedGroupColumn) {
+            $builder
+                ->where($qualifiedAudienceColumn, ActivityAudienceService::SCOPE_ALL_GROUPS)
+                ->orWhereIn($qualifiedGroupColumn, $groupIds)
+                ->orWhereHas('targetGroups', fn (Builder $groupQuery) => $groupQuery->whereIn('groups.id', $groupIds));
+        });
+    }
+
+    public function scopeActivityExpenses(Builder $query, ?User $user): Builder
+    {
+        if ($this->isUnrestricted($user)) {
+            return $query;
+        }
+
+        return $query->whereHas('activity', fn (Builder $builder) => $this->scopeActivities($builder, $user));
     }
 
     public function scopeActivityPayments(Builder $query, ?User $user): Builder
@@ -365,7 +408,7 @@ class AccessScopeService
         return $this->applyScopedIds($query, 'id', $this->accessibleEnrollmentIds($user));
     }
 
-    public function scopeGroupAttendanceDays(Builder $query, ?User $user): Builder
+    public function scopeGroupAttendanceDays(Builder|Relation $query, ?User $user): Builder|Relation
     {
         if ($this->isUnrestricted($user)) {
             return $query;
@@ -448,6 +491,15 @@ class AccessScopeService
         return $this->applyScopedIds($query, 'enrollment_id', $this->accessibleEnrollmentIds($user));
     }
 
+    public function scopeQuranTests(Builder $query, ?User $user): Builder
+    {
+        if ($this->isUnrestricted($user)) {
+            return $query;
+        }
+
+        return $this->applyScopedIds($query, 'enrollment_id', $this->accessibleEnrollmentIds($user));
+    }
+
     public function scopeParents(Builder $query, ?User $user): Builder
     {
         if ($this->isUnrestricted($user)) {
@@ -482,6 +534,21 @@ class AccessScopeService
         }
 
         return $this->applyScopedIds($query, 'enrollment_id', $this->accessibleEnrollmentIds($user));
+    }
+
+    public function scopeStudentAttendanceDays(Builder $query, ?User $user): Builder
+    {
+        if ($this->isUnrestricted($user)) {
+            return $query;
+        }
+
+        $groupIds = $this->accessibleGroupIds($user);
+
+        if ($groupIds === []) {
+            return $query->whereRaw('1 = 0');
+        }
+
+        return $query->whereHas('groupAttendanceDays', fn (Builder $builder) => $builder->whereIn('group_id', $groupIds));
     }
 
     public function scopeStudentNotes(Builder $query, ?User $user): Builder
@@ -543,7 +610,7 @@ class AccessScopeService
         return $this->applyScopedIds($query, 'id', $this->accessibleTeacherIds($user));
     }
 
-    protected function applyScopedIds(Builder $query, string $column, array $ids): Builder
+    protected function applyScopedIds(Builder|Relation $query, string $column, array $ids): Builder|Relation
     {
         if ($ids === []) {
             return $query->whereRaw('1 = 0');
@@ -569,10 +636,27 @@ class AccessScopeService
         $cacheKey = $key.'.'.$user->id;
 
         if (! array_key_exists($cacheKey, $this->memoizedIds)) {
+            $user = $this->loadScopeRelations($user);
             $this->memoizedIds[$cacheKey] = $resolver($user);
         }
 
         return $this->memoizedIds[$cacheKey];
+    }
+
+    protected function loadScopeRelations(User $user): User
+    {
+        if (! array_key_exists($user->id, $this->memoizedUserRelations)) {
+            $user->loadMissing([
+                'parentProfile',
+                'scopeOverrides',
+                'studentProfile',
+                'teacherProfile',
+            ]);
+
+            $this->memoizedUserRelations[$user->id] = true;
+        }
+
+        return $user;
     }
 
     protected function naturalSelfStudentIds(User $user): array
@@ -632,6 +716,8 @@ class AccessScopeService
 
     protected function shouldExpandGroupMembership(User $user): bool
     {
+        $user->loadMissing('roles');
+
         return ! $user->hasAnyRole([
             RoleRegistry::PARENT,
             RoleRegistry::STUDENT,

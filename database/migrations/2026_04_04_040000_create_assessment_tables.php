@@ -39,7 +39,7 @@ return new class extends Migration
             $table->text('notes')->nullable();
             $table->timestamps();
 
-            $table->unique(['assessment_id', 'enrollment_id']);
+            $table->unique(['assessment_id', 'enrollment_id'], 'asses_id_enroll_id_unique');
         });
 
         Schema::create('assessment_score_bands', function (Blueprint $table) {

@@ -7,10 +7,12 @@ use App\Models\Group;
 use App\Models\Student;
 use Illuminate\Validation\Rule;
 use Livewire\Volt\Component;
+use Livewire\WithPagination;
 
 new class extends Component {
     use AuthorizesPermissions;
     use AuthorizesTeacherAssignments;
+    use WithPagination;
 
     public ?int $editingId = null;
     public ?int $student_id = null;
@@ -21,6 +23,7 @@ new class extends Component {
     public string $notes = '';
     public string $search = '';
     public string $statusFilter = 'all';
+    public int $perPage = 15;
     public bool $showFormModal = false;
 
     public function mount(): void
@@ -47,8 +50,10 @@ new class extends Component {
             ->when(in_array($this->statusFilter, ['active', 'completed', 'cancelled'], true), fn ($query) => $query->where('status', $this->statusFilter))
             ->orderByDesc('enrolled_at');
 
+        $filteredCount = (clone $filteredQuery)->count();
+
         return [
-            'enrollments' => $filteredQuery->get(),
+            'enrollments' => $filteredQuery->paginate($this->perPage),
             'students' => $this->availableStudentsQuery()
                 ->orderBy('first_name')
                 ->orderBy('last_name')
@@ -59,9 +64,19 @@ new class extends Component {
                 'active' => $this->scopeEnrollmentsQuery(Enrollment::query()->where('status', 'active'))->count(),
                 'completed' => $this->scopeEnrollmentsQuery(Enrollment::query()->where('status', 'completed'))->count(),
             ],
-            'filteredCount' => (clone $filteredQuery)->count(),
+            'filteredCount' => $filteredCount,
             'statuses' => ['active', 'completed', 'cancelled'],
         ];
+    }
+
+    public function updatedSearch(): void
+    {
+        $this->resetPage();
+    }
+
+    public function updatedStatusFilter(): void
+    {
+        $this->resetPage();
     }
 
     public function updatedGroupId(): void
@@ -360,6 +375,12 @@ new class extends Component {
                     </tbody>
                 </table>
             </div>
+
+            @if ($enrollments->hasPages())
+                <div class="border-t border-white/8 px-5 py-4 lg:px-6">
+                    {{ $enrollments->links() }}
+                </div>
+            @endif
         @endif
     </section>
 

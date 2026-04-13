@@ -18,6 +18,7 @@ class Student extends Model
         'parent_id',
         'first_name',
         'last_name',
+        'student_number',
         'birth_date',
         'gender',
         'school_name',
@@ -35,6 +36,49 @@ class Student extends Model
             'birth_date' => 'date',
             'joined_at' => 'date',
         ];
+    }
+
+    protected static function booted(): void
+    {
+        static::saved(function (self $student): void {
+            $expectedStudentNumber = (string) $student->id;
+
+            if ($student->student_number !== $expectedStudentNumber) {
+                $student->forceFill([
+                    'student_number' => $expectedStudentNumber,
+                ])->saveQuietly();
+            }
+        });
+    }
+
+    public function getFullNameAttribute(): string
+    {
+        return trim($this->first_name.' '.$this->last_name);
+    }
+
+    public function currentActiveEnrollment(): ?Enrollment
+    {
+        if ($this->relationLoaded('enrollments')) {
+            /** @var Enrollment|null $enrollment */
+            $enrollment = $this->enrollments
+                ->filter(fn (Enrollment $enrollment) => $enrollment->status === 'active')
+                ->sortByDesc(fn (Enrollment $enrollment): int => (($enrollment->enrolled_at?->getTimestamp() ?? 0) * 1000000) + $enrollment->id)
+                ->first();
+
+            return $enrollment;
+        }
+
+        return $this->enrollments()
+            ->with('group')
+            ->where('status', 'active')
+            ->orderByDesc('enrolled_at')
+            ->orderByDesc('id')
+            ->first();
+    }
+
+    public function currentGroupName(): ?string
+    {
+        return $this->currentActiveEnrollment()?->group?->name;
     }
 
     public function enrollments(): HasMany

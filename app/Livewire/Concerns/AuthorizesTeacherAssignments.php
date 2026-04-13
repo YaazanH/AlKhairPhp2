@@ -8,10 +8,12 @@ use App\Models\Group;
 use App\Models\Invoice;
 use App\Models\ParentProfile;
 use App\Models\Student;
+use App\Models\StudentAttendanceDay;
 use App\Models\StudentNote;
 use App\Models\Teacher;
 use App\Services\AccessScopeService;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Support\Facades\Auth;
 
 trait AuthorizesTeacherAssignments
@@ -36,6 +38,11 @@ trait AuthorizesTeacherAssignments
         abort_unless($this->accessScopes()->canAccessGroup(Auth::user(), $group), 403);
     }
 
+    protected function authorizeScopedGroupAttendanceDayAccess(\App\Models\GroupAttendanceDay $groupAttendanceDay): void
+    {
+        abort_unless($this->accessScopes()->canAccessGroupAttendanceDay(Auth::user(), $groupAttendanceDay), 403);
+    }
+
     protected function authorizeScopedInvoiceAccess(Invoice $invoice): void
     {
         abort_unless($this->accessScopes()->canAccessInvoice(Auth::user(), $invoice), 403);
@@ -49,6 +56,11 @@ trait AuthorizesTeacherAssignments
     protected function authorizeScopedStudentAccess(Student $student): void
     {
         abort_unless($this->accessScopes()->canAccessStudent(Auth::user(), $student), 403);
+    }
+
+    protected function authorizeScopedStudentAttendanceDayAccess(StudentAttendanceDay $studentAttendanceDay): void
+    {
+        abort_unless($this->accessScopes()->canAccessStudentAttendanceDay(Auth::user(), $studentAttendanceDay), 403);
     }
 
     protected function authorizeScopedTeacherAccess(Teacher $teacher): void
@@ -91,7 +103,7 @@ trait AuthorizesTeacherAssignments
         return $this->accessScopes()->scopeEnrollments($query, Auth::user());
     }
 
-    protected function scopeGroupAttendanceDaysQuery(Builder $query): Builder
+    protected function scopeGroupAttendanceDaysQuery(Builder|Relation $query): Builder|Relation
     {
         return $this->accessScopes()->scopeGroupAttendanceDays($query, Auth::user());
     }
@@ -131,9 +143,19 @@ trait AuthorizesTeacherAssignments
         return $this->accessScopes()->scopePointTransactions($query, Auth::user());
     }
 
+    protected function scopeQuranTestsQuery(Builder $query): Builder
+    {
+        return $this->accessScopes()->scopeQuranTests($query, Auth::user());
+    }
+
     protected function scopeStudentAttendanceRecordsQuery(Builder $query): Builder
     {
         return $this->accessScopes()->scopeStudentAttendanceRecords($query, Auth::user());
+    }
+
+    protected function scopeStudentAttendanceDaysQuery(Builder $query): Builder
+    {
+        return $this->accessScopes()->scopeStudentAttendanceDays($query, Auth::user());
     }
 
     protected function scopeStudentNotesQuery(Builder $query): Builder

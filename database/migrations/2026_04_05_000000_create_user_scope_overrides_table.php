@@ -16,7 +16,7 @@ return new class extends Migration
             $table->foreignId('assigned_by')->nullable()->constrained('users')->nullOnDelete();
             $table->timestamps();
 
-            $table->unique(['user_id', 'scope_type', 'scope_id']);
+            $table->unique(['user_id', 'scope_type', 'scope_id'], 'u_id,sc_type_sc_id_unique');
             $table->index(['scope_type', 'scope_id']);
         });
     }

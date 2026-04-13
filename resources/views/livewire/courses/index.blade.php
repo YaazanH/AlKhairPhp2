@@ -4,9 +4,11 @@ use App\Livewire\Concerns\AuthorizesPermissions;
 use App\Models\Course;
 use Illuminate\Validation\Rule;
 use Livewire\Volt\Component;
+use Livewire\WithPagination;
 
 new class extends Component {
     use AuthorizesPermissions;
+    use WithPagination;
 
     public ?int $editingId = null;
     public string $name = '';
@@ -14,6 +16,7 @@ new class extends Component {
     public bool $is_active = true;
     public string $search = '';
     public string $statusFilter = 'all';
+    public int $perPage = 15;
     public bool $showFormModal = false;
 
     public function mount(): void
@@ -39,14 +42,26 @@ new class extends Component {
             ->when(in_array($this->statusFilter, ['active', 'inactive'], true), fn ($query) => $query->where('is_active', $this->statusFilter === 'active'))
             ->orderBy('name');
 
+        $filteredCount = (clone $filteredQuery)->count();
+
         return [
-            'courses' => $filteredQuery->get(),
+            'courses' => $filteredQuery->paginate($this->perPage),
             'totals' => [
                 'all' => $baseQuery->count(),
                 'active' => Course::query()->where('is_active', true)->count(),
             ],
-            'filteredCount' => (clone $filteredQuery)->count(),
+            'filteredCount' => $filteredCount,
         ];
+    }
+
+    public function updatedSearch(): void
+    {
+        $this->resetPage();
+    }
+
+    public function updatedStatusFilter(): void
+    {
+        $this->resetPage();
     }
 
     public function rules(): array
@@ -246,6 +261,12 @@ new class extends Component {
                     </tbody>
                 </table>
             </div>
+
+            @if ($courses->hasPages())
+                <div class="border-t border-white/8 px-5 py-4 lg:px-6">
+                    {{ $courses->links() }}
+                </div>
+            @endif
         @endif
     </section>
 

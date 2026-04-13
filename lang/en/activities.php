@@ -3,11 +3,19 @@
 return [
     'common' => [
         'general_activity' => 'General activity',
+        'audience' => [
+            'single_group' => 'One group',
+            'multiple_groups' => 'Multiple groups',
+            'all_groups' => 'All groups',
+            'unassigned' => 'No group assigned',
+        ],
         'states' => [
             'active' => 'Active',
             'inactive' => 'Inactive',
             'voided' => 'Voided',
+            'pending' => 'Awaiting response',
             'registered' => 'Registered',
+            'declined' => 'Declined',
             'attended' => 'Attended',
             'cancelled' => 'Cancelled',
         ],
@@ -38,15 +46,23 @@ return [
                 'title' => 'Title',
                 'activity_date' => 'Activity date',
                 'fee_amount' => 'Default fee amount',
+                'audience_scope' => 'Audience',
                 'group' => 'Group',
+                'groups' => 'Target groups',
                 'description' => 'Description',
             ],
             'placeholders' => [
-                'group' => 'All groups / general activity',
+                'group' => 'Select one group',
             ],
+            'help_multiple_groups' => 'Hold Ctrl/Cmd to select more than one group.',
+            'all_groups_hint' => 'This activity will be visible to parents and staff across all active groups.',
             'active_flag' => 'Active activity',
             'create_submit' => 'Create activity',
             'update_submit' => 'Update activity',
+            'errors' => [
+                'single_group_required' => 'Select a group when the activity targets one group.',
+                'multiple_groups_required' => 'Select at least one group when the activity targets multiple groups.',
+            ],
         ],
         'read_only' => [
             'title' => 'Read-only access',
@@ -57,6 +73,7 @@ return [
             'empty' => 'No activity records yet.',
             'headers' => [
                 'activity' => 'Activity',
+                'audience' => 'Audience',
                 'date' => 'Date',
                 'registrations' => 'Registrations',
                 'financials' => 'Financials',
@@ -118,7 +135,7 @@ return [
             ],
             'errors' => [
                 'wrong_student' => 'The selected enrollment does not belong to the selected student.',
-                'wrong_group' => 'The selected enrollment must belong to this activity group.',
+                'wrong_group' => 'The selected enrollment must belong to one of this activity target groups.',
                 'delete_linked' => 'This registration cannot be deleted while active payments exist.',
             ],
         ],
@@ -179,6 +196,44 @@ return [
                 'updated' => 'Activity expense updated successfully.',
                 'deleted' => 'Activity expense deleted successfully.',
             ],
+        ],
+    ],
+    'family' => [
+        'heading' => 'Family Activities',
+        'subheading' => 'Review activities for your students, check the fee, and confirm whether each student will attend.',
+        'stats' => [
+            'activities' => 'Visible activities',
+            'students' => 'My students',
+            'responses' => 'Student responses',
+        ],
+        'meta' => [
+            'date' => 'Date',
+            'fee' => 'Fee',
+            'audience' => 'Audience',
+        ],
+        'table' => [
+            'headers' => [
+                'student' => 'Student',
+                'group' => 'Group',
+                'response' => 'Response',
+                'actions' => 'Actions',
+            ],
+        ],
+        'actions' => [
+            'attend' => 'Yes, attending',
+            'decline' => 'No, not attending',
+        ],
+        'messages' => [
+            'registered' => 'Attendance was confirmed for this activity.',
+            'declined' => 'The activity was declined for this student.',
+        ],
+        'errors' => [
+            'not_eligible' => 'This student is not eligible for the selected activity.',
+            'locked_after_payment' => 'This activity response cannot be changed after payments have been recorded.',
+        ],
+        'empty' => [
+            'title' => 'No activities to review',
+            'body' => 'No active activities are currently targeted to your students’ groups.',
         ],
     ],
 ];

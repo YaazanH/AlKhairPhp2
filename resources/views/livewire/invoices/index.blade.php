@@ -6,10 +6,12 @@ use App\Models\Invoice;
 use App\Models\ParentProfile;
 use App\Services\FinanceService;
 use Livewire\Volt\Component;
+use Livewire\WithPagination;
 
 new class extends Component {
     use AuthorizesPermissions;
     use AuthorizesTeacherAssignments;
+    use WithPagination;
 
     public ?int $editingId = null;
     public ?int $parent_id = null;
@@ -19,6 +21,8 @@ new class extends Component {
     public string $status = 'draft';
     public string $discount = '0';
     public string $notes = '';
+    public int $perPage = 15;
+    public bool $showForm = false;
 
     public function mount(): void
     {
@@ -28,15 +32,17 @@ new class extends Component {
 
     public function with(): array
     {
+        $invoiceQuery = $this->scopeInvoicesQuery(
+            Invoice::query()
+                ->with(['parentProfile'])
+                ->withCount(['items'])
+                ->withSum(['payments as active_paid_total' => fn ($query) => $query->whereNull('voided_at')], 'amount')
+                ->latest('issue_date')
+                ->latest('id')
+        );
+
         return [
-            'invoices' => $this->scopeInvoicesQuery(
-                Invoice::query()
-                    ->with(['parentProfile'])
-                    ->withCount(['items'])
-                    ->withSum(['payments as active_paid_total' => fn ($query) => $query->whereNull('voided_at')], 'amount')
-                    ->latest('issue_date')
-                    ->latest('id')
-            )->get(),
+            'invoices' => $invoiceQuery->paginate($this->perPage),
             'parents' => $this->scopeParentsQuery(
                 ParentProfile::query()->withCount('students')->orderBy('father_name')
             )->get(),
@@ -49,6 +55,7 @@ new class extends Component {
                 )->get()
                     ->sum(fn (Invoice $invoice) => max((float) $invoice->total - (float) ($invoice->active_paid_total ?? 0), 0)),
             ],
+            'filteredCount' => (clone $invoiceQuery)->count(),
         ];
     }
 
@@ -63,6 +70,14 @@ new class extends Component {
             'discount' => ['required', 'numeric', 'min:0'],
             'notes' => ['nullable', 'string'],
         ];
+    }
+
+    public function create(): void
+    {
+        $this->authorizePermission('invoices.create');
+
+        $this->cancel(closeForm: false);
+        $this->showForm = true;
     }
 
     public function save(): void
@@ -113,11 +128,12 @@ new class extends Component {
         $this->status = $invoice->status;
         $this->discount = number_format((float) $invoice->discount, 2, '.', '');
         $this->notes = $invoice->notes ?? '';
+        $this->showForm = true;
 
         $this->resetValidation();
     }
 
-    public function cancel(): void
+    public function cancel(bool $closeForm = true): void
     {
         $this->editingId = null;
         $this->parent_id = null;
@@ -127,6 +143,10 @@ new class extends Component {
         $this->status = 'draft';
         $this->discount = '0';
         $this->notes = '';
+
+        if ($closeForm) {
+            $this->showForm = false;
+        }
 
         $this->resetValidation();
     }
@@ -165,7 +185,7 @@ new class extends Component {
                 <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ __('invoices.index.hero.subtitle') }}</p>
                 <div class="mt-6 flex flex-wrap gap-3">
                     <span class="badge-soft">{{ __('invoices.index.hero.badges.parents', ['count' => number_format($parents->count())]) }}</span>
-                    <span class="badge-soft badge-soft--emerald">{{ __('invoices.index.hero.badges.invoices', ['count' => number_format($invoices->count())]) }}</span>
+                    <span class="badge-soft badge-soft--emerald">{{ __('invoices.index.hero.badges.invoices', ['count' => number_format($filteredCount)]) }}</span>
                 </div>
             </div>
 
@@ -188,10 +208,22 @@ new class extends Component {
         <article class="stat-card"><div class="kpi-label">{{ __('invoices.index.stats.outstanding.label') }}</div><div class="metric-value mt-6">{{ number_format((float) $totals['outstanding'], 2) }}</div><p class="mt-4 text-sm leading-6 text-neutral-300">{{ __('invoices.index.stats.outstanding.hint') }}</p></article>
     </div>
 
-    <div class="grid gap-6 xl:grid-cols-[28rem_minmax(0,1fr)]">
-        <section class="surface-panel p-5 lg:p-6">
+    <div class="space-y-6">
+        @if ($showForm)
+        <section class="admin-modal" role="dialog" aria-modal="true">
+            <div class="admin-modal__backdrop" wire:click="cancel"></div>
+            <div class="admin-modal__viewport">
+                <div class="admin-modal__dialog admin-modal__dialog--3xl">
+                    <div class="admin-modal__header">
+                        <div>
+                            <div class="admin-modal__title">{{ $editingId ? __('invoices.index.form.edit_title') : __('invoices.index.form.create_title') }}</div>
+                            <p class="admin-modal__description">{{ __('invoices.index.form.subtitle') }}</p>
+                        </div>
+                        <button type="button" wire:click="cancel" class="admin-modal__close" aria-label="{{ __('crud.common.actions.cancel') }}">×</button>
+                    </div>
+                    <div class="admin-modal__body">
             @if (auth()->user()->can('invoices.create') || auth()->user()->can('invoices.update'))
-                <div class="mb-5">
+                <div class="mb-5 md:hidden">
                     <div class="eyebrow">{{ __('invoices.index.form.eyebrow') }}</div>
                     <h2 class="font-display mt-3 text-2xl text-white">{{ $editingId ? __('invoices.index.form.edit_title') : __('invoices.index.form.create_title') }}</h2>
                     <p class="mt-3 text-sm leading-7 text-neutral-300">{{ __('invoices.index.form.subtitle') }}</p>
@@ -268,7 +300,11 @@ new class extends Component {
             @else
                 <div class="text-sm leading-7 text-neutral-300">{{ __('invoices.index.read_only') }}</div>
             @endif
+                    </div>
+                </div>
+            </div>
         </section>
+        @endif
 
         <section class="surface-table">
             <div class="soft-keyline border-b px-5 py-5 lg:px-6">
@@ -277,7 +313,14 @@ new class extends Component {
                         <div class="eyebrow">{{ __('invoices.index.table.eyebrow') }}</div>
                         <h2 class="font-display mt-3 text-2xl text-white">{{ __('invoices.index.table.title') }}</h2>
                     </div>
-                    <span class="badge-soft">{{ __('crud.common.badges.in_view', ['count' => number_format($invoices->count())]) }}</span>
+                    <div class="admin-action-cluster admin-action-cluster--end">
+                        <span class="badge-soft">{{ __('crud.common.badges.in_view', ['count' => number_format($filteredCount)]) }}</span>
+                        @can('invoices.create')
+                            <button type="button" wire:click="create" class="pill-link pill-link--accent">
+                                {{ __('invoices.index.form.create_title') }}
+                            </button>
+                        @endcan
+                    </div>
                 </div>
             </div>
 
@@ -337,6 +380,12 @@ new class extends Component {
                         </tbody>
                     </table>
                 </div>
+
+                @if ($invoices->hasPages())
+                    <div class="border-t border-white/8 px-5 py-4 lg:px-6">
+                        {{ $invoices->links() }}
+                    </div>
+                @endif
             @endif
         </section>
     </div>

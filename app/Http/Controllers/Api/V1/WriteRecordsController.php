@@ -200,6 +200,7 @@ class WriteRecordsController extends Controller
             'quran_current_juz' => $student->quranCurrentJuz?->juz_number,
             'quran_current_juz_id' => $student->quran_current_juz_id,
             'school_name' => $student->school_name,
+            'student_number' => $student->student_number,
             'status' => $student->status,
         ];
     }

@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -17,6 +18,7 @@ class Activity extends Model
         'title',
         'description',
         'activity_date',
+        'audience_scope',
         'group_id',
         'fee_amount',
         'expected_revenue_cached',
@@ -45,6 +47,13 @@ class Activity extends Model
     public function group(): BelongsTo
     {
         return $this->belongsTo(Group::class);
+    }
+
+    public function targetGroups(): BelongsToMany
+    {
+        return $this->belongsToMany(Group::class, 'activity_group_targets')
+            ->withTimestamps()
+            ->orderBy('name');
     }
 
     public function invoiceItems(): HasMany

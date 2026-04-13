@@ -16,6 +16,7 @@ new class extends Component {
     public string $school_address = '';
     public string $school_timezone = '';
     public string $school_currency = '';
+    public bool $showOrganizationModal = false;
 
     public ?int $academic_year_editing_id = null;
     public string $academic_year_name = '';
@@ -23,11 +24,13 @@ new class extends Component {
     public string $academic_year_ends_on = '';
     public bool $academic_year_is_current = false;
     public bool $academic_year_is_active = true;
+    public bool $showAcademicYearModal = false;
 
     public ?int $grade_level_editing_id = null;
     public string $grade_level_name = '';
     public string $grade_level_sort_order = '0';
     public bool $grade_level_is_active = true;
+    public bool $showGradeLevelModal = false;
 
     public function mount(): void
     {
@@ -116,6 +119,43 @@ new class extends Component {
         session()->flash('status', __('settings.organization.messages.grade_level_deleted'));
     }
 
+    public function openOrganizationModal(): void
+    {
+        $this->authorizePermission('settings.manage');
+        $this->showOrganizationModal = true;
+        $this->resetValidation();
+    }
+
+    public function closeOrganizationModal(): void
+    {
+        $this->showOrganizationModal = false;
+        $this->resetValidation();
+    }
+
+    public function openAcademicYearModal(): void
+    {
+        $this->authorizePermission('settings.manage');
+        $this->cancelAcademicYear();
+        $this->showAcademicYearModal = true;
+    }
+
+    public function closeAcademicYearModal(): void
+    {
+        $this->cancelAcademicYear();
+    }
+
+    public function openGradeLevelModal(): void
+    {
+        $this->authorizePermission('settings.manage');
+        $this->cancelGradeLevel();
+        $this->showGradeLevelModal = true;
+    }
+
+    public function closeGradeLevelModal(): void
+    {
+        $this->cancelGradeLevel();
+    }
+
     public function editAcademicYear(int $academicYearId): void
     {
         $this->authorizePermission('settings.manage');
@@ -128,6 +168,7 @@ new class extends Component {
         $this->academic_year_ends_on = $academicYear->ends_on?->format('Y-m-d') ?? '';
         $this->academic_year_is_current = $academicYear->is_current;
         $this->academic_year_is_active = $academicYear->is_active;
+        $this->showAcademicYearModal = true;
 
         $this->resetValidation();
     }
@@ -142,6 +183,7 @@ new class extends Component {
         $this->grade_level_name = $gradeLevel->name;
         $this->grade_level_sort_order = (string) $gradeLevel->sort_order;
         $this->grade_level_is_active = $gradeLevel->is_active;
+        $this->showGradeLevelModal = true;
 
         $this->resetValidation();
     }
@@ -244,6 +286,7 @@ new class extends Component {
         }
 
         session()->flash('status', __('settings.organization.messages.settings_saved'));
+        $this->showOrganizationModal = false;
     }
 
     protected function cancelAcademicYear(): void
@@ -254,6 +297,7 @@ new class extends Component {
         $this->academic_year_ends_on = '';
         $this->academic_year_is_current = false;
         $this->academic_year_is_active = true;
+        $this->showAcademicYearModal = false;
         $this->resetValidation();
     }
 
@@ -263,6 +307,7 @@ new class extends Component {
         $this->grade_level_name = '';
         $this->grade_level_sort_order = '0';
         $this->grade_level_is_active = true;
+        $this->showGradeLevelModal = false;
         $this->resetValidation();
     }
 
@@ -282,11 +327,12 @@ new class extends Component {
     }
 }; ?>
 
-<div class="flex w-full flex-1 flex-col gap-6 p-6 lg:p-8">
-    <div>
-        <flux:heading size="xl">{{ __('settings.organization.title') }}</flux:heading>
-        <flux:subheading>{{ __('settings.organization.subtitle') }}</flux:subheading>
-    </div>
+<div class="page-stack settings-admin-page">
+    <section class="page-hero p-6 lg:p-8">
+        <div class="eyebrow">{{ __('ui.nav.settings') }}</div>
+        <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('settings.organization.title') }}</h1>
+        <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ __('settings.organization.subtitle') }}</p>
+    </section>
 
     <x-settings.admin-nav />
 
@@ -309,8 +355,22 @@ new class extends Component {
         </div>
     </div>
 
-    <div class="grid gap-6 xl:grid-cols-[26rem_minmax(0,1fr)]">
-        <section class="space-y-6">
+    <section class="surface-panel p-5 lg:p-6">
+        <div class="admin-toolbar">
+            <div>
+                <div class="admin-toolbar__title">{{ __('settings.organization.title') }}</div>
+                <p class="admin-toolbar__subtitle">{{ __('settings.organization.subtitle') }}</p>
+            </div>
+            <div class="admin-toolbar__actions">
+                <button type="button" wire:click="openOrganizationModal" class="pill-link">{{ __('settings.organization.actions.save_settings') }}</button>
+                <button type="button" wire:click="openAcademicYearModal" class="pill-link pill-link--accent">{{ __('settings.organization.actions.create_year') }}</button>
+                <button type="button" wire:click="openGradeLevelModal" class="pill-link">{{ __('settings.organization.actions.create_grade') }}</button>
+            </div>
+        </div>
+    </section>
+
+    <div class="space-y-6">
+        <section class="hidden">
             <div class="rounded-xl border border-neutral-200 p-5 dark:border-neutral-700">
                 <div class="mb-4">
                     <h2 class="text-lg font-semibold">{{ __('settings.organization.sections.profile.title') }}</h2>
@@ -493,4 +553,97 @@ new class extends Component {
             </div>
         </section>
     </div>
+
+    <x-admin.modal :show="$showOrganizationModal" :title="__('settings.organization.sections.profile.title')" :description="__('settings.organization.sections.profile.copy')" close-method="closeOrganizationModal" max-width="4xl">
+        <form wire:submit="saveOrganizationSettings" class="space-y-4">
+            <div>
+                <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.school_name') }}</label>
+                <input wire:model="school_name" type="text" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                @error('school_name') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+            </div>
+            <div class="grid gap-4 md:grid-cols-2">
+                <div>
+                    <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.school_phone') }}</label>
+                    <input wire:model="school_phone" type="text" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                    @error('school_phone') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+                </div>
+                <div>
+                    <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.school_email') }}</label>
+                    <input wire:model="school_email" type="email" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                    @error('school_email') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+                </div>
+            </div>
+            <div class="grid gap-4 md:grid-cols-2">
+                <div>
+                    <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.school_timezone') }}</label>
+                    <input wire:model="school_timezone" type="text" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                    @error('school_timezone') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+                </div>
+                <div>
+                    <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.school_currency') }}</label>
+                    <input wire:model="school_currency" type="text" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm uppercase dark:border-neutral-700 dark:bg-neutral-900">
+                    @error('school_currency') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+                </div>
+            </div>
+            <div>
+                <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.school_address') }}</label>
+                <textarea wire:model="school_address" rows="3" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900"></textarea>
+                @error('school_address') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+            </div>
+            <div class="flex justify-end gap-3">
+                <button type="button" wire:click="closeOrganizationModal" class="pill-link">{{ __('crud.common.actions.cancel') }}</button>
+                <button type="submit" class="pill-link pill-link--accent">{{ __('settings.organization.actions.save_settings') }}</button>
+            </div>
+        </form>
+    </x-admin.modal>
+
+    <x-admin.modal :show="$showAcademicYearModal" :title="$academic_year_editing_id ? __('settings.organization.sections.academic_year.edit') : __('settings.organization.sections.academic_year.create')" :description="__('settings.organization.sections.academic_year.copy')" close-method="closeAcademicYearModal" max-width="3xl">
+        <form wire:submit="saveAcademicYear" class="space-y-4">
+            <div>
+                <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.name') }}</label>
+                <input wire:model="academic_year_name" type="text" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                @error('academic_year_name') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+            </div>
+            <div class="grid gap-4 md:grid-cols-2">
+                <div>
+                    <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.starts_on') }}</label>
+                    <input wire:model="academic_year_starts_on" type="date" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                    @error('academic_year_starts_on') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+                </div>
+                <div>
+                    <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.ends_on') }}</label>
+                    <input wire:model="academic_year_ends_on" type="date" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                    @error('academic_year_ends_on') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+                </div>
+            </div>
+            <label class="flex items-center gap-3 text-sm"><input wire:model="academic_year_is_current" type="checkbox" class="rounded border-neutral-300 text-neutral-900"><span>{{ __('settings.organization.fields.current_academic_year') }}</span></label>
+            <label class="flex items-center gap-3 text-sm"><input wire:model="academic_year_is_active" type="checkbox" class="rounded border-neutral-300 text-neutral-900"><span>{{ __('settings.organization.fields.is_active') }}</span></label>
+            @error('academicYearDelete') <div class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{{ $message }}</div> @enderror
+            <div class="flex justify-end gap-3">
+                <button type="button" wire:click="closeAcademicYearModal" class="pill-link">{{ __('crud.common.actions.cancel') }}</button>
+                <button type="submit" class="pill-link pill-link--accent">{{ $academic_year_editing_id ? __('settings.organization.actions.update_year') : __('settings.organization.actions.create_year') }}</button>
+            </div>
+        </form>
+    </x-admin.modal>
+
+    <x-admin.modal :show="$showGradeLevelModal" :title="$grade_level_editing_id ? __('settings.organization.sections.grade_level.edit') : __('settings.organization.sections.grade_level.create')" :description="__('settings.organization.sections.grade_level.copy')" close-method="closeGradeLevelModal" max-width="3xl">
+        <form wire:submit="saveGradeLevel" class="space-y-4">
+            <div>
+                <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.name') }}</label>
+                <input wire:model="grade_level_name" type="text" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                @error('grade_level_name') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+            </div>
+            <div>
+                <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.sort_order') }}</label>
+                <input wire:model="grade_level_sort_order" type="number" min="0" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                @error('grade_level_sort_order') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+            </div>
+            <label class="flex items-center gap-3 text-sm"><input wire:model="grade_level_is_active" type="checkbox" class="rounded border-neutral-300 text-neutral-900"><span>{{ __('settings.organization.fields.is_active') }}</span></label>
+            @error('gradeLevelDelete') <div class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{{ $message }}</div> @enderror
+            <div class="flex justify-end gap-3">
+                <button type="button" wire:click="closeGradeLevelModal" class="pill-link">{{ __('crud.common.actions.cancel') }}</button>
+                <button type="submit" class="pill-link pill-link--accent">{{ $grade_level_editing_id ? __('settings.organization.actions.update_grade') : __('settings.organization.actions.create_grade') }}</button>
+            </div>
+        </form>
+    </x-admin.modal>
 </div>

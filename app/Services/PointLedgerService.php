@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\AttendanceStatus;
 use App\Models\Enrollment;
 use App\Models\PointPolicy;
 use App\Models\PointTransaction;
@@ -13,6 +14,8 @@ use Illuminate\Support\Facades\DB;
 
 class PointLedgerService
 {
+    public const ATTENDANCE_POINT_TYPE_CODE = 'system-attendance';
+
     public function resolvePolicy(string $sourceType, string $triggerKey, ?int $gradeLevelId = null, ?float $value = null): ?PointPolicy
     {
         return PointPolicy::query()
@@ -54,6 +57,25 @@ class PointLedgerService
         ]);
     }
 
+    public function recordAttendanceStatusPoints(Enrollment $enrollment, string $sourceType, int $sourceId, AttendanceStatus $status, ?string $notes = null): ?PointTransaction
+    {
+        $points = (int) $status->default_points;
+
+        if ($points === 0) {
+            return null;
+        }
+
+        return $this->recordAutomaticPoints(
+            $enrollment,
+            $sourceType,
+            $sourceId,
+            $this->attendancePointType(),
+            null,
+            $points,
+            $notes,
+        );
+    }
+
     public function voidSourceTransactions(string $sourceType, int $sourceId, ?string $reason = null): void
     {
         PointTransaction::query()
@@ -86,6 +108,21 @@ class PointLedgerService
         ]);
 
         $this->syncStudentCurrentJuz($enrollment->student);
+    }
+
+    protected function attendancePointType(): PointType
+    {
+        return PointType::query()->firstOrCreate(
+            ['code' => self::ATTENDANCE_POINT_TYPE_CODE],
+            [
+                'name' => 'Attendance',
+                'category' => 'system',
+                'default_points' => 0,
+                'allow_manual_entry' => false,
+                'allow_negative' => true,
+                'is_active' => true,
+            ],
+        );
     }
 
     public function syncStudentCurrentJuz(Student $student): void

@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\AcademicYear;
 use App\Models\AppSetting;
+use App\Models\AttendanceStatus;
 use App\Models\GradeLevel;
 use App\Models\User;
 use Database\Seeders\RoleSeeder;
@@ -137,14 +138,18 @@ class SystemSettingsTest extends TestCase
             ->set('attendance_status_scope', 'student')
             ->set('attendance_status_default_points', '-1')
             ->set('attendance_status_is_present', true)
+            ->set('attendance_status_is_default', true)
             ->call('saveAttendanceStatus')
             ->assertHasNoErrors();
 
         $this->assertDatabaseHas('attendance_statuses', [
             'code' => 'late-api',
             'default_points' => -1,
+            'is_default' => true,
             'scope' => 'student',
         ]);
+
+        $this->assertSame(1, AttendanceStatus::query()->where('is_default', true)->count());
 
         Volt::test('settings.tracking')
             ->set('assessment_type_name', 'Oral Exam')

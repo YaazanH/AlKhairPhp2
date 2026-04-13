@@ -9,6 +9,7 @@ use App\Models\Enrollment;
 use App\Models\ExpenseCategory;
 use App\Models\PaymentMethod;
 use App\Models\Student;
+use App\Services\ActivityAudienceService;
 use App\Services\FinanceService;
 use Illuminate\Validation\Rule;
 use Livewire\Volt\Component;
@@ -38,7 +39,7 @@ new class extends Component {
     public function mount(Activity $activity): void
     {
         $this->authorizePermission('activities.finance.view');
-        $this->currentActivity = Activity::query()->with(['group.course'])->findOrFail($activity->id);
+        $this->currentActivity = Activity::query()->with(['group.course', 'targetGroups.course'])->findOrFail($activity->id);
         $this->resetRegistrationForm();
         $this->payment_paid_at = now()->toDateString();
         $this->expense_spent_on = now()->toDateString();
@@ -46,20 +47,23 @@ new class extends Component {
 
     public function with(): array
     {
+        $audience = app(ActivityAudienceService::class);
+        $activityRecord = $this->currentActivity->fresh(['group.course', 'targetGroups.course']);
+        $eligibleStudentIds = $audience->eligibleStudentIds($activityRecord);
+
         return [
-            'activityRecord' => $this->currentActivity->fresh(['group.course']),
+            'activityRecord' => $activityRecord,
             'students' => Student::query()->where('status', 'active')
-                ->when($this->currentActivity->group_id, fn ($query) => $query->whereHas('enrollments', fn ($inner) => $inner->where('group_id', $this->currentActivity->group_id)->where('status', 'active')))
+                ->when($eligibleStudentIds !== [], fn ($query) => $query->whereIn('id', $eligibleStudentIds), fn ($query) => $query->whereRaw('1 = 0'))
                 ->orderBy('first_name')->orderBy('last_name')->get(),
-            'enrollments' => Enrollment::query()->with(['student', 'group'])
+            'enrollments' => $audience->eligibleEnrollmentQuery($activityRecord)
                 ->when($this->registration_student_id, fn ($query) => $query->where('student_id', $this->registration_student_id))
-                ->when($this->currentActivity->group_id, fn ($query) => $query->where('group_id', $this->currentActivity->group_id))
-                ->where('status', 'active')->latest('enrolled_at')->get(),
+                ->latest('enrolled_at')->get(),
             'registrations' => ActivityRegistration::query()->with(['student', 'enrollment.group'])
                 ->withSum(['payments as active_paid_total' => fn ($query) => $query->whereNull('voided_at')], 'amount')
                 ->where('activity_id', $this->currentActivity->id)->latest('id')->get(),
             'paymentRegistrations' => ActivityRegistration::query()->with('student')
-                ->where('activity_id', $this->currentActivity->id)->where('status', '!=', 'cancelled')->orderBy('student_id')->get(),
+                ->where('activity_id', $this->currentActivity->id)->whereNotIn('status', ['cancelled', 'declined'])->orderBy('student_id')->get(),
             'payments' => ActivityPayment::query()->with(['registration.student', 'paymentMethod'])
                 ->whereHas('registration', fn ($query) => $query->where('activity_id', $this->currentActivity->id))
                 ->latest('paid_at')->latest('id')->get(),
@@ -71,20 +75,20 @@ new class extends Component {
 
     public function updatedRegistrationStudentId($value): void
     {
-        $this->registration_enrollment_id = Enrollment::query()->where('student_id', $value)
-            ->when($this->currentActivity->group_id, fn ($query) => $query->where('group_id', $this->currentActivity->group_id))
-            ->where('status', 'active')->value('id');
+        $this->registration_enrollment_id = app(ActivityAudienceService::class)
+            ->resolveEnrollmentForStudent($this->currentActivity, (int) $value)?->id;
     }
 
     public function saveRegistration(): void
     {
         $this->authorizePermission('activities.registrations.manage');
+        $audience = app(ActivityAudienceService::class);
 
         $validated = $this->validate([
             'registration_student_id' => ['required', 'exists:students,id', Rule::unique('activity_registrations', 'student_id')->where(fn ($query) => $query->where('activity_id', $this->currentActivity->id)->whereNull('deleted_at'))->ignore($this->editingRegistrationId)],
             'registration_enrollment_id' => ['nullable', 'exists:enrollments,id'],
             'registration_fee_amount' => ['required', 'numeric', 'min:0'],
-            'registration_status' => ['required', 'in:registered,cancelled,attended'],
+            'registration_status' => ['required', 'in:registered,declined,cancelled,attended'],
             'registration_notes' => ['nullable', 'string'],
         ]);
 
@@ -94,7 +98,7 @@ new class extends Component {
                 $this->addError('registration_enrollment_id', __('activities.finance.registrations.errors.wrong_student'));
                 return;
             }
-            if ($this->currentActivity->group_id && $enrollment->group_id !== $this->currentActivity->group_id) {
+            if (! $audience->enrollmentMatches($this->currentActivity, $enrollment)) {
                 $this->addError('registration_enrollment_id', __('activities.finance.registrations.errors.wrong_group'));
                 return;
             }
@@ -272,7 +276,15 @@ new class extends Component {
             </div>
             <div class="surface-panel px-5 py-4">
                 <div class="text-sm font-semibold text-white">{{ $activityRecord->title }}</div>
-                <div class="mt-1 text-sm text-neutral-400">{{ $activityRecord->activity_date?->format('Y-m-d') }} | {{ $activityRecord->group?->name ?: __('activities.common.general_activity') }}</div>
+                <div class="mt-1 text-sm text-neutral-400">{{ $activityRecord->activity_date?->format('Y-m-d') }}</div>
+                <div class="mt-1 text-xs text-neutral-500">
+                    {{ __('activities.common.audience.'.$activityRecord->audience_scope) }}
+                    @if ($activityRecord->audience_scope === 'multiple_groups')
+                        | {{ $activityRecord->targetGroups->pluck('name')->implode(', ') }}
+                    @elseif ($activityRecord->audience_scope === 'single_group')
+                        | {{ $activityRecord->group?->name ?: ($activityRecord->targetGroups->first()?->name ?: __('activities.common.audience.unassigned')) }}
+                    @endif
+                </div>
             </div>
         </div>
     </section>
@@ -325,6 +337,7 @@ new class extends Component {
                             <label class="mb-1 block text-sm font-medium">{{ __('activities.finance.registrations.fields.status') }}</label>
                             <select wire:model="registration_status" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
                                 <option value="registered">{{ __('activities.common.states.registered') }}</option>
+                                <option value="declined">{{ __('activities.common.states.declined') }}</option>
                                 <option value="attended">{{ __('activities.common.states.attended') }}</option>
                                 <option value="cancelled">{{ __('activities.common.states.cancelled') }}</option>
                             </select>

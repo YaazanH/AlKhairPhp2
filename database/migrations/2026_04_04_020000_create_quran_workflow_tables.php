@@ -28,7 +28,8 @@ return new class extends Migration
             $table->text('notes')->nullable();
             $table->timestamps();
 
-            $table->unique(['teacher_attendance_day_id', 'teacher_id']);
+            //make name shorter 
+            $table->unique(['teacher_attendance_day_id', 'teacher_id'], 'ta_day_teacher_unique');
         });
 
         Schema::create('group_attendance_days', function (Blueprint $table) {
@@ -40,7 +41,7 @@ return new class extends Migration
             $table->text('notes')->nullable();
             $table->timestamps();
 
-            $table->unique(['group_id', 'attendance_date']);
+            $table->unique(['group_id', 'attendance_date'], 'gr_id_att_date_unique');
         });
 
         Schema::create('student_attendance_records', function (Blueprint $table) {
@@ -51,7 +52,7 @@ return new class extends Migration
             $table->text('notes')->nullable();
             $table->timestamps();
 
-            $table->unique(['group_attendance_day_id', 'enrollment_id']);
+            $table->unique(['group_attendance_day_id', 'enrollment_id'], 'grp_att_id_enroll_id_unique');
         });
 
         Schema::create('memorization_sessions', function (Blueprint $table) {
@@ -76,7 +77,7 @@ return new class extends Migration
             $table->unsignedSmallInteger('page_no');
             $table->timestamps();
 
-            $table->unique(['memorization_session_id', 'page_no']);
+            $table->unique(['memorization_session_id', 'page_no'], 'memo_sess_id_pag_no_unique');
         });
 
         Schema::create('student_page_achievements', function (Blueprint $table) {
@@ -88,7 +89,7 @@ return new class extends Migration
             $table->date('first_recorded_on');
             $table->timestamps();
 
-            $table->unique(['student_id', 'page_no']);
+            $table->unique(['student_id', 'page_no'], 'st_id_pag_no_unique');
         });
 
         Schema::create('quran_tests', function (Blueprint $table) {
@@ -124,7 +125,7 @@ return new class extends Migration
             $table->foreignId('voided_by')->nullable()->constrained('users')->nullOnDelete();
             $table->text('void_reason')->nullable();
             $table->timestamps();
-
+            // teacher_attendance_records_teacher_attendance_day_id_teacher_id_unique
             $table->index(['enrollment_id', 'voided_at']);
             $table->index(['source_type', 'source_id']);
         });

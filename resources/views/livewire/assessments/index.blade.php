@@ -6,10 +6,12 @@ use App\Models\Assessment;
 use App\Models\AssessmentType;
 use App\Models\Group;
 use Livewire\Volt\Component;
+use Livewire\WithPagination;
 
 new class extends Component {
     use AuthorizesPermissions;
     use AuthorizesTeacherAssignments;
+    use WithPagination;
 
     public ?int $editingId = null;
     public ?int $group_id = null;
@@ -21,6 +23,8 @@ new class extends Component {
     public string $total_mark = '';
     public string $pass_mark = '';
     public bool $is_active = true;
+    public int $perPage = 15;
+    public bool $showForm = false;
 
     public function mount(): void
     {
@@ -40,14 +44,17 @@ new class extends Component {
                 ->latest('id')
         );
 
+        $filteredCount = (clone $assessmentQuery)->count();
+
         return [
             'groups' => $groupQuery->get(),
             'types' => AssessmentType::query()->where('is_active', true)->orderBy('name')->get(),
-            'assessments' => $assessmentQuery->get(),
+            'assessments' => $assessmentQuery->paginate($this->perPage),
             'totals' => [
                 'all' => (clone $assessmentQuery)->count(),
                 'active' => (clone $assessmentQuery)->where('is_active', true)->count(),
             ],
+            'filteredCount' => $filteredCount,
         ];
     }
 
@@ -64,6 +71,14 @@ new class extends Component {
             'pass_mark' => ['nullable', 'numeric', 'min:0', 'lte:total_mark'],
             'is_active' => ['boolean'],
         ];
+    }
+
+    public function create(): void
+    {
+        $this->authorizePermission('assessments.create');
+
+        $this->cancel(closeForm: false);
+        $this->showForm = true;
     }
 
     public function save(): void
@@ -111,11 +126,12 @@ new class extends Component {
         $this->total_mark = $assessment->total_mark !== null ? number_format((float) $assessment->total_mark, 2, '.', '') : '';
         $this->pass_mark = $assessment->pass_mark !== null ? number_format((float) $assessment->pass_mark, 2, '.', '') : '';
         $this->is_active = $assessment->is_active;
+        $this->showForm = true;
 
         $this->resetValidation();
     }
 
-    public function cancel(): void
+    public function cancel(bool $closeForm = true): void
     {
         $this->editingId = null;
         $this->group_id = null;
@@ -127,6 +143,10 @@ new class extends Component {
         $this->total_mark = '';
         $this->pass_mark = '';
         $this->is_active = true;
+
+        if ($closeForm) {
+            $this->showForm = false;
+        }
 
         $this->resetValidation();
     }
@@ -186,10 +206,22 @@ new class extends Component {
         </article>
     </section>
 
-    <div class="grid gap-6 xl:grid-cols-[28rem_minmax(0,1fr)]">
-        <section class="surface-panel p-5 lg:p-6">
+    <div class="space-y-6">
+        @if ($showForm)
+        <section class="admin-modal" role="dialog" aria-modal="true">
+            <div class="admin-modal__backdrop" wire:click="cancel"></div>
+            <div class="admin-modal__viewport">
+                <div class="admin-modal__dialog admin-modal__dialog--3xl">
+                    <div class="admin-modal__header">
+                        <div>
+                            <div class="admin-modal__title">{{ $editingId ? __('workflow.assessments.index.form.edit_title') : __('workflow.assessments.index.form.create_title') }}</div>
+                            <p class="admin-modal__description">{{ __('workflow.assessments.index.form.help') }}</p>
+                        </div>
+                        <button type="button" wire:click="cancel" class="admin-modal__close" aria-label="{{ __('crud.common.actions.cancel') }}">×</button>
+                    </div>
+                    <div class="admin-modal__body">
             @if (auth()->user()->can('assessments.create') || auth()->user()->can('assessments.update'))
-                <div class="mb-4">
+                <div class="mb-4 md:hidden">
                     <h2 class="text-lg font-semibold text-white">{{ $editingId ? __('workflow.assessments.index.form.edit_title') : __('workflow.assessments.index.form.create_title') }}</h2>
                     <p class="text-sm text-neutral-400">{{ __('workflow.assessments.index.form.help') }}</p>
                 </div>
@@ -272,14 +304,23 @@ new class extends Component {
             @else
                 <div class="admin-empty-state">{{ __('workflow.assessments.index.read_only') }}</div>
             @endif
+                    </div>
+                </div>
+            </div>
         </section>
+        @endif
 
         <section class="surface-table">
             <div class="admin-grid-meta">
                 <div>
                     <div class="admin-grid-meta__title">{{ __('workflow.assessments.index.table.title') }}</div>
-                    <div class="admin-grid-meta__summary">{{ __('crud.common.badges.in_view', ['count' => number_format($assessments->count())]) }}</div>
+                    <div class="admin-grid-meta__summary">{{ __('crud.common.badges.in_view', ['count' => number_format($filteredCount)]) }}</div>
                 </div>
+                @can('assessments.create')
+                    <button type="button" wire:click="create" class="pill-link pill-link--accent">
+                        {{ __('workflow.assessments.index.form.create_title') }}
+                    </button>
+                @endcan
             </div>
 
             @if ($assessments->isEmpty())
@@ -330,6 +371,12 @@ new class extends Component {
                         </tbody>
                     </table>
                 </div>
+
+                @if ($assessments->hasPages())
+                    <div class="border-t border-white/8 px-5 py-4 lg:px-6">
+                        {{ $assessments->links() }}
+                    </div>
+                @endif
             @endif
         </section>
     </div>

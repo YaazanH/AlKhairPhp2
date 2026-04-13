@@ -7,10 +7,12 @@ use App\Services\ManagedUserService;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Str;
 use Livewire\Volt\Component;
+use Livewire\WithPagination;
 
 new class extends Component {
     use AuthorizesPermissions;
     use AuthorizesTeacherAssignments;
+    use WithPagination;
 
     public ?int $editingId = null;
     public string $father_name = '';
@@ -30,6 +32,7 @@ new class extends Component {
     public ?string $issued_password = null;
     public string $search = '';
     public string $statusFilter = 'all';
+    public int $perPage = 15;
     public bool $showFormModal = false;
     public bool $showAccountModal = false;
 
@@ -56,14 +59,26 @@ new class extends Component {
             ->withCount('students')
             ->orderBy('father_name');
 
+        $filteredCount = (clone $filteredQuery)->count();
+
         return [
-            'parents' => $filteredQuery->get(),
+            'parents' => $filteredQuery->paginate($this->perPage),
             'totals' => [
                 'all' => $baseQuery->count(),
                 'active' => $this->scopeParentsQuery(ParentProfile::query()->where('is_active', true))->count(),
             ],
-            'filteredCount' => (clone $filteredQuery)->count(),
+            'filteredCount' => $filteredCount,
         ];
+    }
+
+    public function updatedSearch(): void
+    {
+        $this->resetPage();
+    }
+
+    public function updatedStatusFilter(): void
+    {
+        $this->resetPage();
     }
 
     public function rules(): array
@@ -412,6 +427,12 @@ new class extends Component {
                     </tbody>
                 </table>
             </div>
+
+            @if ($parents->hasPages())
+                <div class="border-t border-white/8 px-5 py-4 lg:px-6">
+                    {{ $parents->links() }}
+                </div>
+            @endif
         @endif
     </section>
 

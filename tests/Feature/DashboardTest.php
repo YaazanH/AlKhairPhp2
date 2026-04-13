@@ -12,6 +12,7 @@ use App\Models\Teacher;
 use App\Models\User;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 class DashboardTest extends TestCase
@@ -102,6 +103,47 @@ class DashboardTest extends TestCase
             ->assertSee('Management Dashboard')
             ->assertSee('Recent Groups')
             ->assertSee('Boys A');
+    }
+
+    public function test_super_admin_users_see_the_management_dashboard(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $user = User::factory()->create([
+            'username' => 'super-admin-dashboard',
+            'phone' => '7000009',
+        ]);
+
+        $user->assignRole('super_admin');
+
+        $this->actingAs($user);
+
+        $this->get('/dashboard')
+            ->assertOk()
+            ->assertSee('Management Dashboard')
+            ->assertDontSee('Dashboard Setup');
+    }
+
+    public function test_custom_roles_with_manager_dashboard_permission_see_the_management_dashboard(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $role = Role::findOrCreate('site-director', 'web');
+        $role->givePermissionTo(['dashboard.manager.view']);
+
+        $user = User::factory()->create([
+            'username' => 'custom-manager-dashboard',
+            'phone' => '7000010',
+        ]);
+
+        $user->assignRole($role);
+
+        $this->actingAs($user);
+
+        $this->get('/dashboard')
+            ->assertOk()
+            ->assertSee('Management Dashboard')
+            ->assertDontSee('Dashboard Setup');
     }
 
     public function test_teacher_users_see_only_their_group_scope(): void

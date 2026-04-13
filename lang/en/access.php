@@ -124,6 +124,7 @@ return [
         'actions' => [
             'create' => 'Create role',
             'edit' => 'Edit role',
+            'permissions' => 'Permissions',
             'delete' => 'Delete role',
             'select' => 'Select',
             'save' => 'Save permissions',

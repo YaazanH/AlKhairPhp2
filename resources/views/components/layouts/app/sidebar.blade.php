@@ -88,21 +88,39 @@
                         </flux:navlist.group>
                     @endif
 
-                    @if (auth()->user()->can('attendance.teacher.view') || auth()->user()->can('student-notes.view'))
+                    @if (auth()->user()->can('attendance.student.view') || auth()->user()->can('attendance.teacher.view') || auth()->user()->can('memorization.view') || auth()->user()->can('quran-tests.view') || auth()->user()->can('points.view') || auth()->user()->can('student-notes.view') || auth()->user()->can('barcode-scans.import'))
                         <flux:navlist.group :heading="__('ui.nav.tracking')" class="grid">
+                            @can('attendance.student.view')
+                                <flux:navlist.item :href="route('student-attendance.index')" :current="request()->routeIs('student-attendance.*', 'groups.attendance')" wire:navigate>{{ __('ui.nav.student_attendance') }}</flux:navlist.item>
+                            @endcan
                             @can('attendance.teacher.view')
                                 <flux:navlist.item :href="route('teachers.attendance')" :current="request()->routeIs('teachers.attendance')" wire:navigate>{{ __('ui.nav.teacher_attendance') }}</flux:navlist.item>
+                            @endcan
+                            @can('memorization.view')
+                                <flux:navlist.item :href="route('memorization.index')" :current="request()->routeIs('memorization.*', 'enrollments.memorization')" wire:navigate>{{ __('ui.nav.memorization') }}</flux:navlist.item>
+                            @endcan
+                            @can('quran-tests.view')
+                                <flux:navlist.item :href="route('quran-tests.index')" :current="request()->routeIs('quran-tests.*', 'enrollments.quran-tests')" wire:navigate>{{ __('ui.nav.quran_tests') }}</flux:navlist.item>
+                            @endcan
+                            @can('points.view')
+                                <flux:navlist.item :href="route('points.index')" :current="request()->routeIs('points.*', 'enrollments.points')" wire:navigate>{{ __('ui.nav.point_ledger') }}</flux:navlist.item>
                             @endcan
                             @can('student-notes.view')
                                 <flux:navlist.item :href="route('student-notes.index')" :current="request()->routeIs('student-notes.*')" wire:navigate>{{ __('ui.nav.student_notes') }}</flux:navlist.item>
                             @endcan
+                            @can('barcode-scans.import')
+                                <flux:navlist.item :href="route('barcode-actions.import')" :current="request()->routeIs('barcode-actions.import')" wire:navigate>{{ __('ui.nav.scanner_import') }}</flux:navlist.item>
+                            @endcan
                         </flux:navlist.group>
                     @endif
 
-                    @if (auth()->user()->can('activities.view') || auth()->user()->can('invoices.view'))
+                    @if (auth()->user()->can('activities.view') || auth()->user()->can('activities.responses.view') || auth()->user()->can('invoices.view'))
                         <flux:navlist.group :heading="__('ui.nav.finance')" class="grid">
                             @can('activities.view')
-                                <flux:navlist.item :href="route('activities.index')" :current="request()->routeIs('activities.*')" wire:navigate>{{ __('ui.nav.activities') }}</flux:navlist.item>
+                                <flux:navlist.item :href="route('activities.index')" :current="request()->routeIs('activities.index', 'activities.finance')" wire:navigate>{{ __('ui.nav.activities') }}</flux:navlist.item>
+                            @endcan
+                            @can('activities.responses.view')
+                                <flux:navlist.item :href="route('activities.family')" :current="request()->routeIs('activities.family')" wire:navigate>{{ __('ui.nav.family_activities') }}</flux:navlist.item>
                             @endcan
                             @can('invoices.view')
                                 <flux:navlist.item :href="route('invoices.index')" :current="request()->routeIs('invoices.*')" wire:navigate>{{ __('ui.nav.invoices') }}</flux:navlist.item>
@@ -121,6 +139,20 @@
                             @endcan
                         </flux:navlist.group>
                     @endcan
+
+                    @if (auth()->user()->can('id-cards.view') || auth()->user()->can('id-cards.print') || auth()->user()->can('barcode-actions.view'))
+                        <flux:navlist.group :heading="__('ui.nav.identity_tools')" class="grid">
+                            @can('id-cards.view')
+                                <flux:navlist.item :href="route('id-cards.templates.index')" :current="request()->routeIs('id-cards.templates.*')" wire:navigate>{{ __('ui.nav.id_card_templates') }}</flux:navlist.item>
+                            @endcan
+                            @can('id-cards.print')
+                                <flux:navlist.item :href="route('id-cards.print.create')" :current="request()->routeIs('id-cards.print.*')" wire:navigate>{{ __('ui.nav.id_card_print') }}</flux:navlist.item>
+                            @endcan
+                            @can('barcode-actions.view')
+                                <flux:navlist.item :href="route('barcode-actions.index')" :current="request()->routeIs('barcode-actions.index', 'barcode-actions.print.*')" wire:navigate>{{ __('ui.nav.action_barcodes') }}</flux:navlist.item>
+                            @endcan
+                        </flux:navlist.group>
+                    @endif
 
                     @can('website.manage')
                         <flux:navlist.group :heading="__('site.admin.nav.meta')" class="grid">
@@ -253,6 +285,43 @@
                         {{ $slot }}
                     </div>
                 </main>
+            </div>
+        </div>
+
+        <div
+            id="admin-confirm-modal"
+            class="admin-modal"
+            data-default-confirm-label="{{ __('crud.common.confirm_delete.confirm') }}"
+            data-default-message="{{ __('crud.common.confirm_delete.message') }}"
+            data-default-title="{{ __('crud.common.confirm_delete.title') }}"
+            hidden
+            aria-hidden="true"
+        >
+            <div class="admin-modal__backdrop" data-admin-confirm-close></div>
+            <div class="admin-modal__viewport">
+                <div class="admin-modal__dialog admin-modal__dialog--2xl" role="dialog" aria-modal="true" aria-labelledby="admin-confirm-title" aria-describedby="admin-confirm-message">
+                    <div class="admin-modal__header">
+                        <div>
+                            <h2 id="admin-confirm-title" class="admin-modal__title">{{ __('crud.common.confirm_delete.title') }}</h2>
+                            <p id="admin-confirm-message" class="admin-modal__description">{{ __('crud.common.confirm_delete.message') }}</p>
+                        </div>
+
+                        <button type="button" data-admin-confirm-close class="admin-modal__close" aria-label="{{ __('crud.common.actions.close') }}">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>
+
+                    <div class="admin-modal__body">
+                        <div class="admin-action-cluster admin-action-cluster--end">
+                            <button id="admin-confirm-cancel" type="button" class="pill-link">
+                                {{ __('crud.common.actions.cancel') }}
+                            </button>
+                            <button id="admin-confirm-accept" type="button" class="pill-link pill-link--accent">
+                                {{ __('crud.common.confirm_delete.confirm') }}
+                            </button>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
 

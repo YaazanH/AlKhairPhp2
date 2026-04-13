@@ -3,18 +3,25 @@
 use App\Livewire\Concerns\AuthorizesPermissions;
 use App\Models\Activity;
 use App\Models\Group;
+use App\Services\ActivityAudienceService;
 use Livewire\Volt\Component;
+use Livewire\WithPagination;
 
 new class extends Component {
     use AuthorizesPermissions;
+    use WithPagination;
 
     public ?int $editingId = null;
     public string $title = '';
     public string $description = '';
     public string $activity_date = '';
+    public string $audience_scope = 'all_groups';
     public ?int $group_id = null;
+    public array $selected_group_ids = [];
     public string $fee_amount = '';
     public bool $is_active = true;
+    public int $perPage = 15;
+    public bool $showForm = false;
 
     public function mount(): void
     {
@@ -25,13 +32,14 @@ new class extends Component {
 
     public function with(): array
     {
+        $activityQuery = Activity::query()
+            ->with(['group.course', 'targetGroups.course'])
+            ->withCount(['registrations', 'expenses'])
+            ->orderByDesc('activity_date')
+            ->orderBy('title');
+
         return [
-            'activities' => Activity::query()
-                ->with(['group.course'])
-                ->withCount(['registrations', 'expenses'])
-                ->orderByDesc('activity_date')
-                ->orderBy('title')
-                ->get(),
+            'activities' => $activityQuery->paginate($this->perPage),
             'groups' => Group::query()
                 ->with(['course', 'academicYear'])
                 ->orderBy('name')
@@ -42,6 +50,7 @@ new class extends Component {
                 'expected' => Activity::sum('expected_revenue_cached'),
                 'collected' => Activity::sum('collected_revenue_cached'),
             ],
+            'filteredCount' => (clone $activityQuery)->count(),
         ];
     }
 
@@ -51,10 +60,21 @@ new class extends Component {
             'title' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
             'activity_date' => ['required', 'date'],
+            'audience_scope' => ['required', 'in:single_group,multiple_groups,all_groups'],
             'group_id' => ['nullable', 'exists:groups,id'],
+            'selected_group_ids' => ['array'],
+            'selected_group_ids.*' => ['integer', 'exists:groups,id'],
             'fee_amount' => ['nullable', 'numeric', 'min:0'],
             'is_active' => ['boolean'],
         ];
+    }
+
+    public function create(): void
+    {
+        $this->authorizePermission('activities.create');
+
+        $this->cancel(closeForm: false);
+        $this->showForm = true;
     }
 
     public function save(): void
@@ -63,16 +83,36 @@ new class extends Component {
 
         $validated = $this->validate();
 
-        Activity::query()->updateOrCreate(
+        if ($validated['audience_scope'] === ActivityAudienceService::SCOPE_SINGLE_GROUP && ! $validated['group_id']) {
+            $this->addError('group_id', __('activities.index.form.errors.single_group_required'));
+
+            return;
+        }
+
+        if ($validated['audience_scope'] === ActivityAudienceService::SCOPE_MULTIPLE_GROUPS && count($validated['selected_group_ids']) === 0) {
+            $this->addError('selected_group_ids', __('activities.index.form.errors.multiple_groups_required'));
+
+            return;
+        }
+
+        $activity = Activity::query()->updateOrCreate(
             ['id' => $this->editingId],
             [
                 'title' => $validated['title'],
                 'description' => $validated['description'] ?: null,
                 'activity_date' => $validated['activity_date'],
-                'group_id' => $validated['group_id'] ?: null,
+                'audience_scope' => $validated['audience_scope'],
+                'group_id' => $validated['audience_scope'] === ActivityAudienceService::SCOPE_SINGLE_GROUP ? ($validated['group_id'] ?: null) : null,
                 'fee_amount' => $validated['fee_amount'] !== '' ? $validated['fee_amount'] : null,
                 'is_active' => $validated['is_active'],
             ],
+        );
+
+        app(ActivityAudienceService::class)->syncTargets(
+            $activity,
+            $validated['audience_scope'],
+            $validated['group_id'] ?: null,
+            $validated['selected_group_ids'] ?? [],
         );
 
         session()->flash(
@@ -87,28 +127,38 @@ new class extends Component {
     {
         $this->authorizePermission('activities.update');
 
-        $activity = Activity::query()->findOrFail($activityId);
+        $activity = Activity::query()->with('targetGroups')->findOrFail($activityId);
+        $audienceService = app(ActivityAudienceService::class);
 
         $this->editingId = $activity->id;
         $this->title = $activity->title;
         $this->description = $activity->description ?? '';
         $this->activity_date = $activity->activity_date?->format('Y-m-d') ?? '';
+        $this->audience_scope = $activity->audience_scope ?: ActivityAudienceService::SCOPE_ALL_GROUPS;
         $this->group_id = $activity->group_id;
+        $this->selected_group_ids = $audienceService->targetedGroupIds($activity);
         $this->fee_amount = $activity->fee_amount !== null ? number_format((float) $activity->fee_amount, 2, '.', '') : '';
         $this->is_active = $activity->is_active;
+        $this->showForm = true;
 
         $this->resetValidation();
     }
 
-    public function cancel(): void
+    public function cancel(bool $closeForm = true): void
     {
         $this->editingId = null;
         $this->title = '';
         $this->description = '';
         $this->activity_date = now()->toDateString();
+        $this->audience_scope = ActivityAudienceService::SCOPE_ALL_GROUPS;
         $this->group_id = null;
+        $this->selected_group_ids = [];
         $this->fee_amount = '';
         $this->is_active = true;
+
+        if ($closeForm) {
+            $this->showForm = false;
+        }
 
         $this->resetValidation();
     }
@@ -169,10 +219,22 @@ new class extends Component {
         </article>
     </section>
 
-    <div class="grid gap-6 xl:grid-cols-[28rem_minmax(0,1fr)]">
-        <section class="surface-panel p-5 lg:p-6">
+    <div class="space-y-6">
+        @if ($showForm)
+        <section class="admin-modal" role="dialog" aria-modal="true">
+            <div class="admin-modal__backdrop" wire:click="cancel"></div>
+            <div class="admin-modal__viewport">
+                <div class="admin-modal__dialog admin-modal__dialog--3xl">
+                    <div class="admin-modal__header">
+                        <div>
+                            <div class="admin-modal__title">{{ $editingId ? __('activities.index.form.edit_title') : __('activities.index.form.create_title') }}</div>
+                            <p class="admin-modal__description">{{ __('activities.index.form.help') }}</p>
+                        </div>
+                        <button type="button" wire:click="cancel" class="admin-modal__close" aria-label="{{ __('crud.common.actions.cancel') }}">×</button>
+                    </div>
+                    <div class="admin-modal__body">
             @if (auth()->user()->can('activities.create') || auth()->user()->can('activities.update'))
-                <div class="mb-4">
+                <div class="mb-4 md:hidden">
                     <h2 class="text-lg font-semibold text-white">{{ $editingId ? __('activities.index.form.edit_title') : __('activities.index.form.create_title') }}</h2>
                     <p class="text-sm text-neutral-400">{{ __('activities.index.form.help') }}</p>
                 </div>
@@ -205,17 +267,51 @@ new class extends Component {
                     </div>
 
                     <div>
-                        <label for="activity-group" class="mb-1 block text-sm font-medium">{{ __('activities.index.form.fields.group') }}</label>
-                        <select id="activity-group" wire:model="group_id" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
-                            <option value="">{{ __('activities.index.form.placeholders.group') }}</option>
-                            @foreach ($groups as $group)
-                                <option value="{{ $group->id }}">{{ $group->name }}{{ $group->course ? ' | '.$group->course->name : '' }}</option>
-                            @endforeach
+                        <label for="activity-audience" class="mb-1 block text-sm font-medium">{{ __('activities.index.form.fields.audience_scope') }}</label>
+                        <select id="activity-audience" wire:model.live="audience_scope" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                            <option value="single_group">{{ __('activities.common.audience.single_group') }}</option>
+                            <option value="multiple_groups">{{ __('activities.common.audience.multiple_groups') }}</option>
+                            <option value="all_groups">{{ __('activities.common.audience.all_groups') }}</option>
                         </select>
-                        @error('group_id')
+                        @error('audience_scope')
                             <div class="mt-1 text-sm text-red-600">{{ $message }}</div>
                         @enderror
                     </div>
+
+                    @if ($audience_scope === 'single_group')
+                        <div>
+                            <label for="activity-group" class="mb-1 block text-sm font-medium">{{ __('activities.index.form.fields.group') }}</label>
+                            <select id="activity-group" wire:model="group_id" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                                <option value="">{{ __('activities.index.form.placeholders.group') }}</option>
+                                @foreach ($groups as $group)
+                                    <option value="{{ $group->id }}">{{ $group->name }}{{ $group->course ? ' | '.$group->course->name : '' }}</option>
+                                @endforeach
+                            </select>
+                            @error('group_id')
+                                <div class="mt-1 text-sm text-red-600">{{ $message }}</div>
+                            @enderror
+                        </div>
+                    @elseif ($audience_scope === 'multiple_groups')
+                        <div>
+                            <label for="activity-groups" class="mb-1 block text-sm font-medium">{{ __('activities.index.form.fields.groups') }}</label>
+                            <select id="activity-groups" wire:model="selected_group_ids" multiple size="7" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                                @foreach ($groups as $group)
+                                    <option value="{{ $group->id }}">{{ $group->name }}{{ $group->course ? ' | '.$group->course->name : '' }}</option>
+                                @endforeach
+                            </select>
+                            <p class="mt-2 text-xs text-neutral-500">{{ __('activities.index.form.help_multiple_groups') }}</p>
+                            @error('selected_group_ids')
+                                <div class="mt-1 text-sm text-red-600">{{ $message }}</div>
+                            @enderror
+                            @error('selected_group_ids.*')
+                                <div class="mt-1 text-sm text-red-600">{{ $message }}</div>
+                            @enderror
+                        </div>
+                    @else
+                        <div class="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-neutral-300">
+                            {{ __('activities.index.form.all_groups_hint') }}
+                        </div>
+                    @endif
 
                     <div>
                         <label for="activity-description" class="mb-1 block text-sm font-medium">{{ __('activities.index.form.fields.description') }}</label>
@@ -254,14 +350,23 @@ new class extends Component {
                     <p class="mt-2 text-sm text-neutral-400">{{ __('activities.index.read_only.body') }}</p>
                 </div>
             @endif
+                    </div>
+                </div>
+            </div>
         </section>
+        @endif
 
         <section class="surface-table">
             <div class="admin-grid-meta">
                 <div>
                     <div class="admin-grid-meta__title">{{ __('activities.index.table.title') }}</div>
-                    <div class="admin-grid-meta__summary">{{ __('crud.common.badges.in_view', ['count' => number_format($activities->count())]) }}</div>
+                    <div class="admin-grid-meta__summary">{{ __('crud.common.badges.in_view', ['count' => number_format($filteredCount)]) }}</div>
                 </div>
+                @can('activities.create')
+                    <button type="button" wire:click="create" class="pill-link pill-link--accent">
+                        {{ __('activities.index.form.create_title') }}
+                    </button>
+                @endcan
             </div>
 
             @if ($activities->isEmpty())
@@ -272,6 +377,7 @@ new class extends Component {
                         <thead>
                             <tr>
                                 <th class="px-5 py-3 text-left font-medium">{{ __('activities.index.table.headers.activity') }}</th>
+                                <th class="px-5 py-3 text-left font-medium">{{ __('activities.index.table.headers.audience') }}</th>
                                 <th class="px-5 py-3 text-left font-medium">{{ __('activities.index.table.headers.date') }}</th>
                                 <th class="px-5 py-3 text-left font-medium">{{ __('activities.index.table.headers.registrations') }}</th>
                                 <th class="px-5 py-3 text-left font-medium">{{ __('activities.index.table.headers.financials') }}</th>
@@ -283,15 +389,23 @@ new class extends Component {
                         </thead>
                         <tbody class="divide-y divide-neutral-200 dark:divide-neutral-700">
                             @foreach ($activities as $activity)
+                                @php
+                                    $audienceLabel = match ($activity->audience_scope) {
+                                        'single_group' => $activity->group?->name ?: ($activity->targetGroups->first()?->name ?: __('activities.common.audience.unassigned')),
+                                        'multiple_groups' => $activity->targetGroups->pluck('name')->take(3)->implode(', ').($activity->targetGroups->count() > 3 ? ' +'.($activity->targetGroups->count() - 3) : ''),
+                                        default => __('activities.common.audience.all_groups'),
+                                    };
+                                @endphp
                                 <tr>
                                     <td class="px-5 py-3">
                                         <div class="font-medium">{{ $activity->title }}</div>
-                                        <div class="text-xs text-neutral-500">
-                                            {{ $activity->group?->name ?: __('activities.common.general_activity') }}
-                                            @if ($activity->group?->course)
-                                                | {{ $activity->group->course->name }}
-                                            @endif
-                                        </div>
+                                        @if ($activity->description)
+                                            <div class="text-xs text-neutral-500">{{ \Illuminate\Support\Str::limit($activity->description, 90) }}</div>
+                                        @endif
+                                    </td>
+                                    <td class="px-5 py-3">
+                                        <div class="font-medium">{{ $audienceLabel }}</div>
+                                        <div class="text-xs text-neutral-500">{{ __('activities.common.audience.'.$activity->audience_scope) }}</div>
                                     </td>
                                     <td class="px-5 py-3">{{ $activity->activity_date?->format('Y-m-d') }}</td>
                                     <td class="px-5 py-3">{{ number_format($activity->registrations_count) }}</td>
@@ -330,6 +444,12 @@ new class extends Component {
                         </tbody>
                     </table>
                 </div>
+
+                @if ($activities->hasPages())
+                    <div class="border-t border-white/8 px-5 py-4 lg:px-6">
+                        {{ $activities->links() }}
+                    </div>
+                @endif
             @endif
         </section>
     </div>

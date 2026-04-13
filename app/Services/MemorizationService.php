@@ -82,6 +82,7 @@ class MemorizationService
 
             $seenPages = [];
             $achievementRows = [];
+            $dailyRewards = [];
 
             foreach ($sessions as $session) {
                 if ($session->entry_type === 'review') {
@@ -119,21 +120,44 @@ class MemorizationService
                 }
 
                 $enrollment = $session->enrollment ?? Enrollment::query()->with('student')->find($session->enrollment_id);
+                $newPageCount = count($newPages);
+
+                if (! $enrollment) {
+                    continue;
+                }
+
+                $rewardKey = $session->recorded_on->toDateString().'|'.$enrollment->id;
+                $dailyRewards[$rewardKey] ??= [
+                    'enrollment' => $enrollment,
+                    'new_page_count' => 0,
+                    'source_id' => $session->id,
+                ];
+                $dailyRewards[$rewardKey]['new_page_count'] += $newPageCount;
+                $dailyRewards[$rewardKey]['source_id'] = $session->id;
+            }
+
+            foreach ($dailyRewards as $reward) {
+                /** @var Enrollment $enrollment */
+                $enrollment = $reward['enrollment'];
+                $newPageCount = $reward['new_page_count'];
                 $policy = $this->ledger->resolvePolicy(
                     'memorization',
                     'page',
                     $enrollment?->student?->grade_level_id,
+                    $newPageCount,
                 );
 
                 if ($policy?->pointType) {
+                    $policyHasRange = $policy->from_value !== null || $policy->to_value !== null;
+
                     $this->ledger->recordAutomaticPoints(
                         $enrollment,
                         'memorization_session',
-                        $session->id,
+                        $reward['source_id'],
                         $policy->pointType,
                         $policy,
-                        $policy->points * count($newPages),
-                        __('workflow.memorization.messages.automatic_reward', ['count' => count($newPages)]),
+                        $policyHasRange ? $policy->points : $policy->points * $newPageCount,
+                        __('workflow.memorization.messages.automatic_reward', ['count' => $newPageCount]),
                     );
                 }
             }

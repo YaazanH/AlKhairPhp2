@@ -262,6 +262,7 @@ class RecordsController extends Controller
                 'last_name' => $student->last_name,
                 'parent' => $student->parentProfile?->father_name,
                 'school_name' => $student->school_name,
+                'student_number' => $student->student_number,
                 'status' => $student->status,
             ]);
     }

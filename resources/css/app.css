@@ -269,6 +269,61 @@ select:focus[data-flux-control] {
     background: linear-gradient(180deg, rgba(37, 29, 23, 0.88), rgba(22, 18, 14, 0.96));
 }
 
+.settings-admin-page div[class*='rounded-xl border border-neutral-200'],
+.settings-admin-page section[class*='rounded-xl border border-neutral-200'] {
+    border-color: var(--app-border) !important;
+    border-radius: 1.5rem !important;
+    background: var(--app-panel) !important;
+    color: var(--app-text);
+    box-shadow: var(--app-shadow-soft);
+    backdrop-filter: blur(20px);
+}
+
+.settings-admin-page div[class*='overflow-hidden rounded-xl border border-neutral-200'],
+.settings-admin-page section[class*='overflow-hidden rounded-xl border border-neutral-200'] {
+    background: linear-gradient(180deg, rgba(35, 28, 22, 0.92), rgba(19, 16, 13, 0.96)) !important;
+}
+
+.settings-admin-page div[class*='border-b border-neutral-200'],
+.settings-admin-page thead[class*='bg-neutral-50'] {
+    border-color: rgba(255, 255, 255, 0.08) !important;
+    background: rgba(255, 255, 255, 0.035) !important;
+}
+
+.settings-admin-page tbody[class*='divide-y divide-neutral-200'],
+.settings-admin-page table[class*='divide-y divide-neutral-200'] {
+    --tw-divide-opacity: 1;
+    border-color: rgba(255, 255, 255, 0.06) !important;
+}
+
+.settings-admin-page .text-neutral-500 {
+    color: var(--app-muted) !important;
+}
+
+.settings-admin-page .text-red-700,
+.settings-admin-page .text-red-600 {
+    color: #fecaca !important;
+}
+
+.settings-admin-page button[class*='bg-neutral-900'] {
+    border: 1px solid rgba(151, 219, 174, 0.18);
+    border-radius: 999px !important;
+    background: linear-gradient(135deg, var(--brand-accent), var(--brand-primary)) !important;
+    color: #fff !important;
+}
+
+.settings-admin-page button[class*='border border-neutral-300'] {
+    border-color: rgba(151, 219, 174, 0.18) !important;
+    border-radius: 999px !important;
+    color: var(--app-text);
+}
+
+.settings-admin-page button[class*='border-red-300'] {
+    border-color: rgba(248, 113, 113, 0.34) !important;
+    border-radius: 999px !important;
+    color: #fecaca !important;
+}
+
 div[class*='rounded-xl border border-neutral-200'],
 section[class*='rounded-xl border border-neutral-200'],
 article[class*='rounded-xl border border-neutral-200'],
@@ -520,6 +575,91 @@ article[class*='rounded-2xl border border-neutral-200'] {
 .admin-grid-meta__summary {
     color: var(--app-muted);
     font-size: 0.88rem;
+}
+
+.app-pagination {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.app-pagination__mobile {
+    display: flex;
+    gap: 0.75rem;
+}
+
+.app-pagination__summary {
+    color: var(--app-muted);
+    font-size: 0.88rem;
+    line-height: 1.7;
+}
+
+.app-pagination__summary-strong {
+    color: #fff6df;
+    font-weight: 700;
+}
+
+.app-pagination__nav {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.45rem;
+}
+
+.app-pagination__button,
+.app-pagination__page,
+.app-pagination__icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(151, 219, 174, 0.18);
+    border-radius: 9999px;
+    background: rgba(255, 255, 255, 0.03);
+    color: var(--app-text);
+    font-size: 0.85rem;
+    font-weight: 600;
+    transition: transform 160ms ease, border-color 160ms ease, background 160ms ease, color 160ms ease;
+}
+
+.app-pagination__button,
+.app-pagination__page {
+    min-height: 2.5rem;
+    padding: 0.62rem 1rem;
+}
+
+.app-pagination__icon {
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 9999px;
+}
+
+.app-pagination__button:hover,
+.app-pagination__page:hover,
+.app-pagination__icon:hover {
+    transform: translateY(-1px);
+    border-color: rgba(151, 219, 174, 0.3);
+    background: rgba(11, 143, 67, 0.14);
+}
+
+.app-pagination__page--active {
+    border-color: rgba(151, 219, 174, 0.42);
+    background: linear-gradient(135deg, rgba(11, 143, 67, 0.34), rgba(0, 107, 45, 0.22));
+    color: #f4fff7;
+    box-shadow: 0 0 0 1px rgba(151, 219, 174, 0.12) inset;
+}
+
+.app-pagination__button--disabled,
+.app-pagination__icon--disabled,
+.app-pagination__page--dots {
+    border-color: rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.02);
+    color: rgba(245, 234, 216, 0.45);
+    cursor: default;
+}
+
+html[dir='rtl'] .app-pagination__mobile,
+html[dir='rtl'] .app-pagination__nav {
+    flex-direction: row-reverse;
 }
 
 .admin-kpi-grid {
@@ -1748,5 +1888,175 @@ article[class*='rounded-2xl border border-neutral-200'] {
 
     .website-workbench--editor {
         grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr);
+    }
+}
+
+.id-card-background-preview {
+    width: 9rem;
+    height: 6rem;
+    border-radius: 1rem;
+    object-fit: cover;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.id-card-builder-preview-shell {
+    overflow: auto;
+    border: 1px dashed rgba(151, 219, 174, 0.22);
+    border-radius: 1.5rem;
+    background: rgba(255, 255, 255, 0.03);
+    padding: 1rem;
+}
+
+.id-card-builder-preview-surface {
+    display: flex;
+    justify-content: center;
+    min-width: max-content;
+}
+
+.id-card-builder-stage {
+    --id-card-builder-background-image: none;
+    position: relative;
+    overflow: hidden;
+    border-radius: 1.15rem;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.06)),
+        var(--id-card-builder-background-image),
+        #f4faf6;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-size: cover;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.24);
+}
+
+.id-card-builder-stage__element {
+    position: absolute;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    border: 1px dashed rgba(15, 36, 20, 0.18);
+    border-radius: 0.75rem;
+    background: rgba(255, 255, 255, 0.18);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
+    padding: 0.35rem;
+    cursor: grab;
+    color: #102316;
+    user-select: none;
+}
+
+.id-card-builder-stage__element.is-selected {
+    border-color: rgba(11, 143, 67, 0.8);
+    box-shadow: 0 0 0 2px rgba(11, 143, 67, 0.28), 0 12px 24px rgba(0, 0, 0, 0.16);
+}
+
+.id-card-builder-stage__element--text {
+    justify-content: flex-start;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.id-card-builder-stage__element--image {
+    padding: 0;
+    background: rgba(255, 255, 255, 0.12);
+}
+
+.id-card-builder-stage__element--image img {
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+
+.id-card-builder-stage__element--barcode {
+    flex-direction: column;
+    gap: 0.2rem;
+    padding: 0.2rem 0.35rem;
+}
+
+.id-card-builder-stage__barcode-bars {
+    width: 100%;
+    height: 68%;
+    border-radius: 0.35rem;
+    background:
+        repeating-linear-gradient(
+            90deg,
+            currentColor 0 0.18rem,
+            transparent 0.18rem 0.28rem,
+            currentColor 0.28rem 0.42rem,
+            transparent 0.42rem 0.55rem,
+            currentColor 0.55rem 0.75rem,
+            transparent 0.75rem 0.88rem
+        );
+}
+
+.id-card-builder-stage__barcode-text {
+    width: 100%;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-align: center;
+}
+
+.id-card-layer-list,
+.id-card-student-grid {
+    display: grid;
+    gap: 0.85rem;
+}
+
+.id-card-layer-card,
+.id-card-student-card {
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 1.25rem;
+    background: rgba(255, 255, 255, 0.03);
+    padding: 0.95rem;
+}
+
+.id-card-layer-card.is-selected,
+.id-card-student-card.is-selected {
+    border-color: rgba(11, 143, 67, 0.36);
+    background: rgba(11, 143, 67, 0.12);
+}
+
+.id-card-layer-card__body {
+    display: grid;
+    gap: 0.3rem;
+    width: 100%;
+    text-align: left;
+}
+
+.id-card-layer-card__title {
+    font-size: 0.94rem;
+    font-weight: 700;
+    color: #fff4db;
+}
+
+.id-card-layer-card__meta {
+    font-size: 0.8rem;
+    color: var(--app-muted);
+}
+
+.id-card-inspector {
+    align-content: start;
+}
+
+.id-card-student-card {
+    cursor: pointer;
+    transition: border-color 160ms ease, background 160ms ease, transform 160ms ease;
+}
+
+.id-card-student-card:hover {
+    transform: translateY(-1px);
+    border-color: rgba(151, 219, 174, 0.18);
+}
+
+@media (min-width: 768px) {
+    .id-card-student-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (min-width: 1200px) {
+    .id-card-student-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
     }
 }

@@ -144,6 +144,7 @@ return [
             'default_points' => 'Default points',
             'color' => 'Color',
             'counts_as_present' => 'Counts as present',
+            'default_attendance_status' => 'Default attendance value',
             'is_active' => 'Active',
             'is_scored' => 'Scored assessment',
             'sort_order' => 'Sort order',
@@ -167,6 +168,7 @@ return [
         'labels' => [
             'present_status' => 'Present status',
             'non_present_status' => 'Non-present status',
+            'default_attendance_status' => 'Default for new attendance',
             'scored' => 'Scored',
             'unscored' => 'Unscored',
         ],
@@ -189,6 +191,8 @@ return [
         ],
         'errors' => [
             'attendance_status_delete_linked' => 'This attendance status cannot be deleted while attendance records still use it.',
+            'default_attendance_required' => 'At least one active student attendance value must remain selected as the default.',
+            'default_requires_student_scope' => 'The default attendance value must be active and available for students.',
             'assessment_type_delete_linked' => 'This assessment type cannot be deleted while assessments or score bands still use it.',
             'quran_test_type_delete_linked' => 'This Quran test type cannot be deleted while test records still use it.',
         ],
@@ -219,7 +223,7 @@ return [
             'name' => 'Name',
             'code' => 'Code',
             'category' => 'Category',
-            'default_points' => 'Default points',
+            'default_points' => 'Point amount',
             'allow_manual_entry' => 'Allow manual entry',
             'allow_negative' => 'Allow negative values',
             'point_type' => 'Point type',
@@ -237,6 +241,7 @@ return [
         'table' => [
             'type' => 'Type',
             'category' => 'Category',
+            'amount' => 'Amount',
             'usage' => 'Usage',
             'policy' => 'Policy',
             'trigger' => 'Trigger',
@@ -268,6 +273,7 @@ return [
         'errors' => [
             'point_type_delete_linked' => 'This point type cannot be deleted while policies, score bands, or transactions still use it.',
             'point_policy_delete_linked' => 'This point policy cannot be deleted while point transactions still reference it.',
+            'manual_point_amount_required' => 'Manual point types must have a non-zero point amount.',
             'range_invalid' => 'The maximum value must be greater than or equal to the minimum value.',
         ],
     ],

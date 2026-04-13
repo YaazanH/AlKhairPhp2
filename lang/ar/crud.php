@@ -24,6 +24,7 @@ return [
             'memorization' => 'الحفظ',
             'tests' => 'الاختبارات',
             'points' => 'النقاط',
+            'progress' => 'التقدم',
         ],
         'badges' => [
             'in_view' => ':count معروض',
@@ -47,7 +48,9 @@ return [
             'female' => 'أنثى',
         ],
         'confirm_delete' => [
+            'confirm' => 'متابعة',
             'message' => 'هل أنت متأكد أنك تريد حذف هذا السجل؟ لا يمكن التراجع عن هذا الإجراء.',
+            'title' => 'تأكيد الإجراء',
         ],
     ],
     'parents' => [
@@ -224,6 +227,7 @@ return [
                 'parent' => 'ولي الأمر',
                 'first_name' => 'الاسم',
                 'last_name' => 'اسم العائلة',
+                'student_number' => 'رقم الطالب',
                 'birth_date' => 'تاريخ الميلاد',
                 'gender' => 'الجنس',
                 'school' => 'المدرسة',
@@ -261,6 +265,7 @@ return [
             'empty' => 'لا توجد سجلات طلاب بعد.',
             'headers' => [
                 'student' => 'الطالب',
+                'student_number' => 'رقم الطالب',
                 'parent' => 'ولي الأمر',
                 'grade' => 'المرحلة',
                 'juz' => 'الجزء',
