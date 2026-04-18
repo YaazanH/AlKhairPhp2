@@ -9,6 +9,7 @@ return [
         ],
         'actions' => [
             'create' => 'Create',
+            'create_and_new' => 'Create and new',
             'cancel' => 'Cancel',
             'close' => 'Close',
             'edit' => 'Edit',
@@ -107,6 +108,7 @@ return [
             'all' => 'Total teachers',
             'active' => 'Active',
             'blocked' => 'Blocked',
+            'helping' => 'Helping now',
         ],
         'form' => [
             'create_title' => 'New teacher',
@@ -117,12 +119,33 @@ return [
                 'last_name' => 'Last name',
                 'phone' => 'Phone',
                 'job_title' => 'Job title',
+                'course' => 'Course',
                 'status' => 'Status',
                 'hired_at' => 'Hired at',
+                'is_helping' => 'Helping now',
                 'notes' => 'Notes',
+            ],
+            'options' => [
+                'select_job_title' => 'Select job title',
+                'select_course' => 'Select course',
             ],
             'create_submit' => 'Create teacher',
             'update_submit' => 'Update teacher',
+        ],
+        'photo' => [
+            'upload' => 'Teacher photo',
+            'help' => 'Upload JPG, PNG, or WebP up to 2 MB. It will appear in the teacher grid.',
+            'alt' => 'Teacher photo',
+            'preview_alt' => 'Teacher photo preview',
+            'remove' => 'Remove photo',
+        ],
+        'filters' => [
+            'helping' => 'Helping',
+        ],
+        'helping_options' => [
+            'all' => 'All teachers',
+            'helping' => 'Helping now',
+            'not_helping' => 'Not helping',
         ],
         'read_only' => 'You can view teacher records, but you do not have permission to create or edit them.',
         'table' => [
@@ -132,7 +155,9 @@ return [
                 'name' => 'Name',
                 'phone' => 'Phone',
                 'job_title' => 'Job title',
+                'course' => 'Course',
                 'groups' => 'Groups',
+                'helping' => 'Helping',
                 'status' => 'Status',
                 'actions' => 'Actions',
             ],
@@ -141,6 +166,8 @@ return [
             'created' => 'Teacher created successfully.',
             'updated' => 'Teacher updated successfully.',
             'deleted' => 'Teacher deleted successfully.',
+            'helping_updated' => 'Teacher helping status updated successfully.',
+            'photo_removed' => 'Teacher photo removed successfully.',
         ],
         'errors' => [
             'delete_linked' => 'This teacher cannot be deleted while groups still reference them.',
@@ -156,10 +183,12 @@ return [
         'form' => [
             'create_title' => 'New course',
             'edit_title' => 'Edit course',
-            'help' => 'Keep course data simple here. Group-specific dates and fees stay on groups.',
+            'help' => 'Course dates are set here and reused by the groups created under this course.',
             'fields' => [
                 'name' => 'Name',
                 'description' => 'Description',
+                'starts_on' => 'Starts on',
+                'ends_on' => 'Ends on',
             ],
             'active_course' => 'Active course',
             'create_submit' => 'Create course',
@@ -171,11 +200,13 @@ return [
             'empty' => 'No course records yet.',
             'headers' => [
                 'course' => 'Course',
+                'dates' => 'Dates',
                 'groups' => 'Groups',
                 'status' => 'Status',
                 'actions' => 'Actions',
             ],
             'no_description' => 'No description yet.',
+            'date_range' => ':start to :end',
         ],
         'messages' => [
             'created' => 'Course created successfully.',
@@ -229,6 +260,7 @@ return [
                 'last_name' => 'Last name',
                 'student_number' => 'Student number',
                 'birth_date' => 'Birth date',
+                'birth_year' => 'Birth year',
                 'gender' => 'Gender',
                 'school' => 'School',
                 'grade_level' => 'Grade level',
@@ -251,6 +283,7 @@ return [
                 'save' => 'Save parent and select it',
                 'cancel' => 'Cancel',
             ],
+            'parent_search_help' => 'Type the student last name first, then open this list to start the parent search with that last name.',
             'media_help' => 'Save the student first, then use the Media action in the records table to manage the photo and uploaded files.',
             'create_submit' => 'Create student',
             'update_submit' => 'Update student',
@@ -303,7 +336,7 @@ return [
             'eyebrow' => 'Planning focus',
             'create_title' => 'New class group',
             'edit_title' => 'Editing group',
-            'help' => 'Groups carry the live operational setup: dates, grade target, teacher ownership, schedules, attendance, and fees.',
+            'help' => 'Groups carry the live operational setup: grade target, teacher ownership, schedules, attendance, and roster capacity.',
         ],
         'stats' => [
             'all' => [
@@ -319,7 +352,7 @@ return [
             'eyebrow' => 'Group editor',
             'create_title' => 'Create group',
             'edit_title' => 'Edit group',
-            'help' => 'Set the operational details that drive schedules, attendance, enrollment, and billing.',
+            'help' => 'Set the operational details that drive schedules, attendance, and enrollment. Course dates are managed from the course record.',
             'fields' => [
                 'course' => 'Course',
                 'academic_year' => 'Academic year',
@@ -328,9 +361,6 @@ return [
                 'group_name' => 'Group name',
                 'grade_level' => 'Grade level',
                 'capacity' => 'Capacity',
-                'starts_on' => 'Starts on',
-                'ends_on' => 'Ends on',
-                'monthly_fee' => 'Monthly fee',
             ],
             'placeholders' => [
                 'select_course' => 'Select course',
@@ -361,7 +391,6 @@ return [
                 'actions' => 'Actions',
             ],
             'capacity' => 'Capacity :capacity',
-            'capacity_fee' => 'Capacity :capacity | Fee :fee',
         ],
         'messages' => [
             'created' => 'Group created successfully.',
@@ -372,6 +401,8 @@ return [
         ],
         'errors' => [
             'delete_linked' => 'This group cannot be deleted while enrollments or schedules still exist.',
+            'teacher_unavailable' => 'Select an active helping teacher who is not assigned to another group.',
+            'assistant_teacher_unavailable' => 'Select an active helping assistant teacher who is not assigned to another group.',
         ],
         'roster' => [
             'title' => 'Group students: :group',

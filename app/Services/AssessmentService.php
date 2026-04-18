@@ -8,6 +8,15 @@ use App\Models\AssessmentScoreBand;
 
 class AssessmentService
 {
+    public function effectiveBandPoints(AssessmentScoreBand $band): int
+    {
+        if ($band->points !== null) {
+            return (int) $band->points;
+        }
+
+        return (int) ($band->pointType?->default_points ?? 0);
+    }
+
     public function resolveScoreBand(Assessment $assessment, ?float $score): ?AssessmentScoreBand
     {
         if ($score === null) {
@@ -21,6 +30,25 @@ class AssessmentService
             ->where('to_mark', '>=', $score)
             ->orderBy('from_mark', 'desc')
             ->first();
+    }
+
+    public function statusForScore(Assessment $assessment, ?float $score): string
+    {
+        if ($score === null) {
+            return 'pending';
+        }
+
+        if ($assessment->pass_mark !== null) {
+            return $score >= (float) $assessment->pass_mark ? 'passed' : 'failed';
+        }
+
+        $band = $this->resolveScoreBand($assessment, $score);
+
+        if ($band) {
+            return $band->is_fail ? 'failed' : 'passed';
+        }
+
+        return 'passed';
     }
 
     public function syncResultPoints(AssessmentResult $result): void
@@ -37,15 +65,16 @@ class AssessmentService
 
         $assessment = $result->assessment()->with('type')->firstOrFail();
         $band = $this->resolveScoreBand($assessment, (float) $result->score);
+        $points = $band ? $this->effectiveBandPoints($band) : 0;
 
-        if ($band?->pointType && $band->points !== null && $band->points !== 0) {
+        if ($band?->pointType && $points !== 0) {
             $ledger->recordAutomaticPoints(
                 $result->enrollment,
                 'assessment_result',
                 $result->id,
                 $band->pointType,
                 null,
-                (int) $band->points,
+                $points,
                 __('workflow.assessments.results.messages.automatic_points', [
                     'type' => $assessment->type?->name,
                     'score' => $result->score,

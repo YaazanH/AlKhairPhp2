@@ -202,6 +202,7 @@ class IdCardTemplateController extends Controller
                 'styling' => [
                     'font_size' => 2.8,
                     'show_text' => true,
+                    'barcode_format' => 'code39',
                     'color' => '#0f2414',
                 ],
             ],

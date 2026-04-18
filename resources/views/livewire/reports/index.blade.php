@@ -3,6 +3,7 @@
 use App\Livewire\Concerns\AuthorizesPermissions;
 use App\Livewire\Concerns\AuthorizesTeacherAssignments;
 use App\Models\AcademicYear;
+use App\Models\AssessmentType;
 use App\Models\Group;
 use App\Services\ReportingService;
 use Livewire\Volt\Component;
@@ -12,6 +13,7 @@ new class extends Component {
     use AuthorizesTeacherAssignments;
 
     public ?int $academic_year_id = null;
+    public ?int $assessment_type_id = null;
     public ?int $group_id = null;
     public string $date_from = '';
     public string $date_to = '';
@@ -40,6 +42,7 @@ new class extends Component {
     public function clearFilters(): void
     {
         $this->academic_year_id = null;
+        $this->assessment_type_id = null;
         $this->group_id = null;
         $this->date_from = '';
         $this->date_to = '';
@@ -49,6 +52,7 @@ new class extends Component {
     {
         return [
             'academicYears' => AcademicYear::query()->where('is_active', true)->orderByDesc('starts_on')->get(['id', 'name']),
+            'assessmentTypes' => AssessmentType::query()->where('is_active', true)->orderBy('name')->get(['id', 'name']),
             'groups' => $this->scopeGroupsQuery(
                 Group::query()
                     ->with(['course', 'academicYear'])
@@ -63,6 +67,7 @@ new class extends Component {
     {
         return [
             'academic_year_id' => $this->academic_year_id,
+            'assessment_type_id' => $this->assessment_type_id,
             'date_from' => $this->date_from,
             'date_to' => $this->date_to,
             'group_id' => $this->group_id,
@@ -74,22 +79,20 @@ new class extends Component {
     $scopePills = [
         $academic_year_id ? __('reports.scope_pills.academic_filtered') : __('reports.scope_pills.all_academic_years'),
         $group_id ? __('reports.scope_pills.single_group') : __('reports.scope_pills.all_groups'),
+        $assessment_type_id ? __('reports.scope_pills.assessment_type_filtered') : __('reports.scope_pills.all_assessment_types'),
         ($date_from || $date_to) ? __('reports.scope_pills.custom_date_range') : __('reports.scope_pills.all_dates'),
     ];
 
     $headlineCards = [
-        ['label' => __('reports.headline.students_in_scope.label'), 'value' => number_format($report['headline']['students_in_scope']), 'hint' => __('reports.headline.students_in_scope.hint')],
         ['label' => __('reports.headline.active_enrollments.label'), 'value' => number_format($report['headline']['active_enrollments']), 'hint' => __('reports.headline.active_enrollments.hint')],
         ['label' => __('reports.headline.memorized_pages.label'), 'value' => number_format($report['headline']['memorized_pages']), 'hint' => __('reports.headline.memorized_pages.hint')],
         ['label' => __('reports.headline.net_points.label'), 'value' => number_format($report['headline']['net_points']), 'hint' => __('reports.headline.net_points.hint')],
-        ['label' => __('reports.headline.invoiced_amount.label'), 'value' => number_format($report['headline']['invoiced_amount'], 2), 'hint' => __('reports.headline.invoiced_amount.hint')],
-        ['label' => __('reports.headline.cash_collected.label'), 'value' => number_format($report['headline']['cash_collected'], 2), 'hint' => __('reports.headline.cash_collected.hint')],
     ];
 @endphp
 
 <div class="page-stack">
     <section class="page-hero p-6 lg:p-8">
-        <div class="grid gap-6 xl:grid-cols-[minmax(0,1.4fr)_23rem] xl:items-start">
+        <div class="grid gap-6 xl:grid-cols-[minmax(0,1fr)] xl:items-start">
             <div>
                 <div class="eyebrow">{{ __('reports.hero.eyebrow') }}</div>
                 <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('reports.hero.title') }}</h1>
@@ -104,23 +107,6 @@ new class extends Component {
                 </div>
             </div>
 
-            <aside class="surface-panel surface-panel--soft p-5 lg:p-6">
-                <div class="eyebrow">{{ __('reports.financial_readout.title') }}</div>
-                <div class="mt-5 space-y-3 text-sm">
-                    <div class="flex items-center justify-between rounded-2xl border border-white/8 bg-white/4 px-4 py-3">
-                        <span class="text-neutral-300">{{ __('reports.financial_readout.invoice_billed') }}</span>
-                        <span class="font-semibold text-white">{{ number_format($report['finance']['invoice_billed'], 2) }}</span>
-                    </div>
-                    <div class="flex items-center justify-between rounded-2xl border border-white/8 bg-white/4 px-4 py-3">
-                        <span class="text-neutral-300">{{ __('reports.financial_readout.invoice_collected') }}</span>
-                        <span class="font-semibold text-white">{{ number_format($report['finance']['invoice_collected'], 2) }}</span>
-                    </div>
-                    <div class="flex items-center justify-between rounded-2xl border border-white/8 bg-white/4 px-4 py-3">
-                        <span class="text-neutral-300">{{ __('reports.financial_readout.activity_net') }}</span>
-                        <span class="font-semibold text-white">{{ number_format($report['finance']['activity_net'], 2) }}</span>
-                    </div>
-                </div>
-            </aside>
         </div>
     </section>
 
@@ -177,23 +163,23 @@ new class extends Component {
             <p class="mt-3 text-sm leading-7 text-neutral-300">{{ __('reports.exports.subtitle') }}</p>
 
             <div class="mt-5 grid gap-3">
-                <a href="{{ route('reports.exports.attendance', ['academic_year_id' => $academic_year_id, 'group_id' => $group_id, 'date_from' => $date_from, 'date_to' => $date_to]) }}" class="pill-link pill-link--accent">
+                <a href="{{ route('reports.exports.attendance', ['academic_year_id' => $academic_year_id, 'group_id' => $group_id, 'assessment_type_id' => $assessment_type_id, 'date_from' => $date_from, 'date_to' => $date_to]) }}" class="pill-link pill-link--accent">
                     {{ __('reports.exports.attendance') }}
                 </a>
-                <a href="{{ route('reports.exports.memorization', ['academic_year_id' => $academic_year_id, 'group_id' => $group_id, 'date_from' => $date_from, 'date_to' => $date_to]) }}" class="pill-link">
+                <a href="{{ route('reports.exports.memorization', ['academic_year_id' => $academic_year_id, 'group_id' => $group_id, 'assessment_type_id' => $assessment_type_id, 'date_from' => $date_from, 'date_to' => $date_to]) }}" class="pill-link">
                     {{ __('reports.exports.memorization') }}
                 </a>
-                <a href="{{ route('reports.exports.points', ['academic_year_id' => $academic_year_id, 'group_id' => $group_id, 'date_from' => $date_from, 'date_to' => $date_to]) }}" class="pill-link">
+                <a href="{{ route('reports.exports.points', ['academic_year_id' => $academic_year_id, 'group_id' => $group_id, 'assessment_type_id' => $assessment_type_id, 'date_from' => $date_from, 'date_to' => $date_to]) }}" class="pill-link">
                     {{ __('reports.exports.points') }}
                 </a>
-                <a href="{{ route('reports.exports.assessments', ['academic_year_id' => $academic_year_id, 'group_id' => $group_id, 'date_from' => $date_from, 'date_to' => $date_to]) }}" class="pill-link">
+                <a href="{{ route('reports.exports.assessments', ['academic_year_id' => $academic_year_id, 'group_id' => $group_id, 'assessment_type_id' => $assessment_type_id, 'date_from' => $date_from, 'date_to' => $date_to]) }}" class="pill-link">
                     {{ __('reports.exports.assessments') }}
                 </a>
             </div>
         </section>
     </div>
 
-    <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+    <div class="grid gap-4 md:grid-cols-3">
         @foreach ($headlineCards as $card)
             <article class="stat-card">
                 <div class="flex items-start justify-between gap-4">
@@ -225,10 +211,22 @@ new class extends Component {
         </section>
 
         <section class="surface-panel p-5 lg:p-6">
-            <div class="mb-4">
-                <div class="eyebrow">{{ __('reports.assessments.eyebrow') }}</div>
-                <h2 class="font-display mt-3 text-2xl text-white">{{ __('reports.assessments.title') }}</h2>
-                <p class="mt-3 text-sm leading-7 text-neutral-300">{{ __('reports.assessments.subtitle') }}</p>
+            <div class="mb-4 grid gap-4 md:grid-cols-[minmax(0,1fr)_16rem] md:items-end">
+                <div>
+                    <div class="eyebrow">{{ __('reports.assessments.eyebrow') }}</div>
+                    <h2 class="font-display mt-3 text-2xl text-white">{{ __('reports.assessments.title') }}</h2>
+                    <p class="mt-3 text-sm leading-7 text-neutral-300">{{ __('reports.assessments.subtitle') }}</p>
+                </div>
+
+                <div>
+                    <label class="mb-2 block text-sm font-medium text-neutral-200">{{ __('reports.filters.assessment_type') }}</label>
+                    <select wire:model.live="assessment_type_id" class="w-full rounded-xl px-3 py-2.5 text-sm">
+                        <option value="">{{ __('reports.filters.all_assessment_types') }}</option>
+                        @foreach ($assessmentTypes as $assessmentType)
+                            <option value="{{ $assessmentType->id }}">{{ $assessmentType->name }}</option>
+                        @endforeach
+                    </select>
+                </div>
             </div>
 
             <div class="grid gap-4 md:grid-cols-2">
@@ -309,79 +307,6 @@ new class extends Component {
                                     <td class="px-5 py-4 lg:px-6">{{ $row['student_name'] ?: __('reports.leaderboard.unknown_student') }}</td>
                                     <td class="px-5 py-4 text-white lg:px-6">{{ number_format($row['pages']) }}</td>
                                     <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ number_format($row['sessions']) }}</td>
-                                </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
-                </div>
-            @endif
-        </section>
-    </div>
-
-    <div class="grid gap-6 xl:grid-cols-[24rem_minmax(0,1fr)]">
-        <section class="surface-panel p-5 lg:p-6">
-            <div class="mb-4">
-                <div class="eyebrow">{{ __('reports.finance.eyebrow') }}</div>
-                <h2 class="font-display mt-3 text-2xl text-white">{{ __('reports.finance.title') }}</h2>
-                <p class="mt-3 text-sm leading-7 text-neutral-300">{{ __('reports.finance.subtitle') }}</p>
-            </div>
-
-            <div class="space-y-3 text-sm">
-                <div class="flex items-center justify-between rounded-2xl border border-white/8 bg-white/4 px-4 py-3">
-                    <span class="text-neutral-300">{{ __('reports.finance.invoice_billed') }}</span>
-                    <span class="font-semibold text-white">{{ number_format($report['finance']['invoice_billed'], 2) }}</span>
-                </div>
-                <div class="flex items-center justify-between rounded-2xl border border-white/8 bg-white/4 px-4 py-3">
-                    <span class="text-neutral-300">{{ __('reports.finance.invoice_collected') }}</span>
-                    <span class="font-semibold text-white">{{ number_format($report['finance']['invoice_collected'], 2) }}</span>
-                </div>
-                <div class="flex items-center justify-between rounded-2xl border border-white/8 bg-white/4 px-4 py-3">
-                    <span class="text-neutral-300">{{ __('reports.finance.activity_expected') }}</span>
-                    <span class="font-semibold text-white">{{ number_format($report['finance']['activity_expected'], 2) }}</span>
-                </div>
-                <div class="flex items-center justify-between rounded-2xl border border-white/8 bg-white/4 px-4 py-3">
-                    <span class="text-neutral-300">{{ __('reports.finance.activity_collected') }}</span>
-                    <span class="font-semibold text-white">{{ number_format($report['finance']['activity_collected'], 2) }}</span>
-                </div>
-                <div class="flex items-center justify-between rounded-2xl border border-white/8 bg-white/4 px-4 py-3">
-                    <span class="text-neutral-300">{{ __('reports.finance.activity_expenses') }}</span>
-                    <span class="font-semibold text-white">{{ number_format($report['finance']['activity_expenses'], 2) }}</span>
-                </div>
-                <div class="flex items-center justify-between rounded-2xl border border-white/8 bg-white/4 px-4 py-3">
-                    <span class="text-neutral-300">{{ __('reports.finance.activity_net') }}</span>
-                    <span class="font-semibold text-white">{{ number_format($report['finance']['activity_net'], 2) }}</span>
-                </div>
-            </div>
-        </section>
-
-        <section class="surface-table">
-            <div class="soft-keyline border-b px-5 py-5 lg:px-6">
-                <div class="eyebrow">{{ __('reports.outstanding.eyebrow') }}</div>
-                <h2 class="font-display mt-3 text-2xl text-white">{{ __('reports.outstanding.title') }}</h2>
-            </div>
-
-            @if (empty($report['outstanding_invoices']))
-                <div class="px-6 py-14 text-sm leading-7 text-neutral-400">{{ __('reports.outstanding.empty') }}</div>
-            @else
-                <div class="overflow-x-auto">
-                    <table class="text-sm">
-                        <thead>
-                            <tr>
-                                <th class="px-5 py-4 text-left lg:px-6">{{ __('reports.outstanding.headers.invoice') }}</th>
-                                <th class="px-5 py-4 text-left lg:px-6">{{ __('reports.outstanding.headers.parent') }}</th>
-                                <th class="px-5 py-4 text-left lg:px-6">{{ __('reports.outstanding.headers.issue_date') }}</th>
-                                <th class="px-5 py-4 text-left lg:px-6">{{ __('reports.outstanding.headers.status') }}</th>
-                                <th class="px-5 py-4 text-right lg:px-6">{{ __('reports.outstanding.headers.balance') }}</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-white/6">
-                            @foreach ($report['outstanding_invoices'] as $invoice)
-                                <tr>
-                                    <td class="px-5 py-4 lg:px-6">{{ $invoice['invoice_no'] }}</td>
-                                    <td class="px-5 py-4 lg:px-6">{{ $invoice['parent_name'] }}</td>
-                                    <td class="px-5 py-4 lg:px-6">{{ $invoice['issue_date'] ?: '-' }}</td>
-                                    <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ trans()->has('print.invoice.statuses.'.$invoice['status']) ? __('print.invoice.statuses.'.$invoice['status']) : __('print.invoice.statuses.unknown') }}</td>
-                                    <td class="px-5 py-4 text-right text-white lg:px-6">{{ number_format($invoice['balance'], 2) }}</td>
                                 </tr>
                             @endforeach
                         </tbody>

@@ -38,7 +38,7 @@
                         <div class="public-contact-strip__item">{{ $siteAddress }}</div>
                     @endif
                     @if (! empty($site['contact_phone']))
-                        <div class="public-contact-strip__item">{{ $site['contact_phone'] }}</div>
+                        <div class="public-contact-strip__item"><span dir="ltr" class="inline-block text-left" style="unicode-bidi: isolate;">{{ $site['contact_phone'] }}</span></div>
                     @endif
                     @if (! empty($site['contact_email']))
                         <div class="public-contact-strip__item">{{ $site['contact_email'] }}</div>
@@ -110,7 +110,7 @@
                 @if (! empty($site['contact_phone']))
                     <div class="public-contact-list__item">
                         <span class="public-contact-list__label">{{ __('site.public.labels.phone') }}</span>
-                        <span>{{ $site['contact_phone'] }}</span>
+                        <span dir="ltr" class="inline-block text-left" style="unicode-bidi: isolate;">{{ $site['contact_phone'] }}</span>
                     </div>
                 @endif
                 @if (! empty($site['contact_email']))

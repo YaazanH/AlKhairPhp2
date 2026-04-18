@@ -88,6 +88,98 @@ class AssessmentWorkflowTest extends TestCase
         $this->assertSame(2, $enrollment->fresh()->final_points_cached);
     }
 
+    public function test_manager_can_create_one_assessment_for_multiple_groups_and_record_results(): void
+    {
+        [$existingAssessment, $firstEnrollment] = $this->assessmentContext();
+        $quizType = AssessmentType::query()->where('code', 'quiz')->firstOrFail();
+        $course = Course::query()->where('name', 'Assessment Course')->firstOrFail();
+        $teacher = Teacher::query()->where('phone', '0944000201')->firstOrFail();
+        $yearId = AcademicYear::query()->where('is_current', true)->value('id');
+
+        $secondParent = ParentProfile::create([
+            'father_name' => 'Second Assessment Parent',
+            'father_phone' => '0944000202',
+        ]);
+
+        $secondStudent = Student::create([
+            'parent_id' => $secondParent->id,
+            'first_name' => 'Second',
+            'last_name' => 'Student',
+            'birth_date' => '2015-05-12',
+            'status' => 'active',
+        ]);
+
+        $secondGroup = Group::create([
+            'course_id' => $course->id,
+            'academic_year_id' => $yearId,
+            'teacher_id' => $teacher->id,
+            'name' => 'Second Assessment Group',
+            'capacity' => 12,
+            'is_active' => true,
+        ]);
+
+        $secondEnrollment = Enrollment::create([
+            'student_id' => $secondStudent->id,
+            'group_id' => $secondGroup->id,
+            'enrolled_at' => '2026-09-01',
+            'status' => 'active',
+        ]);
+
+        $existingAssessment->delete();
+
+        Volt::test('assessments.index')
+            ->call('create')
+            ->set('group_scope', 'multiple')
+            ->set('group_ids', [$firstEnrollment->group_id, $secondGroup->id])
+            ->set('assessment_type_id', $quizType->id)
+            ->set('title', 'Shared Quiz')
+            ->set('scheduled_at', '2026-10-01T10:00')
+            ->assertSet('due_at', '2026-10-08T10:00')
+            ->set('total_mark', '100')
+            ->set('pass_mark', '60')
+            ->call('save')
+            ->assertHasNoErrors();
+
+        $assessment = Assessment::query()->where('title', 'Shared Quiz')->firstOrFail();
+
+        $this->assertSame(1, Assessment::query()->count());
+        $this->assertDatabaseHas('assessment_groups', [
+            'assessment_id' => $assessment->id,
+            'group_id' => $firstEnrollment->group_id,
+        ]);
+        $this->assertDatabaseHas('assessment_groups', [
+            'assessment_id' => $assessment->id,
+            'group_id' => $secondGroup->id,
+        ]);
+
+        $resultsComponent = Volt::test('assessments.results', ['assessment' => $assessment])
+            ->assertSee('Assessment Group')
+            ->assertSee('Second Assessment Group')
+            ->call('selectGroup', $firstEnrollment->group_id)
+            ->set('result_scores.'.$firstEnrollment->id, '80')
+            ->set('result_attempts.'.$firstEnrollment->id, '1')
+            ->call('saveResults')
+            ->assertHasNoErrors();
+
+        $resultsComponent
+            ->call('selectGroup', $secondGroup->id)
+            ->set('result_scores.'.$secondEnrollment->id, '40')
+            ->set('result_attempts.'.$secondEnrollment->id, '1')
+            ->call('saveResults')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('assessment_results', [
+            'assessment_id' => $assessment->id,
+            'enrollment_id' => $firstEnrollment->id,
+            'status' => 'passed',
+        ]);
+        $this->assertDatabaseHas('assessment_results', [
+            'assessment_id' => $assessment->id,
+            'enrollment_id' => $secondEnrollment->id,
+            'status' => 'failed',
+        ]);
+    }
+
     public function test_teacher_assessment_access_is_restricted_to_assigned_groups(): void
     {
         $this->seed();

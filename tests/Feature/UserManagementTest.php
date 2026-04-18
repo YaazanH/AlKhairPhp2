@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Support\RoleRegistry;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Hash;
 use Livewire\Volt\Volt;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
@@ -60,6 +61,36 @@ class UserManagementTest extends TestCase
         $teacherRole = Role::findByName('teacher', 'web');
 
         $this->assertTrue($teacherRole->hasPermissionTo('points.create-manual'));
+    }
+
+    public function test_admin_can_create_user_with_generated_login_credentials(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $admin = User::factory()->create([
+            'username' => 'generated-admin',
+            'phone' => '0966666666',
+        ]);
+        $admin->assignRole(RoleRegistry::ADMIN);
+
+        $this->actingAs($admin);
+
+        Volt::test('users.index')
+            ->set('name', 'Generated Account')
+            ->set('username', '')
+            ->set('email', '')
+            ->set('password', '')
+            ->set('roles', ['parent'])
+            ->call('save')
+            ->assertHasNoErrors();
+
+        $user = User::query()->where('name', 'Generated Account')->firstOrFail();
+
+        $this->assertNotEmpty($user->username);
+        $this->assertNotEmpty($user->email);
+        $this->assertStringEndsWith('@alkhair.local', $user->email);
+        $this->assertNotEmpty($user->issued_password);
+        $this->assertTrue(Hash::check($user->issued_password, $user->password));
     }
 
     public function test_admin_can_manage_custom_roles_without_breaking_system_roles(): void

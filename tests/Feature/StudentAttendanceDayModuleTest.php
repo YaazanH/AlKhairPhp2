@@ -7,6 +7,7 @@ use App\Models\Course;
 use App\Models\Enrollment;
 use App\Models\Group;
 use App\Models\GroupAttendanceDay;
+use App\Models\GroupSchedule;
 use App\Models\ParentProfile;
 use App\Models\PointTransaction;
 use App\Models\Student;
@@ -43,6 +44,9 @@ class StudentAttendanceDayModuleTest extends TestCase
         $firstEnrollment = $this->makeEnrollment($teacher->id, 'Morning Group');
         $secondEnrollment = $this->makeEnrollment($teacher->id, 'Evening Group');
         $inactiveEnrollment = $this->makeEnrollment($teacher->id, 'Inactive Group', false);
+        $this->scheduleGroupForDate($firstEnrollment->group, '2026-10-01');
+        $this->scheduleGroupForDate($secondEnrollment->group, '2026-10-01');
+        $this->scheduleGroupForDate($inactiveEnrollment->group, '2026-10-01');
         $present = AttendanceStatus::query()->where('code', 'present')->firstOrFail();
 
         $this->actingAs($manager);
@@ -90,6 +94,61 @@ class StudentAttendanceDayModuleTest extends TestCase
 
         $this->assertSame(2, StudentAttendanceRecord::query()->count());
         $this->assertSame(4, PointTransaction::query()->where('source_type', 'student_attendance_record')->whereNull('voided_at')->sum('points'));
+    }
+
+    public function test_manager_can_add_extra_group_to_attendance_day_manually(): void
+    {
+        $this->seed();
+
+        $manager = User::factory()->create([
+            'username' => 'attendance-extra-manager',
+            'phone' => '0998111999',
+        ]);
+        $manager->assignRole('manager');
+
+        $teacher = Teacher::create([
+            'first_name' => 'Extra',
+            'last_name' => 'Teacher',
+            'phone' => '0998111998',
+            'status' => 'active',
+        ]);
+
+        $scheduledEnrollment = $this->makeEnrollment($teacher->id, 'Scheduled Group');
+        $extraEnrollment = $this->makeEnrollment($teacher->id, 'Extra Group');
+        $this->scheduleGroupForDate($scheduledEnrollment->group, '2026-10-06');
+
+        $this->actingAs($manager);
+
+        Volt::test('student-attendance.index')
+            ->call('openCreateModal')
+            ->set('attendance_date', '2026-10-06')
+            ->set('day_status', 'open')
+            ->call('saveDay')
+            ->assertHasNoErrors();
+
+        $day = StudentAttendanceDay::query()
+            ->whereDate('attendance_date', '2026-10-06')
+            ->firstOrFail();
+
+        $this->assertDatabaseHas('group_attendance_days', [
+            'student_attendance_day_id' => $day->id,
+            'group_id' => $scheduledEnrollment->group_id,
+        ]);
+
+        $this->assertDatabaseMissing('group_attendance_days', [
+            'student_attendance_day_id' => $day->id,
+            'group_id' => $extraEnrollment->group_id,
+        ]);
+
+        Volt::test('student-attendance.show', ['studentAttendanceDay' => $day])
+            ->set('manual_group_id', (string) $extraEnrollment->group_id)
+            ->call('addManualGroup')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('group_attendance_days', [
+            'student_attendance_day_id' => $day->id,
+            'group_id' => $extraEnrollment->group_id,
+        ]);
     }
 
     public function test_group_shortcut_links_to_parent_day_and_marking_updates_records_and_points(): void
@@ -255,6 +314,17 @@ class StudentAttendanceDayModuleTest extends TestCase
             'group_id' => $group->id,
             'enrolled_at' => '2026-09-01',
             'status' => 'active',
+        ]);
+    }
+
+    private function scheduleGroupForDate(Group $group, string $date): void
+    {
+        GroupSchedule::create([
+            'group_id' => $group->id,
+            'day_of_week' => \Illuminate\Support\Carbon::parse($date)->dayOfWeek,
+            'starts_at' => '09:00',
+            'ends_at' => '10:00',
+            'is_active' => true,
         ]);
     }
 }

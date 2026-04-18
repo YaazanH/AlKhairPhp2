@@ -1,6 +1,7 @@
 <?php
 
 use App\Livewire\Concerns\AuthorizesPermissions;
+use App\Livewire\Concerns\SupportsCreateAndNew;
 use App\Models\WebsitePage;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -9,7 +10,7 @@ use Livewire\Volt\Component;
 use Livewire\WithFileUploads;
 
 new class extends Component {
-    use AuthorizesPermissions, WithFileUploads;
+    use AuthorizesPermissions, SupportsCreateAndNew, WithFileUploads;
 
     public ?int $editing_page_id = null;
     public string $slug = '';
@@ -529,6 +530,7 @@ new class extends Component {
 
                 <div class="admin-action-cluster">
                     <button type="submit" class="pill-link pill-link--accent">{{ $editing_page_id ? __('site.admin.pages.form.save_update') : __('site.admin.pages.form.save_create') }}</button>
+                    <x-admin.create-and-new-button :show="! $editing_page_id" click="saveAndNew('savePage', 'createPage')" />
                     @if ($editing_page_id)
                         <button type="button" wire:click="createPage" class="pill-link">{{ __('site.admin.pages.workspace.new_page') }}</button>
                     @endif

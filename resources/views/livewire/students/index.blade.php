@@ -2,10 +2,12 @@
 
 use App\Livewire\Concerns\AuthorizesPermissions;
 use App\Livewire\Concerns\AuthorizesTeacherAssignments;
+use App\Livewire\Concerns\SupportsCreateAndNew;
 use App\Models\GradeLevel;
 use App\Models\ParentProfile;
 use App\Models\QuranJuz;
 use App\Models\Student;
+use App\Models\StudentGender;
 use App\Services\ManagedUserService;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -15,6 +17,7 @@ use Livewire\WithPagination;
 new class extends Component {
     use AuthorizesPermissions;
     use AuthorizesTeacherAssignments;
+    use SupportsCreateAndNew;
     use WithPagination;
 
     public ?int $editingId = null;
@@ -81,7 +84,11 @@ new class extends Component {
 
         return [
             'students' => $filteredQuery->paginate($this->perPage),
-            'parents' => $this->scopeParentsQuery(ParentProfile::query()->where('is_active', true))->orderBy('father_name')->get(['id', 'father_name']),
+            'parents' => $this->scopeParentsQuery(
+                ParentProfile::query()
+                    ->with(['students' => fn ($query) => $query->select('id', 'parent_id', 'last_name')->orderBy('last_name')])
+                    ->where('is_active', true)
+            )->orderBy('father_name')->get(['id', 'father_name', 'mother_name', 'father_phone', 'mother_phone', 'home_phone']),
             'gradeLevels' => GradeLevel::query()->where('is_active', true)->orderBy('sort_order')->get(['id', 'name']),
             'juzs' => QuranJuz::query()->orderBy('juz_number')->get(['id', 'juz_number']),
             'totals' => [
@@ -90,7 +97,7 @@ new class extends Component {
                 'graduated' => $this->scopeStudentsQuery(Student::query()->where('status', 'graduated'))->count(),
             ],
             'filteredCount' => $filteredCount,
-            'genders' => ['male', 'female'],
+            'genders' => StudentGender::query()->where('is_active', true)->orderBy('sort_order')->orderBy('name')->get(['code', 'name']),
             'statuses' => ['active', 'inactive', 'graduated', 'blocked'],
         ];
     }
@@ -111,8 +118,12 @@ new class extends Component {
             'parent_id' => ['required', 'exists:parents,id'],
             'first_name' => ['required', 'string', 'max:255'],
             'last_name' => ['required', 'string', 'max:255'],
-            'birth_date' => ['required', 'date'],
-            'gender' => ['nullable', 'in:male,female'],
+            'birth_date' => ['required', 'string', function (string $attribute, mixed $value, \Closure $fail): void {
+                if (! $this->isValidBirthYearValue((string) $value)) {
+                    $fail(__('validation.date', ['attribute' => __('crud.students.form.fields.birth_year')]));
+                }
+            }],
+            'gender' => ['nullable', Rule::exists('student_genders', 'code')],
             'school_name' => ['nullable', 'string', 'max:255'],
             'grade_level_id' => ['nullable', 'exists:grade_levels,id'],
             'quran_current_juz_id' => ['nullable', 'exists:quran_juzs,id'],
@@ -151,6 +162,7 @@ new class extends Component {
 
         $validated = $this->validate();
         $this->authorizeScopedParentAccess(ParentProfile::query()->findOrFail($validated['parent_id']));
+        $validated['birth_date'] = $this->normalizeBirthYearValue((string) $validated['birth_date']);
         $validated['gender'] = $validated['gender'] ?: null;
         $validated['grade_level_id'] = $validated['grade_level_id'] ?: null;
         $validated['quran_current_juz_id'] = $validated['quran_current_juz_id'] ?: null;
@@ -279,7 +291,7 @@ new class extends Component {
         $this->parent_id = $student->parent_id;
         $this->first_name = $student->first_name;
         $this->last_name = $student->last_name;
-        $this->birth_date = $student->birth_date?->format('Y-m-d') ?? '';
+        $this->birth_date = $student->birth_date?->format('Y') ?? '';
         $this->gender = $student->gender ?? '';
         $this->school_name = $student->school_name ?? '';
         $this->grade_level_id = $student->grade_level_id;
@@ -385,7 +397,7 @@ new class extends Component {
         $this->first_name = '';
         $this->last_name = '';
         $this->birth_date = '';
-        $this->gender = '';
+        $this->gender = $this->defaultGenderCode();
         $this->school_name = '';
         $this->grade_level_id = null;
         $this->quran_current_juz_id = null;
@@ -404,6 +416,26 @@ new class extends Component {
         $this->quick_parent_address = '';
 
         $this->resetValidation();
+    }
+
+    protected function defaultGenderCode(): string
+    {
+        $defaultGenderCode = StudentGender::query()
+            ->where('is_active', true)
+            ->where('is_default', true)
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->value('code');
+
+        if ($defaultGenderCode) {
+            return (string) $defaultGenderCode;
+        }
+
+        return (string) (StudentGender::query()
+            ->where('is_active', true)
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->value('code') ?? '');
     }
 
     public function delete(int $studentId): void
@@ -426,6 +458,32 @@ new class extends Component {
         }
 
         session()->flash('status', __('crud.students.messages.deleted'));
+    }
+
+    protected function isValidBirthYearValue(string $value): bool
+    {
+        return $this->normalizeBirthYearValue($value) !== null;
+    }
+
+    protected function normalizeBirthYearValue(string $value): ?string
+    {
+        $value = trim($value);
+
+        if (preg_match('/^\d{4}$/', $value) === 1) {
+            $year = (int) $value;
+
+            return $year >= 1900 && $year <= ((int) now()->format('Y') + 1)
+                ? $value.'-01-01'
+                : null;
+        }
+
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $value) === 1) {
+            [$year, $month, $day] = array_map('intval', explode('-', $value));
+
+            return checkdate($month, $day, $year) ? $value : null;
+        }
+
+        return null;
     }
 
     protected function linkedUserId(): ?int
@@ -624,6 +682,24 @@ new class extends Component {
         max-width="5xl"
     >
         <form wire:submit="save" class="space-y-4">
+            <div class="grid gap-4 md:grid-cols-2">
+                <div>
+                    <label for="student-first-name" class="mb-1 block text-sm font-medium">{{ __('crud.students.form.fields.first_name') }}</label>
+                    <input id="student-first-name" wire:model="first_name" type="text" class="w-full rounded-xl px-4 py-3 text-sm">
+                    @error('first_name')
+                        <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
+                    @enderror
+                </div>
+
+                <div>
+                    <label for="student-last-name" class="mb-1 block text-sm font-medium">{{ __('crud.students.form.fields.last_name') }}</label>
+                    <input id="student-last-name" wire:model="last_name" type="text" class="w-full rounded-xl px-4 py-3 text-sm">
+                    @error('last_name')
+                        <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
+                    @enderror
+                </div>
+            </div>
+
             <div>
                 <div class="mb-1 flex flex-wrap items-center justify-between gap-3">
                     <label for="student-parent" class="block text-sm font-medium">{{ __('crud.students.form.fields.parent') }}</label>
@@ -633,12 +709,31 @@ new class extends Component {
                         </button>
                     @endcan
                 </div>
-                <select id="student-parent" wire:model="parent_id" class="w-full rounded-xl px-4 py-3 text-sm">
+                <select
+                    id="student-parent"
+                    wire:model="parent_id"
+                    data-search-hint-target="student-last-name"
+                    class="w-full rounded-xl px-4 py-3 text-sm"
+                >
                     <option value="">{{ __('crud.students.form.placeholders.select_parent') }}</option>
                     @foreach ($parents as $parent)
-                        <option value="{{ $parent->id }}">{{ $parent->father_name }}</option>
+                        @php
+                            $studentLastNames = $parent->students->pluck('last_name')->filter()->unique()->values();
+                            $parentSearch = collect([
+                                $parent->father_name,
+                                $parent->mother_name,
+                                $parent->father_phone,
+                                $parent->mother_phone,
+                                $parent->home_phone,
+                                $studentLastNames->implode(' '),
+                            ])->filter()->implode(' ');
+                        @endphp
+                        <option value="{{ $parent->id }}" data-search="{{ $parentSearch }}">
+                            {{ $parent->father_name }}{{ $studentLastNames->isNotEmpty() ? ' | '.$studentLastNames->implode(', ') : '' }}
+                        </option>
                     @endforeach
                 </select>
+                <p class="mt-1 text-xs text-neutral-500">{{ __('crud.students.form.parent_search_help') }}</p>
                 @error('parent_id')
                     <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                 @enderror
@@ -724,26 +819,8 @@ new class extends Component {
 
             <div class="grid gap-4 md:grid-cols-2">
                 <div>
-                    <label for="student-first-name" class="mb-1 block text-sm font-medium">{{ __('crud.students.form.fields.first_name') }}</label>
-                    <input id="student-first-name" wire:model="first_name" type="text" class="w-full rounded-xl px-4 py-3 text-sm">
-                    @error('first_name')
-                        <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
-                    @enderror
-                </div>
-
-                <div>
-                    <label for="student-last-name" class="mb-1 block text-sm font-medium">{{ __('crud.students.form.fields.last_name') }}</label>
-                    <input id="student-last-name" wire:model="last_name" type="text" class="w-full rounded-xl px-4 py-3 text-sm">
-                    @error('last_name')
-                        <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
-                    @enderror
-                </div>
-            </div>
-
-            <div class="grid gap-4 md:grid-cols-2">
-                <div>
-                    <label for="student-birth-date" class="mb-1 block text-sm font-medium">{{ __('crud.students.form.fields.birth_date') }}</label>
-                    <input id="student-birth-date" wire:model="birth_date" type="date" class="w-full rounded-xl px-4 py-3 text-sm">
+                    <label for="student-birth-date" class="mb-1 block text-sm font-medium">{{ __('crud.students.form.fields.birth_year') }}</label>
+                    <input id="student-birth-date" wire:model="birth_date" type="number" min="1900" max="{{ now()->format('Y') + 1 }}" step="1" class="w-full rounded-xl px-4 py-3 text-sm">
                     @error('birth_date')
                         <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                     @enderror
@@ -754,7 +831,7 @@ new class extends Component {
                     <select id="student-gender" wire:model="gender" class="w-full rounded-xl px-4 py-3 text-sm">
                         <option value="">{{ __('crud.students.form.placeholders.select_gender') }}</option>
                         @foreach ($genders as $studentGender)
-                            <option value="{{ $studentGender }}">{{ __('crud.common.gender_options.'.$studentGender) }}</option>
+                            <option value="{{ $studentGender->code }}">{{ $studentGender->name }}</option>
                         @endforeach
                     </select>
                     @error('gender')
@@ -842,6 +919,7 @@ new class extends Component {
                 <button type="submit" class="pill-link pill-link--accent">
                     {{ $editingId ? __('crud.students.form.update_submit') : __('crud.students.form.create_submit') }}
                 </button>
+                <x-admin.create-and-new-button :show="! $editingId" />
                 <button type="button" wire:click="cancel" class="pill-link">
                     {{ __('crud.common.actions.close') }}
                 </button>

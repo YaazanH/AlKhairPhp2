@@ -1,6 +1,7 @@
 <?php
 
 use App\Livewire\Concerns\AuthorizesPermissions;
+use App\Livewire\Concerns\SupportsCreateAndNew;
 use App\Models\Assessment;
 use App\Models\AssessmentScoreBand;
 use App\Models\AssessmentType;
@@ -14,6 +15,7 @@ use Livewire\Volt\Component;
 
 new class extends Component {
     use AuthorizesPermissions;
+    use SupportsCreateAndNew;
 
     public ?int $attendance_status_editing_id = null;
     public string $attendance_status_name = '';
@@ -569,6 +571,7 @@ new class extends Component {
             <div class="flex justify-end gap-3">
                 <button type="button" wire:click="closeAttendanceStatusModal" class="pill-link">{{ __('crud.common.actions.cancel') }}</button>
                 <button type="submit" class="pill-link pill-link--accent">{{ $attendance_status_editing_id ? __('settings.tracking.actions.update_status') : __('settings.tracking.actions.create_status') }}</button>
+                <x-admin.create-and-new-button :show="! $attendance_status_editing_id" click="saveAndNew('saveAttendanceStatus', 'openAttendanceStatusModal')" />
             </div>
         </form>
     </x-admin.modal>
@@ -583,6 +586,7 @@ new class extends Component {
             <div class="flex justify-end gap-3">
                 <button type="button" wire:click="closeAssessmentTypeModal" class="pill-link">{{ __('crud.common.actions.cancel') }}</button>
                 <button type="submit" class="pill-link pill-link--accent">{{ $assessment_type_editing_id ? __('settings.tracking.actions.update_type') : __('settings.tracking.actions.create_type') }}</button>
+                <x-admin.create-and-new-button :show="! $assessment_type_editing_id" click="saveAndNew('saveAssessmentType', 'openAssessmentTypeModal')" />
             </div>
         </form>
     </x-admin.modal>
@@ -599,6 +603,7 @@ new class extends Component {
             <div class="flex justify-end gap-3">
                 <button type="button" wire:click="closeQuranTestTypeModal" class="pill-link">{{ __('crud.common.actions.cancel') }}</button>
                 <button type="submit" class="pill-link pill-link--accent">{{ $quran_test_type_editing_id ? __('settings.tracking.actions.update_type') : __('settings.tracking.actions.create_type') }}</button>
+                <x-admin.create-and-new-button :show="! $quran_test_type_editing_id" click="saveAndNew('saveQuranTestType', 'openQuranTestTypeModal')" />
             </div>
         </form>
     </x-admin.modal>

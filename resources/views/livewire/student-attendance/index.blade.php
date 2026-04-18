@@ -7,6 +7,7 @@ use App\Models\Group;
 use App\Models\StudentAttendanceDay;
 use App\Services\StudentAttendanceDayService;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Carbon;
 use Illuminate\Validation\Rule;
 use Livewire\Volt\Component;
 use Livewire\WithPagination;
@@ -51,6 +52,9 @@ new class extends Component {
         $activeGroupCount = $this->scopeGroupsQuery(
             Group::query()->where('is_active', true)
         )->count();
+        $scheduledGroupCount = filled($this->attendance_date)
+            ? $this->scheduledGroupsForDate($this->attendance_date)->count()
+            : 0;
 
         return [
             'days' => $daysQuery->paginate($this->perPage),
@@ -61,6 +65,7 @@ new class extends Component {
                 'open' => $this->scopeStudentAttendanceDaysQuery(StudentAttendanceDay::query()->where('status', 'open'))->count(),
             ],
             'activeGroupCount' => $activeGroupCount,
+            'scheduledGroupCount' => $scheduledGroupCount,
             'defaultStatusOptions' => AttendanceStatus::query()
                 ->where('is_active', true)
                 ->whereIn('scope', ['student', 'both'])
@@ -120,18 +125,7 @@ new class extends Component {
             'notes' => ['nullable', 'string'],
         ]);
 
-        $groups = $this->scopeGroupsQuery(
-            Group::query()
-                ->with(['course', 'teacher'])
-                ->where('is_active', true)
-                ->orderBy('name')
-        )->get();
-
-        if ($groups->isEmpty()) {
-            $this->addError('attendance_date', __('workflow.student_attendance.table.empty'));
-
-            return null;
-        }
+        $groups = $this->scheduledGroupsForDate($validated['attendance_date']);
 
         $day = app(StudentAttendanceDayService::class)->createOrSyncDay(
             $validated['attendance_date'],
@@ -161,6 +155,25 @@ new class extends Component {
                 ->orderByDesc('is_present')
                 ->orderBy('name')
                 ->value('id');
+    }
+
+    protected function scheduledGroupsForDate(string $attendanceDate)
+    {
+        try {
+            $dayOfWeek = Carbon::parse($attendanceDate)->dayOfWeek;
+        } catch (\Throwable) {
+            return collect();
+        }
+
+        return $this->scopeGroupsQuery(
+            Group::query()
+                ->with(['course', 'teacher'])
+                ->where('is_active', true)
+                ->whereHas('schedules', fn ($scheduleQuery) => $scheduleQuery
+                    ->where('is_active', true)
+                    ->where('day_of_week', $dayOfWeek))
+                ->orderBy('name')
+        )->get();
     }
 }; ?>
 
@@ -283,7 +296,7 @@ new class extends Component {
             <div class="grid gap-4 md:grid-cols-2">
                 <div>
                     <label for="attendance-day-date" class="mb-1 block text-sm font-medium">{{ __('workflow.student_attendance.days.form.attendance_date') }}</label>
-                    <input id="attendance-day-date" wire:model="attendance_date" type="date" class="w-full rounded-xl px-4 py-3 text-sm">
+                    <input id="attendance-day-date" wire:model.live="attendance_date" type="date" class="w-full rounded-xl px-4 py-3 text-sm">
                     @error('attendance_date')
                         <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                     @enderror
@@ -301,8 +314,8 @@ new class extends Component {
                 </div>
             </div>
 
-            <div>
-                <label for="attendance-day-default-status" class="mb-1 block text-sm font-medium">{{ __('workflow.student_attendance.days.form.default_status') }}</label>
+                <div>
+                    <label for="attendance-day-default-status" class="mb-1 block text-sm font-medium">{{ __('workflow.student_attendance.days.form.default_status') }}</label>
                 <select id="attendance-day-default-status" wire:model="default_attendance_status_id" class="w-full rounded-xl px-4 py-3 text-sm">
                     <option value="">{{ __('workflow.student_attendance.days.form.no_default_status') }}</option>
                     @foreach ($defaultStatusOptions as $status)
@@ -313,6 +326,10 @@ new class extends Component {
                 @error('default_attendance_status_id')
                     <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                 @enderror
+            </div>
+
+            <div class="soft-callout p-4 text-sm">
+                {{ __('workflow.student_attendance.days.form.scheduled_groups_help', ['count' => number_format($scheduledGroupCount)]) }}
             </div>
 
             <div>

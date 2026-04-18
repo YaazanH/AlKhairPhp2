@@ -12,6 +12,8 @@ function parseLivewireAction(expression) {
     }
 
     let payload = null;
+    const normalizedExpression = expression.trim();
+    const directMethodCall = normalizedExpression.match(/^([A-Za-z_$][\w$]*)\s*\(/);
 
     try {
         const context = new Proxy({}, {
@@ -25,7 +27,11 @@ function parseLivewireAction(expression) {
             },
         });
 
-        Function('ctx', `with (ctx) { ${expression}; }`)(context);
+        if (directMethodCall) {
+            Function('ctx', `ctx.${normalizedExpression};`)(context);
+        } else {
+            Function('ctx', `with (ctx) { ${normalizedExpression}; }`)(context);
+        }
     } catch (_error) {
         return null;
     }
@@ -204,3 +210,243 @@ window.AdminConfirm = {
 };
 
 document.addEventListener('DOMContentLoaded', registerAdminConfirmListeners);
+
+function selectedOptionText(select) {
+    const option = select.options[select.selectedIndex];
+
+    return option?.textContent?.trim() || select.dataset.placeholder || '';
+}
+
+function searchHintValue(select) {
+    const targetId = select.dataset.searchHintTarget;
+
+    if (!targetId || select.value) {
+        return '';
+    }
+
+    const target = document.getElementById(targetId);
+
+    return target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement
+        ? target.value.trim()
+        : '';
+}
+
+function closeSearchableSelect(wrapper) {
+    wrapper.classList.remove('searchable-select--open');
+    wrapper.querySelector('.searchable-select__panel')?.setAttribute('hidden', 'hidden');
+}
+
+function closeOtherSearchableSelects(currentWrapper) {
+    document.querySelectorAll('.searchable-select--open').forEach((wrapper) => {
+        if (wrapper !== currentWrapper) {
+            closeSearchableSelect(wrapper);
+        }
+    });
+}
+
+function buildSearchableSelectOptions(select, list, query = '') {
+    const normalizedQuery = query.trim().toLowerCase();
+    const options = Array.from(select.options);
+    let visibleCount = 0;
+
+    list.replaceChildren();
+
+    options.forEach((option) => {
+        if (option.disabled || option.hidden) {
+            return;
+        }
+
+        const label = option.textContent.trim();
+        const searchableText = `${label} ${option.dataset.search || ''}`.toLowerCase();
+
+        if (normalizedQuery && !searchableText.includes(normalizedQuery)) {
+            return;
+        }
+
+        const item = document.createElement('button');
+        item.type = 'button';
+        item.className = 'searchable-select__option';
+        item.textContent = label || option.value;
+        item.dataset.value = option.value;
+        item.setAttribute('role', 'option');
+        item.setAttribute('aria-selected', option.selected ? 'true' : 'false');
+
+        if (option.value === '') {
+            item.classList.add('searchable-select__option--placeholder');
+        }
+
+        item.addEventListener('click', () => {
+            select.value = option.value;
+            select.dispatchEvent(new Event('input', { bubbles: true }));
+            select.dispatchEvent(new Event('change', { bubbles: true }));
+            select.searchableSelectSync?.();
+            closeSearchableSelect(item.closest('.searchable-select'));
+        });
+
+        list.appendChild(item);
+        visibleCount += 1;
+    });
+
+    if (visibleCount === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'searchable-select__empty';
+        empty.textContent = select.dataset.emptyText || 'No results';
+        list.appendChild(empty);
+    }
+}
+
+function enhanceSearchableSelect(select) {
+    if (
+        !(select instanceof HTMLSelectElement)
+        || select.multiple
+        || select.dataset.searchable === 'false'
+    ) {
+        return;
+    }
+
+    if (select.dataset.searchableBound === 'true' && select.nextElementSibling?.classList.contains('searchable-select')) {
+        select.searchableSelectSync?.();
+
+        return;
+    }
+
+    if (select.dataset.searchableBound === 'true') {
+        delete select.dataset.searchableBound;
+        select.classList.remove('searchable-select__native');
+        delete select.searchableSelectSync;
+    }
+
+    select.dataset.searchableBound = 'true';
+    select.classList.add('searchable-select__native');
+
+    const wrapper = document.createElement('div');
+    wrapper.className = 'searchable-select';
+    wrapper.setAttribute('wire:ignore', '');
+
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'searchable-select__button';
+    button.setAttribute('aria-haspopup', 'listbox');
+    button.setAttribute('aria-expanded', 'false');
+
+    const label = document.createElement('span');
+    label.className = 'searchable-select__value';
+
+    const chevron = document.createElement('span');
+    chevron.className = 'searchable-select__chevron';
+    chevron.textContent = '⌄';
+
+    button.append(label, chevron);
+
+    const panel = document.createElement('div');
+    panel.className = 'searchable-select__panel';
+    panel.setAttribute('hidden', 'hidden');
+
+    const search = document.createElement('input');
+    search.type = 'search';
+    search.className = 'searchable-select__search';
+    search.placeholder = select.dataset.searchPlaceholder || 'Search...';
+    search.autocomplete = 'off';
+
+    const list = document.createElement('div');
+    list.className = 'searchable-select__list';
+    list.setAttribute('role', 'listbox');
+
+    panel.append(search, list);
+    wrapper.append(button, panel);
+    select.insertAdjacentElement('afterend', wrapper);
+
+    const sync = () => {
+        label.textContent = selectedOptionText(select) || select.querySelector('option[value=""]')?.textContent?.trim() || 'Select';
+        buildSearchableSelectOptions(select, list, search.value);
+    };
+
+    select.searchableSelectSync = sync;
+    sync();
+
+    button.addEventListener('click', () => {
+        const willOpen = !wrapper.classList.contains('searchable-select--open');
+        closeOtherSearchableSelects(wrapper);
+
+        wrapper.classList.toggle('searchable-select--open', willOpen);
+        button.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+        panel.toggleAttribute('hidden', !willOpen);
+
+        if (willOpen) {
+            search.value = searchHintValue(select);
+            buildSearchableSelectOptions(select, list, search.value);
+            requestAnimationFrame(() => search.focus());
+        }
+    });
+
+    search.addEventListener('input', () => buildSearchableSelectOptions(select, list, search.value));
+    select.addEventListener('change', sync);
+}
+
+function initializeSearchableSelects() {
+    document.querySelectorAll('select').forEach(enhanceSearchableSelect);
+}
+
+function scheduleSearchableSelectInitialization() {
+    window.requestAnimationFrame(() => {
+        initializeSearchableSelects();
+    });
+
+    [120, 350, 800].forEach((delay) => {
+        window.setTimeout(initializeSearchableSelects, delay);
+    });
+}
+
+window.initializeSearchableSelects = initializeSearchableSelects;
+
+document.addEventListener('click', (event) => {
+    if (!(event.target instanceof Element) || event.target.closest('.searchable-select')) {
+        return;
+    }
+
+    document.querySelectorAll('.searchable-select--open').forEach(closeSearchableSelect);
+});
+
+document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+        document.querySelectorAll('.searchable-select--open').forEach(closeSearchableSelect);
+    }
+});
+
+document.addEventListener('DOMContentLoaded', initializeSearchableSelects);
+document.addEventListener('livewire:navigated', initializeSearchableSelects);
+document.addEventListener('livewire:initialized', scheduleSearchableSelectInitialization);
+
+document.addEventListener('click', (event) => {
+    const trigger = event.target instanceof Element
+        ? event.target.closest('[wire\\:click], [wire\\:submit], [data-searchable-refresh]')
+        : null;
+
+    if (trigger) {
+        scheduleSearchableSelectInitialization();
+    }
+});
+
+const searchableSelectObserver = new MutationObserver((mutations) => {
+    const shouldInitialize = mutations.some((mutation) => {
+        if (mutation.target instanceof HTMLSelectElement) {
+            return true;
+        }
+
+        return Array.from(mutation.addedNodes).some((node) => {
+            return node instanceof Element && (node.matches('select') || node.querySelector('select'));
+        });
+    });
+
+    if (shouldInitialize) {
+        scheduleSearchableSelectInitialization();
+    }
+});
+
+if (document.body) {
+    searchableSelectObserver.observe(document.body, { childList: true, subtree: true });
+} else {
+    document.addEventListener('DOMContentLoaded', () => {
+        searchableSelectObserver.observe(document.body, { childList: true, subtree: true });
+    });
+}

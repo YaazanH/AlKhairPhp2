@@ -200,6 +200,7 @@
             const backgroundInput = document.querySelector('[data-id-card-background-input]');
             const removeBackgroundInput = document.querySelector('[data-id-card-remove-background]');
             const dimsBadge = document.querySelector('[data-id-card-stage-dims]');
+            const barcodePreviewUrl = @json(route('id-cards.barcode-preview'));
 
             const state = {
                 layout: [],
@@ -224,6 +225,7 @@
             const fontWeightOptions = @json(__('id_cards.templates.form.font_weights'));
             const textAlignOptions = @json(__('id_cards.templates.form.text_alignments'));
             const objectFitOptions = @json(__('id_cards.templates.form.image_fit'));
+            const barcodeFormatOptions = @json(__('id_cards.templates.form.barcode_formats'));
             const inspectorLabels = @json(__('id_cards.templates.form.element'));
 
             const parseLayout = () => {
@@ -250,6 +252,33 @@
             const fieldChoices = (type) => fieldOptions[type] || [];
             const firstField = (type) => fieldChoices(type)[0]?.key || 'full_name';
             const samplePayload = () => samplePayloads[state.sampleStudentId] || {};
+            const fitElementToStage = (element) => {
+                const { width, height } = stageMetrics();
+                element.width = clamp(Number(element.width || 4), 4, width);
+                element.height = clamp(Number(element.height || 4), 4, height);
+                element.x = clamp(Number(element.x || 0), 0, Math.max(width - element.width, 0));
+                element.y = clamp(Number(element.y || 0), 0, Math.max(height - element.height, 0));
+            };
+            const applyBarcodeFormatDefaults = (element) => {
+                if (element.type !== 'barcode') {
+                    return;
+                }
+
+                if ((element.styling.barcode_format || 'code39') === 'qrcode') {
+                    const { width, height } = stageMetrics();
+                    const size = Math.min(24, Math.max(18, Math.min(width, height) * 0.45));
+                    element.width = Number(size.toFixed(1));
+                    element.height = Number((element.styling.show_text ? size + 4 : size).toFixed(1));
+                    fitElementToStage(element);
+                    return;
+                }
+
+                if (element.width <= element.height * 1.4) {
+                    element.width = 50;
+                    element.height = 14;
+                    fitElementToStage(element);
+                }
+            };
 
             const syncLayoutInput = () => {
                 layoutInput.value = JSON.stringify(state.layout);
@@ -293,6 +322,7 @@
                         border_radius: type === 'image' ? 3 : 0,
                         object_fit: 'cover',
                         show_text: true,
+                        barcode_format: 'code39',
                     },
                 };
 
@@ -339,9 +369,19 @@
                                 node.innerHTML = `<span>${previewFallbacks.image}</span>`;
                             }
                         } else if (element.type === 'barcode') {
+                            const barcodeFormat = element.styling.barcode_format || 'code39';
+                            const barcodeValue = payload[element.field] || previewFallbacks.barcode;
+                            const params = new URLSearchParams({
+                                format: barcodeFormat,
+                                value: barcodeValue,
+                                width: Number(element.width || 20).toFixed(2),
+                                height: Number(element.height || 20).toFixed(2),
+                                show_text: element.styling.show_text ? '1' : '0',
+                            });
                             node.classList.add('id-card-builder-stage__element--barcode');
                             node.style.color = element.styling.color;
-                            node.innerHTML = `<span class="id-card-builder-stage__barcode-bars"></span>${element.styling.show_text ? `<span class="id-card-builder-stage__barcode-text">${payload[element.field] || previewFallbacks.barcode}</span>` : ''}`;
+                            node.classList.toggle('id-card-builder-stage__element--qr', barcodeFormat === 'qrcode');
+                            node.innerHTML = `<img class="id-card-builder-stage__barcode-image" src="${barcodePreviewUrl}?${params.toString()}" alt="${typeLabels.barcode} ${barcodeValue}">`;
                         } else {
                             node.classList.add('id-card-builder-stage__element--text');
                             node.style.color = element.styling.color;
@@ -399,6 +439,8 @@
                 const fontWeightSelectOptions = Object.entries(fontWeightOptions).map(([value, label]) => `<option value="${value}" ${value === element.styling.font_weight ? 'selected' : ''}>${label}</option>`).join('');
                 const textAlignSelectOptions = Object.entries(textAlignOptions).map(([value, label]) => `<option value="${value}" ${value === element.styling.text_align ? 'selected' : ''}>${label}</option>`).join('');
                 const objectFitSelectOptions = Object.entries(objectFitOptions).map(([value, label]) => `<option value="${value}" ${value === element.styling.object_fit ? 'selected' : ''}>${label}</option>`).join('');
+                const barcodeFormat = element.styling.barcode_format || 'code39';
+                const barcodeFormatSelectOptions = Object.entries(barcodeFormatOptions).map(([value, label]) => `<option value="${value}" ${value === barcodeFormat ? 'selected' : ''}>${label}</option>`).join('');
 
                 inspector.innerHTML = `
                     <div class="admin-form-field"><label class="mb-1 block text-sm font-medium">${inspectorLabels.type}</label><select class="w-full rounded-xl px-4 py-3 text-sm" data-inspector="type"><option value="text" ${element.type === 'text' ? 'selected' : ''}>${typeLabels.text}</option><option value="image" ${element.type === 'image' ? 'selected' : ''}>${typeLabels.image}</option><option value="barcode" ${element.type === 'barcode' ? 'selected' : ''}>${typeLabels.barcode}</option></select></div>
@@ -412,7 +454,7 @@
                     ${element.type === 'text' ? `<div class="admin-form-field"><label class="mb-1 block text-sm font-medium">${inspectorLabels.font_weight}</label><select class="w-full rounded-xl px-4 py-3 text-sm" data-inspector-style="font_weight">${fontWeightSelectOptions}</select></div><div class="admin-form-field"><label class="mb-1 block text-sm font-medium">${inspectorLabels.text_align}</label><select class="w-full rounded-xl px-4 py-3 text-sm" data-inspector-style="text_align">${textAlignSelectOptions}</select></div>` : ''}
                     <div class="admin-form-field"><label class="mb-1 block text-sm font-medium">${inspectorLabels.color}</label><input type="color" class="w-full rounded-xl px-4 py-3 text-sm" value="${element.styling.color}" data-inspector-style="color"></div>
                     ${element.type === 'image' ? `<div class="admin-form-field"><label class="mb-1 block text-sm font-medium">${inspectorLabels.object_fit}</label><select class="w-full rounded-xl px-4 py-3 text-sm" data-inspector-style="object_fit">${objectFitSelectOptions}</select></div><div class="admin-form-field"><label class="mb-1 block text-sm font-medium">${inspectorLabels.border_radius}</label><input type="number" step="0.1" min="0" class="w-full rounded-xl px-4 py-3 text-sm" value="${element.styling.border_radius}" data-inspector-style="border_radius"></div>` : ''}
-                    ${element.type === 'barcode' ? `<label class="admin-checkbox admin-form-field--full"><input type="checkbox" ${element.styling.show_text ? 'checked' : ''} data-inspector-style="show_text"><span>${inspectorLabels.show_text}</span></label>` : ''}
+                    ${element.type === 'barcode' ? `<div class="admin-form-field admin-form-field--full"><label class="mb-1 block text-sm font-medium">${inspectorLabels.barcode_format}</label><select class="w-full rounded-xl px-4 py-3 text-sm" data-inspector-style="barcode_format">${barcodeFormatSelectOptions}</select></div><label class="admin-checkbox admin-form-field--full"><input type="checkbox" ${element.styling.show_text ? 'checked' : ''} data-inspector-style="show_text"><span>${inspectorLabels.show_text}</span></label>` : ''}
                 `;
             };
 
@@ -460,8 +502,14 @@
                     if (key === 'type') {
                         element.type = value;
                         element.field = firstField(value);
+                        if (value === 'barcode') {
+                            element.styling.show_text = element.styling.show_text ?? true;
+                            element.styling.barcode_format = element.styling.barcode_format || 'code39';
+                            applyBarcodeFormatDefaults(element);
+                        }
                     } else {
                         element[key] = value;
+                        fitElementToStage(element);
                     }
                     render();
                 }
@@ -469,6 +517,9 @@
                 if (event.target.matches('[data-inspector-style]')) {
                     const key = event.target.dataset.inspectorStyle;
                     element.styling[key] = event.target.type === 'checkbox' ? event.target.checked : (['font_size', 'border_radius'].includes(key) ? parseFloat(event.target.value || '0') : event.target.value);
+                    if (key === 'barcode_format' || key === 'show_text') {
+                        applyBarcodeFormatDefaults(element);
+                    }
                     render();
                 }
             });
@@ -503,6 +554,11 @@
             window.addEventListener('pointerup', stopDrag);
 
             state.layout = parseLayout();
+            state.layout.forEach((element) => {
+                if (element.type === 'barcode' && (element.styling?.barcode_format || 'code39') === 'qrcode' && (element.width > element.height * 1.4 || element.height < 18)) {
+                    applyBarcodeFormatDefaults(element);
+                }
+            });
             state.selectedId = state.layout[0]?.id || null;
             render();
         })();

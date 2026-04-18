@@ -244,6 +244,7 @@ class ReportingService
     {
         return [
             'academic_year_id' => $this->normalizeNullableInteger($filters['academic_year_id'] ?? null),
+            'assessment_type_id' => $this->normalizeNullableInteger($filters['assessment_type_id'] ?? null),
             'date_from' => $this->normalizeNullableString($filters['date_from'] ?? null),
             'date_to' => $this->normalizeNullableString($filters['date_to'] ?? null),
             'group_id' => $this->normalizeNullableInteger($filters['group_id'] ?? null),
@@ -345,6 +346,10 @@ class ReportingService
 
         $query->whereHas('assessment', function (Builder $builder) use ($filters) {
             $this->applyDateRange($builder, 'scheduled_at', $filters);
+
+            if ($filters['assessment_type_id']) {
+                $builder->where('assessment_type_id', $filters['assessment_type_id']);
+            }
 
             if ($filters['group_id'] || $filters['academic_year_id']) {
                 $builder->whereHas('group', fn (Builder $groupBuilder) => $this->applyGroupScope($groupBuilder, $filters));

@@ -2,6 +2,7 @@
 
 use App\Livewire\Concerns\AuthorizesPermissions;
 use App\Livewire\Concerns\AuthorizesTeacherAssignments;
+use App\Livewire\Concerns\SupportsCreateAndNew;
 use App\Models\Enrollment;
 use App\Models\PointTransaction;
 use App\Models\PointType;
@@ -14,13 +15,13 @@ use Livewire\WithPagination;
 new class extends Component {
     use AuthorizesPermissions;
     use AuthorizesTeacherAssignments;
+    use SupportsCreateAndNew;
     use WithPagination;
 
     public ?int $editingTransactionId = null;
     public ?int $selectedStudentId = null;
     public ?int $selectedEnrollmentId = null;
     public ?int $manual_point_type_id = null;
-    public string $manual_notes = '';
     public string $search = '';
     public string $stateFilter = 'all';
     public int $perPage = 15;
@@ -163,7 +164,6 @@ new class extends Component {
         $this->selectedStudentId = $transaction->student_id;
         $this->selectedEnrollmentId = $transaction->enrollment_id;
         $this->manual_point_type_id = $transaction->point_type_id;
-        $this->manual_notes = $transaction->notes ?? '';
         $this->showFormModal = true;
 
         $this->resetValidation();
@@ -177,7 +177,6 @@ new class extends Component {
             'selectedStudentId' => ['required', 'exists:students,id'],
             'selectedEnrollmentId' => ['nullable', 'exists:enrollments,id'],
             'manual_point_type_id' => ['required', 'exists:point_types,id'],
-            'manual_notes' => ['nullable', 'string'],
         ], [], [
             'selectedStudentId' => __('workflow.points.workbench.form.student'),
             'selectedEnrollmentId' => __('workflow.points.workbench.form.group'),
@@ -211,7 +210,7 @@ new class extends Component {
             $transaction->update([
                 'point_type_id' => $pointType->id,
                 'points' => $points,
-                'notes' => $validated['manual_notes'] ?: null,
+                'notes' => null,
             ]);
 
             $enrollment = $this->scopeEnrollmentsQuery(Enrollment::query()->with('student'))
@@ -257,7 +256,7 @@ new class extends Component {
                 'points' => $points,
                 'entered_by' => auth()->id(),
                 'entered_at' => now(),
-                'notes' => $validated['manual_notes'] ?: null,
+                'notes' => null,
             ]);
         }
 
@@ -308,8 +307,6 @@ new class extends Component {
         $this->selectedStudentId = null;
         $this->selectedEnrollmentId = null;
         $this->manual_point_type_id = null;
-        $this->manual_notes = '';
-
         $this->resetValidation();
     }
 
@@ -519,18 +516,11 @@ new class extends Component {
                 @enderror
             </div>
 
-            <div>
-                <label for="points-workbench-notes" class="mb-1 block text-sm font-medium">{{ __('workflow.points.form.notes') }}</label>
-                <textarea id="points-workbench-notes" wire:model="manual_notes" rows="4" class="w-full rounded-xl px-4 py-3 text-sm"></textarea>
-                @error('manual_notes')
-                    <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
-                @enderror
-            </div>
-
             <div class="flex flex-wrap items-center gap-3">
                 <button type="submit" class="pill-link pill-link--accent">
                     {{ $editingTransactionId ? __('workflow.common.actions.update_point_entry') : __('workflow.common.actions.save_point_entry') }}
                 </button>
+                <x-admin.create-and-new-button :show="! $editingTransactionId" click="saveAndNew('saveManual')" />
                 <button type="button" wire:click="closeFormModal" class="pill-link">
                     {{ __('crud.common.actions.close') }}
                 </button>

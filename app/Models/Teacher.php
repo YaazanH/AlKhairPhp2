@@ -19,7 +19,11 @@ class Teacher extends Model
         'last_name',
         'phone',
         'job_title',
+        'photo_path',
+        'teacher_job_title_id',
+        'course_id',
         'status',
+        'is_helping',
         'hired_at',
         'notes',
     ];
@@ -28,7 +32,18 @@ class Teacher extends Model
     {
         return [
             'hired_at' => 'date',
+            'is_helping' => 'boolean',
         ];
+    }
+
+    public function jobTitle(): BelongsTo
+    {
+        return $this->belongsTo(TeacherJobTitle::class, 'teacher_job_title_id');
+    }
+
+    public function course(): BelongsTo
+    {
+        return $this->belongsTo(Course::class);
     }
 
     public function assignedGroups(): HasMany

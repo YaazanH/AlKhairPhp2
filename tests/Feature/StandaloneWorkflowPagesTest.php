@@ -63,7 +63,6 @@ class StandaloneWorkflowPagesTest extends TestCase
         Volt::test('points.index')
             ->set('selectedStudentId', $enrollment->student_id)
             ->set('manual_point_type_id', $bonus->id)
-            ->set('manual_notes', 'Workbench bonus')
             ->call('saveManual')
             ->assertHasNoErrors();
 
@@ -71,14 +70,13 @@ class StandaloneWorkflowPagesTest extends TestCase
 
         Volt::test('points.index')
             ->call('editManual', $transaction->id)
-            ->set('manual_notes', 'Updated bonus')
             ->call('saveManual')
             ->assertHasNoErrors();
 
         $this->assertDatabaseHas('point_transactions', [
             'id' => $transaction->id,
             'points' => 5,
-            'notes' => 'Updated bonus',
+            'notes' => null,
         ]);
     }
 

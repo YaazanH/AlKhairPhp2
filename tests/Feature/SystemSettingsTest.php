@@ -6,6 +6,8 @@ use App\Models\AcademicYear;
 use App\Models\AppSetting;
 use App\Models\AttendanceStatus;
 use App\Models\GradeLevel;
+use App\Models\StudentGender;
+use App\Models\TeacherJobTitle;
 use App\Models\User;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -113,13 +115,62 @@ class SystemSettingsTest extends TestCase
         ]);
 
         Volt::test('settings.organization')
+            ->set('teacher_job_title_name', 'Volunteer Coordinator')
+            ->set('teacher_job_title_sort_order', '20')
+            ->set('teacher_job_title_is_active', true)
+            ->call('saveTeacherJobTitle')
+            ->assertHasNoErrors();
+
+        $teacherJobTitle = TeacherJobTitle::query()->where('name', 'Volunteer Coordinator')->firstOrFail();
+
+        Volt::test('settings.organization')
+            ->call('editTeacherJobTitle', $teacherJobTitle->id)
+            ->set('teacher_job_title_sort_order', '25')
+            ->call('saveTeacherJobTitle')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('teacher_job_titles', [
+            'id' => $teacherJobTitle->id,
+            'sort_order' => 25,
+        ]);
+
+        Volt::test('settings.organization')
             ->call('deleteAcademicYear', $academicYear->id);
 
         Volt::test('settings.organization')
             ->call('deleteGradeLevel', $gradeLevel->id);
 
+        Volt::test('settings.organization')
+            ->call('deleteTeacherJobTitle', $teacherJobTitle->id);
+
+        Volt::test('settings.organization')
+            ->set('student_gender_name', 'Not Specified')
+            ->set('student_gender_code', 'not_specified')
+            ->set('student_gender_sort_order', '30')
+            ->set('student_gender_is_active', true)
+            ->call('saveStudentGender')
+            ->assertHasNoErrors();
+
+        $studentGender = StudentGender::query()->where('code', 'not_specified')->firstOrFail();
+
+        Volt::test('settings.organization')
+            ->call('editStudentGender', $studentGender->id)
+            ->set('student_gender_sort_order', '35')
+            ->call('saveStudentGender')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('student_genders', [
+            'id' => $studentGender->id,
+            'sort_order' => 35,
+        ]);
+
+        Volt::test('settings.organization')
+            ->call('deleteStudentGender', $studentGender->id);
+
         $this->assertDatabaseMissing('academic_years', ['id' => $academicYear->id]);
         $this->assertDatabaseMissing('grade_levels', ['id' => $gradeLevel->id]);
+        $this->assertDatabaseMissing('teacher_job_titles', ['id' => $teacherJobTitle->id]);
+        $this->assertDatabaseMissing('student_genders', ['id' => $studentGender->id]);
     }
 
     public function test_manager_can_manage_tracking_point_and_finance_settings(): void

@@ -1,14 +1,19 @@
 <?php
 
 use App\Livewire\Concerns\AuthorizesPermissions;
+use App\Livewire\Concerns\SupportsCreateAndNew;
 use App\Models\AcademicYear;
 use App\Models\AppSetting;
 use App\Models\GradeLevel;
+use App\Models\StudentGender;
+use App\Models\TeacherJobTitle;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Livewire\Volt\Component;
 
 new class extends Component {
     use AuthorizesPermissions;
+    use SupportsCreateAndNew;
 
     public string $school_name = '';
     public string $school_phone = '';
@@ -32,6 +37,20 @@ new class extends Component {
     public bool $grade_level_is_active = true;
     public bool $showGradeLevelModal = false;
 
+    public ?int $teacher_job_title_editing_id = null;
+    public string $teacher_job_title_name = '';
+    public string $teacher_job_title_sort_order = '0';
+    public bool $teacher_job_title_is_active = true;
+    public bool $showTeacherJobTitleModal = false;
+
+    public ?int $student_gender_editing_id = null;
+    public string $student_gender_code = '';
+    public string $student_gender_name = '';
+    public string $student_gender_sort_order = '0';
+    public bool $student_gender_is_active = true;
+    public bool $student_gender_is_default = false;
+    public bool $showStudentGenderModal = false;
+
     public function mount(): void
     {
         $this->authorizePermission('settings.manage');
@@ -51,10 +70,21 @@ new class extends Component {
                 ->orderBy('sort_order')
                 ->orderBy('name')
                 ->get(),
+            'teacherJobTitles' => TeacherJobTitle::query()
+                ->withCount('teachers')
+                ->orderBy('sort_order')
+                ->orderBy('name')
+                ->get(),
+            'studentGenders' => StudentGender::query()
+                ->orderBy('sort_order')
+                ->orderBy('name')
+                ->get(),
             'totals' => [
                 'academic_years' => AcademicYear::count(),
                 'active_grade_levels' => GradeLevel::query()->where('is_active', true)->count(),
                 'grade_levels' => GradeLevel::count(),
+                'teacher_job_titles' => TeacherJobTitle::count(),
+                'student_genders' => StudentGender::count(),
             ],
         ];
     }
@@ -119,6 +149,51 @@ new class extends Component {
         session()->flash('status', __('settings.organization.messages.grade_level_deleted'));
     }
 
+    public function deleteTeacherJobTitle(int $teacherJobTitleId): void
+    {
+        $this->authorizePermission('settings.manage');
+
+        $teacherJobTitle = TeacherJobTitle::query()
+            ->withCount('teachers')
+            ->findOrFail($teacherJobTitleId);
+
+        if ($teacherJobTitle->teachers_count > 0) {
+            $this->addError('teacherJobTitleDelete', __('settings.organization.errors.teacher_job_title_delete_linked'));
+
+            return;
+        }
+
+        $teacherJobTitle->delete();
+
+        if ($this->teacher_job_title_editing_id === $teacherJobTitleId) {
+            $this->cancelTeacherJobTitle();
+        }
+
+        session()->flash('status', __('settings.organization.messages.teacher_job_title_deleted'));
+    }
+
+    public function deleteStudentGender(int $studentGenderId): void
+    {
+        $this->authorizePermission('settings.manage');
+
+        $studentGender = StudentGender::query()->findOrFail($studentGenderId);
+
+        if (\App\Models\Student::query()->where('gender', $studentGender->code)->exists()) {
+            $this->addError('studentGenderDelete', __('settings.organization.errors.student_gender_delete_linked'));
+
+            return;
+        }
+
+        $studentGender->delete();
+        $this->ensureDefaultStudentGender();
+
+        if ($this->student_gender_editing_id === $studentGenderId) {
+            $this->cancelStudentGender();
+        }
+
+        session()->flash('status', __('settings.organization.messages.student_gender_deleted'));
+    }
+
     public function openOrganizationModal(): void
     {
         $this->authorizePermission('settings.manage');
@@ -156,6 +231,30 @@ new class extends Component {
         $this->cancelGradeLevel();
     }
 
+    public function openTeacherJobTitleModal(): void
+    {
+        $this->authorizePermission('settings.manage');
+        $this->cancelTeacherJobTitle();
+        $this->showTeacherJobTitleModal = true;
+    }
+
+    public function closeTeacherJobTitleModal(): void
+    {
+        $this->cancelTeacherJobTitle();
+    }
+
+    public function openStudentGenderModal(): void
+    {
+        $this->authorizePermission('settings.manage');
+        $this->cancelStudentGender();
+        $this->showStudentGenderModal = true;
+    }
+
+    public function closeStudentGenderModal(): void
+    {
+        $this->cancelStudentGender();
+    }
+
     public function editAcademicYear(int $academicYearId): void
     {
         $this->authorizePermission('settings.manage');
@@ -188,6 +287,38 @@ new class extends Component {
         $this->resetValidation();
     }
 
+    public function editTeacherJobTitle(int $teacherJobTitleId): void
+    {
+        $this->authorizePermission('settings.manage');
+
+        $teacherJobTitle = TeacherJobTitle::query()->findOrFail($teacherJobTitleId);
+
+        $this->teacher_job_title_editing_id = $teacherJobTitle->id;
+        $this->teacher_job_title_name = $teacherJobTitle->name;
+        $this->teacher_job_title_sort_order = (string) $teacherJobTitle->sort_order;
+        $this->teacher_job_title_is_active = $teacherJobTitle->is_active;
+        $this->showTeacherJobTitleModal = true;
+
+        $this->resetValidation();
+    }
+
+    public function editStudentGender(int $studentGenderId): void
+    {
+        $this->authorizePermission('settings.manage');
+
+        $studentGender = StudentGender::query()->findOrFail($studentGenderId);
+
+        $this->student_gender_editing_id = $studentGender->id;
+        $this->student_gender_code = $studentGender->code;
+        $this->student_gender_name = $studentGender->name;
+        $this->student_gender_sort_order = (string) $studentGender->sort_order;
+        $this->student_gender_is_active = $studentGender->is_active;
+        $this->student_gender_is_default = $studentGender->is_default;
+        $this->showStudentGenderModal = true;
+
+        $this->resetValidation();
+    }
+
     public function gradeLevelRules(): array
     {
         return [
@@ -199,6 +330,37 @@ new class extends Component {
             ],
             'grade_level_sort_order' => ['required', 'integer', 'min:0'],
             'grade_level_is_active' => ['boolean'],
+        ];
+    }
+
+    public function teacherJobTitleRules(): array
+    {
+        return [
+            'teacher_job_title_name' => [
+                'required',
+                'string',
+                'max:255',
+                Rule::unique('teacher_job_titles', 'name')->ignore($this->teacher_job_title_editing_id),
+            ],
+            'teacher_job_title_sort_order' => ['required', 'integer', 'min:0'],
+            'teacher_job_title_is_active' => ['boolean'],
+        ];
+    }
+
+    public function studentGenderRules(): array
+    {
+        return [
+            'student_gender_code' => [
+                'required',
+                'string',
+                'max:50',
+                'regex:/^[a-z0-9_-]+$/',
+                Rule::unique('student_genders', 'code')->ignore($this->student_gender_editing_id),
+            ],
+            'student_gender_name' => ['required', 'string', 'max:255'],
+            'student_gender_sort_order' => ['required', 'integer', 'min:0'],
+            'student_gender_is_active' => ['boolean'],
+            'student_gender_is_default' => ['boolean'],
         ];
     }
 
@@ -258,6 +420,70 @@ new class extends Component {
         $this->cancelGradeLevel();
     }
 
+    public function saveTeacherJobTitle(): void
+    {
+        $this->authorizePermission('settings.manage');
+
+        $validated = $this->validate($this->teacherJobTitleRules());
+
+        TeacherJobTitle::query()->updateOrCreate(
+            ['id' => $this->teacher_job_title_editing_id],
+            [
+                'is_active' => $validated['teacher_job_title_is_active'],
+                'name' => $validated['teacher_job_title_name'],
+                'sort_order' => (int) $validated['teacher_job_title_sort_order'],
+            ],
+        );
+
+        session()->flash(
+            'status',
+            $this->teacher_job_title_editing_id
+                ? __('settings.organization.messages.teacher_job_title_updated')
+                : __('settings.organization.messages.teacher_job_title_created'),
+        );
+        $this->cancelTeacherJobTitle();
+    }
+
+    public function saveStudentGender(): void
+    {
+        $this->authorizePermission('settings.manage');
+
+        $validated = $this->validate($this->studentGenderRules());
+
+        if ($validated['student_gender_is_default'] && ! $validated['student_gender_is_active']) {
+            $this->addError('student_gender_is_default', __('settings.organization.errors.default_student_gender_requires_active'));
+
+            return;
+        }
+
+        $studentGender = StudentGender::query()->updateOrCreate(
+            ['id' => $this->student_gender_editing_id],
+            [
+                'code' => Str::of($validated['student_gender_code'])->lower()->toString(),
+                'is_active' => $validated['student_gender_is_active'],
+                'is_default' => $validated['student_gender_is_default'],
+                'name' => $validated['student_gender_name'],
+                'sort_order' => (int) $validated['student_gender_sort_order'],
+            ],
+        );
+
+        if ($studentGender->is_default) {
+            StudentGender::query()
+                ->whereKeyNot($studentGender->id)
+                ->update(['is_default' => false]);
+        }
+
+        $this->ensureDefaultStudentGender();
+
+        session()->flash(
+            'status',
+            $this->student_gender_editing_id
+                ? __('settings.organization.messages.student_gender_updated')
+                : __('settings.organization.messages.student_gender_created'),
+        );
+        $this->cancelStudentGender();
+    }
+
     public function saveOrganizationSettings(): void
     {
         $this->authorizePermission('settings.manage');
@@ -311,6 +537,48 @@ new class extends Component {
         $this->resetValidation();
     }
 
+    protected function cancelTeacherJobTitle(): void
+    {
+        $this->teacher_job_title_editing_id = null;
+        $this->teacher_job_title_name = '';
+        $this->teacher_job_title_sort_order = '0';
+        $this->teacher_job_title_is_active = true;
+        $this->showTeacherJobTitleModal = false;
+        $this->resetValidation();
+    }
+
+    protected function cancelStudentGender(): void
+    {
+        $this->student_gender_editing_id = null;
+        $this->student_gender_code = '';
+        $this->student_gender_name = '';
+        $this->student_gender_sort_order = '0';
+        $this->student_gender_is_active = true;
+        $this->student_gender_is_default = false;
+        $this->showStudentGenderModal = false;
+        $this->resetValidation();
+    }
+
+    protected function ensureDefaultStudentGender(): void
+    {
+        if (StudentGender::query()->where('is_active', true)->where('is_default', true)->exists()) {
+            return;
+        }
+
+        $fallback = StudentGender::query()
+            ->where('is_active', true)
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->first();
+
+        if (! $fallback) {
+            return;
+        }
+
+        StudentGender::query()->whereKeyNot($fallback->id)->update(['is_default' => false]);
+        $fallback->update(['is_default' => true]);
+    }
+
     protected function loadOrganizationSettings(): void
     {
         $settings = AppSetting::query()
@@ -340,7 +608,7 @@ new class extends Component {
         <div class="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">{{ session('status') }}</div>
     @endif
 
-    <div class="grid gap-4 md:grid-cols-3">
+    <div class="grid gap-4 md:grid-cols-5">
         <div class="rounded-xl border border-neutral-200 p-5 dark:border-neutral-700">
             <div class="text-sm text-neutral-500">{{ __('settings.organization.stats.academic_years') }}</div>
             <div class="mt-2 text-3xl font-semibold">{{ number_format($totals['academic_years']) }}</div>
@@ -352,6 +620,14 @@ new class extends Component {
         <div class="rounded-xl border border-neutral-200 p-5 dark:border-neutral-700">
             <div class="text-sm text-neutral-500">{{ __('settings.organization.stats.active_grade_levels') }}</div>
             <div class="mt-2 text-3xl font-semibold">{{ number_format($totals['active_grade_levels']) }}</div>
+        </div>
+        <div class="rounded-xl border border-neutral-200 p-5 dark:border-neutral-700">
+            <div class="text-sm text-neutral-500">{{ __('settings.organization.stats.teacher_job_titles') }}</div>
+            <div class="mt-2 text-3xl font-semibold">{{ number_format($totals['teacher_job_titles']) }}</div>
+        </div>
+        <div class="rounded-xl border border-neutral-200 p-5 dark:border-neutral-700">
+            <div class="text-sm text-neutral-500">{{ __('settings.organization.stats.student_genders') }}</div>
+            <div class="mt-2 text-3xl font-semibold">{{ number_format($totals['student_genders']) }}</div>
         </div>
     </div>
 
@@ -365,6 +641,8 @@ new class extends Component {
                 <button type="button" wire:click="openOrganizationModal" class="pill-link">{{ __('settings.organization.actions.save_settings') }}</button>
                 <button type="button" wire:click="openAcademicYearModal" class="pill-link pill-link--accent">{{ __('settings.organization.actions.create_year') }}</button>
                 <button type="button" wire:click="openGradeLevelModal" class="pill-link">{{ __('settings.organization.actions.create_grade') }}</button>
+                <button type="button" wire:click="openTeacherJobTitleModal" class="pill-link">{{ __('settings.organization.actions.create_teacher_job_title') }}</button>
+                <button type="button" wire:click="openStudentGenderModal" class="pill-link">{{ __('settings.organization.actions.create_student_gender') }}</button>
             </div>
         </div>
     </section>
@@ -551,6 +829,71 @@ new class extends Component {
                     </div>
                 @endif
             </div>
+
+            <div class="overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700">
+                <div class="border-b border-neutral-200 px-5 py-4 text-sm font-medium dark:border-neutral-700">{{ __('settings.organization.sections.teacher_job_title.table') }}</div>
+                @if ($teacherJobTitles->isEmpty())
+                    <div class="px-5 py-10 text-sm text-neutral-500">{{ __('settings.organization.sections.teacher_job_title.empty') }}</div>
+                @else
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-neutral-200 text-sm dark:divide-neutral-700">
+                            <thead class="bg-neutral-50 dark:bg-neutral-900/60"><tr><th class="px-5 py-3 text-left font-medium">{{ __('settings.organization.table.name') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.organization.table.sort') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.organization.table.teachers') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.organization.table.state') }}</th><th class="px-5 py-3 text-right font-medium">{{ __('settings.organization.table.actions') }}</th></tr></thead>
+                            <tbody class="divide-y divide-neutral-200 dark:divide-neutral-700">
+                                @foreach ($teacherJobTitles as $teacherJobTitle)
+                                    <tr>
+                                        <td class="px-5 py-3 font-medium">{{ $teacherJobTitle->name }}</td>
+                                        <td class="px-5 py-3">{{ $teacherJobTitle->sort_order }}</td>
+                                        <td class="px-5 py-3">{{ number_format($teacherJobTitle->teachers_count) }}</td>
+                                        <td class="px-5 py-3">{{ $teacherJobTitle->is_active ? __('settings.common.states.active') : __('settings.common.states.inactive') }}</td>
+                                        <td class="px-5 py-3">
+                                            <div class="flex justify-end gap-2">
+                                                <button type="button" wire:click="editTeacherJobTitle({{ $teacherJobTitle->id }})" class="rounded-lg border border-neutral-300 px-3 py-1.5 dark:border-neutral-700">{{ __('crud.common.actions.edit') }}</button>
+                                                <button type="button" wire:click="deleteTeacherJobTitle({{ $teacherJobTitle->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="rounded-lg border border-red-300 px-3 py-1.5 text-red-700 dark:border-red-800 dark:text-red-300">{{ __('crud.common.actions.delete') }}</button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                @endif
+            </div>
+
+            <div class="overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700">
+                <div class="border-b border-neutral-200 px-5 py-4 text-sm font-medium dark:border-neutral-700">{{ __('settings.organization.sections.student_gender.table') }}</div>
+                @if ($studentGenders->isEmpty())
+                    <div class="px-5 py-10 text-sm text-neutral-500">{{ __('settings.organization.sections.student_gender.empty') }}</div>
+                @else
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-neutral-200 text-sm dark:divide-neutral-700">
+                            <thead class="bg-neutral-50 dark:bg-neutral-900/60"><tr><th class="px-5 py-3 text-left font-medium">{{ __('settings.organization.table.name') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.organization.table.code') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.organization.table.sort') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.organization.table.default') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.organization.table.state') }}</th><th class="px-5 py-3 text-right font-medium">{{ __('settings.organization.table.actions') }}</th></tr></thead>
+                            <tbody class="divide-y divide-neutral-200 dark:divide-neutral-700">
+                                @foreach ($studentGenders as $studentGender)
+                                    <tr>
+                                        <td class="px-5 py-3 font-medium">{{ $studentGender->name }}</td>
+                                        <td class="px-5 py-3 font-mono">{{ $studentGender->code }}</td>
+                                        <td class="px-5 py-3">{{ $studentGender->sort_order }}</td>
+                                        <td class="px-5 py-3">
+                                            @if ($studentGender->is_default)
+                                                <span class="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-200">{{ __('settings.organization.labels.default_student_gender') }}</span>
+                                            @else
+                                                <span class="text-neutral-400">-</span>
+                                            @endif
+                                        </td>
+                                        <td class="px-5 py-3">{{ $studentGender->is_active ? __('settings.common.states.active') : __('settings.common.states.inactive') }}</td>
+                                        <td class="px-5 py-3">
+                                            <div class="flex justify-end gap-2">
+                                                <button type="button" wire:click="editStudentGender({{ $studentGender->id }})" class="rounded-lg border border-neutral-300 px-3 py-1.5 dark:border-neutral-700">{{ __('crud.common.actions.edit') }}</button>
+                                                <button type="button" wire:click="deleteStudentGender({{ $studentGender->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="rounded-lg border border-red-300 px-3 py-1.5 text-red-700 dark:border-red-800 dark:text-red-300">{{ __('crud.common.actions.delete') }}</button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                @endif
+            </div>
         </section>
     </div>
 
@@ -622,6 +965,7 @@ new class extends Component {
             <div class="flex justify-end gap-3">
                 <button type="button" wire:click="closeAcademicYearModal" class="pill-link">{{ __('crud.common.actions.cancel') }}</button>
                 <button type="submit" class="pill-link pill-link--accent">{{ $academic_year_editing_id ? __('settings.organization.actions.update_year') : __('settings.organization.actions.create_year') }}</button>
+                <x-admin.create-and-new-button :show="! $academic_year_editing_id" click="saveAndNew('saveAcademicYear', 'openAcademicYearModal')" />
             </div>
         </form>
     </x-admin.modal>
@@ -643,6 +987,58 @@ new class extends Component {
             <div class="flex justify-end gap-3">
                 <button type="button" wire:click="closeGradeLevelModal" class="pill-link">{{ __('crud.common.actions.cancel') }}</button>
                 <button type="submit" class="pill-link pill-link--accent">{{ $grade_level_editing_id ? __('settings.organization.actions.update_grade') : __('settings.organization.actions.create_grade') }}</button>
+                <x-admin.create-and-new-button :show="! $grade_level_editing_id" click="saveAndNew('saveGradeLevel', 'openGradeLevelModal')" />
+            </div>
+        </form>
+    </x-admin.modal>
+
+    <x-admin.modal :show="$showTeacherJobTitleModal" :title="$teacher_job_title_editing_id ? __('settings.organization.sections.teacher_job_title.edit') : __('settings.organization.sections.teacher_job_title.create')" :description="__('settings.organization.sections.teacher_job_title.copy')" close-method="closeTeacherJobTitleModal" max-width="3xl">
+        <form wire:submit="saveTeacherJobTitle" class="space-y-4">
+            <div>
+                <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.name') }}</label>
+                <input wire:model="teacher_job_title_name" type="text" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                @error('teacher_job_title_name') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+            </div>
+            <div>
+                <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.sort_order') }}</label>
+                <input wire:model="teacher_job_title_sort_order" type="number" min="0" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                @error('teacher_job_title_sort_order') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+            </div>
+            <label class="flex items-center gap-3 text-sm"><input wire:model="teacher_job_title_is_active" type="checkbox" class="rounded border-neutral-300 text-neutral-900"><span>{{ __('settings.organization.fields.is_active') }}</span></label>
+            @error('teacherJobTitleDelete') <div class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{{ $message }}</div> @enderror
+            <div class="flex justify-end gap-3">
+                <button type="button" wire:click="closeTeacherJobTitleModal" class="pill-link">{{ __('crud.common.actions.cancel') }}</button>
+                <button type="submit" class="pill-link pill-link--accent">{{ $teacher_job_title_editing_id ? __('settings.organization.actions.update_teacher_job_title') : __('settings.organization.actions.create_teacher_job_title') }}</button>
+                <x-admin.create-and-new-button :show="! $teacher_job_title_editing_id" click="saveAndNew('saveTeacherJobTitle', 'openTeacherJobTitleModal')" />
+            </div>
+        </form>
+    </x-admin.modal>
+
+    <x-admin.modal :show="$showStudentGenderModal" :title="$student_gender_editing_id ? __('settings.organization.sections.student_gender.edit') : __('settings.organization.sections.student_gender.create')" :description="__('settings.organization.sections.student_gender.copy')" close-method="closeStudentGenderModal" max-width="3xl">
+        <form wire:submit="saveStudentGender" class="space-y-4">
+            <div>
+                <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.name') }}</label>
+                <input wire:model="student_gender_name" type="text" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                @error('student_gender_name') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+            </div>
+            <div>
+                <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.code') }}</label>
+                <input wire:model="student_gender_code" type="text" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm lowercase dark:border-neutral-700 dark:bg-neutral-900">
+                @error('student_gender_code') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+            </div>
+            <div>
+                <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.sort_order') }}</label>
+                <input wire:model="student_gender_sort_order" type="number" min="0" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                @error('student_gender_sort_order') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+            </div>
+            <label class="flex items-center gap-3 text-sm"><input wire:model="student_gender_is_active" type="checkbox" class="rounded border-neutral-300 text-neutral-900"><span>{{ __('settings.organization.fields.is_active') }}</span></label>
+            <label class="flex items-center gap-3 text-sm"><input wire:model="student_gender_is_default" type="checkbox" class="rounded border-neutral-300 text-neutral-900"><span>{{ __('settings.organization.fields.default_student_gender') }}</span></label>
+            @error('student_gender_is_default') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+            @error('studentGenderDelete') <div class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{{ $message }}</div> @enderror
+            <div class="flex justify-end gap-3">
+                <button type="button" wire:click="closeStudentGenderModal" class="pill-link">{{ __('crud.common.actions.cancel') }}</button>
+                <button type="submit" class="pill-link pill-link--accent">{{ $student_gender_editing_id ? __('settings.organization.actions.update_student_gender') : __('settings.organization.actions.create_student_gender') }}</button>
+                <x-admin.create-and-new-button :show="! $student_gender_editing_id" click="saveAndNew('saveStudentGender', 'openStudentGenderModal')" />
             </div>
         </form>
     </x-admin.modal>

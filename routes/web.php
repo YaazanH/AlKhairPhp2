@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AdminExportController;
 use App\Http\Controllers\BarcodeActionPrintController;
+use App\Http\Controllers\IdCards\IdCardBarcodePreviewController;
 use App\Http\Controllers\IdCards\IdCardPrintController;
 use App\Http\Controllers\IdCards\IdCardTemplateController;
 use App\Http\Controllers\PrintController;
@@ -20,6 +21,7 @@ Route::get('locale/{locale}', function (Request $request, string $locale) {
     }
 
     $request->session()->put('locale', $locale);
+    $request->session()->put('locale_user_selected', true);
 
     return redirect()->back();
 })->name('locale.switch');
@@ -38,6 +40,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('id-cards/templates/{template}/edit', [IdCardTemplateController::class, 'edit'])->middleware('permission:id-cards.templates.manage')->name('id-cards.templates.edit');
     Route::put('id-cards/templates/{template}', [IdCardTemplateController::class, 'update'])->middleware('permission:id-cards.templates.manage')->name('id-cards.templates.update');
     Route::delete('id-cards/templates/{template}', [IdCardTemplateController::class, 'destroy'])->middleware('permission:id-cards.templates.manage')->name('id-cards.templates.destroy');
+    Route::get('id-cards/barcode-preview', IdCardBarcodePreviewController::class)->middleware('permission:id-cards.view')->name('id-cards.barcode-preview');
     Route::get('id-cards/print', [IdCardPrintController::class, 'create'])->middleware('permission:id-cards.print')->name('id-cards.print.create');
     Route::post('id-cards/print/preview', [IdCardPrintController::class, 'preview'])->middleware('permission:id-cards.print')->name('id-cards.print.preview');
     Volt::route('barcode-actions', 'barcode-actions.index')->middleware('permission:barcode-actions.view')->name('barcode-actions.index');

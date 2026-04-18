@@ -1,6 +1,7 @@
 <?php
 
 use App\Livewire\Concerns\AuthorizesPermissions;
+use App\Livewire\Concerns\SupportsCreateAndNew;
 use App\Models\Course;
 use Illuminate\Validation\Rule;
 use Livewire\Volt\Component;
@@ -8,11 +9,14 @@ use Livewire\WithPagination;
 
 new class extends Component {
     use AuthorizesPermissions;
+    use SupportsCreateAndNew;
     use WithPagination;
 
     public ?int $editingId = null;
     public string $name = '';
     public string $description = '';
+    public string $starts_on = '';
+    public string $ends_on = '';
     public bool $is_active = true;
     public string $search = '';
     public string $statusFilter = 'all';
@@ -74,6 +78,8 @@ new class extends Component {
                 Rule::unique('courses', 'name')->ignore($this->editingId),
             ],
             'description' => ['nullable', 'string'],
+            'starts_on' => ['nullable', 'date'],
+            'ends_on' => ['nullable', 'date', 'after_or_equal:starts_on'],
             'is_active' => ['boolean'],
         ];
     }
@@ -91,6 +97,8 @@ new class extends Component {
         $this->authorizePermission($this->editingId ? 'courses.update' : 'courses.create');
 
         $validated = $this->validate();
+        $validated['starts_on'] = $validated['starts_on'] ?: null;
+        $validated['ends_on'] = $validated['ends_on'] ?: null;
 
         Course::query()->updateOrCreate(
             ['id' => $this->editingId],
@@ -114,6 +122,8 @@ new class extends Component {
         $this->editingId = $course->id;
         $this->name = $course->name;
         $this->description = $course->description ?? '';
+        $this->starts_on = $course->starts_on?->format('Y-m-d') ?? '';
+        $this->ends_on = $course->ends_on?->format('Y-m-d') ?? '';
         $this->is_active = $course->is_active;
         $this->showFormModal = true;
 
@@ -125,6 +135,8 @@ new class extends Component {
         $this->editingId = null;
         $this->name = '';
         $this->description = '';
+        $this->starts_on = '';
+        $this->ends_on = '';
         $this->is_active = true;
         $this->showFormModal = false;
 
@@ -228,6 +240,7 @@ new class extends Component {
                     <thead>
                         <tr>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.courses.table.headers.course') }}</th>
+                            <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.courses.table.headers.dates') }}</th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.courses.table.headers.groups') }}</th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.courses.table.headers.status') }}</th>
                             <th class="px-5 py-4 text-right lg:px-6">{{ __('crud.courses.table.headers.actions') }}</th>
@@ -239,6 +252,14 @@ new class extends Component {
                                 <td class="px-5 py-4 lg:px-6">
                                     <div class="font-semibold text-white">{{ $course->name }}</div>
                                     <div class="mt-1 text-sm text-neutral-400">{{ $course->description ?: __('crud.courses.table.no_description') }}</div>
+                                </td>
+                                <td class="px-5 py-4 text-neutral-300 lg:px-6">
+                                    {{ $course->starts_on || $course->ends_on
+                                        ? __('crud.courses.table.date_range', [
+                                            'start' => $course->starts_on?->format('Y-m-d') ?: __('crud.common.not_available'),
+                                            'end' => $course->ends_on?->format('Y-m-d') ?: __('crud.common.not_available'),
+                                        ])
+                                        : __('crud.common.not_available') }}
                                 </td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ number_format($course->groups_count) }}</td>
                                 <td class="px-5 py-4 lg:px-6">
@@ -294,6 +315,24 @@ new class extends Component {
                 @enderror
             </div>
 
+            <div class="grid gap-4 md:grid-cols-2">
+                <div>
+                    <label for="course-starts-on" class="mb-1 block text-sm font-medium">{{ __('crud.courses.form.fields.starts_on') }}</label>
+                    <input id="course-starts-on" wire:model="starts_on" type="date" class="w-full rounded-xl px-4 py-3 text-sm">
+                    @error('starts_on')
+                        <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
+                    @enderror
+                </div>
+
+                <div>
+                    <label for="course-ends-on" class="mb-1 block text-sm font-medium">{{ __('crud.courses.form.fields.ends_on') }}</label>
+                    <input id="course-ends-on" wire:model="ends_on" type="date" class="w-full rounded-xl px-4 py-3 text-sm">
+                    @error('ends_on')
+                        <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
+                    @enderror
+                </div>
+            </div>
+
             <label class="flex items-center gap-3 text-sm">
                 <input wire:model="is_active" type="checkbox" class="rounded border-neutral-300 text-neutral-900">
                 <span>{{ __('crud.courses.form.active_course') }}</span>
@@ -303,6 +342,7 @@ new class extends Component {
                 <button type="submit" class="pill-link pill-link--accent">
                     {{ $editingId ? __('crud.courses.form.update_submit') : __('crud.courses.form.create_submit') }}
                 </button>
+                <x-admin.create-and-new-button :show="! $editingId" />
                 <button type="button" wire:click="cancel" class="pill-link">
                     {{ __('crud.common.actions.close') }}
                 </button>

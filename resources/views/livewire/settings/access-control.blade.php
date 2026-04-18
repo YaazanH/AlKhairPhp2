@@ -1,6 +1,7 @@
 <?php
 
 use App\Livewire\Concerns\AuthorizesPermissions;
+use App\Livewire\Concerns\SupportsCreateAndNew;
 use App\Support\RoleRegistry;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
@@ -12,6 +13,7 @@ use Spatie\Permission\Models\Role;
 
 new class extends Component {
     use AuthorizesPermissions;
+    use SupportsCreateAndNew;
     use WithPagination;
 
     public string $selected_role = '';
@@ -46,11 +48,14 @@ new class extends Component {
 
     public function with(): array
     {
-        $permissionQuery = Permission::query()->orderBy('name');
+        $permissions = Permission::query()->orderBy('name')->get();
         $rolesQuery = $this->rolesQuery();
 
         if (filled($this->permission_search)) {
-            $permissionQuery->where('name', 'like', '%'.$this->permission_search.'%');
+            $needle = Str::lower($this->permission_search);
+
+            $permissions = $permissions->filter(fn (Permission $permission): bool => Str::contains(Str::lower($permission->name), $needle)
+                || Str::contains(Str::lower($this->permissionLabel($permission->name)), $needle));
         }
 
         $filteredRolesCount = (clone $rolesQuery)->count();
@@ -63,9 +68,8 @@ new class extends Component {
             'filteredRolesCount' => $filteredRolesCount,
             'systemRolesCount' => $systemRolesCount,
             'customRolesCount' => max($filteredRolesCount - $systemRolesCount, 0),
-            'permissionGroups' => $permissionQuery
-                ->get()
-                ->groupBy(fn (Permission $permission): string => Str::of($permission->name)->before('.')->replace('-', ' ')->headline()->toString()),
+            'permissionGroups' => $permissions
+                ->groupBy(fn (Permission $permission): string => $this->permissionGroupLabel($permission->name)),
             'selectedRoleRecord' => $this->selected_role !== ''
                 ? Role::query()->withCount(['users', 'permissions'])->where('name', $this->selected_role)->first()
                 : null,
@@ -250,6 +254,25 @@ new class extends Component {
             : null;
 
         $this->selected_permissions = $role?->permissions()->pluck('name')->values()->all() ?? [];
+    }
+
+    protected function permissionGroupLabel(string $permissionName): string
+    {
+        $group = Str::of($permissionName)->before('.')->toString();
+        $labels = __('access.permission_groups');
+
+        return is_array($labels) && isset($labels[$group])
+            ? $labels[$group]
+            : Str::of($group)->replace('-', ' ')->headline()->toString();
+    }
+
+    protected function permissionLabel(string $permissionName): string
+    {
+        $labels = __('access.permissions');
+
+        return is_array($labels) && isset($labels[$permissionName])
+            ? $labels[$permissionName]
+            : Str::of($permissionName)->replace(['.', '-'], ' ')->headline()->toString();
     }
 
     protected function rolesQuery()
@@ -438,6 +461,7 @@ new class extends Component {
                 <button type="button" wire:click="saveRole" class="pill-link pill-link--accent">
                     {{ $editing_role !== '' ? __('access.roles.actions.edit') : __('access.roles.actions.create') }}
                 </button>
+                <x-admin.create-and-new-button :show="$editing_role === ''" click="saveAndNew('saveRole', 'openCreateRoleModal')" />
                 <button type="button" wire:click="closeRoleModal" class="pill-link">
                     {{ __('access.roles.actions.cancel') }}
                 </button>
@@ -488,7 +512,7 @@ new class extends Component {
                                 @foreach ($permissions as $permission)
                                     <label class="flex items-start gap-3 text-sm text-neutral-200">
                                         <input wire:model="selected_permissions" type="checkbox" value="{{ $permission->name }}" class="mt-0.5 rounded">
-                                        <span>{{ $permission->name }}</span>
+                                        <span>{{ $this->permissionLabel($permission->name) }}</span>
                                     </label>
                                 @endforeach
                             </div>

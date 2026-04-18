@@ -2,6 +2,7 @@
 
 use App\Livewire\Concerns\AuthorizesPermissions;
 use App\Livewire\Concerns\AuthorizesTeacherAssignments;
+use App\Livewire\Concerns\SupportsCreateAndNew;
 use App\Models\Enrollment;
 use App\Models\MemorizationSession;
 use App\Models\Student;
@@ -14,6 +15,7 @@ use Livewire\WithPagination;
 new class extends Component {
     use AuthorizesPermissions;
     use AuthorizesTeacherAssignments;
+    use SupportsCreateAndNew;
     use WithPagination;
 
     public ?int $editingSessionId = null;
@@ -246,7 +248,7 @@ new class extends Component {
             ->pluck('page_no')
             ->all();
 
-        if ($validated['entry_type'] !== 'review' && $existingPages && ! auth()->user()->can('memorization.override-duplicate-page')) {
+        if ($validated['entry_type'] !== 'review' && $existingPages) {
             $this->addError('from_page', __('workflow.memorization.errors.duplicate_pages', ['pages' => implode(', ', $existingPages)]));
 
             return;
@@ -559,6 +561,7 @@ new class extends Component {
                 <button type="submit" class="pill-link pill-link--accent">
                     {{ $editingSessionId ? __('workflow.common.actions.update_memorization') : __('workflow.common.actions.save_memorization') }}
                 </button>
+                <x-admin.create-and-new-button :show="! $editingSessionId" />
                 <button type="button" wire:click="closeFormModal" class="pill-link">
                     {{ __('crud.common.actions.close') }}
                 </button>

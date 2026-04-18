@@ -52,6 +52,8 @@ return [
         'action_barcodes' => 'Action Barcodes',
         'scanner_import' => 'Scanner Import',
         'configuration' => 'Configuration',
+        'dashboard_settings' => 'Dashboard Settings',
+        'public_website_settings' => 'Public Website Settings',
         'organization' => 'Organization',
         'tracking_rules' => 'Tracking Rules',
         'points' => 'Points',

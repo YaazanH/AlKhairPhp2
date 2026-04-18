@@ -2,6 +2,7 @@
 
 use App\Livewire\Concerns\AuthorizesPermissions;
 use App\Livewire\Concerns\AuthorizesTeacherAssignments;
+use App\Livewire\Concerns\SupportsCreateAndNew;
 use App\Models\ParentProfile;
 use App\Services\ManagedUserService;
 use Illuminate\Validation\Rule;
@@ -12,6 +13,7 @@ use Livewire\WithPagination;
 new class extends Component {
     use AuthorizesPermissions;
     use AuthorizesTeacherAssignments;
+    use SupportsCreateAndNew;
     use WithPagination;
 
     public ?int $editingId = null;
@@ -523,6 +525,7 @@ new class extends Component {
                 <button type="submit" class="pill-link pill-link--accent">
                     {{ $editingId ? __('crud.parents.form.update_submit') : __('crud.parents.form.create_submit') }}
                 </button>
+                <x-admin.create-and-new-button :show="! $editingId" />
                 <button type="button" wire:click="cancel" class="pill-link">
                     {{ __('crud.common.actions.close') }}
                 </button>

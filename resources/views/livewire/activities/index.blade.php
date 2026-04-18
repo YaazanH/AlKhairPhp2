@@ -1,6 +1,7 @@
 <?php
 
 use App\Livewire\Concerns\AuthorizesPermissions;
+use App\Livewire\Concerns\SupportsCreateAndNew;
 use App\Models\Activity;
 use App\Models\Group;
 use App\Services\ActivityAudienceService;
@@ -9,6 +10,7 @@ use Livewire\WithPagination;
 
 new class extends Component {
     use AuthorizesPermissions;
+    use SupportsCreateAndNew;
     use WithPagination;
 
     public ?int $editingId = null;
@@ -336,6 +338,7 @@ new class extends Component {
                         <button type="submit" class="pill-link pill-link--accent">
                             {{ $editingId ? __('activities.index.form.update_submit') : __('activities.index.form.create_submit') }}
                         </button>
+                        <x-admin.create-and-new-button :show="! $editingId" click="saveAndNew('save', 'create')" />
 
                         @if ($editingId)
                             <button type="button" wire:click="cancel" class="pill-link">

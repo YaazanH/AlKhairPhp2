@@ -3,6 +3,7 @@
 namespace App\Services\IdCards;
 
 use App\Models\Student;
+use App\Models\StudentGender;
 use Illuminate\Support\Arr;
 
 class StudentCardFieldRegistry
@@ -63,7 +64,9 @@ class StudentCardFieldRegistry
             'gender' => [
                 'label' => __('id_cards.fields.gender'),
                 'element_types' => ['text'],
-                'preview' => fn (Student $student): string => $student->gender ? __('crud.common.gender_options.'.$student->gender) : __('id_cards.common.not_available'),
+                'preview' => fn (Student $student): string => $student->gender
+                    ? (StudentGender::query()->where('code', $student->gender)->value('name') ?: __('crud.common.gender_options.'.$student->gender))
+                    : __('id_cards.common.not_available'),
             ],
             'current_juz' => [
                 'label' => __('id_cards.fields.current_juz'),

@@ -87,11 +87,12 @@ return [
             ],
             'form' => [
                 'title' => 'Attendance day setup',
-                'help' => 'The system will create one group session for every active group inside your current scope.',
+                'help' => 'The system creates sessions only for active groups scheduled on the selected date. Extra groups can be added manually from the day details page.',
                 'attendance_date' => 'Attendance date',
                 'status' => 'Day status',
                 'default_status' => 'Default student status',
                 'default_status_help' => 'Applied to every active enrollment when the attendance day is created. Existing marks are not overwritten.',
+                'scheduled_groups_help' => ':count scheduled groups will be created for the selected date. You can add extra groups manually after opening the day.',
                 'no_default_status' => 'Create an active student attendance status before creating attendance days.',
                 'notes' => 'Notes',
             ],
@@ -129,6 +130,21 @@ return [
                     'actions' => 'Actions',
                 ],
                 'open' => 'Open attendance',
+            ],
+            'manual_add' => [
+                'title' => 'Add extra group',
+                'help' => 'Use this when a group attends outside its normal schedule or needs a make-up session.',
+                'group' => 'Extra group',
+                'select_group' => 'Select group',
+                'action' => 'Add group to day',
+                'empty' => 'All active groups in your scope are already included in this day.',
+                'messages' => [
+                    'added' => 'Group added to attendance day successfully.',
+                ],
+                'errors' => [
+                    'unavailable' => 'This group is not available in your current scope.',
+                    'exists' => 'This group is already included in this attendance day.',
+                ],
             ],
         ],
         'marking' => [
@@ -179,9 +195,12 @@ return [
     ],
     'teacher_attendance' => [
         'title' => 'Teacher Attendance',
-        'subtitle' => 'Create or reopen one attendance day for all teachers, then mark each teacher under that date.',
+        'subtitle' => 'Create or reopen one attendance day for teachers currently marked as helping, then mark each teacher under that date.',
         'messages' => [
             'saved' => 'Teacher attendance saved successfully.',
+        ],
+        'errors' => [
+            'teacher_not_helping' => 'Only teachers marked as helping can be added to teacher attendance.',
         ],
         'form' => [
             'attendance_date' => 'Attendance date',
@@ -489,6 +508,7 @@ return [
             'stats' => [
                 'all' => 'Total assessments',
                 'active' => 'Active assessments',
+                'passed_students' => 'Passed students',
             ],
             'messages' => [
                 'created' => 'Assessment created successfully.',
@@ -497,12 +517,15 @@ return [
             ],
             'errors' => [
                 'delete_results' => 'This assessment cannot be deleted while results exist.',
+                'no_groups_selected' => 'Select at least one group for this assessment.',
             ],
             'form' => [
                 'create_title' => 'New assessment',
                 'edit_title' => 'Edit assessment',
                 'help' => 'Teachers can only manage assessments for their assigned groups.',
+                'group_scope' => 'Assessment groups',
                 'group' => 'Group',
+                'groups' => 'Groups',
                 'assessment_type' => 'Assessment type',
                 'title' => 'Title',
                 'scheduled_at' => 'Scheduled at',
@@ -512,14 +535,26 @@ return [
                 'description' => 'Description',
                 'select_group' => 'Select group',
                 'select_type' => 'Select type',
+                'multiple_groups_help' => 'Hold Ctrl while clicking to select more than one group.',
+                'all_groups_help' => 'This assessment will include all available groups (:count).',
+                'group_scope_options' => [
+                    'single' => 'One group',
+                    'multiple' => 'Multiple groups',
+                    'all' => 'All groups',
+                ],
                 'active_assessment' => 'Active assessment',
                 'create_submit' => 'Create assessment',
                 'update_submit' => 'Update assessment',
+            ],
+            'filters' => [
+                'course' => 'Course',
+                'all_courses' => 'All courses',
             ],
             'read_only' => 'You can review assessments, but you do not have permission to manage them.',
             'table' => [
                 'title' => 'Assessment records',
                 'empty' => 'No assessments have been created yet.',
+                'more_groups' => '+:count more',
                 'headers' => [
                     'assessment' => 'Assessment',
                     'schedule' => 'Schedule',
@@ -547,6 +582,7 @@ return [
                 'to_mark' => 'To mark',
                 'point_type' => 'Point type',
                 'points' => 'Points',
+                'points_help' => 'Leave empty to use the point amount defined in Settings > Points.',
                 'select_type' => 'Select type',
                 'no_point_type' => 'No point type',
                 'fail_band' => 'Fail band',
@@ -569,11 +605,31 @@ return [
         ],
         'results' => [
             'title' => 'Assessment Results',
-            'subtitle' => 'Record results for each active enrollment in this assessment group.',
+            'subtitle' => 'Choose one assessment group first, then record results for its active students.',
+            'stats' => [
+                'groups' => 'Groups',
+            ],
             'messages' => [
                 'saved' => 'Assessment results saved successfully.',
                 'void_reason' => 'Assessment result updated.',
                 'automatic_points' => 'Automatic :type points for score :score',
+            ],
+            'errors' => [
+                'select_group' => 'Select a group before saving assessment results.',
+            ],
+            'groups' => [
+                'title' => 'Assessment groups',
+                'empty' => 'No groups are linked to this assessment.',
+                'select_first' => 'Select a group above to load its students and record results.',
+                'open' => 'Open results',
+                'selected' => 'Selected group',
+                'headers' => [
+                    'group' => 'Group',
+                    'teacher' => 'Teacher',
+                    'students' => 'Students',
+                    'results' => 'Results',
+                    'actions' => 'Actions',
+                ],
             ],
             'table' => [
                 'title' => 'Group results',
@@ -584,8 +640,13 @@ return [
                     'status' => 'Status',
                     'attempt' => 'Attempt',
                     'notes' => 'Notes',
-                    'cached_points' => 'Cached points',
+                    'cached_points' => 'Assessment points',
                 ],
+            ],
+            'filters' => [
+                'search_placeholder' => 'Search by student name or number',
+                'status' => 'Result status',
+                'all_statuses' => 'All statuses',
             ],
         ],
     ],

@@ -84,9 +84,6 @@
                             <a href="{{ route('dashboard') }}" class="pill-link pill-link--accent">{{ __('site.public.nav.dashboard') }}</a>
                         @else
                             <a href="{{ route('login') }}" class="pill-link">{{ __('site.public.nav.login') }}</a>
-                            @if (Route::has('register'))
-                                <a href="{{ route('register') }}" class="pill-link pill-link--accent">{{ __('site.public.nav.register') }}</a>
-                            @endif
                         @endauth
                     </div>
                 </div>
@@ -110,7 +107,7 @@
                         <div class="eyebrow">{{ __('site.public.sections.visit') }}</div>
                         <div class="mt-5 space-y-3 text-sm text-neutral-200">
                             @if (! empty($site['contact_phone']))
-                                <div><span class="text-neutral-400">{{ __('site.public.labels.phone') }}:</span> {{ $site['contact_phone'] }}</div>
+                                <div><span class="text-neutral-400">{{ __('site.public.labels.phone') }}:</span> <span dir="ltr" class="inline-block text-left" style="unicode-bidi: isolate;">{{ $site['contact_phone'] }}</span></div>
                             @endif
                             @if (! empty($site['contact_email']))
                                 <div><span class="text-neutral-400">{{ __('site.public.labels.email') }}:</span> {{ $site['contact_email'] }}</div>

@@ -27,6 +27,7 @@ use App\Models\User;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
+use ZipArchive;
 
 class ExportPrintLayerTest extends TestCase
 {
@@ -66,28 +67,26 @@ class ExportPrintLayerTest extends TestCase
         ]));
 
         $attendanceResponse->assertOk();
-        $this->assertStringContainsString('text/csv', $attendanceResponse->headers->get('content-type'));
-        $this->assertStringContainsString('Invoice Student', $attendanceResponse->streamedContent());
+        $this->assertStringContainsString('spreadsheetml.sheet', $attendanceResponse->headers->get('content-type'));
+        $this->assertXlsxContains($attendanceResponse->streamedContent(), ['Invoice Student']);
 
         $memorizationResponse = $this->get(route('reports.exports.memorization', [
             'group_id' => $context['group']->id,
         ]));
         $memorizationResponse->assertOk();
-        $this->assertStringContainsString('Invoice Student', $memorizationResponse->streamedContent());
+        $this->assertXlsxContains($memorizationResponse->streamedContent(), ['Invoice Student']);
 
         $pointsResponse = $this->get(route('reports.exports.points', [
             'group_id' => $context['group']->id,
         ]));
         $pointsResponse->assertOk();
-        $this->assertStringContainsString('Invoice Student', $pointsResponse->streamedContent());
-        $this->assertStringContainsString('Behavior Bonus', $pointsResponse->streamedContent());
+        $this->assertXlsxContains($pointsResponse->streamedContent(), ['Invoice Student', 'Behavior Bonus']);
 
         $assessmentResponse = $this->get(route('reports.exports.assessments', [
             'group_id' => $context['group']->id,
         ]));
         $assessmentResponse->assertOk();
-        $this->assertStringContainsString('Midterm Quiz', $assessmentResponse->streamedContent());
-        $this->assertStringContainsString('Invoice Student', $assessmentResponse->streamedContent());
+        $this->assertXlsxContains($assessmentResponse->streamedContent(), ['Midterm Quiz', 'Invoice Student']);
     }
 
     public function test_manager_can_render_invoice_and_receipt_print_views(): void
@@ -104,10 +103,29 @@ class ExportPrintLayerTest extends TestCase
 
         $this->get(route('payments.receipt', $context['payment']))
             ->assertOk()
-            ->assertSeeText('Payment Receipt')
+            ->assertSeeText(__('print.receipt.title'))
             ->assertSeeText($context['invoice']->invoice_no)
             ->assertSeeText('Invoice Parent')
             ->assertSeeText('Cash');
+    }
+
+    private function assertXlsxContains(string $content, array $needles): void
+    {
+        $path = tempnam(sys_get_temp_dir(), 'export-test-');
+        file_put_contents($path, $content);
+
+        $zip = new ZipArchive();
+        $this->assertTrue($zip->open($path) === true);
+
+        $sheetXml = $zip->getFromName('xl/worksheets/sheet1.xml');
+        $zip->close();
+        @unlink($path);
+
+        $this->assertIsString($sheetXml);
+
+        foreach ($needles as $needle) {
+            $this->assertStringContainsString($needle, $sheetXml);
+        }
     }
 
     private function reportingContext(): array

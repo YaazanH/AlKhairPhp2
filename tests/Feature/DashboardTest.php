@@ -19,6 +19,13 @@ class DashboardTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        config(['app.locale' => 'en']);
+    }
+
     public function test_guests_are_redirected_to_the_login_page(): void
     {
         $response = $this->get('/dashboard');

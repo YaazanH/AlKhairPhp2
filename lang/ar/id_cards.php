@@ -104,11 +104,16 @@ return [
                 'border_radius' => 'استدارة الحواف',
                 'object_fit' => 'ملاءمة الصورة',
                 'show_text' => 'إظهار نص الباركود',
+                'barcode_format' => 'نوع الرمز',
             ],
             'element_types' => [
                 'text' => 'نص',
                 'image' => 'صورة',
                 'barcode' => 'باركود',
+            ],
+            'barcode_formats' => [
+                'code39' => 'باركود خطي',
+                'qrcode' => 'رمز QR',
             ],
             'font_weights' => [
                 '400' => 'عادي',

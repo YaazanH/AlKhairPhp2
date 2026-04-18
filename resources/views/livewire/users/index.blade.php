@@ -1,12 +1,14 @@
 <?php
 
 use App\Livewire\Concerns\AuthorizesPermissions;
+use App\Livewire\Concerns\SupportsCreateAndNew;
 use App\Models\Group;
 use App\Models\ParentProfile;
 use App\Models\Student;
 use App\Models\Teacher;
 use App\Models\User;
 use App\Services\AccessScopeService;
+use App\Services\ManagedUserService;
 use App\Support\RoleRegistry;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
@@ -19,6 +21,7 @@ use Spatie\Permission\Models\Role;
 
 new class extends Component {
     use AuthorizesPermissions;
+    use SupportsCreateAndNew;
     use WithPagination;
 
     public ?int $editingId = null;
@@ -75,7 +78,7 @@ new class extends Component {
             'permissionGroups' => Permission::query()
                 ->orderBy('name')
                 ->get()
-                ->groupBy(fn (Permission $permission): string => Str::of($permission->name)->before('.')->replace('-', ' ')->headline()->toString()),
+                ->groupBy(fn (Permission $permission): string => $this->permissionGroupLabel($permission->name)),
         ];
     }
 
@@ -98,8 +101,8 @@ new class extends Component {
     {
         return [
             'name' => ['required', 'string', 'max:255'],
-            'username' => ['required', 'string', 'max:255', Rule::unique('users', 'username')->ignore($this->editingId)],
-            'email' => ['required', 'string', 'email', 'max:255', Rule::unique('users', 'email')->ignore($this->editingId)],
+            'username' => ['nullable', 'string', 'max:255', Rule::unique('users', 'username')->ignore($this->editingId)],
+            'email' => ['nullable', 'string', 'email', 'max:255', Rule::unique('users', 'email')->ignore($this->editingId)],
             'phone' => ['nullable', 'string', 'max:255', Rule::unique('users', 'phone')->ignore($this->editingId)],
             'password' => ['nullable', 'string', 'min:8'],
             'is_active' => ['boolean'],
@@ -131,18 +134,28 @@ new class extends Component {
         $this->authorizePermission($this->editingId ? 'users.update' : 'users.create');
 
         $validated = $this->validate();
-        $plainPassword = filled($validated['password']) ? $validated['password'] : ($this->editingId ? null : Str::password(10));
+        $accountService = app(ManagedUserService::class);
+        $existingUser = $this->editingId ? User::query()->findOrFail($this->editingId) : null;
+        $username = filled($validated['username'] ?? null)
+            ? $accountService->uniqueUsername((string) $validated['username'], $validated['name'], $this->editingId)
+            : ($existingUser?->username ?: $accountService->uniqueUsername('', $validated['name'], $this->editingId));
+        $email = filled($validated['email'] ?? null)
+            ? $accountService->uniqueEmail((string) $validated['email'], $username, $this->editingId)
+            : ($existingUser?->email ?: $accountService->uniqueEmail(null, $username, $this->editingId));
+        $plainPassword = filled($validated['password'] ?? null) ? (string) $validated['password'] : ($this->editingId ? null : Str::password(10));
 
         $payload = [
             'name' => $validated['name'],
-            'username' => $validated['username'],
-            'email' => $validated['email'],
+            'username' => $username,
+            'email' => $email,
             'phone' => filled($validated['phone']) ? $validated['phone'] : null,
             'is_active' => $validated['is_active'],
+            'email_verified_at' => $existingUser?->email_verified_at ?? now(),
         ];
 
         if ($plainPassword !== null) {
             $payload['password'] = Hash::make($plainPassword);
+            $payload['issued_password'] = $plainPassword;
         }
 
         $user = User::query()->updateOrCreate(
@@ -257,6 +270,25 @@ new class extends Component {
         }
 
         return __('crud.common.not_available');
+    }
+
+    protected function permissionGroupLabel(string $permissionName): string
+    {
+        $group = Str::of($permissionName)->before('.')->toString();
+        $labels = __('access.permission_groups');
+
+        return is_array($labels) && isset($labels[$group])
+            ? $labels[$group]
+            : Str::of($group)->replace('-', ' ')->headline()->toString();
+    }
+
+    protected function permissionLabel(string $permissionName): string
+    {
+        $labels = __('access.permissions');
+
+        return is_array($labels) && isset($labels[$permissionName])
+            ? $labels[$permissionName]
+            : Str::of($permissionName)->replace(['.', '-'], ' ')->headline()->toString();
     }
 }; ?>
 
@@ -402,7 +434,7 @@ new class extends Component {
                                     @else
                                         <div class="flex flex-wrap gap-2">
                                             @foreach ($directPermissionNames->take(3) as $permissionName)
-                                                <span class="status-chip status-chip--slate">{{ $permissionName }}</span>
+                                                <span class="status-chip status-chip--slate">{{ $this->permissionLabel($permissionName) }}</span>
                                             @endforeach
                                             @if ($directPermissionNames->count() > 3)
                                                 <span class="status-chip status-chip--slate">+{{ $directPermissionNames->count() - 3 }}</span>
@@ -531,7 +563,7 @@ new class extends Component {
                                     @foreach ($permissions as $permission)
                                         <label class="flex items-start gap-3 text-sm text-neutral-200">
                                             <input wire:model="direct_permissions" type="checkbox" value="{{ $permission->name }}" class="mt-0.5 rounded">
-                                            <span>{{ $permission->name }}</span>
+                                            <span>{{ $this->permissionLabel($permission->name) }}</span>
                                         </label>
                                     @endforeach
                                 </div>
@@ -613,6 +645,7 @@ new class extends Component {
 
             <div class="flex flex-wrap gap-3">
                 <button type="submit" class="pill-link pill-link--accent">{{ $editingId ? __('access.users.form.save_update') : __('access.users.form.save_create') }}</button>
+                <x-admin.create-and-new-button :show="! $editingId" />
                 <button type="button" wire:click="cancel" class="pill-link">{{ __('crud.common.actions.close') }}</button>
             </div>
         </form>

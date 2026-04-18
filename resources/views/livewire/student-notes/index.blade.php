@@ -2,6 +2,7 @@
 
 use App\Livewire\Concerns\AuthorizesPermissions;
 use App\Livewire\Concerns\AuthorizesTeacherAssignments;
+use App\Livewire\Concerns\SupportsCreateAndNew;
 use App\Models\Enrollment;
 use App\Models\Student;
 use App\Models\StudentNote;
@@ -11,6 +12,7 @@ use Livewire\Volt\Component;
 new class extends Component {
     use AuthorizesPermissions;
     use AuthorizesTeacherAssignments;
+    use SupportsCreateAndNew;
 
     public ?int $editingId = null;
     public ?int $student_id = null;
@@ -464,6 +466,7 @@ new class extends Component {
                         <button type="submit" class="rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white dark:bg-white dark:text-neutral-900">
                             {{ $editingId ? __('notes.form.update_submit') : __('notes.form.create_submit') }}
                         </button>
+                        <x-admin.create-and-new-button :show="! $editingId" click="saveAndNew('save', 'create')" />
 
                         @if ($editingId)
                             <button type="button" wire:click="cancel" class="rounded-lg border border-neutral-300 px-4 py-2 text-sm font-medium dark:border-neutral-700">

@@ -47,6 +47,16 @@ class Assessment extends Model
         return $this->belongsTo(Group::class);
     }
 
+    public function groupDetails(): HasMany
+    {
+        return $this->hasMany(AssessmentGroup::class);
+    }
+
+    public function groups()
+    {
+        return $this->belongsToMany(Group::class, 'assessment_groups')->withTimestamps();
+    }
+
     public function results(): HasMany
     {
         return $this->hasMany(AssessmentResult::class);

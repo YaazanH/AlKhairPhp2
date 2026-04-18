@@ -2,25 +2,35 @@
 
 use App\Livewire\Concerns\AuthorizesPermissions;
 use App\Livewire\Concerns\AuthorizesTeacherAssignments;
+use App\Livewire\Concerns\SupportsCreateAndNew;
+use App\Models\Course;
 use App\Models\Teacher;
+use App\Models\TeacherJobTitle;
 use App\Services\ManagedUserService;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Str;
 use Livewire\Volt\Component;
+use Livewire\WithFileUploads;
 use Livewire\WithPagination;
 
 new class extends Component {
     use AuthorizesPermissions;
     use AuthorizesTeacherAssignments;
+    use SupportsCreateAndNew;
+    use WithFileUploads;
     use WithPagination;
 
     public ?int $editingId = null;
     public string $first_name = '';
     public string $last_name = '';
     public string $phone = '';
-    public string $job_title = '';
+    public string $teacher_job_title_id = '';
+    public string $course_id = '';
     public string $status = 'active';
-    public string $hired_at = '';
+    public bool $is_helping = false;
+    public string $photo_path = '';
+    public $photo_upload = null;
     public string $notes = '';
     public ?int $accountTeacherId = null;
     public string $account_username = '';
@@ -30,6 +40,7 @@ new class extends Component {
     public ?string $issued_password = null;
     public string $search = '';
     public string $statusFilter = 'all';
+    public string $helpingFilter = 'all';
     public int $perPage = 15;
     public bool $showFormModal = false;
     public bool $showAccountModal = false;
@@ -43,16 +54,20 @@ new class extends Component {
     {
         $baseQuery = $this->scopeTeachersQuery(Teacher::query());
         $filteredQuery = $this->scopeTeachersQuery(Teacher::query())
+            ->with(['jobTitle', 'course'])
             ->when(filled($this->search), function ($query) {
                 $query->where(function ($builder) {
                     $builder
                         ->where('first_name', 'like', '%'.$this->search.'%')
                         ->orWhere('last_name', 'like', '%'.$this->search.'%')
                         ->orWhere('phone', 'like', '%'.$this->search.'%')
-                        ->orWhere('job_title', 'like', '%'.$this->search.'%');
+                        ->orWhere('job_title', 'like', '%'.$this->search.'%')
+                        ->orWhereHas('jobTitle', fn ($titleQuery) => $titleQuery->where('name', 'like', '%'.$this->search.'%'))
+                        ->orWhereHas('course', fn ($courseQuery) => $courseQuery->where('name', 'like', '%'.$this->search.'%'));
                 });
             })
             ->when(in_array($this->statusFilter, ['active', 'inactive', 'blocked'], true), fn ($query) => $query->where('status', $this->statusFilter))
+            ->when(in_array($this->helpingFilter, ['helping', 'not_helping'], true), fn ($query) => $query->where('is_helping', $this->helpingFilter === 'helping'))
             ->withCount(['assignedGroups', 'assistedGroups'])
             ->orderBy('last_name')
             ->orderBy('first_name');
@@ -65,9 +80,13 @@ new class extends Component {
                 'all' => $baseQuery->count(),
                 'active' => $this->scopeTeachersQuery(Teacher::query()->where('status', 'active'))->count(),
                 'blocked' => $this->scopeTeachersQuery(Teacher::query()->where('status', 'blocked'))->count(),
+                'helping' => $this->scopeTeachersQuery(Teacher::query()->where('is_helping', true))->count(),
             ],
             'filteredCount' => $filteredCount,
             'statuses' => ['active', 'inactive', 'blocked'],
+            'helpingOptions' => ['all', 'helping', 'not_helping'],
+            'jobTitles' => TeacherJobTitle::query()->orderBy('sort_order')->orderBy('name')->get(),
+            'courses' => Course::query()->orderByDesc('is_active')->orderBy('name')->get(),
         ];
     }
 
@@ -81,15 +100,22 @@ new class extends Component {
         $this->resetPage();
     }
 
+    public function updatedHelpingFilter(): void
+    {
+        $this->resetPage();
+    }
+
     public function rules(): array
     {
         return [
             'first_name' => ['required', 'string', 'max:255'],
             'last_name' => ['required', 'string', 'max:255'],
             'phone' => ['required', 'string', 'max:30'],
-            'job_title' => ['nullable', 'string', 'max:255'],
+            'teacher_job_title_id' => ['nullable', 'integer', Rule::exists('teacher_job_titles', 'id')],
+            'course_id' => ['nullable', 'integer', Rule::exists('courses', 'id')],
             'status' => ['required', 'in:active,inactive,blocked'],
-            'hired_at' => ['nullable', 'date'],
+            'is_helping' => ['boolean'],
+            'photo_upload' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
             'notes' => ['nullable', 'string'],
         ];
     }
@@ -121,11 +147,36 @@ new class extends Component {
         }
 
         $validated = $this->validate();
-        $validated['hired_at'] = $validated['hired_at'] ?: null;
+        $jobTitle = filled($validated['teacher_job_title_id'])
+            ? TeacherJobTitle::query()->find((int) $validated['teacher_job_title_id'])
+            : null;
+
+        $payload = [
+            'first_name' => $validated['first_name'],
+            'last_name' => $validated['last_name'],
+            'phone' => $validated['phone'],
+            'teacher_job_title_id' => filled($validated['teacher_job_title_id']) ? (int) $validated['teacher_job_title_id'] : null,
+            'job_title' => $jobTitle?->name,
+            'course_id' => filled($validated['course_id']) ? (int) $validated['course_id'] : null,
+            'status' => $validated['status'],
+            'is_helping' => (bool) $validated['is_helping'],
+            'notes' => $validated['notes'] ?: null,
+        ];
+
         $teacher = Teacher::query()->updateOrCreate(
             ['id' => $this->editingId],
-            $validated,
+            $payload,
         );
+
+        if ($this->photo_upload) {
+            if ($teacher->photo_path) {
+                Storage::disk('public')->delete($teacher->photo_path);
+            }
+
+            $teacher->forceFill([
+                'photo_path' => $this->photo_upload->store('teachers/photos/'.$teacher->id, 'public'),
+            ])->save();
+        }
 
         $result = app(ManagedUserService::class)->syncLinkedUser(
             $teacher->user,
@@ -163,9 +214,17 @@ new class extends Component {
         $this->first_name = $teacher->first_name;
         $this->last_name = $teacher->last_name;
         $this->phone = $teacher->phone;
-        $this->job_title = $teacher->job_title ?? '';
+        $jobTitleId = $teacher->teacher_job_title_id ?: (
+            $teacher->job_title
+                ? TeacherJobTitle::query()->where('name', $teacher->job_title)->value('id')
+                : null
+        );
+        $this->teacher_job_title_id = $jobTitleId ? (string) $jobTitleId : '';
+        $this->course_id = $teacher->course_id ? (string) $teacher->course_id : '';
         $this->status = $teacher->status;
-        $this->hired_at = $teacher->hired_at?->format('Y-m-d') ?? '';
+        $this->is_helping = $teacher->is_helping;
+        $this->photo_path = $teacher->photo_path ?? '';
+        $this->photo_upload = null;
         $this->notes = $teacher->notes ?? '';
         $this->showFormModal = true;
 
@@ -263,13 +322,53 @@ new class extends Component {
         $this->first_name = '';
         $this->last_name = '';
         $this->phone = '';
-        $this->job_title = '';
+        $this->teacher_job_title_id = '';
+        $this->course_id = '';
         $this->status = 'active';
-        $this->hired_at = '';
+        $this->is_helping = false;
         $this->notes = '';
+        $this->photo_path = '';
+        $this->photo_upload = null;
         $this->showFormModal = false;
 
         $this->resetValidation();
+    }
+
+    public function toggleHelping(int $teacherId): void
+    {
+        $this->authorizePermission('teachers.update');
+
+        $teacher = Teacher::query()->findOrFail($teacherId);
+        $this->authorizeScopedTeacherAccess($teacher);
+
+        $teacher->forceFill(['is_helping' => ! $teacher->is_helping])->save();
+
+        session()->flash('status', __('crud.teachers.messages.helping_updated'));
+    }
+
+    public function removePhoto(): void
+    {
+        $this->authorizePermission('teachers.update');
+
+        if (! $this->editingId) {
+            $this->photo_path = '';
+            $this->photo_upload = null;
+
+            return;
+        }
+
+        $teacher = Teacher::query()->findOrFail($this->editingId);
+        $this->authorizeScopedTeacherAccess($teacher);
+
+        if ($teacher->photo_path) {
+            Storage::disk('public')->delete($teacher->photo_path);
+        }
+
+        $teacher->forceFill(['photo_path' => null])->save();
+        $this->photo_path = '';
+        $this->photo_upload = null;
+
+        session()->flash('status', __('crud.teachers.messages.photo_removed'));
     }
 
     public function delete(int $teacherId): void
@@ -323,7 +422,7 @@ new class extends Component {
         </div>
     @endif
 
-    <div class="grid gap-4 md:grid-cols-3">
+    <div class="grid gap-4 md:grid-cols-4">
         <article class="stat-card">
             <div class="kpi-label">{{ __('crud.teachers.stats.all') }}</div>
             <div class="metric-value mt-6">{{ number_format($totals['all']) }}</div>
@@ -337,6 +436,11 @@ new class extends Component {
         <article class="stat-card">
             <div class="kpi-label">{{ __('crud.teachers.stats.blocked') }}</div>
             <div class="metric-value mt-6">{{ number_format($totals['blocked']) }}</div>
+        </article>
+
+        <article class="stat-card">
+            <div class="kpi-label">{{ __('crud.teachers.stats.helping') }}</div>
+            <div class="metric-value mt-6">{{ number_format($totals['helping']) }}</div>
         </article>
     </div>
 
@@ -363,11 +467,20 @@ new class extends Component {
                     </select>
                 </div>
 
+                <div class="admin-filter-field">
+                    <label for="teacher-helping-filter">{{ __('crud.teachers.filters.helping') }}</label>
+                    <select id="teacher-helping-filter" wire:model.live="helpingFilter">
+                        @foreach ($helpingOptions as $helpingOption)
+                            <option value="{{ $helpingOption }}">{{ __('crud.teachers.helping_options.' . $helpingOption) }}</option>
+                        @endforeach
+                    </select>
+                </div>
+
                 <div class="admin-toolbar__actions">
                     @can('teachers.create')
                         <button type="button" wire:click="openCreateModal" class="pill-link pill-link--accent">{{ __('crud.common.actions.create') }}</button>
                     @endcan
-                    <a href="{{ route('teachers.export', ['search' => $search, 'status' => $statusFilter]) }}" class="pill-link">{{ __('crud.common.actions.export') }}</a>
+                    <a href="{{ route('teachers.export', ['search' => $search, 'status' => $statusFilter, 'helping' => $helpingFilter]) }}" class="pill-link">{{ __('crud.common.actions.export') }}</a>
                 </div>
             </div>
         </div>
@@ -395,7 +508,9 @@ new class extends Component {
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.teachers.table.headers.name') }}</th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.teachers.table.headers.phone') }}</th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.teachers.table.headers.job_title') }}</th>
+                            <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.teachers.table.headers.course') }}</th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.teachers.table.headers.groups') }}</th>
+                            <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.teachers.table.headers.helping') }}</th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.teachers.table.headers.status') }}</th>
                             <th class="px-5 py-4 text-right lg:px-6">{{ __('crud.teachers.table.headers.actions') }}</th>
                         </tr>
@@ -404,11 +519,29 @@ new class extends Component {
                         @foreach ($teachers as $teacher)
                             <tr>
                                 <td class="px-5 py-4 lg:px-6">
-                                    <div class="font-semibold text-white">{{ $teacher->first_name }} {{ $teacher->last_name }}</div>
+                                    <div class="student-inline">
+                                        <x-teacher-avatar :teacher="$teacher" size="sm" />
+                                        <div class="student-inline__body">
+                                            <div class="student-inline__name">{{ $teacher->first_name }} {{ $teacher->last_name }}</div>
+                                            <div class="student-inline__meta">{{ $teacher->jobTitle?->name ?: ($teacher->job_title ?: __('crud.common.not_available')) }}</div>
+                                        </div>
+                                    </div>
                                 </td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $teacher->phone }}</td>
-                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $teacher->job_title ?: __('crud.common.not_available') }}</td>
+                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $teacher->jobTitle?->name ?: ($teacher->job_title ?: __('crud.common.not_available')) }}</td>
+                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $teacher->course?->name ?: __('crud.common.not_available') }}</td>
                                 <td class="px-5 py-4 text-white lg:px-6">{{ number_format($teacher->assigned_groups_count + $teacher->assisted_groups_count) }}</td>
+                                <td class="px-5 py-4 lg:px-6">
+                                    @can('teachers.update')
+                                        <button type="button" wire:click="toggleHelping({{ $teacher->id }})" class="{{ $teacher->is_helping ? 'status-chip status-chip--emerald' : 'status-chip status-chip--slate' }}">
+                                            {{ $teacher->is_helping ? __('crud.teachers.helping_options.helping') : __('crud.teachers.helping_options.not_helping') }}
+                                        </button>
+                                    @else
+                                        <span class="{{ $teacher->is_helping ? 'status-chip status-chip--emerald' : 'status-chip status-chip--slate' }}">
+                                            {{ $teacher->is_helping ? __('crud.teachers.helping_options.helping') : __('crud.teachers.helping_options.not_helping') }}
+                                        </span>
+                                    @endcan
+                                </td>
                                 <td class="px-5 py-4 lg:px-6">
                                     <span class="{{ $teacher->status === 'active' ? 'status-chip status-chip--emerald' : ($teacher->status === 'blocked' ? 'status-chip status-chip--rose' : 'status-chip status-chip--slate') }}">
                                         {{ __('crud.common.status_options.' . $teacher->status) }}
@@ -467,6 +600,35 @@ new class extends Component {
                 </div>
             </div>
 
+            <div class="rounded-3xl border border-white/10 bg-white/5 p-4">
+                <div class="grid gap-4 md:grid-cols-[auto_minmax(0,1fr)] md:items-center">
+                    <div>
+                        @if ($photo_upload)
+                            <img src="{{ $photo_upload->temporaryUrl() }}" alt="{{ __('crud.teachers.photo.preview_alt') }}" class="h-24 w-24 rounded-3xl object-cover shadow-sm">
+                        @elseif ($photo_path)
+                            <img src="{{ asset('storage/'.ltrim($photo_path, '/')) }}" alt="{{ __('crud.teachers.photo.alt') }}" class="h-24 w-24 rounded-3xl object-cover shadow-sm">
+                        @else
+                            <x-teacher-avatar :teacher="(object) ['first_name' => $first_name, 'last_name' => $last_name, 'photo_path' => null]" size="lg" />
+                        @endif
+                    </div>
+
+                    <div>
+                        <label for="teacher-photo-upload" class="mb-1 block text-sm font-medium">{{ __('crud.teachers.photo.upload') }}</label>
+                        <input id="teacher-photo-upload" wire:model="photo_upload" type="file" accept="image/*" class="block w-full text-sm text-neutral-300">
+                        <p class="mt-2 text-xs leading-5 text-neutral-400">{{ __('crud.teachers.photo.help') }}</p>
+                        @error('photo_upload')
+                            <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
+                        @enderror
+
+                        @if ($photo_path || $photo_upload)
+                            <button type="button" wire:click="removePhoto" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link pill-link--compact mt-3 border-red-400/25 text-red-200 hover:border-red-300/35 hover:bg-red-500/12">
+                                {{ __('crud.teachers.photo.remove') }}
+                            </button>
+                        @endif
+                    </div>
+                </div>
+            </div>
+
             <div class="grid gap-4 md:grid-cols-2">
                 <div>
                     <label for="teacher-phone" class="mb-1 block text-sm font-medium">{{ __('crud.teachers.form.fields.phone') }}</label>
@@ -478,8 +640,13 @@ new class extends Component {
 
                 <div>
                     <label for="teacher-job-title" class="mb-1 block text-sm font-medium">{{ __('crud.teachers.form.fields.job_title') }}</label>
-                    <input id="teacher-job-title" wire:model="job_title" type="text" class="w-full rounded-xl px-4 py-3 text-sm">
-                    @error('job_title')
+                    <select id="teacher-job-title" wire:model="teacher_job_title_id" class="w-full rounded-xl px-4 py-3 text-sm">
+                        <option value="">{{ __('crud.teachers.form.options.select_job_title') }}</option>
+                        @foreach ($jobTitles as $jobTitle)
+                            <option value="{{ $jobTitle->id }}">{{ $jobTitle->name }}{{ $jobTitle->is_active ? '' : ' - '.__('settings.common.states.inactive') }}</option>
+                        @endforeach
+                    </select>
+                    @error('teacher_job_title_id')
                         <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                     @enderror
                 </div>
@@ -499,13 +666,23 @@ new class extends Component {
                 </div>
 
                 <div>
-                    <label for="teacher-hired-at" class="mb-1 block text-sm font-medium">{{ __('crud.teachers.form.fields.hired_at') }}</label>
-                    <input id="teacher-hired-at" wire:model="hired_at" type="date" class="w-full rounded-xl px-4 py-3 text-sm">
-                    @error('hired_at')
+                    <label for="teacher-course" class="mb-1 block text-sm font-medium">{{ __('crud.teachers.form.fields.course') }}</label>
+                    <select id="teacher-course" wire:model="course_id" class="w-full rounded-xl px-4 py-3 text-sm">
+                        <option value="">{{ __('crud.teachers.form.options.select_course') }}</option>
+                        @foreach ($courses as $course)
+                            <option value="{{ $course->id }}">{{ $course->name }}{{ $course->is_active ? '' : ' - '.__('settings.common.states.inactive') }}</option>
+                        @endforeach
+                    </select>
+                    @error('course_id')
                         <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                     @enderror
                 </div>
             </div>
+
+            <label class="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm">
+                <input wire:model="is_helping" type="checkbox" class="rounded">
+                <span>{{ __('crud.teachers.form.fields.is_helping') }}</span>
+            </label>
 
             <div>
                 <label for="teacher-notes" class="mb-1 block text-sm font-medium">{{ __('crud.teachers.form.fields.notes') }}</label>
@@ -519,6 +696,7 @@ new class extends Component {
                 <button type="submit" class="pill-link pill-link--accent">
                     {{ $editingId ? __('crud.teachers.form.update_submit') : __('crud.teachers.form.create_submit') }}
                 </button>
+                <x-admin.create-and-new-button :show="! $editingId" />
                 <button type="button" wire:click="cancel" class="pill-link">
                     {{ __('crud.common.actions.close') }}
                 </button>

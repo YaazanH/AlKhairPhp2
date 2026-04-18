@@ -15,7 +15,6 @@ new class extends Component {
     public Enrollment $currentEnrollment;
     public ?int $editingTransactionId = null;
     public ?int $manual_point_type_id = null;
-    public string $manual_notes = '';
 
     public function mount(Enrollment $enrollment): void
     {
@@ -62,7 +61,6 @@ new class extends Component {
 
         $validated = $this->validate([
             'manual_point_type_id' => ['required', 'exists:point_types,id'],
-            'manual_notes' => ['nullable', 'string'],
         ]);
 
         $pointType = PointType::query()->findOrFail($validated['manual_point_type_id']);
@@ -94,7 +92,7 @@ new class extends Component {
             $transaction->update([
                 'point_type_id' => $pointType->id,
                 'points' => $points,
-                'notes' => $validated['manual_notes'] ?: null,
+                'notes' => null,
             ]);
         } else {
             PointTransaction::query()->create([
@@ -107,7 +105,7 @@ new class extends Component {
                 'points' => $points,
                 'entered_by' => auth()->id(),
                 'entered_at' => now(),
-                'notes' => $validated['manual_notes'] ?: null,
+                'notes' => null,
             ]);
         }
 
@@ -139,8 +137,6 @@ new class extends Component {
 
         $this->editingTransactionId = $transaction->id;
         $this->manual_point_type_id = $transaction->point_type_id;
-        $this->manual_notes = $transaction->notes ?? '';
-
         $this->resetValidation();
     }
 
@@ -148,8 +144,6 @@ new class extends Component {
     {
         $this->editingTransactionId = null;
         $this->manual_point_type_id = null;
-        $this->manual_notes = '';
-
         $this->resetValidation();
     }
 
@@ -244,14 +238,6 @@ new class extends Component {
                             @endforeach
                         </select>
                         @error('manual_point_type_id')
-                            <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
-                        @enderror
-                    </div>
-
-                    <div>
-                        <label for="manual-notes" class="mb-1 block text-sm font-medium">{{ __('workflow.points.form.notes') }}</label>
-                        <textarea id="manual-notes" wire:model="manual_notes" rows="4" class="w-full rounded-xl px-4 py-3 text-sm"></textarea>
-                        @error('manual_notes')
                             <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                         @enderror
                     </div>

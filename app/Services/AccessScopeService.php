@@ -75,8 +75,14 @@ class AccessScopeService
             return true;
         }
 
-        return $assessment->group_id !== null
-            && in_array((int) $assessment->group_id, $this->accessibleGroupIds($user), true);
+        $groupIds = $this->accessibleGroupIds($user);
+
+        if ($assessment->group_id !== null && in_array((int) $assessment->group_id, $groupIds, true)) {
+            return true;
+        }
+
+        return $groupIds !== []
+            && $assessment->groups()->whereIn('groups.id', $groupIds)->exists();
     }
 
     public function canAccessEnrollment(?User $user, Enrollment $enrollment): bool
@@ -396,7 +402,17 @@ class AccessScopeService
             return $query;
         }
 
-        return $this->applyScopedIds($query, 'group_id', $this->accessibleGroupIds($user));
+        $groupIds = $this->accessibleGroupIds($user);
+
+        if ($groupIds === []) {
+            return $query->whereRaw('1 = 0');
+        }
+
+        return $query->where(function (Builder $builder) use ($groupIds) {
+            $builder
+                ->whereIn($builder->getModel()->qualifyColumn('group_id'), $groupIds)
+                ->orWhereHas('groups', fn (Builder $groupQuery) => $groupQuery->whereIn('groups.id', $groupIds));
+        });
     }
 
     public function scopeEnrollments(Builder $query, ?User $user): Builder

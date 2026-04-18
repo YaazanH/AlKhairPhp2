@@ -36,6 +36,8 @@ new class extends Component {
                 ->get(),
             'teachers' => $this->scopeTeachersQuery(
                 Teacher::query()
+                    ->with('jobTitle')
+                    ->where('is_helping', true)
                     ->whereIn('status', ['active', 'inactive'])
                     ->orderBy('first_name')
                     ->orderBy('last_name')
@@ -62,6 +64,21 @@ new class extends Component {
 
         foreach (array_keys(array_filter($validated['selected_statuses'])) as $teacherId) {
             $this->authorizeScopedTeacherAccess(Teacher::query()->findOrFail((int) $teacherId));
+        }
+
+        $selectedTeacherIds = collect(array_keys(array_filter($validated['selected_statuses'])))
+            ->map(fn ($teacherId) => (int) $teacherId)
+            ->values();
+        $allowedTeacherIds = $this->scopeTeachersQuery(
+            Teacher::query()
+                ->where('is_helping', true)
+                ->whereIn('status', ['active', 'inactive'])
+        )->pluck('id');
+
+        if ($selectedTeacherIds->diff($allowedTeacherIds)->isNotEmpty()) {
+            $this->addError('selected_statuses', __('workflow.teacher_attendance.errors.teacher_not_helping'));
+
+            return;
         }
 
         $day = TeacherAttendanceDay::query()
@@ -107,8 +124,16 @@ new class extends Component {
         $this->attendanceDayId = $day?->id;
         $this->day_status = $day?->status ?? 'open';
         $this->notes = $day?->notes ?? '';
+        $allowedTeacherIds = $this->scopeTeachersQuery(
+            Teacher::query()
+                ->where('is_helping', true)
+                ->whereIn('status', ['active', 'inactive'])
+        )->pluck('id')->all();
         $this->selected_statuses = $day
-            ? $day->records->mapWithKeys(fn (TeacherAttendanceRecord $record) => [$record->teacher_id => $record->attendance_status_id])->toArray()
+            ? $day->records
+                ->whereIn('teacher_id', $allowedTeacherIds)
+                ->mapWithKeys(fn (TeacherAttendanceRecord $record) => [$record->teacher_id => $record->attendance_status_id])
+                ->toArray()
             : [];
     }
 }; ?>
@@ -169,7 +194,7 @@ new class extends Component {
                     @forelse ($teachers as $teacher)
                         <tr>
                             <td class="px-5 py-3">{{ $teacher->first_name }} {{ $teacher->last_name }}</td>
-                            <td class="px-5 py-3">{{ $teacher->job_title ?: __('workflow.common.not_available') }}</td>
+                            <td class="px-5 py-3">{{ $teacher->jobTitle?->name ?: ($teacher->job_title ?: __('workflow.common.not_available')) }}</td>
                             <td class="px-5 py-3">{{ __('crud.common.status_options.' . $teacher->status) }}</td>
                             <td class="px-5 py-3">
                                 <select
@@ -195,6 +220,9 @@ new class extends Component {
     </section>
 
     @can('attendance.teacher.take')
+        @error('selected_statuses')
+            <div class="rounded-xl border border-red-500/25 bg-red-500/10 px-4 py-3 text-sm text-red-200">{{ $message }}</div>
+        @enderror
         <div class="flex justify-end">
             <button wire:click="saveAttendance" type="button" class="rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white dark:bg-white dark:text-neutral-900">
                 {{ __('workflow.common.actions.save_teacher_attendance') }}

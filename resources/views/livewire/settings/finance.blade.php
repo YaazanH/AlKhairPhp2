@@ -1,6 +1,7 @@
 <?php
 
 use App\Livewire\Concerns\AuthorizesPermissions;
+use App\Livewire\Concerns\SupportsCreateAndNew;
 use App\Models\ActivityExpense;
 use App\Models\ActivityPayment;
 use App\Models\AppSetting;
@@ -12,6 +13,7 @@ use Livewire\Volt\Component;
 
 new class extends Component {
     use AuthorizesPermissions;
+    use SupportsCreateAndNew;
 
     public string $invoice_prefix = '';
     public bool $showFinanceSettingsModal = false;
@@ -416,6 +418,7 @@ new class extends Component {
             <div class="flex justify-end gap-3">
                 <button type="button" wire:click="closePaymentMethodModal" class="pill-link">{{ __('crud.common.actions.cancel') }}</button>
                 <button type="submit" class="pill-link pill-link--accent">{{ $payment_method_editing_id ? __('settings.finance.actions.update_method') : __('settings.finance.actions.create_method') }}</button>
+                <x-admin.create-and-new-button :show="! $payment_method_editing_id" click="saveAndNew('savePaymentMethod', 'openPaymentMethodModal')" />
             </div>
         </form>
     </x-admin.modal>
@@ -437,6 +440,7 @@ new class extends Component {
             <div class="flex justify-end gap-3">
                 <button type="button" wire:click="closeExpenseCategoryModal" class="pill-link">{{ __('crud.common.actions.cancel') }}</button>
                 <button type="submit" class="pill-link pill-link--accent">{{ $expense_category_editing_id ? __('settings.finance.actions.update_category') : __('settings.finance.actions.create_category') }}</button>
+                <x-admin.create-and-new-button :show="! $expense_category_editing_id" click="saveAndNew('saveExpenseCategory', 'openExpenseCategoryModal')" />
             </div>
         </form>
     </x-admin.modal>

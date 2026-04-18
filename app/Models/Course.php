@@ -15,12 +15,16 @@ class Course extends Model
     protected $fillable = [
         'name',
         'description',
+        'starts_on',
+        'ends_on',
         'is_active',
     ];
 
     protected function casts(): array
     {
         return [
+            'starts_on' => 'date',
+            'ends_on' => 'date',
             'is_active' => 'boolean',
         ];
     }

@@ -2,6 +2,7 @@
 
 use App\Livewire\Concerns\AuthorizesPermissions;
 use App\Livewire\Concerns\AuthorizesTeacherAssignments;
+use App\Livewire\Concerns\SupportsCreateAndNew;
 use App\Models\AcademicYear;
 use App\Models\Course;
 use App\Models\Enrollment;
@@ -16,6 +17,7 @@ use Livewire\WithPagination;
 new class extends Component {
     use AuthorizesPermissions;
     use AuthorizesTeacherAssignments;
+    use SupportsCreateAndNew;
     use WithPagination;
 
     public ?int $editingId = null;
@@ -26,9 +28,6 @@ new class extends Component {
     public ?int $grade_level_id = null;
     public string $name = '';
     public string $capacity = '0';
-    public string $starts_on = '';
-    public string $ends_on = '';
-    public string $monthly_fee = '';
     public bool $is_active = true;
     public string $search = '';
     public string $statusFilter = 'all';
@@ -72,9 +71,9 @@ new class extends Component {
 
         return [
             'groups' => $filteredQuery->paginate($this->perPage),
-            'courses' => Course::query()->where('is_active', true)->orderBy('name')->get(['id', 'name']),
+            'courses' => Course::query()->where('is_active', true)->orderBy('name')->get(['id', 'name', 'starts_on', 'ends_on']),
             'academicYears' => AcademicYear::query()->where('is_active', true)->orderByDesc('starts_on')->get(['id', 'name']),
-            'teachers' => $this->scopeTeachersQuery(Teacher::query()->where('status', '!=', 'blocked'))->orderBy('first_name')->orderBy('last_name')->get(['id', 'first_name', 'last_name']),
+            'teachers' => $this->availableTeachersQuery()->orderBy('first_name')->orderBy('last_name')->get(['id', 'first_name', 'last_name']),
             'gradeLevels' => GradeLevel::query()->where('is_active', true)->orderBy('sort_order')->get(['id', 'name']),
             'rosterGroup' => $this->rosterGroupId
                 ? $this->scopeGroupsQuery(Group::query()->with(['course', 'teacher']))->find($this->rosterGroupId)
@@ -131,9 +130,6 @@ new class extends Component {
                     ->ignore($this->editingId),
             ],
             'capacity' => ['required', 'integer', 'min:0'],
-            'starts_on' => ['nullable', 'date'],
-            'ends_on' => ['nullable', 'date', 'after_or_equal:starts_on'],
-            'monthly_fee' => ['nullable', 'numeric', 'min:0'],
             'is_active' => ['boolean'],
         ];
     }
@@ -161,11 +157,20 @@ new class extends Component {
             $this->authorizeScopedTeacherAccess(Teacher::query()->findOrFail($validated['assistant_teacher_id']));
         }
 
+        if (! $this->teacherIsAvailable((int) $validated['teacher_id'])) {
+            $this->addError('teacher_id', __('crud.groups.errors.teacher_unavailable'));
+
+            return;
+        }
+
+        if ($validated['assistant_teacher_id'] && ! $this->teacherIsAvailable((int) $validated['assistant_teacher_id'])) {
+            $this->addError('assistant_teacher_id', __('crud.groups.errors.assistant_teacher_unavailable'));
+
+            return;
+        }
+
         $validated['assistant_teacher_id'] = $validated['assistant_teacher_id'] ?: null;
         $validated['grade_level_id'] = $validated['grade_level_id'] ?: null;
-        $validated['starts_on'] = $validated['starts_on'] ?: null;
-        $validated['ends_on'] = $validated['ends_on'] ?: null;
-        $validated['monthly_fee'] = $validated['monthly_fee'] ?: null;
 
         Group::query()->updateOrCreate(
             ['id' => $this->editingId],
@@ -195,9 +200,6 @@ new class extends Component {
         $this->grade_level_id = $group->grade_level_id;
         $this->name = $group->name;
         $this->capacity = (string) $group->capacity;
-        $this->starts_on = $group->starts_on?->format('Y-m-d') ?? '';
-        $this->ends_on = $group->ends_on?->format('Y-m-d') ?? '';
-        $this->monthly_fee = $group->monthly_fee !== null ? number_format((float) $group->monthly_fee, 2, '.', '') : '';
         $this->is_active = $group->is_active;
         $this->showFormModal = true;
 
@@ -214,9 +216,6 @@ new class extends Component {
         $this->grade_level_id = null;
         $this->name = '';
         $this->capacity = '0';
-        $this->starts_on = '';
-        $this->ends_on = '';
-        $this->monthly_fee = '';
         $this->is_active = true;
         $this->showFormModal = false;
 
@@ -328,6 +327,32 @@ new class extends Component {
                 $enrollmentQuery->where('group_id', $this->rosterGroupId);
             });
     }
+
+    protected function availableTeachersQuery()
+    {
+        return $this->scopeTeachersQuery(
+            Teacher::query()
+                ->where('status', 'active')
+                ->where('is_helping', true)
+                ->whereDoesntHave('assignedGroups', function ($query) {
+                    if ($this->editingId) {
+                        $query->whereKeyNot($this->editingId);
+                    }
+                })
+                ->whereDoesntHave('assistedGroups', function ($query) {
+                    if ($this->editingId) {
+                        $query->whereKeyNot($this->editingId);
+                    }
+                })
+        );
+    }
+
+    protected function teacherIsAvailable(int $teacherId): bool
+    {
+        return $this->availableTeachersQuery()
+            ->whereKey($teacherId)
+            ->exists();
+    }
 }; ?>
 
 <div class="page-stack">
@@ -431,9 +456,7 @@ new class extends Component {
                                 <td class="px-5 py-4 lg:px-6">
                                     <div class="font-semibold text-white">{{ $group->name }}</div>
                                     <div class="mt-1 text-xs uppercase tracking-[0.18em] text-neutral-500">
-                                        {{ $group->monthly_fee !== null
-                                            ? __('crud.groups.table.capacity_fee', ['capacity' => $group->capacity, 'fee' => $group->monthly_fee])
-                                            : __('crud.groups.table.capacity', ['capacity' => $group->capacity]) }}
+                                        {{ __('crud.groups.table.capacity', ['capacity' => $group->capacity]) }}
                                     </div>
                                 </td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $group->course?->name ?: __('crud.common.not_available') }}</td>
@@ -537,6 +560,7 @@ new class extends Component {
                     <select id="group-assistant-teacher" wire:model="assistant_teacher_id" class="w-full rounded-xl px-4 py-3 text-sm">
                         <option value="">{{ __('crud.groups.form.placeholders.no_assistant') }}</option>
                         @foreach ($teachers as $teacher)
+                            @continue($teacher_id && $teacher->id === (int) $teacher_id)
                             <option value="{{ $teacher->id }}">{{ $teacher->first_name }} {{ $teacher->last_name }}</option>
                         @endforeach
                     </select>
@@ -569,36 +593,10 @@ new class extends Component {
                 </div>
             </div>
 
-            <div class="grid gap-4 md:grid-cols-3">
-                <div>
-                    <label for="group-capacity" class="mb-1 block text-sm font-medium">{{ __('crud.groups.form.fields.capacity') }}</label>
-                    <input id="group-capacity" wire:model="capacity" type="number" min="0" class="w-full rounded-xl px-4 py-3 text-sm">
-                    @error('capacity')
-                        <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
-                    @enderror
-                </div>
-
-                <div>
-                    <label for="group-starts-on" class="mb-1 block text-sm font-medium">{{ __('crud.groups.form.fields.starts_on') }}</label>
-                    <input id="group-starts-on" wire:model="starts_on" type="date" class="w-full rounded-xl px-4 py-3 text-sm">
-                    @error('starts_on')
-                        <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
-                    @enderror
-                </div>
-
-                <div>
-                    <label for="group-ends-on" class="mb-1 block text-sm font-medium">{{ __('crud.groups.form.fields.ends_on') }}</label>
-                    <input id="group-ends-on" wire:model="ends_on" type="date" class="w-full rounded-xl px-4 py-3 text-sm">
-                    @error('ends_on')
-                        <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
-                    @enderror
-                </div>
-            </div>
-
             <div>
-                <label for="group-monthly-fee" class="mb-1 block text-sm font-medium">{{ __('crud.groups.form.fields.monthly_fee') }}</label>
-                <input id="group-monthly-fee" wire:model="monthly_fee" type="number" step="0.01" min="0" class="w-full rounded-xl px-4 py-3 text-sm">
-                @error('monthly_fee')
+                <label for="group-capacity" class="mb-1 block text-sm font-medium">{{ __('crud.groups.form.fields.capacity') }}</label>
+                <input id="group-capacity" wire:model="capacity" type="number" min="0" class="w-full rounded-xl px-4 py-3 text-sm">
+                @error('capacity')
                     <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                 @enderror
             </div>
@@ -612,6 +610,7 @@ new class extends Component {
                 <button type="submit" class="pill-link pill-link--accent">
                     {{ $editingId ? __('crud.groups.form.update_submit') : __('crud.groups.form.create_submit') }}
                 </button>
+                <x-admin.create-and-new-button :show="! $editingId" />
                 <button type="button" wire:click="cancel" class="pill-link">
                     {{ __('crud.common.actions.close') }}
                 </button>

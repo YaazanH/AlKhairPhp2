@@ -58,6 +58,7 @@ class IdCardBuilderTest extends TestCase
                     'styling' => [
                         'font_size' => 3,
                         'show_text' => true,
+                        'barcode_format' => 'qrcode',
                         'color' => '#102316',
                     ],
                 ],
@@ -69,6 +70,7 @@ class IdCardBuilderTest extends TestCase
         $response->assertRedirect(route('id-cards.templates.edit', $template));
         $this->assertSame('Front Desk Card', $template->name);
         $this->assertCount(2, $template->layout_json);
+        $this->assertSame('qrcode', $template->layout_json[1]['styling']['barcode_format']);
     }
 
     public function test_print_preview_renders_selected_students(): void
@@ -109,6 +111,7 @@ class IdCardBuilderTest extends TestCase
                     'styling' => [
                         'font_size' => 3,
                         'show_text' => true,
+                        'barcode_format' => 'qrcode',
                         'color' => '#102316',
                     ],
                 ],
@@ -155,11 +158,12 @@ class IdCardBuilderTest extends TestCase
 
         $response
             ->assertOk()
-            ->assertSee('Printable ID cards')
+            ->assertSee(__('id_cards.print.preview.title'))
             ->assertSee('Omar Hasan')
             ->assertSee('Aya Hasan')
             ->assertSee((string) $studentA->id)
             ->assertSee((string) $studentB->id)
+            ->assertSee('data-code-type="qrcode"', false)
             ->assertSee('<svg', false);
     }
 
@@ -206,7 +210,7 @@ class IdCardBuilderTest extends TestCase
 
         $response
             ->assertOk()
-            ->assertSee('do not fit even one card');
+            ->assertSee(__('id_cards.print.warnings.page_too_small'));
     }
 
     public function test_group_name_field_uses_the_latest_active_enrollment_group(): void

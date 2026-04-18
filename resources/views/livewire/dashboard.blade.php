@@ -3,8 +3,9 @@
 use App\Models\AcademicYear;
 use App\Models\Enrollment;
 use App\Models\Group;
-use App\Models\ParentProfile;
+use App\Models\PointTransaction;
 use App\Models\Student;
+use App\Models\StudentPageAchievement;
 use App\Models\Teacher;
 use App\Services\AccessScopeService;
 use Illuminate\Support\Collection;
@@ -65,6 +66,11 @@ new class extends Component {
         $currentAcademicYear = AcademicYear::query()
             ->where('is_current', true)
             ->first();
+        $currentYearMemorizedPages = $currentAcademicYear
+            ? StudentPageAchievement::query()
+                ->whereHas('enrollment.group', fn ($query) => $query->where('academic_year_id', $currentAcademicYear->id))
+                ->count()
+            : 0;
 
         $recentGroups = Group::query()
             ->with(['course', 'academicYear', 'teacher'])
@@ -83,12 +89,10 @@ new class extends Component {
                 ? __('dashboard.manager.profile_meta_current_year', ['year' => $currentAcademicYear->name])
                 : __('dashboard.manager.profile_meta_no_year'),
             'stats' => [
-                ['label' => __('dashboard.manager.stats.students.label'), 'value' => Student::count(), 'hint' => __('dashboard.manager.stats.students.hint')],
-                ['label' => __('dashboard.manager.stats.teachers.label'), 'value' => Teacher::count(), 'hint' => __('dashboard.manager.stats.teachers.hint')],
-                ['label' => __('dashboard.manager.stats.parents.label'), 'value' => ParentProfile::count(), 'hint' => __('dashboard.manager.stats.parents.hint')],
+                ['label' => __('dashboard.manager.stats.enrolled_students.label'), 'value' => Enrollment::where('status', 'active')->distinct('student_id')->count('student_id'), 'hint' => __('dashboard.manager.stats.enrolled_students.hint')],
                 ['label' => __('dashboard.manager.stats.active_groups.label'), 'value' => Group::where('is_active', true)->count(), 'hint' => __('dashboard.manager.stats.active_groups.hint')],
-                ['label' => __('dashboard.manager.stats.active_enrollments.label'), 'value' => Enrollment::where('status', 'active')->count(), 'hint' => __('dashboard.manager.stats.active_enrollments.hint')],
-                ['label' => __('dashboard.manager.stats.current_year_groups.label'), 'value' => $currentAcademicYear ? Group::where('academic_year_id', $currentAcademicYear->id)->count() : 0, 'hint' => __('dashboard.manager.stats.current_year_groups.hint')],
+                ['label' => __('dashboard.manager.stats.total_points.label'), 'value' => (int) PointTransaction::whereNull('voided_at')->sum('points'), 'hint' => __('dashboard.manager.stats.total_points.hint')],
+                ['label' => __('dashboard.manager.stats.current_year_memorized_pages.label'), 'value' => $currentYearMemorizedPages, 'hint' => __('dashboard.manager.stats.current_year_memorized_pages.hint')],
             ],
             'cards' => [
                 [
@@ -122,7 +126,7 @@ new class extends Component {
 
     protected function teacherData($user): array
     {
-        $teacher = $user->teacherProfile;
+        $teacher = $user->teacherProfile?->load('jobTitle');
 
         if (! $teacher) {
             return $this->missingProfileData(
@@ -155,7 +159,7 @@ new class extends Component {
             'subheading' => __('dashboard.teacher.subheading'),
             'intro' => __('dashboard.teacher.intro'),
             'profileName' => $teacher->first_name.' '.$teacher->last_name,
-            'profileMeta' => $teacher->job_title ?: ucfirst($teacher->status),
+            'profileMeta' => $teacher->jobTitle?->name ?: ($teacher->job_title ?: ucfirst($teacher->status)),
             'stats' => [
                 ['label' => __('dashboard.teacher.stats.assigned_groups.label'), 'value' => $allAssignedGroups, 'hint' => __('dashboard.teacher.stats.assigned_groups.hint')],
                 ['label' => __('dashboard.teacher.stats.active_groups.label'), 'value' => $activeAssignedGroups, 'hint' => __('dashboard.teacher.stats.active_groups.hint')],
@@ -347,14 +351,6 @@ new class extends Component {
     }
 }; ?>
 
-@php
-    $quickLinks = collect($cards)
-        ->flatMap(fn (array $card) => $card['links'] instanceof Collection ? $card['links']->all() : [])
-        ->unique('route')
-        ->take(4)
-        ->values();
-@endphp
-
 <div class="page-stack">
     <section class="page-hero p-6 lg:p-8">
         <div class="dashboard-split grid gap-6 xl:grid-cols-[minmax(0,1.35fr)_22rem] xl:items-start">
@@ -364,15 +360,6 @@ new class extends Component {
                 <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ $subheading }}</p>
                 <p class="mt-4 max-w-2xl text-sm leading-7 text-neutral-300">{{ $intro }}</p>
 
-                @if ($quickLinks->isNotEmpty())
-                    <div class="mt-6 flex flex-wrap gap-3">
-                        @foreach ($quickLinks as $link)
-                            <a href="{{ $link['route'] }}" wire:navigate class="pill-link {{ $loop->first ? 'pill-link--accent' : '' }}">
-                                {{ $link['label'] }}
-                            </a>
-                        @endforeach
-                    </div>
-                @endif
             </div>
 
             <aside class="surface-panel surface-panel--soft p-5 lg:p-6">
@@ -386,22 +373,13 @@ new class extends Component {
                         <div class="mt-3 text-base font-semibold text-white">{{ __('dashboard.roles.'.$dashboardRole) }}</div>
                     </div>
 
-                    @if (! empty($stats))
-                        <div class="rounded-2xl border border-white/8 bg-white/4 p-4">
-                            <div class="kpi-label">{{ __('dashboard.hero.primary_signal') }}</div>
-                            <div class="mt-3 text-base font-semibold text-white">{{ $stats[0]['label'] }}</div>
-                            <p class="mt-2 text-sm text-neutral-300">
-                                {{ is_numeric($stats[0]['value']) ? number_format($stats[0]['value']) : $stats[0]['value'] }}
-                            </p>
-                        </div>
-                    @endif
                 </div>
             </aside>
         </div>
     </section>
 
     @if (! empty($stats))
-        <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             @foreach ($stats as $stat)
                 <article class="stat-card">
                     <div class="flex items-start justify-between gap-4">

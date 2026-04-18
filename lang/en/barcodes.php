@@ -94,6 +94,17 @@ return [
             'manage_actions' => 'Manage action barcodes',
             'preview' => 'Preview dump',
         ],
+        'context' => [
+            'copy' => 'Choose the course first so every student barcode is matched against the correct active enrollment.',
+            'title' => 'Import context',
+            'today' => 'Working date: :date',
+        ],
+        'dump' => [
+            'copy' => 'Click inside the dump box, scan Upload All Data, then preview the rows before applying them.',
+            'focus_hint' => 'scanner input area',
+            'review_hint' => 'Preview first when you are not sure. Apply only after the ready, skipped, and error counts look correct.',
+            'title' => 'Dump workspace',
+        ],
         'errors' => [
             'course_not_accessible' => 'This course is not available for your account.',
             'empty_dump' => 'The scanner dump is empty.',
@@ -120,6 +131,7 @@ return [
         'history' => [
             'empty' => 'No scanner imports yet.',
             'processed' => ':count records processed',
+            'subtitle' => 'Latest imports created by your account.',
             'title' => 'Recent imports',
         ],
         'messages' => [
@@ -157,12 +169,32 @@ return [
             'skipped' => 'Skipped',
         ],
         'scanner_commands' => [
+            'command' => 'Command',
             'missing' => 'Upload this command barcode image from the action barcode page.',
             'subtitle' => 'These images come from the Sunlux scanner manual. The app does not generate them.',
             'title' => 'Scanner command barcodes',
         ],
+        'stats' => [
+            'errors' => 'Errors',
+            'ready' => 'Ready rows',
+            'skipped' => 'Skipped',
+        ],
         'warnings' => [
             'duplicate_scan' => 'Duplicate scan skipped in this import.',
+        ],
+        'workflow' => [
+            'print' => [
+                'copy' => 'Print the action barcode labels and make sure student cards are available.',
+                'title' => 'Prepare labels',
+            ],
+            'review' => [
+                'copy' => 'Dump the scanner memory, preview the sequence, then apply the clean rows.',
+                'title' => 'Review and apply',
+            ],
+            'scan' => [
+                'copy' => 'Scan one action barcode, then scan every student card that should receive that action.',
+                'title' => 'Scan offline',
+            ],
         ],
     ],
 ];

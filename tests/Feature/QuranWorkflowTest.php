@@ -234,7 +234,6 @@ class QuranWorkflowTest extends TestCase
 
         Volt::test('enrollments.points', ['enrollment' => $enrollment])
             ->set('manual_point_type_id', $bonus->id)
-            ->set('manual_notes', 'Manual reward')
             ->call('saveManual')
             ->assertHasNoErrors();
 
@@ -243,14 +242,13 @@ class QuranWorkflowTest extends TestCase
 
         Volt::test('enrollments.points', ['enrollment' => $enrollment])
             ->call('editManual', $transaction->id)
-            ->set('manual_notes', 'Adjusted reward')
             ->call('saveManual')
             ->assertHasNoErrors();
 
         $this->assertDatabaseHas('point_transactions', [
             'id' => $transaction->id,
             'points' => 5,
-            'notes' => 'Adjusted reward',
+            'notes' => null,
         ]);
         $this->assertSame(5, $enrollment->fresh()->final_points_cached);
 
@@ -360,6 +358,7 @@ class QuranWorkflowTest extends TestCase
             'last_name' => 'Teacher',
             'phone' => '0944000001',
             'status' => 'active',
+            'is_helping' => true,
         ];
 
         if ($actingRole === 'teacher') {

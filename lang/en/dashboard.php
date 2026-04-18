@@ -40,12 +40,15 @@ return [
         'profile_meta_current_year' => 'Current academic year: :year',
         'profile_meta_no_year' => 'No current academic year selected yet.',
         'stats' => [
+            'enrolled_students' => ['label' => 'Enrolled Students', 'hint' => 'Students with at least one active enrollment'],
             'students' => ['label' => 'Students', 'hint' => 'All student profiles'],
             'teachers' => ['label' => 'Teachers', 'hint' => 'Main and assistant teachers'],
             'parents' => ['label' => 'Parents', 'hint' => 'Family contact profiles'],
             'active_groups' => ['label' => 'Active Groups', 'hint' => 'Currently running groups'],
             'active_enrollments' => ['label' => 'Active Enrollments', 'hint' => 'Students linked to active groups'],
             'current_year_groups' => ['label' => 'Current Year Groups', 'hint' => 'Groups in the current academic year'],
+            'current_year_memorized_pages' => ['label' => 'Current Year Pages', 'hint' => 'Unique memorized pages first recorded in current-year groups'],
+            'total_points' => ['label' => 'Total Points', 'hint' => 'Net active points across all students'],
         ],
         'cards' => [
             'people' => [

@@ -2,6 +2,7 @@
 
 use App\Livewire\Concerns\AuthorizesPermissions;
 use App\Livewire\Concerns\AuthorizesTeacherAssignments;
+use App\Livewire\Concerns\SupportsCreateAndNew;
 use App\Models\Enrollment;
 use App\Models\QuranJuz;
 use App\Models\QuranTest;
@@ -16,6 +17,7 @@ use Livewire\WithPagination;
 new class extends Component {
     use AuthorizesPermissions;
     use AuthorizesTeacherAssignments;
+    use SupportsCreateAndNew;
     use WithPagination;
 
     public ?int $selectedStudentId = null;
@@ -563,6 +565,7 @@ new class extends Component {
 
             <div class="flex flex-wrap items-center gap-3">
                 <button type="submit" class="pill-link pill-link--accent">{{ __('workflow.common.actions.save_quran_test') }}</button>
+                <x-admin.create-and-new-button />
                 <button type="button" wire:click="closeFormModal" class="pill-link">{{ __('crud.common.actions.close') }}</button>
             </div>
         </form>

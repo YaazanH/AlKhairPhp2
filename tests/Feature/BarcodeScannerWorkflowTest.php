@@ -38,12 +38,12 @@ class BarcodeScannerWorkflowTest extends TestCase
         $this->actingAs($manager)
             ->get(route('barcode-actions.index', absolute: false))
             ->assertOk()
-            ->assertSee('Action Barcodes');
+            ->assertSee(__('barcodes.actions.title'));
 
         $this->actingAs($manager)
             ->get(route('barcode-actions.import', absolute: false))
             ->assertOk()
-            ->assertSee('Scanner Import');
+            ->assertSee(__('barcodes.import.title'));
 
         Volt::test('barcode-actions.import')
             ->assertSet('attendance_date', now()->toDateString())

@@ -104,11 +104,16 @@ return [
                 'border_radius' => 'Border radius',
                 'object_fit' => 'Image fit',
                 'show_text' => 'Show barcode text',
+                'barcode_format' => 'Barcode type',
             ],
             'element_types' => [
                 'text' => 'Text',
                 'image' => 'Image',
                 'barcode' => 'Barcode',
+            ],
+            'barcode_formats' => [
+                'code39' => '1D barcode',
+                'qrcode' => 'QR code',
             ],
             'font_weights' => [
                 '400' => 'Regular',

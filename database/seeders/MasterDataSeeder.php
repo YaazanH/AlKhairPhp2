@@ -50,6 +50,29 @@ class MasterDataSeeder extends Seeder
             ['name' => 'Other', 'sort_order' => 99, 'is_active' => true, 'created_at' => $now, 'updated_at' => $now],
         ], ['name'], ['sort_order', 'is_active', 'updated_at']);
 
+        DB::table('teacher_job_titles')->upsert([
+            ['name' => 'Lead Quran Teacher', 'sort_order' => 10, 'is_active' => true, 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Quran Teacher', 'sort_order' => 20, 'is_active' => true, 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Tajweed Teacher', 'sort_order' => 30, 'is_active' => true, 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Assistant Teacher', 'sort_order' => 40, 'is_active' => true, 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Youth Mentor', 'sort_order' => 50, 'is_active' => true, 'created_at' => $now, 'updated_at' => $now],
+        ], ['name'], ['sort_order', 'is_active', 'updated_at']);
+
+        DB::table('student_genders')->upsert([
+            ['code' => 'male', 'name' => 'Male', 'sort_order' => 10, 'is_active' => true, 'is_default' => true, 'created_at' => $now, 'updated_at' => $now],
+            ['code' => 'female', 'name' => 'Female', 'sort_order' => 20, 'is_active' => true, 'is_default' => false, 'created_at' => $now, 'updated_at' => $now],
+        ], ['code'], ['name', 'sort_order', 'is_active', 'updated_at']);
+
+        if (! DB::table('student_genders')->where('is_active', true)->where('is_default', true)->exists()) {
+            $defaultStudentGenderId = DB::table('student_genders')->where('code', 'male')->value('id')
+                ?? DB::table('student_genders')->where('is_active', true)->orderBy('sort_order')->orderBy('name')->value('id');
+
+            if ($defaultStudentGenderId) {
+                DB::table('student_genders')->update(['is_default' => false]);
+                DB::table('student_genders')->where('id', $defaultStudentGenderId)->update(['is_default' => true]);
+            }
+        }
+
         DB::table('attendance_statuses')->upsert([
             ['name' => 'Present', 'code' => 'present', 'scope' => 'both', 'default_points' => 2, 'color' => 'green', 'is_present' => true, 'is_default' => true, 'is_active' => true, 'created_at' => $now, 'updated_at' => $now],
             ['name' => 'Absent', 'code' => 'absent', 'scope' => 'both', 'default_points' => 0, 'color' => 'red', 'is_present' => false, 'is_default' => false, 'is_active' => true, 'created_at' => $now, 'updated_at' => $now],

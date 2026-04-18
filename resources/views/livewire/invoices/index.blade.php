@@ -2,6 +2,7 @@
 
 use App\Livewire\Concerns\AuthorizesPermissions;
 use App\Livewire\Concerns\AuthorizesTeacherAssignments;
+use App\Livewire\Concerns\SupportsCreateAndNew;
 use App\Models\Invoice;
 use App\Models\ParentProfile;
 use App\Services\FinanceService;
@@ -11,6 +12,7 @@ use Livewire\WithPagination;
 new class extends Component {
     use AuthorizesPermissions;
     use AuthorizesTeacherAssignments;
+    use SupportsCreateAndNew;
     use WithPagination;
 
     public ?int $editingId = null;
@@ -292,6 +294,7 @@ new class extends Component {
 
                     <div class="flex flex-wrap gap-3">
                         <button type="submit" class="pill-link pill-link--accent">{{ $editingId ? __('invoices.index.form.update_submit') : __('invoices.index.form.create_submit') }}</button>
+                        <x-admin.create-and-new-button :show="! $editingId" click="saveAndNew('save', 'create')" />
                         @if ($editingId)
                             <button type="button" wire:click="cancel" class="pill-link">{{ __('crud.common.actions.cancel') }}</button>
                         @endif

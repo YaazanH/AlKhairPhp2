@@ -10,6 +10,7 @@ use App\Models\Enrollment;
 use App\Models\Group;
 use App\Models\GroupAttendanceDay;
 use App\Models\MemorizationSession;
+use App\Models\MemorizationSessionPage;
 use App\Models\PointTransaction;
 use App\Models\PointType;
 use App\Models\QuranTest;
@@ -224,13 +225,18 @@ class OperationalWriteController extends Controller
         $this->authorizeTeacherPayloadScope($request, (int) $validated['teacher_id']);
 
         $pages = range((int) $validated['from_page'], (int) $validated['to_page']);
-        $existingPages = StudentPageAchievement::query()
-            ->where('student_id', $enrollment->student_id)
+        $existingPages = MemorizationSessionPage::query()
             ->whereIn('page_no', $pages)
+            ->whereHas('session', fn ($query) => $query
+                ->where('student_id', $enrollment->student_id)
+                ->where('entry_type', '!=', 'review'))
             ->pluck('page_no')
+            ->unique()
+            ->sort()
+            ->values()
             ->all();
 
-        if ($validated['entry_type'] !== 'review' && $existingPages !== [] && ! $request->user()?->can('memorization.override-duplicate-page')) {
+        if ($validated['entry_type'] !== 'review' && $existingPages !== []) {
             return response()->json([
                 'duplicates' => array_values($existingPages),
                 'message' => 'One or more pages were already achieved by this student.',

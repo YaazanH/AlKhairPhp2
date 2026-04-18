@@ -78,6 +78,10 @@ class StudentAttendanceDayService
 
     public function syncAggregateStatus(StudentAttendanceDay $day): StudentAttendanceDay
     {
+        if (! $day->groupAttendanceDays()->exists()) {
+            return $day->fresh(['groupAttendanceDays']);
+        }
+
         $hasOpenSessions = $day->groupAttendanceDays()
             ->where('status', '!=', 'closed')
             ->exists();

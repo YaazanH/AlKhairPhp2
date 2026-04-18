@@ -1,6 +1,7 @@
 <?php
 
 use App\Livewire\Concerns\AuthorizesPermissions;
+use App\Livewire\Concerns\SupportsCreateAndNew;
 use App\Models\GradeLevel;
 use App\Models\PointPolicy;
 use App\Models\PointTransaction;
@@ -11,6 +12,7 @@ use Livewire\Volt\Component;
 
 new class extends Component {
     use AuthorizesPermissions;
+    use SupportsCreateAndNew;
 
     protected array $hiddenPointTypeCategories = ['attendance', 'system'];
 
@@ -484,6 +486,7 @@ new class extends Component {
             <div class="flex justify-end gap-3">
                 <button type="button" wire:click="closePointTypeModal" class="pill-link">{{ __('crud.common.actions.cancel') }}</button>
                 <button type="submit" class="pill-link pill-link--accent">{{ $point_type_editing_id ? __('settings.points.actions.update_point_type') : __('settings.points.actions.create_point_type') }}</button>
+                <x-admin.create-and-new-button :show="! $point_type_editing_id" click="saveAndNew('savePointType', 'openPointTypeModal')" />
             </div>
         </form>
     </x-admin.modal>
@@ -528,6 +531,7 @@ new class extends Component {
             <div class="flex justify-end gap-3">
                 <button type="button" wire:click="closePointPolicyModal" class="pill-link">{{ __('crud.common.actions.cancel') }}</button>
                 <button type="submit" class="pill-link pill-link--accent">{{ $point_policy_editing_id ? __('settings.points.actions.update_policy') : __('settings.points.actions.create_policy') }}</button>
+                <x-admin.create-and-new-button :show="! $point_policy_editing_id" click="saveAndNew('savePointPolicy', 'openPointPolicyModal')" />
             </div>
         </form>
     </x-admin.modal>

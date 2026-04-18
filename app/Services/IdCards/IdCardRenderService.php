@@ -10,6 +10,7 @@ class IdCardRenderService
     public function __construct(
         protected StudentCardFieldRegistry $fieldRegistry,
         protected Code39SvgRenderer $barcodeRenderer,
+        protected QrCodeSvgRenderer $qrCodeRenderer,
         protected IdCardTemplateLayoutService $layoutService,
     ) {
     }
@@ -47,6 +48,18 @@ class IdCardRenderService
 
     protected function renderElement(IdCardTemplate $template, Student $student, array $element): array
     {
+        if (
+            $element['type'] === 'barcode'
+            && ($element['styling']['barcode_format'] ?? 'code39') === 'qrcode'
+            && ($element['width'] > $element['height'] * 1.4 || $element['height'] < 18)
+        ) {
+            $size = min(24.0, max(18.0, min($template->width_mm, $template->height_mm) * 0.45));
+            $element['width'] = $size;
+            $element['height'] = ($element['styling']['show_text'] ?? true) ? $size + 4 : $size;
+            $element['x'] = min($element['x'], max($template->width_mm - $element['width'], 0));
+            $element['y'] = min($element['y'], max($template->height_mm - $element['height'], 0));
+        }
+
         $maxWidth = max($template->width_mm - $element['x'], 4);
         $maxHeight = max($template->height_mm - $element['y'], 4);
         $element['width'] = min($element['width'], $maxWidth);
@@ -65,12 +78,8 @@ class IdCardRenderService
             'barcode' => $element + [
                 'resolved' => [
                     'value' => (string) $value,
-                    'svg' => $this->barcodeRenderer->render((string) $value, [
-                        'width' => $element['width'],
-                        'height' => $element['height'],
-                        'font_size' => min($element['styling']['font_size'], 3.2),
-                        'show_text' => $element['styling']['show_text'],
-                    ]),
+                    'format' => $element['styling']['barcode_format'] ?? 'code39',
+                    'svg' => $this->renderBarcode((string) $value, $element),
                 ],
             ],
             default => $element + [
@@ -79,5 +88,19 @@ class IdCardRenderService
                 ],
             ],
         };
+    }
+
+    protected function renderBarcode(string $value, array $element): ?string
+    {
+        $options = [
+            'width' => $element['width'],
+            'height' => $element['height'],
+            'font_size' => min($element['styling']['font_size'], 3.2),
+            'show_text' => $element['styling']['show_text'],
+        ];
+
+        return ($element['styling']['barcode_format'] ?? 'code39') === 'qrcode'
+            ? $this->qrCodeRenderer->render($value, $options)
+            : $this->barcodeRenderer->render($value, $options);
     }
 }

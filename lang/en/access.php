@@ -63,7 +63,7 @@ return [
             'scope' => 'Scope overrides',
         ],
         'help' => [
-            'password' => 'Leave the password blank while editing to keep the current password unchanged.',
+            'password' => 'When creating a user, leave username, email, or password blank to generate them automatically. When editing, blank password keeps the current password unchanged.',
             'roles' => 'Roles define the base access package for this account.',
             'permissions' => 'Direct permissions extend this user without changing the assigned roles.',
             'scope' => 'Use scope overrides only for exceptions. Normal teacher, parent, and student visibility should come from their linked profile and role.',

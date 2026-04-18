@@ -84,7 +84,7 @@ new class extends Component {
             ->pluck('page_no')
             ->all();
 
-        if ($validated['entry_type'] !== 'review' && $existingPages && ! auth()->user()->can('memorization.override-duplicate-page')) {
+        if ($validated['entry_type'] !== 'review' && $existingPages) {
             $this->addError('from_page', __('workflow.memorization.errors.duplicate_pages', ['pages' => implode(', ', $existingPages)]));
 
             return;

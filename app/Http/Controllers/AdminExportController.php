@@ -10,6 +10,7 @@ use App\Models\Student;
 use App\Models\Teacher;
 use App\Models\User;
 use App\Services\AccessScopeService;
+use App\Services\XlsxExportService;
 use Illuminate\Http\Request;
 use Spatie\Permission\Models\Role;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -37,9 +38,11 @@ class AdminExportController extends Controller
             $query->where('is_active', $request->string('status')->value() === 'active');
         }
 
-        return $this->streamCsv('courses', ['Name', 'Description', 'Groups', 'Status'], $query->get()->map(fn (Course $course) => [
+        return $this->streamXlsx('courses', ['Name', 'Description', 'Starts On', 'Ends On', 'Groups', 'Status'], $query->get()->map(fn (Course $course) => [
             $course->name,
             $course->description,
+            $course->starts_on?->format('Y-m-d'),
+            $course->ends_on?->format('Y-m-d'),
             $course->groups_count,
             $course->is_active ? 'Active' : 'Inactive',
         ])->all());
@@ -69,7 +72,7 @@ class AdminExportController extends Controller
             $query->where('is_active', $request->string('status')->value() === 'active');
         }
 
-        return $this->streamCsv('parents', ['Father', 'Mother', 'Students', 'Primary Phone', 'Status'], $query->get()->map(fn (ParentProfile $parent) => [
+        return $this->streamXlsx('parents', ['Father', 'Mother', 'Students', 'Primary Phone', 'Status'], $query->get()->map(fn (ParentProfile $parent) => [
             $parent->father_name,
             $parent->mother_name,
             $parent->students_count,
@@ -83,7 +86,7 @@ class AdminExportController extends Controller
         abort_unless($request->user()?->can('students.view'), 403);
 
         $query = $scopes->scopeStudents(Student::query(), $request->user())
-            ->with(['parentProfile', 'gradeLevel', 'quranCurrentJuz'])
+            ->with(['parentProfile', 'gradeLevel', 'quranCurrentJuz', 'user'])
             ->withCount('enrollments')
             ->orderBy('last_name')
             ->orderBy('first_name');
@@ -106,9 +109,11 @@ class AdminExportController extends Controller
             $query->where('status', $request->string('status')->value());
         }
 
-        return $this->streamCsv('students', ['Student', 'Student Number', 'Parent', 'School', 'Grade', 'Current Juz', 'Enrollments', 'Status'], $query->get()->map(fn (Student $student) => [
+        return $this->streamXlsx('students', ['Student', 'Student Number', 'Username', 'Password', 'Parent', 'School', 'Grade', 'Current Juz', 'Enrollments', 'Status'], $query->get()->map(fn (Student $student) => [
             trim($student->first_name.' '.$student->last_name),
             $student->student_number,
+            $student->user?->username,
+            $student->user?->issued_password,
             $student->parentProfile?->father_name,
             $student->school_name,
             $student->gradeLevel?->name,
@@ -123,6 +128,7 @@ class AdminExportController extends Controller
         abort_unless($request->user()?->can('teachers.view'), 403);
 
         $query = $scopes->scopeTeachers(Teacher::query(), $request->user())
+            ->with(['jobTitle', 'course'])
             ->withCount(['assignedGroups', 'assistedGroups'])
             ->orderBy('last_name')
             ->orderBy('first_name');
@@ -134,7 +140,9 @@ class AdminExportController extends Controller
                     ->where('first_name', 'like', '%'.$search.'%')
                     ->orWhere('last_name', 'like', '%'.$search.'%')
                     ->orWhere('phone', 'like', '%'.$search.'%')
-                    ->orWhere('job_title', 'like', '%'.$search.'%');
+                    ->orWhere('job_title', 'like', '%'.$search.'%')
+                    ->orWhereHas('jobTitle', fn ($titleQuery) => $titleQuery->where('name', 'like', '%'.$search.'%'))
+                    ->orWhereHas('course', fn ($courseQuery) => $courseQuery->where('name', 'like', '%'.$search.'%'));
             });
         }
 
@@ -142,11 +150,17 @@ class AdminExportController extends Controller
             $query->where('status', $request->string('status')->value());
         }
 
-        return $this->streamCsv('teachers', ['Teacher', 'Phone', 'Job Title', 'Groups', 'Status'], $query->get()->map(fn (Teacher $teacher) => [
+        if (in_array($request->string('helping')->value(), ['helping', 'not_helping'], true)) {
+            $query->where('is_helping', $request->string('helping')->value() === 'helping');
+        }
+
+        return $this->streamXlsx('teachers', ['Teacher', 'Phone', 'Job Title', 'Course', 'Groups', 'Helping Now', 'Status'], $query->get()->map(fn (Teacher $teacher) => [
             trim($teacher->first_name.' '.$teacher->last_name),
             $teacher->phone,
-            $teacher->job_title,
+            $teacher->jobTitle?->name ?: $teacher->job_title,
+            $teacher->course?->name,
             $teacher->assigned_groups_count + $teacher->assisted_groups_count,
+            $teacher->is_helping ? 'Yes' : 'No',
             ucfirst($teacher->status),
         ])->all());
     }
@@ -181,7 +195,7 @@ class AdminExportController extends Controller
             $query->where('is_active', $request->string('status')->value() === 'active');
         }
 
-        return $this->streamCsv('groups', ['Group', 'Course', 'Teacher', 'Academic Year', 'Students', 'Status'], $query->get()->map(fn (Group $group) => [
+        return $this->streamXlsx('groups', ['Group', 'Course', 'Teacher', 'Academic Year', 'Students', 'Status'], $query->get()->map(fn (Group $group) => [
             $group->name,
             $group->course?->name,
             $group->teacher ? trim($group->teacher->first_name.' '.$group->teacher->last_name) : null,
@@ -216,7 +230,7 @@ class AdminExportController extends Controller
             $query->where('status', $request->string('status')->value());
         }
 
-        return $this->streamCsv('enrollments', ['Student', 'Group', 'Course', 'Enrolled At', 'Left At', 'Status'], $query->get()->map(fn (Enrollment $enrollment) => [
+        return $this->streamXlsx('enrollments', ['Student', 'Group', 'Course', 'Enrolled At', 'Left At', 'Status'], $query->get()->map(fn (Enrollment $enrollment) => [
             $enrollment->student ? trim($enrollment->student->first_name.' '.$enrollment->student->last_name) : null,
             $enrollment->group?->name,
             $enrollment->group?->course?->name,
@@ -253,7 +267,7 @@ class AdminExportController extends Controller
             $query->where('is_active', $request->string('status')->value() === 'active');
         }
 
-        return $this->streamCsv('users', ['Name', 'Username', 'Email', 'Phone', 'Roles', 'Direct Permissions', 'Profile', 'Status'], $query->get()->map(fn (User $user) => [
+        return $this->streamXlsx('users', ['Name', 'Username', 'Email', 'Phone', 'Roles', 'Direct Permissions', 'Profile', 'Status'], $query->get()->map(fn (User $user) => [
             $user->name,
             $user->username,
             $user->email,
@@ -265,20 +279,9 @@ class AdminExportController extends Controller
         ])->all());
     }
 
-    protected function streamCsv(string $filename, array $headers, array $rows): StreamedResponse
+    protected function streamXlsx(string $filename, array $headers, array $rows): StreamedResponse
     {
-        return response()->streamDownload(function () use ($headers, $rows): void {
-            $output = fopen('php://output', 'wb');
-            fputcsv($output, $headers);
-
-            foreach ($rows as $row) {
-                fputcsv($output, $row);
-            }
-
-            fclose($output);
-        }, $filename.'-'.now()->format('Ymd-His').'.csv', [
-            'Content-Type' => 'text/csv; charset=UTF-8',
-        ]);
+        return app(XlsxExportService::class)->download($filename, $headers, $rows);
     }
 
     protected function userProfileLabel(User $user): ?string

@@ -35,6 +35,13 @@ class ReportsAndApiTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        config(['app.locale' => 'en']);
+    }
+
     public function test_reports_page_and_api_require_authentication(): void
     {
         $this->get(route('reports.index', absolute: false))->assertRedirect('/login');
@@ -49,7 +56,7 @@ class ReportsAndApiTest extends TestCase
             ->get(route('reports.index', absolute: false))
             ->assertOk()
             ->assertSee('Reports')
-            ->assertSee('Students in scope');
+            ->assertDontSee('Students in scope');
 
         Sanctum::actingAs($manager);
 

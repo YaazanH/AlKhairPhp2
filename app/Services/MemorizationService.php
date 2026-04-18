@@ -9,6 +9,7 @@ use App\Models\PointTransaction;
 use App\Models\Student;
 use App\Models\StudentPageAchievement;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class MemorizationService
 {
@@ -21,6 +22,8 @@ class MemorizationService
     {
         return DB::transaction(function () use ($enrollment, $validated, $session): MemorizationSession {
             $pageNumbers = range((int) $validated['from_page'], (int) $validated['to_page']);
+
+            $this->ensurePagesAreNotDuplicated($enrollment, $pageNumbers, $validated['entry_type'], $session);
 
             $payload = [
                 'enrollment_id' => $enrollment->id,
@@ -54,6 +57,35 @@ class MemorizationService
 
             return $session->fresh(['pages', 'teacher']);
         });
+    }
+
+    protected function ensurePagesAreNotDuplicated(Enrollment $enrollment, array $pageNumbers, string $entryType, ?MemorizationSession $session = null): void
+    {
+        if ($entryType === 'review') {
+            return;
+        }
+
+        $existingPages = MemorizationSessionPage::query()
+            ->whereIn('page_no', $pageNumbers)
+            ->whereHas('session', function ($query) use ($enrollment, $session) {
+                $query
+                    ->where('student_id', $enrollment->student_id)
+                    ->where('entry_type', '!=', 'review')
+                    ->when($session, fn ($builder) => $builder->whereKeyNot($session->id));
+            })
+            ->pluck('page_no')
+            ->unique()
+            ->sort()
+            ->values()
+            ->all();
+
+        if ($existingPages === []) {
+            return;
+        }
+
+        throw ValidationException::withMessages([
+            'from_page' => __('workflow.memorization.errors.duplicate_pages', ['pages' => implode(', ', $existingPages)]),
+        ]);
     }
 
     public function rebuildStudentAchievementsAndPoints(Student $student): void

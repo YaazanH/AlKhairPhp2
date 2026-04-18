@@ -12,6 +12,7 @@ use App\Models\ParentProfile;
 use App\Models\Student;
 use App\Models\StudentFile;
 use App\Models\Teacher;
+use App\Models\TeacherJobTitle;
 use App\Models\User;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -38,6 +39,11 @@ class ManagementCrudTest extends TestCase
             ->assertHasNoErrors();
 
         $course = Course::query()->firstOrFail();
+        $teacherJobTitle = TeacherJobTitle::query()->create([
+            'name' => 'Lead Teacher',
+            'sort_order' => 10,
+            'is_active' => true,
+        ]);
 
         Volt::test('courses.index')
             ->call('edit', $course->id)
@@ -81,8 +87,10 @@ class ManagementCrudTest extends TestCase
             ->set('first_name', 'Yousef')
             ->set('last_name', 'Teacher')
             ->set('phone', '0944000002')
-            ->set('job_title', 'Lead Teacher')
+            ->set('teacher_job_title_id', $teacherJobTitle->id)
+            ->set('course_id', $course->id)
             ->set('status', 'active')
+            ->set('is_helping', true)
             ->call('save')
             ->assertHasNoErrors();
 
@@ -90,6 +98,9 @@ class ManagementCrudTest extends TestCase
 
         $this->assertNotNull($teacher->user_id);
         $this->assertTrue($teacher->user->hasRole('teacher'));
+        $this->assertSame($teacherJobTitle->id, $teacher->teacher_job_title_id);
+        $this->assertSame($course->id, $teacher->course_id);
+        $this->assertTrue($teacher->is_helping);
 
         Volt::test('teachers.index')
             ->call('edit', $teacher->id)
@@ -97,9 +108,14 @@ class ManagementCrudTest extends TestCase
             ->call('save')
             ->assertHasNoErrors();
 
+        Volt::test('teachers.index')
+            ->call('toggleHelping', $teacher->id)
+            ->assertHasNoErrors();
+
         $this->assertDatabaseHas('teachers', [
             'id' => $teacher->id,
             'status' => 'blocked',
+            'is_helping' => false,
         ]);
 
         Volt::test('courses.index')
@@ -148,13 +164,14 @@ class ManagementCrudTest extends TestCase
             ->set('parent_id', $parent->id)
             ->set('first_name', 'Account')
             ->set('last_name', 'Student')
-            ->set('birth_date', '2015-04-01')
+            ->set('birth_date', '2015')
             ->set('grade_level_id', $gradeLevel->id)
             ->set('status', 'active')
             ->call('save')
             ->assertHasNoErrors();
 
         $student = Student::query()->firstOrFail();
+        $this->assertSame('2015-01-01', $student->birth_date?->format('Y-m-d'));
 
         $this->assertNotNull($parent->fresh()->user?->issued_password);
         $this->assertNotNull($teacher->fresh()->user?->issued_password);
@@ -199,6 +216,7 @@ class ManagementCrudTest extends TestCase
             'last_name' => 'Adib',
             'phone' => '0944000011',
             'status' => 'active',
+            'is_helping' => true,
         ]);
 
         $course = Course::create([
@@ -256,8 +274,6 @@ class ManagementCrudTest extends TestCase
             ->set('grade_level_id', $gradeLevel->id)
             ->set('name', 'Boys A')
             ->set('capacity', '20')
-            ->set('starts_on', '2026-09-01')
-            ->set('monthly_fee', '25.00')
             ->set('is_active', true)
             ->call('save')
             ->assertHasNoErrors();
@@ -344,6 +360,78 @@ class ManagementCrudTest extends TestCase
         $this->assertSoftDeleted('groups', ['id' => $group->id]);
         $this->assertSoftDeleted('students', ['id' => $student->id]);
         $this->assertSoftDeleted('parents', ['id' => $parent->id]);
+    }
+
+    public function test_enrollment_create_and_new_keeps_selected_group_and_ignores_exit_fields(): void
+    {
+        $this->signIn();
+
+        $parent = ParentProfile::create([
+            'father_name' => 'Fast Parent',
+            'father_phone' => '0944001111',
+            'mother_name' => 'Fast Mother',
+            'mother_phone' => '0944001112',
+            'is_active' => true,
+        ]);
+
+        $teacher = Teacher::create([
+            'first_name' => 'Fast',
+            'last_name' => 'Teacher',
+            'phone' => '0944001113',
+            'status' => 'active',
+            'is_helping' => true,
+        ]);
+
+        $course = Course::create([
+            'name' => 'Fast Enrollment Course',
+            'is_active' => true,
+        ]);
+
+        $academicYear = AcademicYear::create([
+            'name' => '2027/2028',
+            'starts_on' => '2027-08-01',
+            'ends_on' => '2028-07-31',
+            'is_active' => true,
+        ]);
+
+        $group = Group::create([
+            'course_id' => $course->id,
+            'academic_year_id' => $academicYear->id,
+            'teacher_id' => $teacher->id,
+            'name' => 'Fast Enrollment Group',
+            'capacity' => 20,
+            'is_active' => true,
+        ]);
+
+        $student = Student::create([
+            'parent_id' => $parent->id,
+            'first_name' => 'Fast',
+            'last_name' => 'Student',
+            'birth_date' => '2016-01-01',
+            'gender' => 'male',
+            'status' => 'active',
+        ]);
+
+        Volt::test('enrollments.index')
+            ->call('openCreateModal')
+            ->set('group_id', $group->id)
+            ->set('student_id', $student->id)
+            ->set('enrolled_at', '2027-09-01')
+            ->set('status', 'active')
+            ->set('left_at', '2028-01-01')
+            ->set('notes', 'Should not be stored on create.')
+            ->call('saveAndNew')
+            ->assertHasNoErrors()
+            ->assertSet('showFormModal', true)
+            ->assertSet('group_id', $group->id)
+            ->assertSet('student_id', null)
+            ->assertSet('left_at', '')
+            ->assertSet('notes', '');
+
+        $enrollment = Enrollment::query()->where('student_id', $student->id)->firstOrFail();
+
+        $this->assertNull($enrollment->left_at);
+        $this->assertNull($enrollment->notes);
     }
 
     public function test_view_only_access_cannot_create_records(): void

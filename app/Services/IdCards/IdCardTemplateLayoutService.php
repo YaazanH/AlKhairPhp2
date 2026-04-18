@@ -51,6 +51,9 @@ class IdCardTemplateLayoutService
         $objectFit = in_array(($styling['object_fit'] ?? 'cover'), ['contain', 'cover', 'fill'], true)
             ? ($styling['object_fit'] ?? 'cover')
             : 'cover';
+        $barcodeFormat = in_array(($styling['barcode_format'] ?? 'code39'), ['code39', 'qrcode'], true)
+            ? (string) ($styling['barcode_format'] ?? 'code39')
+            : 'code39';
 
         return [
             'id' => (string) ($element['id'] ?? Str::uuid()),
@@ -70,7 +73,7 @@ class IdCardTemplateLayoutService
                 'object_fit' => $objectFit,
                 'letter_spacing' => $this->float($styling['letter_spacing'] ?? 0, 0, 2),
                 'show_text' => (bool) ($styling['show_text'] ?? true),
-                'barcode_format' => 'code39',
+                'barcode_format' => $barcodeFormat,
             ],
         ];
     }

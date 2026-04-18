@@ -2,6 +2,7 @@
 
 use App\Livewire\Concerns\AuthorizesPermissions;
 use App\Livewire\Concerns\AuthorizesTeacherAssignments;
+use App\Livewire\Concerns\SupportsCreateAndNew;
 use App\Models\Enrollment;
 use App\Models\Group;
 use App\Models\Student;
@@ -12,6 +13,7 @@ use Livewire\WithPagination;
 new class extends Component {
     use AuthorizesPermissions;
     use AuthorizesTeacherAssignments;
+    use SupportsCreateAndNew;
     use WithPagination;
 
     public ?int $editingId = null;
@@ -146,7 +148,12 @@ new class extends Component {
             return;
         }
 
-        $validated['left_at'] = $validated['left_at'] ?: null;
+        if ($this->editingId) {
+            $validated['left_at'] = $validated['left_at'] ?: null;
+        } else {
+            $validated['left_at'] = null;
+            $validated['notes'] = null;
+        }
 
         Enrollment::query()->updateOrCreate(
             ['id' => $this->editingId],
@@ -159,6 +166,29 @@ new class extends Component {
         );
 
         $this->cancel();
+    }
+
+    public function saveAndNew(): void
+    {
+        $preservedGroupId = $this->group_id;
+        $errorCount = $this->getErrorBag()->count();
+
+        $this->save();
+
+        if ($this->getErrorBag()->count() > $errorCount) {
+            return;
+        }
+
+        $this->editingId = null;
+        $this->student_id = null;
+        $this->group_id = $preservedGroupId;
+        $this->enrolled_at = '';
+        $this->status = 'active';
+        $this->left_at = '';
+        $this->notes = '';
+        $this->showFormModal = true;
+
+        $this->resetValidation();
     }
 
     public function edit(int $enrollmentId): void
@@ -443,26 +473,29 @@ new class extends Component {
                 </div>
             </div>
 
-            <div>
-                <label for="enrollment-left-at" class="mb-1 block text-sm font-medium">{{ __('crud.enrollments.form.fields.left_at') }}</label>
-                <input id="enrollment-left-at" wire:model="left_at" type="date" class="w-full rounded-xl px-4 py-3 text-sm">
-                @error('left_at')
-                    <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
-                @enderror
-            </div>
+            @if ($editingId)
+                <div>
+                    <label for="enrollment-left-at" class="mb-1 block text-sm font-medium">{{ __('crud.enrollments.form.fields.left_at') }}</label>
+                    <input id="enrollment-left-at" wire:model="left_at" type="date" class="w-full rounded-xl px-4 py-3 text-sm">
+                    @error('left_at')
+                        <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
+                    @enderror
+                </div>
 
-            <div>
-                <label for="enrollment-notes" class="mb-1 block text-sm font-medium">{{ __('crud.enrollments.form.fields.notes') }}</label>
-                <textarea id="enrollment-notes" wire:model="notes" rows="4" class="w-full rounded-xl px-4 py-3 text-sm"></textarea>
-                @error('notes')
-                    <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
-                @enderror
-            </div>
+                <div>
+                    <label for="enrollment-notes" class="mb-1 block text-sm font-medium">{{ __('crud.enrollments.form.fields.notes') }}</label>
+                    <textarea id="enrollment-notes" wire:model="notes" rows="4" class="w-full rounded-xl px-4 py-3 text-sm"></textarea>
+                    @error('notes')
+                        <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
+                    @enderror
+                </div>
+            @endif
 
             <div class="flex flex-wrap items-center gap-3">
                 <button type="submit" class="pill-link pill-link--accent">
                     {{ $editingId ? __('crud.enrollments.form.update_submit') : __('crud.enrollments.form.create_submit') }}
                 </button>
+                <x-admin.create-and-new-button :show="! $editingId" />
                 <button type="button" wire:click="cancel" class="pill-link">
                     {{ __('crud.common.actions.close') }}
                 </button>
