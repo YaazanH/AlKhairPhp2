@@ -114,6 +114,23 @@ new class extends Component {
         session()->flash('status', __('workflow.teacher_attendance.messages.saved'));
     }
 
+    public function deleteDay(): void
+    {
+        $this->authorizePermission('attendance.teacher.take');
+
+        if (! $this->attendanceDayId) {
+            return;
+        }
+
+        $day = TeacherAttendanceDay::query()->findOrFail($this->attendanceDayId);
+        $day->records()->delete();
+        $day->delete();
+
+        $this->loadDay();
+
+        session()->flash('status', __('workflow.teacher_attendance.messages.deleted'));
+    }
+
     protected function loadDay(): void
     {
         $day = TeacherAttendanceDay::query()
@@ -138,69 +155,113 @@ new class extends Component {
     }
 }; ?>
 
-<div class="flex w-full flex-1 flex-col gap-6 p-6 lg:p-8">
-    <div>
-        <flux:heading size="xl">{{ __('workflow.teacher_attendance.title') }}</flux:heading>
-        <flux:subheading>{{ __('workflow.teacher_attendance.subtitle') }}</flux:subheading>
-    </div>
+<div class="page-stack">
+    <section class="page-hero p-6 lg:p-8">
+        <div class="eyebrow">{{ __('ui.nav.tracking') }}</div>
+        <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('workflow.teacher_attendance.title') }}</h1>
+        <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ __('workflow.teacher_attendance.subtitle') }}</p>
+        <div class="mt-6 flex flex-wrap gap-3">
+            <span class="badge-soft">{{ __('workflow.teacher_attendance.table.title') }}</span>
+            <span class="badge-soft badge-soft--emerald">{{ __('workflow.teacher_attendance.stats.helping_teachers', ['count' => number_format($teachers->count())]) }}</span>
+        </div>
+    </section>
 
     @if (session('status'))
-        <div class="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
-            {{ session('status') }}
-        </div>
+        <div class="flash-success px-4 py-3 text-sm">{{ session('status') }}</div>
     @endif
 
-    <section class="rounded-xl border border-neutral-200 p-5 dark:border-neutral-700">
-        <div class="grid gap-4 lg:grid-cols-[14rem_10rem_minmax(0,1fr)]">
+    <section class="surface-panel p-5 lg:p-6">
+        <div class="admin-toolbar">
             <div>
+                <div class="admin-toolbar__title">{{ __('workflow.teacher_attendance.form.title') }}</div>
+                <p class="admin-toolbar__subtitle">{{ __('workflow.teacher_attendance.form.help') }}</p>
+            </div>
+
+            <div class="admin-toolbar__controls">
+                <div class="admin-filter-field">
                 <label for="teacher-attendance-date" class="mb-1 block text-sm font-medium">{{ __('workflow.teacher_attendance.form.attendance_date') }}</label>
-                <input id="teacher-attendance-date" wire:model.live="attendance_date" type="date" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                    <input id="teacher-attendance-date" wire:model.live="attendance_date" type="date">
                 @error('attendance_date')
-                    <div class="mt-1 text-sm text-red-600">{{ $message }}</div>
+                        <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                 @enderror
             </div>
 
-            <div>
+                <div class="admin-filter-field">
                 <label for="teacher-attendance-status" class="mb-1 block text-sm font-medium">{{ __('workflow.teacher_attendance.form.day_status') }}</label>
-                <select id="teacher-attendance-status" wire:model="day_status" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                    <select id="teacher-attendance-status" wire:model="day_status">
                     <option value="open">{{ __('workflow.common.day_status.open') }}</option>
                     <option value="closed">{{ __('workflow.common.day_status.closed') }}</option>
                 </select>
             </div>
 
-            <div>
+                <div class="admin-filter-field">
                 <label for="teacher-attendance-notes" class="mb-1 block text-sm font-medium">{{ __('workflow.teacher_attendance.form.notes') }}</label>
-                <input id="teacher-attendance-notes" wire:model="notes" type="text" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                    <input id="teacher-attendance-notes" wire:model="notes" type="text">
+                </div>
+
+                <div class="admin-toolbar__actions">
+                    @can('attendance.teacher.take')
+                        <button wire:click="saveAttendance" type="button" class="pill-link pill-link--accent">
+                            {{ __('workflow.common.actions.save_teacher_attendance') }}
+                        </button>
+                        @if ($attendanceDayId)
+                            <button wire:click="deleteDay" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" type="button" class="pill-link border-red-400/25 text-red-200 hover:border-red-300/35 hover:bg-red-500/12">
+                                {{ __('crud.common.actions.delete') }}
+                            </button>
+                        @endif
+                    @endcan
+                </div>
             </div>
         </div>
     </section>
 
-    <section class="overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700">
-        <div class="border-b border-neutral-200 px-5 py-4 text-sm font-medium dark:border-neutral-700">
-            {{ __('workflow.teacher_attendance.table.title') }}
+    @can('attendance.teacher.take')
+        @error('selected_statuses')
+            <div class="rounded-xl border border-red-500/25 bg-red-500/10 px-4 py-3 text-sm text-red-200">{{ $message }}</div>
+        @enderror
+    @endcan
+
+    <section class="surface-table">
+        <div class="admin-grid-meta">
+            <div>
+                <div class="admin-grid-meta__title">{{ __('workflow.teacher_attendance.table.title') }}</div>
+                <div class="admin-grid-meta__summary">{{ __('workflow.teacher_attendance.table.summary', ['count' => number_format($teachers->count())]) }}</div>
+            </div>
         </div>
 
         <div class="overflow-x-auto">
-            <table class="min-w-full divide-y divide-neutral-200 text-sm dark:divide-neutral-700">
-                <thead class="bg-neutral-50 dark:bg-neutral-900/60">
+            <table class="text-sm">
+                <thead>
                     <tr>
-                        <th class="px-5 py-3 text-left font-medium">{{ __('workflow.teacher_attendance.table.headers.teacher') }}</th>
-                        <th class="px-5 py-3 text-left font-medium">{{ __('workflow.teacher_attendance.table.headers.job_title') }}</th>
-                        <th class="px-5 py-3 text-left font-medium">{{ __('workflow.teacher_attendance.table.headers.status') }}</th>
-                        <th class="px-5 py-3 text-left font-medium">{{ __('workflow.teacher_attendance.table.headers.attendance') }}</th>
+                        <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.teacher_attendance.table.headers.teacher') }}</th>
+                        <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.teacher_attendance.table.headers.job_title') }}</th>
+                        <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.teacher_attendance.table.headers.status') }}</th>
+                        <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.teacher_attendance.table.headers.attendance') }}</th>
                     </tr>
                 </thead>
-                <tbody class="divide-y divide-neutral-200 dark:divide-neutral-700">
+                <tbody class="divide-y divide-white/6">
                     @forelse ($teachers as $teacher)
                         <tr>
-                            <td class="px-5 py-3">{{ $teacher->first_name }} {{ $teacher->last_name }}</td>
-                            <td class="px-5 py-3">{{ $teacher->jobTitle?->name ?: ($teacher->job_title ?: __('workflow.common.not_available')) }}</td>
-                            <td class="px-5 py-3">{{ __('crud.common.status_options.' . $teacher->status) }}</td>
-                            <td class="px-5 py-3">
+                            <td class="px-5 py-4 lg:px-6">
+                                <div class="student-inline">
+                                    <x-teacher-avatar :teacher="$teacher" size="sm" />
+                                    <div class="student-inline__body">
+                                        <div class="student-inline__name">{{ $teacher->first_name }} {{ $teacher->last_name }}</div>
+                                        <div class="student-inline__meta">{{ $teacher->phone }}</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $teacher->jobTitle?->name ?: ($teacher->job_title ?: __('workflow.common.not_available')) }}</td>
+                            <td class="px-5 py-4 lg:px-6">
+                                <span class="{{ $teacher->status === 'active' ? 'status-chip status-chip--emerald' : 'status-chip status-chip--slate' }}">
+                                    {{ __('crud.common.status_options.' . $teacher->status) }}
+                                </span>
+                            </td>
+                            <td class="px-5 py-4 lg:px-6">
                                 <select
                                     wire:model="selected_statuses.{{ $teacher->id }}"
                                     @disabled(! auth()->user()->can('attendance.teacher.take'))
-                                    class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900"
+                                    class="w-full rounded-xl px-4 py-3 text-sm"
                                 >
                                     <option value="">{{ __('workflow.teacher_attendance.table.not_marked') }}</option>
                                     @foreach ($statuses as $status)
@@ -211,22 +272,11 @@ new class extends Component {
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="4" class="px-5 py-10 text-center text-sm text-neutral-500">{{ __('workflow.teacher_attendance.table.empty') }}</td>
+                            <td colspan="4" class="admin-empty-state">{{ __('workflow.teacher_attendance.table.empty') }}</td>
                         </tr>
                     @endforelse
                 </tbody>
             </table>
         </div>
     </section>
-
-    @can('attendance.teacher.take')
-        @error('selected_statuses')
-            <div class="rounded-xl border border-red-500/25 bg-red-500/10 px-4 py-3 text-sm text-red-200">{{ $message }}</div>
-        @enderror
-        <div class="flex justify-end">
-            <button wire:click="saveAttendance" type="button" class="rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white dark:bg-white dark:text-neutral-900">
-                {{ __('workflow.common.actions.save_teacher_attendance') }}
-            </button>
-        </div>
-    @endcan
 </div>

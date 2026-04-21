@@ -222,6 +222,8 @@ return [
         'actions' => [
             'attend' => 'نعم، سيحضر',
             'decline' => 'لا، لن يحضر',
+            'edit_response' => 'تعديل الرد',
+            'cancel_edit' => 'إلغاء التعديل',
         ],
         'messages' => [
             'registered' => 'تم تأكيد حضور هذا النشاط.',

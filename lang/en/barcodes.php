@@ -97,7 +97,7 @@ return [
         'context' => [
             'copy' => 'Choose the course first so every student barcode is matched against the correct active enrollment.',
             'title' => 'Import context',
-            'today' => 'Working date: :date',
+            'today' => 'Entry date: :date',
         ],
         'dump' => [
             'copy' => 'Click inside the dump box, scan Upload All Data, then preview the rows before applying them.',
@@ -120,7 +120,7 @@ return [
             'unsupported_action' => 'This barcode action type is not supported.',
         ],
         'fields' => [
-            'attendance_date' => 'Attendance date',
+            'attendance_date' => 'Entry date',
             'course' => 'Course',
             'raw_dump' => 'Scanner memory dump',
         ],

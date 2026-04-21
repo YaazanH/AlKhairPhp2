@@ -183,6 +183,16 @@ return [
         'description' => 'Enter your email, username, or phone and your password below to log in.',
         'identifier' => 'Email, username, or phone',
         'placeholder' => 'email@example.com / username / 09xxxxxxxx',
+        'password' => 'Password',
+        'forgot_password' => 'Forgot your password?',
+        'remember' => 'Remember me',
+        'submit' => 'Log in',
         'inactive' => 'This account is currently inactive.',
+    ],
+    'password_help' => [
+        'title' => 'Password help',
+        'description' => 'Password reset is handled by mosque management.',
+        'contact_management' => 'If you forget your password, contact the mosque management team to issue a new password for your account.',
+        'back_to_login' => 'Return to login',
     ],
 ];

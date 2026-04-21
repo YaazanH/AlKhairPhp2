@@ -877,24 +877,19 @@ new class extends Component {
                     @enderror
                 </div>
 
-                <div>
-                    <label for="student-status" class="mb-1 block text-sm font-medium">{{ __('crud.students.form.fields.status') }}</label>
-                    <select id="student-status" wire:model="status" class="w-full rounded-xl px-4 py-3 text-sm">
-                        @foreach ($statuses as $studentStatus)
-                            <option value="{{ $studentStatus }}">{{ __('crud.common.status_options.'.$studentStatus) }}</option>
-                        @endforeach
-                    </select>
-                    @error('status')
-                        <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
-                    @enderror
-                </div>
-            </div>
-
-            <div>
-                <label class="mb-1 block text-sm font-medium text-neutral-200">{{ __('crud.students.form.fields.media') }}</label>
-                <div class="soft-callout px-3 py-3 text-sm leading-6">
-                    {{ __('crud.students.form.media_help') }}
-                </div>
+                @if ($editingId)
+                    <div>
+                        <label for="student-status" class="mb-1 block text-sm font-medium">{{ __('crud.students.form.fields.status') }}</label>
+                        <select id="student-status" wire:model="status" class="w-full rounded-xl px-4 py-3 text-sm">
+                            @foreach ($statuses as $studentStatus)
+                                <option value="{{ $studentStatus }}">{{ __('crud.common.status_options.'.$studentStatus) }}</option>
+                            @endforeach
+                        </select>
+                        @error('status')
+                            <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
+                        @enderror
+                    </div>
+                @endif
             </div>
 
             <div class="grid gap-4 md:grid-cols-2">
@@ -905,14 +900,6 @@ new class extends Component {
                         <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                     @enderror
                 </div>
-            </div>
-
-            <div>
-                <label for="student-notes" class="mb-1 block text-sm font-medium">{{ __('crud.students.form.fields.notes') }}</label>
-                <textarea id="student-notes" wire:model="notes" rows="4" class="w-full rounded-xl px-4 py-3 text-sm"></textarea>
-                @error('notes')
-                    <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
-                @enderror
             </div>
 
             <div class="flex flex-wrap items-center gap-3">

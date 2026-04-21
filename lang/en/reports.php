@@ -28,6 +28,7 @@ return [
         'all_assessment_types' => 'All assessment types',
         'date_from' => 'Date from',
         'date_to' => 'Date to',
+        'date_range' => 'Date range',
         'clear' => 'Clear filters',
     ],
     'exports' => [
@@ -69,6 +70,7 @@ return [
         'eyebrow' => 'Attendance',
         'title' => 'Status breakdown',
         'days_recorded' => 'Attendance days recorded: :count',
+        'empty' => 'No attendance records match the current filters.',
     ],
     'assessments' => [
         'eyebrow' => 'Assessments',

@@ -352,7 +352,11 @@ class ReportingService
             }
 
             if ($filters['group_id'] || $filters['academic_year_id']) {
-                $builder->whereHas('group', fn (Builder $groupBuilder) => $this->applyGroupScope($groupBuilder, $filters));
+                $builder->where(function (Builder $assessmentBuilder) use ($filters) {
+                    $assessmentBuilder
+                        ->whereHas('group', fn (Builder $groupBuilder) => $this->applyGroupScope($groupBuilder, $filters))
+                        ->orWhereHas('groups', fn (Builder $groupBuilder) => $this->applyGroupScope($groupBuilder, $filters));
+                });
             }
         });
 
@@ -559,6 +563,12 @@ class ReportingService
 
     protected function normalizeNullableInteger(mixed $value): ?int
     {
+        if (is_array($value)) {
+            $value = collect($value)
+                ->filter(fn (mixed $item) => $item !== null && $item !== '')
+                ->first();
+        }
+
         if ($value === null || $value === '') {
             return null;
         }

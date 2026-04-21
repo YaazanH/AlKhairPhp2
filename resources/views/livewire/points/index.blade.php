@@ -26,6 +26,9 @@ new class extends Component {
     public string $stateFilter = 'all';
     public int $perPage = 15;
     public bool $showFormModal = false;
+    public bool $showVoidModal = false;
+    public ?int $voidTransactionId = null;
+    public string $void_reason = '';
 
     public function mount(): void
     {
@@ -272,21 +275,51 @@ new class extends Component {
         $this->closeFormModal();
     }
 
-    public function void(int $transactionId): void
+    public function openVoidModal(int $transactionId): void
     {
         $this->authorizePermission('points.void');
 
-        $transaction = $this->scopePointTransactionsQuery(PointTransaction::query())
+        $this->scopePointTransactionsQuery(PointTransaction::query())
+            ->whereNull('voided_at')
             ->findOrFail($transactionId);
 
+        $this->voidTransactionId = $transactionId;
+        $this->void_reason = '';
+        $this->showVoidModal = true;
+        $this->resetValidation(['void_reason']);
+    }
+
+    public function closeVoidModal(): void
+    {
+        $this->showVoidModal = false;
+        $this->voidTransactionId = null;
+        $this->void_reason = '';
+        $this->resetValidation(['void_reason']);
+    }
+
+    public function voidSelected(): void
+    {
+        $this->authorizePermission('points.void');
+
+        $validated = $this->validate([
+            'void_reason' => ['required', 'string', 'max:500'],
+        ], [], [
+            'void_reason' => __('workflow.points.void.form.reason'),
+        ]);
+
+        $transaction = $this->scopePointTransactionsQuery(PointTransaction::query())
+            ->findOrFail($this->voidTransactionId);
+
         if ($transaction->voided_at) {
+            $this->closeVoidModal();
+
             return;
         }
 
         $transaction->update([
             'voided_at' => now(),
             'voided_by' => auth()->id(),
-            'void_reason' => __('workflow.points.messages.void_reason'),
+            'void_reason' => $validated['void_reason'],
         ]);
 
         $enrollment = $this->scopeEnrollmentsQuery(Enrollment::query()->with('student'))
@@ -297,6 +330,8 @@ new class extends Component {
         if ($this->editingTransactionId === $transaction->id) {
             $this->resetManualForm();
         }
+
+        $this->closeVoidModal();
 
         session()->flash('status', __('workflow.points.messages.voided'));
     }
@@ -436,7 +471,7 @@ new class extends Component {
                                             <button type="button" wire:click="editManual({{ $transaction->id }})" class="pill-link pill-link--compact">{{ __('workflow.common.actions.edit') }}</button>
                                         @endif
                                         @if (auth()->user()->can('points.void') && ! $transaction->voided_at)
-                                            <button type="button" wire:click="void({{ $transaction->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link pill-link--compact border-red-400/25 text-red-200 hover:border-red-300/35 hover:bg-red-500/12">{{ __('workflow.common.actions.void') }}</button>
+                                            <button type="button" wire:click="openVoidModal({{ $transaction->id }})" class="pill-link pill-link--compact border-red-400/25 text-red-200 hover:border-red-300/35 hover:bg-red-500/12">{{ __('workflow.common.actions.void') }}</button>
                                         @endif
                                     </div>
                                 </td>
@@ -522,6 +557,33 @@ new class extends Component {
                 </button>
                 <x-admin.create-and-new-button :show="! $editingTransactionId" click="saveAndNew('saveManual')" />
                 <button type="button" wire:click="closeFormModal" class="pill-link">
+                    {{ __('crud.common.actions.close') }}
+                </button>
+            </div>
+        </form>
+    </x-admin.modal>
+
+    <x-admin.modal
+        :show="$showVoidModal"
+        :title="__('workflow.points.void.title')"
+        :description="__('workflow.points.void.description')"
+        close-method="closeVoidModal"
+        max-width="xl"
+    >
+        <form wire:submit="voidSelected" class="space-y-4">
+            <div>
+                <label for="point-void-reason" class="mb-1 block text-sm font-medium">{{ __('workflow.points.void.form.reason') }}</label>
+                <textarea id="point-void-reason" wire:model="void_reason" rows="4" class="w-full rounded-xl px-4 py-3 text-sm"></textarea>
+                @error('void_reason')
+                    <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
+                @enderror
+            </div>
+
+            <div class="flex flex-wrap items-center gap-3">
+                <button type="submit" class="pill-link border-red-400/25 text-red-200 hover:border-red-300/35 hover:bg-red-500/12">
+                    {{ __('workflow.common.actions.void') }}
+                </button>
+                <button type="button" wire:click="closeVoidModal" class="pill-link">
                     {{ __('crud.common.actions.close') }}
                 </button>
             </div>

@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\AcademicYear;
 use App\Models\Assessment;
+use App\Models\AssessmentScoreBand;
 use App\Models\AssessmentType;
 use App\Models\Course;
 use App\Models\Enrollment;
@@ -41,12 +42,13 @@ class AssessmentWorkflowTest extends TestCase
         $quizType = AssessmentType::query()->where('code', 'quiz')->firstOrFail();
         $quizPointType = PointType::query()->where('code', 'quiz-score')->firstOrFail();
 
+        $excellentBand = AssessmentScoreBand::query()
+            ->where('assessment_type_id', $quizType->id)
+            ->where('name', 'Quiz Excellent')
+            ->firstOrFail();
+
         Volt::test('assessments.bands')
-            ->set('assessment_type_id', $quizType->id)
-            ->set('name', 'Quiz Perfect')
-            ->set('from_mark', '100')
-            ->set('to_mark', '100')
-            ->set('point_type_id', $quizPointType->id)
+            ->call('edit', $excellentBand->id)
             ->set('points', '8')
             ->call('save')
             ->assertHasNoErrors();
@@ -86,6 +88,47 @@ class AssessmentWorkflowTest extends TestCase
             'voided_at' => null,
         ]);
         $this->assertSame(2, $enrollment->fresh()->final_points_cached);
+    }
+
+    public function test_score_bands_cannot_overlap_for_the_same_assessment_type(): void
+    {
+        $this->assessmentContext();
+
+        $type = AssessmentType::create([
+            'name' => 'Placement',
+            'code' => 'placement',
+            'is_scored' => true,
+            'is_active' => true,
+        ]);
+
+        Volt::test('assessments.bands')
+            ->set('assessment_type_id', $type->id)
+            ->set('name', 'Placement Lower')
+            ->set('from_mark', '0')
+            ->set('to_mark', '49.99')
+            ->call('save')
+            ->assertHasNoErrors();
+
+        Volt::test('assessments.bands')
+            ->set('assessment_type_id', $type->id)
+            ->set('name', 'Placement Upper')
+            ->set('from_mark', '50')
+            ->set('to_mark', '100')
+            ->call('save')
+            ->assertHasNoErrors();
+
+        Volt::test('assessments.bands')
+            ->set('assessment_type_id', $type->id)
+            ->set('name', 'Placement Overlap')
+            ->set('from_mark', '40')
+            ->set('to_mark', '60')
+            ->call('save')
+            ->assertHasErrors(['from_mark']);
+
+        $this->assertDatabaseMissing('assessment_score_bands', [
+            'assessment_type_id' => $type->id,
+            'name' => 'Placement Overlap',
+        ]);
     }
 
     public function test_manager_can_create_one_assessment_for_multiple_groups_and_record_results(): void

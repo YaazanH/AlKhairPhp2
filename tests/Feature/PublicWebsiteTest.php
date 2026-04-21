@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\AppSetting;
 use App\Models\User;
 use App\Models\WebsiteMenuItem;
 use App\Models\WebsitePage;
@@ -14,6 +15,14 @@ use Tests\TestCase;
 class PublicWebsiteTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        config(['app.locale' => 'en']);
+        app()->setLocale('en');
+    }
 
     public function test_public_homepage_renders_seeded_content_and_navigation(): void
     {
@@ -30,12 +39,27 @@ class PublicWebsiteTest extends TestCase
     {
         $this->seed(WebsiteSeeder::class);
 
-        $this->withSession(['locale' => 'ar'])
+        $this->withSession(['locale' => 'ar', 'locale_user_selected' => true])
             ->get('/')
             ->assertOk()
             ->assertSee('lang="ar"', false)
             ->assertSee('dir="rtl"', false)
             ->assertSee('مسجد الخير');
+    }
+
+    public function test_public_homepage_uses_website_logo_for_social_preview(): void
+    {
+        $this->seed(WebsiteSeeder::class);
+
+        AppSetting::storeValue('website', 'logo_path', 'website/branding/logo.png');
+
+        $logoUrl = asset('storage/website/branding/logo.png');
+
+        $this->get('/')
+            ->assertOk()
+            ->assertSee('property="og:image"', false)
+            ->assertSee('content="'.$logoUrl.'"', false)
+            ->assertSee('name="twitter:image"', false);
     }
 
     public function test_website_management_requires_permission_and_manager_can_customize_pages(): void

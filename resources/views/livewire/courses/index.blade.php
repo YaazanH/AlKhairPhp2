@@ -3,7 +3,9 @@
 use App\Livewire\Concerns\AuthorizesPermissions;
 use App\Livewire\Concerns\SupportsCreateAndNew;
 use App\Models\Course;
+use App\Models\Enrollment;
 use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\DB;
 use Livewire\Volt\Component;
 use Livewire\WithPagination;
 
@@ -97,6 +99,7 @@ new class extends Component {
         $this->authorizePermission($this->editingId ? 'courses.update' : 'courses.create');
 
         $validated = $this->validate();
+        $validated['description'] = $validated['description'] ?: null;
         $validated['starts_on'] = $validated['starts_on'] ?: null;
         $validated['ends_on'] = $validated['ends_on'] ?: null;
 
@@ -162,6 +165,65 @@ new class extends Component {
         }
 
         session()->flash('status', __('crud.courses.messages.deleted'));
+    }
+
+    public function duplicate(int $courseId): void
+    {
+        $this->authorizePermission('courses.create');
+
+        $source = Course::query()
+            ->with(['groups.enrollments', 'groups.schedules'])
+            ->findOrFail($courseId);
+
+        DB::transaction(function () use ($source): void {
+            $newCourse = $source->replicate(['name', 'description']);
+            $newCourse->name = $this->uniqueCopyName($source->name);
+            $newCourse->description = null;
+            $newCourse->is_active = true;
+            $newCourse->save();
+
+            foreach ($source->groups as $group) {
+                $newGroup = $group->replicate(['course_id']);
+                $newGroup->course_id = $newCourse->id;
+                $newGroup->is_active = true;
+                $newGroup->save();
+
+                foreach ($group->schedules as $schedule) {
+                    $newSchedule = $schedule->replicate(['group_id']);
+                    $newSchedule->group_id = $newGroup->id;
+                    $newSchedule->save();
+                }
+
+                foreach ($group->enrollments->where('status', 'active') as $enrollment) {
+                    Enrollment::query()->create([
+                        'student_id' => $enrollment->student_id,
+                        'group_id' => $newGroup->id,
+                        'enrolled_at' => now()->toDateString(),
+                        'status' => 'active',
+                        'left_at' => null,
+                        'final_points_cached' => 0,
+                        'memorized_pages_cached' => 0,
+                        'notes' => null,
+                    ]);
+                }
+            }
+        });
+
+        session()->flash('status', __('crud.courses.messages.copied'));
+    }
+
+    protected function uniqueCopyName(string $baseName): string
+    {
+        $name = __('crud.courses.copy.name', ['name' => $baseName]);
+        $candidate = $name;
+        $counter = 2;
+
+        while (Course::query()->where('name', $candidate)->exists()) {
+            $candidate = __('crud.courses.copy.name_numbered', ['name' => $baseName, 'number' => $counter]);
+            $counter++;
+        }
+
+        return $candidate;
     }
 }; ?>
 
@@ -251,7 +313,6 @@ new class extends Component {
                             <tr>
                                 <td class="px-5 py-4 lg:px-6">
                                     <div class="font-semibold text-white">{{ $course->name }}</div>
-                                    <div class="mt-1 text-sm text-neutral-400">{{ $course->description ?: __('crud.courses.table.no_description') }}</div>
                                 </td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">
                                     {{ $course->starts_on || $course->ends_on
@@ -271,6 +332,9 @@ new class extends Component {
                                     <div class="flex flex-wrap justify-end gap-2">
                                         @can('courses.update')
                                             <button type="button" wire:click="edit({{ $course->id }})" class="pill-link pill-link--compact">{{ __('crud.common.actions.edit') }}</button>
+                                        @endcan
+                                        @can('courses.create')
+                                            <button type="button" wire:click="duplicate({{ $course->id }})" wire:confirm="{{ __('crud.courses.copy.confirm') }}" class="pill-link pill-link--compact">{{ __('crud.common.actions.copy') }}</button>
                                         @endcan
                                         @can('courses.delete')
                                             <button type="button" wire:click="delete({{ $course->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link pill-link--compact border-red-400/25 text-red-200 hover:border-red-300/35 hover:bg-red-500/12">{{ __('crud.common.actions.delete') }}</button>
@@ -303,14 +367,6 @@ new class extends Component {
                 <label for="course-name" class="mb-1 block text-sm font-medium">{{ __('crud.courses.form.fields.name') }}</label>
                 <input id="course-name" wire:model="name" type="text" class="w-full rounded-xl px-4 py-3 text-sm">
                 @error('name')
-                    <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
-                @enderror
-            </div>
-
-            <div>
-                <label for="course-description" class="mb-1 block text-sm font-medium">{{ __('crud.courses.form.fields.description') }}</label>
-                <textarea id="course-description" wire:model="description" rows="5" class="w-full rounded-xl px-4 py-3 text-sm"></textarea>
-                @error('description')
                     <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                 @enderror
             </div>

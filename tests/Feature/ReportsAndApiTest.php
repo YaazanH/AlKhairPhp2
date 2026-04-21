@@ -29,6 +29,7 @@ use App\Models\Teacher;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
+use Livewire\Volt\Volt;
 use Tests\TestCase;
 
 class ReportsAndApiTest extends TestCase
@@ -109,6 +110,19 @@ class ReportsAndApiTest extends TestCase
         $invoices->assertOk();
         $invoices->assertJsonPath('data.0.invoice_no', 'INV-REPORT-0001');
         $invoices->assertJsonPath('data.0.balance', 20);
+    }
+
+    public function test_report_filters_tolerate_array_values_from_enhanced_selects(): void
+    {
+        [$manager, $group] = $this->reportingContext();
+        $assessmentTypeId = AssessmentType::query()->where('code', 'quiz')->value('id');
+
+        $this->actingAs($manager);
+
+        Volt::test('reports.index')
+            ->set('group_id', [(string) $group->id])
+            ->set('assessment_type_id', [(string) $assessmentTypeId])
+            ->assertHasNoErrors();
     }
 
     public function test_teacher_api_read_endpoints_are_scoped(): void

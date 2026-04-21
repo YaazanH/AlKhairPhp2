@@ -2,7 +2,6 @@
 
 use App\Models\User;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Session;
 use Illuminate\Validation\Rule;
 use Livewire\Volt\Component;
 
@@ -10,32 +9,25 @@ new class extends Component {
     public string $name = '';
     public string $email = '';
 
-    /**
-     * Mount the component.
-     */
     public function mount(): void
     {
-        $this->name = Auth::user()->name;
-        $this->email = Auth::user()->email;
+        $this->name = (string) Auth::user()->name;
+        $this->email = (string) Auth::user()->email;
     }
 
-    /**
-     * Update the profile information for the currently authenticated user.
-     */
     public function updateProfileInformation(): void
     {
         $user = Auth::user();
 
         $validated = $this->validate([
             'name' => ['required', 'string', 'max:255'],
-
             'email' => [
                 'required',
                 'string',
                 'lowercase',
                 'email',
                 'max:255',
-                Rule::unique(User::class)->ignore($user->id)
+                Rule::unique(User::class)->ignore($user->id),
             ],
         ]);
 
@@ -49,69 +41,38 @@ new class extends Component {
 
         $this->dispatch('profile-updated', name: $user->name);
     }
-
-    /**
-     * Send an email verification notification to the current user.
-     */
-    public function resendVerificationNotification(): void
-    {
-        $user = Auth::user();
-
-        if ($user->hasVerifiedEmail()) {
-            $this->redirectIntended(default: route('dashboard', absolute: false));
-
-            return;
-        }
-
-        $user->sendEmailVerificationNotification();
-
-        Session::flash('status', 'verification-link-sent');
-    }
 }; ?>
 
 <section class="w-full">
-    @include('partials.settings-heading')
+    <div class="page-stack">
+        <section class="page-hero p-6 lg:p-8">
+            <div class="eyebrow">{{ __('ui.nav.settings') }}</div>
+            <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('settings.account.profile.title') }}</h1>
+            <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ __('settings.account.profile.subtitle') }}</p>
+        </section>
 
-    <x-settings.layout heading="Profile" subheading="Update your name and email address">
-        <form wire:submit="updateProfileInformation" class="my-6 w-full space-y-6">
-            <flux:input wire:model="name" label="{{ __('Name') }}" type="text" name="name" required autofocus autocomplete="name" />
-
-            <div>
-                <flux:input wire:model="email" label="{{ __('Email') }}" type="email" name="email" required autocomplete="email" />
-
-                @if (auth()->user() instanceof \Illuminate\Contracts\Auth\MustVerifyEmail &&! auth()->user()->hasVerifiedEmail())
-                    <div>
-                        <p class="mt-2 text-sm text-gray-800">
-                            {{ __('Your email address is unverified.') }}
-
-                            <button
-                                wire:click.prevent="resendVerificationNotification"
-                                class="rounded-md text-sm text-gray-600 underline hover:text-gray-900 focus:outline-hidden focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
-                            >
-                                {{ __('Click here to re-send the verification email.') }}
-                            </button>
-                        </p>
-
-                        @if (session('status') === 'verification-link-sent')
-                            <p class="mt-2 text-sm font-medium text-green-600">
-                                {{ __('A new verification link has been sent to your email address.') }}
-                            </p>
-                        @endif
-                    </div>
-                @endif
-            </div>
-
-            <div class="flex items-center gap-4">
-                <div class="flex items-center justify-end">
-                    <flux:button variant="primary" type="submit" class="w-full">{{ __('Save') }}</flux:button>
+        <x-settings.layout :heading="__('settings.account.profile.form_title')" :subheading="__('settings.account.profile.form_subtitle')">
+            <form wire:submit="updateProfileInformation" class="admin-form-grid">
+                <div class="admin-form-field admin-form-field--full">
+                    <label for="profile-name" class="mb-1 block text-sm font-medium">{{ __('settings.account.profile.fields.name') }}</label>
+                    <input id="profile-name" wire:model="name" type="text" name="name" required autofocus autocomplete="name" class="w-full rounded-xl px-4 py-3 text-sm">
+                    @error('name') <div class="mt-1 text-sm text-red-200">{{ $message }}</div> @enderror
                 </div>
 
-                <x-action-message class="me-3" on="profile-updated">
-                    {{ __('Saved.') }}
-                </x-action-message>
-            </div>
-        </form>
+                <div class="admin-form-field admin-form-field--full">
+                    <label for="profile-email" class="mb-1 block text-sm font-medium">{{ __('settings.account.profile.fields.email') }}</label>
+                    <input id="profile-email" wire:model="email" type="email" name="email" required autocomplete="email" class="w-full rounded-xl px-4 py-3 text-sm">
+                    @error('email') <div class="mt-1 text-sm text-red-200">{{ $message }}</div> @enderror
+                    <p class="mt-2 text-xs leading-5 text-neutral-400">{{ __('settings.account.profile.email_help') }}</p>
+                </div>
 
-        <livewire:settings.delete-user-form />
-    </x-settings.layout>
+                <div class="admin-action-cluster admin-form-field--full">
+                    <button type="submit" class="pill-link pill-link--accent">{{ __('settings.common.actions.save') }}</button>
+                    <x-action-message class="text-sm text-emerald-200" on="profile-updated">
+                        {{ __('settings.account.profile.saved') }}
+                    </x-action-message>
+                </div>
+            </form>
+        </x-settings.layout>
+    </div>
 </section>

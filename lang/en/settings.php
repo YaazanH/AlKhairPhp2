@@ -14,9 +14,19 @@ return [
         ],
     ],
     'navigation' => [
+        'groups' => [
+            'dashboard' => [
+                'meta' => 'Dashboard',
+                'title' => 'Dashboard settings',
+            ],
+            'website' => [
+                'meta' => 'Public site',
+                'title' => 'Public website settings',
+            ],
+        ],
         'organization' => [
             'meta' => 'Setup',
-            'title' => 'Organization',
+            'title' => 'Dashboard',
         ],
         'tracking' => [
             'meta' => 'Rules',
@@ -31,9 +41,30 @@ return [
             'title' => 'Finance',
         ],
     ],
+    'account' => [
+        'eyebrow' => 'Account settings',
+        'nav' => [
+            'meta' => 'Account',
+            'profile' => 'Profile',
+            'password' => 'Password',
+            'appearance' => 'Appearance',
+        ],
+        'profile' => [
+            'title' => 'Profile settings',
+            'subtitle' => 'Update the name and email used for your dashboard account.',
+            'form_title' => 'Profile information',
+            'form_subtitle' => 'Keep your account information clear for reports, audit logs, and assignments.',
+            'fields' => [
+                'name' => 'Name',
+                'email' => 'Email',
+            ],
+            'email_help' => 'Email is kept for account identity. Password recovery is handled by mosque management.',
+            'saved' => 'Profile saved.',
+        ],
+    ],
     'organization' => [
-        'title' => 'Organization Settings',
-        'subtitle' => 'Control school identity, academic years, and grade-level structure without changing code.',
+        'title' => 'Dashboard Settings',
+        'subtitle' => 'Control dashboard identity, academic years, and grade-level structure without changing code.',
         'stats' => [
             'academic_years' => 'Academic years',
             'grade_levels' => 'Grade levels',
@@ -43,8 +74,8 @@ return [
         ],
         'sections' => [
             'profile' => [
-                'title' => 'School profile',
-                'copy' => 'These values drive the app identity and shared reporting defaults.',
+                'title' => 'Dashboard profile',
+                'copy' => 'These values drive the dashboard identity and shared reporting defaults.',
             ],
             'academic_year' => [
                 'create' => 'New academic year',
@@ -122,7 +153,7 @@ return [
             'update_student_gender' => 'Update gender',
         ],
         'messages' => [
-            'settings_saved' => 'Organization settings saved successfully.',
+            'settings_saved' => 'Dashboard settings saved successfully.',
             'academic_year_created' => 'Academic year created successfully.',
             'academic_year_updated' => 'Academic year updated successfully.',
             'academic_year_deleted' => 'Academic year deleted successfully.',

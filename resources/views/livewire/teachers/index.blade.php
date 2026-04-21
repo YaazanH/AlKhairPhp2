@@ -28,7 +28,7 @@ new class extends Component {
     public string $teacher_job_title_id = '';
     public string $course_id = '';
     public string $status = 'active';
-    public bool $is_helping = false;
+    public bool $is_helping = true;
     public string $photo_path = '';
     public $photo_upload = null;
     public string $notes = '';
@@ -325,7 +325,7 @@ new class extends Component {
         $this->teacher_job_title_id = '';
         $this->course_id = '';
         $this->status = 'active';
-        $this->is_helping = false;
+        $this->is_helping = true;
         $this->notes = '';
         $this->photo_path = '';
         $this->photo_upload = null;
@@ -652,18 +652,20 @@ new class extends Component {
                 </div>
             </div>
 
-            <div class="grid gap-4 md:grid-cols-2">
-                <div>
-                    <label for="teacher-status" class="mb-1 block text-sm font-medium">{{ __('crud.teachers.form.fields.status') }}</label>
-                    <select id="teacher-status" wire:model="status" class="w-full rounded-xl px-4 py-3 text-sm">
-                        @foreach ($statuses as $teacherStatus)
-                            <option value="{{ $teacherStatus }}">{{ __('crud.common.status_options.' . $teacherStatus) }}</option>
-                        @endforeach
-                    </select>
-                    @error('status')
-                        <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
-                    @enderror
-                </div>
+            <div class="grid gap-4 {{ $editingId ? 'md:grid-cols-2' : '' }}">
+                @if ($editingId)
+                    <div>
+                        <label for="teacher-status" class="mb-1 block text-sm font-medium">{{ __('crud.teachers.form.fields.status') }}</label>
+                        <select id="teacher-status" wire:model="status" class="w-full rounded-xl px-4 py-3 text-sm">
+                            @foreach ($statuses as $teacherStatus)
+                                <option value="{{ $teacherStatus }}">{{ __('crud.common.status_options.' . $teacherStatus) }}</option>
+                            @endforeach
+                        </select>
+                        @error('status')
+                            <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
+                        @enderror
+                    </div>
+                @endif
 
                 <div>
                     <label for="teacher-course" class="mb-1 block text-sm font-medium">{{ __('crud.teachers.form.fields.course') }}</label>
@@ -679,10 +681,12 @@ new class extends Component {
                 </div>
             </div>
 
-            <label class="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm">
-                <input wire:model="is_helping" type="checkbox" class="rounded">
-                <span>{{ __('crud.teachers.form.fields.is_helping') }}</span>
-            </label>
+            @if ($editingId)
+                <label class="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm">
+                    <input wire:model="is_helping" type="checkbox" class="rounded">
+                    <span>{{ __('crud.teachers.form.fields.is_helping') }}</span>
+                </label>
+            @endif
 
             <div>
                 <label for="teacher-notes" class="mb-1 block text-sm font-medium">{{ __('crud.teachers.form.fields.notes') }}</label>

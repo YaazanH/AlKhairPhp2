@@ -8,7 +8,6 @@ use App\Models\Student;
 use App\Models\StudentPageAchievement;
 use App\Models\Teacher;
 use App\Services\AccessScopeService;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Volt\Component;
 
@@ -393,7 +392,7 @@ new class extends Component {
         </div>
     @endif
 
-    <div class="dashboard-split grid gap-6 xl:grid-cols-[minmax(0,1.35fr)_24rem]">
+    <div>
         <section class="surface-table">
             <div class="soft-keyline border-b px-5 py-5 lg:px-6">
                 <div class="flex items-center justify-between gap-4">
@@ -427,25 +426,5 @@ new class extends Component {
                 </div>
             @endif
         </section>
-
-        <aside class="space-y-4">
-            @foreach ($cards as $card)
-                <section class="surface-panel p-5 lg:p-6">
-                    <div class="eyebrow">{{ __('dashboard.hero.workspace_area') }}</div>
-                    <h2 class="font-display mt-3 text-2xl text-white">{{ $card['title'] }}</h2>
-                    <p class="mt-4 text-sm leading-7 text-neutral-300">{{ $card['body'] }}</p>
-
-                    @if ($card['links'] instanceof Collection && $card['links']->isNotEmpty())
-                        <div class="mt-5 flex flex-wrap gap-3">
-                            @foreach ($card['links'] as $link)
-                                <a href="{{ $link['route'] }}" wire:navigate class="pill-link">
-                                    {{ $link['label'] }}
-                                </a>
-                            @endforeach
-                        </div>
-                    @endif
-                </section>
-            @endforeach
-        </aside>
     </div>
 </div>

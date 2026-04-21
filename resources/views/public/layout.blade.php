@@ -8,6 +8,12 @@
         ?: data_get($site, 'site_description.'.config('app.fallback_locale', 'en'));
     $siteAddress = data_get($site, 'contact_address.'.$currentLocale)
         ?: data_get($site, 'contact_address.'.config('app.fallback_locale', 'en'));
+    $metaTitle = $title ?? $site['site_name'];
+    $metaDescription = $metaDescription ?? $siteDescription ?? $siteTagline ?? $site['site_name'];
+    $metaImage = $site['logo_url'] ?? null;
+    $metaImageAlt = $site['site_name'];
+    $metaUrl = url()->current();
+    $themeColor = $site['primary_color'] ?? '#006b2d';
 @endphp
 
 <!DOCTYPE html>

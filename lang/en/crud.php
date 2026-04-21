@@ -14,6 +14,7 @@ return [
             'close' => 'Close',
             'edit' => 'Edit',
             'delete' => 'Delete',
+            'copy' => 'Copy',
             'export' => 'Export',
             'reset' => 'Reset',
             'notes' => 'Notes',
@@ -119,7 +120,7 @@ return [
                 'last_name' => 'Last name',
                 'phone' => 'Phone',
                 'job_title' => 'Job title',
-                'course' => 'Course',
+                'course' => 'Course work starts in',
                 'status' => 'Status',
                 'hired_at' => 'Hired at',
                 'is_helping' => 'Helping now',
@@ -127,7 +128,7 @@ return [
             ],
             'options' => [
                 'select_job_title' => 'Select job title',
-                'select_course' => 'Select course',
+                'select_course' => 'Select starting course',
             ],
             'create_submit' => 'Create teacher',
             'update_submit' => 'Update teacher',
@@ -208,13 +209,19 @@ return [
             'no_description' => 'No description yet.',
             'date_range' => ':start to :end',
         ],
-        'messages' => [
-            'created' => 'Course created successfully.',
-            'updated' => 'Course updated successfully.',
-            'deleted' => 'Course deleted successfully.',
-        ],
-        'errors' => [
-            'delete_linked' => 'This course cannot be deleted while it is linked to other records.',
+            'messages' => [
+                'created' => 'Course created successfully.',
+                'updated' => 'Course updated successfully.',
+                'deleted' => 'Course deleted successfully.',
+                'copied' => 'Course copied with its groups and active enrollments. Operational history was left empty.',
+            ],
+            'copy' => [
+                'confirm' => 'Copy this course with its groups and active enrolled students?',
+                'name' => ':name copy',
+                'name_numbered' => ':name copy :number',
+            ],
+            'errors' => [
+                'delete_linked' => 'This course cannot be deleted while it is linked to other records.',
         ],
     ],
     'students' => [

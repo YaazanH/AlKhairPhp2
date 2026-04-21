@@ -5,6 +5,7 @@ use App\Models\AssessmentScoreBand;
 use App\Models\AssessmentType;
 use App\Models\PointType;
 use App\Services\AssessmentService;
+use Illuminate\Validation\ValidationException;
 use Livewire\Volt\Component;
 
 new class extends Component {
@@ -62,6 +63,7 @@ new class extends Component {
         $this->authorizePermission('assessment-score-bands.manage');
 
         $validated = $this->validate();
+        $this->ensureActiveBandDoesNotOverlap($validated);
 
         AssessmentScoreBand::query()->updateOrCreate(
             ['id' => $this->editingId],
@@ -137,6 +139,34 @@ new class extends Component {
     public function effectivePoints(AssessmentScoreBand $band): int
     {
         return app(AssessmentService::class)->effectiveBandPoints($band);
+    }
+
+    protected function ensureActiveBandDoesNotOverlap(array $validated): void
+    {
+        if (! $validated['is_active']) {
+            return;
+        }
+
+        $overlappingBand = AssessmentScoreBand::query()
+            ->where('assessment_type_id', $validated['assessment_type_id'])
+            ->where('is_active', true)
+            ->when($this->editingId, fn ($query) => $query->whereKeyNot($this->editingId))
+            ->where('from_mark', '<=', (float) $validated['to_mark'])
+            ->where('to_mark', '>=', (float) $validated['from_mark'])
+            ->orderBy('from_mark')
+            ->first();
+
+        if (! $overlappingBand) {
+            return;
+        }
+
+        throw ValidationException::withMessages([
+            'from_mark' => __('workflow.assessments.bands.errors.overlap', [
+                'band' => $overlappingBand->name,
+                'from' => number_format((float) $overlappingBand->from_mark, 2),
+                'to' => number_format((float) $overlappingBand->to_mark, 2),
+            ]),
+        ]);
     }
 }; ?>
 

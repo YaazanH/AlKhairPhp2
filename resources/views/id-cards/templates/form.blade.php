@@ -498,7 +498,34 @@
 
                 if (event.target.matches('[data-inspector]')) {
                     const key = event.target.dataset.inspector;
-                    const value = ['x', 'y', 'width', 'height'].includes(key) ? parseFloat(event.target.value || '0') : (key === 'z_index' ? parseInt(event.target.value || '1', 10) : event.target.value);
+                    const isGeometryKey = ['x', 'y', 'width', 'height'].includes(key);
+                    const isLayerKey = key === 'z_index';
+
+                    if (isGeometryKey || isLayerKey) {
+                        if (event.target.value === '') {
+                            return;
+                        }
+
+                        const value = isGeometryKey ? parseFloat(event.target.value) : parseInt(event.target.value, 10);
+
+                        if (!Number.isFinite(value)) {
+                            return;
+                        }
+
+                        element[key] = value;
+
+                        if (isGeometryKey) {
+                            fitElementToStage(element);
+                        }
+
+                        syncLayoutInput();
+                        renderStage();
+                        renderLayers();
+
+                        return;
+                    }
+
+                    const value = event.target.value;
                     if (key === 'type') {
                         element.type = value;
                         element.field = firstField(value);
@@ -507,20 +534,35 @@
                             element.styling.barcode_format = element.styling.barcode_format || 'code39';
                             applyBarcodeFormatDefaults(element);
                         }
-                    } else {
-                        element[key] = value;
-                        fitElementToStage(element);
+                        render();
+
+                        return;
                     }
-                    render();
+
+                    element[key] = value;
+                    syncLayoutInput();
+                    renderStage();
+                    renderLayers();
                 }
 
                 if (event.target.matches('[data-inspector-style]')) {
                     const key = event.target.dataset.inspectorStyle;
-                    element.styling[key] = event.target.type === 'checkbox' ? event.target.checked : (['font_size', 'border_radius'].includes(key) ? parseFloat(event.target.value || '0') : event.target.value);
+                    const isNumericStyle = ['font_size', 'border_radius'].includes(key);
+
+                    if (isNumericStyle && event.target.value === '') {
+                        return;
+                    }
+
+                    element.styling[key] = event.target.type === 'checkbox' ? event.target.checked : (isNumericStyle ? parseFloat(event.target.value) : event.target.value);
                     if (key === 'barcode_format' || key === 'show_text') {
                         applyBarcodeFormatDefaults(element);
+                        render();
+
+                        return;
                     }
-                    render();
+
+                    syncLayoutInput();
+                    renderStage();
                 }
             });
 

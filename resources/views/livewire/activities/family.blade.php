@@ -12,6 +12,8 @@ use Livewire\Volt\Component;
 new class extends Component {
     use AuthorizesPermissions;
 
+    public array $editingResponses = [];
+
     public function mount(): void
     {
         $this->authorizePermission('activities.responses.view');
@@ -137,6 +139,19 @@ new class extends Component {
 
         session()->flash('status', __('activities.family.messages.'.$response));
         $this->resetErrorBag('response');
+        unset($this->editingResponses[$activityId.'-'.$studentId]);
+    }
+
+    public function editResponse(int $activityId, int $studentId): void
+    {
+        $this->authorizePermission('activities.responses.respond');
+
+        $this->editingResponses[$activityId.'-'.$studentId] = true;
+    }
+
+    public function cancelEditResponse(int $activityId, int $studentId): void
+    {
+        unset($this->editingResponses[$activityId.'-'.$studentId]);
     }
 }; ?>
 
@@ -225,6 +240,8 @@ new class extends Component {
                                         $registration = $entry['registration'];
                                         $responseState = $registration?->status ?: 'pending';
                                         $hasPayment = $registration?->payments?->isNotEmpty() ?? false;
+                                        $responseKey = $activity->id.'-'.$entry['student']->id;
+                                        $isEditingResponse = $this->editingResponses[$responseKey] ?? false;
                                     @endphp
                                     <tr>
                                         <td class="px-5 py-4">
@@ -245,12 +262,23 @@ new class extends Component {
                                         <td class="px-5 py-4">
                                             <div class="admin-action-cluster admin-action-cluster--end">
                                                 @can('activities.responses.respond')
-                                                    <button type="button" wire:click="respond({{ $activity->id }}, {{ $entry['student']->id }}, 'registered')" class="pill-link pill-link--compact pill-link--accent">
-                                                        {{ __('activities.family.actions.attend') }}
-                                                    </button>
-                                                    <button type="button" wire:click="respond({{ $activity->id }}, {{ $entry['student']->id }}, 'declined')" @disabled($hasPayment) class="pill-link pill-link--compact border-red-400/25 text-red-200 hover:border-red-300/35 hover:bg-red-500/12 disabled:cursor-not-allowed disabled:opacity-60">
-                                                        {{ __('activities.family.actions.decline') }}
-                                                    </button>
+                                                    @if ($registration && ! $isEditingResponse)
+                                                        <button type="button" wire:click="editResponse({{ $activity->id }}, {{ $entry['student']->id }})" @disabled($hasPayment) class="pill-link pill-link--compact disabled:cursor-not-allowed disabled:opacity-60">
+                                                            {{ __('activities.family.actions.edit_response') }}
+                                                        </button>
+                                                    @else
+                                                        <button type="button" wire:click="respond({{ $activity->id }}, {{ $entry['student']->id }}, 'registered')" class="pill-link pill-link--compact pill-link--accent">
+                                                            {{ __('activities.family.actions.attend') }}
+                                                        </button>
+                                                        <button type="button" wire:click="respond({{ $activity->id }}, {{ $entry['student']->id }}, 'declined')" @disabled($hasPayment) class="pill-link pill-link--compact border-red-400/25 text-red-200 hover:border-red-300/35 hover:bg-red-500/12 disabled:cursor-not-allowed disabled:opacity-60">
+                                                            {{ __('activities.family.actions.decline') }}
+                                                        </button>
+                                                        @if ($registration)
+                                                            <button type="button" wire:click="cancelEditResponse({{ $activity->id }}, {{ $entry['student']->id }})" class="pill-link pill-link--compact">
+                                                                {{ __('activities.family.actions.cancel_edit') }}
+                                                            </button>
+                                                        @endif
+                                                    @endif
                                                 @endcan
                                             </div>
                                         </td>

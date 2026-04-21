@@ -639,10 +639,6 @@ new class extends Component {
             </div>
             <div class="admin-toolbar__actions">
                 <button type="button" wire:click="openOrganizationModal" class="pill-link">{{ __('settings.organization.actions.save_settings') }}</button>
-                <button type="button" wire:click="openAcademicYearModal" class="pill-link pill-link--accent">{{ __('settings.organization.actions.create_year') }}</button>
-                <button type="button" wire:click="openGradeLevelModal" class="pill-link">{{ __('settings.organization.actions.create_grade') }}</button>
-                <button type="button" wire:click="openTeacherJobTitleModal" class="pill-link">{{ __('settings.organization.actions.create_teacher_job_title') }}</button>
-                <button type="button" wire:click="openStudentGenderModal" class="pill-link">{{ __('settings.organization.actions.create_student_gender') }}</button>
             </div>
         </div>
     </section>
@@ -770,7 +766,13 @@ new class extends Component {
 
         <section class="space-y-6">
             <div class="overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700">
-                <div class="border-b border-neutral-200 px-5 py-4 text-sm font-medium dark:border-neutral-700">{{ __('settings.organization.sections.academic_year.table') }}</div>
+                <div class="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-200 px-5 py-4 dark:border-neutral-700">
+                    <div>
+                        <div class="text-sm font-medium">{{ __('settings.organization.sections.academic_year.table') }}</div>
+                        <p class="mt-1 text-xs text-neutral-500">{{ __('settings.organization.sections.academic_year.copy') }}</p>
+                    </div>
+                    <button type="button" wire:click="openAcademicYearModal" class="pill-link pill-link--accent">{{ __('settings.organization.actions.create_year') }}</button>
+                </div>
                 @if ($academicYears->isEmpty())
                     <div class="px-5 py-10 text-sm text-neutral-500">{{ __('settings.organization.sections.academic_year.empty') }}</div>
                 @else
@@ -802,7 +804,13 @@ new class extends Component {
             </div>
 
             <div class="overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700">
-                <div class="border-b border-neutral-200 px-5 py-4 text-sm font-medium dark:border-neutral-700">{{ __('settings.organization.sections.grade_level.table') }}</div>
+                <div class="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-200 px-5 py-4 dark:border-neutral-700">
+                    <div>
+                        <div class="text-sm font-medium">{{ __('settings.organization.sections.grade_level.table') }}</div>
+                        <p class="mt-1 text-xs text-neutral-500">{{ __('settings.organization.sections.grade_level.copy') }}</p>
+                    </div>
+                    <button type="button" wire:click="openGradeLevelModal" class="pill-link pill-link--accent">{{ __('settings.organization.actions.create_grade') }}</button>
+                </div>
                 @if ($gradeLevels->isEmpty())
                     <div class="px-5 py-10 text-sm text-neutral-500">{{ __('settings.organization.sections.grade_level.empty') }}</div>
                 @else
@@ -831,7 +839,13 @@ new class extends Component {
             </div>
 
             <div class="overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700">
-                <div class="border-b border-neutral-200 px-5 py-4 text-sm font-medium dark:border-neutral-700">{{ __('settings.organization.sections.teacher_job_title.table') }}</div>
+                <div class="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-200 px-5 py-4 dark:border-neutral-700">
+                    <div>
+                        <div class="text-sm font-medium">{{ __('settings.organization.sections.teacher_job_title.table') }}</div>
+                        <p class="mt-1 text-xs text-neutral-500">{{ __('settings.organization.sections.teacher_job_title.copy') }}</p>
+                    </div>
+                    <button type="button" wire:click="openTeacherJobTitleModal" class="pill-link pill-link--accent">{{ __('settings.organization.actions.create_teacher_job_title') }}</button>
+                </div>
                 @if ($teacherJobTitles->isEmpty())
                     <div class="px-5 py-10 text-sm text-neutral-500">{{ __('settings.organization.sections.teacher_job_title.empty') }}</div>
                 @else
@@ -860,7 +874,13 @@ new class extends Component {
             </div>
 
             <div class="overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700">
-                <div class="border-b border-neutral-200 px-5 py-4 text-sm font-medium dark:border-neutral-700">{{ __('settings.organization.sections.student_gender.table') }}</div>
+                <div class="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-200 px-5 py-4 dark:border-neutral-700">
+                    <div>
+                        <div class="text-sm font-medium">{{ __('settings.organization.sections.student_gender.table') }}</div>
+                        <p class="mt-1 text-xs text-neutral-500">{{ __('settings.organization.sections.student_gender.copy') }}</p>
+                    </div>
+                    <button type="button" wire:click="openStudentGenderModal" class="pill-link pill-link--accent">{{ __('settings.organization.actions.create_student_gender') }}</button>
+                </div>
                 @if ($studentGenders->isEmpty())
                     <div class="px-5 py-10 text-sm text-neutral-500">{{ __('settings.organization.sections.student_gender.empty') }}</div>
                 @else

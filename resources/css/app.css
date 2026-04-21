@@ -107,6 +107,11 @@
         color: rgba(186, 169, 145, 0.75);
     }
 
+    select option {
+        background: #082112;
+        color: var(--app-text);
+    }
+
     button,
     a {
         transition: background-color 180ms ease, border-color 180ms ease, color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
@@ -193,6 +198,10 @@ select:focus[data-flux-control] {
     width: 100%;
 }
 
+.searchable-select--open {
+    z-index: 120;
+}
+
 .searchable-select__native {
     position: absolute !important;
     width: 1px !important;
@@ -231,21 +240,26 @@ select:focus[data-flux-control] {
 }
 
 .searchable-select__value {
+    flex: 1 1 auto;
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    text-align: start;
 }
 
 .searchable-select__chevron {
+    flex: 0 0 auto;
     color: rgba(216, 204, 185, 0.72);
     font-size: 1rem;
+    line-height: 1;
 }
 
 .searchable-select__panel {
     position: absolute;
     inset-inline: 0;
     top: calc(100% + 0.35rem);
-    z-index: 80;
+    z-index: 120;
     overflow: hidden;
     border-radius: 1rem;
     border: 1px solid rgba(216, 204, 185, 0.16);
@@ -522,14 +536,28 @@ article[class*='rounded-2xl border border-neutral-200'] {
 
 .surface-panel {
     position: relative;
+    z-index: 2;
+    overflow: visible;
     border-radius: 1.5rem;
     background: var(--app-panel);
 }
 
 .surface-table {
+    position: relative;
+    z-index: 1;
     overflow: hidden;
     border-radius: 1.5rem;
     background: var(--app-panel);
+}
+
+.surface-panel:has(.searchable-select--open),
+.surface-table:has(.searchable-select--open) {
+    z-index: 70;
+}
+
+.surface-table:has(.searchable-select--open),
+.surface-table:has(.admin-toolbar) {
+    overflow: visible;
 }
 
 .surface-table table {
@@ -675,11 +703,33 @@ form[data-admin-confirm-message] button[type='submit']:hover {
 .admin-filter-field input,
 .admin-filter-field select {
     width: 100%;
+    height: 3.125rem;
     border: 1px solid rgba(151, 219, 174, 0.18);
     border-radius: 1rem;
     background: rgba(255, 255, 255, 0.03);
     padding: 0.9rem 1rem;
     color: var(--app-text);
+    box-sizing: border-box;
+}
+
+.admin-filter-field .searchable-select__button {
+    height: 3.125rem;
+    min-height: 3.125rem;
+    align-items: center;
+    border-color: rgba(151, 219, 174, 0.18);
+    border-radius: 1rem;
+    background: rgba(255, 255, 255, 0.03);
+    padding: 0.9rem 1rem;
+    box-sizing: border-box;
+    line-height: 1.45;
+}
+
+.admin-toolbar .admin-filter-field .searchable-select__value,
+.admin-filter-field .searchable-select .searchable-select__value {
+    max-width: none;
+    overflow: visible !important;
+    text-overflow: clip !important;
+    line-height: 1.45;
 }
 
 .admin-grid-meta {
@@ -1705,30 +1755,81 @@ html[dir='rtl'] .app-pagination__nav {
 
 @media (max-width: 767px) {
     .public-shell {
-        padding: 1rem;
+        padding: 0.75rem;
+    }
+
+    .public-header {
+        position: static;
     }
 
     .public-header__inner {
-        padding: 1rem;
+        gap: 0.65rem;
+        border-radius: 1.25rem;
+        padding: 0.75rem;
+    }
+
+    .public-brand {
+        width: 100%;
+        gap: 0.7rem;
     }
 
     .public-brand__mark {
-        width: 3.25rem;
-        height: 3.25rem;
+        width: 2.75rem;
+        height: 2.75rem;
+        border-radius: 0.9rem;
+    }
+
+    .public-brand__name {
+        font-size: 1.05rem;
+    }
+
+    .public-brand__tagline {
+        display: none;
     }
 
     .public-nav {
         width: 100%;
+        flex-wrap: nowrap;
+        gap: 0.4rem;
+        overflow-x: auto;
+        padding-bottom: 0.2rem;
+        scrollbar-width: none;
+    }
+
+    .public-nav::-webkit-scrollbar {
+        display: none;
     }
 
     .public-nav__group,
     .public-nav__group > summary,
     .public-nav__link {
-        width: 100%;
+        width: auto;
+        flex: 0 0 auto;
+    }
+
+    .public-nav__link {
+        padding: 0.52rem 0.72rem;
+        font-size: 0.8rem;
     }
 
     .public-nav__dropdown {
+        min-width: 13rem;
+        margin-top: 0.35rem;
+    }
+
+    .public-actions {
         width: 100%;
+        justify-content: space-between;
+        gap: 0.5rem;
+    }
+
+    .public-actions .pill-link {
+        padding: 0.52rem 0.72rem;
+        font-size: 0.78rem;
+    }
+
+    .public-main {
+        margin-top: 0.85rem;
     }
 }
 

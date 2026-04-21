@@ -28,6 +28,7 @@ return [
         'all_assessment_types' => 'كل أنواع التقييم',
         'date_from' => 'التاريخ من',
         'date_to' => 'التاريخ إلى',
+        'date_range' => 'نطاق التاريخ',
         'clear' => 'مسح الفلاتر',
     ],
     'exports' => [
@@ -69,6 +70,7 @@ return [
         'eyebrow' => 'الحضور',
         'title' => 'توزيع الحالات',
         'days_recorded' => 'أيام الحضور المسجلة: :count',
+        'empty' => 'لا توجد سجلات حضور تطابق الفلاتر الحالية.',
     ],
     'assessments' => [
         'eyebrow' => 'التقييمات',

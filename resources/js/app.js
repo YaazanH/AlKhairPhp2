@@ -5,6 +5,7 @@ const adminConfirmState = {
     params: [],
     form: null,
 };
+let adminConfirmDelegatedListenersBound = false;
 
 function parseLivewireAction(expression) {
     if (!expression) {
@@ -13,7 +14,15 @@ function parseLivewireAction(expression) {
 
     let payload = null;
     const normalizedExpression = expression.trim();
+    const bareMethodCall = normalizedExpression.match(/^([A-Za-z_$][\w$]*)$/);
     const directMethodCall = normalizedExpression.match(/^([A-Za-z_$][\w$]*)\s*\(/);
+
+    if (bareMethodCall) {
+        return {
+            method: bareMethodCall[1],
+            params: [],
+        };
+    }
 
     try {
         const context = new Proxy({}, {
@@ -181,27 +190,33 @@ function handleFormConfirm(event) {
 function registerAdminConfirmListeners() {
     const { accept, cancel, closeButtons, modal } = adminConfirmElements();
 
-    if (!modal || modal.dataset.bound === 'true') {
+    if (!modal) {
         return;
     }
 
-    modal.dataset.bound = 'true';
+    if (!adminConfirmDelegatedListenersBound) {
+        adminConfirmDelegatedListenersBound = true;
 
-    document.addEventListener('click', handleLivewireConfirm, true);
-    document.addEventListener('submit', handleFormConfirm, true);
+        document.addEventListener('click', handleLivewireConfirm, true);
+        document.addEventListener('submit', handleFormConfirm, true);
 
-    accept?.addEventListener('click', confirmAdminAction);
-    cancel?.addEventListener('click', closeAdminConfirm);
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape') {
+                closeAdminConfirm();
+            }
+        });
+    }
 
-    closeButtons.forEach((element) => {
-        element.addEventListener('click', closeAdminConfirm);
-    });
+    if (modal.dataset.bound !== 'true') {
+        modal.dataset.bound = 'true';
 
-    document.addEventListener('keydown', (event) => {
-        if (event.key === 'Escape') {
-            closeAdminConfirm();
-        }
-    });
+        accept?.addEventListener('click', confirmAdminAction);
+        cancel?.addEventListener('click', closeAdminConfirm);
+
+        closeButtons.forEach((element) => {
+            element.addEventListener('click', closeAdminConfirm);
+        });
+    }
 }
 
 window.AdminConfirm = {
@@ -210,6 +225,7 @@ window.AdminConfirm = {
 };
 
 document.addEventListener('DOMContentLoaded', registerAdminConfirmListeners);
+document.addEventListener('livewire:navigated', registerAdminConfirmListeners);
 
 function selectedOptionText(select) {
     const option = select.options[select.selectedIndex];
@@ -304,11 +320,17 @@ function enhanceSearchableSelect(select) {
         return;
     }
 
-    if (select.dataset.searchableBound === 'true' && select.nextElementSibling?.classList.contains('searchable-select')) {
+    const existingWrapper = select.nextElementSibling?.classList.contains('searchable-select')
+        ? select.nextElementSibling
+        : null;
+
+    if (select.dataset.searchableBound === 'true' && existingWrapper) {
         select.searchableSelectSync?.();
 
         return;
     }
+
+    existingWrapper?.remove();
 
     if (select.dataset.searchableBound === 'true') {
         delete select.dataset.searchableBound;

@@ -9,6 +9,7 @@ use App\Models\Student;
 use App\Models\Teacher;
 use App\Services\MemorizationService;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\DB;
 use Livewire\Volt\Component;
 use Livewire\WithPagination;
 
@@ -279,6 +280,32 @@ new class extends Component {
         $this->closeFormModal();
     }
 
+    public function deleteSession(int $sessionId): void
+    {
+        $this->authorizePermission('memorization.record');
+
+        $session = $this->scopeMemorizationSessionsQuery(
+            MemorizationSession::query()->with(['student', 'pages'])
+        )->findOrFail($sessionId);
+
+        $student = $session->student;
+
+        DB::transaction(function () use ($session, $student): void {
+            $session->pages()->delete();
+            $session->delete();
+
+            if ($student) {
+                app(MemorizationService::class)->rebuildStudentAchievementsAndPoints($student);
+            }
+        });
+
+        if ($this->editingSessionId === $sessionId) {
+            $this->closeFormModal();
+        }
+
+        session()->flash('status', __('workflow.memorization.messages.deleted'));
+    }
+
     public function resetForm(): void
     {
         $this->editingSessionId = null;
@@ -421,8 +448,9 @@ new class extends Component {
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $session->teacher?->first_name }} {{ $session->teacher?->last_name }}</td>
                                 @can('memorization.record')
                                     <td class="px-5 py-4 lg:px-6">
-                                        <div class="flex justify-end">
+                                        <div class="flex flex-wrap justify-end gap-2">
                                             <button type="button" wire:click="editSession({{ $session->id }})" class="pill-link pill-link--compact">{{ __('workflow.common.actions.edit') }}</button>
+                                            <button type="button" wire:click="deleteSession({{ $session->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link pill-link--compact border-red-400/25 text-red-200 hover:border-red-300/35 hover:bg-red-500/12">{{ __('crud.common.actions.delete') }}</button>
                                         </div>
                                     </td>
                                 @endcan

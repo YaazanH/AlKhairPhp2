@@ -77,9 +77,10 @@ return [
             'title' => 'Attendance Days',
             'subtitle' => 'Create one attendance day for a date, then review its active groups before marking each class roster.',
             'create' => 'New attendance day',
-            'messages' => [
-                'created' => 'Attendance day created successfully.',
-            ],
+              'messages' => [
+                  'created' => 'Attendance day created successfully.',
+                  'deleted' => 'Attendance day deleted successfully.',
+              ],
             'stats' => [
                 'days' => 'Attendance days',
                 'groups' => 'Grouped sessions',
@@ -157,12 +158,13 @@ return [
             'marked_today' => 'Marked for selected day',
             'attendance_days' => 'Attendance days',
         ],
-        'messages' => [
-            'saved' => 'Student attendance saved successfully.',
-            'void_reason' => 'Attendance status updated.',
-            'automatic_points' => 'Automatic attendance points for :status',
-            'default_status_note' => 'Default attendance status applied during day creation: :status',
-        ],
+          'messages' => [
+              'saved' => 'Student attendance saved successfully.',
+              'void_reason' => 'Attendance status updated.',
+              'deleted_void_reason' => 'Attendance day deleted.',
+              'automatic_points' => 'Automatic attendance points for :status',
+              'default_status_note' => 'Default attendance status applied during day creation: :status',
+          ],
         'form' => [
             'title' => 'Attendance workbench',
             'help' => 'Choose a date, load an existing day if needed, then mark each active enrollment from one screen.',
@@ -196,20 +198,27 @@ return [
     'teacher_attendance' => [
         'title' => 'Teacher Attendance',
         'subtitle' => 'Create or reopen one attendance day for teachers currently marked as helping, then mark each teacher under that date.',
-        'messages' => [
-            'saved' => 'Teacher attendance saved successfully.',
-        ],
+         'messages' => [
+             'saved' => 'Teacher attendance saved successfully.',
+             'deleted' => 'Teacher attendance day deleted successfully.',
+         ],
         'errors' => [
             'teacher_not_helping' => 'Only teachers marked as helping can be added to teacher attendance.',
         ],
-        'form' => [
-            'attendance_date' => 'Attendance date',
-            'day_status' => 'Day status',
-            'notes' => 'Notes',
-        ],
-        'table' => [
-            'title' => 'Teacher day records',
-            'headers' => [
+         'form' => [
+             'title' => 'Teacher attendance setup',
+             'help' => 'Pick the day and mark only teachers currently flagged as helping.',
+             'attendance_date' => 'Attendance date',
+             'day_status' => 'Day status',
+             'notes' => 'Notes',
+         ],
+         'stats' => [
+             'helping_teachers' => ':count helping teachers',
+         ],
+         'table' => [
+             'title' => 'Teacher day records',
+             'summary' => ':count teachers available for this day',
+             'headers' => [
                 'teacher' => 'Teacher',
                 'job_title' => 'Job title',
                 'status' => 'Status',
@@ -269,6 +278,7 @@ return [
         'messages' => [
             'saved' => 'Memorization session saved successfully.',
             'updated' => 'Memorization session updated successfully.',
+            'deleted' => 'Memorization session deleted and student progress recalculated.',
             'automatic_reward' => 'Automatic memorization reward for :count new pages.',
             'void_reason' => 'Memorization session recalculated.',
         ],
@@ -455,6 +465,13 @@ return [
             'voided' => 'Point transaction voided successfully.',
             'void_reason' => 'Voided from the enrollment point ledger page.',
         ],
+        'void' => [
+            'title' => 'Void point entry',
+            'description' => 'Enter the reason before removing this point entry from active totals.',
+            'form' => [
+                'reason' => 'Delete reason',
+            ],
+        ],
         'errors' => [
             'negative_not_allowed' => 'This point type does not allow negative values.',
             'edit_manual_only' => 'Only active manual point entries can be edited.',
@@ -571,6 +588,9 @@ return [
                 'created' => 'Score band created successfully.',
                 'updated' => 'Score band updated successfully.',
                 'deleted' => 'Score band deleted successfully.',
+            ],
+            'errors' => [
+                'overlap' => 'This range overlaps with :band (:from - :to). Adjust the marks so active bands for the same assessment type do not overlap.',
             ],
             'form' => [
                 'create_title' => 'New score band',

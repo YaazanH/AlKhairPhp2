@@ -222,6 +222,8 @@ return [
         'actions' => [
             'attend' => 'Yes, attending',
             'decline' => 'No, not attending',
+            'edit_response' => 'Edit response',
+            'cancel_edit' => 'Cancel edit',
         ],
         'messages' => [
             'registered' => 'Attendance was confirmed for this activity.',
