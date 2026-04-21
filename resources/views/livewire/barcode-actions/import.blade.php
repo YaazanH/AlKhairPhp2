@@ -152,7 +152,7 @@ new class extends Component {
         <div class="flash-success px-4 py-3 text-sm">{{ session('status') }}</div>
     @endif
 
-    <div class="mx-auto grid w-full max-w-6xl gap-6">
+    <div class="grid gap-6 xl:grid-cols-[minmax(0,1fr)_26rem]">
         <section class="surface-panel overflow-hidden p-5 lg:p-6">
             <div class="admin-toolbar">
                 <div>
@@ -219,7 +219,7 @@ new class extends Component {
             </div>
         </section>
 
-        <aside class="grid gap-6 lg:grid-cols-2">
+        <aside class="space-y-6">
             <section id="scanner-command-panel" class="surface-panel p-5">
                 <div class="admin-toolbar__title">{{ __('barcodes.import.scanner_commands.title') }}</div>
                 <p class="admin-toolbar__subtitle">{{ __('barcodes.import.scanner_commands.subtitle') }}</p>

@@ -1,5 +1,10 @@
+@php
+    $showWebsiteSettings = request()->routeIs('settings.website', 'settings.website.pages', 'settings.website.navigation');
+@endphp
+
 <div class="surface-panel p-4">
-    <div class="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
+    <div class="grid gap-4">
+        @unless($showWebsiteSettings)
         <section class="rounded-2xl border border-white/8 bg-white/4 p-3">
             <div class="mb-3 px-2">
                 <div class="eyebrow">{{ __('settings.navigation.groups.dashboard.meta') }}</div>
@@ -25,7 +30,9 @@
                 </a>
             </div>
         </section>
+        @endunless
 
+        @if($showWebsiteSettings)
         @can('website.manage')
             <section class="rounded-2xl border border-white/8 bg-white/4 p-3">
                 <div class="mb-3 px-2">
@@ -49,5 +56,6 @@
                 </div>
             </section>
         @endcan
+        @endif
     </div>
 </div>

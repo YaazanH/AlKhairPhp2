@@ -357,10 +357,6 @@ new class extends Component {
                 <div class="admin-toolbar__title">{{ __('settings.points.title') }}</div>
                 <p class="admin-toolbar__subtitle">{{ __('settings.points.subtitle') }}</p>
             </div>
-            <div class="admin-toolbar__actions">
-                <button type="button" wire:click="openPointTypeModal" class="pill-link pill-link--accent">{{ __('settings.points.actions.create_point_type') }}</button>
-                <button type="button" wire:click="openPointPolicyModal" class="pill-link">{{ __('settings.points.actions.create_policy') }}</button>
-            </div>
         </div>
     </section>
 
@@ -428,7 +424,13 @@ new class extends Component {
 
         <section class="space-y-6">
             <div class="overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700">
-                <div class="border-b border-neutral-200 px-5 py-4 text-sm font-medium dark:border-neutral-700">{{ __('settings.points.sections.point_type.table') }}</div>
+                <div class="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-200 px-5 py-4 dark:border-neutral-700">
+                    <div>
+                        <div class="text-sm font-medium">{{ __('settings.points.sections.point_type.table') }}</div>
+                        <p class="mt-1 text-xs text-neutral-500 dark:text-neutral-400">{{ __('settings.points.sections.point_type.copy') }}</p>
+                    </div>
+                    <button type="button" wire:click="openPointTypeModal" class="pill-link pill-link--accent">{{ __('settings.points.actions.create_point_type') }}</button>
+                </div>
                 <div class="overflow-x-auto">
                     <table class="min-w-full divide-y divide-neutral-200 text-sm dark:divide-neutral-700">
                         <thead class="bg-neutral-50 dark:bg-neutral-900/60"><tr><th class="px-5 py-3 text-left font-medium">{{ __('settings.points.table.type') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.points.table.category') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.points.table.amount') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.points.table.usage') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.points.table.state') }}</th><th class="px-5 py-3 text-right font-medium">{{ __('settings.points.table.actions') }}</th></tr></thead>
@@ -449,7 +451,13 @@ new class extends Component {
             </div>
 
             <div class="overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700">
-                <div class="border-b border-neutral-200 px-5 py-4 text-sm font-medium dark:border-neutral-700">{{ __('settings.points.sections.point_policy.table') }}</div>
+                <div class="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-200 px-5 py-4 dark:border-neutral-700">
+                    <div>
+                        <div class="text-sm font-medium">{{ __('settings.points.sections.point_policy.table') }}</div>
+                        <p class="mt-1 text-xs text-neutral-500 dark:text-neutral-400">{{ __('settings.points.sections.point_policy.copy') }}</p>
+                    </div>
+                    <button type="button" wire:click="openPointPolicyModal" class="pill-link pill-link--accent">{{ __('settings.points.actions.create_policy') }}</button>
+                </div>
                 <div class="overflow-x-auto">
                     <table class="min-w-full divide-y divide-neutral-200 text-sm dark:divide-neutral-700">
                         <thead class="bg-neutral-50 dark:bg-neutral-900/60"><tr><th class="px-5 py-3 text-left font-medium">{{ __('settings.points.table.policy') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.points.table.trigger') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.points.table.range') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.points.table.points') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.points.table.state') }}</th><th class="px-5 py-3 text-right font-medium">{{ __('settings.points.table.actions') }}</th></tr></thead>

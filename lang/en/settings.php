@@ -61,6 +61,46 @@ return [
             'email_help' => 'Email is kept for account identity. Password recovery is handled by mosque management.',
             'saved' => 'Profile saved.',
         ],
+        'password' => [
+            'title' => 'Password settings',
+            'subtitle' => 'Update the password used to access your dashboard account.',
+            'form_title' => 'Update password',
+            'form_subtitle' => 'Use a strong password and keep it available only to the account owner.',
+            'fields' => [
+                'current_password' => 'Current password',
+                'password' => 'New password',
+                'password_confirmation' => 'Confirm password',
+            ],
+            'saved' => 'Password saved.',
+        ],
+        'appearance' => [
+            'title' => 'Appearance settings',
+            'subtitle' => 'Choose the display mode for your account.',
+            'form_title' => 'Dashboard appearance',
+            'form_subtitle' => 'This preference affects your account on this device.',
+            'options' => [
+                'light' => 'Light',
+                'dark' => 'Dark',
+                'system' => 'System',
+            ],
+        ],
+        'heading' => [
+            'title' => 'Settings',
+            'subtitle' => 'Manage your profile and account settings.',
+        ],
+        'delete' => [
+            'title' => 'Delete account',
+            'subtitle' => 'Delete your account and all of its resources.',
+            'confirm_title' => 'Are you sure you want to delete your account?',
+            'confirm_description' => 'Once your account is deleted, all of its resources and data will be permanently deleted. Enter your password to confirm.',
+            'fields' => [
+                'password' => 'Password',
+            ],
+            'actions' => [
+                'delete' => 'Delete account',
+                'cancel' => 'Cancel',
+            ],
+        ],
     ],
     'organization' => [
         'title' => 'Dashboard Settings',

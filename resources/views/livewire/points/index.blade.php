@@ -425,6 +425,7 @@ new class extends Component {
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.points.workbench.table.headers.source') }}</th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.points.workbench.table.headers.points') }}</th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.points.workbench.table.headers.state') }}</th>
+                            <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.points.workbench.table.headers.void_reason') }}</th>
                             <th class="px-5 py-4 text-right lg:px-6">{{ __('workflow.points.workbench.table.headers.actions') }}</th>
                         </tr>
                     </thead>
@@ -464,6 +465,13 @@ new class extends Component {
                                     <span class="{{ $transaction->voided_at ? 'status-chip status-chip--slate' : 'status-chip status-chip--emerald' }}">
                                         {{ $transaction->voided_at ? __('workflow.common.ledger_state.voided') : __('workflow.common.ledger_state.active') }}
                                     </span>
+                                </td>
+                                <td class="max-w-xs px-5 py-4 text-neutral-300 lg:px-6">
+                                    @if ($transaction->voided_at)
+                                        <div class="line-clamp-2">{{ $transaction->void_reason ?: __('crud.common.not_available') }}</div>
+                                    @else
+                                        <span class="text-neutral-500">{{ __('crud.common.not_available') }}</span>
+                                    @endif
                                 </td>
                                 <td class="px-5 py-4 lg:px-6">
                                     <div class="flex flex-wrap justify-end gap-2">

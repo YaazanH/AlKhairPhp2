@@ -39,47 +39,39 @@ new class extends Component {
 }; ?>
 
 <section class="w-full">
-    @include('partials.settings-heading')
+    <div class="page-stack">
+        <section class="page-hero p-6 lg:p-8">
+            <div class="eyebrow">{{ __('ui.nav.settings') }}</div>
+            <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('settings.account.password.title') }}</h1>
+            <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ __('settings.account.password.subtitle') }}</p>
+        </section>
 
-    <x-settings.layout heading="Update password" subheading="Ensure your account is using a long, random password to stay secure">
-        <form wire:submit="updatePassword" class="mt-6 space-y-6">
-            <flux:input
-                wire:model="current_password"
-                id="update_password_current_passwordpassword"
-                label="{{ __('Current password') }}"
-                type="password"
-                name="current_password"
-                required
-                autocomplete="current-password"
-            />
-            <flux:input
-                wire:model="password"
-                id="update_password_password"
-                label="{{ __('New password') }}"
-                type="password"
-                name="password"
-                required
-                autocomplete="new-password"
-            />
-            <flux:input
-                wire:model="password_confirmation"
-                id="update_password_password_confirmation"
-                label="{{ __('Confirm Password') }}"
-                type="password"
-                name="password_confirmation"
-                required
-                autocomplete="new-password"
-            />
+        <x-settings.layout :heading="__('settings.account.password.form_title')" :subheading="__('settings.account.password.form_subtitle')">
+        <form wire:submit="updatePassword" class="admin-form-grid">
+            <div class="admin-form-field admin-form-field--full">
+                <label for="update_password_current_password" class="mb-1 block text-sm font-medium">{{ __('settings.account.password.fields.current_password') }}</label>
+                <input id="update_password_current_password" wire:model="current_password" type="password" name="current_password" required autocomplete="current-password" class="w-full rounded-xl px-4 py-3 text-sm">
+                @error('current_password') <div class="mt-1 text-sm text-red-200">{{ $message }}</div> @enderror
+            </div>
 
-            <div class="flex items-center gap-4">
-                <div class="flex items-center justify-end">
-                    <flux:button variant="primary" type="submit" class="w-full">{{ __('Save') }}</flux:button>
-                </div>
+            <div class="admin-form-field admin-form-field--full">
+                <label for="update_password_password" class="mb-1 block text-sm font-medium">{{ __('settings.account.password.fields.password') }}</label>
+                <input id="update_password_password" wire:model="password" type="password" name="password" required autocomplete="new-password" class="w-full rounded-xl px-4 py-3 text-sm">
+                @error('password') <div class="mt-1 text-sm text-red-200">{{ $message }}</div> @enderror
+            </div>
 
-                <x-action-message class="me-3" on="password-updated">
-                    {{ __('Saved.') }}
+            <div class="admin-form-field admin-form-field--full">
+                <label for="update_password_password_confirmation" class="mb-1 block text-sm font-medium">{{ __('settings.account.password.fields.password_confirmation') }}</label>
+                <input id="update_password_password_confirmation" wire:model="password_confirmation" type="password" name="password_confirmation" required autocomplete="new-password" class="w-full rounded-xl px-4 py-3 text-sm">
+            </div>
+
+            <div class="admin-action-cluster admin-form-field--full">
+                <button type="submit" class="pill-link pill-link--accent">{{ __('settings.common.actions.save') }}</button>
+                <x-action-message class="text-sm text-emerald-200" on="password-updated">
+                    {{ __('settings.account.password.saved') }}
                 </x-action-message>
             </div>
         </form>
-    </x-settings.layout>
+        </x-settings.layout>
+    </div>
 </section>

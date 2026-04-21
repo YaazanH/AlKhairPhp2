@@ -307,8 +307,6 @@ new class extends Component {
             </div>
             <div class="admin-toolbar__actions">
                 <button type="button" wire:click="openFinanceSettingsModal" class="pill-link">{{ __('settings.finance.actions.save_settings') }}</button>
-                <button type="button" wire:click="openPaymentMethodModal" class="pill-link pill-link--accent">{{ __('settings.finance.actions.create_method') }}</button>
-                <button type="button" wire:click="openExpenseCategoryModal" class="pill-link">{{ __('settings.finance.actions.create_category') }}</button>
             </div>
         </div>
     </section>
@@ -348,7 +346,13 @@ new class extends Component {
 
         <section class="space-y-6">
             <div class="overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700">
-                <div class="border-b border-neutral-200 px-5 py-4 text-sm font-medium dark:border-neutral-700">{{ __('settings.finance.sections.payment_method.table') }}</div>
+                <div class="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-200 px-5 py-4 dark:border-neutral-700">
+                    <div>
+                        <div class="text-sm font-medium">{{ __('settings.finance.sections.payment_method.table') }}</div>
+                        <p class="mt-1 text-xs text-neutral-500 dark:text-neutral-400">{{ __('settings.finance.sections.payment_method.copy') }}</p>
+                    </div>
+                    <button type="button" wire:click="openPaymentMethodModal" class="pill-link pill-link--accent">{{ __('settings.finance.actions.create_method') }}</button>
+                </div>
                 <div class="overflow-x-auto">
                     <table class="min-w-full divide-y divide-neutral-200 text-sm dark:divide-neutral-700">
                         <thead class="bg-neutral-50 dark:bg-neutral-900/60"><tr><th class="px-5 py-3 text-left font-medium">{{ __('settings.finance.table.method') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.finance.table.code') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.finance.table.state') }}</th><th class="px-5 py-3 text-right font-medium">{{ __('settings.finance.table.actions') }}</th></tr></thead>
@@ -367,7 +371,13 @@ new class extends Component {
             </div>
 
             <div class="overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700">
-                <div class="border-b border-neutral-200 px-5 py-4 text-sm font-medium dark:border-neutral-700">{{ __('settings.finance.sections.expense_category.table') }}</div>
+                <div class="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-200 px-5 py-4 dark:border-neutral-700">
+                    <div>
+                        <div class="text-sm font-medium">{{ __('settings.finance.sections.expense_category.table') }}</div>
+                        <p class="mt-1 text-xs text-neutral-500 dark:text-neutral-400">{{ __('settings.finance.sections.expense_category.copy') }}</p>
+                    </div>
+                    <button type="button" wire:click="openExpenseCategoryModal" class="pill-link pill-link--accent">{{ __('settings.finance.actions.create_category') }}</button>
+                </div>
                 <div class="overflow-x-auto">
                     <table class="min-w-full divide-y divide-neutral-200 text-sm dark:divide-neutral-700">
                         <thead class="bg-neutral-50 dark:bg-neutral-900/60"><tr><th class="px-5 py-3 text-left font-medium">{{ __('settings.finance.table.category') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.finance.table.code') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.finance.table.state') }}</th><th class="px-5 py-3 text-right font-medium">{{ __('settings.finance.table.actions') }}</th></tr></thead>

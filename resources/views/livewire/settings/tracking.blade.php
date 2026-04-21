@@ -430,11 +430,6 @@ new class extends Component {
                 <div class="admin-toolbar__title">{{ __('settings.tracking.title') }}</div>
                 <p class="admin-toolbar__subtitle">{{ __('settings.tracking.subtitle') }}</p>
             </div>
-            <div class="admin-toolbar__actions">
-                <button type="button" wire:click="openAttendanceStatusModal" class="pill-link pill-link--accent">{{ __('settings.tracking.actions.create_status') }}</button>
-                <button type="button" wire:click="openAssessmentTypeModal" class="pill-link">{{ __('settings.tracking.actions.create_type') }}</button>
-                <button type="button" wire:click="openQuranTestTypeModal" class="pill-link">{{ __('settings.tracking.sections.quran_test_type.create') }}</button>
-            </div>
         </div>
     </section>
 
@@ -490,7 +485,13 @@ new class extends Component {
 
         <section class="space-y-6">
             <div class="overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700">
-                <div class="border-b border-neutral-200 px-5 py-4 text-sm font-medium dark:border-neutral-700">{{ __('settings.tracking.sections.attendance_status.table') }}</div>
+                <div class="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-200 px-5 py-4 dark:border-neutral-700">
+                    <div>
+                        <div class="text-sm font-medium">{{ __('settings.tracking.sections.attendance_status.table') }}</div>
+                        <p class="mt-1 text-xs text-neutral-500 dark:text-neutral-400">{{ __('settings.tracking.sections.attendance_status.copy') }}</p>
+                    </div>
+                    <button type="button" wire:click="openAttendanceStatusModal" class="pill-link pill-link--accent">{{ __('settings.tracking.actions.create_status') }}</button>
+                </div>
                 <div class="overflow-x-auto">
                     <table class="min-w-full divide-y divide-neutral-200 text-sm dark:divide-neutral-700">
                         <thead class="bg-neutral-50 dark:bg-neutral-900/60"><tr><th class="px-5 py-3 text-left font-medium">{{ __('settings.tracking.table.name') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.tracking.table.code') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.tracking.table.scope') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.tracking.table.default_points') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.tracking.table.state') }}</th><th class="px-5 py-3 text-right font-medium">{{ __('settings.tracking.table.actions') }}</th></tr></thead>
@@ -511,7 +512,13 @@ new class extends Component {
             </div>
 
             <div class="overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700">
-                <div class="border-b border-neutral-200 px-5 py-4 text-sm font-medium dark:border-neutral-700">{{ __('settings.tracking.sections.assessment_type.table') }}</div>
+                <div class="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-200 px-5 py-4 dark:border-neutral-700">
+                    <div>
+                        <div class="text-sm font-medium">{{ __('settings.tracking.sections.assessment_type.table') }}</div>
+                        <p class="mt-1 text-xs text-neutral-500 dark:text-neutral-400">{{ __('settings.tracking.sections.assessment_type.copy') }}</p>
+                    </div>
+                    <button type="button" wire:click="openAssessmentTypeModal" class="pill-link pill-link--accent">{{ __('settings.tracking.actions.create_type') }}</button>
+                </div>
                 <div class="overflow-x-auto">
                     <table class="min-w-full divide-y divide-neutral-200 text-sm dark:divide-neutral-700">
                         <thead class="bg-neutral-50 dark:bg-neutral-900/60"><tr><th class="px-5 py-3 text-left font-medium">{{ __('settings.tracking.table.type') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.tracking.table.code') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.tracking.table.assessments') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.tracking.table.state') }}</th><th class="px-5 py-3 text-right font-medium">{{ __('settings.tracking.table.actions') }}</th></tr></thead>
@@ -531,7 +538,13 @@ new class extends Component {
             </div>
 
             <div class="overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700">
-                <div class="border-b border-neutral-200 px-5 py-4 text-sm font-medium dark:border-neutral-700">{{ __('settings.tracking.sections.quran_test_type.table') }}</div>
+                <div class="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-200 px-5 py-4 dark:border-neutral-700">
+                    <div>
+                        <div class="text-sm font-medium">{{ __('settings.tracking.sections.quran_test_type.table') }}</div>
+                        <p class="mt-1 text-xs text-neutral-500 dark:text-neutral-400">{{ __('settings.tracking.sections.quran_test_type.copy') }}</p>
+                    </div>
+                    <button type="button" wire:click="openQuranTestTypeModal" class="pill-link pill-link--accent">{{ __('settings.tracking.sections.quran_test_type.create') }}</button>
+                </div>
                 <div class="overflow-x-auto">
                     <table class="min-w-full divide-y divide-neutral-200 text-sm dark:divide-neutral-700">
                         <thead class="bg-neutral-50 dark:bg-neutral-900/60"><tr><th class="px-5 py-3 text-left font-medium">{{ __('settings.tracking.table.type') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.tracking.table.code') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.tracking.table.sort') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.tracking.table.state') }}</th><th class="px-5 py-3 text-right font-medium">{{ __('settings.tracking.table.actions') }}</th></tr></thead>

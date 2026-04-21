@@ -25,16 +25,15 @@ new class extends Component {
 
     public function updatedAcademicYearId(): void
     {
-        $groupId = $this->normalizedInteger($this->group_id);
-        $academicYearId = $this->normalizedInteger($this->academic_year_id);
+        $this->normalizeFilters();
 
-        if (! $groupId) {
+        if (! $this->group_id) {
             return;
         }
 
         $groupExists = $this->scopeGroupsQuery(Group::query())
-            ->whereKey($groupId)
-            ->when($academicYearId, fn ($query) => $query->where('academic_year_id', $academicYearId))
+            ->whereKey($this->group_id)
+            ->when($this->academic_year_id, fn ($query) => $query->where('academic_year_id', $this->academic_year_id))
             ->exists();
 
         if (! $groupExists) {
@@ -53,7 +52,7 @@ new class extends Component {
 
     public function with(): array
     {
-        $academicYearId = $this->normalizedInteger($this->academic_year_id);
+        $this->normalizeFilters();
 
         return [
             'academicYears' => AcademicYear::query()->where('is_active', true)->orderByDesc('starts_on')->get(['id', 'name']),
@@ -61,29 +60,38 @@ new class extends Component {
             'groups' => $this->scopeGroupsQuery(
                 Group::query()
                     ->with(['course', 'academicYear'])
-                    ->when($academicYearId, fn ($query) => $query->where('academic_year_id', $academicYearId))
+                    ->when($this->academic_year_id, fn ($query) => $query->where('academic_year_id', $this->academic_year_id))
                     ->orderBy('name')
             )->get(),
             'report' => app(ReportingService::class)->overview($this->filters()),
         ];
     }
 
-    public function filters(): array
+    protected function filters(): array
     {
+        $this->normalizeFilters();
+
         return [
-            'academic_year_id' => $this->normalizedInteger($this->academic_year_id),
-            'assessment_type_id' => $this->normalizedInteger($this->assessment_type_id),
+            'academic_year_id' => $this->academic_year_id,
+            'assessment_type_id' => $this->assessment_type_id,
             'date_from' => $this->date_from,
             'date_to' => $this->date_to,
-            'group_id' => $this->normalizedInteger($this->group_id),
+            'group_id' => $this->group_id,
         ];
     }
 
-    protected function normalizedInteger(mixed $value): ?int
+    protected function normalizeFilters(): void
+    {
+        $this->academic_year_id = $this->normalizeSelectValue($this->academic_year_id);
+        $this->assessment_type_id = $this->normalizeSelectValue($this->assessment_type_id);
+        $this->group_id = $this->normalizeSelectValue($this->group_id);
+    }
+
+    protected function normalizeSelectValue(mixed $value): ?int
     {
         if (is_array($value)) {
             $value = collect($value)
-                ->filter(fn (mixed $item) => $item !== null && $item !== '')
+                ->filter(fn ($item) => $item !== null && $item !== '')
                 ->first();
         }
 
@@ -96,19 +104,10 @@ new class extends Component {
 }; ?>
 
 @php
-    $filters = $this->filters();
-    $exportParams = [
-        'academic_year_id' => $filters['academic_year_id'],
-        'group_id' => $filters['group_id'],
-        'assessment_type_id' => $filters['assessment_type_id'],
-        'date_from' => $date_from,
-        'date_to' => $date_to,
-    ];
-
     $scopePills = [
-        $filters['academic_year_id'] ? __('reports.scope_pills.academic_filtered') : __('reports.scope_pills.all_academic_years'),
-        $filters['group_id'] ? __('reports.scope_pills.single_group') : __('reports.scope_pills.all_groups'),
-        $filters['assessment_type_id'] ? __('reports.scope_pills.assessment_type_filtered') : __('reports.scope_pills.all_assessment_types'),
+        $academic_year_id ? __('reports.scope_pills.academic_filtered') : __('reports.scope_pills.all_academic_years'),
+        $group_id ? __('reports.scope_pills.single_group') : __('reports.scope_pills.all_groups'),
+        $assessment_type_id ? __('reports.scope_pills.assessment_type_filtered') : __('reports.scope_pills.all_assessment_types'),
         ($date_from || $date_to) ? __('reports.scope_pills.custom_date_range') : __('reports.scope_pills.all_dates'),
     ];
 
@@ -120,53 +119,37 @@ new class extends Component {
 @endphp
 
 <div class="page-stack">
-    <section class="grid gap-6 xl:grid-cols-[23rem_minmax(0,1fr)_minmax(0,1.25fr)] xl:items-stretch">
-        <article class="surface-panel order-3 p-6 xl:order-1">
-            <div class="eyebrow">{{ __('reports.exports.eyebrow') }}</div>
-            <h1 class="font-display mt-4 text-3xl leading-tight text-white">{{ __('reports.exports.title') }}</h1>
-            <p class="mt-3 text-sm leading-7 text-neutral-300">{{ __('reports.exports.subtitle') }}</p>
-
-            <div class="mt-6 grid gap-3">
-                <a href="{{ route('reports.exports.attendance', $exportParams) }}" class="pill-link pill-link--accent">{{ __('reports.exports.attendance') }}</a>
-                <a href="{{ route('reports.exports.memorization', $exportParams) }}" class="pill-link">{{ __('reports.exports.memorization') }}</a>
-                <a href="{{ route('reports.exports.points', $exportParams) }}" class="pill-link">{{ __('reports.exports.points') }}</a>
-                <a href="{{ route('reports.exports.assessments', $exportParams) }}" class="pill-link">{{ __('reports.exports.assessments') }}</a>
-            </div>
-        </article>
-
-        <article class="order-2 grid gap-6">
-            <section class="surface-panel p-6">
+    <section class="page-hero p-6 lg:p-8">
+        <div class="grid gap-6 xl:grid-cols-[minmax(0,1fr)] xl:items-start">
+            <div>
                 <div class="eyebrow">{{ __('reports.hero.eyebrow') }}</div>
-                <h2 class="font-display mt-4 text-3xl leading-tight text-white">{{ __('reports.hero.title') }}</h2>
-                <p class="mt-3 text-sm leading-7 text-neutral-300">{{ __('reports.hero.subtitle') }}</p>
-            </section>
+                <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('reports.hero.title') }}</h1>
+                <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">
+                    {{ __('reports.hero.subtitle') }}
+                </p>
 
-            <section class="surface-panel p-6">
-                <div class="eyebrow">{{ __('reports.filters.date_range') }}</div>
-                <div class="mt-4 grid gap-4 md:grid-cols-2">
-                    <div>
-                        <label class="mb-2 block text-sm font-medium text-neutral-200">{{ __('reports.filters.date_from') }}</label>
-                        <input wire:model.live="date_from" type="date" class="w-full rounded-xl px-3 py-2.5 text-sm">
-                    </div>
-                    <div>
-                        <label class="mb-2 block text-sm font-medium text-neutral-200">{{ __('reports.filters.date_to') }}</label>
-                        <input wire:model.live="date_to" type="date" class="w-full rounded-xl px-3 py-2.5 text-sm">
-                    </div>
+                <div class="mt-6 flex flex-wrap gap-3">
+                    @foreach ($scopePills as $pill)
+                        <span class="badge-soft {{ $loop->even ? 'badge-soft--emerald' : '' }}">{{ $pill }}</span>
+                    @endforeach
                 </div>
+            </div>
 
-                <button type="button" wire:click="clearFilters" class="pill-link mt-5">{{ __('reports.filters.clear') }}</button>
-            </section>
-        </article>
+        </div>
+    </section>
 
-        <article class="surface-panel order-1 p-6 xl:order-3">
-            <div class="eyebrow">{{ __('reports.filters.eyebrow') }}</div>
-            <h2 class="font-display mt-4 text-3xl leading-tight text-white">{{ __('reports.filters.title') }}</h2>
-            <p class="mt-3 text-sm leading-7 text-neutral-300">{{ __('reports.filters.subtitle') }}</p>
+    <div class="grid gap-6 xl:grid-cols-[minmax(0,1.35fr)_24rem]">
+        <section class="surface-panel p-6">
+            <div class="mb-5">
+                <div class="eyebrow">{{ __('reports.filters.eyebrow') }}</div>
+                <h2 class="font-display mt-3 text-2xl text-white">{{ __('reports.filters.title') }}</h2>
+                <p class="mt-3 max-w-3xl text-sm leading-7 text-neutral-300">{{ __('reports.filters.subtitle') }}</p>
+            </div>
 
-            <div class="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-2">
+            <div class="grid gap-4 lg:grid-cols-2 2xl:grid-cols-4">
                 <div>
                     <label class="mb-2 block text-sm font-medium text-neutral-200">{{ __('reports.filters.academic_year') }}</label>
-                    <select wire:model.live="academic_year_id" data-searchable="false" class="w-full rounded-xl px-3 py-2.5 text-sm">
+                    <select wire:model.live="academic_year_id" class="w-full rounded-xl px-3 py-2.5 text-sm">
                         <option value="">{{ __('reports.filters.all_academic_years') }}</option>
                         @foreach ($academicYears as $academicYear)
                             <option value="{{ $academicYear->id }}">{{ $academicYear->name }}</option>
@@ -176,7 +159,7 @@ new class extends Component {
 
                 <div>
                     <label class="mb-2 block text-sm font-medium text-neutral-200">{{ __('reports.filters.group') }}</label>
-                    <select wire:model.live="group_id" data-searchable="false" class="w-full rounded-xl px-3 py-2.5 text-sm">
+                    <select wire:model.live="group_id" class="w-full rounded-xl px-3 py-2.5 text-sm">
                         <option value="">{{ __('reports.filters.all_groups') }}</option>
                         @foreach ($groups as $group)
                             <option value="{{ $group->id }}">{{ $group->name }}{{ $group->course ? ' | '.$group->course->name : '' }}</option>
@@ -184,26 +167,47 @@ new class extends Component {
                     </select>
                 </div>
 
-                <div class="md:col-span-2">
-                    <label class="mb-2 block text-sm font-medium text-neutral-200">{{ __('reports.filters.assessment_type') }}</label>
-                    <select wire:model.live="assessment_type_id" data-searchable="false" class="w-full rounded-xl px-3 py-2.5 text-sm">
-                        <option value="">{{ __('reports.filters.all_assessment_types') }}</option>
-                        @foreach ($assessmentTypes as $assessmentType)
-                            <option value="{{ $assessmentType->id }}">{{ $assessmentType->name }}</option>
-                        @endforeach
-                    </select>
+                <div>
+                    <label class="mb-2 block text-sm font-medium text-neutral-200">{{ __('reports.filters.date_from') }}</label>
+                    <input wire:model.live="date_from" type="date" class="w-full rounded-xl px-3 py-2.5 text-sm">
+                </div>
+
+                <div>
+                    <label class="mb-2 block text-sm font-medium text-neutral-200">{{ __('reports.filters.date_to') }}</label>
+                    <input wire:model.live="date_to" type="date" class="w-full rounded-xl px-3 py-2.5 text-sm">
                 </div>
             </div>
 
-            <div class="mt-5 flex flex-wrap gap-2">
-                @foreach ($scopePills as $pill)
-                    <span class="badge-soft {{ $loop->even ? 'badge-soft--emerald' : '' }}">{{ $pill }}</span>
-                @endforeach
+            <div class="mt-5 flex justify-end">
+                <button type="button" wire:click="clearFilters" class="pill-link">
+                    {{ __('reports.filters.clear') }}
+                </button>
             </div>
-        </article>
-    </section>
+        </section>
 
-    <section class="grid gap-4 md:grid-cols-3">
+        <section class="surface-panel p-6">
+            <div class="eyebrow">{{ __('reports.exports.eyebrow') }}</div>
+            <h2 class="font-display mt-3 text-2xl text-white">{{ __('reports.exports.title') }}</h2>
+            <p class="mt-3 text-sm leading-7 text-neutral-300">{{ __('reports.exports.subtitle') }}</p>
+
+            <div class="mt-5 grid gap-3">
+                <a href="{{ route('reports.exports.attendance', ['academic_year_id' => $academic_year_id, 'group_id' => $group_id, 'assessment_type_id' => $assessment_type_id, 'date_from' => $date_from, 'date_to' => $date_to]) }}" class="pill-link pill-link--accent">
+                    {{ __('reports.exports.attendance') }}
+                </a>
+                <a href="{{ route('reports.exports.memorization', ['academic_year_id' => $academic_year_id, 'group_id' => $group_id, 'assessment_type_id' => $assessment_type_id, 'date_from' => $date_from, 'date_to' => $date_to]) }}" class="pill-link">
+                    {{ __('reports.exports.memorization') }}
+                </a>
+                <a href="{{ route('reports.exports.points', ['academic_year_id' => $academic_year_id, 'group_id' => $group_id, 'assessment_type_id' => $assessment_type_id, 'date_from' => $date_from, 'date_to' => $date_to]) }}" class="pill-link">
+                    {{ __('reports.exports.points') }}
+                </a>
+                <a href="{{ route('reports.exports.assessments', ['academic_year_id' => $academic_year_id, 'group_id' => $group_id, 'assessment_type_id' => $assessment_type_id, 'date_from' => $date_from, 'date_to' => $date_to]) }}" class="pill-link">
+                    {{ __('reports.exports.assessments') }}
+                </a>
+            </div>
+        </section>
+    </div>
+
+    <div class="grid gap-4 md:grid-cols-3">
         @foreach ($headlineCards as $card)
             <article class="stat-card">
                 <div class="flex items-start justify-between gap-4">
@@ -214,10 +218,10 @@ new class extends Component {
                 <p class="mt-4 max-w-xs text-sm leading-6 text-neutral-300">{{ $card['hint'] }}</p>
             </article>
         @endforeach
-    </section>
+    </div>
 
-    <section class="grid gap-6 xl:grid-cols-2">
-        <article class="surface-panel p-5 lg:p-6">
+    <div class="grid gap-6 xl:grid-cols-2">
+        <section class="surface-panel p-5 lg:p-6">
             <div class="mb-4">
                 <div class="eyebrow">{{ __('reports.attendance.eyebrow') }}</div>
                 <h2 class="font-display mt-3 text-2xl text-white">{{ __('reports.attendance.title') }}</h2>
@@ -225,22 +229,32 @@ new class extends Component {
             </div>
 
             <div class="space-y-3">
-                @forelse ($report['attendance']['breakdown'] as $status)
+                @foreach ($report['attendance']['breakdown'] as $status)
                     <div class="flex items-center justify-between rounded-2xl border border-white/8 bg-white/4 px-4 py-3 text-sm">
                         <span class="text-neutral-200">{{ $status['name'] }}</span>
                         <span class="font-semibold text-white">{{ number_format($status['count']) }}</span>
                     </div>
-                @empty
-                    <div class="rounded-2xl border border-white/8 bg-white/4 px-4 py-6 text-sm text-neutral-400">{{ __('reports.attendance.empty') }}</div>
-                @endforelse
+                @endforeach
             </div>
-        </article>
+        </section>
 
-        <article class="surface-panel p-5 lg:p-6">
-            <div class="mb-4">
-                <div class="eyebrow">{{ __('reports.assessments.eyebrow') }}</div>
-                <h2 class="font-display mt-3 text-2xl text-white">{{ __('reports.assessments.title') }}</h2>
-                <p class="mt-3 text-sm leading-7 text-neutral-300">{{ __('reports.assessments.subtitle') }}</p>
+        <section class="surface-panel p-5 lg:p-6">
+            <div class="mb-4 grid gap-4 md:grid-cols-[minmax(0,1fr)_16rem] md:items-end">
+                <div>
+                    <div class="eyebrow">{{ __('reports.assessments.eyebrow') }}</div>
+                    <h2 class="font-display mt-3 text-2xl text-white">{{ __('reports.assessments.title') }}</h2>
+                    <p class="mt-3 text-sm leading-7 text-neutral-300">{{ __('reports.assessments.subtitle') }}</p>
+                </div>
+
+                <div>
+                    <label class="mb-2 block text-sm font-medium text-neutral-200">{{ __('reports.filters.assessment_type') }}</label>
+                    <select wire:model.live="assessment_type_id" class="w-full rounded-xl px-3 py-2.5 text-sm">
+                        <option value="">{{ __('reports.filters.all_assessment_types') }}</option>
+                        @foreach ($assessmentTypes as $assessmentType)
+                            <option value="{{ $assessmentType->id }}">{{ $assessmentType->name }}</option>
+                        @endforeach
+                    </select>
+                </div>
             </div>
 
             <div class="grid gap-4 md:grid-cols-2">
@@ -261,11 +275,11 @@ new class extends Component {
                     <div class="mt-3 text-2xl font-semibold text-white">{{ number_format($report['assessments']['failed']) }}</div>
                 </div>
             </div>
-        </article>
-    </section>
+        </section>
+    </div>
 
-    <section class="grid gap-6 xl:grid-cols-2">
-        <article class="surface-table">
+    <div class="grid gap-6 xl:grid-cols-2">
+        <section class="surface-table">
             <div class="soft-keyline border-b px-5 py-5 lg:px-6">
                 <div class="eyebrow">{{ __('reports.leaderboard.eyebrow') }}</div>
                 <h2 class="font-display mt-3 text-2xl text-white">{{ __('reports.leaderboard.points_title') }}</h2>
@@ -295,9 +309,9 @@ new class extends Component {
                     </table>
                 </div>
             @endif
-        </article>
+        </section>
 
-        <article class="surface-table">
+        <section class="surface-table">
             <div class="soft-keyline border-b px-5 py-5 lg:px-6">
                 <div class="eyebrow">{{ __('reports.leaderboard.eyebrow') }}</div>
                 <h2 class="font-display mt-3 text-2xl text-white">{{ __('reports.leaderboard.memorization_title') }}</h2>
@@ -327,6 +341,6 @@ new class extends Component {
                     </table>
                 </div>
             @endif
-        </article>
-    </section>
+        </section>
+    </div>
 </div>

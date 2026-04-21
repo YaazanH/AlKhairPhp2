@@ -188,7 +188,7 @@ new class extends Component {
 
                 <div class="admin-filter-field">
                 <label for="teacher-attendance-status" class="mb-1 block text-sm font-medium">{{ __('workflow.teacher_attendance.form.day_status') }}</label>
-                    <select id="teacher-attendance-status" wire:model="day_status">
+                    <select id="teacher-attendance-status" wire:model="day_status" data-searchable="false">
                     <option value="open">{{ __('workflow.common.day_status.open') }}</option>
                     <option value="closed">{{ __('workflow.common.day_status.closed') }}</option>
                 </select>
@@ -261,6 +261,7 @@ new class extends Component {
                                 <select
                                     wire:model="selected_statuses.{{ $teacher->id }}"
                                     @disabled(! auth()->user()->can('attendance.teacher.take'))
+                                    data-searchable="false"
                                     class="w-full rounded-xl px-4 py-3 text-sm"
                                 >
                                     <option value="">{{ __('workflow.teacher_attendance.table.not_marked') }}</option>

@@ -4,6 +4,7 @@ use App\Livewire\Concerns\AuthorizesPermissions;
 use App\Livewire\Concerns\SupportsCreateAndNew;
 use App\Models\Course;
 use App\Models\Enrollment;
+use App\Models\Group;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\DB;
 use Livewire\Volt\Component;
@@ -185,6 +186,7 @@ new class extends Component {
             foreach ($source->groups as $group) {
                 $newGroup = $group->replicate(['course_id']);
                 $newGroup->course_id = $newCourse->id;
+                $newGroup->name = $this->uniqueGroupCopyName($group->name, $group->academic_year_id);
                 $newGroup->is_active = true;
                 $newGroup->save();
 
@@ -219,6 +221,24 @@ new class extends Component {
         $counter = 2;
 
         while (Course::query()->where('name', $candidate)->exists()) {
+            $candidate = __('crud.courses.copy.name_numbered', ['name' => $baseName, 'number' => $counter]);
+            $counter++;
+        }
+
+        return $candidate;
+    }
+
+    protected function uniqueGroupCopyName(string $baseName, ?int $academicYearId): string
+    {
+        $candidate = __('crud.courses.copy.name', ['name' => $baseName]);
+        $counter = 2;
+
+        while (
+            Group::withTrashed()
+                ->where('name', $candidate)
+                ->when($academicYearId, fn ($query) => $query->where('academic_year_id', $academicYearId), fn ($query) => $query->whereNull('academic_year_id'))
+                ->exists()
+        ) {
             $candidate = __('crud.courses.copy.name_numbered', ['name' => $baseName, 'number' => $counter]);
             $counter++;
         }
@@ -334,7 +354,7 @@ new class extends Component {
                                             <button type="button" wire:click="edit({{ $course->id }})" class="pill-link pill-link--compact">{{ __('crud.common.actions.edit') }}</button>
                                         @endcan
                                         @can('courses.create')
-                                            <button type="button" wire:click="duplicate({{ $course->id }})" wire:confirm="{{ __('crud.courses.copy.confirm') }}" class="pill-link pill-link--compact">{{ __('crud.common.actions.copy') }}</button>
+                                            <button type="button" wire:click="duplicate({{ $course->id }})" wire:confirm="{{ __('crud.courses.copy.confirm') }}" class="pill-link pill-link--compact border-amber-300/30 bg-amber-400/10 text-amber-100 hover:border-amber-200/45 hover:bg-amber-400/15">{{ __('crud.common.actions.copy') }}</button>
                                         @endcan
                                         @can('courses.delete')
                                             <button type="button" wire:click="delete({{ $course->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link pill-link--compact border-red-400/25 text-red-200 hover:border-red-300/35 hover:bg-red-500/12">{{ __('crud.common.actions.delete') }}</button>

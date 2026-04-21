@@ -26,17 +26,17 @@
 
             <div class="relative">
                 <flux:input
-                    :label="__('Password')"
+                    :label="__('access.login.password')"
                     type="password"
                     name="password"
                     required
                     autocomplete="current-password"
-                    :placeholder="__('Password')"
+                    :placeholder="__('access.login.password')"
                 />
 
                 @if (Route::has('password.request'))
-                    <x-text-link class="absolute right-0 top-0" href="{{ route('password.request') }}">
-                        {{ __('Forgot your password?') }}
+                    <x-text-link class="mt-2 block text-end text-sm" href="{{ route('password.request') }}">
+                        {{ __('access.login.forgot_password') }}
                     </x-text-link>
                 @endif
 
@@ -53,17 +53,12 @@
                     @checked(old('remember'))
                     class="h-4 w-4 rounded border-zinc-300 text-[var(--brand-primary)] focus:ring-[var(--brand-primary)]"
                 >
-                <span>{{ __('Remember me') }}</span>
+                <span>{{ __('access.login.remember') }}</span>
             </label>
 
             <div class="flex items-center justify-end">
-                <flux:button variant="primary" type="submit" class="w-full">{{ __('Log in') }}</flux:button>
+                <flux:button variant="primary" type="submit" class="w-full">{{ __('access.login.submit') }}</flux:button>
             </div>
         </form>
-
-        <div class="space-x-1 text-center text-sm text-zinc-600 dark:text-zinc-400">
-            {{ __("Don't have an account?") }}
-            <x-text-link href="{{ route('register') }}">{{ __('Sign up') }}</x-text-link>
-        </div>
     </div>
 </x-layouts.auth>

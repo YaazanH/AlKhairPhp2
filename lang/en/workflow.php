@@ -451,6 +451,7 @@ return [
                     'source' => 'Source',
                     'points' => 'Points',
                     'state' => 'State',
+                    'void_reason' => 'Delete reason',
                     'actions' => 'Actions',
                 ],
             ],
