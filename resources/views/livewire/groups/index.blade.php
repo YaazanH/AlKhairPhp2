@@ -32,6 +32,7 @@ new class extends Component {
     public bool $is_active = true;
     public string $search = '';
     public string $statusFilter = 'all';
+    public string $courseFilter = 'all';
     public int $perPage = 15;
     public bool $showFormModal = false;
     public ?int $rosterGroupId = null;
@@ -64,6 +65,7 @@ new class extends Component {
                             ->orWhere('last_name', 'like', '%'.$this->search.'%'));
                 });
             })
+            ->when($this->courseFilter !== 'all', fn ($query) => $query->where('course_id', (int) $this->courseFilter))
             ->when(in_array($this->statusFilter, ['active', 'inactive'], true), fn ($query) => $query->where('is_active', $this->statusFilter === 'active'))
             ->orderByDesc('is_active')
             ->orderBy('name');
@@ -110,6 +112,11 @@ new class extends Component {
     }
 
     public function updatedStatusFilter(): void
+    {
+        $this->resetPage();
+    }
+
+    public function updatedCourseFilter(): void
     {
         $this->resetPage();
     }
@@ -434,11 +441,21 @@ new class extends Component {
                     </select>
                 </div>
 
+                <div class="admin-filter-field">
+                    <label for="group-course-filter">{{ __('crud.common.filters.course') }}</label>
+                    <select id="group-course-filter" wire:model.live="courseFilter">
+                        <option value="all">{{ __('crud.common.filters.all_courses') }}</option>
+                        @foreach ($courses as $course)
+                            <option value="{{ $course->id }}">{{ $course->name }}</option>
+                        @endforeach
+                    </select>
+                </div>
+
                 <div class="admin-toolbar__actions">
                     @can('groups.create')
                         <button type="button" wire:click="openCreateModal" class="pill-link pill-link--accent">{{ __('crud.common.actions.create') }}</button>
                     @endcan
-                    <a href="{{ route('groups.export', ['search' => $search, 'status' => $statusFilter]) }}" class="pill-link">{{ __('crud.common.actions.export') }}</a>
+                    <a href="{{ route('groups.export', ['search' => $search, 'status' => $statusFilter, 'course_id' => $courseFilter]) }}" class="pill-link">{{ __('crud.common.actions.export') }}</a>
                 </div>
             </div>
         </div>

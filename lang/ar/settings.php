@@ -8,7 +8,7 @@ return [
         ],
         'actions' => [
             'save' => 'حفظ',
-            'save_settings' => 'حفظ الإعدادات',
+            'save_settings' => 'تعديل بيانات لوحة التحكم',
             'create' => 'إنشاء',
             'update' => 'تحديث',
         ],

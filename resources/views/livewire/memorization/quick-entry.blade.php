@@ -15,7 +15,6 @@ new class extends Component {
     public ?int $selectedStudentId = null;
     public string $from_page = '';
     public string $to_page = '';
-    public string $search = '';
 
     public function mount(): void
     {
@@ -34,21 +33,9 @@ new class extends Component {
                 ->whereHas('enrollments', function (Builder $query) {
                     $this->scopeEnrollmentsQuery($query)->where('status', 'active');
                 })
-                ->when(filled($this->search), function (Builder $query) {
-                    $search = '%'.$this->search.'%';
-
-                    $query->where(function (Builder $builder) use ($search) {
-                        $builder
-                            ->where('first_name', 'like', $search)
-                            ->orWhere('last_name', 'like', $search)
-                            ->orWhere('student_number', 'like', $search)
-                            ->orWhereHas('parentProfile', fn (Builder $parentQuery) => $parentQuery->where('father_name', 'like', $search));
-                    });
-                })
         )
             ->orderBy('first_name')
             ->orderBy('last_name')
-            ->limit(40)
             ->get();
 
         return [
@@ -110,7 +97,7 @@ new class extends Component {
 
         session()->flash('status', __('workflow.memorization.quick_entry.messages.saved'));
 
-        $this->reset(['selectedStudentId', 'from_page', 'to_page', 'search']);
+        $this->reset(['selectedStudentId', 'from_page', 'to_page']);
         $this->resetValidation();
     }
 
@@ -147,11 +134,6 @@ new class extends Component {
         </div>
 
         <form wire:submit="save" class="space-y-5">
-            <div class="admin-form-field">
-                <label for="quick-memorization-search">{{ __('workflow.memorization.quick_entry.form.search') }}</label>
-                <input id="quick-memorization-search" wire:model.live.debounce.300ms="search" type="text" placeholder="{{ __('workflow.memorization.quick_entry.form.search_placeholder') }}">
-            </div>
-
             <div class="admin-form-field">
                 <label for="quick-memorization-student">{{ __('workflow.memorization.quick_entry.form.student') }}</label>
                 <select id="quick-memorization-student" wire:model="selectedStudentId">

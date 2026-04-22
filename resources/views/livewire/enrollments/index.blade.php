@@ -3,6 +3,7 @@
 use App\Livewire\Concerns\AuthorizesPermissions;
 use App\Livewire\Concerns\AuthorizesTeacherAssignments;
 use App\Livewire\Concerns\SupportsCreateAndNew;
+use App\Models\Course;
 use App\Models\Enrollment;
 use App\Models\Group;
 use App\Models\Student;
@@ -25,6 +26,8 @@ new class extends Component {
     public string $notes = '';
     public string $search = '';
     public string $statusFilter = 'all';
+    public string $courseFilter = 'all';
+    public string $groupFilter = 'all';
     public int $perPage = 15;
     public bool $showFormModal = false;
 
@@ -49,6 +52,8 @@ new class extends Component {
                             ->orWhereHas('course', fn ($courseQuery) => $courseQuery->where('name', 'like', '%'.$this->search.'%')));
                 });
             })
+            ->when($this->courseFilter !== 'all', fn ($query) => $query->whereHas('group', fn ($groupQuery) => $groupQuery->where('course_id', (int) $this->courseFilter)))
+            ->when($this->groupFilter !== 'all', fn ($query) => $query->where('group_id', (int) $this->groupFilter))
             ->when(in_array($this->statusFilter, ['active', 'completed', 'cancelled'], true), fn ($query) => $query->where('status', $this->statusFilter))
             ->orderByDesc('enrolled_at');
 
@@ -61,6 +66,13 @@ new class extends Component {
                 ->orderBy('last_name')
                 ->get(['id', 'first_name', 'last_name']),
             'groups' => $this->scopeGroupsQuery(Group::query()->with('course'))->orderBy('name')->get(['id', 'course_id', 'name']),
+            'filterCourses' => Course::query()->where('is_active', true)->orderBy('name')->get(['id', 'name']),
+            'filterGroups' => $this->scopeGroupsQuery(
+                Group::query()
+                    ->with('course')
+                    ->when($this->courseFilter !== 'all', fn ($query) => $query->where('course_id', (int) $this->courseFilter))
+                    ->orderBy('name')
+            )->get(['id', 'course_id', 'name']),
             'totals' => [
                 'all' => $baseQuery->count(),
                 'active' => $this->scopeEnrollmentsQuery(Enrollment::query()->where('status', 'active'))->count(),
@@ -77,6 +89,17 @@ new class extends Component {
     }
 
     public function updatedStatusFilter(): void
+    {
+        $this->resetPage();
+    }
+
+    public function updatedCourseFilter(): void
+    {
+        $this->groupFilter = 'all';
+        $this->resetPage();
+    }
+
+    public function updatedGroupFilter(): void
     {
         $this->resetPage();
     }
@@ -308,11 +331,31 @@ new class extends Component {
                     </select>
                 </div>
 
+                <div class="admin-filter-field">
+                    <label for="enrollment-course-filter">{{ __('crud.common.filters.course') }}</label>
+                    <select id="enrollment-course-filter" wire:model.live="courseFilter">
+                        <option value="all">{{ __('crud.common.filters.all_courses') }}</option>
+                        @foreach ($filterCourses as $course)
+                            <option value="{{ $course->id }}">{{ $course->name }}</option>
+                        @endforeach
+                    </select>
+                </div>
+
+                <div class="admin-filter-field">
+                    <label for="enrollment-group-filter">{{ __('crud.common.filters.group') }}</label>
+                    <select id="enrollment-group-filter" wire:model.live="groupFilter">
+                        <option value="all">{{ __('crud.common.filters.all_groups') }}</option>
+                        @foreach ($filterGroups as $group)
+                            <option value="{{ $group->id }}">{{ $group->name }}{{ $group->course ? ' - '.$group->course->name : '' }}</option>
+                        @endforeach
+                    </select>
+                </div>
+
                 <div class="admin-toolbar__actions">
                     @can('enrollments.create')
                         <button type="button" wire:click="openCreateModal" class="pill-link pill-link--accent">{{ __('crud.common.actions.create') }}</button>
                     @endcan
-                    <a href="{{ route('enrollments.export', ['search' => $search, 'status' => $statusFilter]) }}" class="pill-link">{{ __('crud.common.actions.export') }}</a>
+                    <a href="{{ route('enrollments.export', ['search' => $search, 'status' => $statusFilter, 'course_id' => $courseFilter, 'group_id' => $groupFilter]) }}" class="pill-link">{{ __('crud.common.actions.export') }}</a>
                 </div>
             </div>
         </div>

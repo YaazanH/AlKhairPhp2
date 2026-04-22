@@ -37,6 +37,10 @@ return [
             'search_placeholder' => 'ابحث في السجلات',
             'status' => 'الحالة',
             'all_statuses' => 'كل الحالات',
+            'course' => 'الدورة',
+            'all_courses' => 'كل الدورات',
+            'group' => 'المجموعة',
+            'all_groups' => 'كل المجموعات',
         ],
         'status_options' => [
             'active' => 'نشط',

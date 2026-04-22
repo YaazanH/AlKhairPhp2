@@ -472,3 +472,77 @@ if (document.body) {
         searchableSelectObserver.observe(document.body, { childList: true, subtree: true });
     });
 }
+
+function initializePublicGallerySliders() {
+    document.querySelectorAll('[data-public-gallery-slider]').forEach((slider) => {
+        if (slider.dataset.bound === 'true') {
+            return;
+        }
+
+        const slides = Array.from(slider.querySelectorAll('[data-public-gallery-slide]'));
+
+        if (slides.length === 0) {
+            return;
+        }
+
+        slider.dataset.bound = 'true';
+
+        const dots = Array.from(slider.querySelectorAll('[data-public-gallery-dot]'));
+        const next = slider.querySelector('[data-public-gallery-next]');
+        const previous = slider.querySelector('[data-public-gallery-prev]');
+        let activeIndex = Math.max(slides.findIndex((slide) => slide.classList.contains('is-active')), 0);
+        let timer = null;
+
+        const show = (index) => {
+            activeIndex = (index + slides.length) % slides.length;
+
+            slides.forEach((slide, slideIndex) => {
+                slide.classList.toggle('is-active', slideIndex === activeIndex);
+            });
+
+            dots.forEach((dot, dotIndex) => {
+                dot.classList.toggle('is-active', dotIndex === activeIndex);
+            });
+        };
+
+        const stop = () => {
+            if (timer) {
+                window.clearInterval(timer);
+                timer = null;
+            }
+        };
+
+        const start = () => {
+            stop();
+
+            if (slides.length > 1) {
+                timer = window.setInterval(() => show(activeIndex + 1), 5200);
+            }
+        };
+
+        next?.addEventListener('click', () => {
+            show(activeIndex + 1);
+            start();
+        });
+
+        previous?.addEventListener('click', () => {
+            show(activeIndex - 1);
+            start();
+        });
+
+        dots.forEach((dot, dotIndex) => {
+            dot.addEventListener('click', () => {
+                show(dotIndex);
+                start();
+            });
+        });
+
+        slider.addEventListener('mouseenter', stop);
+        slider.addEventListener('mouseleave', start);
+        show(activeIndex);
+        start();
+    });
+}
+
+document.addEventListener('DOMContentLoaded', initializePublicGallerySliders);
+document.addEventListener('livewire:navigated', initializePublicGallerySliders);

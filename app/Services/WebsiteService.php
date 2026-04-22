@@ -174,6 +174,14 @@ class WebsiteService
                 return [
                     'path' => $path,
                     'url' => $this->mediaUrl($path),
+                    'title' => data_get($item, 'title_'.app()->getLocale())
+                        ?: data_get($item, 'title_'.config('app.fallback_locale', 'en'))
+                        ?: data_get($item, 'caption_'.app()->getLocale())
+                        ?: data_get($item, 'caption_'.config('app.fallback_locale', 'en'))
+                        ?: '',
+                    'details' => data_get($item, 'details_'.app()->getLocale())
+                        ?: data_get($item, 'details_'.config('app.fallback_locale', 'en'))
+                        ?: '',
                     'caption' => data_get($item, 'caption_'.app()->getLocale())
                         ?: data_get($item, 'caption_'.config('app.fallback_locale', 'en'))
                         ?: '',
@@ -187,6 +195,8 @@ class WebsiteService
                 ->map(fn (mixed $path) => [
                     'path' => is_string($path) ? $path : '',
                     'url' => $this->mediaUrl(is_string($path) ? $path : null),
+                    'title' => '',
+                    'details' => '',
                     'caption' => '',
                 ])
                 ->filter(fn (array $item) => filled($item['url']))

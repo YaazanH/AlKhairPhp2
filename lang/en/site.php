@@ -30,6 +30,11 @@ return [
             'view_map' => 'View Map',
             'whatsapp' => 'WhatsApp',
         ],
+        'slider' => [
+            'previous' => 'Previous slide',
+            'next' => 'Next slide',
+            'go_to' => 'Go to slide :number',
+        ],
     ],
     'admin' => [
         'nav' => [
@@ -128,6 +133,10 @@ return [
                 'hero_image_upload' => 'Hero image',
                 'featured_video_upload' => 'Featured video',
                 'gallery_uploads' => 'Gallery images',
+                'gallery_title_en' => 'Slide title (English)',
+                'gallery_title_ar' => 'Slide title (Arabic)',
+                'gallery_details_en' => 'Slide details (English)',
+                'gallery_details_ar' => 'Slide details (Arabic)',
                 'gallery_caption_en' => 'Image caption (English)',
                 'gallery_caption_ar' => 'Image caption (Arabic)',
                 'hero_eyebrow_en' => 'Hero eyebrow (English)',

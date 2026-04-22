@@ -100,6 +100,10 @@ new class extends Component {
         foreach ($this->gallery_uploads as $galleryUpload) {
             $this->gallery_items[] = [
                 'path' => $galleryUpload->store('website/gallery', 'public'),
+                'title_en' => '',
+                'title_ar' => '',
+                'details_en' => '',
+                'details_ar' => '',
                 'caption_en' => '',
                 'caption_ar' => '',
             ];
@@ -202,6 +206,10 @@ new class extends Component {
             'gallery_uploads.*' => ['image', 'max:4096'],
             'gallery_items' => ['nullable', 'array'],
             'gallery_items.*.path' => ['nullable', 'string'],
+            'gallery_items.*.title_en' => ['nullable', 'string', 'max:255'],
+            'gallery_items.*.title_ar' => ['nullable', 'string', 'max:255'],
+            'gallery_items.*.details_en' => ['nullable', 'string', 'max:500'],
+            'gallery_items.*.details_ar' => ['nullable', 'string', 'max:500'],
             'gallery_items.*.caption_en' => ['nullable', 'string', 'max:255'],
             'gallery_items.*.caption_ar' => ['nullable', 'string', 'max:255'],
             'hero_eyebrow_en' => ['required', 'string', 'max:255'],
@@ -255,6 +263,10 @@ new class extends Component {
         foreach ($validated['gallery_uploads'] ?? [] as $galleryUpload) {
             $submittedGalleryItems[] = [
                 'path' => $galleryUpload->store('website/gallery', 'public'),
+                'title_en' => '',
+                'title_ar' => '',
+                'details_en' => '',
+                'details_ar' => '',
                 'caption_en' => '',
                 'caption_ar' => '',
             ];
@@ -264,6 +276,10 @@ new class extends Component {
             ->filter(fn (array $item) => filled($item['path'] ?? null))
             ->map(fn (array $item) => [
                 'path' => (string) $item['path'],
+                'title_en' => (string) ($item['title_en'] ?? ''),
+                'title_ar' => (string) ($item['title_ar'] ?? ''),
+                'details_en' => (string) ($item['details_en'] ?? ''),
+                'details_ar' => (string) ($item['details_ar'] ?? ''),
                 'caption_en' => (string) ($item['caption_en'] ?? ''),
                 'caption_ar' => (string) ($item['caption_ar'] ?? ''),
             ])
@@ -324,6 +340,10 @@ new class extends Component {
         $this->gallery_items = collect($settings->get('gallery_items') ?: [])
             ->map(fn (array $item) => [
                 'path' => (string) data_get($item, 'path', ''),
+                'title_en' => (string) data_get($item, 'title_en', ''),
+                'title_ar' => (string) data_get($item, 'title_ar', ''),
+                'details_en' => (string) data_get($item, 'details_en', ''),
+                'details_ar' => (string) data_get($item, 'details_ar', ''),
                 'caption_en' => (string) data_get($item, 'caption_en', ''),
                 'caption_ar' => (string) data_get($item, 'caption_ar', ''),
             ])
@@ -334,7 +354,7 @@ new class extends Component {
         if ($this->gallery_items === []) {
             $this->gallery_items = collect($settings->get('gallery_paths') ?? [])
                 ->filter(fn (mixed $path) => is_string($path) && filled($path))
-                ->map(fn (string $path) => ['path' => $path, 'caption_en' => '', 'caption_ar' => ''])
+                ->map(fn (string $path) => ['path' => $path, 'title_en' => '', 'title_ar' => '', 'details_en' => '', 'details_ar' => '', 'caption_en' => '', 'caption_ar' => ''])
                 ->values()
                 ->all();
         }
@@ -484,8 +504,10 @@ new class extends Component {
                     @foreach ($gallery_items as $index => $galleryItem)
                         <div class="soft-callout space-y-3 p-3">
                             <img src="{{ asset('storage/'.ltrim((string) ($galleryItem['path'] ?? ''), '/')) }}" alt="{{ __('site.admin.website.media.gallery_alt') }}" class="h-32 w-full rounded-2xl object-cover">
-                            <input wire:model="gallery_items.{{ $index }}.caption_en" type="text" dir="ltr" class="admin-locale-field--en w-full rounded-xl px-3 py-2 text-sm" placeholder="{{ __('site.admin.website.fields.gallery_caption_en') }}">
-                            <input wire:model="gallery_items.{{ $index }}.caption_ar" type="text" dir="rtl" class="admin-locale-field--ar w-full rounded-xl px-3 py-2 text-sm" placeholder="{{ __('site.admin.website.fields.gallery_caption_ar') }}">
+                            <input wire:model="gallery_items.{{ $index }}.title_en" type="text" dir="ltr" class="admin-locale-field--en w-full rounded-xl px-3 py-2 text-sm" placeholder="{{ __('site.admin.website.fields.gallery_title_en') }}">
+                            <input wire:model="gallery_items.{{ $index }}.title_ar" type="text" dir="rtl" class="admin-locale-field--ar w-full rounded-xl px-3 py-2 text-sm" placeholder="{{ __('site.admin.website.fields.gallery_title_ar') }}">
+                            <textarea wire:model="gallery_items.{{ $index }}.details_en" rows="2" dir="ltr" class="admin-locale-field--en w-full rounded-xl px-3 py-2 text-sm" placeholder="{{ __('site.admin.website.fields.gallery_details_en') }}"></textarea>
+                            <textarea wire:model="gallery_items.{{ $index }}.details_ar" rows="2" dir="rtl" class="admin-locale-field--ar w-full rounded-xl px-3 py-2 text-sm" placeholder="{{ __('site.admin.website.fields.gallery_details_ar') }}"></textarea>
                             <button type="button" wire:click="removeGalleryAsset({{ $index }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link pill-link--compact">{{ __('site.admin.website.actions.remove_media') }}</button>
                         </div>
                     @endforeach

@@ -30,6 +30,11 @@ return [
             'view_map' => 'عرض الخريطة',
             'whatsapp' => 'واتساب',
         ],
+        'slider' => [
+            'previous' => 'الشريحة السابقة',
+            'next' => 'الشريحة التالية',
+            'go_to' => 'الانتقال إلى الشريحة :number',
+        ],
     ],
     'admin' => [
         'nav' => [
@@ -128,6 +133,10 @@ return [
                 'hero_image_upload' => 'الصورة الرئيسية',
                 'featured_video_upload' => 'الفيديو المميز',
                 'gallery_uploads' => 'صور المعرض',
+                'gallery_title_en' => 'عنوان الشريحة بالإنجليزية',
+                'gallery_title_ar' => 'عنوان الشريحة بالعربية',
+                'gallery_details_en' => 'تفاصيل الشريحة بالإنجليزية',
+                'gallery_details_ar' => 'تفاصيل الشريحة بالعربية',
                 'gallery_caption_en' => 'وصف الصورة بالإنجليزية',
                 'gallery_caption_ar' => 'وصف الصورة بالعربية',
                 'hero_eyebrow_en' => 'النص العلوي للواجهة بالإنجليزية',

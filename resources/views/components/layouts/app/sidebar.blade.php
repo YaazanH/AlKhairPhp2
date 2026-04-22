@@ -88,14 +88,19 @@
                         </flux:navlist.group>
                     @endif
 
-                    @if (auth()->user()->can('attendance.student.view') || auth()->user()->can('attendance.teacher.view') || auth()->user()->can('memorization.view') || auth()->user()->can('memorization.record') || auth()->user()->can('quran-tests.view') || auth()->user()->can('assessments.view') || auth()->user()->can('points.view') || auth()->user()->can('student-notes.view') || auth()->user()->can('barcode-scans.import'))
-                        <flux:navlist.group :heading="__('ui.nav.tracking')" class="grid">
+                    @if (auth()->user()->can('attendance.student.view') || auth()->user()->can('attendance.teacher.view'))
+                        <flux:navlist.group :heading="__('ui.nav.tracking_attendance')" class="grid">
                             @can('attendance.student.view')
                                 <flux:navlist.item icon="calendar-days" :href="route('student-attendance.index')" :current="request()->routeIs('student-attendance.*', 'groups.attendance')" wire:navigate>{{ __('ui.nav.student_attendance') }}</flux:navlist.item>
                             @endcan
                             @can('attendance.teacher.view')
                                 <flux:navlist.item icon="clipboard-document-check" :href="route('teachers.attendance')" :current="request()->routeIs('teachers.attendance')" wire:navigate>{{ __('ui.nav.teacher_attendance') }}</flux:navlist.item>
                             @endcan
+                        </flux:navlist.group>
+                    @endif
+
+                    @if (auth()->user()->can('memorization.view') || auth()->user()->can('memorization.record') || auth()->user()->can('quran-tests.view'))
+                        <flux:navlist.group :heading="__('ui.nav.tracking_quran')" class="grid">
                             @can('memorization.view')
                                 <flux:navlist.item icon="book-open-text" :href="route('memorization.index')" :current="request()->routeIs('memorization.index', 'enrollments.memorization')" wire:navigate>{{ __('ui.nav.memorization') }}</flux:navlist.item>
                             @endcan
@@ -105,12 +110,22 @@
                             @can('quran-tests.view')
                                 <flux:navlist.item icon="document-check" :href="route('quran-tests.index')" :current="request()->routeIs('quran-tests.*', 'enrollments.quran-tests')" wire:navigate>{{ __('ui.nav.quran_tests') }}</flux:navlist.item>
                             @endcan
+                        </flux:navlist.group>
+                    @endif
+
+                    @if (auth()->user()->can('assessments.view') || auth()->user()->can('points.view'))
+                        <flux:navlist.group :heading="__('ui.nav.tracking_performance')" class="grid">
                             @can('assessments.view')
                                 <flux:navlist.item icon="chart-pie" :href="route('assessments.index')" :current="request()->routeIs('assessments.*')" wire:navigate>{{ __('ui.nav.assessments') }}</flux:navlist.item>
                             @endcan
                             @can('points.view')
                                 <flux:navlist.item icon="trophy" :href="route('points.index')" :current="request()->routeIs('points.*', 'enrollments.points')" wire:navigate>{{ __('ui.nav.point_ledger') }}</flux:navlist.item>
                             @endcan
+                        </flux:navlist.group>
+                    @endif
+
+                    @if (auth()->user()->can('student-notes.view') || auth()->user()->can('barcode-scans.import'))
+                        <flux:navlist.group :heading="__('ui.nav.tracking_tools')" class="grid">
                             @can('student-notes.view')
                                 <flux:navlist.item icon="pencil-square" :href="route('student-notes.index')" :current="request()->routeIs('student-notes.*')" wire:navigate>{{ __('ui.nav.student_notes') }}</flux:navlist.item>
                             @endcan

@@ -182,29 +182,35 @@
         </div>
 
         <div class="public-gallery-showcase">
-            <div class="public-gallery-slider" aria-label="{{ __('site.public.sections.gallery') }}">
+            <div class="public-gallery-slider" data-public-gallery-slider aria-label="{{ __('site.public.sections.gallery') }}">
                 @foreach (($site['gallery_items'] ?? []) as $galleryItem)
-                    <article class="public-gallery-slide">
-                        <img src="{{ $galleryItem['url'] }}" alt="{{ $galleryItem['caption'] ?: $site['site_name'] }}" class="public-gallery-slide__image">
-                        @if (! empty($galleryItem['caption']))
-                            <div class="public-gallery-slide__caption">{{ $galleryItem['caption'] }}</div>
+                    <article class="public-gallery-slide {{ $loop->first ? 'is-active' : '' }}" data-public-gallery-slide>
+                        <img src="{{ $galleryItem['url'] }}" alt="{{ ($galleryItem['title'] ?? null) ?: (($galleryItem['details'] ?? null) ?: $site['site_name']) }}" class="public-gallery-slide__image">
+                        @if (! empty($galleryItem['title']) || ! empty($galleryItem['details']))
+                            <div class="public-gallery-slide__caption">
+                                @if (! empty($galleryItem['title']))
+                                    <h3 class="public-gallery-slide__title">{{ $galleryItem['title'] }}</h3>
+                                @endif
+                                @if (! empty($galleryItem['details']))
+                                    <p class="public-gallery-slide__details">{{ $galleryItem['details'] }}</p>
+                                @endif
+                            </div>
                         @endif
                     </article>
                 @endforeach
-            </div>
 
-            @if ($navigationPages->isNotEmpty())
-                <aside class="public-card-stack">
-                    @foreach ($navigationPages as $navigationPage)
-                        <article class="public-card">
-                            <div class="eyebrow">{{ __('site.public.sections.latest_pages') }}</div>
-                            <h3 class="public-card__title mt-4">{{ $navigationPage->localizedText('title') }}</h3>
-                            <p class="public-card__text">{{ $navigationPage->localizedText('excerpt') }}</p>
-                            <a href="{{ route('website.pages.show', $navigationPage) }}" class="pill-link pill-link--compact mt-6">{{ __('site.public.cta.open_page') }}</a>
-                        </article>
-                    @endforeach
-                </aside>
-            @endif
+                @if (count($site['gallery_items'] ?? []) > 1)
+                    <div class="public-gallery-slider__controls" aria-hidden="false">
+                        <button type="button" class="public-gallery-slider__button" data-public-gallery-prev aria-label="{{ __('site.public.slider.previous') }}">‹</button>
+                        <div class="public-gallery-slider__dots">
+                            @foreach (($site['gallery_items'] ?? []) as $galleryItem)
+                                <button type="button" class="public-gallery-slider__dot {{ $loop->first ? 'is-active' : '' }}" data-public-gallery-dot="{{ $loop->index }}" aria-label="{{ __('site.public.slider.go_to', ['number' => $loop->iteration]) }}"></button>
+                            @endforeach
+                        </div>
+                        <button type="button" class="public-gallery-slider__button" data-public-gallery-next aria-label="{{ __('site.public.slider.next') }}">›</button>
+                    </div>
+                @endif
+            </div>
         </div>
     </section>
 @endsection

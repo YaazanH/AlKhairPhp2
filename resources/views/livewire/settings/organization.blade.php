@@ -645,6 +645,26 @@ new class extends Component {
                 <button type="button" wire:click="openOrganizationModal" class="pill-link">{{ __('settings.organization.actions.save_settings') }}</button>
             </div>
         </div>
+
+        <div class="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <div class="rounded-2xl border border-white/10 bg-white/5 p-4">
+                <div class="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-400">{{ __('settings.organization.fields.school_name') }}</div>
+                <div class="mt-2 truncate text-sm font-semibold text-white">{{ $school_name ?: __('crud.common.not_available') }}</div>
+            </div>
+            <div class="rounded-2xl border border-white/10 bg-white/5 p-4">
+                <div class="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-400">{{ __('settings.organization.fields.school_email') }}</div>
+                <div class="mt-2 truncate text-sm font-semibold text-white">{{ $school_email ?: __('crud.common.not_available') }}</div>
+            </div>
+            <div class="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 p-4">
+                <div class="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-200">{{ __('settings.organization.fields.email_domain') }}</div>
+                <div class="mt-2 truncate font-mono text-sm font-semibold text-white">{{ $email_domain ?: 'alkhair.local' }}</div>
+                <p class="mt-2 text-xs leading-5 text-emerald-100/80">{{ __('settings.organization.fields.email_domain_help') }}</p>
+            </div>
+            <div class="rounded-2xl border border-white/10 bg-white/5 p-4">
+                <div class="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-400">{{ __('settings.organization.fields.school_timezone') }}</div>
+                <div class="mt-2 truncate text-sm font-semibold text-white">{{ $school_timezone ?: __('crud.common.not_available') }}</div>
+            </div>
+        </div>
     </section>
 
     <div class="space-y-6">

@@ -138,8 +138,8 @@ new class extends Component {
         </div>
     </section>
 
-    <div class="grid gap-6 xl:grid-cols-[minmax(0,1fr)_18rem_24rem]">
-        <section class="surface-panel p-5 lg:p-6">
+    <div class="reports-overview-grid grid items-stretch gap-6 xl:grid-cols-3">
+        <section class="surface-panel report-panel report-panel--filters min-w-0 p-5 lg:p-6">
             <div class="mb-5">
                 <div class="eyebrow">{{ __('reports.filters.eyebrow') }}</div>
                 <h2 class="font-display mt-3 text-2xl text-white">{{ __('reports.filters.title') }}</h2>
@@ -148,8 +148,8 @@ new class extends Component {
 
             <div class="grid gap-4 md:grid-cols-2">
                 <div>
-                    <label class="mb-2 block text-sm font-medium text-neutral-200">{{ __('reports.filters.academic_year') }}</label>
-                    <select wire:model.live="academic_year_id" class="w-full rounded-xl px-3 py-2.5 text-sm">
+                    <label class="report-field-label mb-2 block text-sm font-medium">{{ __('reports.filters.academic_year') }}</label>
+                    <select wire:model.live="academic_year_id" class="report-control w-full rounded-xl px-3 py-2.5 text-sm">
                         <option value="">{{ __('reports.filters.all_academic_years') }}</option>
                         @foreach ($academicYears as $academicYear)
                             <option value="{{ $academicYear->id }}">{{ $academicYear->name }}</option>
@@ -158,8 +158,8 @@ new class extends Component {
                 </div>
 
                 <div>
-                    <label class="mb-2 block text-sm font-medium text-neutral-200">{{ __('reports.filters.group') }}</label>
-                    <select wire:model.live="group_id" class="w-full rounded-xl px-3 py-2.5 text-sm">
+                    <label class="report-field-label mb-2 block text-sm font-medium">{{ __('reports.filters.group') }}</label>
+                    <select wire:model.live="group_id" class="report-control w-full rounded-xl px-3 py-2.5 text-sm">
                         <option value="">{{ __('reports.filters.all_groups') }}</option>
                         @foreach ($groups as $group)
                             <option value="{{ $group->id }}">{{ $group->name }}{{ $group->course ? ' | '.$group->course->name : '' }}</option>
@@ -168,13 +168,13 @@ new class extends Component {
                 </div>
 
                 <div>
-                    <label class="mb-2 block text-sm font-medium text-neutral-200">{{ __('reports.filters.date_from') }}</label>
-                    <input wire:model.live="date_from" type="date" class="w-full rounded-xl px-3 py-2.5 text-sm">
+                    <label class="report-field-label mb-2 block text-sm font-medium">{{ __('reports.filters.date_from') }}</label>
+                    <input wire:model.live="date_from" type="date" class="report-control w-full rounded-xl px-3 py-2.5 text-sm">
                 </div>
 
                 <div>
-                    <label class="mb-2 block text-sm font-medium text-neutral-200">{{ __('reports.filters.date_to') }}</label>
-                    <input wire:model.live="date_to" type="date" class="w-full rounded-xl px-3 py-2.5 text-sm">
+                    <label class="report-field-label mb-2 block text-sm font-medium">{{ __('reports.filters.date_to') }}</label>
+                    <input wire:model.live="date_to" type="date" class="report-control w-full rounded-xl px-3 py-2.5 text-sm">
                 </div>
             </div>
 
@@ -185,35 +185,35 @@ new class extends Component {
             </div>
         </section>
 
-        <section class="grid gap-3">
+        <section class="report-kpi-stack grid min-w-0 gap-3">
             @foreach ($headlineCards as $card)
-                <article class="surface-panel p-5">
+                <article class="surface-panel report-kpi-card p-5">
                     <div class="flex items-start justify-between gap-4">
-                        <div class="kpi-label">{{ $card['label'] }}</div>
-                        <span class="badge-soft {{ $loop->even ? 'badge-soft--emerald' : '' }}">{{ str_pad((string) $loop->iteration, 2, '0', STR_PAD_LEFT) }}</span>
+                        <div class="kpi-label report-kpi-label">{{ $card['label'] }}</div>
+                        <span class="badge-soft report-kpi-index {{ $loop->even ? 'badge-soft--emerald' : '' }}">{{ str_pad((string) $loop->iteration, 2, '0', STR_PAD_LEFT) }}</span>
                     </div>
-                    <div class="metric-value mt-5">{{ $card['value'] }}</div>
-                    <p class="mt-3 text-xs leading-5 text-neutral-300">{{ $card['hint'] }}</p>
+                    <div class="metric-value report-kpi-value mt-5">{{ $card['value'] }}</div>
+                    <p class="report-kpi-hint mt-3 text-xs leading-5">{{ $card['hint'] }}</p>
                 </article>
             @endforeach
         </section>
 
-        <section class="surface-panel p-6">
+        <section class="surface-panel report-panel report-panel--exports min-w-0 p-6">
             <div class="eyebrow">{{ __('reports.exports.eyebrow') }}</div>
             <h2 class="font-display mt-3 text-2xl text-white">{{ __('reports.exports.title') }}</h2>
             <p class="mt-3 text-sm leading-7 text-neutral-300">{{ __('reports.exports.subtitle') }}</p>
 
-            <div class="mt-5 grid gap-3">
-                <a href="{{ route('reports.exports.attendance', ['academic_year_id' => $academic_year_id, 'group_id' => $group_id, 'assessment_type_id' => $assessment_type_id, 'date_from' => $date_from, 'date_to' => $date_to]) }}" class="pill-link pill-link--accent">
+            <div class="report-export-list mt-5 grid gap-3">
+                <a href="{{ route('reports.exports.attendance', ['academic_year_id' => $academic_year_id, 'group_id' => $group_id, 'assessment_type_id' => $assessment_type_id, 'date_from' => $date_from, 'date_to' => $date_to]) }}" class="pill-link pill-link--accent report-export-link">
                     {{ __('reports.exports.attendance') }}
                 </a>
-                <a href="{{ route('reports.exports.memorization', ['academic_year_id' => $academic_year_id, 'group_id' => $group_id, 'assessment_type_id' => $assessment_type_id, 'date_from' => $date_from, 'date_to' => $date_to]) }}" class="pill-link">
+                <a href="{{ route('reports.exports.memorization', ['academic_year_id' => $academic_year_id, 'group_id' => $group_id, 'assessment_type_id' => $assessment_type_id, 'date_from' => $date_from, 'date_to' => $date_to]) }}" class="pill-link report-export-link">
                     {{ __('reports.exports.memorization') }}
                 </a>
-                <a href="{{ route('reports.exports.points', ['academic_year_id' => $academic_year_id, 'group_id' => $group_id, 'assessment_type_id' => $assessment_type_id, 'date_from' => $date_from, 'date_to' => $date_to]) }}" class="pill-link">
+                <a href="{{ route('reports.exports.points', ['academic_year_id' => $academic_year_id, 'group_id' => $group_id, 'assessment_type_id' => $assessment_type_id, 'date_from' => $date_from, 'date_to' => $date_to]) }}" class="pill-link report-export-link">
                     {{ __('reports.exports.points') }}
                 </a>
-                <a href="{{ route('reports.exports.assessments', ['academic_year_id' => $academic_year_id, 'group_id' => $group_id, 'assessment_type_id' => $assessment_type_id, 'date_from' => $date_from, 'date_to' => $date_to]) }}" class="pill-link">
+                <a href="{{ route('reports.exports.assessments', ['academic_year_id' => $academic_year_id, 'group_id' => $group_id, 'assessment_type_id' => $assessment_type_id, 'date_from' => $date_from, 'date_to' => $date_to]) }}" class="pill-link report-export-link">
                     {{ __('reports.exports.assessments') }}
                 </a>
             </div>

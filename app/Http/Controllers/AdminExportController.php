@@ -200,6 +200,10 @@ class AdminExportController extends Controller
             $query->where('is_active', $request->string('status')->value() === 'active');
         }
 
+        if ($request->filled('course_id') && $request->string('course_id')->value() !== 'all') {
+            $query->where('course_id', $request->integer('course_id'));
+        }
+
         return $this->streamXlsx('groups', ['Group', 'Course', 'Teacher', 'Academic Year', 'Students', 'Status'], $query->get()->map(fn (Group $group) => [
             $group->name,
             $group->course?->name,
@@ -233,6 +237,14 @@ class AdminExportController extends Controller
 
         if (in_array($request->string('status')->value(), ['active', 'completed', 'cancelled'], true)) {
             $query->where('status', $request->string('status')->value());
+        }
+
+        if ($request->filled('course_id') && $request->string('course_id')->value() !== 'all') {
+            $query->whereHas('group', fn ($groupQuery) => $groupQuery->where('course_id', $request->integer('course_id')));
+        }
+
+        if ($request->filled('group_id') && $request->string('group_id')->value() !== 'all') {
+            $query->where('group_id', $request->integer('group_id'));
         }
 
         return $this->streamXlsx('enrollments', ['Student', 'Group', 'Course', 'Enrolled At', 'Left At', 'Status'], $query->get()->map(fn (Enrollment $enrollment) => [

@@ -37,6 +37,10 @@ return [
             'search_placeholder' => 'Search records',
             'status' => 'Status',
             'all_statuses' => 'All statuses',
+            'course' => 'Course',
+            'all_courses' => 'All courses',
+            'group' => 'Group',
+            'all_groups' => 'All groups',
         ],
         'status_options' => [
             'active' => 'Active',

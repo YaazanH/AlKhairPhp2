@@ -8,7 +8,7 @@ return [
         ],
         'actions' => [
             'save' => 'Save',
-            'save_settings' => 'Save settings',
+            'save_settings' => 'Edit organization details',
             'create' => 'Create',
             'update' => 'Update',
         ],
