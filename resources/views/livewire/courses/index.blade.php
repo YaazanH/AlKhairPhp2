@@ -104,10 +104,14 @@ new class extends Component {
         $validated['starts_on'] = $validated['starts_on'] ?: null;
         $validated['ends_on'] = $validated['ends_on'] ?: null;
 
-        Course::query()->updateOrCreate(
+        $course = Course::query()->updateOrCreate(
             ['id' => $this->editingId],
             $validated,
         );
+
+        if (! $course->is_active) {
+            $this->deactivateCourseTree($course);
+        }
 
         session()->flash(
             'status',
@@ -168,6 +172,16 @@ new class extends Component {
         session()->flash('status', __('crud.courses.messages.deleted'));
     }
 
+    public function deactivate(int $courseId): void
+    {
+        $this->authorizePermission('courses.update');
+
+        $course = Course::query()->findOrFail($courseId);
+        $this->deactivateCourseTree($course);
+
+        session()->flash('status', __('crud.courses.messages.deactivated'));
+    }
+
     public function duplicate(int $courseId): void
     {
         $this->authorizePermission('courses.create');
@@ -180,14 +194,14 @@ new class extends Component {
             $newCourse = $source->replicate(['name', 'description']);
             $newCourse->name = $this->uniqueCopyName($source->name);
             $newCourse->description = null;
-            $newCourse->is_active = true;
+            $newCourse->is_active = false;
             $newCourse->save();
 
             foreach ($source->groups as $group) {
-                $newGroup = $group->replicate(['course_id']);
+                $newGroup = $group->replicate(['course_id', 'name']);
                 $newGroup->course_id = $newCourse->id;
                 $newGroup->name = $this->uniqueGroupCopyName($group->name, $group->academic_year_id);
-                $newGroup->is_active = true;
+                $newGroup->is_active = false;
                 $newGroup->save();
 
                 foreach ($group->schedules as $schedule) {
@@ -201,7 +215,7 @@ new class extends Component {
                         'student_id' => $enrollment->student_id,
                         'group_id' => $newGroup->id,
                         'enrolled_at' => now()->toDateString(),
-                        'status' => 'active',
+                        'status' => 'cancelled',
                         'left_at' => null,
                         'final_points_cached' => 0,
                         'memorized_pages_cached' => 0,
@@ -244,6 +258,25 @@ new class extends Component {
         }
 
         return $candidate;
+    }
+
+    protected function deactivateCourseTree(Course $course): void
+    {
+        DB::transaction(function () use ($course): void {
+            $course->forceFill(['is_active' => false])->save();
+
+            $groupIds = Group::query()
+                ->where('course_id', $course->id)
+                ->pluck('id');
+
+            Group::query()
+                ->whereIn('id', $groupIds)
+                ->update(['is_active' => false]);
+
+            Enrollment::query()
+                ->whereIn('group_id', $groupIds)
+                ->update(['status' => 'cancelled']);
+        });
     }
 }; ?>
 
@@ -352,9 +385,12 @@ new class extends Component {
                                     <div class="flex flex-wrap justify-end gap-2">
                                         @can('courses.update')
                                             <button type="button" wire:click="edit({{ $course->id }})" class="pill-link pill-link--compact">{{ __('crud.common.actions.edit') }}</button>
+                                            @if ($course->is_active)
+                                                <button type="button" wire:click="deactivate({{ $course->id }})" wire:confirm="{{ __('crud.courses.confirm_deactivate') }}" class="pill-link pill-link--compact border-amber-300/30 bg-amber-400/10 text-amber-100 hover:border-amber-200/45 hover:bg-amber-400/15">{{ __('crud.common.actions.deactivate') }}</button>
+                                            @endif
                                         @endcan
                                         @can('courses.create')
-                                            <button type="button" wire:click="duplicate({{ $course->id }})" wire:confirm="{{ __('crud.courses.copy.confirm') }}" class="pill-link pill-link--compact border-amber-300/30 bg-amber-400/10 text-amber-100 hover:border-amber-200/45 hover:bg-amber-400/15">{{ __('crud.common.actions.copy') }}</button>
+                                            <button type="button" wire:click="duplicate({{ $course->id }})" wire:confirm="{{ __('crud.courses.copy.confirm') }}" class="pill-link pill-link--compact border-sky-300/30 bg-sky-400/10 text-sky-100 hover:border-sky-200/45 hover:bg-sky-400/15">{{ __('crud.common.actions.copy') }}</button>
                                         @endcan
                                         @can('courses.delete')
                                             <button type="button" wire:click="delete({{ $course->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link pill-link--compact border-red-400/25 text-red-200 hover:border-red-300/35 hover:bg-red-500/12">{{ __('crud.common.actions.delete') }}</button>

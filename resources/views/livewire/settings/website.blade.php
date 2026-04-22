@@ -27,6 +27,7 @@ new class extends Component {
     public ?string $hero_image_path = null;
     public ?string $featured_video_path = null;
     public array $gallery_paths = [];
+    public array $gallery_items = [];
     public $logo_upload = null;
     public $hero_image_upload = null;
     public $featured_video_upload = null;
@@ -69,9 +70,45 @@ new class extends Component {
                 'published_pages' => WebsitePage::query()->where('is_home', false)->where('is_published', true)->count(),
                 'program_cards' => count($this->program_cards),
                 'quick_stats' => count($this->stats),
-                'media_assets' => count(array_filter([$this->logo_path, $this->hero_image_path, $this->featured_video_path])) + count($this->gallery_paths),
+                'media_assets' => count(array_filter([$this->logo_path, $this->hero_image_path, $this->featured_video_path])) + count($this->gallery_items),
             ],
         ];
+    }
+
+    public function updatedLogoUpload(): void
+    {
+        $this->autoSaveWebsiteAsset('logo_upload', 'logo_path', 'website/branding', ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,svg', 'max:2048']);
+    }
+
+    public function updatedHeroImageUpload(): void
+    {
+        $this->autoSaveWebsiteAsset('hero_image_upload', 'hero_image_path', 'website/gallery', ['nullable', 'image', 'max:4096']);
+    }
+
+    public function updatedFeaturedVideoUpload(): void
+    {
+        $this->autoSaveWebsiteAsset('featured_video_upload', 'featured_video_path', 'website/video', ['nullable', 'file', 'mimetypes:video/mp4,video/quicktime,video/webm', 'max:51200']);
+    }
+
+    public function updatedGalleryUploads(): void
+    {
+        $this->validate([
+            'gallery_uploads' => ['nullable', 'array'],
+            'gallery_uploads.*' => ['image', 'max:4096'],
+        ]);
+
+        foreach ($this->gallery_uploads as $galleryUpload) {
+            $this->gallery_items[] = [
+                'path' => $galleryUpload->store('website/gallery', 'public'),
+                'caption_en' => '',
+                'caption_ar' => '',
+            ];
+        }
+
+        $this->syncGalleryPaths();
+        $this->persistGallery();
+        $this->reset('gallery_uploads');
+        session()->flash('status', __('site.admin.website.messages.media_saved'));
     }
 
     public function addProgramCard(): void
@@ -98,13 +135,14 @@ new class extends Component {
 
     public function removeGalleryAsset(int $index): void
     {
-        if ($path = $this->gallery_paths[$index] ?? null) {
+        if ($path = data_get($this->gallery_items, $index.'.path')) {
             Storage::disk('public')->delete($path);
         }
 
-        unset($this->gallery_paths[$index]);
-        $this->gallery_paths = array_values($this->gallery_paths);
-        AppSetting::storeValue('website', 'gallery_paths', $this->gallery_paths, 'array');
+        unset($this->gallery_items[$index]);
+        $this->gallery_items = array_values($this->gallery_items);
+        $this->syncGalleryPaths();
+        $this->persistGallery();
         session()->flash('status', __('site.admin.website.messages.media_removed'));
     }
 
@@ -121,6 +159,24 @@ new class extends Component {
         $this->{$property} = null;
         AppSetting::storeValue('website', $property, null);
         session()->flash('status', __('site.admin.website.messages.media_removed'));
+    }
+
+    protected function autoSaveWebsiteAsset(string $uploadField, string $pathProperty, string $directory, array $rules): void
+    {
+        $validated = $this->validate([$uploadField => $rules]);
+
+        if (! ($validated[$uploadField] ?? null)) {
+            return;
+        }
+
+        if ($this->{$pathProperty}) {
+            Storage::disk('public')->delete($this->{$pathProperty});
+        }
+
+        $this->{$pathProperty} = $validated[$uploadField]->store($directory, 'public');
+        AppSetting::storeValue('website', $pathProperty, $this->{$pathProperty});
+        $this->reset($uploadField);
+        session()->flash('status', __('site.admin.website.messages.media_saved'));
     }
 
     public function saveWebsite(): void
@@ -144,6 +200,10 @@ new class extends Component {
             'featured_video_upload' => ['nullable', 'file', 'mimetypes:video/mp4,video/quicktime,video/webm', 'max:51200'],
             'gallery_uploads' => ['nullable', 'array'],
             'gallery_uploads.*' => ['image', 'max:4096'],
+            'gallery_items' => ['nullable', 'array'],
+            'gallery_items.*.path' => ['nullable', 'string'],
+            'gallery_items.*.caption_en' => ['nullable', 'string', 'max:255'],
+            'gallery_items.*.caption_ar' => ['nullable', 'string', 'max:255'],
             'hero_eyebrow_en' => ['required', 'string', 'max:255'],
             'hero_eyebrow_ar' => ['required', 'string', 'max:255'],
             'hero_title_en' => ['required', 'string', 'max:255'],
@@ -190,9 +250,26 @@ new class extends Component {
             }
         }
 
+        $submittedGalleryItems = $validated['gallery_items'] ?? $this->gallery_items;
+
         foreach ($validated['gallery_uploads'] ?? [] as $galleryUpload) {
-            $this->gallery_paths[] = $galleryUpload->store('website/gallery', 'public');
+            $submittedGalleryItems[] = [
+                'path' => $galleryUpload->store('website/gallery', 'public'),
+                'caption_en' => '',
+                'caption_ar' => '',
+            ];
         }
+
+        $this->gallery_items = collect($submittedGalleryItems)
+            ->filter(fn (array $item) => filled($item['path'] ?? null))
+            ->map(fn (array $item) => [
+                'path' => (string) $item['path'],
+                'caption_en' => (string) ($item['caption_en'] ?? ''),
+                'caption_ar' => (string) ($item['caption_ar'] ?? ''),
+            ])
+            ->values()
+            ->all();
+        $this->syncGalleryPaths();
 
         AppSetting::storeValue('website', 'site_name', $validated['site_name']);
         AppSetting::storeValue('website', 'site_tagline', ['en' => $validated['site_tagline_en'], 'ar' => $validated['site_tagline_ar']], 'array');
@@ -207,7 +284,7 @@ new class extends Component {
         AppSetting::storeValue('website', 'logo_path', $this->logo_path);
         AppSetting::storeValue('website', 'hero_image_path', $this->hero_image_path);
         AppSetting::storeValue('website', 'featured_video_path', $this->featured_video_path);
-        AppSetting::storeValue('website', 'gallery_paths', $this->gallery_paths, 'array');
+        $this->persistGallery();
 
         WebsitePage::query()->updateOrCreate(['slug' => 'home'], [
             'template' => 'home',
@@ -244,7 +321,25 @@ new class extends Component {
             $this->{$key} = (string) ($settings->get($key) ?? $this->{$key});
         }
 
-        $this->gallery_paths = array_values($settings->get('gallery_paths') ?? []);
+        $this->gallery_items = collect($settings->get('gallery_items') ?: [])
+            ->map(fn (array $item) => [
+                'path' => (string) data_get($item, 'path', ''),
+                'caption_en' => (string) data_get($item, 'caption_en', ''),
+                'caption_ar' => (string) data_get($item, 'caption_ar', ''),
+            ])
+            ->filter(fn (array $item) => filled($item['path']))
+            ->values()
+            ->all();
+
+        if ($this->gallery_items === []) {
+            $this->gallery_items = collect($settings->get('gallery_paths') ?? [])
+                ->filter(fn (mixed $path) => is_string($path) && filled($path))
+                ->map(fn (string $path) => ['path' => $path, 'caption_en' => '', 'caption_ar' => ''])
+                ->values()
+                ->all();
+        }
+
+        $this->syncGalleryPaths();
         foreach (['site_tagline', 'site_description', 'contact_address'] as $key) {
             $this->{$key.'_en'} = (string) data_get($settings->get($key, []), 'en', '');
             $this->{$key.'_ar'} = (string) data_get($settings->get($key, []), 'ar', '');
@@ -272,6 +367,21 @@ new class extends Component {
     protected function blankStat(): array
     {
         return ['value' => '', 'label_en' => '', 'label_ar' => ''];
+    }
+
+    protected function syncGalleryPaths(): void
+    {
+        $this->gallery_paths = collect($this->gallery_items)
+            ->pluck('path')
+            ->filter()
+            ->values()
+            ->all();
+    }
+
+    protected function persistGallery(): void
+    {
+        AppSetting::storeValue('website', 'gallery_items', $this->gallery_items, 'array');
+        AppSetting::storeValue('website', 'gallery_paths', $this->gallery_paths, 'array');
     }
 }; ?>
 
@@ -371,8 +481,13 @@ new class extends Component {
             <div class="mt-4">
                 <input wire:model="gallery_uploads" type="file" accept="image/*" multiple class="block w-full text-sm">
                 <div class="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                    @foreach ($gallery_paths as $index => $galleryPath)
-                        <div class="soft-callout p-3"><img src="{{ asset('storage/'.ltrim($galleryPath, '/')) }}" alt="{{ __('site.admin.website.media.gallery_alt') }}" class="h-32 w-full rounded-2xl object-cover"><button type="button" wire:click="removeGalleryAsset({{ $index }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link pill-link--compact mt-3">{{ __('site.admin.website.actions.remove_media') }}</button></div>
+                    @foreach ($gallery_items as $index => $galleryItem)
+                        <div class="soft-callout space-y-3 p-3">
+                            <img src="{{ asset('storage/'.ltrim((string) ($galleryItem['path'] ?? ''), '/')) }}" alt="{{ __('site.admin.website.media.gallery_alt') }}" class="h-32 w-full rounded-2xl object-cover">
+                            <input wire:model="gallery_items.{{ $index }}.caption_en" type="text" dir="ltr" class="admin-locale-field--en w-full rounded-xl px-3 py-2 text-sm" placeholder="{{ __('site.admin.website.fields.gallery_caption_en') }}">
+                            <input wire:model="gallery_items.{{ $index }}.caption_ar" type="text" dir="rtl" class="admin-locale-field--ar w-full rounded-xl px-3 py-2 text-sm" placeholder="{{ __('site.admin.website.fields.gallery_caption_ar') }}">
+                            <button type="button" wire:click="removeGalleryAsset({{ $index }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link pill-link--compact">{{ __('site.admin.website.actions.remove_media') }}</button>
+                        </div>
                     @endforeach
                 </div>
             </div>
@@ -517,10 +632,10 @@ new class extends Component {
                     </div>
                 @endif
                 <div class="website-asset-stack__item">
-                    <div class="website-asset-stack__icon">{{ count($gallery_paths) }}</div>
+                    <div class="website-asset-stack__icon">{{ count($gallery_items) }}</div>
                     <div>
                         <div class="text-sm font-semibold text-white">{{ __('site.admin.website.fields.gallery_uploads') }}</div>
-                        <div class="text-xs text-neutral-400">{{ __('crud.common.badges.in_view', ['count' => number_format(count($gallery_paths))]) }}</div>
+                        <div class="text-xs text-neutral-400">{{ __('crud.common.badges.in_view', ['count' => number_format(count($gallery_items))]) }}</div>
                     </div>
                 </div>
             </div>

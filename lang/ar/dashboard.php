@@ -12,6 +12,8 @@ return [
         'workspace' => 'مساحة عمل :role',
         'signed_in_as' => 'تم تسجيل الدخول باسم',
         'role' => 'الدور',
+        'job' => 'المهمة',
+        'current_academic_year' => 'السنة الأكاديمية الحالية',
         'primary_signal' => 'المؤشر الأساسي',
         'live_snapshot' => 'لقطة مباشرة',
         'workspace_area' => 'منطقة العمل',

@@ -40,6 +40,10 @@ return [
             'meta' => 'Billing',
             'title' => 'Finance',
         ],
+        'access' => [
+            'meta' => 'Roles',
+            'title' => 'Access',
+        ],
     ],
     'account' => [
         'eyebrow' => 'Account settings',
@@ -57,8 +61,12 @@ return [
             'fields' => [
                 'name' => 'Name',
                 'email' => 'Email',
+                'photo' => 'Profile photo',
             ],
             'email_help' => 'Email is kept for account identity. Password recovery is handled by mosque management.',
+            'photo_help' => 'Upload a profile photo. It saves automatically after selection.',
+            'photo_linked' => 'This account uses the linked student or teacher photo.',
+            'photo_managed_by_profile' => 'This image comes from the linked student or teacher profile. Update it there to keep data consistent.',
             'saved' => 'Profile saved.',
         ],
         'password' => [
@@ -150,6 +158,8 @@ return [
             'school_name' => 'School name',
             'school_phone' => 'Phone',
             'school_email' => 'Email',
+            'email_domain' => 'Generated email domain',
+            'email_domain_help' => 'Used when the system creates emails automatically, for example username@your-domain.com.',
             'school_timezone' => 'Timezone',
             'school_currency' => 'Currency',
             'school_address' => 'Address',

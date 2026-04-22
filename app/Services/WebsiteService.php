@@ -167,6 +167,31 @@ class WebsiteService
             'en' => (string) ($general->get('school_address') ?: 'Damascus'),
             'ar' => (string) ($general->get('school_address') ?: 'دمشق'),
         ];
+        $galleryItems = collect($website->get('gallery_items') ?: [])
+            ->map(function (array $item) {
+                $path = (string) data_get($item, 'path', '');
+
+                return [
+                    'path' => $path,
+                    'url' => $this->mediaUrl($path),
+                    'caption' => data_get($item, 'caption_'.app()->getLocale())
+                        ?: data_get($item, 'caption_'.config('app.fallback_locale', 'en'))
+                        ?: '',
+                ];
+            })
+            ->filter(fn (array $item) => filled($item['url']))
+            ->values();
+
+        if ($galleryItems->isEmpty()) {
+            $galleryItems = collect($website->get('gallery_paths') ?: [])
+                ->map(fn (mixed $path) => [
+                    'path' => is_string($path) ? $path : '',
+                    'url' => $this->mediaUrl(is_string($path) ? $path : null),
+                    'caption' => '',
+                ])
+                ->filter(fn (array $item) => filled($item['url']))
+                ->values();
+        }
 
         return [
             'site_name' => $siteName,
@@ -181,16 +206,13 @@ class WebsiteService
             'hero_image_path' => $website->get('hero_image_path'),
             'featured_video_path' => $website->get('featured_video_path'),
             'gallery_paths' => $website->get('gallery_paths') ?: [],
+            'gallery_items' => $galleryItems->all(),
             'maps_url' => $website->get('maps_url'),
             'whatsapp_url' => $website->get('whatsapp_url'),
             'logo_url' => $this->mediaUrl($website->get('logo_path')),
             'hero_image_url' => $this->mediaUrl($website->get('hero_image_path')),
             'featured_video_url' => $this->mediaUrl($website->get('featured_video_path')),
-            'gallery_urls' => collect($website->get('gallery_paths') ?: [])
-                ->map(fn (mixed $path) => $this->mediaUrl(is_string($path) ? $path : null))
-                ->filter()
-                ->values()
-                ->all(),
+            'gallery_urls' => $galleryItems->pluck('url')->all(),
         ];
     }
 

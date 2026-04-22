@@ -10,6 +10,7 @@ use App\Models\GradeLevel;
 use App\Models\Group;
 use App\Models\Student;
 use App\Models\Teacher;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Livewire\Volt\Component;
 use Livewire\WithPagination;
@@ -172,10 +173,14 @@ new class extends Component {
         $validated['assistant_teacher_id'] = $validated['assistant_teacher_id'] ?: null;
         $validated['grade_level_id'] = $validated['grade_level_id'] ?: null;
 
-        Group::query()->updateOrCreate(
+        $group = Group::query()->updateOrCreate(
             ['id' => $this->editingId],
             $validated,
         );
+
+        if (! $group->is_active) {
+            $this->deactivateGroupEnrollments($group);
+        }
 
         session()->flash(
             'status',
@@ -242,6 +247,17 @@ new class extends Component {
         }
 
         session()->flash('status', __('crud.groups.messages.deleted'));
+    }
+
+    public function deactivate(int $groupId): void
+    {
+        $this->authorizePermission('groups.update');
+
+        $group = Group::query()->findOrFail($groupId);
+        $this->authorizeScopedGroupAccess($group);
+        $this->deactivateGroupEnrollments($group);
+
+        session()->flash('status', __('crud.groups.messages.deactivated'));
     }
 
     public function openRosterModal(int $groupId): void
@@ -352,6 +368,17 @@ new class extends Component {
         return $this->availableTeachersQuery()
             ->whereKey($teacherId)
             ->exists();
+    }
+
+    protected function deactivateGroupEnrollments(Group $group): void
+    {
+        DB::transaction(function () use ($group): void {
+            $group->forceFill(['is_active' => false])->save();
+
+            Enrollment::query()
+                ->where('group_id', $group->id)
+                ->update(['status' => 'cancelled']);
+        });
     }
 }; ?>
 
@@ -482,6 +509,11 @@ new class extends Component {
                                                 <button type="button" wire:click="edit({{ $group->id }})" class="pill-link pill-link--compact">
                                                     {{ __('crud.common.actions.edit') }}
                                                 </button>
+                                                @if ($group->is_active)
+                                                    <button type="button" wire:click="deactivate({{ $group->id }})" wire:confirm="{{ __('crud.groups.confirm_deactivate') }}" class="pill-link pill-link--compact border-amber-300/30 bg-amber-400/10 text-amber-100 hover:border-amber-200/45 hover:bg-amber-400/15">
+                                                        {{ __('crud.common.actions.deactivate') }}
+                                                    </button>
+                                                @endif
                                             @endcan
                                             @can('groups.delete')
                                                 <button type="button" wire:click="delete({{ $group->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link pill-link--compact border-red-400/25 text-red-200 hover:border-red-300/35 hover:bg-red-500/12">

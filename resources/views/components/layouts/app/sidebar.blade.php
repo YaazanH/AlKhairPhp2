@@ -10,7 +10,7 @@
 @endphp
 
 <!DOCTYPE html>
-<html lang="{{ str_replace('_', '-', $currentLocale) }}" dir="{{ $textDirection }}" class="dark">
+<html lang="{{ str_replace('_', '-', $currentLocale) }}" dir="{{ $textDirection }}">
     <head>
         @include('partials.head')
     </head>
@@ -66,7 +66,10 @@
                                 <flux:navlist.item icon="academic-cap" :href="route('teachers.index')" :current="request()->routeIs('teachers.*')" wire:navigate>{{ __('ui.nav.teachers') }}</flux:navlist.item>
                             @endcan
                             @can('students.view')
-                                <flux:navlist.item icon="identification" :href="route('students.index')" :current="request()->routeIs('students.*')" wire:navigate>{{ __('ui.nav.students') }}</flux:navlist.item>
+                                <flux:navlist.item icon="identification" :href="route('students.index')" :current="request()->routeIs('students.index', 'students.progress', 'students.files')" wire:navigate>{{ __('ui.nav.students') }}</flux:navlist.item>
+                            @endcan
+                            @can('students.update')
+                                <flux:navlist.item icon="photo" :href="route('students.bulk-photos')" :current="request()->routeIs('students.bulk-photos')" wire:navigate>{{ __('ui.nav.bulk_student_photos') }}</flux:navlist.item>
                             @endcan
                         </flux:navlist.group>
                     @endif
@@ -85,7 +88,7 @@
                         </flux:navlist.group>
                     @endif
 
-                    @if (auth()->user()->can('attendance.student.view') || auth()->user()->can('attendance.teacher.view') || auth()->user()->can('memorization.view') || auth()->user()->can('quran-tests.view') || auth()->user()->can('assessments.view') || auth()->user()->can('points.view') || auth()->user()->can('student-notes.view') || auth()->user()->can('barcode-scans.import'))
+                    @if (auth()->user()->can('attendance.student.view') || auth()->user()->can('attendance.teacher.view') || auth()->user()->can('memorization.view') || auth()->user()->can('memorization.record') || auth()->user()->can('quran-tests.view') || auth()->user()->can('assessments.view') || auth()->user()->can('points.view') || auth()->user()->can('student-notes.view') || auth()->user()->can('barcode-scans.import'))
                         <flux:navlist.group :heading="__('ui.nav.tracking')" class="grid">
                             @can('attendance.student.view')
                                 <flux:navlist.item icon="calendar-days" :href="route('student-attendance.index')" :current="request()->routeIs('student-attendance.*', 'groups.attendance')" wire:navigate>{{ __('ui.nav.student_attendance') }}</flux:navlist.item>
@@ -94,7 +97,10 @@
                                 <flux:navlist.item icon="clipboard-document-check" :href="route('teachers.attendance')" :current="request()->routeIs('teachers.attendance')" wire:navigate>{{ __('ui.nav.teacher_attendance') }}</flux:navlist.item>
                             @endcan
                             @can('memorization.view')
-                                <flux:navlist.item icon="book-open-text" :href="route('memorization.index')" :current="request()->routeIs('memorization.*', 'enrollments.memorization')" wire:navigate>{{ __('ui.nav.memorization') }}</flux:navlist.item>
+                                <flux:navlist.item icon="book-open-text" :href="route('memorization.index')" :current="request()->routeIs('memorization.index', 'enrollments.memorization')" wire:navigate>{{ __('ui.nav.memorization') }}</flux:navlist.item>
+                            @endcan
+                            @can('memorization.record')
+                                <flux:navlist.item icon="pencil-square" :href="route('memorization.quick-entry')" :current="request()->routeIs('memorization.quick-entry')" wire:navigate>{{ __('ui.nav.enter_memorize') }}</flux:navlist.item>
                             @endcan
                             @can('quran-tests.view')
                                 <flux:navlist.item icon="document-check" :href="route('quran-tests.index')" :current="request()->routeIs('quran-tests.*', 'enrollments.quran-tests')" wire:navigate>{{ __('ui.nav.quran_tests') }}</flux:navlist.item>
@@ -159,10 +165,15 @@
 
                 <div class="app-sidebar-footer">
                     <div class="eyebrow">{{ __('ui.common.current_account') }}</div>
-                    <div class="mt-3 text-base font-semibold text-white">{{ auth()->user()->name }}</div>
-                    <p class="mt-2 text-sm leading-6 text-neutral-300">
-                        {{ auth()->user()->email ?: (auth()->user()->username ?: 'No account identifier recorded.') }}
-                    </p>
+                    <div class="mt-3 flex items-center gap-3">
+                        <x-user-avatar :user="auth()->user()" size="sm" />
+                        <div class="min-w-0">
+                            <div class="truncate text-base font-semibold text-white">{{ auth()->user()->name }}</div>
+                            <p class="truncate text-sm leading-6 text-neutral-300">
+                                {{ auth()->user()->email ?: (auth()->user()->username ?: 'No account identifier recorded.') }}
+                            </p>
+                        </div>
+                    </div>
 
                     <div class="mt-5">
                         <x-locale-switcher />
@@ -187,11 +198,7 @@
                             <flux:menu.radio.group>
                                 <div class="p-0 text-sm font-normal">
                                     <div class="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
-                                        <span class="relative flex h-8 w-8 shrink-0 overflow-hidden rounded-lg">
-                                            <span class="flex h-full w-full items-center justify-center rounded-lg bg-neutral-700 text-white">
-                                                {{ auth()->user()->initials() }}
-                                            </span>
-                                        </span>
+                                        <x-user-avatar :user="auth()->user()" size="sm" />
 
                                         <div class="grid flex-1 text-left text-sm leading-tight">
                                             <span class="truncate font-semibold">{{ auth()->user()->name }}</span>
@@ -241,11 +248,7 @@
                             <flux:menu.radio.group>
                                 <div class="p-0 text-sm font-normal">
                                     <div class="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
-                                        <span class="relative flex h-8 w-8 shrink-0 overflow-hidden rounded-lg">
-                                            <span class="flex h-full w-full items-center justify-center rounded-lg bg-neutral-700 text-white">
-                                                {{ auth()->user()->initials() }}
-                                            </span>
-                                        </span>
+                                        <x-user-avatar :user="auth()->user()" size="sm" />
 
                                         <div class="grid flex-1 text-left text-sm leading-tight">
                                             <span class="truncate font-semibold">{{ auth()->user()->name }}</span>

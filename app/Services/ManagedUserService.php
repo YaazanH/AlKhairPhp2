@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\AppSetting;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -83,17 +84,26 @@ class ManagedUserService
 
     public function uniqueEmail(?string $preferred, string $username, ?int $ignoreUserId = null): string
     {
-        $base = filled($preferred) ? Str::lower(trim((string) $preferred)) : Str::lower($username).'@alkhair.local';
+        $domain = $this->emailDomain();
+        $base = filled($preferred) ? Str::lower(trim((string) $preferred)) : Str::lower($username).'@'.$domain;
         $candidate = $base;
         $counter = 2;
 
         while ($this->emailTaken($candidate, $ignoreUserId)) {
-            [$local, $domain] = array_pad(explode('@', $base, 2), 2, 'alkhair.local');
+            [$local, $domain] = array_pad(explode('@', $base, 2), 2, $domain);
             $candidate = $local.'+'.$counter.'@'.$domain;
             $counter++;
         }
 
         return $candidate;
+    }
+
+    protected function emailDomain(): string
+    {
+        $domain = (string) (AppSetting::groupValues('general')->get('email_domain') ?: 'alkhair.local');
+        $domain = (string) Str::of($domain)->lower()->trim()->replaceStart('@', '');
+
+        return $domain !== '' ? $domain : 'alkhair.local';
     }
 
     protected function usernameTaken(string $username, ?int $ignoreUserId): bool

@@ -47,6 +47,13 @@ new class extends Component {
         ];
     }
 
+    public function updatedPhotoUpload(): void
+    {
+        if ($this->photo_upload) {
+            $this->savePhoto();
+        }
+    }
+
     public function savePhoto(): void
     {
         $this->authorizePermission('students.photo.update');

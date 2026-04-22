@@ -114,6 +114,69 @@ new class extends Component {
         session()->flash('status', __('workflow.teacher_attendance.messages.saved'));
     }
 
+    public function saveDaySummary(): void
+    {
+        $this->authorizePermission('attendance.teacher.take');
+
+        $validated = $this->validate([
+            'attendance_date' => ['required', 'date'],
+            'day_status' => ['required', 'in:open,closed'],
+            'notes' => ['nullable', 'string'],
+        ]);
+
+        $day = TeacherAttendanceDay::query()->firstOrCreate(
+            ['attendance_date' => $validated['attendance_date']],
+            ['created_by' => auth()->id()],
+        );
+
+        $day->update([
+            'status' => $validated['day_status'],
+            'notes' => $validated['notes'] ?: null,
+        ]);
+
+        $this->attendanceDayId = $day->id;
+    }
+
+    public function saveTeacherStatus(int $teacherId): void
+    {
+        $this->authorizePermission('attendance.teacher.take');
+
+        $this->validate([
+            'attendance_date' => ['required', 'date'],
+            'selected_statuses.'.$teacherId => ['nullable', 'exists:attendance_statuses,id'],
+        ]);
+
+        $statusId = $this->selected_statuses[$teacherId] ?? null;
+
+        if (! $statusId) {
+            return;
+        }
+
+        $teacher = $this->scopeTeachersQuery(
+            Teacher::query()
+                ->where('is_helping', true)
+                ->whereIn('status', ['active', 'inactive'])
+        )->findOrFail($teacherId);
+        $this->authorizeScopedTeacherAccess($teacher);
+
+        $day = TeacherAttendanceDay::query()->firstOrCreate(
+            ['attendance_date' => $this->attendance_date],
+            ['created_by' => auth()->id()],
+        );
+
+        TeacherAttendanceRecord::query()->updateOrCreate(
+            [
+                'teacher_attendance_day_id' => $day->id,
+                'teacher_id' => $teacher->id,
+            ],
+            [
+                'attendance_status_id' => $statusId,
+            ],
+        );
+
+        $this->attendanceDayId = $day->id;
+    }
+
     public function deleteDay(): void
     {
         $this->authorizePermission('attendance.teacher.take');
@@ -188,7 +251,7 @@ new class extends Component {
 
                 <div class="admin-filter-field">
                 <label for="teacher-attendance-status" class="mb-1 block text-sm font-medium">{{ __('workflow.teacher_attendance.form.day_status') }}</label>
-                    <select id="teacher-attendance-status" wire:model="day_status" data-searchable="false">
+                    <select id="teacher-attendance-status" wire:model.live="day_status" wire:change="saveDaySummary" data-searchable="false">
                     <option value="open">{{ __('workflow.common.day_status.open') }}</option>
                     <option value="closed">{{ __('workflow.common.day_status.closed') }}</option>
                 </select>
@@ -196,7 +259,7 @@ new class extends Component {
 
                 <div class="admin-filter-field">
                 <label for="teacher-attendance-notes" class="mb-1 block text-sm font-medium">{{ __('workflow.teacher_attendance.form.notes') }}</label>
-                    <input id="teacher-attendance-notes" wire:model="notes" type="text">
+                    <input id="teacher-attendance-notes" wire:model.live.debounce.800ms="notes" wire:change="saveDaySummary" type="text">
                 </div>
 
                 <div class="admin-toolbar__actions">
@@ -229,7 +292,7 @@ new class extends Component {
             </div>
         </div>
 
-        <div class="overflow-x-auto">
+        <div class="overflow-x-auto overflow-y-visible pb-24">
             <table class="text-sm">
                 <thead>
                     <tr>
@@ -260,6 +323,7 @@ new class extends Component {
                             <td class="px-5 py-4 lg:px-6">
                                 <select
                                     wire:model="selected_statuses.{{ $teacher->id }}"
+                                    wire:change="saveTeacherStatus({{ $teacher->id }})"
                                     @disabled(! auth()->user()->can('attendance.teacher.take'))
                                     data-searchable="false"
                                     class="w-full rounded-xl px-4 py-3 text-sm"

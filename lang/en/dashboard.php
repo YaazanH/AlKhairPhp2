@@ -12,6 +12,8 @@ return [
         'workspace' => ':role workspace',
         'signed_in_as' => 'Signed in as',
         'role' => 'Role',
+        'job' => 'Job',
+        'current_academic_year' => 'Current academic year',
         'primary_signal' => 'Primary signal',
         'live_snapshot' => 'Live snapshot',
         'workspace_area' => 'Workspace area',

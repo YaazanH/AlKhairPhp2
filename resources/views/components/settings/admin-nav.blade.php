@@ -28,6 +28,12 @@
                     <span class="settings-tab__meta">{{ __('settings.navigation.finance.meta') }}</span>
                     <span class="settings-tab__title">{{ __('settings.navigation.finance.title') }}</span>
                 </a>
+                @can('roles.manage')
+                    <a href="{{ route('settings.access-control') }}" wire:navigate class="settings-tab {{ request()->routeIs('settings.access-control') ? 'is-active' : '' }}">
+                        <span class="settings-tab__meta">{{ __('settings.navigation.access.meta') }}</span>
+                        <span class="settings-tab__title">{{ __('settings.navigation.access.title') }}</span>
+                    </a>
+                @endcan
             </div>
         </section>
         @endunless

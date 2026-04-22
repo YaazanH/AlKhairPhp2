@@ -84,6 +84,8 @@ new class extends Component {
             'subheading' => __('dashboard.manager.subheading'),
             'intro' => __('dashboard.manager.intro'),
             'profileName' => $user->name,
+            'profileJob' => __('dashboard.roles.manager'),
+            'currentAcademicYearName' => $currentAcademicYear?->name ?: __('dashboard.manager.profile_meta_no_year'),
             'profileMeta' => $currentAcademicYear?->name
                 ? __('dashboard.manager.profile_meta_current_year', ['year' => $currentAcademicYear->name])
                 : __('dashboard.manager.profile_meta_no_year'),
@@ -158,6 +160,8 @@ new class extends Component {
             'subheading' => __('dashboard.teacher.subheading'),
             'intro' => __('dashboard.teacher.intro'),
             'profileName' => $teacher->first_name.' '.$teacher->last_name,
+            'profileJob' => $teacher->jobTitle?->name ?: ($teacher->job_title ?: __('dashboard.roles.teacher')),
+            'currentAcademicYearName' => AcademicYear::query()->where('is_current', true)->value('name') ?: __('dashboard.manager.profile_meta_no_year'),
             'profileMeta' => $teacher->jobTitle?->name ?: ($teacher->job_title ?: ucfirst($teacher->status)),
             'stats' => [
                 ['label' => __('dashboard.teacher.stats.assigned_groups.label'), 'value' => $allAssignedGroups, 'hint' => __('dashboard.teacher.stats.assigned_groups.hint')],
@@ -214,6 +218,8 @@ new class extends Component {
             'subheading' => __('dashboard.parent.subheading'),
             'intro' => __('dashboard.parent.intro'),
             'profileName' => $parent->father_name,
+            'profileJob' => __('dashboard.roles.parent'),
+            'currentAcademicYearName' => AcademicYear::query()->where('is_current', true)->value('name') ?: __('dashboard.manager.profile_meta_no_year'),
             'profileMeta' => $parent->father_phone ?: ($parent->mother_phone ?: __('dashboard.parent.profile_meta_no_phone')),
             'stats' => [
                 ['label' => __('dashboard.parent.stats.students.label'), 'value' => $students->count(), 'hint' => __('dashboard.parent.stats.students.hint')],
@@ -274,6 +280,8 @@ new class extends Component {
             'subheading' => __('dashboard.student.subheading'),
             'intro' => __('dashboard.student.intro'),
             'profileName' => $student->first_name.' '.$student->last_name,
+            'profileJob' => $student->gradeLevel?->name ?: __('dashboard.roles.student'),
+            'currentAcademicYearName' => AcademicYear::query()->where('is_current', true)->value('name') ?: __('dashboard.manager.profile_meta_no_year'),
             'profileMeta' => $student->gradeLevel?->name ?: ($student->school_name ?: __('dashboard.student.profile_meta_no_grade')),
             'stats' => [
                 ['label' => __('dashboard.student.stats.enrollments.label'), 'value' => $allEnrollments->count(), 'hint' => __('dashboard.student.stats.enrollments.hint')],
@@ -311,6 +319,8 @@ new class extends Component {
             'subheading' => __('dashboard.unassigned.subheading'),
             'intro' => __('dashboard.unassigned.intro'),
             'profileName' => $user->name,
+            'profileJob' => __('dashboard.roles.unassigned'),
+            'currentAcademicYearName' => AcademicYear::query()->where('is_current', true)->value('name') ?: __('dashboard.manager.profile_meta_no_year'),
             'profileMeta' => $user->email ?: ($user->username ?: __('dashboard.common.no_identifier')),
             'stats' => [],
             'cards' => [
@@ -334,6 +344,8 @@ new class extends Component {
             'subheading' => __('dashboard.missing_profile.subheading'),
             'intro' => $message,
             'profileName' => Auth::user()->name,
+            'profileJob' => __('dashboard.roles.'.$role),
+            'currentAcademicYearName' => AcademicYear::query()->where('is_current', true)->value('name') ?: __('dashboard.manager.profile_meta_no_year'),
             'profileMeta' => Auth::user()->email ?: (Auth::user()->username ?: __('dashboard.common.no_identifier')),
             'stats' => [],
             'cards' => [
@@ -361,17 +373,29 @@ new class extends Component {
 
             </div>
 
-            <aside class="surface-panel surface-panel--soft p-5 lg:p-6">
-                <div class="eyebrow">{{ __('dashboard.hero.signed_in_as') }}</div>
-                <div class="mt-4 text-2xl font-semibold text-white">{{ $profileName }}</div>
-                <p class="mt-2 text-sm leading-6 text-neutral-300">{{ $profileMeta }}</p>
-
-                <div class="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
-                    <div class="rounded-2xl border border-white/8 bg-white/4 p-4">
-                        <div class="kpi-label">{{ __('dashboard.hero.role') }}</div>
-                        <div class="mt-3 text-base font-semibold text-white">{{ __('dashboard.roles.'.$dashboardRole) }}</div>
+            <aside class="surface-panel surface-panel--soft p-4 lg:p-5">
+                <div class="flex items-center gap-4">
+                    <x-user-avatar :user="auth()->user()" size="lg" />
+                    <div class="min-w-0">
+                        <div class="eyebrow">{{ __('dashboard.hero.signed_in_as') }}</div>
+                        <div class="mt-2 truncate text-xl font-semibold text-white">{{ $profileName }}</div>
+                        <p class="mt-1 truncate text-sm leading-6 text-neutral-300">{{ $profileMeta }}</p>
                     </div>
+                </div>
 
+                <div class="mt-5 grid gap-3">
+                    <div class="rounded-2xl border border-white/8 bg-white/4 p-3">
+                        <div class="kpi-label">{{ __('dashboard.hero.role') }}</div>
+                        <div class="mt-2 text-sm font-semibold text-white">{{ __('dashboard.roles.'.$dashboardRole) }}</div>
+                    </div>
+                    <div class="rounded-2xl border border-white/8 bg-white/4 p-3">
+                        <div class="kpi-label">{{ __('dashboard.hero.job') }}</div>
+                        <div class="mt-2 text-sm font-semibold text-white">{{ $profileJob }}</div>
+                    </div>
+                    <div class="rounded-2xl border border-white/8 bg-white/4 p-3">
+                        <div class="kpi-label">{{ __('dashboard.hero.current_academic_year') }}</div>
+                        <div class="mt-2 text-sm font-semibold text-white">{{ $currentAcademicYearName }}</div>
+                    </div>
                 </div>
             </aside>
         </div>

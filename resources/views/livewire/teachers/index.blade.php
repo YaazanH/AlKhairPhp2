@@ -203,6 +203,32 @@ new class extends Component {
         $this->cancel();
     }
 
+    public function updatedPhotoUpload(): void
+    {
+        if (! $this->photo_upload || ! $this->editingId) {
+            return;
+        }
+
+        $this->authorizePermission('teachers.update');
+
+        $teacher = Teacher::query()->findOrFail($this->editingId);
+        $this->authorizeScopedTeacherAccess($teacher);
+
+        $validated = $this->validateOnly('photo_upload');
+
+        if ($teacher->photo_path) {
+            Storage::disk('public')->delete($teacher->photo_path);
+        }
+
+        $teacher->forceFill([
+            'photo_path' => $validated['photo_upload']->store('teachers/photos/'.$teacher->id, 'public'),
+        ])->save();
+
+        $this->photo_path = $teacher->photo_path ?? '';
+        $this->photo_upload = null;
+        session()->flash('status', __('crud.teachers.messages.photo_updated'));
+    }
+
     public function edit(int $teacherId): void
     {
         $this->authorizePermission('teachers.update');

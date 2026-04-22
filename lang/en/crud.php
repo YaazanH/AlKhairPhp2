@@ -15,6 +15,7 @@ return [
             'edit' => 'Edit',
             'delete' => 'Delete',
             'copy' => 'Copy',
+            'deactivate' => 'Deactivate',
             'export' => 'Export',
             'reset' => 'Reset',
             'notes' => 'Notes',
@@ -67,7 +68,7 @@ return [
             'edit_title' => 'Edit parent profile',
             'help' => 'Student-specific school data stays on the student record. Keep family contact data here.',
             'fields' => [
-                'father_name' => 'Father name',
+                'father_name' => 'Father full name',
                 'father_work' => 'Father work',
                 'father_phone' => 'Father phone',
                 'mother_name' => 'Mother name',
@@ -85,7 +86,7 @@ return [
             'title' => 'Parent records',
             'empty' => 'No parent records yet.',
             'headers' => [
-                'father' => 'Father',
+                'father' => 'Father full name',
                 'mother' => 'Mother',
                 'students' => 'Students',
                 'phone' => 'Phone',
@@ -168,6 +169,7 @@ return [
             'updated' => 'Teacher updated successfully.',
             'deleted' => 'Teacher deleted successfully.',
             'helping_updated' => 'Teacher helping status updated successfully.',
+            'photo_updated' => 'Teacher photo saved successfully.',
             'photo_removed' => 'Teacher photo removed successfully.',
         ],
         'errors' => [
@@ -213,8 +215,10 @@ return [
                 'created' => 'Course created successfully.',
                 'updated' => 'Course updated successfully.',
                 'deleted' => 'Course deleted successfully.',
-                'copied' => 'Course copied with its groups and active enrollments. Operational history was left empty.',
+                'copied' => 'Course copied as inactive with inactive groups and enrollments. Operational history was left empty.',
+                'deactivated' => 'Course, groups, and enrollments were deactivated successfully.',
             ],
+            'confirm_deactivate' => 'Deactivate this course, its groups, and its enrollments?',
             'copy' => [
                 'confirm' => 'Copy this course with its groups and active enrolled students?',
                 'name' => ':name copy',
@@ -298,6 +302,22 @@ return [
         'read_only' => [
             'title' => 'Student records',
             'description' => 'You can view student records, but you do not have permission to create or edit them.',
+        ],
+        'bulk_photos' => [
+            'title' => 'Bulk student photo upload',
+            'subtitle' => 'Upload many student photos after class photo day. File names are matched by student number or database ID.',
+            'upload_label' => 'Student photos',
+            'upload_help' => 'Use file names like 12.jpg or student-number.png for automatic matching.',
+            'matched_student' => 'Matched student',
+            'no_match' => 'No automatic match',
+            'save' => 'Save matched photos',
+            'saved' => ':count student photos saved successfully.',
+            'empty' => 'Upload images to review and match them before saving.',
+            'headers' => [
+                'photo' => 'Photo',
+                'file' => 'File',
+                'match' => 'Student',
+            ],
         ],
         'table' => [
             'eyebrow' => 'Roster',
@@ -405,7 +425,9 @@ return [
             'deleted' => 'Group deleted successfully.',
             'student_added' => 'Student added to the group successfully.',
             'student_removed' => 'Student removed from the group successfully.',
+            'deactivated' => 'Group and enrollments were deactivated successfully.',
         ],
+        'confirm_deactivate' => 'Deactivate this group and its enrollments?',
         'errors' => [
             'delete_linked' => 'This group cannot be deleted while enrollments or schedules still exist.',
             'teacher_unavailable' => 'Select an active helping teacher who is not assigned to another group.',

@@ -182,11 +182,14 @@
         </div>
 
         <div class="public-gallery-showcase">
-            <div class="public-gallery-grid">
-                @foreach (($site['gallery_urls'] ?? []) as $galleryUrl)
-                    <div class="public-gallery-grid__item">
-                        <img src="{{ $galleryUrl }}" alt="{{ $site['site_name'] }}" class="public-gallery-grid__image">
-                    </div>
+            <div class="public-gallery-slider" aria-label="{{ __('site.public.sections.gallery') }}">
+                @foreach (($site['gallery_items'] ?? []) as $galleryItem)
+                    <article class="public-gallery-slide">
+                        <img src="{{ $galleryItem['url'] }}" alt="{{ $galleryItem['caption'] ?: $site['site_name'] }}" class="public-gallery-slide__image">
+                        @if (! empty($galleryItem['caption']))
+                            <div class="public-gallery-slide__caption">{{ $galleryItem['caption'] }}</div>
+                        @endif
+                    </article>
                 @endforeach
             </div>
 

@@ -123,6 +123,79 @@ new class extends Component {
         session()->flash('status', __('workflow.student_attendance.messages.saved'));
     }
 
+    public function saveDaySummary(): void
+    {
+        $this->authorizePermission('attendance.student.take');
+
+        $validated = $this->validate([
+            'day_status' => ['required', 'in:open,closed'],
+            'notes' => ['nullable', 'string'],
+        ]);
+
+        $this->currentGroupDay->update([
+            'status' => $validated['day_status'],
+            'notes' => $validated['notes'] ?: null,
+        ]);
+
+        $this->currentGroupDay = $this->currentGroupDay->fresh(['studentAttendanceDay', 'records']);
+
+        if ($this->currentGroupDay->studentAttendanceDay) {
+            app(StudentAttendanceDayService::class)->syncAggregateStatus($this->currentGroupDay->studentAttendanceDay);
+        }
+    }
+
+    public function saveEnrollmentStatus(int $enrollmentId): void
+    {
+        $this->authorizePermission('attendance.student.take');
+
+        $this->validate([
+            'selected_statuses.'.$enrollmentId => ['nullable', 'exists:attendance_statuses,id'],
+        ]);
+
+        $statusId = $this->selected_statuses[$enrollmentId] ?? null;
+
+        if (! $statusId) {
+            return;
+        }
+
+        $enrollment = Enrollment::query()
+            ->with('student')
+            ->where('group_id', $this->currentGroupDay->group_id)
+            ->where('status', 'active')
+            ->findOrFail($enrollmentId);
+        $this->authorizeScopedEnrollmentAccess($enrollment);
+
+        $record = StudentAttendanceRecord::query()->updateOrCreate(
+            [
+                'group_attendance_day_id' => $this->currentGroupDay->id,
+                'enrollment_id' => $enrollment->id,
+            ],
+            [
+                'attendance_status_id' => $statusId,
+            ],
+        );
+
+        $ledger = app(PointLedgerService::class);
+        $ledger->voidSourceTransactions('student_attendance_record', $record->id, __('workflow.student_attendance.messages.void_reason'));
+
+        if ($status = AttendanceStatus::query()->find($statusId)) {
+            $ledger->recordAttendanceStatusPoints(
+                $enrollment,
+                'student_attendance_record',
+                $record->id,
+                $status,
+                __('workflow.student_attendance.messages.automatic_points', ['status' => $status->name]),
+            );
+        }
+
+        $ledger->syncEnrollmentCaches($enrollment->fresh());
+        $this->currentGroupDay = $this->currentGroupDay->fresh(['studentAttendanceDay', 'records']);
+
+        if ($this->currentGroupDay->studentAttendanceDay) {
+            app(StudentAttendanceDayService::class)->syncAggregateStatus($this->currentGroupDay->studentAttendanceDay);
+        }
+    }
+
     protected function loadDay(): void
     {
         $this->day_status = $this->currentGroupDay->status ?? 'open';
@@ -197,7 +270,7 @@ new class extends Component {
             <div class="mt-6 grid gap-4 lg:grid-cols-[10rem_minmax(0,1fr)]">
                 <div>
                     <label for="group-attendance-status" class="mb-1 block text-sm font-medium">{{ __('workflow.student_attendance.form.day_status') }}</label>
-                    <select id="group-attendance-status" wire:model="day_status" data-searchable="false" class="w-full rounded-xl px-4 py-3 text-sm">
+                    <select id="group-attendance-status" wire:model.live="day_status" wire:change="saveDaySummary" data-searchable="false" class="w-full rounded-xl px-4 py-3 text-sm">
                         <option value="open">{{ __('workflow.common.day_status.open') }}</option>
                         <option value="closed">{{ __('workflow.common.day_status.closed') }}</option>
                     </select>
@@ -205,7 +278,7 @@ new class extends Component {
 
                 <div>
                     <label for="group-attendance-notes" class="mb-1 block text-sm font-medium">{{ __('workflow.student_attendance.form.notes') }}</label>
-                    <input id="group-attendance-notes" wire:model="notes" type="text" class="w-full rounded-xl px-4 py-3 text-sm">
+                    <input id="group-attendance-notes" wire:model.live.debounce.800ms="notes" wire:change="saveDaySummary" type="text" class="w-full rounded-xl px-4 py-3 text-sm">
                 </div>
             </div>
 
@@ -252,7 +325,7 @@ new class extends Component {
         @if ($enrollments->isEmpty())
             <div class="admin-empty-state">{{ __('workflow.student_attendance.table.empty') }}</div>
         @else
-            <div class="overflow-x-auto">
+            <div class="overflow-x-auto overflow-y-visible pb-24">
                 <table class="text-sm">
                     <thead>
                         <tr>
@@ -278,6 +351,7 @@ new class extends Component {
                                 <td class="px-5 py-4 lg:px-6">
                                     <select
                                         wire:model="selected_statuses.{{ $enrollment->id }}"
+                                        wire:change="saveEnrollmentStatus({{ $enrollment->id }})"
                                         @disabled(! auth()->user()->can('attendance.student.take'))
                                         data-searchable="false"
                                         class="w-full rounded-xl px-4 py-3 text-sm"

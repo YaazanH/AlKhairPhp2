@@ -138,15 +138,15 @@ new class extends Component {
         </div>
     </section>
 
-    <div class="grid gap-6 xl:grid-cols-[minmax(0,1.35fr)_24rem]">
-        <section class="surface-panel p-6">
+    <div class="grid gap-6 xl:grid-cols-[minmax(0,1fr)_18rem_24rem]">
+        <section class="surface-panel p-5 lg:p-6">
             <div class="mb-5">
                 <div class="eyebrow">{{ __('reports.filters.eyebrow') }}</div>
                 <h2 class="font-display mt-3 text-2xl text-white">{{ __('reports.filters.title') }}</h2>
                 <p class="mt-3 max-w-3xl text-sm leading-7 text-neutral-300">{{ __('reports.filters.subtitle') }}</p>
             </div>
 
-            <div class="grid gap-4 lg:grid-cols-2 2xl:grid-cols-4">
+            <div class="grid gap-4 md:grid-cols-2">
                 <div>
                     <label class="mb-2 block text-sm font-medium text-neutral-200">{{ __('reports.filters.academic_year') }}</label>
                     <select wire:model.live="academic_year_id" class="w-full rounded-xl px-3 py-2.5 text-sm">
@@ -185,6 +185,19 @@ new class extends Component {
             </div>
         </section>
 
+        <section class="grid gap-3">
+            @foreach ($headlineCards as $card)
+                <article class="surface-panel p-5">
+                    <div class="flex items-start justify-between gap-4">
+                        <div class="kpi-label">{{ $card['label'] }}</div>
+                        <span class="badge-soft {{ $loop->even ? 'badge-soft--emerald' : '' }}">{{ str_pad((string) $loop->iteration, 2, '0', STR_PAD_LEFT) }}</span>
+                    </div>
+                    <div class="metric-value mt-5">{{ $card['value'] }}</div>
+                    <p class="mt-3 text-xs leading-5 text-neutral-300">{{ $card['hint'] }}</p>
+                </article>
+            @endforeach
+        </section>
+
         <section class="surface-panel p-6">
             <div class="eyebrow">{{ __('reports.exports.eyebrow') }}</div>
             <h2 class="font-display mt-3 text-2xl text-white">{{ __('reports.exports.title') }}</h2>
@@ -205,19 +218,6 @@ new class extends Component {
                 </a>
             </div>
         </section>
-    </div>
-
-    <div class="grid gap-4 md:grid-cols-3">
-        @foreach ($headlineCards as $card)
-            <article class="stat-card">
-                <div class="flex items-start justify-between gap-4">
-                    <div class="kpi-label">{{ $card['label'] }}</div>
-                    <span class="badge-soft {{ $loop->even ? 'badge-soft--emerald' : '' }}">{{ str_pad((string) $loop->iteration, 2, '0', STR_PAD_LEFT) }}</span>
-                </div>
-                <div class="metric-value mt-6">{{ $card['value'] }}</div>
-                <p class="mt-4 max-w-xs text-sm leading-6 text-neutral-300">{{ $card['hint'] }}</p>
-            </article>
-        @endforeach
     </div>
 
     <div class="grid gap-6 xl:grid-cols-2">

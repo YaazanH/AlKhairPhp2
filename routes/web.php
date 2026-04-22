@@ -65,6 +65,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('teachers/export', [AdminExportController::class, 'teachers'])->middleware('permission:teachers.view')->name('teachers.export');
     Volt::route('students', 'students.index')->middleware('permission:students.view')->name('students.index');
     Route::get('students/export', [AdminExportController::class, 'students'])->middleware('permission:students.view')->name('students.export');
+    Volt::route('students/photos/bulk', 'students.bulk-photos')->middleware('permission:students.update')->name('students.bulk-photos');
     Volt::route('students/{student}/progress', 'students.progress')->middleware('permission:students.view')->name('students.progress');
     Volt::route('students/{student}/files', 'students.files')->middleware('permission:students.view')->name('students.files');
     Volt::route('courses', 'courses.index')->middleware('permission:courses.view')->name('courses.index');
@@ -82,6 +83,7 @@ Route::middleware(['auth'])->group(function () {
     Volt::route('assessments/bands', 'assessments.bands')->middleware('permission:assessment-score-bands.view')->name('assessments.bands');
     Volt::route('assessments/{assessment}/results', 'assessments.results')->middleware('permission:assessment-results.view')->name('assessments.results');
     Volt::route('student-notes', 'student-notes.index')->middleware('permission:student-notes.view')->name('student-notes.index');
+    Volt::route('memorization/quick-entry', 'memorization.quick-entry')->middleware('permission:memorization.record')->name('memorization.quick-entry');
     Volt::route('memorization', 'memorization.index')->middleware('permission:memorization.view')->name('memorization.index');
     Volt::route('quran-tests', 'quran-tests.index')->middleware('permission:quran-tests.view')->name('quran-tests.index');
     Volt::route('points', 'points.index')->middleware('permission:points.view')->name('points.index');

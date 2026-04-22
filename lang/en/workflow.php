@@ -271,6 +271,26 @@ return [
                 ],
             ],
         ],
+        'quick_entry' => [
+            'title' => 'Enter Memorize',
+            'subtitle' => 'A fast teacher entry screen for today\'s new memorized pages.',
+            'card_eyebrow' => 'Teacher entry',
+            'card_title' => 'Record today\'s pages',
+            'teacher_context' => 'Saved automatically under teacher: :name.',
+            'auto_context' => 'The system saves today\'s date, entry type as new, the linked teacher, and the student\'s active group automatically.',
+            'form' => [
+                'search' => 'Search student',
+                'search_placeholder' => 'Search by student name, number, or father name',
+                'student' => 'Student',
+                'save' => 'Save memorization',
+            ],
+            'messages' => [
+                'saved' => 'Memorization entry saved successfully.',
+            ],
+            'errors' => [
+                'no_teacher' => 'Your user is not linked to a teacher profile, so quick memorization entry is not available.',
+            ],
+        ],
         'stats' => [
             'enrollment_pages' => 'Enrollment page coverage',
             'sessions' => 'Recorded sessions',

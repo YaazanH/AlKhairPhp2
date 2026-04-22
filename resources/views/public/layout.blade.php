@@ -17,7 +17,7 @@
 @endphp
 
 <!DOCTYPE html>
-<html lang="{{ str_replace('_', '-', $currentLocale) }}" dir="{{ $textDirection }}" class="dark">
+<html lang="{{ str_replace('_', '-', $currentLocale) }}" dir="{{ $textDirection }}">
     <head>
         @include('partials.head')
     </head>

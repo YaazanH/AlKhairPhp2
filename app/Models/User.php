@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Laravel\Sanctum\HasApiTokens;
 use Spatie\Permission\Traits\HasRoles;
@@ -29,6 +30,7 @@ class User extends Authenticatable // implements MustVerifyEmail
         'phone',
         'password',
         'issued_password',
+        'profile_photo_path',
         'is_active',
     ];
 
@@ -67,6 +69,24 @@ class User extends Authenticatable // implements MustVerifyEmail
             ->explode(' ')
             ->map(fn (string $name) => Str::of($name)->substr(0, 1))
             ->implode('');
+    }
+
+    public function profilePhotoPath(): ?string
+    {
+        return $this->studentProfile?->photo_path
+            ?: ($this->teacherProfile?->photo_path ?: $this->profile_photo_path);
+    }
+
+    public function profilePhotoUrl(): ?string
+    {
+        $path = $this->profilePhotoPath();
+
+        return $path ? Storage::disk('public')->url($path) : null;
+    }
+
+    public function usesLinkedProfilePhoto(): bool
+    {
+        return (bool) ($this->studentProfile?->photo_path || $this->teacherProfile?->photo_path);
     }
 
     public function parentProfile(): HasOne

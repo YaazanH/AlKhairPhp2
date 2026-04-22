@@ -107,6 +107,7 @@ return [
             ],
             'messages' => [
                 'saved' => 'تم حفظ إعدادات الموقع بنجاح.',
+                'media_saved' => 'تم حفظ وسائط الموقع بنجاح.',
                 'media_removed' => 'تمت إزالة الوسائط بنجاح.',
             ],
             'fields' => [
@@ -127,6 +128,8 @@ return [
                 'hero_image_upload' => 'الصورة الرئيسية',
                 'featured_video_upload' => 'الفيديو المميز',
                 'gallery_uploads' => 'صور المعرض',
+                'gallery_caption_en' => 'وصف الصورة بالإنجليزية',
+                'gallery_caption_ar' => 'وصف الصورة بالعربية',
                 'hero_eyebrow_en' => 'النص العلوي للواجهة بالإنجليزية',
                 'hero_eyebrow_ar' => 'النص العلوي للواجهة بالعربية',
                 'hero_title_en' => 'عنوان الواجهة بالإنجليزية',

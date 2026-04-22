@@ -18,6 +18,7 @@ new class extends Component {
     public string $school_name = '';
     public string $school_phone = '';
     public string $school_email = '';
+    public string $email_domain = '';
     public string $school_address = '';
     public string $school_timezone = '';
     public string $school_currency = '';
@@ -492,6 +493,7 @@ new class extends Component {
             'school_address' => ['nullable', 'string'],
             'school_currency' => ['required', 'string', 'max:10'],
             'school_email' => ['nullable', 'email', 'max:255'],
+            'email_domain' => ['required', 'string', 'max:255', 'regex:/^(?!-)[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/'],
             'school_name' => ['required', 'string', 'max:255'],
             'school_phone' => ['nullable', 'string', 'max:50'],
             'school_timezone' => ['required', 'string', 'max:100'],
@@ -501,6 +503,7 @@ new class extends Component {
             'school_name' => ['group' => 'general', 'type' => 'string'],
             'school_phone' => ['group' => 'general', 'type' => 'string'],
             'school_email' => ['group' => 'general', 'type' => 'string'],
+            'email_domain' => ['group' => 'general', 'type' => 'string'],
             'school_address' => ['group' => 'general', 'type' => 'string'],
             'school_timezone' => ['group' => 'general', 'type' => 'string'],
             'school_currency' => ['group' => 'general', 'type' => 'string'],
@@ -583,12 +586,13 @@ new class extends Component {
     {
         $settings = AppSetting::query()
             ->where('group', 'general')
-            ->whereIn('key', ['school_name', 'school_phone', 'school_email', 'school_address', 'school_timezone', 'school_currency'])
+            ->whereIn('key', ['school_name', 'school_phone', 'school_email', 'email_domain', 'school_address', 'school_timezone', 'school_currency'])
             ->pluck('value', 'key');
 
         $this->school_name = (string) ($settings['school_name'] ?? 'Alkhair');
         $this->school_phone = (string) ($settings['school_phone'] ?? '');
         $this->school_email = (string) ($settings['school_email'] ?? '');
+        $this->email_domain = (string) ($settings['email_domain'] ?? 'alkhair.local');
         $this->school_address = (string) ($settings['school_address'] ?? '');
         $this->school_timezone = (string) ($settings['school_timezone'] ?? config('app.timezone', 'UTC'));
         $this->school_currency = (string) ($settings['school_currency'] ?? 'USD');
@@ -667,6 +671,12 @@ new class extends Component {
                             <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.school_email') }}</label>
                             <input wire:model="school_email" type="email" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
                             @error('school_email') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+                        </div>
+                        <div>
+                            <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.email_domain') }}</label>
+                            <input wire:model="email_domain" type="text" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm lowercase dark:border-neutral-700 dark:bg-neutral-900" placeholder="alkhair.org">
+                            <p class="mt-1 text-xs text-neutral-500">{{ __('settings.organization.fields.email_domain_help') }}</p>
+                            @error('email_domain') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
                         </div>
                     </div>
                     <div class="grid gap-4 md:grid-cols-2">
@@ -934,6 +944,12 @@ new class extends Component {
                     <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.school_email') }}</label>
                     <input wire:model="school_email" type="email" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
                     @error('school_email') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+                </div>
+                <div>
+                    <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.email_domain') }}</label>
+                    <input wire:model="email_domain" type="text" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm lowercase dark:border-neutral-700 dark:bg-neutral-900" placeholder="alkhair.org">
+                    <p class="mt-1 text-xs text-neutral-500">{{ __('settings.organization.fields.email_domain_help') }}</p>
+                    @error('email_domain') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
                 </div>
             </div>
             <div class="grid gap-4 md:grid-cols-2">

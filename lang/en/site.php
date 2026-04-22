@@ -107,6 +107,7 @@ return [
             ],
             'messages' => [
                 'saved' => 'Website settings saved successfully.',
+                'media_saved' => 'Website media saved successfully.',
                 'media_removed' => 'Website media removed successfully.',
             ],
             'fields' => [
@@ -127,6 +128,8 @@ return [
                 'hero_image_upload' => 'Hero image',
                 'featured_video_upload' => 'Featured video',
                 'gallery_uploads' => 'Gallery images',
+                'gallery_caption_en' => 'Image caption (English)',
+                'gallery_caption_ar' => 'Image caption (Arabic)',
                 'hero_eyebrow_en' => 'Hero eyebrow (English)',
                 'hero_eyebrow_ar' => 'Hero eyebrow (Arabic)',
                 'hero_title_en' => 'Hero title (English)',

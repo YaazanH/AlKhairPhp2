@@ -195,8 +195,8 @@ new class extends Component {
                 </div>
             </div>
 
-            <div class="admin-form-field mt-5">
-                <div class="flex flex-wrap items-end justify-between gap-3">
+            <div class="admin-form-field mx-auto mt-5 max-w-4xl">
+                <div class="flex flex-wrap items-end justify-center gap-3 text-center sm:justify-between sm:text-start">
                     <label>{{ __('barcodes.import.fields.raw_dump') }}</label>
                     <span class="text-xs font-semibold uppercase tracking-[0.22em] text-emerald-100/70">{{ __('barcodes.import.dump.focus_hint') }}</span>
                 </div>
@@ -204,7 +204,7 @@ new class extends Component {
                     wire:model="raw_dump"
                     rows="16"
                     placeholder="{{ __('barcodes.import.placeholders.raw_dump') }}"
-                    class="min-h-[24rem] font-mono text-base leading-7"
+                    class="mx-auto min-h-[24rem] w-full text-center font-mono text-base leading-7"
                     autofocus
                 ></textarea>
                 @error('raw_dump') <div class="mt-2 rounded-2xl border border-red-400/20 bg-red-500/10 px-4 py-3 text-sm text-red-100">{{ $message }}</div> @enderror
