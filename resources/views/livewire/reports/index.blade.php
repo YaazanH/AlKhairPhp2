@@ -147,34 +147,38 @@ new class extends Component {
             </div>
 
             <div class="grid gap-4 md:grid-cols-2">
-                <div>
-                    <label class="report-field-label mb-2 block text-sm font-medium">{{ __('reports.filters.academic_year') }}</label>
-                    <select wire:model.live="academic_year_id" class="report-control w-full rounded-xl px-3 py-2.5 text-sm">
-                        <option value="">{{ __('reports.filters.all_academic_years') }}</option>
-                        @foreach ($academicYears as $academicYear)
-                            <option value="{{ $academicYear->id }}">{{ $academicYear->name }}</option>
-                        @endforeach
-                    </select>
+                <div class="grid gap-4">
+                    <div>
+                        <label class="report-field-label mb-2 block text-sm font-medium">{{ __('reports.filters.academic_year') }}</label>
+                        <select wire:model.live="academic_year_id" class="report-control w-full rounded-xl px-3 py-2.5 text-sm">
+                            <option value="">{{ __('reports.filters.all_academic_years') }}</option>
+                            @foreach ($academicYears as $academicYear)
+                                <option value="{{ $academicYear->id }}">{{ $academicYear->name }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="report-field-label mb-2 block text-sm font-medium">{{ __('reports.filters.group') }}</label>
+                        <select wire:model.live="group_id" class="report-control w-full rounded-xl px-3 py-2.5 text-sm">
+                            <option value="">{{ __('reports.filters.all_groups') }}</option>
+                            @foreach ($groups as $group)
+                                <option value="{{ $group->id }}">{{ $group->name }}{{ $group->course ? ' | '.$group->course->name : '' }}</option>
+                            @endforeach
+                        </select>
+                    </div>
                 </div>
 
-                <div>
-                    <label class="report-field-label mb-2 block text-sm font-medium">{{ __('reports.filters.group') }}</label>
-                    <select wire:model.live="group_id" class="report-control w-full rounded-xl px-3 py-2.5 text-sm">
-                        <option value="">{{ __('reports.filters.all_groups') }}</option>
-                        @foreach ($groups as $group)
-                            <option value="{{ $group->id }}">{{ $group->name }}{{ $group->course ? ' | '.$group->course->name : '' }}</option>
-                        @endforeach
-                    </select>
-                </div>
+                <div class="grid gap-4">
+                    <div>
+                        <label class="report-field-label mb-2 block text-sm font-medium">{{ __('reports.filters.date_from') }}</label>
+                        <input wire:model.live="date_from" type="date" class="report-control w-full rounded-xl px-3 py-2.5 text-sm">
+                    </div>
 
-                <div>
-                    <label class="report-field-label mb-2 block text-sm font-medium">{{ __('reports.filters.date_from') }}</label>
-                    <input wire:model.live="date_from" type="date" class="report-control w-full rounded-xl px-3 py-2.5 text-sm">
-                </div>
-
-                <div>
-                    <label class="report-field-label mb-2 block text-sm font-medium">{{ __('reports.filters.date_to') }}</label>
-                    <input wire:model.live="date_to" type="date" class="report-control w-full rounded-xl px-3 py-2.5 text-sm">
+                    <div>
+                        <label class="report-field-label mb-2 block text-sm font-medium">{{ __('reports.filters.date_to') }}</label>
+                        <input wire:model.live="date_to" type="date" class="report-control w-full rounded-xl px-3 py-2.5 text-sm">
+                    </div>
                 </div>
             </div>
 

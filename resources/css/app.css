@@ -2448,6 +2448,237 @@ html:not(.dark) .public-gallery-slider {
     border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
+.print-template-setup-panel,
+.print-template-studio {
+    padding: 1.25rem;
+}
+
+.print-template-setup-panel {
+    background:
+        linear-gradient(135deg, rgba(151, 219, 174, 0.08), rgba(255, 255, 255, 0.025)),
+        rgba(255, 255, 255, 0.04);
+}
+
+.print-template-setup-panel__grid,
+.print-template-setup-panel__details,
+.print-template-source-grid,
+.print-template-studio,
+.print-template-studio__workspace,
+.print-template-studio__inspector {
+    display: grid;
+    gap: 1rem;
+}
+
+.print-template-source-card,
+.print-template-panel,
+.print-template-command-bar,
+.print-template-canvas-card {
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 1.35rem;
+    background: rgba(20, 16, 12, 0.74);
+    box-shadow: var(--app-shadow-soft);
+    backdrop-filter: blur(18px);
+}
+
+.print-template-source-card,
+.print-template-panel,
+.print-template-canvas-card {
+    padding: 1rem;
+}
+
+.print-template-input,
+.print-template-number-control,
+.print-template-file-drop {
+    width: 100%;
+    border: 1px solid rgba(151, 219, 174, 0.16);
+    border-radius: 1rem;
+    background: rgba(8, 40, 21, 0.68);
+    color: #fff8ec;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.print-template-input {
+    min-height: 3rem;
+    padding: 0.85rem 1rem;
+}
+
+.print-template-number-control {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    padding-inline: 0.85rem;
+}
+
+.print-template-number-control input {
+    min-width: 0;
+    flex: 1;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    padding: 0.85rem 0;
+}
+
+.print-template-number-control span {
+    color: rgba(255, 248, 236, 0.62);
+    font-size: 0.78rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.print-template-file-drop {
+    display: grid;
+    gap: 0.35rem;
+    cursor: pointer;
+    padding: 1rem;
+    transition: border-color 160ms ease, background 160ms ease;
+}
+
+.print-template-file-drop:hover {
+    border-color: rgba(151, 219, 174, 0.32);
+    background: rgba(11, 143, 67, 0.14);
+}
+
+.print-template-file-drop input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.print-template-file-drop__title {
+    color: #fff4db;
+    font-weight: 800;
+}
+
+.print-template-file-drop__copy {
+    color: var(--app-muted);
+    font-size: 0.86rem;
+    line-height: 1.6;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.print-template-source-grid {
+    grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+}
+
+.print-template-source-pill {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.65rem;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 1rem;
+    background: rgba(255, 255, 255, 0.035);
+    padding: 0.8rem;
+}
+
+.print-template-source-pill select {
+    width: 100%;
+}
+
+.print-template-studio {
+    background:
+        radial-gradient(circle at top left, rgba(11, 143, 67, 0.16), transparent 32rem),
+        linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.025));
+}
+
+.print-template-studio__header,
+.print-template-panel__header,
+.print-template-command-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.print-template-command-bar {
+    align-items: center;
+    padding: 0.9rem 1rem;
+}
+
+.print-template-command-bar__title {
+    color: #fff4db;
+    font-weight: 800;
+}
+
+.print-template-command-bar__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.55rem;
+}
+
+.print-template-command-bar__actions .pill-link {
+    min-height: 2.55rem;
+}
+
+.print-template-panel--layers .id-card-layer-list {
+    max-height: 18rem;
+    overflow: auto;
+    padding-inline-end: 0.2rem;
+}
+
+.print-template-studio__inspector {
+    max-height: 22rem;
+    overflow: auto;
+    padding-inline-end: 0.2rem;
+}
+
+.print-template-canvas-card {
+    background:
+        linear-gradient(135deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.015)),
+        rgba(0, 0, 0, 0.14);
+}
+
+.print-template-canvas-card__shell {
+    min-height: min(62vh, 42rem);
+    background:
+        radial-gradient(circle at center, rgba(151, 219, 174, 0.14), transparent 28rem),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+        linear-gradient(0deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+        rgba(255, 255, 255, 0.025);
+    background-size: auto, 2rem 2rem, 2rem 2rem, auto;
+}
+
+.print-template-canvas-card__surface {
+    align-items: center;
+    min-height: calc(min(62vh, 42rem) - 2rem);
+}
+
+@media (min-width: 960px) {
+    .print-template-setup-panel__grid {
+        grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+        align-items: start;
+    }
+
+    .print-template-studio__workspace {
+        grid-template-columns: minmax(16rem, 0.82fr) minmax(0, 1.68fr);
+    }
+
+    .print-template-studio__inspector {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (min-width: 720px) {
+    .print-template-setup-panel__details {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (min-width: 1320px) {
+    .print-template-studio__workspace {
+        grid-template-columns: minmax(17rem, 0.72fr) minmax(0, 2.05fr);
+    }
+
+    .print-template-studio__inspector {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+}
+
 .id-card-builder-preview-shell {
     overflow: auto;
     border: 1px dashed rgba(151, 219, 174, 0.22);
@@ -2634,5 +2865,344 @@ html:not(.dark) .public-gallery-slider {
 @media (min-width: 1200px) {
     .id-card-student-grid {
         grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 767px) {
+    html,
+    body {
+        overflow-x: hidden;
+    }
+
+    body {
+        background-size: 28rem 28rem, 24rem 24rem, auto;
+    }
+
+    .app-shell,
+    .app-main,
+    .app-main-inner {
+        min-width: 0;
+        width: 100%;
+    }
+
+    .app-mobile-header {
+        min-height: 4rem;
+        padding-inline: 0.75rem !important;
+    }
+
+    .app-sidebar-shell {
+        width: min(88vw, 22rem) !important;
+    }
+
+    .app-brand-card,
+    .app-sidebar-footer {
+        border-radius: 1.1rem;
+        padding: 0.85rem;
+    }
+
+    .page-stack {
+        gap: 0.95rem;
+        padding: 0.75rem;
+    }
+
+    .page-hero {
+        border-radius: 1.25rem;
+        padding: 1rem !important;
+    }
+
+    .page-hero h1 {
+        font-size: clamp(1.9rem, 9vw, 2.75rem) !important;
+        line-height: 1.05 !important;
+    }
+
+    .page-hero p {
+        font-size: 0.9rem !important;
+        line-height: 1.65 !important;
+    }
+
+    .eyebrow {
+        font-size: 0.64rem;
+        letter-spacing: 0.18em;
+    }
+
+    .surface-panel,
+    .surface-table,
+    .stat-card,
+    .settings-admin-page div[class*='rounded-xl border border-neutral-200'],
+    .settings-admin-page section[class*='rounded-xl border border-neutral-200'] {
+        border-radius: 1.15rem !important;
+    }
+
+    .surface-panel {
+        padding: 1rem !important;
+    }
+
+    .surface-table {
+        overflow: visible;
+    }
+
+    .surface-table .overflow-x-auto {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .surface-table table {
+        min-width: 42rem;
+    }
+
+    .surface-table th,
+    .surface-table td {
+        padding: 0.75rem 0.9rem !important;
+        font-size: 0.82rem;
+    }
+
+    .admin-toolbar {
+        align-items: stretch;
+        gap: 0.85rem;
+    }
+
+    .admin-toolbar__title {
+        font-size: 1.45rem;
+        line-height: 1.15;
+    }
+
+    .admin-toolbar__subtitle {
+        font-size: 0.86rem;
+        line-height: 1.6;
+    }
+
+    .admin-toolbar__controls {
+        grid-template-columns: 1fr;
+        gap: 0.7rem;
+    }
+
+    .admin-toolbar__actions,
+    .admin-action-cluster {
+        width: 100%;
+    }
+
+    .admin-toolbar__actions .pill-link,
+    .admin-action-cluster .pill-link,
+    .admin-action-cluster button,
+    .admin-action-cluster a {
+        justify-content: center;
+    }
+
+    .admin-filter-field {
+        min-width: 0;
+        width: 100%;
+    }
+
+    .admin-filter-field label {
+        font-size: 0.66rem;
+        letter-spacing: 0.12em;
+    }
+
+    .admin-filter-field input,
+    .admin-filter-field select,
+    .admin-filter-field .searchable-select__button {
+        height: 2.85rem;
+        min-height: 2.85rem;
+        border-radius: 0.9rem;
+        padding: 0.75rem 0.9rem;
+        font-size: 0.86rem;
+    }
+
+    .searchable-select--open {
+        z-index: 150;
+    }
+
+    .searchable-select__panel {
+        z-index: 150;
+        max-height: min(18rem, 56vh);
+    }
+
+    .searchable-select__list {
+        max-height: min(14rem, 44vh);
+    }
+
+    .admin-kpi-grid,
+    .admin-form-grid {
+        gap: 0.85rem;
+    }
+
+    .admin-section-card,
+    .id-card-layer-card,
+    .id-card-student-card {
+        border-radius: 1rem;
+        padding: 0.85rem;
+    }
+
+    .student-avatar--sm {
+        width: 2.35rem;
+        height: 2.35rem;
+    }
+
+    .student-avatar--md {
+        width: 2.85rem;
+        height: 2.85rem;
+    }
+
+    .student-avatar--lg {
+        width: 3.45rem;
+        height: 3.45rem;
+    }
+
+    .admin-modal__viewport {
+        align-items: flex-end;
+        padding: 0.5rem;
+    }
+
+    .admin-modal__dialog {
+        max-height: calc(100dvh - 1rem);
+        border-radius: 1.25rem;
+    }
+
+    .admin-modal__header {
+        padding: 1rem 1rem 0.8rem;
+    }
+
+    .admin-modal__title {
+        font-size: 1.45rem;
+    }
+
+    .admin-modal__description {
+        font-size: 0.86rem;
+    }
+
+    .admin-modal__body {
+        max-height: calc(100dvh - 7.5rem);
+        padding: 1rem;
+    }
+
+    .admin-modal__close {
+        width: 2.35rem;
+        height: 2.35rem;
+    }
+
+    .settings-tabs {
+        display: flex;
+        gap: 0.55rem;
+        overflow-x: auto;
+        padding-bottom: 0.2rem;
+        scroll-snap-type: x proximity;
+        scrollbar-width: none;
+    }
+
+    .settings-tabs::-webkit-scrollbar {
+        display: none;
+    }
+
+    .settings-tab {
+        min-width: 11rem;
+        min-height: 3.35rem;
+        flex: 0 0 auto;
+        scroll-snap-align: start;
+        padding: 0.75rem 0.85rem;
+    }
+
+    .settings-tab__title {
+        font-size: 0.9rem;
+    }
+
+    .settings-tab__meta {
+        font-size: 0.7rem;
+    }
+
+    .pill-link {
+        min-height: 2.65rem;
+        padding: 0.68rem 0.9rem;
+        font-size: 0.84rem;
+    }
+
+    .badge-soft,
+    .status-chip {
+        font-size: 0.72rem;
+    }
+
+    .public-shell {
+        padding: 0.7rem;
+    }
+
+    .public-home-stage,
+    .public-highlight-strip,
+    .public-program-feature,
+    .public-section,
+    .public-gallery-slider {
+        border-radius: 1.25rem;
+        padding: 1rem;
+    }
+
+    .public-home-stage__title {
+        font-size: clamp(2.1rem, 13vw, 3.35rem);
+    }
+
+    .public-gallery-slide {
+        min-height: 21rem;
+    }
+
+    .public-gallery-slide__caption {
+        inset-inline: 0.75rem;
+        bottom: 0.75rem;
+        border-radius: 1rem;
+        padding: 0.9rem;
+    }
+
+    .public-gallery-slide__title {
+        font-size: 1.25rem;
+    }
+
+    .public-gallery-slider__controls {
+        inset-inline: 0.75rem;
+        bottom: 0.75rem;
+    }
+
+    .print-template-setup-panel,
+    .print-template-studio,
+    .print-template-source-card,
+    .print-template-panel,
+    .print-template-canvas-card {
+        border-radius: 1.1rem;
+        padding: 0.85rem;
+    }
+
+    .print-template-command-bar,
+    .print-template-studio__header,
+    .print-template-panel__header {
+        gap: 0.75rem;
+    }
+
+    .print-template-command-bar__actions {
+        width: 100%;
+    }
+
+    .id-card-builder-preview-shell {
+        border-radius: 1rem;
+        padding: 0.75rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .admin-toolbar__actions,
+    .admin-action-cluster {
+        display: grid;
+        grid-template-columns: 1fr;
+    }
+
+    .admin-toolbar__actions .pill-link,
+    .admin-action-cluster .pill-link,
+    .admin-action-cluster button,
+    .admin-action-cluster a {
+        width: 100%;
+    }
+
+    .surface-table table {
+        min-width: 38rem;
+    }
+
+    .app-pagination__mobile,
+    .app-pagination__nav {
+        width: 100%;
+        justify-content: center;
     }
 }

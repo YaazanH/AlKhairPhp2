@@ -72,6 +72,76 @@ class StandaloneMemorizationPageTest extends TestCase
             ->assertHasErrors(['selectedEnrollmentId']);
     }
 
+    public function test_teacher_workbench_warns_about_duplicate_pages_and_can_save_only_the_unique_pages(): void
+    {
+        [, $teacher, $enrollment] = $this->teacherMemorizationContext();
+
+        Volt::test('memorization.index')
+            ->set('selectedStudentId', $enrollment->student_id)
+            ->set('recorded_on', '2026-09-03')
+            ->set('entry_type', 'new')
+            ->set('from_page', '11')
+            ->set('to_page', '13')
+            ->call('save')
+            ->assertHasNoErrors();
+
+        Volt::test('memorization.index')
+            ->set('selectedStudentId', $enrollment->student_id)
+            ->set('recorded_on', '2026-09-04')
+            ->set('entry_type', 'new')
+            ->set('from_page', '12')
+            ->set('to_page', '14')
+            ->call('save')
+            ->assertHasNoErrors()
+            ->assertSet('showDuplicateModal', true)
+            ->assertSet('duplicatePages', [12, 13])
+            ->assertSet('uniquePages', [14])
+            ->call('confirmDuplicateSave')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('memorization_sessions', [
+            'enrollment_id' => $enrollment->id,
+            'student_id' => $enrollment->student_id,
+            'teacher_id' => $teacher->id,
+            'from_page' => 14,
+            'to_page' => 14,
+            'pages_count' => 1,
+        ]);
+    }
+
+    public function test_teacher_quick_entry_warns_about_duplicate_pages_and_can_save_only_the_unique_pages(): void
+    {
+        [, $teacher, $enrollment] = $this->teacherMemorizationContext();
+
+        Volt::test('memorization.quick-entry')
+            ->set('selectedStudentId', $enrollment->student_id)
+            ->set('from_page', '21')
+            ->set('to_page', '23')
+            ->call('save')
+            ->assertHasNoErrors();
+
+        Volt::test('memorization.quick-entry')
+            ->set('selectedStudentId', $enrollment->student_id)
+            ->set('from_page', '22')
+            ->set('to_page', '24')
+            ->call('save')
+            ->assertHasNoErrors()
+            ->assertSet('showDuplicateModal', true)
+            ->assertSet('duplicatePages', [22, 23])
+            ->assertSet('uniquePages', [24])
+            ->call('confirmDuplicateSave')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('memorization_sessions', [
+            'enrollment_id' => $enrollment->id,
+            'student_id' => $enrollment->student_id,
+            'teacher_id' => $teacher->id,
+            'from_page' => 24,
+            'to_page' => 24,
+            'pages_count' => 1,
+        ]);
+    }
+
     private function teacherMemorizationContext(): array
     {
         $this->seed();

@@ -18,12 +18,28 @@ class MemorizationService
     ) {
     }
 
-    public function saveSession(Enrollment $enrollment, array $validated, ?MemorizationSession $session = null): MemorizationSession
+    public function saveSession(
+        Enrollment $enrollment,
+        array $validated,
+        ?MemorizationSession $session = null,
+        bool $skipDuplicatePages = false,
+    ): MemorizationSession
     {
-        return DB::transaction(function () use ($enrollment, $validated, $session): MemorizationSession {
+        return DB::transaction(function () use ($enrollment, $validated, $session, $skipDuplicatePages): MemorizationSession {
             $pageNumbers = range((int) $validated['from_page'], (int) $validated['to_page']);
+            $duplicatePages = $this->findDuplicatePages($enrollment, $pageNumbers, $validated['entry_type'], $session);
 
-            $this->ensurePagesAreNotDuplicated($enrollment, $pageNumbers, $validated['entry_type'], $session);
+            if ($skipDuplicatePages) {
+                $pageNumbers = array_values(array_diff($pageNumbers, $duplicatePages));
+            } else {
+                $this->ensurePagesAreNotDuplicated($duplicatePages);
+            }
+
+            if ($pageNumbers === []) {
+                throw ValidationException::withMessages([
+                    'from_page' => __('workflow.memorization.errors.all_duplicate_pages'),
+                ]);
+            }
 
             $payload = [
                 'enrollment_id' => $enrollment->id,
@@ -31,8 +47,8 @@ class MemorizationService
                 'teacher_id' => $validated['teacher_id'],
                 'recorded_on' => $validated['recorded_on'],
                 'entry_type' => $validated['entry_type'],
-                'from_page' => (int) $validated['from_page'],
-                'to_page' => (int) $validated['to_page'],
+                'from_page' => min($pageNumbers),
+                'to_page' => max($pageNumbers),
                 'pages_count' => count($pageNumbers),
                 'notes' => $validated['notes'] ?: null,
             ];
@@ -59,13 +75,13 @@ class MemorizationService
         });
     }
 
-    protected function ensurePagesAreNotDuplicated(Enrollment $enrollment, array $pageNumbers, string $entryType, ?MemorizationSession $session = null): void
+    public function findDuplicatePages(Enrollment $enrollment, array $pageNumbers, string $entryType, ?MemorizationSession $session = null): array
     {
         if ($entryType === 'review') {
-            return;
+            return [];
         }
 
-        $existingPages = MemorizationSessionPage::query()
+        return MemorizationSessionPage::query()
             ->whereIn('page_no', $pageNumbers)
             ->whereHas('session', function ($query) use ($enrollment, $session) {
                 $query
@@ -78,7 +94,10 @@ class MemorizationService
             ->sort()
             ->values()
             ->all();
+    }
 
+    protected function ensurePagesAreNotDuplicated(array $existingPages): void
+    {
         if ($existingPages === []) {
             return;
         }

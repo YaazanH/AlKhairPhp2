@@ -102,7 +102,7 @@ new #[Layout('components.layouts.auth')] class extends Component {
             :placeholder="__('access.login.placeholder')"
         />
 
-        <div class="relative">
+        <div class="flex flex-col gap-3">
             <flux:input
                 wire:model="password"
                 :label="__('access.login.password')"
@@ -113,14 +113,20 @@ new #[Layout('components.layouts.auth')] class extends Component {
                 :placeholder="__('access.login.password')"
             />
 
+        </div>
+
+        <div class="flex items-center justify-between gap-4 text-sm">
+            <label class="inline-flex items-center gap-2 leading-none whitespace-nowrap">
+                <input wire:model="remember" type="checkbox" class="rounded border-white/20 bg-white/5 text-emerald-500 focus:ring-emerald-400">
+                <span>{{ __('access.login.remember') }}</span>
+            </label>
+
             @if (Route::has('password.request'))
-                <x-text-link class="mt-2 block text-end text-sm" href="{{ route('password.request') }}">
+                <x-text-link class="inline-flex items-center whitespace-nowrap text-sm leading-none" href="{{ route('password.request') }}">
                     {{ __('access.login.forgot_password') }}
                 </x-text-link>
             @endif
         </div>
-
-        <flux:checkbox wire:model="remember" :label="__('access.login.remember')" />
 
         <div class="flex items-center justify-end">
             <flux:button variant="primary" type="submit" class="w-full">{{ __('access.login.submit') }}</flux:button>

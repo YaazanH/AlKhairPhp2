@@ -211,14 +211,6 @@ new class extends Component {
             <div class="kpi-label">{{ __('activities.index.stats.active') }}</div>
             <div class="metric-value mt-3">{{ number_format($totals['active']) }}</div>
         </article>
-        <article class="stat-card">
-            <div class="kpi-label">{{ __('activities.index.stats.expected') }}</div>
-            <div class="metric-value mt-3">{{ number_format((float) $totals['expected'], 2) }}</div>
-        </article>
-        <article class="stat-card">
-            <div class="kpi-label">{{ __('activities.index.stats.collected') }}</div>
-            <div class="metric-value mt-3">{{ number_format((float) $totals['collected'], 2) }}</div>
-        </article>
     </section>
 
     <div class="space-y-6">

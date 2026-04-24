@@ -66,7 +66,7 @@ return [
             'email_help' => 'Email is kept for account identity. Password recovery is handled by mosque management.',
             'photo_help' => 'Upload a profile photo. It saves automatically after selection.',
             'photo_linked' => 'This account uses the linked student or teacher photo.',
-            'photo_managed_by_profile' => 'This image comes from the linked student or teacher profile. Update it there to keep data consistent.',
+            'photo_managed_by_profile' => 'This account is linked to a student or teacher. Uploading here updates that linked profile photo too.',
             'saved' => 'Profile saved.',
         ],
         'password' => [
@@ -153,6 +153,10 @@ return [
                 'table' => 'Student genders',
                 'empty' => 'No student genders yet.',
             ],
+            'default_avatars' => [
+                'title' => 'Default profile images',
+                'copy' => 'Used when a user, student, teacher, or parent has no uploaded profile photo.',
+            ],
         ],
         'fields' => [
             'school_name' => 'School name',
@@ -190,9 +194,18 @@ return [
             'default_student_gender' => 'Default',
             'date_range' => ':start to :end',
             'grade_level_usage' => ':groups groups, :students students, :policies policies',
+            'default_avatar_set' => 'Default image set',
+            'default_avatar_missing' => 'Using initials fallback',
+        ],
+        'default_avatars' => [
+            'user' => 'Default user image',
+            'student' => 'Default student image',
+            'teacher' => 'Default teacher image',
+            'parent' => 'Default parent image',
         ],
         'actions' => [
             'save_settings' => 'Save settings',
+            'remove_default_avatar' => 'Remove image',
             'create_year' => 'Create year',
             'update_year' => 'Update year',
             'create_grade' => 'Create grade',
@@ -204,6 +217,7 @@ return [
         ],
         'messages' => [
             'settings_saved' => 'Dashboard settings saved successfully.',
+            'default_avatar_removed' => 'Default image removed successfully.',
             'academic_year_created' => 'Academic year created successfully.',
             'academic_year_updated' => 'Academic year updated successfully.',
             'academic_year_deleted' => 'Academic year deleted successfully.',

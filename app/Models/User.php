@@ -3,6 +3,7 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Support\AvatarDefaults;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -77,16 +78,68 @@ class User extends Authenticatable // implements MustVerifyEmail
             ?: ($this->teacherProfile?->photo_path ?: $this->profile_photo_path);
     }
 
+    public function storeProfilePhotoUpload(mixed $upload): string
+    {
+        $this->loadMissing(['studentProfile', 'teacherProfile']);
+
+        if ($this->studentProfile) {
+            if ($this->studentProfile->photo_path) {
+                Storage::disk('public')->delete($this->studentProfile->photo_path);
+            }
+
+            $path = $upload->store('students/photos/'.$this->studentProfile->id, 'public');
+            $this->studentProfile->forceFill(['photo_path' => $path])->save();
+
+            return $path;
+        }
+
+        if ($this->teacherProfile) {
+            if ($this->teacherProfile->photo_path) {
+                Storage::disk('public')->delete($this->teacherProfile->photo_path);
+            }
+
+            $path = $upload->store('teachers/photos/'.$this->teacherProfile->id, 'public');
+            $this->teacherProfile->forceFill(['photo_path' => $path])->save();
+
+            return $path;
+        }
+
+        if ($this->profile_photo_path) {
+            Storage::disk('public')->delete($this->profile_photo_path);
+        }
+
+        $path = $upload->store('users/photos/'.$this->id, 'public');
+        $this->forceFill(['profile_photo_path' => $path])->save();
+
+        return $path;
+    }
+
     public function profilePhotoUrl(): ?string
     {
         $path = $this->profilePhotoPath();
 
-        return $path ? Storage::disk('public')->url($path) : null;
+        if ($path) {
+            return '/storage/'.ltrim($path, '/');
+        }
+
+        if ($this->studentProfile) {
+            return AvatarDefaults::url('student');
+        }
+
+        if ($this->teacherProfile) {
+            return AvatarDefaults::url('teacher');
+        }
+
+        if ($this->parentProfile) {
+            return AvatarDefaults::url('parent');
+        }
+
+        return AvatarDefaults::url('user');
     }
 
     public function usesLinkedProfilePhoto(): bool
     {
-        return (bool) ($this->studentProfile?->photo_path || $this->teacherProfile?->photo_path);
+        return (bool) ($this->studentProfile || $this->teacherProfile);
     }
 
     public function parentProfile(): HasOne

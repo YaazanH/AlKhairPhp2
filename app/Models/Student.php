@@ -41,6 +41,12 @@ class Student extends Model
     protected static function booted(): void
     {
         static::saved(function (self $student): void {
+            if ($student->wasChanged('photo_path') && $student->user_id) {
+                $student->user()->update([
+                    'profile_photo_path' => $student->photo_path,
+                ]);
+            }
+
             $expectedStudentNumber = (string) $student->id;
 
             if ($student->student_number !== $expectedStudentNumber) {

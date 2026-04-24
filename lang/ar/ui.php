@@ -53,6 +53,7 @@ return [
         'family_activities' => 'أنشطة الأسرة',
         'invoices' => 'الفواتير',
         'identity_tools' => 'بطاقات الهوية',
+        'print_templates' => 'قوالب الطباعة',
         'id_card_templates' => 'قوالب البطاقات',
         'id_card_print' => 'طباعة البطاقات',
         'action_barcodes' => 'باركود الإجراءات',

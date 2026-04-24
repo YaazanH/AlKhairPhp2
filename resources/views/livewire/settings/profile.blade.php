@@ -2,7 +2,6 @@
 
 use App\Models\User;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Livewire\Volt\Component;
 use Livewire\WithFileUploads;
@@ -24,24 +23,11 @@ new class extends Component {
     {
         $user = Auth::user()->loadMissing(['studentProfile', 'teacherProfile']);
 
-        if ($user->usesLinkedProfilePhoto()) {
-            $this->reset('profile_photo_upload');
-            $this->addError('profile_photo_upload', __('settings.account.profile.photo_linked'));
-
-            return;
-        }
-
         $this->validate([
             'profile_photo_upload' => ['required', 'image', 'max:2048'],
         ]);
 
-        if ($user->profile_photo_path) {
-            Storage::disk('public')->delete($user->profile_photo_path);
-        }
-
-        $user->forceFill([
-            'profile_photo_path' => $this->profile_photo_upload->store('users/photos/'.$user->id, 'public'),
-        ])->save();
+        $user->storeProfilePhotoUpload($this->profile_photo_upload);
 
         $this->reset('profile_photo_upload');
         $this->dispatch('profile-updated', name: $user->name);
@@ -96,10 +82,8 @@ new class extends Component {
                             {{ $profileUser->usesLinkedProfilePhoto() ? __('settings.account.profile.photo_managed_by_profile') : __('settings.account.profile.photo_help') }}
                         </p>
 
-                        @unless($profileUser->usesLinkedProfilePhoto())
-                            <input wire:model.live="profile_photo_upload" type="file" accept="image/*" class="mt-3 block w-full text-sm">
-                            @error('profile_photo_upload') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
-                        @endunless
+                        <input wire:model.live="profile_photo_upload" type="file" accept="image/*" class="mt-3 block w-full text-sm">
+                        @error('profile_photo_upload') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
                     </div>
                 </div>
             </div>

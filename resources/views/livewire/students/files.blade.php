@@ -58,6 +58,10 @@ new class extends Component {
     {
         $this->authorizePermission('students.photo.update');
 
+        if (! $this->photo_upload) {
+            return;
+        }
+
         $validated = $this->validate([
             'photo_upload' => ['required', 'file', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
         ]);

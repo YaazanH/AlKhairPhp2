@@ -36,6 +36,17 @@ class Teacher extends Model
         ];
     }
 
+    protected static function booted(): void
+    {
+        static::saved(function (self $teacher): void {
+            if ($teacher->wasChanged('photo_path') && $teacher->user_id) {
+                $teacher->user()->update([
+                    'profile_photo_path' => $teacher->photo_path,
+                ]);
+            }
+        });
+    }
+
     public function jobTitle(): BelongsTo
     {
         return $this->belongsTo(TeacherJobTitle::class, 'teacher_job_title_id');

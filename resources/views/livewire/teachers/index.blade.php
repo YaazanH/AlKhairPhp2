@@ -9,7 +9,6 @@ use App\Models\TeacherJobTitle;
 use App\Services\ManagedUserService;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
-use Illuminate\Support\Str;
 use Livewire\Volt\Component;
 use Livewire\WithFileUploads;
 use Livewire\WithPagination;
@@ -284,7 +283,7 @@ new class extends Component {
     {
         $this->authorizePermission('teachers.update');
 
-        $this->account_password = Str::password(10);
+        $this->account_password = app(ManagedUserService::class)->generatePassword();
     }
 
     public function saveAccount(): void

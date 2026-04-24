@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Livewire\Volt\Component;
+use Livewire\WithFileUploads;
 use Livewire\WithPagination;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
@@ -22,6 +23,7 @@ use Spatie\Permission\Models\Role;
 new class extends Component {
     use AuthorizesPermissions;
     use SupportsCreateAndNew;
+    use WithFileUploads;
     use WithPagination;
 
     public ?int $editingId = null;
@@ -30,6 +32,9 @@ new class extends Component {
     public string $email = '';
     public string $phone = '';
     public string $password = '';
+    public string $profile_photo_path = '';
+    public string $profile_photo_url = '';
+    public $profile_photo_upload = null;
     public bool $is_active = true;
     public array $roles = [];
     public array $direct_permissions = [];
@@ -105,6 +110,7 @@ new class extends Component {
             'email' => ['nullable', 'string', 'email', 'max:255', Rule::unique('users', 'email')->ignore($this->editingId)],
             'phone' => ['nullable', 'string', 'max:255', Rule::unique('users', 'phone')->ignore($this->editingId)],
             'password' => ['nullable', 'string', 'min:8'],
+            'profile_photo_upload' => ['nullable', 'image', 'max:2048'],
             'is_active' => ['boolean'],
             'roles' => ['required', 'array', 'min:1'],
             'roles.*' => ['string', Rule::exists('roles', 'name')],
@@ -142,7 +148,9 @@ new class extends Component {
         $email = filled($validated['email'] ?? null)
             ? $accountService->uniqueEmail((string) $validated['email'], $username, $this->editingId)
             : ($existingUser?->email ?: $accountService->uniqueEmail(null, $username, $this->editingId));
-        $plainPassword = filled($validated['password'] ?? null) ? (string) $validated['password'] : ($this->editingId ? null : Str::password(10));
+        $plainPassword = filled($validated['password'] ?? null)
+            ? (string) $validated['password']
+            : ($this->editingId ? null : $accountService->generatePassword());
 
         $payload = [
             'name' => $validated['name'],
@@ -162,6 +170,10 @@ new class extends Component {
             ['id' => $this->editingId],
             $payload,
         );
+
+        if ($this->profile_photo_upload) {
+            $user->storeProfilePhotoUpload($this->profile_photo_upload);
+        }
 
         $user->syncRoles($validated['roles']);
         $user->syncPermissions($validated['direct_permissions'] ?? []);
@@ -188,7 +200,7 @@ new class extends Component {
     {
         $this->authorizePermission('users.update');
 
-        $user = User::query()->with(['roles', 'permissions', 'scopeOverrides'])->findOrFail($userId);
+        $user = User::query()->with(['roles', 'permissions', 'scopeOverrides', 'studentProfile', 'teacherProfile', 'parentProfile'])->findOrFail($userId);
 
         $this->editingId = $user->id;
         $this->name = $user->name;
@@ -196,6 +208,9 @@ new class extends Component {
         $this->email = $user->email;
         $this->phone = $user->phone ?? '';
         $this->password = '';
+        $this->profile_photo_path = $user->profilePhotoPath() ?? '';
+        $this->profile_photo_url = $user->profilePhotoUrl() ?? '';
+        $this->profile_photo_upload = null;
         $this->is_active = $user->is_active;
         $this->roles = $user->getRoleNames()->values()->all();
         $this->direct_permissions = $user->getDirectPermissions()->pluck('name')->values()->all();
@@ -216,6 +231,9 @@ new class extends Component {
         $this->email = '';
         $this->phone = '';
         $this->password = '';
+        $this->profile_photo_path = '';
+        $this->profile_photo_url = '';
+        $this->profile_photo_upload = null;
         $this->is_active = true;
         $this->roles = [];
         $this->direct_permissions = [];
@@ -406,14 +424,17 @@ new class extends Component {
                             @endphp
                             <tr>
                                 <td class="px-6 py-4">
-                                    <div class="admin-identity-stack">
-                                        <div class="admin-identity-stack__title">{{ $user->name }}</div>
-                                        <div class="admin-identity-stack__meta">
-                                            <span>{{ $user->username }}</span>
-                                            <span>{{ $user->email }}</span>
-                                            @if ($user->phone)
-                                                <span>{{ $user->phone }}</span>
-                                            @endif
+                                    <div class="flex items-center gap-3">
+                                        <x-user-avatar :user="$user" size="sm" />
+                                        <div class="admin-identity-stack">
+                                            <div class="admin-identity-stack__title">{{ $user->name }}</div>
+                                            <div class="admin-identity-stack__meta">
+                                                <span>{{ $user->username }}</span>
+                                                <span>{{ $user->email }}</span>
+                                                @if ($user->phone)
+                                                    <span>{{ $user->phone }}</span>
+                                                @endif
+                                            </div>
                                         </div>
                                     </div>
                                 </td>
@@ -483,6 +504,31 @@ new class extends Component {
                 </div>
 
                 <div class="admin-form-grid">
+                    <div class="admin-form-field admin-form-field--full">
+                        <div class="rounded-3xl border border-white/10 bg-white/5 p-4">
+                            <div class="grid gap-4 md:grid-cols-[auto_minmax(0,1fr)] md:items-center">
+                                <span class="student-avatar student-avatar--lg">
+                                    @if ($profile_photo_upload)
+                                        <img src="{{ $profile_photo_upload->temporaryUrl() }}" alt="{{ __('access.users.fields.profile_photo') }}" class="student-avatar__image">
+                                    @elseif ($profile_photo_url)
+                                        <img src="{{ $profile_photo_url }}" alt="{{ __('access.users.fields.profile_photo') }}" class="student-avatar__image">
+                                    @else
+                                        <span class="student-avatar__fallback">{{ \Illuminate\Support\Str::upper(\Illuminate\Support\Str::substr($name ?: 'U', 0, 1)) }}</span>
+                                    @endif
+                                </span>
+
+                                <div>
+                                    <label class="mb-1 block text-sm font-medium">{{ __('access.users.fields.profile_photo') }}</label>
+                                    <input wire:model="profile_photo_upload" type="file" accept="image/*" class="block w-full text-sm text-neutral-300">
+                                    <p class="mt-2 text-xs leading-5 text-neutral-400">{{ __('access.users.help.profile_photo') }}</p>
+                                    @error('profile_photo_upload')
+                                        <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
+                                    @enderror
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="admin-form-field admin-form-field--full">
                         <label class="mb-1 block text-sm font-medium">{{ __('access.users.fields.name') }}</label>
                         <input wire:model="name" type="text" class="w-full rounded-xl px-4 py-3 text-sm">

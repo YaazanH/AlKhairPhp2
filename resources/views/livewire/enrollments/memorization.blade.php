@@ -21,6 +21,11 @@ new class extends Component {
     public string $from_page = '';
     public string $to_page = '';
     public string $notes = '';
+    public bool $showDuplicateModal = false;
+    public array $duplicatePages = [];
+    public array $uniquePages = [];
+    public array $pendingMemorizationPayload = [];
+    public ?int $pendingSessionId = null;
 
     public function mount(Enrollment $enrollment): void
     {
@@ -76,27 +81,27 @@ new class extends Component {
 
         $this->authorizeScopedTeacherAccess(Teacher::query()->findOrFail((int) $validated['teacher_id']));
 
-        $pageNumbers = range((int) $validated['from_page'], (int) $validated['to_page']);
-        $existingPages = StudentPageAchievement::query()
-            ->where('student_id', $this->currentEnrollment->student_id)
-            ->whereIn('page_no', $pageNumbers)
-            ->when($this->editingSessionId, fn ($query) => $query->where('first_session_id', '!=', $this->editingSessionId))
-            ->pluck('page_no')
-            ->all();
-
-        if ($validated['entry_type'] !== 'review' && $existingPages) {
-            $this->addError('from_page', __('workflow.memorization.errors.duplicate_pages', ['pages' => implode(', ', $existingPages)]));
-
-            return;
-        }
-
         $session = $this->editingSessionId
             ? MemorizationSession::query()
                 ->where('enrollment_id', $this->currentEnrollment->id)
                 ->findOrFail($this->editingSessionId)
             : null;
 
-        app(MemorizationService::class)->saveSession($this->currentEnrollment, $validated, $session);
+        $service = app(MemorizationService::class);
+        $duplicatePages = $service->findDuplicatePages(
+            $this->currentEnrollment,
+            range((int) $validated['from_page'], (int) $validated['to_page']),
+            $validated['entry_type'],
+            $session,
+        );
+
+        if ($duplicatePages !== []) {
+            $this->openDuplicateModal($validated, $duplicatePages, $session);
+
+            return;
+        }
+
+        $service->saveSession($this->currentEnrollment, $validated, $session);
 
         session()->flash(
             'status',
@@ -105,6 +110,44 @@ new class extends Component {
                 : __('workflow.memorization.messages.saved'),
         );
 
+        $this->resetForm();
+    }
+
+    public function confirmDuplicateSave(): void
+    {
+        $this->authorizePermission('memorization.record');
+
+        if ($this->pendingMemorizationPayload === []) {
+            return;
+        }
+
+        if ($this->uniquePages === []) {
+            $this->closeDuplicateModal();
+
+            return;
+        }
+
+        $session = $this->pendingSessionId
+            ? MemorizationSession::query()
+                ->where('enrollment_id', $this->currentEnrollment->id)
+                ->findOrFail($this->pendingSessionId)
+            : null;
+
+        app(MemorizationService::class)->saveSession(
+            $this->currentEnrollment,
+            $this->pendingMemorizationPayload,
+            $session,
+            true,
+        );
+
+        session()->flash(
+            'status',
+            $this->pendingSessionId
+                ? __('workflow.memorization.messages.updated_partial', ['pages' => implode(', ', $this->duplicatePages)])
+                : __('workflow.memorization.messages.saved_partial', ['pages' => implode(', ', $this->duplicatePages)]),
+        );
+
+        $this->closeDuplicateModal();
         $this->resetForm();
     }
 
@@ -137,6 +180,28 @@ new class extends Component {
         $this->to_page = '';
         $this->notes = '';
 
+        $this->closeDuplicateModal();
+        $this->resetValidation();
+    }
+
+    public function closeDuplicateModal(): void
+    {
+        $this->showDuplicateModal = false;
+        $this->duplicatePages = [];
+        $this->uniquePages = [];
+        $this->pendingMemorizationPayload = [];
+        $this->pendingSessionId = null;
+    }
+
+    protected function openDuplicateModal(array $validated, array $duplicatePages, ?MemorizationSession $session = null): void
+    {
+        $pageNumbers = range((int) $validated['from_page'], (int) $validated['to_page']);
+
+        $this->duplicatePages = $duplicatePages;
+        $this->uniquePages = array_values(array_diff($pageNumbers, $duplicatePages));
+        $this->pendingMemorizationPayload = $validated;
+        $this->pendingSessionId = $session?->id;
+        $this->showDuplicateModal = true;
         $this->resetValidation();
     }
 }; ?>
@@ -361,4 +426,40 @@ new class extends Component {
             </div>
         @endif
     </section>
+
+    <x-admin.modal
+        :show="$showDuplicateModal"
+        :title="__('workflow.memorization.duplicates.title')"
+        :description="__('workflow.memorization.duplicates.description')"
+        close-method="closeDuplicateModal"
+        max-width="3xl"
+    >
+        <div class="space-y-4 text-sm text-neutral-300">
+            <div class="rounded-2xl border border-amber-300/25 bg-amber-500/10 px-4 py-3 text-amber-100">
+                {{ __('workflow.memorization.errors.duplicate_pages', ['pages' => implode(', ', $duplicatePages)]) }}
+            </div>
+
+            @if ($uniquePages !== [])
+                <div class="rounded-2xl border border-emerald-300/20 bg-emerald-500/10 px-4 py-3 text-emerald-100">
+                    {{ __('workflow.memorization.duplicates.unique_pages', ['pages' => implode(', ', $uniquePages)]) }}
+                </div>
+            @else
+                <div class="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-neutral-200">
+                    {{ __('workflow.memorization.duplicates.no_unique_pages') }}
+                </div>
+            @endif
+        </div>
+
+        <div class="mt-6 flex flex-wrap items-center gap-3">
+            @if ($uniquePages !== [])
+                <button type="button" wire:click="confirmDuplicateSave" class="pill-link pill-link--accent">
+                    {{ __('workflow.memorization.duplicates.save_unique') }}
+                </button>
+            @endif
+
+            <button type="button" wire:click="closeDuplicateModal" class="pill-link">
+                {{ __('crud.common.actions.cancel') }}
+            </button>
+        </div>
+    </x-admin.modal>
 </div>

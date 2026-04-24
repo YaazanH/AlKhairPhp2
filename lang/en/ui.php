@@ -53,6 +53,7 @@ return [
         'family_activities' => 'Family Activities',
         'invoices' => 'Invoices',
         'identity_tools' => 'Identity Tools',
+        'print_templates' => 'Print Templates',
         'id_card_templates' => 'ID Card Templates',
         'id_card_print' => 'Print ID Cards',
         'action_barcodes' => 'Action Barcodes',

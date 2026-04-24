@@ -15,7 +15,9 @@
         'lg' => 'student-avatar--lg',
         default => 'student-avatar--md',
     };
-    $photoUrl = $teacher?->photo_path ? '/storage/'.ltrim($teacher->photo_path, '/') : null;
+    $photoUrl = $teacher?->photo_path
+        ? '/storage/'.ltrim($teacher->photo_path, '/')
+        : \App\Support\AvatarDefaults::url('teacher');
 @endphp
 
 <span {{ $attributes->class(['student-avatar', $sizeClass]) }}>

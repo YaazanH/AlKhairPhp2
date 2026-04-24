@@ -24,7 +24,7 @@
                 @enderror
             </div>
 
-            <div class="relative">
+            <div>
                 <flux:input
                     :label="__('access.login.password')"
                     type="password"
@@ -34,27 +34,29 @@
                     :placeholder="__('access.login.password')"
                 />
 
-                @if (Route::has('password.request'))
-                    <x-text-link class="mt-2 block text-end text-sm" href="{{ route('password.request') }}">
-                        {{ __('access.login.forgot_password') }}
-                    </x-text-link>
-                @endif
-
                 @error('password')
                     <div class="mt-2 text-sm font-medium text-red-600">{{ $message }}</div>
                 @enderror
             </div>
 
-            <label class="flex items-center gap-3 text-sm text-zinc-700 dark:text-zinc-300">
-                <input
-                    type="checkbox"
-                    name="remember"
-                    value="1"
-                    @checked(old('remember'))
-                    class="h-4 w-4 rounded border-zinc-300 text-[var(--brand-primary)] focus:ring-[var(--brand-primary)]"
-                >
-                <span>{{ __('access.login.remember') }}</span>
-            </label>
+            <div class="flex items-center justify-between gap-4 text-sm text-zinc-700 dark:text-zinc-300">
+                <label class="inline-flex items-center gap-3 whitespace-nowrap">
+                    <input
+                        type="checkbox"
+                        name="remember"
+                        value="1"
+                        @checked(old('remember'))
+                        class="h-4 w-4 rounded border-zinc-300 text-[var(--brand-primary)] focus:ring-[var(--brand-primary)]"
+                    >
+                    <span>{{ __('access.login.remember') }}</span>
+                </label>
+
+                @if (Route::has('password.request'))
+                    <x-text-link class="inline-flex items-center whitespace-nowrap text-sm leading-none" href="{{ route('password.request') }}">
+                        {{ __('access.login.forgot_password') }}
+                    </x-text-link>
+                @endif
+            </div>
 
             <div class="flex items-center justify-end">
                 <flux:button variant="primary" type="submit" class="w-full">{{ __('access.login.submit') }}</flux:button>

@@ -164,19 +164,7 @@ new class extends Component {
                 </div>
             </div>
 
-            <div class="mt-6 grid gap-4 lg:grid-cols-2">
-                <div class="soft-callout p-4">
-                    <div class="kpi-label">{{ __('barcodes.import.context.title') }}</div>
-                    <p class="mt-2 text-sm leading-6">{{ __('barcodes.import.context.copy') }}</p>
-                </div>
-
-                <div class="soft-callout p-4">
-                    <div class="kpi-label">{{ __('barcodes.import.dump.title') }}</div>
-                    <p class="mt-2 text-sm leading-6">{{ __('barcodes.import.dump.copy') }}</p>
-                </div>
-            </div>
-
-            <div class="mt-6 grid gap-4 lg:grid-cols-2">
+            <div class="mt-6 grid gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
                 <div class="admin-form-field">
                     <label>{{ __('barcodes.import.fields.course') }}</label>
                     <select wire:model="course_id">
@@ -202,9 +190,8 @@ new class extends Component {
                 </div>
                 <textarea
                     wire:model="raw_dump"
-                    rows="16"
-                    placeholder="{{ __('barcodes.import.placeholders.raw_dump') }}"
-                    class="mx-auto min-h-[24rem] w-full text-center font-mono text-base leading-7"
+                    rows="11"
+                    class="mx-auto min-h-[16rem] w-full text-center font-mono text-base leading-7"
                     autofocus
                 ></textarea>
                 @error('raw_dump') <div class="mt-2 rounded-2xl border border-red-400/20 bg-red-500/10 px-4 py-3 text-sm text-red-100">{{ $message }}</div> @enderror

@@ -286,6 +286,7 @@ return [
             ],
             'messages' => [
                 'saved' => 'Memorization entry saved successfully.',
+                'saved_partial' => 'Memorization entry saved. Duplicate pages were skipped: :pages.',
             ],
             'errors' => [
                 'no_teacher' => 'Your user is not linked to a teacher profile, so quick memorization entry is not available.',
@@ -298,14 +299,24 @@ return [
         'messages' => [
             'saved' => 'Memorization session saved successfully.',
             'updated' => 'Memorization session updated successfully.',
+            'saved_partial' => 'Memorization session saved. Duplicate pages were skipped: :pages.',
+            'updated_partial' => 'Memorization session updated. Duplicate pages were skipped: :pages.',
             'deleted' => 'Memorization session deleted and student progress recalculated.',
             'automatic_reward' => 'Automatic memorization reward for :count new pages.',
             'void_reason' => 'Memorization session recalculated.',
         ],
         'errors' => [
             'duplicate_pages' => 'These pages were already memorized earlier: :pages',
+            'all_duplicate_pages' => 'All selected pages were already memorized earlier.',
             'no_active_enrollment' => 'This student does not have an active enrollment in your current scope.',
             'select_group' => 'Select the active group you want to record this memorization under.',
+        ],
+        'duplicates' => [
+            'title' => 'Duplicate pages detected',
+            'description' => 'Some pages in this range were already memorized. You can save only the pages that are still new, or cancel and adjust the entry.',
+            'unique_pages' => 'New pages that will be saved: :pages',
+            'no_unique_pages' => 'No new pages remain to save from this range.',
+            'save_unique' => 'Save non-duplicated pages',
         ],
         'form' => [
             'title' => 'New memorization session',

@@ -9,7 +9,6 @@ use App\Models\QuranJuz;
 use App\Models\Student;
 use App\Models\StudentGender;
 use App\Services\ManagedUserService;
-use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Livewire\Volt\Component;
 use Livewire\WithPagination;
@@ -167,7 +166,9 @@ new class extends Component {
         $validated['grade_level_id'] = $validated['grade_level_id'] ?: null;
         $validated['quran_current_juz_id'] = $validated['quran_current_juz_id'] ?: null;
         $validated['photo_path'] = $validated['photo_path'] ?: null;
-        $validated['joined_at'] = $validated['joined_at'] ?: null;
+        $validated['joined_at'] = $this->editingId
+            ? ($validated['joined_at'] ?: null)
+            : ($validated['joined_at'] ?: now()->toDateString());
         $student = Student::query()->updateOrCreate(
             ['id' => $this->editingId],
             $validated,
@@ -332,7 +333,7 @@ new class extends Component {
     {
         $this->authorizePermission('students.update');
 
-        $this->account_password = Str::password(10);
+        $this->account_password = app(ManagedUserService::class)->generatePassword();
     }
 
     public function saveAccount(): void
@@ -729,7 +730,7 @@ new class extends Component {
                             ])->filter()->implode(' ');
                         @endphp
                         <option value="{{ $parent->id }}" data-search="{{ $parentSearch }}">
-                            {{ $parent->father_name }}{{ $studentLastNames->isNotEmpty() ? ' | '.$studentLastNames->implode(', ') : '' }}
+                            {{ $parent->father_name }}
                         </option>
                     @endforeach
                 </select>
@@ -892,15 +893,17 @@ new class extends Component {
                 @endif
             </div>
 
-            <div class="grid gap-4 md:grid-cols-2">
-                <div>
-                    <label for="student-joined-at" class="mb-1 block text-sm font-medium">{{ __('crud.students.form.fields.joined_at') }}</label>
-                    <input id="student-joined-at" wire:model="joined_at" type="date" class="w-full rounded-xl px-4 py-3 text-sm">
-                    @error('joined_at')
-                        <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
-                    @enderror
+            @if ($editingId)
+                <div class="grid gap-4 md:grid-cols-2">
+                    <div>
+                        <label for="student-joined-at" class="mb-1 block text-sm font-medium">{{ __('crud.students.form.fields.joined_at') }}</label>
+                        <input id="student-joined-at" wire:model="joined_at" type="date" class="w-full rounded-xl px-4 py-3 text-sm">
+                        @error('joined_at')
+                            <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
+                        @enderror
+                    </div>
                 </div>
-            </div>
+            @endif
 
             <div class="flex flex-wrap items-center gap-3">
                 <button type="submit" class="pill-link pill-link--accent">

@@ -76,7 +76,7 @@ class QuranWorkflowTest extends TestCase
         ]);
     }
 
-    public function test_memorization_creates_lifetime_page_achievements_and_points_and_blocks_duplicates(): void
+    public function test_memorization_creates_lifetime_page_achievements_and_can_save_only_unique_pages_when_duplicates_exist(): void
     {
         [, $enrollment] = $this->workflowContext('teacher');
 
@@ -124,10 +124,27 @@ class QuranWorkflowTest extends TestCase
             ->set('recorded_on', '2026-09-04')
             ->set('teacher_id', $enrollment->group->teacher_id)
             ->set('entry_type', 'new')
-            ->set('from_page', '5')
-            ->set('to_page', '6')
+            ->set('from_page', '6')
+            ->set('to_page', '8')
             ->call('saveMemorization')
-            ->assertHasErrors(['from_page']);
+            ->assertHasNoErrors()
+            ->assertSet('showDuplicateModal', true)
+            ->assertSet('duplicatePages', [6])
+            ->assertSet('uniquePages', [7, 8])
+            ->call('confirmDuplicateSave')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('memorization_sessions', [
+            'enrollment_id' => $enrollment->id,
+            'student_id' => $enrollment->student_id,
+            'teacher_id' => $enrollment->group->teacher_id,
+            'from_page' => 7,
+            'to_page' => 8,
+            'pages_count' => 2,
+        ]);
+
+        $this->assertSame(4, StudentPageAchievement::query()->where('student_id', $enrollment->student_id)->count());
+        $this->assertSame(4, $enrollment->fresh()->memorized_pages_cached);
     }
 
     public function test_memorization_point_tiers_are_calculated_per_day(): void

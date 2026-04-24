@@ -496,7 +496,7 @@ new class extends Component {
                         </select>
                     </div>
                     @can('assessments.create')
-                        <button type="button" wire:click="create" class="pill-link pill-link--accent">
+                        <button type="button" wire:click="create" class="pill-link pill-link--accent inline-flex min-w-40 justify-center text-center">
                             {{ __('workflow.assessments.index.form.create_title') }}
                         </button>
                     @endcan
@@ -514,7 +514,7 @@ new class extends Component {
                                 <th class="px-5 py-3 text-left font-medium">{{ __('workflow.assessments.index.table.headers.schedule') }}</th>
                                 <th class="px-5 py-3 text-left font-medium">{{ __('workflow.assessments.index.table.headers.marks') }}</th>
                                 <th class="px-5 py-3 text-left font-medium">{{ __('workflow.assessments.index.table.headers.results') }}</th>
-                                <th class="px-5 py-3 text-right font-medium">{{ __('workflow.assessments.index.table.headers.actions') }}</th>
+                                <th class="px-5 py-3 text-end font-medium">{{ __('workflow.assessments.index.table.headers.actions') }}</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-neutral-200 dark:divide-neutral-700">
@@ -547,7 +547,7 @@ new class extends Component {
                                         <div class="text-xs text-neutral-500">{{ __('workflow.common.labels.pass', ['value' => $assessment->pass_mark !== null ? number_format((float) $assessment->pass_mark, 2) : __('workflow.common.not_available')]) }}</div>
                                     </td>
                                     <td class="px-5 py-3">{{ number_format($assessment->results_count) }}</td>
-                                    <td class="px-5 py-3">
+                                    <td class="px-5 py-3 text-end">
                                         <div class="admin-action-cluster admin-action-cluster--end">
                                             @can('assessment-results.view')
                                                 <a href="{{ route('assessments.results', $assessment) }}" wire:navigate class="pill-link pill-link--compact">{{ __('workflow.common.actions.results') }}</a>

@@ -6,7 +6,6 @@ use App\Livewire\Concerns\SupportsCreateAndNew;
 use App\Models\ParentProfile;
 use App\Services\ManagedUserService;
 use Illuminate\Validation\Rule;
-use Illuminate\Support\Str;
 use Livewire\Volt\Component;
 use Livewire\WithPagination;
 
@@ -204,7 +203,7 @@ new class extends Component {
     {
         $this->authorizePermission('parents.update');
 
-        $this->account_password = Str::password(10);
+        $this->account_password = app(ManagedUserService::class)->generatePassword();
     }
 
     public function saveAccount(): void

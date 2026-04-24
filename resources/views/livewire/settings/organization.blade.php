@@ -7,13 +7,17 @@ use App\Models\AppSetting;
 use App\Models\GradeLevel;
 use App\Models\StudentGender;
 use App\Models\TeacherJobTitle;
+use App\Support\AvatarDefaults;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Livewire\Volt\Component;
+use Livewire\WithFileUploads;
 
 new class extends Component {
     use AuthorizesPermissions;
     use SupportsCreateAndNew;
+    use WithFileUploads;
 
     public string $school_name = '';
     public string $school_phone = '';
@@ -22,6 +26,14 @@ new class extends Component {
     public string $school_address = '';
     public string $school_timezone = '';
     public string $school_currency = '';
+    public string $default_user_avatar_path = '';
+    public string $default_student_avatar_path = '';
+    public string $default_teacher_avatar_path = '';
+    public string $default_parent_avatar_path = '';
+    public $default_user_avatar_upload = null;
+    public $default_student_avatar_upload = null;
+    public $default_teacher_avatar_upload = null;
+    public $default_parent_avatar_upload = null;
     public bool $showOrganizationModal = false;
 
     public ?int $academic_year_editing_id = null;
@@ -497,6 +509,10 @@ new class extends Component {
             'school_name' => ['required', 'string', 'max:255'],
             'school_phone' => ['nullable', 'string', 'max:50'],
             'school_timezone' => ['required', 'string', 'max:100'],
+            'default_user_avatar_upload' => ['nullable', 'image', 'max:2048'],
+            'default_student_avatar_upload' => ['nullable', 'image', 'max:2048'],
+            'default_teacher_avatar_upload' => ['nullable', 'image', 'max:2048'],
+            'default_parent_avatar_upload' => ['nullable', 'image', 'max:2048'],
         ]);
 
         foreach ([
@@ -514,8 +530,53 @@ new class extends Component {
             );
         }
 
+        foreach ([
+            'user' => 'default_user_avatar',
+            'student' => 'default_student_avatar',
+            'teacher' => 'default_teacher_avatar',
+            'parent' => 'default_parent_avatar',
+        ] as $type => $property) {
+            $uploadProperty = $property.'_upload';
+            $pathProperty = $property.'_path';
+
+            if (! $this->{$uploadProperty}) {
+                continue;
+            }
+
+            if ($this->{$pathProperty}) {
+                Storage::disk('public')->delete($this->{$pathProperty});
+            }
+
+            $this->{$pathProperty} = $this->{$uploadProperty}->store('settings/default-avatars/'.$type, 'public');
+            AppSetting::storeValue('media', $pathProperty, $this->{$pathProperty});
+            $this->reset($uploadProperty);
+        }
+
+        AvatarDefaults::forget();
+
         session()->flash('status', __('settings.organization.messages.settings_saved'));
         $this->showOrganizationModal = false;
+    }
+
+    public function removeDefaultAvatar(string $type): void
+    {
+        $this->authorizePermission('settings.manage');
+
+        if (! in_array($type, ['user', 'student', 'teacher', 'parent'], true)) {
+            return;
+        }
+
+        $pathProperty = 'default_'.$type.'_avatar_path';
+
+        if ($this->{$pathProperty}) {
+            Storage::disk('public')->delete($this->{$pathProperty});
+        }
+
+        $this->{$pathProperty} = '';
+        AppSetting::storeValue('media', $pathProperty, null);
+        AvatarDefaults::forget();
+
+        session()->flash('status', __('settings.organization.messages.default_avatar_removed'));
     }
 
     protected function cancelAcademicYear(): void
@@ -588,6 +649,7 @@ new class extends Component {
             ->where('group', 'general')
             ->whereIn('key', ['school_name', 'school_phone', 'school_email', 'email_domain', 'school_address', 'school_timezone', 'school_currency'])
             ->pluck('value', 'key');
+        $media = AppSetting::groupValues('media');
 
         $this->school_name = (string) ($settings['school_name'] ?? 'Alkhair');
         $this->school_phone = (string) ($settings['school_phone'] ?? '');
@@ -596,6 +658,10 @@ new class extends Component {
         $this->school_address = (string) ($settings['school_address'] ?? '');
         $this->school_timezone = (string) ($settings['school_timezone'] ?? config('app.timezone', 'UTC'));
         $this->school_currency = (string) ($settings['school_currency'] ?? 'USD');
+        $this->default_user_avatar_path = (string) ($media->get('default_user_avatar_path') ?? '');
+        $this->default_student_avatar_path = (string) ($media->get('default_student_avatar_path') ?? '');
+        $this->default_teacher_avatar_path = (string) ($media->get('default_teacher_avatar_path') ?? '');
+        $this->default_parent_avatar_path = (string) ($media->get('default_parent_avatar_path') ?? '');
     }
 }; ?>
 
@@ -664,6 +730,31 @@ new class extends Component {
                 <div class="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-400">{{ __('settings.organization.fields.school_timezone') }}</div>
                 <div class="mt-2 truncate text-sm font-semibold text-white">{{ $school_timezone ?: __('crud.common.not_available') }}</div>
             </div>
+        </div>
+
+        <div class="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            @foreach ([
+                'user' => $default_user_avatar_path,
+                'student' => $default_student_avatar_path,
+                'teacher' => $default_teacher_avatar_path,
+                'parent' => $default_parent_avatar_path,
+            ] as $type => $path)
+                <div class="rounded-2xl border border-white/10 bg-white/5 p-4">
+                    <div class="flex items-center gap-3">
+                        <span class="student-avatar student-avatar--md">
+                            @if ($path)
+                                <img src="{{ asset('storage/'.ltrim($path, '/')) }}" alt="{{ __('settings.organization.default_avatars.'.$type) }}" class="student-avatar__image">
+                            @else
+                                <span class="student-avatar__fallback">{{ \Illuminate\Support\Str::upper(\Illuminate\Support\Str::substr(__('settings.organization.default_avatars.'.$type), 0, 1)) }}</span>
+                            @endif
+                        </span>
+                        <div>
+                            <div class="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-400">{{ __('settings.organization.default_avatars.'.$type) }}</div>
+                            <div class="mt-1 text-sm font-semibold text-white">{{ $path ? __('settings.organization.labels.default_avatar_set') : __('settings.organization.labels.default_avatar_missing') }}</div>
+                        </div>
+                    </div>
+                </div>
+            @endforeach
         </div>
     </section>
 
@@ -984,6 +1075,45 @@ new class extends Component {
                     @error('school_currency') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
                 </div>
             </div>
+            <section class="rounded-3xl border border-white/10 bg-white/5 p-4">
+                <div class="mb-4">
+                    <div class="text-sm font-semibold text-white">{{ __('settings.organization.sections.default_avatars.title') }}</div>
+                    <p class="mt-1 text-xs leading-5 text-neutral-400">{{ __('settings.organization.sections.default_avatars.copy') }}</p>
+                </div>
+
+                <div class="grid gap-4 md:grid-cols-2">
+                    @foreach ([
+                        'user' => ['path' => $default_user_avatar_path, 'upload' => 'default_user_avatar_upload'],
+                        'student' => ['path' => $default_student_avatar_path, 'upload' => 'default_student_avatar_upload'],
+                        'teacher' => ['path' => $default_teacher_avatar_path, 'upload' => 'default_teacher_avatar_upload'],
+                        'parent' => ['path' => $default_parent_avatar_path, 'upload' => 'default_parent_avatar_upload'],
+                    ] as $type => $avatar)
+                        <div class="rounded-2xl border border-white/10 bg-white/5 p-4">
+                            <div class="flex items-center gap-3">
+                                <span class="student-avatar student-avatar--lg">
+                                    @if ($this->{$avatar['upload']})
+                                        <img src="{{ $this->{$avatar['upload']}->temporaryUrl() }}" alt="{{ __('settings.organization.default_avatars.'.$type) }}" class="student-avatar__image">
+                                    @elseif ($avatar['path'])
+                                        <img src="{{ asset('storage/'.ltrim($avatar['path'], '/')) }}" alt="{{ __('settings.organization.default_avatars.'.$type) }}" class="student-avatar__image">
+                                    @else
+                                        <span class="student-avatar__fallback">{{ \Illuminate\Support\Str::upper(\Illuminate\Support\Str::substr(__('settings.organization.default_avatars.'.$type), 0, 1)) }}</span>
+                                    @endif
+                                </span>
+                                <div class="min-w-0 flex-1">
+                                    <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.default_avatars.'.$type) }}</label>
+                                    <input wire:model="{{ $avatar['upload'] }}" type="file" accept="image/*" class="block w-full text-sm text-neutral-300">
+                                    @error($avatar['upload']) <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+                                </div>
+                            </div>
+                            @if ($avatar['path'])
+                                <button type="button" wire:click="removeDefaultAvatar('{{ $type }}')" class="pill-link pill-link--compact pill-link--danger mt-3">
+                                    {{ __('settings.organization.actions.remove_default_avatar') }}
+                                </button>
+                            @endif
+                        </div>
+                    @endforeach
+                </div>
+            </section>
             <div>
                 <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.school_address') }}</label>
                 <textarea wire:model="school_address" rows="3" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900"></textarea>

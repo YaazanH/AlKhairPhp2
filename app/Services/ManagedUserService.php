@@ -6,6 +6,7 @@ use App\Models\AppSetting;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
+use function random_int;
 
 class ManagedUserService
 {
@@ -22,7 +23,7 @@ class ManagedUserService
 
         $plainPassword = filled($attributes['password'] ?? null)
             ? (string) $attributes['password']
-            : ($user ? null : Str::password(10));
+            : ($user ? null : $this->generatePassword());
 
         $payload = [
             'name' => $name,
@@ -52,6 +53,17 @@ class ManagedUserService
                 'role' => $role,
             ],
         ];
+    }
+
+    public function generatePassword(int $length = 8): string
+    {
+        $password = '';
+
+        for ($i = 0; $i < $length; $i++) {
+            $password .= (string) random_int(0, 9);
+        }
+
+        return $password;
     }
 
     public function uniqueUsername(string $preferred, string $fallbackName, ?int $ignoreUserId = null): string

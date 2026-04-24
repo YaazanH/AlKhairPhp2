@@ -163,6 +163,9 @@
                     @if (auth()->user()->can('id-cards.view') || auth()->user()->can('id-cards.print') || auth()->user()->can('barcode-actions.view'))
                         <flux:navlist.group :heading="__('ui.nav.identity_tools')" class="grid">
                             @can('id-cards.view')
+                                <flux:navlist.item icon="document-duplicate" :href="route('print-templates.templates.index')" :current="request()->routeIs('print-templates.*')" wire:navigate>{{ __('ui.nav.print_templates') }}</flux:navlist.item>
+                            @endcan
+                            @can('id-cards.view')
                                 <flux:navlist.item icon="identification" :href="route('id-cards.templates.index')" :current="request()->routeIs('id-cards.templates.*')" wire:navigate>{{ __('ui.nav.id_card_templates') }}</flux:navlist.item>
                             @endcan
                             @can('id-cards.print')
