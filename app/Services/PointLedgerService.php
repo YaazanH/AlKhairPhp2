@@ -8,6 +8,10 @@ use App\Models\PointPolicy;
 use App\Models\PointTransaction;
 use App\Models\PointType;
 use App\Models\QuranJuz;
+use App\Models\QuranFinalTest;
+use App\Models\QuranPartialTest;
+use App\Models\QuranPartialTestPart;
+use App\Models\QuranTest;
 use App\Models\Student;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
@@ -143,5 +147,138 @@ class PointLedgerService
                 'quran_current_juz_id' => $juz->id,
             ]);
         }
+    }
+
+    public function recordQuranPartialTestPartPoints(QuranPartialTestPart $part, ?float $score = null): ?PointTransaction
+    {
+        $partialTest = $part->partialTest()->with(['enrollment.student'])->firstOrFail();
+
+        $policy = $this->resolvePolicy(
+            'quran_partial_test_part',
+            'part_passed',
+            $partialTest->student?->grade_level_id,
+            $score,
+        );
+
+        if (! $policy?->pointType) {
+            return null;
+        }
+
+        $transaction = $this->recordAutomaticPoints(
+            $partialTest->enrollment,
+            'quran_partial_test_part',
+            $part->id,
+            $policy->pointType,
+            $policy,
+            $policy->points,
+        );
+
+        if ($transaction) {
+            $this->syncEnrollmentCaches($partialTest->enrollment);
+        }
+
+        return $transaction;
+    }
+
+    public function recordQuranPartialTestPoints(QuranPartialTest $partialTest): ?PointTransaction
+    {
+        $partialTest->loadMissing(['enrollment.student', 'student']);
+
+        $policy = $this->resolvePolicy(
+            'quran_partial_test',
+            'partial_passed',
+            $partialTest->student?->grade_level_id,
+        );
+
+        if (! $policy?->pointType) {
+            return null;
+        }
+
+        $transaction = $this->recordAutomaticPoints(
+            $partialTest->enrollment,
+            'quran_partial_test',
+            $partialTest->id,
+            $policy->pointType,
+            $policy,
+            $policy->points,
+        );
+
+        if ($transaction) {
+            $this->syncEnrollmentCaches($partialTest->enrollment);
+        }
+
+        return $transaction;
+    }
+
+    public function recordQuranFinalTestPoints(QuranFinalTest $finalTest, ?float $score = null): ?PointTransaction
+    {
+        $finalTest->loadMissing(['enrollment.student', 'student']);
+
+        $policy = $this->resolvePolicy(
+            'quran_final_test',
+            'final_passed',
+            $finalTest->student?->grade_level_id,
+            $score,
+        );
+
+        if (! $policy?->pointType) {
+            return null;
+        }
+
+        $transaction = $this->recordAutomaticPoints(
+            $finalTest->enrollment,
+            'quran_final_test',
+            $finalTest->id,
+            $policy->pointType,
+            $policy,
+            $policy->points,
+        );
+
+        if ($transaction) {
+            $this->syncEnrollmentCaches($finalTest->enrollment);
+        }
+
+        return $transaction;
+    }
+
+    public function recordQuranTestPoints(QuranTest $test): ?PointTransaction
+    {
+        $triggerKey = match ($test->type?->code) {
+            'final' => 'final_passed',
+            'awqaf' => 'awqaf_passed',
+            default => null,
+        };
+
+        if (! $triggerKey || $test->status !== 'passed') {
+            return null;
+        }
+
+        $test->loadMissing(['enrollment.student', 'student.gradeLevel', 'type', 'teacher']);
+
+        $policy = $this->resolvePolicy(
+            'quran_test',
+            $triggerKey,
+            $test->student?->grade_level_id,
+            $test->score !== null ? (float) $test->score : null,
+        );
+
+        if (! $policy?->pointType) {
+            return null;
+        }
+
+        $transaction = $this->recordAutomaticPoints(
+            $test->enrollment,
+            'quran_test',
+            $test->id,
+            $policy->pointType,
+            $policy,
+            $policy->points,
+        );
+
+        if ($transaction) {
+            $this->syncEnrollmentCaches($test->enrollment);
+        }
+
+        return $transaction;
     }
 }

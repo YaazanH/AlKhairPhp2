@@ -6,6 +6,7 @@ use App\Models\AssessmentResult;
 use App\Models\Enrollment;
 use App\Models\MemorizationSession;
 use App\Models\PointTransaction;
+use App\Models\QuranFinalTest;
 use App\Models\QuranTest;
 use App\Models\Student;
 use App\Models\StudentNote;
@@ -70,17 +71,52 @@ new class extends Component {
             : collect();
 
         $quranTests = auth()->user()->can('quran-tests.view')
-            ? QuranTest::query()
-                ->with(['enrollment.group', 'juz', 'teacher', 'type'])
-                ->where('student_id', $this->currentStudent->id)
-                ->when(
-                    $enrollmentIds === [],
-                    fn ($query) => $query->whereRaw('1 = 0'),
-                    fn ($query) => $query->whereIn('enrollment_id', $enrollmentIds),
-                )
-                ->latest('tested_on')
-                ->latest('id')
+            ? $this->scopeQuranTestsQuery(
+                QuranTest::query()
+                    ->with(['enrollment.group', 'juz', 'teacher', 'type'])
+                    ->where('student_id', $this->currentStudent->id)
+                    ->when(
+                        $enrollmentIds === [],
+                        fn ($query) => $query->whereRaw('1 = 0'),
+                        fn ($query) => $query->whereIn('enrollment_id', $enrollmentIds),
+                    )
+            )
                 ->get()
+                ->map(fn (QuranTest $test) => (object) [
+                    'enrollment' => $test->enrollment,
+                    'juz' => $test->juz,
+                    'score' => $test->score,
+                    'sort_key' => sprintf('%010d-%010d', $test->tested_on?->timestamp ?? 0, $test->id),
+                    'status' => $test->status,
+                    'tested_on' => $test->tested_on,
+                    'type_label' => $test->type?->name ?: __('crud.common.not_available'),
+                ])
+                ->concat(
+                    $this->scopeQuranFinalTestsQuery(
+                        QuranFinalTest::query()
+                            ->with(['attempts.teacher', 'enrollment.group', 'juz'])
+                            ->where('student_id', $this->currentStudent->id)
+                            ->when(
+                                $enrollmentIds === [],
+                                fn ($query) => $query->whereRaw('1 = 0'),
+                                fn ($query) => $query->whereIn('enrollment_id', $enrollmentIds),
+                            )
+                    )
+                        ->get()
+                        ->flatMap(function (QuranFinalTest $finalTest) {
+                            return $finalTest->attempts->map(fn ($attempt) => (object) [
+                                'enrollment' => $finalTest->enrollment,
+                                'juz' => $finalTest->juz,
+                                'score' => $attempt->score,
+                                'sort_key' => sprintf('%010d-%010d', $attempt->tested_on?->timestamp ?? 0, $attempt->id),
+                                'status' => $attempt->status,
+                                'tested_on' => $attempt->tested_on,
+                                'type_label' => __('ui.nav.quran_final_tests'),
+                            ]);
+                        })
+                )
+                ->sortByDesc('sort_key')
+                ->values()
             : collect();
 
         $pointTransactions = auth()->user()->can('points.view')
@@ -360,7 +396,7 @@ new class extends Component {
                                     <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $test->tested_on?->format('Y-m-d') ?: __('crud.common.not_available') }}</td>
                                     <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $test->enrollment?->group?->name ?: __('crud.common.not_available') }}</td>
                                     <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $test->juz ? __('workflow.common.labels.juz_number', ['number' => $test->juz->juz_number]) : __('crud.common.not_available') }}</td>
-                                    <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $test->type?->name ?: __('crud.common.not_available') }}</td>
+                                    <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $test->type_label }}</td>
                                     <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $test->score !== null ? number_format((float) $test->score, 2) : __('workflow.common.not_available') }}</td>
                                     <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ __('workflow.common.result_status.'.$test->status) }}</td>
                                 </tr>

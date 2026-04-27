@@ -309,6 +309,8 @@ new class extends Component {
         <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ __('access.roles.subtitle') }}</p>
     </section>
 
+    <x-settings.admin-nav section="dashboard" current="settings.access-control" />
+
     @if (session('status'))
         <div class="flash-success px-4 py-3 text-sm">{{ session('status') }}</div>
     @endif

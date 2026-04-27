@@ -1,5 +1,13 @@
+@props([
+    'section' => null,
+    'current' => null,
+])
+
 @php
-    $showWebsiteSettings = request()->routeIs('settings.website', 'settings.website.pages', 'settings.website.navigation');
+    $resolvedCurrent = $current ?? request()->route()?->getName();
+    $resolvedSection = $section
+        ?? (in_array($resolvedCurrent, ['settings.website', 'settings.website.pages', 'settings.website.navigation'], true) ? 'website' : 'dashboard');
+    $showWebsiteSettings = $resolvedSection === 'website';
 @endphp
 
 <div class="surface-panel p-4">
@@ -12,24 +20,24 @@
             </div>
 
             <div class="settings-tabs">
-                <a href="{{ route('settings.organization') }}" wire:navigate class="settings-tab {{ request()->routeIs('settings.organization') ? 'is-active' : '' }}">
+                <a href="{{ route('settings.organization') }}" wire:navigate class="settings-tab {{ $resolvedCurrent === 'settings.organization' ? 'is-active' : '' }}">
                     <span class="settings-tab__meta">{{ __('settings.navigation.organization.meta') }}</span>
                     <span class="settings-tab__title">{{ __('settings.navigation.organization.title') }}</span>
                 </a>
-                <a href="{{ route('settings.tracking') }}" wire:navigate class="settings-tab {{ request()->routeIs('settings.tracking') ? 'is-active' : '' }}">
+                <a href="{{ route('settings.tracking') }}" wire:navigate class="settings-tab {{ $resolvedCurrent === 'settings.tracking' ? 'is-active' : '' }}">
                     <span class="settings-tab__meta">{{ __('settings.navigation.tracking.meta') }}</span>
                     <span class="settings-tab__title">{{ __('settings.navigation.tracking.title') }}</span>
                 </a>
-                <a href="{{ route('settings.points') }}" wire:navigate class="settings-tab {{ request()->routeIs('settings.points') ? 'is-active' : '' }}">
+                <a href="{{ route('settings.points') }}" wire:navigate class="settings-tab {{ $resolvedCurrent === 'settings.points' ? 'is-active' : '' }}">
                     <span class="settings-tab__meta">{{ __('settings.navigation.points.meta') }}</span>
                     <span class="settings-tab__title">{{ __('settings.navigation.points.title') }}</span>
                 </a>
-                <a href="{{ route('settings.finance') }}" wire:navigate class="settings-tab {{ request()->routeIs('settings.finance') ? 'is-active' : '' }}">
+                <a href="{{ route('settings.finance') }}" wire:navigate class="settings-tab {{ $resolvedCurrent === 'settings.finance' ? 'is-active' : '' }}">
                     <span class="settings-tab__meta">{{ __('settings.navigation.finance.meta') }}</span>
                     <span class="settings-tab__title">{{ __('settings.navigation.finance.title') }}</span>
                 </a>
                 @can('roles.manage')
-                    <a href="{{ route('settings.access-control') }}" wire:navigate class="settings-tab {{ request()->routeIs('settings.access-control') ? 'is-active' : '' }}">
+                    <a href="{{ route('settings.access-control') }}" wire:navigate class="settings-tab {{ $resolvedCurrent === 'settings.access-control' ? 'is-active' : '' }}">
                         <span class="settings-tab__meta">{{ __('settings.navigation.access.meta') }}</span>
                         <span class="settings-tab__title">{{ __('settings.navigation.access.title') }}</span>
                     </a>
@@ -47,15 +55,15 @@
                 </div>
 
                 <div class="settings-tabs">
-                    <a href="{{ route('settings.website') }}" wire:navigate class="settings-tab {{ request()->routeIs('settings.website') ? 'is-active' : '' }}">
+                    <a href="{{ route('settings.website') }}" wire:navigate class="settings-tab {{ $resolvedCurrent === 'settings.website' ? 'is-active' : '' }}">
                         <span class="settings-tab__meta">{{ __('site.admin.nav.meta') }}</span>
                         <span class="settings-tab__title">{{ __('site.admin.nav.website') }}</span>
                     </a>
-                    <a href="{{ route('settings.website.pages') }}" wire:navigate class="settings-tab {{ request()->routeIs('settings.website.pages') ? 'is-active' : '' }}">
+                    <a href="{{ route('settings.website.pages') }}" wire:navigate class="settings-tab {{ $resolvedCurrent === 'settings.website.pages' ? 'is-active' : '' }}">
                         <span class="settings-tab__meta">{{ __('site.admin.nav.meta') }}</span>
                         <span class="settings-tab__title">{{ __('site.admin.nav.pages') }}</span>
                     </a>
-                    <a href="{{ route('settings.website.navigation') }}" wire:navigate class="settings-tab {{ request()->routeIs('settings.website.navigation') ? 'is-active' : '' }}">
+                    <a href="{{ route('settings.website.navigation') }}" wire:navigate class="settings-tab {{ $resolvedCurrent === 'settings.website.navigation' ? 'is-active' : '' }}">
                         <span class="settings-tab__meta">{{ __('site.admin.nav.meta') }}</span>
                         <span class="settings-tab__title">{{ __('site.admin.nav.menus') }}</span>
                     </a>

@@ -516,6 +516,24 @@ class AccessScopeService
         return $this->applyScopedIds($query, 'enrollment_id', $this->accessibleEnrollmentIds($user));
     }
 
+    public function scopeQuranPartialTests(Builder $query, ?User $user): Builder
+    {
+        if ($this->isUnrestricted($user)) {
+            return $query;
+        }
+
+        return $this->applyScopedIds($query, 'enrollment_id', $this->accessibleEnrollmentIds($user));
+    }
+
+    public function scopeQuranFinalTests(Builder $query, ?User $user): Builder
+    {
+        if ($this->isUnrestricted($user)) {
+            return $query;
+        }
+
+        return $this->applyScopedIds($query, 'enrollment_id', $this->accessibleEnrollmentIds($user));
+    }
+
     public function scopeParents(Builder $query, ?User $user): Builder
     {
         if ($this->isUnrestricted($user)) {

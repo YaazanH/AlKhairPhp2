@@ -412,7 +412,7 @@ new class extends Component {
         <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ __('site.admin.website.subtitle') }}</p>
     </section>
 
-    <x-settings.admin-nav />
+    <x-settings.admin-nav section="website" current="settings.website" />
 
     @if (session('status'))
         <div class="flash-success px-4 py-3 text-sm">{{ session('status') }}</div>

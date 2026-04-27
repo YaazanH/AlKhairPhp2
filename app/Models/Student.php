@@ -132,6 +132,16 @@ class Student extends Model
         return $this->hasMany(PointTransaction::class);
     }
 
+    public function quranPartialTests(): HasMany
+    {
+        return $this->hasMany(QuranPartialTest::class);
+    }
+
+    public function quranFinalTests(): HasMany
+    {
+        return $this->hasMany(QuranFinalTest::class);
+    }
+
     public function quranTests(): HasMany
     {
         return $this->hasMany(QuranTest::class);

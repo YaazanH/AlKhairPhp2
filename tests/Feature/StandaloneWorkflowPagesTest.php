@@ -5,11 +5,14 @@ namespace Tests\Feature;
 use App\Models\Course;
 use App\Models\Enrollment;
 use App\Models\Group;
+use App\Models\MemorizationSession;
 use App\Models\ParentProfile;
 use App\Models\PointTransaction;
 use App\Models\PointType;
+use App\Models\QuranFinalTest;
 use App\Models\QuranJuz;
-use App\Models\QuranTestType;
+use App\Models\QuranPartialTest;
+use App\Models\StudentPageAchievement;
 use App\Models\Student;
 use App\Models\Teacher;
 use App\Models\User;
@@ -21,30 +24,206 @@ class StandaloneWorkflowPagesTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_teacher_quran_test_workbench_uses_the_logged_in_teacher(): void
+    public function test_teacher_partial_test_workbench_uses_the_logged_in_teacher(): void
     {
         [$teacher, $enrollment] = $this->teacherContext();
-        $partial = QuranTestType::query()->where('code', 'partial')->firstOrFail();
         $juz = QuranJuz::query()->where('juz_number', 1)->firstOrFail();
+        $session = MemorizationSession::query()->create([
+            'enrollment_id' => $enrollment->id,
+            'entry_type' => 'new',
+            'from_page' => $juz->from_page,
+            'pages_count' => $juz->to_page - $juz->from_page + 1,
+            'recorded_on' => '2026-09-09',
+            'student_id' => $enrollment->student_id,
+            'teacher_id' => $teacher->id,
+            'to_page' => $juz->to_page,
+        ]);
 
-        Volt::test('quran-tests.index')
+        foreach (range($juz->from_page, $juz->to_page) as $pageNo) {
+            StudentPageAchievement::query()->create([
+                'first_enrollment_id' => $enrollment->id,
+                'first_recorded_on' => '2026-09-09',
+                'first_session_id' => $session->id,
+                'page_no' => $pageNo,
+                'student_id' => $enrollment->student_id,
+            ]);
+        }
+
+        Volt::test('quran-partial-tests.index')
             ->set('selectedStudentId', $enrollment->student_id)
+            ->set('selectedEnrollmentId', $enrollment->id)
             ->set('juz_id', $juz->id)
-            ->set('quran_test_type_id', $partial->id)
-            ->set('tested_on', '2026-09-10')
-            ->set('score', '95')
-            ->set('status', 'passed')
             ->call('save')
             ->assertHasNoErrors();
 
-        $this->assertDatabaseHas('quran_tests', [
+        $partialTest = QuranPartialTest::query()->firstOrFail();
+        $part = $partialTest->parts()->where('part_number', 1)->firstOrFail();
+
+        Volt::test('quran-partial-tests.show', ['partialTest' => $partialTest])
+            ->call('openAttemptModal', $part->id)
+            ->set('tested_on', '2026-09-10')
+            ->set('score', '95')
+            ->call('saveAttempt')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('quran_partial_test_attempts', [
+            'attempt_no' => 1,
+            'quran_partial_test_part_id' => $part->id,
+            'status' => 'passed',
+            'teacher_id' => $teacher->id,
+        ]);
+    }
+
+    public function test_partial_test_workbench_warns_before_creating_another_open_cycle(): void
+    {
+        [$teacher, $enrollment] = $this->teacherContext();
+        $juzs = QuranJuz::query()
+            ->whereIn('juz_number', [1, 2])
+            ->orderBy('juz_number')
+            ->get();
+
+        $session = MemorizationSession::query()->create([
             'enrollment_id' => $enrollment->id,
+            'entry_type' => 'new',
+            'from_page' => $juzs->first()->from_page,
+            'pages_count' => $juzs->last()->to_page - $juzs->first()->from_page + 1,
+            'recorded_on' => '2026-09-09',
             'student_id' => $enrollment->student_id,
             'teacher_id' => $teacher->id,
+            'to_page' => $juzs->last()->to_page,
+        ]);
+
+        foreach (range($juzs->first()->from_page, $juzs->last()->to_page) as $pageNo) {
+            StudentPageAchievement::query()->create([
+                'first_enrollment_id' => $enrollment->id,
+                'first_recorded_on' => '2026-09-09',
+                'first_session_id' => $session->id,
+                'page_no' => $pageNo,
+                'student_id' => $enrollment->student_id,
+            ]);
+        }
+
+        $openPartialTest = QuranPartialTest::query()->create([
+            'created_by' => $teacher->user_id,
+            'enrollment_id' => $enrollment->id,
+            'juz_id' => $juzs->first()->id,
+            'status' => 'in_progress',
+            'student_id' => $enrollment->student_id,
+        ]);
+
+        foreach (range(1, 4) as $partNumber) {
+            $openPartialTest->parts()->create([
+                'part_number' => $partNumber,
+                'status' => 'pending',
+            ]);
+        }
+
+        Volt::test('quran-partial-tests.index')
+            ->set('selectedStudentId', $enrollment->student_id)
+            ->set('selectedEnrollmentId', $enrollment->id)
+            ->set('juz_id', $juzs->last()->id)
+            ->call('save')
+            ->assertSet('showOpenTestWarningModal', true)
+            ->call('confirmOpenTestWarningCreate')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('quran_partial_tests', [
+            'juz_id' => $juzs->last()->id,
+            'status' => 'in_progress',
+            'student_id' => $enrollment->student_id,
+        ]);
+    }
+
+    public function test_teacher_final_test_workbench_uses_the_logged_in_teacher_and_locks_after_pass(): void
+    {
+        [$teacher, $enrollment] = $this->teacherContext();
+        $juz = QuranJuz::query()->where('juz_number', 1)->firstOrFail();
+
+        $partialTest = QuranPartialTest::query()->create([
+            'created_by' => $teacher->user_id,
+            'enrollment_id' => $enrollment->id,
             'juz_id' => $juz->id,
-            'quran_test_type_id' => $partial->id,
+            'passed_on' => '2026-09-09',
+            'status' => 'passed',
+            'student_id' => $enrollment->student_id,
+        ]);
+
+        foreach (range(1, 4) as $partNumber) {
+            $partialTest->parts()->create([
+                'part_number' => $partNumber,
+                'passed_on' => '2026-09-0'.(5 + $partNumber),
+                'status' => 'passed',
+            ]);
+        }
+
+        Volt::test('quran-final-tests.index')
+            ->set('selectedStudentId', $enrollment->student_id)
+            ->set('selectedEnrollmentId', $enrollment->id)
+            ->set('juz_id', $juz->id)
+            ->call('save')
+            ->assertHasNoErrors();
+
+        $finalTest = QuranFinalTest::query()->firstOrFail();
+
+        Volt::test('quran-final-tests.show', ['finalTest' => $finalTest])
+            ->call('openAttemptModal')
+            ->set('tested_on', '2026-09-12')
+            ->set('score', '95')
+            ->call('saveAttempt')
+            ->assertHasNoErrors()
+            ->call('openAttemptModal')
+            ->assertHasErrors(['attempt']);
+
+        $this->assertDatabaseHas('quran_final_test_attempts', [
+            'attempt_no' => 1,
+            'quran_final_test_id' => $finalTest->id,
+            'status' => 'passed',
+            'teacher_id' => $teacher->id,
+        ]);
+
+        $this->assertDatabaseHas('quran_final_tests', [
+            'id' => $finalTest->id,
             'status' => 'passed',
         ]);
+    }
+
+    public function test_final_test_workbench_warns_when_same_juz_already_has_an_open_cycle(): void
+    {
+        [$teacher, $enrollment] = $this->teacherContext();
+        $juz = QuranJuz::query()->where('juz_number', 1)->firstOrFail();
+
+        $partialTest = QuranPartialTest::query()->create([
+            'created_by' => $teacher->user_id,
+            'enrollment_id' => $enrollment->id,
+            'juz_id' => $juz->id,
+            'passed_on' => '2026-09-09',
+            'status' => 'passed',
+            'student_id' => $enrollment->student_id,
+        ]);
+
+        foreach (range(1, 4) as $partNumber) {
+            $partialTest->parts()->create([
+                'part_number' => $partNumber,
+                'passed_on' => '2026-09-0'.(5 + $partNumber),
+                'status' => 'passed',
+            ]);
+        }
+
+        QuranFinalTest::query()->create([
+            'created_by' => $teacher->user_id,
+            'enrollment_id' => $enrollment->id,
+            'juz_id' => $juz->id,
+            'status' => 'in_progress',
+            'student_id' => $enrollment->student_id,
+        ]);
+
+        Volt::test('quran-final-tests.index')
+            ->set('selectedStudentId', $enrollment->student_id)
+            ->set('selectedEnrollmentId', $enrollment->id)
+            ->set('juz_id', $juz->id)
+            ->call('save')
+            ->assertSet('showOpenTestWarningModal', true)
+            ->assertSet('existingFinalTestSummary.juz_number', $juz->juz_number);
     }
 
     public function test_manager_point_ledger_workbench_creates_and_updates_manual_entries(): void

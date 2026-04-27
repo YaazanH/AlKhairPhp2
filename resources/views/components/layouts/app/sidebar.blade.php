@@ -99,13 +99,19 @@
                         </flux:navlist.group>
                     @endif
 
-                    @if (auth()->user()->can('memorization.view') || auth()->user()->can('memorization.record') || auth()->user()->can('quran-tests.view'))
+                    @if (auth()->user()->can('memorization.view') || auth()->user()->can('memorization.record') || auth()->user()->can('quran-partial-tests.view') || auth()->user()->can('quran-final-tests.view') || auth()->user()->can('quran-tests.view'))
                         <flux:navlist.group :heading="__('ui.nav.tracking_quran')" class="grid">
                             @can('memorization.view')
                                 <flux:navlist.item icon="book-open-text" :href="route('memorization.index')" :current="request()->routeIs('memorization.index', 'enrollments.memorization')" wire:navigate>{{ __('ui.nav.memorization') }}</flux:navlist.item>
                             @endcan
                             @can('memorization.record')
                                 <flux:navlist.item icon="pencil-square" :href="route('memorization.quick-entry')" :current="request()->routeIs('memorization.quick-entry')" wire:navigate>{{ __('ui.nav.enter_memorize') }}</flux:navlist.item>
+                            @endcan
+                            @can('quran-partial-tests.view')
+                                <flux:navlist.item icon="squares-2x2" :href="route('quran-partial-tests.index')" :current="request()->routeIs('quran-partial-tests.*')" wire:navigate>{{ __('ui.nav.quran_partial_tests') }}</flux:navlist.item>
+                            @endcan
+                            @can('quran-final-tests.view')
+                                <flux:navlist.item icon="check-badge" :href="route('quran-final-tests.index')" :current="request()->routeIs('quran-final-tests.*')" wire:navigate>{{ __('ui.nav.quran_final_tests') }}</flux:navlist.item>
                             @endcan
                             @can('quran-tests.view')
                                 <flux:navlist.item icon="document-check" :href="route('quran-tests.index')" :current="request()->routeIs('quran-tests.*', 'enrollments.quran-tests')" wire:navigate>{{ __('ui.nav.quran_tests') }}</flux:navlist.item>

@@ -72,6 +72,16 @@ class Teacher extends Model
         return $this->hasMany(MemorizationSession::class);
     }
 
+    public function quranPartialTestAttempts(): HasMany
+    {
+        return $this->hasMany(QuranPartialTestAttempt::class);
+    }
+
+    public function quranFinalTestAttempts(): HasMany
+    {
+        return $this->hasMany(QuranFinalTestAttempt::class);
+    }
+
     public function quranTests(): HasMany
     {
         return $this->hasMany(QuranTest::class);

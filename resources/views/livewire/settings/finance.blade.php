@@ -287,7 +287,7 @@ new class extends Component {
         <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ __('settings.finance.subtitle') }}</p>
     </section>
 
-    <x-settings.admin-nav />
+    <x-settings.admin-nav section="dashboard" current="settings.finance" />
 
     @if (session('status'))
         <div class="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">{{ session('status') }}</div>

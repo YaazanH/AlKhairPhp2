@@ -1268,6 +1268,14 @@ html[dir='rtl'] .app-pagination__nav {
     padding: 1.5rem;
 }
 
+.admin-modal__dialog:has(.searchable-select--open) {
+    overflow: visible;
+}
+
+.admin-modal__body:has(.searchable-select--open) {
+    overflow: visible;
+}
+
 .admin-modal__close {
     display: inline-flex;
     align-items: center;

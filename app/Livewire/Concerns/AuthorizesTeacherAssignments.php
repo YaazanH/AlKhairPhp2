@@ -68,6 +68,19 @@ trait AuthorizesTeacherAssignments
         abort_unless($this->accessScopes()->canAccessTeacher(Auth::user(), $teacher), 403);
     }
 
+    protected function linkedTeacherForPermission(string $permission): ?Teacher
+    {
+        $user = Auth::user();
+
+        if (! $user?->can($permission)) {
+            return null;
+        }
+
+        $user->loadMissing('teacherProfile');
+
+        return $user->teacherProfile;
+    }
+
     protected function authorizeTeacherGroupAccess(Group $group): void
     {
         $this->authorizeScopedGroupAccess($group);
@@ -146,6 +159,16 @@ trait AuthorizesTeacherAssignments
     protected function scopeQuranTestsQuery(Builder $query): Builder
     {
         return $this->accessScopes()->scopeQuranTests($query, Auth::user());
+    }
+
+    protected function scopeQuranPartialTestsQuery(Builder $query): Builder
+    {
+        return $this->accessScopes()->scopeQuranPartialTests($query, Auth::user());
+    }
+
+    protected function scopeQuranFinalTestsQuery(Builder $query): Builder
+    {
+        return $this->accessScopes()->scopeQuranFinalTests($query, Auth::user());
     }
 
     protected function scopeStudentAttendanceRecordsQuery(Builder $query): Builder

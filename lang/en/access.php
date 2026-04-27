@@ -180,6 +180,19 @@ return [
             'counts' => ':permissions permissions across :users users.',
         ],
     ],
+    'permission_groups' => [
+        'quran-partial-tests' => 'Quran partial tests',
+        'quran-final-tests' => 'Quran final tests',
+    ],
+    'permissions' => [
+        'quran-partial-tests.view' => 'View Quran partial tests',
+        'quran-partial-tests.record' => 'Record Quran partial test attempts',
+        'quran-partial-tests.record-linked-teacher' => 'Auto-fill the linked teacher on Quran partial test attempts',
+        'quran-final-tests.view' => 'View Quran final tests',
+        'quran-final-tests.record' => 'Record Quran final test attempts',
+        'quran-final-tests.record-linked-teacher' => 'Auto-fill the linked teacher on Quran final test attempts',
+        'quran-tests.record-linked-teacher' => 'Auto-fill the linked teacher on awqaf Quran tests',
+    ],
     'login' => [
         'title' => 'Log in',
         'description' => '',

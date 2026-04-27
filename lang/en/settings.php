@@ -241,7 +241,7 @@ return [
     ],
     'tracking' => [
         'title' => 'Tracking Rules',
-        'subtitle' => 'Manage attendance states, assessment types, and Quran test stages that drive workflow logic.',
+        'subtitle' => 'Manage attendance states, assessment types, and the score rules that drive the standalone partial and final Quran test workflows.',
         'stats' => [
             'attendance_statuses' => 'Attendance statuses',
             'assessment_types' => 'Assessment types',
@@ -263,8 +263,20 @@ return [
             'quran_test_type' => [
                 'create' => 'New Quran test type',
                 'edit' => 'Edit Quran test type',
-                'copy' => 'Sort order controls how the progression steps appear in the UI.',
+                'copy' => 'These types control the legacy Quran test screen for final and awqaf progression. Partial tests now use their own standalone workflow.',
                 'table' => 'Quran test types',
+            ],
+            'partial_test_rule' => [
+                'title' => 'Partial test score rules',
+                'copy' => 'Partial test attempts use exactly two score ranges. The student result is derived automatically from the score you enter on each part.',
+                'failed_title' => 'Failed range',
+                'passed_title' => 'Passed range',
+            ],
+            'final_test_rule' => [
+                'title' => 'Final test score rules',
+                'copy' => 'Final test attempts also use exactly two score ranges. The student result is derived automatically from the score you enter on each attempt.',
+                'failed_title' => 'Failed range',
+                'passed_title' => 'Passed range',
             ],
         ],
         'fields' => [
@@ -277,7 +289,9 @@ return [
             'default_attendance_status' => 'Default attendance value',
             'is_active' => 'Active',
             'is_scored' => 'Scored assessment',
+            'from_score' => 'From score',
             'sort_order' => 'Sort order',
+            'to_score' => 'To score',
         ],
         'scopes' => [
             'both' => 'Both',
@@ -306,6 +320,8 @@ return [
             'create_status' => 'Create status',
             'update_status' => 'Update status',
             'create_type' => 'Create type',
+            'save_partial_rules' => 'Save partial rules',
+            'save_final_rules' => 'Save final rules',
             'update_type' => 'Update type',
         ],
         'messages' => [
@@ -318,13 +334,20 @@ return [
             'quran_test_type_created' => 'Quran test type created successfully.',
             'quran_test_type_updated' => 'Quran test type updated successfully.',
             'quran_test_type_deleted' => 'Quran test type deleted successfully.',
+            'partial_test_rules_saved' => 'Partial test score rules saved successfully.',
+            'final_test_rules_saved' => 'Final test score rules saved successfully.',
         ],
         'errors' => [
             'attendance_status_delete_linked' => 'This attendance status cannot be deleted while attendance records still use it.',
             'default_attendance_required' => 'At least one active student attendance value must remain selected as the default.',
             'default_requires_student_scope' => 'The default attendance value must be active and available for students.',
             'assessment_type_delete_linked' => 'This assessment type cannot be deleted while assessments or score bands still use it.',
+            'partial_test_rules_order' => 'Each partial-test score range must start before it ends.',
+            'partial_test_rules_overlap' => 'The passed and failed score ranges for partial tests cannot overlap.',
+            'final_test_rules_order' => 'Each final-test score range must start before it ends.',
+            'final_test_rules_overlap' => 'The passed and failed score ranges for final tests cannot overlap.',
             'quran_test_type_delete_linked' => 'This Quran test type cannot be deleted while test records still use it.',
+            'quran_test_type_reserved' => 'The `partial` code is reserved for the standalone partial test workflow and cannot be created here.',
         ],
     ],
     'points' => [
@@ -347,6 +370,31 @@ return [
                 'edit' => 'Edit point policy',
                 'copy' => 'Policies translate a trigger like attendance or memorization into signed point values.',
                 'table' => 'Point policies',
+            ],
+        ],
+        'guides' => [
+            'quran_tests' => [
+                'title' => 'Quran test point keys',
+                'copy' => 'Use these `source_type` and `trigger_key` pairs when you want points to be awarded automatically for the new partial workflow or the existing final and awqaf tests.',
+                'score_ranges' => 'Use `from_value` and `to_value` only when the policy depends on the test score. Partial cycle completion has no score of its own, so leave the range empty for `quran_partial_test + partial_passed`.',
+                'items' => [
+                    'partial_part' => [
+                        'title' => 'Passed part attempt',
+                        'copy' => 'Runs once when a part is passed for the first time. Good for small per-part rewards.',
+                    ],
+                    'partial_cycle' => [
+                        'title' => 'Completed partial cycle',
+                        'copy' => 'Runs once after all four parts are passed. Good for the overall partial-test reward.',
+                    ],
+                    'final' => [
+                        'title' => 'Passed final test',
+                        'copy' => 'Runs when the final Quran test is saved as passed.',
+                    ],
+                    'awqaf' => [
+                        'title' => 'Passed awqaf test',
+                        'copy' => 'Runs when the awqaf Quran test is saved as passed.',
+                    ],
+                ],
             ],
         ],
         'fields' => [

@@ -3,6 +3,8 @@
 namespace App\Services;
 
 use App\Models\Enrollment;
+use App\Models\QuranFinalTest;
+use App\Models\QuranPartialTest;
 use App\Models\QuranTest;
 use App\Models\QuranTestType;
 
@@ -11,27 +13,39 @@ class QuranProgressionService
     public function validate(Enrollment $enrollment, int $juzId, QuranTestType $testType): ?string
     {
         if ($testType->code === 'final') {
-            $passedPartials = QuranTest::query()
+            $hasPassedPartialTest = QuranPartialTest::query()
+                ->where('student_id', $enrollment->student_id)
+                ->where('juz_id', $juzId)
+                ->where('status', 'passed')
+                ->exists();
+
+            $legacyPassedPartials = QuranTest::query()
                 ->where('student_id', $enrollment->student_id)
                 ->where('juz_id', $juzId)
                 ->whereHas('type', fn ($query) => $query->where('code', 'partial'))
                 ->where('status', 'passed')
                 ->count();
 
-            if ($passedPartials < 4) {
+            if (! $hasPassedPartialTest && $legacyPassedPartials < 4) {
                 return __('workflow.quran_tests.errors.final_requires_partials');
             }
         }
 
         if ($testType->code === 'awqaf') {
-            $passedFinal = QuranTest::query()
+            $passedFinal = QuranFinalTest::query()
+                ->where('student_id', $enrollment->student_id)
+                ->where('juz_id', $juzId)
+                ->where('status', 'passed')
+                ->exists();
+
+            $legacyPassedFinal = QuranTest::query()
                 ->where('student_id', $enrollment->student_id)
                 ->where('juz_id', $juzId)
                 ->whereHas('type', fn ($query) => $query->where('code', 'final'))
                 ->where('status', 'passed')
                 ->exists();
 
-            if (! $passedFinal) {
+            if (! $passedFinal && ! $legacyPassedFinal) {
                 return __('workflow.quran_tests.errors.awqaf_requires_final');
             }
         }

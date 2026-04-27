@@ -95,6 +95,10 @@ Route::middleware(['auth'])->group(function () {
     Volt::route('student-notes', 'student-notes.index')->middleware('permission:student-notes.view')->name('student-notes.index');
     Volt::route('memorization/quick-entry', 'memorization.quick-entry')->middleware('permission:memorization.record')->name('memorization.quick-entry');
     Volt::route('memorization', 'memorization.index')->middleware('permission:memorization.view')->name('memorization.index');
+    Volt::route('quran-partial-tests', 'quran-partial-tests.index')->middleware('permission:quran-partial-tests.view')->name('quran-partial-tests.index');
+    Volt::route('quran-partial-tests/{partialTest}', 'quran-partial-tests.show')->middleware('permission:quran-partial-tests.view')->name('quran-partial-tests.show');
+    Volt::route('quran-final-tests', 'quran-final-tests.index')->middleware('permission:quran-final-tests.view')->name('quran-final-tests.index');
+    Volt::route('quran-final-tests/{finalTest}', 'quran-final-tests.show')->middleware('permission:quran-final-tests.view')->name('quran-final-tests.show');
     Volt::route('quran-tests', 'quran-tests.index')->middleware('permission:quran-tests.view')->name('quran-tests.index');
     Volt::route('points', 'points.index')->middleware('permission:points.view')->name('points.index');
     Volt::route('enrollments/{enrollment}/memorization', 'enrollments.memorization')->middleware('permission:memorization.view')->name('enrollments.memorization');

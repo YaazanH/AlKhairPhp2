@@ -10,12 +10,16 @@ use App\Models\QuranTest;
 use App\Models\QuranTestType;
 use App\Models\StudentAttendanceRecord;
 use App\Models\TeacherAttendanceRecord;
+use App\Services\QuranFinalTestRuleService;
+use App\Services\QuranPartialTestRuleService;
 use Illuminate\Validation\Rule;
 use Livewire\Volt\Component;
 
 new class extends Component {
     use AuthorizesPermissions;
     use SupportsCreateAndNew;
+
+    protected array $reservedQuranTestTypeCodes = ['partial'];
 
     public ?int $attendance_status_editing_id = null;
     public string $attendance_status_name = '';
@@ -42,9 +46,20 @@ new class extends Component {
     public bool $quran_test_type_is_active = true;
     public bool $showQuranTestTypeModal = false;
 
+    public string $partial_test_failed_from = '0';
+    public string $partial_test_failed_to = '59.99';
+    public string $partial_test_passed_from = '60';
+    public string $partial_test_passed_to = '100';
+    public string $final_test_failed_from = '0';
+    public string $final_test_failed_to = '59.99';
+    public string $final_test_passed_from = '60';
+    public string $final_test_passed_to = '100';
+
     public function mount(): void
     {
         $this->authorizePermission('settings.manage');
+        $this->loadPartialTestRuleSettings();
+        $this->loadFinalTestRuleSettings();
     }
 
     public function attendanceStatusRules(): array
@@ -239,6 +254,7 @@ new class extends Component {
                 'required',
                 'string',
                 'max:50',
+                Rule::notIn($this->reservedQuranTestTypeCodes),
                 Rule::unique('quran_test_types', 'code')->ignore($this->quran_test_type_editing_id),
             ],
             'quran_test_type_is_active' => ['boolean'],
@@ -332,6 +348,12 @@ new class extends Component {
     {
         $this->authorizePermission('settings.manage');
 
+        if (in_array(mb_strtolower(trim($this->quran_test_type_code)), $this->reservedQuranTestTypeCodes, true)) {
+            $this->addError('quran_test_type_code', __('settings.tracking.errors.quran_test_type_reserved'));
+
+            return;
+        }
+
         $validated = $this->validate($this->quranTestTypeRules());
 
         QuranTestType::query()->updateOrCreate(
@@ -353,16 +375,102 @@ new class extends Component {
         $this->cancelQuranTestType();
     }
 
+    public function savePartialTestRules(): void
+    {
+        $this->authorizePermission('settings.manage');
+
+        $validated = $this->validate([
+            'partial_test_failed_from' => ['required', 'numeric', 'between:0,100'],
+            'partial_test_failed_to' => ['required', 'numeric', 'between:0,100'],
+            'partial_test_passed_from' => ['required', 'numeric', 'between:0,100'],
+            'partial_test_passed_to' => ['required', 'numeric', 'between:0,100'],
+        ]);
+
+        $failedFrom = (float) $validated['partial_test_failed_from'];
+        $failedTo = (float) $validated['partial_test_failed_to'];
+        $passedFrom = (float) $validated['partial_test_passed_from'];
+        $passedTo = (float) $validated['partial_test_passed_to'];
+
+        if ($failedFrom > $failedTo) {
+            $this->addError('partial_test_failed_from', __('settings.tracking.errors.partial_test_rules_order'));
+
+            return;
+        }
+
+        if ($passedFrom > $passedTo) {
+            $this->addError('partial_test_passed_from', __('settings.tracking.errors.partial_test_rules_order'));
+
+            return;
+        }
+
+        if (max($failedFrom, $passedFrom) <= min($failedTo, $passedTo)) {
+            $this->addError('partial_test_passed_from', __('settings.tracking.errors.partial_test_rules_overlap'));
+
+            return;
+        }
+
+        app(QuranPartialTestRuleService::class)->store([
+            'failed' => ['from' => $failedFrom, 'to' => $failedTo],
+            'passed' => ['from' => $passedFrom, 'to' => $passedTo],
+        ]);
+
+        $this->loadPartialTestRuleSettings();
+
+        session()->flash('status', __('settings.tracking.messages.partial_test_rules_saved'));
+    }
+
+    public function saveFinalTestRules(): void
+    {
+        $this->authorizePermission('settings.manage');
+
+        $validated = $this->validate([
+            'final_test_failed_from' => ['required', 'numeric', 'between:0,100'],
+            'final_test_failed_to' => ['required', 'numeric', 'between:0,100'],
+            'final_test_passed_from' => ['required', 'numeric', 'between:0,100'],
+            'final_test_passed_to' => ['required', 'numeric', 'between:0,100'],
+        ]);
+
+        $failedFrom = (float) $validated['final_test_failed_from'];
+        $failedTo = (float) $validated['final_test_failed_to'];
+        $passedFrom = (float) $validated['final_test_passed_from'];
+        $passedTo = (float) $validated['final_test_passed_to'];
+
+        if ($failedFrom > $failedTo) {
+            $this->addError('final_test_failed_from', __('settings.tracking.errors.final_test_rules_order'));
+
+            return;
+        }
+
+        if ($passedFrom > $passedTo) {
+            $this->addError('final_test_passed_from', __('settings.tracking.errors.final_test_rules_order'));
+
+            return;
+        }
+
+        if (max($failedFrom, $passedFrom) <= min($failedTo, $passedTo)) {
+            $this->addError('final_test_passed_from', __('settings.tracking.errors.final_test_rules_overlap'));
+
+            return;
+        }
+
+        app(QuranFinalTestRuleService::class)->store([
+            'failed' => ['from' => $failedFrom, 'to' => $failedTo],
+            'passed' => ['from' => $passedFrom, 'to' => $passedTo],
+        ]);
+
+        $this->loadFinalTestRuleSettings();
+
+        session()->flash('status', __('settings.tracking.messages.final_test_rules_saved'));
+    }
+
     public function with(): array
     {
         return [
             'assessmentTypes' => AssessmentType::query()->withCount('assessments')->orderBy('name')->get(),
             'attendanceStatuses' => AttendanceStatus::query()->orderBy('scope')->orderBy('name')->get(),
-            'quranTestTypes' => QuranTestType::query()->orderBy('sort_order')->orderBy('name')->get(),
             'totals' => [
                 'assessment_types' => AssessmentType::count(),
                 'attendance_statuses' => AttendanceStatus::count(),
-                'quran_test_types' => QuranTestType::count(),
             ],
         ];
     }
@@ -403,6 +511,35 @@ new class extends Component {
         $this->showQuranTestTypeModal = false;
         $this->resetValidation();
     }
+
+    protected function loadPartialTestRuleSettings(): void
+    {
+        $ranges = app(QuranPartialTestRuleService::class)->ranges();
+
+        $this->partial_test_failed_from = $this->formatRuleValue($ranges['failed']['from']);
+        $this->partial_test_failed_to = $this->formatRuleValue($ranges['failed']['to']);
+        $this->partial_test_passed_from = $this->formatRuleValue($ranges['passed']['from']);
+        $this->partial_test_passed_to = $this->formatRuleValue($ranges['passed']['to']);
+    }
+
+    protected function loadFinalTestRuleSettings(): void
+    {
+        $ranges = app(QuranFinalTestRuleService::class)->ranges();
+
+        $this->final_test_failed_from = $this->formatRuleValue($ranges['failed']['from']);
+        $this->final_test_failed_to = $this->formatRuleValue($ranges['failed']['to']);
+        $this->final_test_passed_from = $this->formatRuleValue($ranges['passed']['from']);
+        $this->final_test_passed_to = $this->formatRuleValue($ranges['passed']['to']);
+    }
+
+    protected function formatRuleValue(float $value): string
+    {
+        if ((float) (int) $value === $value) {
+            return (string) (int) $value;
+        }
+
+        return rtrim(rtrim(number_format($value, 2, '.', ''), '0'), '.');
+    }
 }; ?>
 
 <div class="page-stack settings-admin-page">
@@ -412,16 +549,15 @@ new class extends Component {
         <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ __('settings.tracking.subtitle') }}</p>
     </section>
 
-    <x-settings.admin-nav />
+    <x-settings.admin-nav section="dashboard" current="settings.tracking" />
 
     @if (session('status'))
         <div class="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">{{ session('status') }}</div>
     @endif
 
-    <div class="grid gap-4 md:grid-cols-3">
+    <div class="grid gap-4 md:grid-cols-2">
         <div class="rounded-xl border border-neutral-200 p-5 dark:border-neutral-700"><div class="text-sm text-neutral-500">{{ __('settings.tracking.stats.attendance_statuses') }}</div><div class="mt-2 text-3xl font-semibold">{{ number_format($totals['attendance_statuses']) }}</div></div>
         <div class="rounded-xl border border-neutral-200 p-5 dark:border-neutral-700"><div class="text-sm text-neutral-500">{{ __('settings.tracking.stats.assessment_types') }}</div><div class="mt-2 text-3xl font-semibold">{{ number_format($totals['assessment_types']) }}</div></div>
-        <div class="rounded-xl border border-neutral-200 p-5 dark:border-neutral-700"><div class="text-sm text-neutral-500">{{ __('settings.tracking.stats.quran_test_types') }}</div><div class="mt-2 text-3xl font-semibold">{{ number_format($totals['quran_test_types']) }}</div></div>
     </div>
 
     <section class="surface-panel p-5 lg:p-6">
@@ -538,29 +674,95 @@ new class extends Component {
             </div>
 
             <div class="overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700">
-                <div class="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-200 px-5 py-4 dark:border-neutral-700">
-                    <div>
-                        <div class="text-sm font-medium">{{ __('settings.tracking.sections.quran_test_type.table') }}</div>
-                        <p class="mt-1 text-xs text-neutral-500 dark:text-neutral-400">{{ __('settings.tracking.sections.quran_test_type.copy') }}</p>
+                <div class="border-b border-neutral-200 px-5 py-4 dark:border-neutral-700">
+                    <div class="text-sm font-medium">{{ __('settings.tracking.sections.partial_test_rule.title') }}</div>
+                    <p class="mt-1 text-xs text-neutral-500 dark:text-neutral-400">{{ __('settings.tracking.sections.partial_test_rule.copy') }}</p>
+                </div>
+                <form wire:submit="savePartialTestRules" class="space-y-4 px-5 py-5">
+                    <div class="grid gap-4 md:grid-cols-2">
+                        <div class="rounded-xl border border-neutral-200 p-4 dark:border-neutral-700">
+                            <div class="text-sm font-semibold">{{ __('settings.tracking.sections.partial_test_rule.failed_title') }}</div>
+                            <div class="mt-3 grid gap-4 md:grid-cols-2">
+                                <div>
+                                    <label class="mb-1 block text-sm font-medium">{{ __('settings.tracking.fields.from_score') }}</label>
+                                    <input wire:model="partial_test_failed_from" type="number" min="0" max="100" step="0.01" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                                    @error('partial_test_failed_from') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+                                </div>
+                                <div>
+                                    <label class="mb-1 block text-sm font-medium">{{ __('settings.tracking.fields.to_score') }}</label>
+                                    <input wire:model="partial_test_failed_to" type="number" min="0" max="100" step="0.01" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                                    @error('partial_test_failed_to') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="rounded-xl border border-neutral-200 p-4 dark:border-neutral-700">
+                            <div class="text-sm font-semibold">{{ __('settings.tracking.sections.partial_test_rule.passed_title') }}</div>
+                            <div class="mt-3 grid gap-4 md:grid-cols-2">
+                                <div>
+                                    <label class="mb-1 block text-sm font-medium">{{ __('settings.tracking.fields.from_score') }}</label>
+                                    <input wire:model="partial_test_passed_from" type="number" min="0" max="100" step="0.01" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                                    @error('partial_test_passed_from') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+                                </div>
+                                <div>
+                                    <label class="mb-1 block text-sm font-medium">{{ __('settings.tracking.fields.to_score') }}</label>
+                                    <input wire:model="partial_test_passed_to" type="number" min="0" max="100" step="0.01" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                                    @error('partial_test_passed_to') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                    <button type="button" wire:click="openQuranTestTypeModal" class="pill-link pill-link--accent">{{ __('settings.tracking.sections.quran_test_type.create') }}</button>
+
+                    <div class="flex justify-end gap-3">
+                        <button type="submit" class="pill-link pill-link--accent">{{ __('settings.tracking.actions.save_partial_rules') }}</button>
+                    </div>
+                </form>
+            </div>
+
+            <div class="overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700">
+                <div class="border-b border-neutral-200 px-5 py-4 dark:border-neutral-700">
+                    <div class="text-sm font-medium">{{ __('settings.tracking.sections.final_test_rule.title') }}</div>
+                    <p class="mt-1 text-xs text-neutral-500 dark:text-neutral-400">{{ __('settings.tracking.sections.final_test_rule.copy') }}</p>
                 </div>
-                <div class="overflow-x-auto">
-                    <table class="min-w-full divide-y divide-neutral-200 text-sm dark:divide-neutral-700">
-                        <thead class="bg-neutral-50 dark:bg-neutral-900/60"><tr><th class="px-5 py-3 text-left font-medium">{{ __('settings.tracking.table.type') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.tracking.table.code') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.tracking.table.sort') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.tracking.table.state') }}</th><th class="px-5 py-3 text-right font-medium">{{ __('settings.tracking.table.actions') }}</th></tr></thead>
-                        <tbody class="divide-y divide-neutral-200 dark:divide-neutral-700">
-                            @foreach ($quranTestTypes as $quranTestType)
-                                <tr>
-                                    <td class="px-5 py-3 font-medium">{{ $quranTestType->name }}</td>
-                                    <td class="px-5 py-3">{{ $quranTestType->code }}</td>
-                                    <td class="px-5 py-3">{{ $quranTestType->sort_order }}</td>
-                                    <td class="px-5 py-3">{{ $quranTestType->is_active ? __('settings.common.states.active') : __('settings.common.states.inactive') }}</td>
-                                    <td class="px-5 py-3"><div class="flex justify-end gap-2"><button type="button" wire:click="editQuranTestType({{ $quranTestType->id }})" class="rounded-lg border border-neutral-300 px-3 py-1.5 dark:border-neutral-700">{{ __('crud.common.actions.edit') }}</button><button type="button" wire:click="deleteQuranTestType({{ $quranTestType->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="rounded-lg border border-red-300 px-3 py-1.5 text-red-700 dark:border-red-800 dark:text-red-300">{{ __('crud.common.actions.delete') }}</button></div></td>
-                                </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
-                </div>
+                <form wire:submit="saveFinalTestRules" class="space-y-4 px-5 py-5">
+                    <div class="grid gap-4 md:grid-cols-2">
+                        <div class="rounded-xl border border-neutral-200 p-4 dark:border-neutral-700">
+                            <div class="text-sm font-semibold">{{ __('settings.tracking.sections.final_test_rule.failed_title') }}</div>
+                            <div class="mt-3 grid gap-4 md:grid-cols-2">
+                                <div>
+                                    <label class="mb-1 block text-sm font-medium">{{ __('settings.tracking.fields.from_score') }}</label>
+                                    <input wire:model="final_test_failed_from" type="number" min="0" max="100" step="0.01" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                                    @error('final_test_failed_from') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+                                </div>
+                                <div>
+                                    <label class="mb-1 block text-sm font-medium">{{ __('settings.tracking.fields.to_score') }}</label>
+                                    <input wire:model="final_test_failed_to" type="number" min="0" max="100" step="0.01" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                                    @error('final_test_failed_to') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="rounded-xl border border-neutral-200 p-4 dark:border-neutral-700">
+                            <div class="text-sm font-semibold">{{ __('settings.tracking.sections.final_test_rule.passed_title') }}</div>
+                            <div class="mt-3 grid gap-4 md:grid-cols-2">
+                                <div>
+                                    <label class="mb-1 block text-sm font-medium">{{ __('settings.tracking.fields.from_score') }}</label>
+                                    <input wire:model="final_test_passed_from" type="number" min="0" max="100" step="0.01" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                                    @error('final_test_passed_from') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+                                </div>
+                                <div>
+                                    <label class="mb-1 block text-sm font-medium">{{ __('settings.tracking.fields.to_score') }}</label>
+                                    <input wire:model="final_test_passed_to" type="number" min="0" max="100" step="0.01" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                                    @error('final_test_passed_to') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="flex justify-end gap-3">
+                        <button type="submit" class="pill-link pill-link--accent">{{ __('settings.tracking.actions.save_final_rules') }}</button>
+                    </div>
+                </form>
             </div>
         </section>
     </div>
@@ -600,23 +802,6 @@ new class extends Component {
                 <button type="button" wire:click="closeAssessmentTypeModal" class="pill-link">{{ __('crud.common.actions.cancel') }}</button>
                 <button type="submit" class="pill-link pill-link--accent">{{ $assessment_type_editing_id ? __('settings.tracking.actions.update_type') : __('settings.tracking.actions.create_type') }}</button>
                 <x-admin.create-and-new-button :show="! $assessment_type_editing_id" click="saveAndNew('saveAssessmentType', 'openAssessmentTypeModal')" />
-            </div>
-        </form>
-    </x-admin.modal>
-
-    <x-admin.modal :show="$showQuranTestTypeModal" :title="$quran_test_type_editing_id ? __('settings.tracking.sections.quran_test_type.edit') : __('settings.tracking.sections.quran_test_type.create')" :description="__('settings.tracking.sections.quran_test_type.copy')" close-method="closeQuranTestTypeModal" max-width="3xl">
-        <form wire:submit="saveQuranTestType" class="space-y-4">
-            <div><label class="mb-1 block text-sm font-medium">{{ __('settings.tracking.fields.name') }}</label><input wire:model="quran_test_type_name" type="text" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">@error('quran_test_type_name') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror</div>
-            <div class="grid gap-4 md:grid-cols-2">
-                <div><label class="mb-1 block text-sm font-medium">{{ __('settings.tracking.fields.code') }}</label><input wire:model="quran_test_type_code" type="text" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">@error('quran_test_type_code') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror</div>
-                <div><label class="mb-1 block text-sm font-medium">{{ __('settings.tracking.fields.sort_order') }}</label><input wire:model="quran_test_type_sort_order" type="number" min="0" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">@error('quran_test_type_sort_order') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror</div>
-            </div>
-            <label class="flex items-center gap-3 text-sm"><input wire:model="quran_test_type_is_active" type="checkbox" class="rounded border-neutral-300 text-neutral-900"><span>{{ __('settings.tracking.fields.is_active') }}</span></label>
-            @error('quranTestTypeDelete') <div class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{{ $message }}</div> @enderror
-            <div class="flex justify-end gap-3">
-                <button type="button" wire:click="closeQuranTestTypeModal" class="pill-link">{{ __('crud.common.actions.cancel') }}</button>
-                <button type="submit" class="pill-link pill-link--accent">{{ $quran_test_type_editing_id ? __('settings.tracking.actions.update_type') : __('settings.tracking.actions.create_type') }}</button>
-                <x-admin.create-and-new-button :show="! $quran_test_type_editing_id" click="saveAndNew('saveQuranTestType', 'openQuranTestTypeModal')" />
             </div>
         </form>
     </x-admin.modal>

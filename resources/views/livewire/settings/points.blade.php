@@ -339,7 +339,7 @@ new class extends Component {
         <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ __('settings.points.subtitle') }}</p>
     </section>
 
-    <x-settings.admin-nav />
+    <x-settings.admin-nav section="dashboard" current="settings.points" />
 
     @if (session('status'))
         <div class="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">{{ session('status') }}</div>
@@ -357,6 +357,49 @@ new class extends Component {
                 <div class="admin-toolbar__title">{{ __('settings.points.title') }}</div>
                 <p class="admin-toolbar__subtitle">{{ __('settings.points.subtitle') }}</p>
             </div>
+        </div>
+    </section>
+
+    <section class="surface-panel p-5 lg:p-6">
+        <div class="admin-toolbar">
+            <div>
+                <div class="admin-toolbar__title">{{ __('settings.points.guides.quran_tests.title') }}</div>
+                <p class="admin-toolbar__subtitle">{{ __('settings.points.guides.quran_tests.copy') }}</p>
+            </div>
+        </div>
+
+        <div class="mt-5 grid gap-3 md:grid-cols-2">
+            <div class="rounded-2xl border border-neutral-200 px-4 py-4 text-sm dark:border-neutral-700">
+                <div class="font-semibold">{{ __('settings.points.guides.quran_tests.items.partial_part.title') }}</div>
+                <div class="mt-2 text-neutral-500 dark:text-neutral-400">{{ __('settings.points.guides.quran_tests.items.partial_part.copy') }}</div>
+                <div class="mt-3 font-mono text-xs">source_type = <span class="text-neutral-900 dark:text-white">quran_partial_test_part</span></div>
+                <div class="mt-1 font-mono text-xs">trigger_key = <span class="text-neutral-900 dark:text-white">part_passed</span></div>
+            </div>
+
+            <div class="rounded-2xl border border-neutral-200 px-4 py-4 text-sm dark:border-neutral-700">
+                <div class="font-semibold">{{ __('settings.points.guides.quran_tests.items.partial_cycle.title') }}</div>
+                <div class="mt-2 text-neutral-500 dark:text-neutral-400">{{ __('settings.points.guides.quran_tests.items.partial_cycle.copy') }}</div>
+                <div class="mt-3 font-mono text-xs">source_type = <span class="text-neutral-900 dark:text-white">quran_partial_test</span></div>
+                <div class="mt-1 font-mono text-xs">trigger_key = <span class="text-neutral-900 dark:text-white">partial_passed</span></div>
+            </div>
+
+            <div class="rounded-2xl border border-neutral-200 px-4 py-4 text-sm dark:border-neutral-700">
+                <div class="font-semibold">{{ __('settings.points.guides.quran_tests.items.final.title') }}</div>
+                <div class="mt-2 text-neutral-500 dark:text-neutral-400">{{ __('settings.points.guides.quran_tests.items.final.copy') }}</div>
+                <div class="mt-3 font-mono text-xs">source_type = <span class="text-neutral-900 dark:text-white">quran_final_test</span></div>
+                <div class="mt-1 font-mono text-xs">trigger_key = <span class="text-neutral-900 dark:text-white">final_passed</span></div>
+            </div>
+
+            <div class="rounded-2xl border border-neutral-200 px-4 py-4 text-sm dark:border-neutral-700">
+                <div class="font-semibold">{{ __('settings.points.guides.quran_tests.items.awqaf.title') }}</div>
+                <div class="mt-2 text-neutral-500 dark:text-neutral-400">{{ __('settings.points.guides.quran_tests.items.awqaf.copy') }}</div>
+                <div class="mt-3 font-mono text-xs">source_type = <span class="text-neutral-900 dark:text-white">quran_test</span></div>
+                <div class="mt-1 font-mono text-xs">trigger_key = <span class="text-neutral-900 dark:text-white">awqaf_passed</span></div>
+            </div>
+        </div>
+
+        <div class="mt-4 rounded-2xl border border-emerald-200/50 bg-emerald-50/60 px-4 py-4 text-sm text-emerald-900 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-100">
+            {{ __('settings.points.guides.quran_tests.score_ranges') }}
         </div>
     </section>
 

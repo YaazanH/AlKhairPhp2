@@ -215,15 +215,31 @@ class SystemSettingsTest extends TestCase
         ]);
 
         Volt::test('settings.tracking')
-            ->set('quran_test_type_name', 'Stage Gate')
-            ->set('quran_test_type_code', 'stage-gate')
-            ->set('quran_test_type_sort_order', '4')
-            ->call('saveQuranTestType')
+            ->set('partial_test_failed_from', '0')
+            ->set('partial_test_failed_to', '69.99')
+            ->set('partial_test_passed_from', '70')
+            ->set('partial_test_passed_to', '100')
+            ->call('savePartialTestRules')
             ->assertHasNoErrors();
 
-        $this->assertDatabaseHas('quran_test_types', [
-            'code' => 'stage-gate',
-            'sort_order' => 4,
+        $this->assertDatabaseHas('app_settings', [
+            'group' => 'tracking',
+            'key' => 'quran_partial_test_passed_from',
+            'value' => '70',
+        ]);
+
+        Volt::test('settings.tracking')
+            ->set('final_test_failed_from', '0')
+            ->set('final_test_failed_to', '74.99')
+            ->set('final_test_passed_from', '75')
+            ->set('final_test_passed_to', '100')
+            ->call('saveFinalTestRules')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('app_settings', [
+            'group' => 'tracking',
+            'key' => 'quran_final_test_passed_from',
+            'value' => '75',
         ]);
 
         Volt::test('settings.points')

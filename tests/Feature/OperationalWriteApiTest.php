@@ -18,7 +18,10 @@ use App\Models\PaymentMethod;
 use App\Models\PointPolicy;
 use App\Models\PointTransaction;
 use App\Models\PointType;
+use App\Models\QuranFinalTest;
 use App\Models\QuranJuz;
+use App\Models\QuranPartialTest;
+use App\Models\QuranPartialTestPart;
 use App\Models\QuranTestType;
 use App\Models\Student;
 use App\Models\Teacher;
@@ -45,7 +48,7 @@ class OperationalWriteApiTest extends TestCase
             ->firstOrFail();
         $assessmentType = AssessmentType::query()->where('code', 'quiz')->firstOrFail();
         $expenseCategory = ExpenseCategory::query()->where('is_active', true)->firstOrFail();
-        $finalType = QuranTestType::query()->where('code', 'final')->firstOrFail();
+        $awqafType = QuranTestType::query()->where('code', 'awqaf')->firstOrFail();
         $juz = QuranJuz::query()->orderBy('juz_number')->firstOrFail();
         $partialType = QuranTestType::query()->where('code', 'partial')->firstOrFail();
         $paymentMethod = PaymentMethod::query()->where('is_active', true)->firstOrFail();
@@ -180,26 +183,64 @@ class OperationalWriteApiTest extends TestCase
             'voided_by' => $context['manager']->id,
         ]);
 
-        for ($attempt = 1; $attempt <= 4; $attempt++) {
-            $this->withToken($context['token'])->postJson('/api/v1/enrollments/'.$context['enrollment']->id.'/quran-tests', [
-                'juz_id' => $juz->id,
-                'quran_test_type_id' => $partialType->id,
+        $this->withToken($context['token'])->postJson('/api/v1/enrollments/'.$context['enrollment']->id.'/quran-tests', [
+            'juz_id' => $juz->id,
+            'quran_test_type_id' => $partialType->id,
+            'status' => 'passed',
+            'teacher_id' => $context['teacher']->id,
+            'tested_on' => '2026-10-07',
+        ])->assertStatus(422)
+            ->assertJsonPath('message', __('workflow.quran_tests.errors.partial_moved'));
+
+        $partialTest = QuranPartialTest::query()->create([
+            'created_by' => $context['manager']->id,
+            'enrollment_id' => $context['enrollment']->id,
+            'juz_id' => $juz->id,
+            'passed_on' => '2026-10-10',
+            'status' => 'passed',
+            'student_id' => $context['enrollment']->student_id,
+        ]);
+
+        foreach (range(1, 4) as $partNumber) {
+            QuranPartialTestPart::query()->create([
+                'part_number' => $partNumber,
+                'passed_on' => '2026-10-10',
+                'quran_partial_test_id' => $partialTest->id,
                 'status' => 'passed',
-                'teacher_id' => $context['teacher']->id,
-                'tested_on' => '2026-10-'.sprintf('%02d', 6 + $attempt),
-            ])->assertCreated()
-                ->assertJsonPath('attempt_no', $attempt);
+            ]);
         }
+
+        $finalTest = QuranFinalTest::query()->create([
+            'created_by' => $context['manager']->id,
+            'enrollment_id' => $context['enrollment']->id,
+            'juz_id' => $juz->id,
+            'passed_on' => '2026-10-10',
+            'status' => 'passed',
+            'student_id' => $context['enrollment']->student_id,
+        ]);
+
+        $finalTest->attempts()->create([
+            'attempt_no' => 1,
+            'score' => 95,
+            'status' => 'passed',
+            'teacher_id' => $context['teacher']->id,
+            'tested_on' => '2026-10-10',
+        ]);
+
+        app(\App\Services\PointLedgerService::class)->recordQuranFinalTestPoints(
+            $finalTest->fresh(['enrollment.student.gradeLevel', 'student']),
+            95,
+        );
 
         $this->withToken($context['token'])->postJson('/api/v1/enrollments/'.$context['enrollment']->id.'/quran-tests', [
             'juz_id' => $juz->id,
-            'quran_test_type_id' => $finalType->id,
+            'quran_test_type_id' => $awqafType->id,
             'status' => 'passed',
             'teacher_id' => $context['teacher']->id,
             'tested_on' => '2026-10-11',
         ])->assertCreated()
             ->assertJsonPath('attempt_no', 1)
-            ->assertJsonPath('quran_test_type_id', $finalType->id);
+            ->assertJsonPath('quran_test_type_id', $awqafType->id);
 
         $assessment = Assessment::query()->create([
             'assessment_type_id' => $assessmentType->id,
@@ -373,6 +414,7 @@ class OperationalWriteApiTest extends TestCase
             ->firstOrFail();
         $assessmentType = AssessmentType::query()->where('code', 'quiz')->firstOrFail();
         $finalType = QuranTestType::query()->where('code', 'final')->firstOrFail();
+        $awqafType = QuranTestType::query()->where('code', 'awqaf')->firstOrFail();
         $juz = QuranJuz::query()->orderBy('juz_number')->firstOrFail();
         $partialType = QuranTestType::query()->where('code', 'partial')->firstOrFail();
 
@@ -420,7 +462,7 @@ class OperationalWriteApiTest extends TestCase
 
         $this->withToken($context['token'])->postJson('/api/v1/enrollments/'.$context['enrollment']->id.'/quran-tests', [
             'juz_id' => $juz->id,
-            'quran_test_type_id' => $finalType->id,
+            'quran_test_type_id' => $awqafType->id,
             'status' => 'passed',
             'teacher_id' => $context['teacher']->id,
             'tested_on' => '2026-10-08',
@@ -428,12 +470,21 @@ class OperationalWriteApiTest extends TestCase
 
         $this->withToken($context['token'])->postJson('/api/v1/enrollments/'.$context['enrollment']->id.'/quran-tests', [
             'juz_id' => $juz->id,
+            'quran_test_type_id' => $finalType->id,
+            'status' => 'passed',
+            'teacher_id' => $context['teacher']->id,
+            'tested_on' => '2026-10-08',
+        ])->assertStatus(422)
+            ->assertJsonPath('message', __('workflow.quran_tests.errors.final_moved'));
+
+        $this->withToken($context['token'])->postJson('/api/v1/enrollments/'.$context['enrollment']->id.'/quran-tests', [
+            'juz_id' => $juz->id,
             'quran_test_type_id' => $partialType->id,
             'status' => 'passed',
             'teacher_id' => $context['teacher']->id,
             'tested_on' => '2026-10-08',
-        ])->assertCreated()
-            ->assertJsonPath('attempt_no', 1);
+        ])->assertStatus(422)
+            ->assertJsonPath('message', __('workflow.quran_tests.errors.partial_moved'));
 
         $assessment = Assessment::query()->create([
             'assessment_type_id' => $assessmentType->id,

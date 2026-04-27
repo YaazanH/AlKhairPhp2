@@ -11,7 +11,10 @@ use App\Models\MemorizationSession;
 use App\Models\ParentProfile;
 use App\Models\PointTransaction;
 use App\Models\PointType;
+use App\Models\QuranFinalTest;
 use App\Models\QuranJuz;
+use App\Models\QuranPartialTest;
+use App\Models\QuranPartialTestPart;
 use App\Models\QuranTest;
 use App\Models\QuranTestType;
 use App\Models\Student;
@@ -189,41 +192,97 @@ class QuranWorkflowTest extends TestCase
             ->sum('points'));
     }
 
-    public function test_quran_test_progression_blocks_final_until_four_partials_pass(): void
+    public function test_final_test_progression_requires_a_passed_partial_cycle_and_saves_attempt_history(): void
     {
         [, $enrollment] = $this->workflowContext('teacher');
-        $partial = QuranTestType::query()->where('code', 'partial')->firstOrFail();
-        $final = QuranTestType::query()->where('code', 'final')->firstOrFail();
         $juz = QuranJuz::query()->where('juz_number', 1)->firstOrFail();
 
-        Volt::test('enrollments.quran-tests', ['enrollment' => $enrollment])
-            ->set('teacher_id', $enrollment->group->teacher_id)
+        Volt::test('quran-final-tests.index')
+            ->set('selectedStudentId', $enrollment->student_id)
+            ->set('selectedEnrollmentId', $enrollment->id)
             ->set('juz_id', $juz->id)
-            ->set('quran_test_type_id', $final->id)
-            ->set('tested_on', '2026-09-05')
-            ->set('status', 'passed')
-            ->call('saveQuranTest')
-            ->assertHasErrors(['quran_test_type_id']);
+            ->call('save')
+            ->assertHasErrors(['juz_id']);
 
-        for ($attempt = 1; $attempt <= 4; $attempt++) {
-            QuranTest::query()->create([
-                'enrollment_id' => $enrollment->id,
-                'student_id' => $enrollment->student_id,
-                'teacher_id' => $enrollment->group->teacher_id,
-                'juz_id' => $juz->id,
-                'quran_test_type_id' => $partial->id,
-                'tested_on' => '2026-09-0'.$attempt,
-                'score' => 95,
+        $partialTest = QuranPartialTest::query()->create([
+            'created_by' => auth()->id(),
+            'enrollment_id' => $enrollment->id,
+            'juz_id' => $juz->id,
+            'passed_on' => '2026-09-08',
+            'status' => 'passed',
+            'student_id' => $enrollment->student_id,
+        ]);
+
+        foreach (range(1, 4) as $partNumber) {
+            QuranPartialTestPart::query()->create([
+                'part_number' => $partNumber,
+                'passed_on' => '2026-09-0'.(4 + $partNumber),
+                'quran_partial_test_id' => $partialTest->id,
                 'status' => 'passed',
-                'attempt_no' => $attempt,
             ]);
         }
 
-        Volt::test('enrollments.quran-tests', ['enrollment' => $enrollment])
-            ->set('teacher_id', $enrollment->group->teacher_id)
+        Volt::test('quran-final-tests.index')
+            ->set('selectedStudentId', $enrollment->student_id)
+            ->set('selectedEnrollmentId', $enrollment->id)
             ->set('juz_id', $juz->id)
-            ->set('quran_test_type_id', $final->id)
+            ->call('save')
+            ->assertHasNoErrors();
+
+        $finalTest = QuranFinalTest::query()->firstOrFail();
+
+        Volt::test('quran-final-tests.show', ['finalTest' => $finalTest])
             ->set('tested_on', '2026-09-09')
+            ->set('score', '94')
+            ->call('saveAttempt')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('quran_final_tests', [
+            'id' => $finalTest->id,
+            'status' => 'passed',
+        ]);
+
+        $this->assertDatabaseHas('quran_final_test_attempts', [
+            'quran_final_test_id' => $finalTest->id,
+            'attempt_no' => 1,
+            'status' => 'passed',
+            'teacher_id' => $enrollment->group->teacher_id,
+        ]);
+    }
+
+    public function test_awqaf_test_progression_blocks_until_final_cycle_passes(): void
+    {
+        [, $enrollment] = $this->workflowContext('teacher');
+        $awqaf = QuranTestType::query()->where('code', 'awqaf')->firstOrFail();
+        $juz = QuranJuz::query()->where('juz_number', 1)->firstOrFail();
+
+        Volt::test('enrollments.quran-tests', ['enrollment' => $enrollment])
+            ->set('juz_id', $juz->id)
+            ->set('tested_on', '2026-09-10')
+            ->set('status', 'passed')
+            ->call('saveQuranTest')
+            ->assertHasErrors(['juz_id']);
+
+        $finalTest = QuranFinalTest::query()->create([
+            'created_by' => auth()->id(),
+            'enrollment_id' => $enrollment->id,
+            'juz_id' => $juz->id,
+            'passed_on' => '2026-09-09',
+            'status' => 'passed',
+            'student_id' => $enrollment->student_id,
+        ]);
+
+        $finalTest->attempts()->create([
+            'attempt_no' => 1,
+            'score' => 92,
+            'status' => 'passed',
+            'teacher_id' => $enrollment->group->teacher_id,
+            'tested_on' => '2026-09-09',
+        ]);
+
+        Volt::test('enrollments.quran-tests', ['enrollment' => $enrollment])
+            ->set('juz_id', $juz->id)
+            ->set('tested_on', '2026-09-10')
             ->set('status', 'passed')
             ->call('saveQuranTest')
             ->assertHasNoErrors();
@@ -231,7 +290,7 @@ class QuranWorkflowTest extends TestCase
         $this->assertDatabaseHas('quran_tests', [
             'enrollment_id' => $enrollment->id,
             'juz_id' => $juz->id,
-            'quran_test_type_id' => $final->id,
+            'quran_test_type_id' => $awqaf->id,
             'attempt_no' => 1,
         ]);
     }

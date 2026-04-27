@@ -38,6 +38,8 @@ class ManagementPagesTest extends TestCase
             route('groups.schedules', $group, absolute: false),
             route('enrollments.index', absolute: false),
             route('student-notes.index', absolute: false),
+            route('quran-partial-tests.index', absolute: false),
+            route('quran-final-tests.index', absolute: false),
             route('quran-tests.index', absolute: false),
             route('points.index', absolute: false),
             route('activities.index', absolute: false),
@@ -77,6 +79,8 @@ class ManagementPagesTest extends TestCase
             route('groups.schedules', $group, absolute: false),
             route('enrollments.index', absolute: false),
             route('student-notes.index', absolute: false),
+            route('quran-partial-tests.index', absolute: false),
+            route('quran-final-tests.index', absolute: false),
             route('quran-tests.index', absolute: false),
             route('points.index', absolute: false),
             route('activities.index', absolute: false),
@@ -105,6 +109,8 @@ class ManagementPagesTest extends TestCase
             route('enrollments.index', absolute: false),
             route('memorization.index', absolute: false),
             route('enrollments.memorization', $teacherEnrollment, absolute: false),
+            route('quran-partial-tests.index', absolute: false),
+            route('quran-final-tests.index', absolute: false),
             route('enrollments.quran-tests', $teacherEnrollment, absolute: false),
             route('enrollments.points', $teacherEnrollment, absolute: false),
             route('quran-tests.index', absolute: false),
@@ -214,6 +220,8 @@ class ManagementPagesTest extends TestCase
         }
 
         foreach ([
+            route('quran-partial-tests.index', absolute: false),
+            route('quran-final-tests.index', absolute: false),
             route('enrollments.memorization', $otherEnrollment, absolute: false),
             route('invoices.payments', $otherInvoice, absolute: false),
         ] as $path) {
@@ -277,6 +285,8 @@ class ManagementPagesTest extends TestCase
         }
 
         foreach ([
+            route('quran-partial-tests.index', absolute: false),
+            route('quran-final-tests.index', absolute: false),
             route('students.files', $otherEnrollment->student, absolute: false),
             route('enrollments.memorization', $otherEnrollment, absolute: false),
         ] as $path) {

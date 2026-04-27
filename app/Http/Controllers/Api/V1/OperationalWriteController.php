@@ -317,19 +317,47 @@ class OperationalWriteController extends Controller
         $this->authorizePermission($request, 'quran-tests.record');
         $this->authorizeTeacherEnrollmentScope($request, $enrollment);
 
+        $linkedTeacherId = $this->linkedTeacherIdForPermission($request, 'quran-tests.record-linked-teacher');
+
         $validated = $request->validate([
             'juz_id' => ['required', 'integer', Rule::exists('quran_juzs', 'id')],
             'notes' => ['nullable', 'string'],
             'quran_test_type_id' => ['required', 'integer', Rule::exists('quran_test_types', 'id')->where('is_active', true)],
             'score' => ['nullable', 'numeric', 'between:0,100'],
             'status' => ['required', Rule::in(['passed', 'failed', 'cancelled'])],
-            'teacher_id' => ['required', 'integer', Rule::exists('teachers', 'id')->whereNull('deleted_at')],
+            'teacher_id' => [$linkedTeacherId ? 'nullable' : 'required', 'integer', Rule::exists('teachers', 'id')->whereNull('deleted_at')],
             'tested_on' => ['required', 'date'],
         ]);
 
-        $this->authorizeTeacherPayloadScope($request, (int) $validated['teacher_id']);
+        $teacherId = $linkedTeacherId ?: (int) $validated['teacher_id'];
+        $this->authorizeTeacherPayloadScope($request, $teacherId);
 
         $testType = QuranTestType::query()->findOrFail($validated['quran_test_type_id']);
+
+        if (! $testType->is_active) {
+            return response()->json([
+                'message' => __('workflow.quran_tests.errors.awqaf_only'),
+            ], 422);
+        }
+
+        if ($testType->code === 'partial') {
+            return response()->json([
+                'message' => __('workflow.quran_tests.errors.partial_moved'),
+            ], 422);
+        }
+
+        if ($testType->code === 'final') {
+            return response()->json([
+                'message' => __('workflow.quran_tests.errors.final_moved'),
+            ], 422);
+        }
+
+        if ($testType->code !== 'awqaf') {
+            return response()->json([
+                'message' => __('workflow.quran_tests.errors.awqaf_only'),
+            ], 422);
+        }
+
         $progression = app(QuranProgressionService::class)->validate($enrollment, (int) $validated['juz_id'], $testType);
         $score = $validated['score'] ?? null;
 
@@ -348,9 +376,11 @@ class OperationalWriteController extends Controller
             'score' => $score === '' ? null : $score,
             'status' => $validated['status'],
             'student_id' => $enrollment->student_id,
-            'teacher_id' => $validated['teacher_id'],
+            'teacher_id' => $teacherId,
             'tested_on' => $validated['tested_on'],
         ]);
+
+        app(PointLedgerService::class)->recordQuranTestPoints($test->fresh(['enrollment.student', 'student.gradeLevel', 'type']));
 
         $test->load(['juz', 'teacher', 'type']);
 
@@ -530,6 +560,17 @@ class OperationalWriteController extends Controller
     {
         $teacher = Teacher::query()->findOrFail($teacherId);
         abort_unless(app(AccessScopeService::class)->canAccessTeacher($request->user(), $teacher), 403);
+    }
+
+    protected function linkedTeacherIdForPermission(Request $request, string $permission): ?int
+    {
+        if (! $request->user()?->can($permission)) {
+            return null;
+        }
+
+        $request->user()->loadMissing('teacherProfile');
+
+        return $request->user()?->teacherProfile?->id;
     }
 
     protected function authorizePermission(Request $request, string $permission): void
