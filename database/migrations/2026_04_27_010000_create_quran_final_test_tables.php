@@ -35,7 +35,7 @@ return new class extends Migration
             $table->text('notes')->nullable();
             $table->timestamps();
 
-            $table->unique(['quran_final_test_id', 'attempt_no']);
+            $table->unique(['quran_final_test_id', 'attempt_no'],'qu_fi_te_id_at');
             $table->index(['teacher_id', 'status']);
         });
 

@@ -34,7 +34,7 @@ return new class extends Migration
             $table->date('passed_on')->nullable();
             $table->timestamps();
 
-            $table->unique(['quran_partial_test_id', 'part_number']);
+            $table->unique(['quran_partial_test_id', 'part_number'],'qu_pr_te_id_part');
         });
 
         Schema::create('quran_partial_test_attempts', function (Blueprint $table) {
@@ -48,7 +48,7 @@ return new class extends Migration
             $table->text('notes')->nullable();
             $table->timestamps();
 
-            $table->unique(['quran_partial_test_part_id', 'attempt_no']);
+            $table->unique(['quran_partial_test_part_id', 'attempt_no'],'qu_pr_te_id_ate');
             $table->index(['teacher_id', 'status']);
         });
 
