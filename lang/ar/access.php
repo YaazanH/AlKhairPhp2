@@ -184,6 +184,7 @@ return [
         'dashboard' => 'لوحات التحكم',
         'users' => 'المستخدمون',
         'roles' => 'الأدوار والصلاحيات',
+        'course-completion-rules' => 'قواعد إتمام الدورة',
         'id-cards' => 'بطاقات الطلاب',
         'barcode-actions' => 'باركود الإجراءات',
         'barcode-scans' => 'استيراد الماسح',
@@ -212,6 +213,7 @@ return [
         'student-notes' => 'ملاحظات الطلاب',
     ],
     'permissions' => [
+        'course-completion-rules.manage' => 'إدارة قواعد إتمام الدورة وتطبيق تعديلات النقاط',
         'dashboard.admin.view' => 'عرض لوحة مدير النظام',
         'dashboard.manager.view' => 'عرض لوحة المشرف الإداري',
         'dashboard.teacher.view' => 'عرض لوحة الأستاذ',
@@ -242,6 +244,7 @@ return [
         'students.delete' => 'حذف الطلاب',
         'students.photo.update' => 'تحديث صورة الطالب',
         'students.files.manage' => 'إدارة ملفات الطالب',
+        'students.promote-grade-levels' => 'ترفيع جميع الطلاب إلى المرحلة النشطة التالية',
         'courses.view' => 'عرض الدورات',
         'courses.create' => 'إنشاء دورات',
         'courses.update' => 'تعديل الدورات',

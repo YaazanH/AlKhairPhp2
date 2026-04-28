@@ -36,7 +36,7 @@ new class extends Component {
                 ->get(),
             'teachers' => $this->scopeTeachersQuery(
                 Teacher::query()
-                    ->with('jobTitle')
+                    ->with('accessRole')
                     ->where('is_helping', true)
                     ->whereIn('status', ['active', 'inactive'])
                     ->orderBy('first_name')
@@ -297,13 +297,21 @@ new class extends Component {
                 <thead>
                     <tr>
                         <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.teacher_attendance.table.headers.teacher') }}</th>
-                        <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.teacher_attendance.table.headers.job_title') }}</th>
+                        <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.teachers.table.headers.access_role') }}</th>
                         <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.teacher_attendance.table.headers.status') }}</th>
                         <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.teacher_attendance.table.headers.attendance') }}</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-white/6">
                     @forelse ($teachers as $teacher)
+                        @php
+                            $accessRoleName = $teacher->accessRole?->name;
+                            $accessRoleLabel = $accessRoleName
+                                ? ((__('ui.roles.'.$accessRoleName) === 'ui.roles.'.$accessRoleName)
+                                    ? \Illuminate\Support\Str::of($accessRoleName)->replace('_', ' ')->headline()->toString()
+                                    : __('ui.roles.'.$accessRoleName))
+                                : __('workflow.common.not_available');
+                        @endphp
                         <tr>
                             <td class="px-5 py-4 lg:px-6">
                                 <div class="student-inline">
@@ -314,7 +322,7 @@ new class extends Component {
                                     </div>
                                 </div>
                             </td>
-                            <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $teacher->jobTitle?->name ?: ($teacher->job_title ?: __('workflow.common.not_available')) }}</td>
+                            <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $accessRoleLabel }}</td>
                             <td class="px-5 py-4 lg:px-6">
                                 <span class="{{ $teacher->status === 'active' ? 'status-chip status-chip--emerald' : 'status-chip status-chip--slate' }}">
                                     {{ __('crud.common.status_options.' . $teacher->status) }}

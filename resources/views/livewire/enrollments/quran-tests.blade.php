@@ -3,7 +3,6 @@
 use App\Livewire\Concerns\AuthorizesPermissions;
 use App\Livewire\Concerns\AuthorizesTeacherAssignments;
 use App\Models\Enrollment;
-use App\Models\QuranJuz;
 use App\Models\QuranTest;
 use App\Models\QuranTestType;
 use App\Models\Teacher;
@@ -16,7 +15,6 @@ new class extends Component {
     use AuthorizesTeacherAssignments;
 
     public Enrollment $currentEnrollment;
-    public ?int $teacher_id = null;
     public ?int $juz_id = null;
     public string $tested_on = '';
     public string $score = '';
@@ -33,25 +31,15 @@ new class extends Component {
 
         $this->authorizeTeacherEnrollmentAccess($this->currentEnrollment);
 
-        $this->teacher_id = $this->currentTeacher()?->id ?: $this->currentEnrollment->group?->teacher_id;
-        $this->juz_id = $this->currentEnrollment->student?->quran_current_juz_id;
+        $this->juz_id = $this->eligibleJuzs()->first()?->id;
         $this->tested_on = now()->toDateString();
     }
 
     public function with(): array
     {
         return [
-            'currentTeacher' => $this->currentTeacher(),
             'enrollmentRecord' => $this->currentEnrollment->fresh(['student.quranCurrentJuz', 'group.course', 'group.teacher']),
-            'teachers' => $this->currentTeacher()
-                ? collect()
-                : $this->scopeTeachersQuery(
-                    Teacher::query()
-                        ->whereIn('status', ['active', 'inactive'])
-                        ->orderBy('first_name')
-                        ->orderBy('last_name')
-                )->get(),
-            'juzs' => QuranJuz::query()->orderBy('juz_number')->get(),
+            'eligibleJuzs' => $this->eligibleJuzs(),
             'tests' => QuranTest::query()
                 ->with(['juz', 'teacher', 'type'])
                 ->where('enrollment_id', $this->currentEnrollment->id)
@@ -67,7 +55,6 @@ new class extends Component {
         $this->authorizePermission('quran-tests.record');
 
         $validated = $this->validate([
-            'teacher_id' => [$this->currentTeacher() ? 'nullable' : 'required', 'exists:teachers,id'],
             'juz_id' => ['required', 'exists:quran_juzs,id'],
             'tested_on' => ['required', 'date'],
             'score' => ['nullable', 'numeric', 'between:0,100'],
@@ -75,7 +62,14 @@ new class extends Component {
             'notes' => ['nullable', 'string'],
         ]);
 
-        $teacherId = $this->currentTeacher()?->id ?: (int) $validated['teacher_id'];
+        $teacherId = $this->resolvedTeacherId();
+
+        if (! $teacherId) {
+            $this->addError('juz_id', __('workflow.quran_tests.errors.no_teacher_available'));
+
+            return;
+        }
+
         $teacher = Teacher::query()->findOrFail($teacherId);
         $this->authorizeScopedTeacherAccess($teacher);
 
@@ -110,8 +104,30 @@ new class extends Component {
         $this->score = '';
         $this->status = 'passed';
         $this->notes = '';
+        $this->juz_id = $this->eligibleJuzs()->first()?->id;
 
         session()->flash('status', __('workflow.quran_tests.messages.saved'));
+    }
+
+    protected function eligibleJuzs()
+    {
+        $studentId = $this->currentEnrollment->student_id;
+
+        $eligibleJuzIds = app(QuranProgressionService::class)->eligibleAwqafJuzIdsForStudent($studentId);
+
+        if ($eligibleJuzIds->isEmpty()) {
+            return collect();
+        }
+
+        return \App\Models\QuranJuz::query()
+            ->whereIn('id', $eligibleJuzIds)
+            ->orderBy('juz_number')
+            ->get();
+    }
+
+    protected function resolvedTeacherId(): ?int
+    {
+        return $this->currentTeacher()?->id ?: $this->currentEnrollment->group?->teacher_id;
     }
 
     protected function currentTeacher(): ?Teacher
@@ -142,26 +158,6 @@ new class extends Component {
                 </div>
 
                 <form wire:submit="saveQuranTest" class="space-y-4">
-                    @if ($currentTeacher)
-                        <div class="soft-callout px-4 py-4 text-sm leading-6">
-                            <div class="font-semibold text-white">{{ __('workflow.quran_tests.workbench.teacher_badge', ['name' => $currentTeacher->first_name.' '.$currentTeacher->last_name]) }}</div>
-                            <div class="mt-2 text-neutral-300">{{ __('workflow.quran_tests.workbench.form.teacher_locked') }}</div>
-                        </div>
-                    @endif
-
-                    @if (! $currentTeacher)
-                        <div>
-                            <label for="quran-test-teacher" class="mb-1 block text-sm font-medium">{{ __('workflow.quran_tests.form.teacher') }}</label>
-                            <select id="quran-test-teacher" wire:model="teacher_id" class="w-full rounded-xl px-4 py-3 text-sm">
-                                <option value="">{{ __('workflow.quran_tests.form.select_teacher') }}</option>
-                                @foreach ($teachers as $teacher)
-                                    <option value="{{ $teacher->id }}">{{ $teacher->first_name }} {{ $teacher->last_name }}</option>
-                                @endforeach
-                            </select>
-                            @error('teacher_id') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
-                        </div>
-                    @endif
-
                     <div class="grid gap-4 md:grid-cols-2">
                         <div>
                             <label for="quran-test-date" class="mb-1 block text-sm font-medium">{{ __('workflow.quran_tests.form.tested_on') }}</label>
@@ -173,10 +169,13 @@ new class extends Component {
                             <label for="quran-test-juz" class="mb-1 block text-sm font-medium">{{ __('workflow.quran_tests.form.juz') }}</label>
                             <select id="quran-test-juz" wire:model="juz_id" class="w-full rounded-xl px-4 py-3 text-sm">
                                 <option value="">{{ __('workflow.quran_tests.form.select_juz') }}</option>
-                                @foreach ($juzs as $juz)
+                                @foreach ($eligibleJuzs as $juz)
                                     <option value="{{ $juz->id }}">{{ __('workflow.common.labels.juz_number', ['number' => $juz->juz_number]) }}</option>
                                 @endforeach
                             </select>
+                            @if ($eligibleJuzs->isEmpty())
+                                <div class="mt-1 text-xs text-neutral-500">{{ __('workflow.quran_tests.form.no_eligible_juzs') }}</div>
+                            @endif
                             @error('juz_id') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
                         </div>
                     </div>

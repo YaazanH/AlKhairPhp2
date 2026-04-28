@@ -4,8 +4,8 @@ use App\Livewire\Concerns\AuthorizesPermissions;
 use App\Livewire\Concerns\AuthorizesTeacherAssignments;
 use App\Models\QuranPartialTest;
 use App\Models\Teacher;
-use App\Services\QuranPartialTestService;
 use App\Services\QuranPartialTestRuleService;
+use App\Services\QuranPartialTestService;
 use Livewire\Volt\Component;
 
 new class extends Component {
@@ -16,7 +16,7 @@ new class extends Component {
     public ?int $selectedPartId = null;
     public ?int $teacher_id = null;
     public string $tested_on = '';
-    public string $score = '';
+    public string $mistake_count = '';
     public string $notes = '';
     public bool $showAttemptModal = false;
 
@@ -49,7 +49,7 @@ new class extends Component {
                 'juz',
             ]),
             'currentTeacher' => $this->currentTeacher(),
-            'scoreRules' => app(QuranPartialTestRuleService::class)->ranges(),
+            'failThreshold' => app(QuranPartialTestRuleService::class)->failThreshold(),
             'teachers' => $this->currentTeacher()
                 ? collect()
                 : $this->scopeTeachersQuery(
@@ -76,7 +76,7 @@ new class extends Component {
         $this->selectedPartId = $part->id;
         $this->teacher_id = $this->currentTeacher()?->id;
         $this->tested_on = now()->toDateString();
-        $this->score = '';
+        $this->mistake_count = '';
         $this->notes = '';
         $this->showAttemptModal = true;
         $this->resetValidation();
@@ -87,7 +87,7 @@ new class extends Component {
         $this->selectedPartId = null;
         $this->teacher_id = $this->currentTeacher()?->id;
         $this->tested_on = now()->toDateString();
-        $this->score = '';
+        $this->mistake_count = '';
         $this->notes = '';
         $this->showAttemptModal = false;
         $this->resetValidation();
@@ -101,8 +101,10 @@ new class extends Component {
             'selectedPartId' => ['required', 'exists:quran_partial_test_parts,id'],
             'teacher_id' => [$this->currentTeacher() ? 'nullable' : 'required', 'exists:teachers,id'],
             'tested_on' => ['required', 'date'],
-            'score' => ['required', 'numeric', 'between:0,100'],
+            'mistake_count' => ['required', 'integer', 'min:0', 'max:999'],
             'notes' => ['nullable', 'string'],
+        ], [], [
+            'mistake_count' => __('workflow.quran_partial_tests.attempts.fields.mistake_count'),
         ]);
 
         $part = $this->partialTest->parts()->findOrFail((int) $validated['selectedPartId']);
@@ -112,8 +114,8 @@ new class extends Component {
 
         try {
             app(QuranPartialTestService::class)->recordAttempt($part, $teacher, [
+                'mistake_count' => $validated['mistake_count'],
                 'notes' => $validated['notes'] ?? null,
-                'score' => $validated['score'] ?? null,
                 'tested_on' => $validated['tested_on'],
             ]);
         } catch (\LogicException $exception) {
@@ -192,7 +194,7 @@ new class extends Component {
                                     <th class="px-4 py-3 text-left">{{ __('workflow.quran_partial_tests.attempts.headers.attempt') }}</th>
                                     <th class="px-4 py-3 text-left">{{ __('workflow.quran_partial_tests.attempts.headers.date') }}</th>
                                     <th class="px-4 py-3 text-left">{{ __('workflow.quran_partial_tests.attempts.headers.teacher') }}</th>
-                                    <th class="px-4 py-3 text-left">{{ __('workflow.quran_partial_tests.attempts.headers.score') }}</th>
+                                    <th class="px-4 py-3 text-left">{{ __('workflow.quran_partial_tests.attempts.headers.mistake_count') }}</th>
                                     <th class="px-4 py-3 text-left">{{ __('workflow.quran_partial_tests.attempts.headers.status') }}</th>
                                 </tr>
                             </thead>
@@ -202,7 +204,15 @@ new class extends Component {
                                         <td class="px-4 py-3">{{ $attempt->attempt_no }}</td>
                                         <td class="px-4 py-3">{{ $attempt->tested_on?->format('Y-m-d') }}</td>
                                         <td class="px-4 py-3">{{ $attempt->teacher?->first_name }} {{ $attempt->teacher?->last_name }}</td>
-                                        <td class="px-4 py-3">{{ $attempt->score !== null ? $attempt->score : __('workflow.common.not_available') }}</td>
+                                        <td class="px-4 py-3">
+                                            @if ($attempt->mistake_count !== null)
+                                                {{ $attempt->mistake_count }}
+                                            @elseif ($attempt->score !== null)
+                                                {{ __('workflow.quran_partial_tests.attempts.legacy_score', ['value' => $attempt->score]) }}
+                                            @else
+                                                {{ __('workflow.common.not_available') }}
+                                            @endif
+                                        </td>
                                         <td class="px-4 py-3">{{ __('workflow.common.result_status.'.$attempt->status) }}</td>
                                     </tr>
                                     @if ($attempt->notes)
@@ -249,13 +259,12 @@ new class extends Component {
                 </div>
 
                 <div class="md:col-span-2">
-                    <label for="partial-attempt-score" class="mb-1 block text-sm font-medium">{{ __('workflow.quran_tests.form.score') }}</label>
-                    <input id="partial-attempt-score" wire:model="score" type="number" min="0" max="100" step="0.01" class="w-full rounded-xl px-4 py-3 text-sm">
+                    <label for="partial-attempt-mistake-count" class="mb-1 block text-sm font-medium">{{ __('workflow.quran_partial_tests.attempts.fields.mistake_count') }}</label>
+                    <input id="partial-attempt-mistake-count" wire:model="mistake_count" type="number" min="0" max="999" step="1" class="w-full rounded-xl px-4 py-3 text-sm">
                     <div class="mt-2 flex flex-wrap gap-2 text-xs text-neutral-300">
-                        <span class="badge-soft badge-soft--emerald">{{ __('workflow.quran_partial_tests.attempts.range_passed', ['from' => $scoreRules['passed']['from'], 'to' => $scoreRules['passed']['to']]) }}</span>
-                        <span class="badge-soft">{{ __('workflow.quran_partial_tests.attempts.range_failed', ['from' => $scoreRules['failed']['from'], 'to' => $scoreRules['failed']['to']]) }}</span>
+                        <span class="badge-soft">{{ __('workflow.quran_partial_tests.attempts.fail_threshold', ['count' => $failThreshold]) }}</span>
                     </div>
-                    @error('score') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
+                    @error('mistake_count') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
                 </div>
             </div>
 

@@ -46,10 +46,7 @@ new class extends Component {
     public bool $quran_test_type_is_active = true;
     public bool $showQuranTestTypeModal = false;
 
-    public string $partial_test_failed_from = '0';
-    public string $partial_test_failed_to = '59.99';
-    public string $partial_test_passed_from = '60';
-    public string $partial_test_passed_to = '100';
+    public string $partial_test_fail_threshold = '5';
     public string $final_test_failed_from = '0';
     public string $final_test_failed_to = '59.99';
     public string $final_test_passed_from = '60';
@@ -380,39 +377,10 @@ new class extends Component {
         $this->authorizePermission('settings.manage');
 
         $validated = $this->validate([
-            'partial_test_failed_from' => ['required', 'numeric', 'between:0,100'],
-            'partial_test_failed_to' => ['required', 'numeric', 'between:0,100'],
-            'partial_test_passed_from' => ['required', 'numeric', 'between:0,100'],
-            'partial_test_passed_to' => ['required', 'numeric', 'between:0,100'],
+            'partial_test_fail_threshold' => ['required', 'integer', 'min:1', 'max:999'],
         ]);
 
-        $failedFrom = (float) $validated['partial_test_failed_from'];
-        $failedTo = (float) $validated['partial_test_failed_to'];
-        $passedFrom = (float) $validated['partial_test_passed_from'];
-        $passedTo = (float) $validated['partial_test_passed_to'];
-
-        if ($failedFrom > $failedTo) {
-            $this->addError('partial_test_failed_from', __('settings.tracking.errors.partial_test_rules_order'));
-
-            return;
-        }
-
-        if ($passedFrom > $passedTo) {
-            $this->addError('partial_test_passed_from', __('settings.tracking.errors.partial_test_rules_order'));
-
-            return;
-        }
-
-        if (max($failedFrom, $passedFrom) <= min($failedTo, $passedTo)) {
-            $this->addError('partial_test_passed_from', __('settings.tracking.errors.partial_test_rules_overlap'));
-
-            return;
-        }
-
-        app(QuranPartialTestRuleService::class)->store([
-            'failed' => ['from' => $failedFrom, 'to' => $failedTo],
-            'passed' => ['from' => $passedFrom, 'to' => $passedTo],
-        ]);
+        app(QuranPartialTestRuleService::class)->store((int) $validated['partial_test_fail_threshold']);
 
         $this->loadPartialTestRuleSettings();
 
@@ -514,12 +482,7 @@ new class extends Component {
 
     protected function loadPartialTestRuleSettings(): void
     {
-        $ranges = app(QuranPartialTestRuleService::class)->ranges();
-
-        $this->partial_test_failed_from = $this->formatRuleValue($ranges['failed']['from']);
-        $this->partial_test_failed_to = $this->formatRuleValue($ranges['failed']['to']);
-        $this->partial_test_passed_from = $this->formatRuleValue($ranges['passed']['from']);
-        $this->partial_test_passed_to = $this->formatRuleValue($ranges['passed']['to']);
+        $this->partial_test_fail_threshold = (string) app(QuranPartialTestRuleService::class)->failThreshold();
     }
 
     protected function loadFinalTestRuleSettings(): void
@@ -679,37 +642,13 @@ new class extends Component {
                     <p class="mt-1 text-xs text-neutral-500 dark:text-neutral-400">{{ __('settings.tracking.sections.partial_test_rule.copy') }}</p>
                 </div>
                 <form wire:submit="savePartialTestRules" class="space-y-4 px-5 py-5">
-                    <div class="grid gap-4 md:grid-cols-2">
-                        <div class="rounded-xl border border-neutral-200 p-4 dark:border-neutral-700">
-                            <div class="text-sm font-semibold">{{ __('settings.tracking.sections.partial_test_rule.failed_title') }}</div>
-                            <div class="mt-3 grid gap-4 md:grid-cols-2">
-                                <div>
-                                    <label class="mb-1 block text-sm font-medium">{{ __('settings.tracking.fields.from_score') }}</label>
-                                    <input wire:model="partial_test_failed_from" type="number" min="0" max="100" step="0.01" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
-                                    @error('partial_test_failed_from') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
-                                </div>
-                                <div>
-                                    <label class="mb-1 block text-sm font-medium">{{ __('settings.tracking.fields.to_score') }}</label>
-                                    <input wire:model="partial_test_failed_to" type="number" min="0" max="100" step="0.01" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
-                                    @error('partial_test_failed_to') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="rounded-xl border border-neutral-200 p-4 dark:border-neutral-700">
-                            <div class="text-sm font-semibold">{{ __('settings.tracking.sections.partial_test_rule.passed_title') }}</div>
-                            <div class="mt-3 grid gap-4 md:grid-cols-2">
-                                <div>
-                                    <label class="mb-1 block text-sm font-medium">{{ __('settings.tracking.fields.from_score') }}</label>
-                                    <input wire:model="partial_test_passed_from" type="number" min="0" max="100" step="0.01" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
-                                    @error('partial_test_passed_from') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
-                                </div>
-                                <div>
-                                    <label class="mb-1 block text-sm font-medium">{{ __('settings.tracking.fields.to_score') }}</label>
-                                    <input wire:model="partial_test_passed_to" type="number" min="0" max="100" step="0.01" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
-                                    @error('partial_test_passed_to') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
-                                </div>
-                            </div>
+                    <div class="rounded-xl border border-neutral-200 p-4 dark:border-neutral-700">
+                        <div class="text-sm font-semibold">{{ __('settings.tracking.sections.partial_test_rule.threshold_title') }}</div>
+                        <div class="mt-3 max-w-md">
+                            <label class="mb-1 block text-sm font-medium">{{ __('settings.tracking.fields.fail_at_mistakes') }}</label>
+                            <input wire:model="partial_test_fail_threshold" type="number" min="1" max="999" step="1" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                            <p class="mt-2 text-xs text-neutral-500 dark:text-neutral-400">{{ __('settings.tracking.sections.partial_test_rule.threshold_help') }}</p>
+                            @error('partial_test_fail_threshold') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
                         </div>
                     </div>
 

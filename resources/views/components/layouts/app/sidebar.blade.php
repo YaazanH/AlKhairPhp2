@@ -158,7 +158,7 @@
                     @if (auth()->user()->can('settings.manage') || auth()->user()->can('website.manage'))
                         <flux:navlist.group :heading="__('ui.nav.configuration')" class="grid">
                             @can('settings.manage')
-                                <flux:navlist.item icon="cog-6-tooth" :href="route('settings.organization')" :current="request()->routeIs('settings.organization', 'settings.tracking', 'settings.points', 'settings.finance', 'settings.access-control')" wire:navigate>{{ __('ui.nav.dashboard_settings') }}</flux:navlist.item>
+                                <flux:navlist.item icon="cog-6-tooth" :href="route('settings.organization')" :current="request()->routeIs('settings.organization', 'settings.tracking', 'settings.course-completion', 'settings.points', 'settings.finance', 'settings.access-control')" wire:navigate>{{ __('ui.nav.dashboard_settings') }}</flux:navlist.item>
                             @endcan
                             @can('website.manage')
                                 <flux:navlist.item icon="globe-alt" :href="route('settings.website')" :current="request()->routeIs('settings.website', 'settings.website.pages', 'settings.website.navigation')" wire:navigate>{{ __('ui.nav.public_website_settings') }}</flux:navlist.item>

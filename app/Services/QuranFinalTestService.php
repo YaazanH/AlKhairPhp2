@@ -52,9 +52,8 @@ class QuranFinalTestService
             ->map(fn (int $juzId) => (int) $juzId)
             ->all();
 
-        $passedFinalJuzIds = QuranFinalTest::query()
+        $existingFinalJuzIds = QuranFinalTest::query()
             ->where('student_id', $student->id)
-            ->where('status', 'passed')
             ->pluck('juz_id')
             ->map(fn (int $juzId) => (int) $juzId)
             ->all();
@@ -71,7 +70,7 @@ class QuranFinalTestService
             ->orderBy('juz_number')
             ->get()
             ->filter(fn (QuranJuz $juz): bool => in_array($juz->id, $passedPartialJuzIds, true)
-                && ! in_array($juz->id, $passedFinalJuzIds, true)
+                && ! in_array($juz->id, $existingFinalJuzIds, true)
                 && ! in_array($juz->id, $legacyBlockedJuzIds, true))
             ->pluck('id')
             ->values();

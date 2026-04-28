@@ -28,6 +28,12 @@
                     <span class="settings-tab__meta">{{ __('settings.navigation.tracking.meta') }}</span>
                     <span class="settings-tab__title">{{ __('settings.navigation.tracking.title') }}</span>
                 </a>
+                @can('course-completion-rules.manage')
+                    <a href="{{ route('settings.course-completion') }}" wire:navigate class="settings-tab {{ $resolvedCurrent === 'settings.course-completion' ? 'is-active' : '' }}">
+                        <span class="settings-tab__meta">{{ __('settings.navigation.completion.meta') }}</span>
+                        <span class="settings-tab__title">{{ __('settings.navigation.completion.title') }}</span>
+                    </a>
+                @endcan
                 <a href="{{ route('settings.points') }}" wire:navigate class="settings-tab {{ $resolvedCurrent === 'settings.points' ? 'is-active' : '' }}">
                     <span class="settings-tab__meta">{{ __('settings.navigation.points.meta') }}</span>
                     <span class="settings-tab__title">{{ __('settings.navigation.points.title') }}</span>

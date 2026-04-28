@@ -8,50 +8,25 @@ class QuranPartialTestRuleService
 {
     public const GROUP = 'tracking';
 
-    public const FAILED_FROM_KEY = 'quran_partial_test_failed_from';
+    public const FAIL_THRESHOLD_KEY = 'quran_partial_test_fail_threshold';
 
-    public const FAILED_TO_KEY = 'quran_partial_test_failed_to';
-
-    public const PASSED_FROM_KEY = 'quran_partial_test_passed_from';
-
-    public const PASSED_TO_KEY = 'quran_partial_test_passed_to';
-
-    public function ranges(): array
+    public function failThreshold(): int
     {
         $settings = AppSetting::groupValues(self::GROUP);
+        $threshold = $settings->get(self::FAIL_THRESHOLD_KEY);
 
-        return [
-            'failed' => [
-                'from' => (float) ($settings->get(self::FAILED_FROM_KEY) ?? 0),
-                'to' => (float) ($settings->get(self::FAILED_TO_KEY) ?? 59.99),
-            ],
-            'passed' => [
-                'from' => (float) ($settings->get(self::PASSED_FROM_KEY) ?? 60),
-                'to' => (float) ($settings->get(self::PASSED_TO_KEY) ?? 100),
-            ],
-        ];
+        return is_numeric($threshold) ? max(1, (int) $threshold) : 5;
     }
 
-    public function statusForScore(float $score): ?string
+    public function statusForMistakeCount(int $mistakeCount): string
     {
-        $ranges = $this->ranges();
-
-        foreach (['failed', 'passed'] as $status) {
-            $range = $ranges[$status];
-
-            if ($score >= $range['from'] && $score <= $range['to']) {
-                return $status;
-            }
-        }
-
-        return null;
+        return $mistakeCount >= $this->failThreshold()
+            ? 'failed'
+            : 'passed';
     }
 
-    public function store(array $ranges): void
+    public function store(int $failThreshold): void
     {
-        AppSetting::storeValue(self::GROUP, self::FAILED_FROM_KEY, $ranges['failed']['from'], 'float');
-        AppSetting::storeValue(self::GROUP, self::FAILED_TO_KEY, $ranges['failed']['to'], 'float');
-        AppSetting::storeValue(self::GROUP, self::PASSED_FROM_KEY, $ranges['passed']['from'], 'float');
-        AppSetting::storeValue(self::GROUP, self::PASSED_TO_KEY, $ranges['passed']['to'], 'float');
+        AppSetting::storeValue(self::GROUP, self::FAIL_THRESHOLD_KEY, $failThreshold, 'integer');
     }
 }

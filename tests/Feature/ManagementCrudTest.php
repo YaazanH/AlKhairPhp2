@@ -12,7 +12,6 @@ use App\Models\ParentProfile;
 use App\Models\Student;
 use App\Models\StudentFile;
 use App\Models\Teacher;
-use App\Models\TeacherJobTitle;
 use App\Models\User;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -21,6 +20,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Volt\Volt;
 use Spatie\Permission\Models\Permission;
+use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 class ManagementCrudTest extends TestCase
@@ -39,10 +39,9 @@ class ManagementCrudTest extends TestCase
             ->assertHasNoErrors();
 
         $course = Course::query()->firstOrFail();
-        $teacherJobTitle = TeacherJobTitle::query()->create([
-            'name' => 'Lead Teacher',
-            'sort_order' => 10,
-            'is_active' => true,
+        $teacherAccessRole = Role::query()->create([
+            'name' => 'lead-teacher',
+            'guard_name' => 'web',
         ]);
 
         Volt::test('courses.index')
@@ -87,7 +86,7 @@ class ManagementCrudTest extends TestCase
             ->set('first_name', 'Yousef')
             ->set('last_name', 'Teacher')
             ->set('phone', '0944000002')
-            ->set('teacher_job_title_id', $teacherJobTitle->id)
+            ->set('access_role_id', (string) $teacherAccessRole->id)
             ->set('course_id', $course->id)
             ->set('status', 'active')
             ->set('is_helping', true)
@@ -98,7 +97,8 @@ class ManagementCrudTest extends TestCase
 
         $this->assertNotNull($teacher->user_id);
         $this->assertTrue($teacher->user->hasRole('teacher'));
-        $this->assertSame($teacherJobTitle->id, $teacher->teacher_job_title_id);
+        $this->assertTrue($teacher->user->hasRole($teacherAccessRole->name));
+        $this->assertSame($teacherAccessRole->id, $teacher->access_role_id);
         $this->assertSame($course->id, $teacher->course_id);
         $this->assertTrue($teacher->is_helping);
 

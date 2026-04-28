@@ -11,7 +11,6 @@ use App\Models\ParentProfile;
 use App\Models\QuranJuz;
 use App\Models\Student;
 use App\Models\Teacher;
-use App\Models\TeacherJobTitle;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
@@ -196,13 +195,6 @@ class ImportLegacyAccessCoreCommand extends Command
             }
 
             $jobTitleName = $this->cleanString($row['job'] ?? null) ?? 'Legacy Teacher';
-            $jobTitle = TeacherJobTitle::firstOrCreate(
-                ['name' => $jobTitleName],
-                [
-                    'sort_order' => (TeacherJobTitle::max('sort_order') ?? 0) + 10,
-                    'is_active' => true,
-                ],
-            );
 
             [$firstName, $lastName] = $this->splitName($fullName);
             $requiredFieldReviewNeeded = true;
@@ -214,7 +206,7 @@ class ImportLegacyAccessCoreCommand extends Command
             $teacher->first_name = $firstName;
             $teacher->last_name = $lastName;
             $teacher->job_title = $jobTitleName;
-            $teacher->teacher_job_title_id = $jobTitle->id;
+            $teacher->teacher_job_title_id = null;
             $teacher->status = $requiredFieldReviewNeeded || $this->parseBool($row['blocked'] ?? false, false)
                 ? 'inactive'
                 : 'active';
@@ -482,13 +474,6 @@ class ImportLegacyAccessCoreCommand extends Command
 
         [$firstName, $lastName] = $this->splitName($fullName);
         $jobTitleName = $isHelping ? 'Assistant Teacher' : 'Quran Teacher';
-        $jobTitle = TeacherJobTitle::firstOrCreate(
-            ['name' => $jobTitleName],
-            [
-                'sort_order' => (TeacherJobTitle::max('sort_order') ?? 0) + 10,
-                'is_active' => true,
-            ],
-        );
 
         $teacher = Teacher::withTrashed()->firstOrNew([
             'phone' => $this->legacyTeacherPhone('name-'.md5($fullName)),
@@ -497,7 +482,7 @@ class ImportLegacyAccessCoreCommand extends Command
         $teacher->first_name = $firstName;
         $teacher->last_name = $lastName;
         $teacher->job_title = $jobTitleName;
-        $teacher->teacher_job_title_id = $jobTitle->id;
+        $teacher->teacher_job_title_id = null;
         $teacher->status = 'inactive';
         $teacher->is_helping = $isHelping;
         $teacher->notes = $this->appendLegacyNote(

@@ -1,0 +1,186 @@
+{
+  "name": "Teacher Daily Summary to Telegram",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 20 * * *"
+            }
+          ]
+        }
+      },
+      "id": "7b70fcb8-6f28-4cce-9e26-bf8ef70f3659",
+      "name": "Daily Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "3b8d3774-8ed9-41fc-b161-30de97e0bc8c",
+              "name": "appBaseUrl",
+              "type": "string",
+              "value": "https://alkheir-mosque.com"
+            },
+            {
+              "id": "a82490d7-c79a-46ef-95f0-040cce625589",
+              "name": "apiToken",
+              "type": "string",
+              "value": "REPLACE_WITH_SANCTUM_TOKEN"
+            },
+            {
+              "id": "cdb1d979-a75f-4577-a083-65ca55228671",
+              "name": "telegramChatId",
+              "type": "string",
+              "value": "REPLACE_WITH_TELEGRAM_GROUP_CHAT_ID"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "8f0b0734-db4d-463e-91a8-0a66a38a2a72",
+      "name": "Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        480,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{$json.appBaseUrl}}/api/v1/reports/teachers/daily-summary",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "={{ 'Bearer ' + $json.apiToken }}"
+            }
+          ]
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "date",
+              "value": "={{$now.setZone('Asia/Damascus').toFormat('yyyy-MM-dd')}}"
+            },
+            {
+              "name": "include_empty",
+              "value": "false"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "5ee7cb40-b0fc-43c7-a632-bc8628c61f6c",
+      "name": "Fetch Daily Summary",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        740,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const payload = $input.first().json;\nconst teachers = Array.isArray(payload.teachers) ? payload.teachers : [];\nconst totals = payload.totals ?? {};\nconst date = payload.date ?? $now.setZone('Asia/Damascus').toFormat('yyyy-MM-dd');\nconst limit = 3800;\n\nconst buildDetailLines = (items, formatter, maxItems = 5) => {\n  if (!Array.isArray(items) || items.length === 0) {\n    return [];\n  }\n\n  const lines = items.slice(0, maxItems).map((item) => `  • ${formatter(item)}`);\n\n  if (items.length > maxItems) {\n    lines.push(`  • ... +${items.length - maxItems}`);\n  }\n\n  return lines;\n};\n\nconst headerLines = [\n  'تقرير المعلمين اليومي',\n  `التاريخ: ${date}`,\n  `الإجمالي: غياب ${totals.absences_count ?? 0} | حفظ ${totals.memorized_pages ?? 0} صفحة | جزئي راسب ${totals.failed_partial_attempts_count ?? 0} | نهائي راسب ${totals.failed_final_attempts_count ?? 0}`,\n];\n\nif (teachers.length === 0) {\n  return [\n    {\n      json: {\n        text: [...headerLines, '', 'لا توجد سجلات لهذا اليوم.'].join('\\n'),\n      },\n    },\n  ];\n}\n\nconst teacherBlocks = teachers.map((summary, index) => {\n  const teacherName = summary.teacher?.name ?? `معلم ${index + 1}`;\n  const lines = [\n    `${index + 1}. ${teacherName}`,\n    `- الغياب: ${summary.absences_count ?? 0}`,\n    ...buildDetailLines(summary.absences, (item) => `${item.student_name} | ${item.group_name ?? '-'}${item.status ? ` | ${item.status}` : ''}`),\n    `- الحفظ: ${summary.memorization_sessions_count ?? 0} جلسة / ${summary.memorized_pages ?? 0} صفحة`,\n    ...buildDetailLines(summary.memorization_entries, (item) => `${item.student_name} | ${item.pages_count} صفحة (${item.from_page}-${item.to_page})`),\n    `- الجزئي الراسب: ${summary.failed_partial_attempts_count ?? 0}`,\n    ...buildDetailLines(summary.failed_partial_attempts, (item) => `${item.student_name} | الجزء ${item.juz_number} | القسم ${item.part_number} | محاولة ${item.attempt_no} | أخطاء ${item.mistake_count}`),\n    `- النهائي الراسب: ${summary.failed_final_attempts_count ?? 0}`,\n    ...buildDetailLines(summary.failed_final_attempts, (item) => `${item.student_name} | الجزء ${item.juz_number} | محاولة ${item.attempt_no} | علامة ${item.score ?? '-'}`),\n  ];\n\n  return lines.join('\\n');\n});\n\nconst chunks = [];\nlet current = headerLines.join('\\n\\n');\nlet continuation = false;\n\nfor (const block of teacherBlocks) {\n  const candidate = continuation ? `${current}\\n\\n${block}` : `${current}\\n\\n${block}`;\n\n  if (candidate.length > limit && current !== headerLines.join('\\n\\n')) {\n    chunks.push(current);\n    current = [`تقرير المعلمين اليومي - متابعة`, `التاريخ: ${date}`, '', block].join('\\n');\n    continuation = true;\n    continue;\n  }\n\n  current = candidate;\n}\n\nif (current.trim() !== '') {\n  chunks.push(current);\n}\n\nreturn chunks.map((text) => ({\n  json: {\n    text,\n  },\n}));"
+      },
+      "id": "07e86cf7-7fcf-48c8-8cbd-b2747f0ba6bd",
+      "name": "Format Telegram Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1000,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "={{ $('Config').first().json.telegramChatId }}",
+        "text": "={{ $json.text }}"
+      },
+      "id": "ff1ce9ab-fbb7-4bd7-a679-a40d5b665d7c",
+      "name": "Send to Telegram Group",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1260,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Daily Schedule": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "Fetch Daily Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Daily Summary": {
+      "main": [
+        [
+          {
+            "node": "Format Telegram Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Telegram Message": {
+      "main": [
+        [
+          {
+            "node": "Send to Telegram Group",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "timezone": "Asia/Damascus"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": [],
+  "active": false
+}

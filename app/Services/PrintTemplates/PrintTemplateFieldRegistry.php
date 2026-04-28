@@ -64,7 +64,7 @@ class PrintTemplateFieldRegistry
                 'first_name' => $this->field('first_name', ['text'], fn (Teacher $teacher) => $teacher->first_name),
                 'last_name' => $this->field('last_name', ['text'], fn (Teacher $teacher) => $teacher->last_name),
                 'phone' => $this->field('phone', ['text', 'barcode'], fn (Teacher $teacher) => $teacher->phone ?: __('print_templates.common.not_available')),
-                'job_title' => $this->field('job_title', ['text'], fn (Teacher $teacher) => $teacher->jobTitle?->name ?: ($teacher->job_title ?: __('print_templates.common.not_available'))),
+                'job_title' => $this->field('job_title', ['text'], fn (Teacher $teacher) => $teacher->accessRole?->name ?: ($teacher->jobTitle?->name ?: ($teacher->job_title ?: __('print_templates.common.not_available')))),
                 'course' => $this->field('course', ['text'], fn (Teacher $teacher) => $teacher->course?->name ?: __('print_templates.common.not_available')),
                 'username' => $this->field('username', ['text', 'barcode'], fn (Teacher $teacher) => $teacher->user?->username ?: __('print_templates.common.not_available')),
                 'password' => $this->field('password', ['text'], fn (Teacher $teacher) => $teacher->user?->issued_password ?: __('print_templates.common.not_available')),

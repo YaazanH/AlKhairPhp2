@@ -181,10 +181,14 @@ return [
         ],
     ],
     'permission_groups' => [
+        'course-completion-rules' => 'Course completion rules',
+        'students' => 'Students',
         'quran-partial-tests' => 'Quran partial tests',
         'quran-final-tests' => 'Quran final tests',
     ],
     'permissions' => [
+        'course-completion-rules.manage' => 'Manage course completion rules and apply point adjustments',
+        'students.promote-grade-levels' => 'Promote all students to the next active grade level',
         'quran-partial-tests.view' => 'View Quran partial tests',
         'quran-partial-tests.record' => 'Record Quran partial test attempts',
         'quran-partial-tests.record-linked-teacher' => 'Auto-fill the linked teacher on Quran partial test attempts',

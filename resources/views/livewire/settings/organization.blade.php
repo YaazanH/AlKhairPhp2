@@ -6,7 +6,8 @@ use App\Models\AcademicYear;
 use App\Models\AppSetting;
 use App\Models\GradeLevel;
 use App\Models\StudentGender;
-use App\Models\TeacherJobTitle;
+use App\Services\StudentGradePromotionService;
+use App\Services\StudentNumberService;
 use App\Support\AvatarDefaults;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -23,6 +24,8 @@ new class extends Component {
     public string $school_phone = '';
     public string $school_email = '';
     public string $email_domain = '';
+    public string $student_number_prefix = '';
+    public string $student_number_length = '0';
     public string $school_address = '';
     public string $school_timezone = '';
     public string $school_currency = '';
@@ -49,12 +52,6 @@ new class extends Component {
     public string $grade_level_sort_order = '0';
     public bool $grade_level_is_active = true;
     public bool $showGradeLevelModal = false;
-
-    public ?int $teacher_job_title_editing_id = null;
-    public string $teacher_job_title_name = '';
-    public string $teacher_job_title_sort_order = '0';
-    public bool $teacher_job_title_is_active = true;
-    public bool $showTeacherJobTitleModal = false;
 
     public ?int $student_gender_editing_id = null;
     public string $student_gender_code = '';
@@ -83,11 +80,6 @@ new class extends Component {
                 ->orderBy('sort_order')
                 ->orderBy('name')
                 ->get(),
-            'teacherJobTitles' => TeacherJobTitle::query()
-                ->withCount('teachers')
-                ->orderBy('sort_order')
-                ->orderBy('name')
-                ->get(),
             'studentGenders' => StudentGender::query()
                 ->orderBy('sort_order')
                 ->orderBy('name')
@@ -96,7 +88,6 @@ new class extends Component {
                 'academic_years' => AcademicYear::count(),
                 'active_grade_levels' => GradeLevel::query()->where('is_active', true)->count(),
                 'grade_levels' => GradeLevel::count(),
-                'teacher_job_titles' => TeacherJobTitle::count(),
                 'student_genders' => StudentGender::count(),
             ],
         ];
@@ -162,29 +153,6 @@ new class extends Component {
         session()->flash('status', __('settings.organization.messages.grade_level_deleted'));
     }
 
-    public function deleteTeacherJobTitle(int $teacherJobTitleId): void
-    {
-        $this->authorizePermission('settings.manage');
-
-        $teacherJobTitle = TeacherJobTitle::query()
-            ->withCount('teachers')
-            ->findOrFail($teacherJobTitleId);
-
-        if ($teacherJobTitle->teachers_count > 0) {
-            $this->addError('teacherJobTitleDelete', __('settings.organization.errors.teacher_job_title_delete_linked'));
-
-            return;
-        }
-
-        $teacherJobTitle->delete();
-
-        if ($this->teacher_job_title_editing_id === $teacherJobTitleId) {
-            $this->cancelTeacherJobTitle();
-        }
-
-        session()->flash('status', __('settings.organization.messages.teacher_job_title_deleted'));
-    }
-
     public function deleteStudentGender(int $studentGenderId): void
     {
         $this->authorizePermission('settings.manage');
@@ -244,18 +212,6 @@ new class extends Component {
         $this->cancelGradeLevel();
     }
 
-    public function openTeacherJobTitleModal(): void
-    {
-        $this->authorizePermission('settings.manage');
-        $this->cancelTeacherJobTitle();
-        $this->showTeacherJobTitleModal = true;
-    }
-
-    public function closeTeacherJobTitleModal(): void
-    {
-        $this->cancelTeacherJobTitle();
-    }
-
     public function openStudentGenderModal(): void
     {
         $this->authorizePermission('settings.manage');
@@ -300,21 +256,6 @@ new class extends Component {
         $this->resetValidation();
     }
 
-    public function editTeacherJobTitle(int $teacherJobTitleId): void
-    {
-        $this->authorizePermission('settings.manage');
-
-        $teacherJobTitle = TeacherJobTitle::query()->findOrFail($teacherJobTitleId);
-
-        $this->teacher_job_title_editing_id = $teacherJobTitle->id;
-        $this->teacher_job_title_name = $teacherJobTitle->name;
-        $this->teacher_job_title_sort_order = (string) $teacherJobTitle->sort_order;
-        $this->teacher_job_title_is_active = $teacherJobTitle->is_active;
-        $this->showTeacherJobTitleModal = true;
-
-        $this->resetValidation();
-    }
-
     public function editStudentGender(int $studentGenderId): void
     {
         $this->authorizePermission('settings.manage');
@@ -343,20 +284,6 @@ new class extends Component {
             ],
             'grade_level_sort_order' => ['required', 'integer', 'min:0'],
             'grade_level_is_active' => ['boolean'],
-        ];
-    }
-
-    public function teacherJobTitleRules(): array
-    {
-        return [
-            'teacher_job_title_name' => [
-                'required',
-                'string',
-                'max:255',
-                Rule::unique('teacher_job_titles', 'name')->ignore($this->teacher_job_title_editing_id),
-            ],
-            'teacher_job_title_sort_order' => ['required', 'integer', 'min:0'],
-            'teacher_job_title_is_active' => ['boolean'],
         ];
     }
 
@@ -433,28 +360,25 @@ new class extends Component {
         $this->cancelGradeLevel();
     }
 
-    public function saveTeacherJobTitle(): void
+    public function promoteStudentsToNextGrade(): void
     {
-        $this->authorizePermission('settings.manage');
+        $this->authorizePermission('students.promote-grade-levels');
 
-        $validated = $this->validate($this->teacherJobTitleRules());
+        $summary = app(StudentGradePromotionService::class)->promoteAll();
 
-        TeacherJobTitle::query()->updateOrCreate(
-            ['id' => $this->teacher_job_title_editing_id],
-            [
-                'is_active' => $validated['teacher_job_title_is_active'],
-                'name' => $validated['teacher_job_title_name'],
-                'sort_order' => (int) $validated['teacher_job_title_sort_order'],
-            ],
-        );
+        if (($summary['active_grade_levels'] ?? 0) < 2) {
+            $this->addError('studentPromotion', __('settings.organization.errors.student_promotion_requires_multiple_active_grades'));
 
-        session()->flash(
-            'status',
-            $this->teacher_job_title_editing_id
-                ? __('settings.organization.messages.teacher_job_title_updated')
-                : __('settings.organization.messages.teacher_job_title_created'),
-        );
-        $this->cancelTeacherJobTitle();
+            return;
+        }
+
+        $this->resetErrorBag('studentPromotion');
+
+        session()->flash('status', __('settings.organization.messages.students_promoted', [
+            'promoted' => number_format((int) $summary['promoted']),
+            'retained' => number_format((int) $summary['retained']),
+            'unassigned' => number_format((int) $summary['unassigned']),
+        ]));
     }
 
     public function saveStudentGender(): void
@@ -506,6 +430,8 @@ new class extends Component {
             'school_currency' => ['required', 'string', 'max:10'],
             'school_email' => ['nullable', 'email', 'max:255'],
             'email_domain' => ['required', 'string', 'max:255', 'regex:/^(?!-)[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/'],
+            'student_number_prefix' => ['nullable', 'string', 'max:20', 'regex:/^[A-Za-z0-9_-]*$/'],
+            'student_number_length' => ['required', 'integer', 'min:0', 'max:12'],
             'school_name' => ['required', 'string', 'max:255'],
             'school_phone' => ['nullable', 'string', 'max:50'],
             'school_timezone' => ['required', 'string', 'max:100'],
@@ -515,11 +441,21 @@ new class extends Component {
             'default_parent_avatar_upload' => ['nullable', 'image', 'max:2048'],
         ]);
 
+        $generalSettings = AppSetting::groupValues('general');
+        $studentNumberPrefix = trim((string) ($validated['student_number_prefix'] ?? ''));
+        $studentNumberLength = (int) $validated['student_number_length'];
+        $validated['student_number_prefix'] = $studentNumberPrefix;
+        $validated['student_number_length'] = $studentNumberLength;
+        $studentNumberFormatChanged = $studentNumberPrefix !== trim((string) ($generalSettings->get('student_number_prefix') ?? ''))
+            || $studentNumberLength !== (is_numeric($generalSettings->get('student_number_length')) ? (int) $generalSettings->get('student_number_length') : 0);
+
         foreach ([
             'school_name' => ['group' => 'general', 'type' => 'string'],
             'school_phone' => ['group' => 'general', 'type' => 'string'],
             'school_email' => ['group' => 'general', 'type' => 'string'],
             'email_domain' => ['group' => 'general', 'type' => 'string'],
+            'student_number_prefix' => ['group' => 'general', 'type' => 'string'],
+            'student_number_length' => ['group' => 'general', 'type' => 'integer'],
             'school_address' => ['group' => 'general', 'type' => 'string'],
             'school_timezone' => ['group' => 'general', 'type' => 'string'],
             'school_currency' => ['group' => 'general', 'type' => 'string'],
@@ -553,6 +489,10 @@ new class extends Component {
         }
 
         AvatarDefaults::forget();
+
+        if ($studentNumberFormatChanged) {
+            app(StudentNumberService::class)->syncAll();
+        }
 
         session()->flash('status', __('settings.organization.messages.settings_saved'));
         $this->showOrganizationModal = false;
@@ -601,16 +541,6 @@ new class extends Component {
         $this->resetValidation();
     }
 
-    protected function cancelTeacherJobTitle(): void
-    {
-        $this->teacher_job_title_editing_id = null;
-        $this->teacher_job_title_name = '';
-        $this->teacher_job_title_sort_order = '0';
-        $this->teacher_job_title_is_active = true;
-        $this->showTeacherJobTitleModal = false;
-        $this->resetValidation();
-    }
-
     protected function cancelStudentGender(): void
     {
         $this->student_gender_editing_id = null;
@@ -647,7 +577,7 @@ new class extends Component {
     {
         $settings = AppSetting::query()
             ->where('group', 'general')
-            ->whereIn('key', ['school_name', 'school_phone', 'school_email', 'email_domain', 'school_address', 'school_timezone', 'school_currency'])
+            ->whereIn('key', ['school_name', 'school_phone', 'school_email', 'email_domain', 'student_number_prefix', 'student_number_length', 'school_address', 'school_timezone', 'school_currency'])
             ->pluck('value', 'key');
         $media = AppSetting::groupValues('media');
 
@@ -655,6 +585,8 @@ new class extends Component {
         $this->school_phone = (string) ($settings['school_phone'] ?? '');
         $this->school_email = (string) ($settings['school_email'] ?? '');
         $this->email_domain = (string) ($settings['email_domain'] ?? 'alkhair.local');
+        $this->student_number_prefix = (string) ($settings['student_number_prefix'] ?? '');
+        $this->student_number_length = (string) ($settings['student_number_length'] ?? '0');
         $this->school_address = (string) ($settings['school_address'] ?? '');
         $this->school_timezone = (string) ($settings['school_timezone'] ?? config('app.timezone', 'UTC'));
         $this->school_currency = (string) ($settings['school_currency'] ?? 'USD');
@@ -678,7 +610,7 @@ new class extends Component {
         <div class="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">{{ session('status') }}</div>
     @endif
 
-    <div class="grid gap-4 md:grid-cols-5">
+    <div class="grid gap-4 md:grid-cols-4">
         <div class="rounded-xl border border-neutral-200 p-5 dark:border-neutral-700">
             <div class="text-sm text-neutral-500">{{ __('settings.organization.stats.academic_years') }}</div>
             <div class="mt-2 text-3xl font-semibold">{{ number_format($totals['academic_years']) }}</div>
@@ -690,10 +622,6 @@ new class extends Component {
         <div class="rounded-xl border border-neutral-200 p-5 dark:border-neutral-700">
             <div class="text-sm text-neutral-500">{{ __('settings.organization.stats.active_grade_levels') }}</div>
             <div class="mt-2 text-3xl font-semibold">{{ number_format($totals['active_grade_levels']) }}</div>
-        </div>
-        <div class="rounded-xl border border-neutral-200 p-5 dark:border-neutral-700">
-            <div class="text-sm text-neutral-500">{{ __('settings.organization.stats.teacher_job_titles') }}</div>
-            <div class="mt-2 text-3xl font-semibold">{{ number_format($totals['teacher_job_titles']) }}</div>
         </div>
         <div class="rounded-xl border border-neutral-200 p-5 dark:border-neutral-700">
             <div class="text-sm text-neutral-500">{{ __('settings.organization.stats.student_genders') }}</div>
@@ -712,6 +640,12 @@ new class extends Component {
             </div>
         </div>
 
+        @php
+            $studentNumberDigits = max(0, (int) $student_number_length);
+            $studentNumberPreviewOne = ($student_number_prefix ?: '').($studentNumberDigits > 0 ? str_pad('1', $studentNumberDigits, '0', STR_PAD_LEFT) : '1');
+            $studentNumberPreviewHundredTwenty = ($student_number_prefix ?: '').($studentNumberDigits > 0 ? str_pad('120', $studentNumberDigits, '0', STR_PAD_LEFT) : '120');
+        @endphp
+
         <div class="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <div class="rounded-2xl border border-white/10 bg-white/5 p-4">
                 <div class="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-400">{{ __('settings.organization.fields.school_name') }}</div>
@@ -729,6 +663,11 @@ new class extends Component {
             <div class="rounded-2xl border border-white/10 bg-white/5 p-4">
                 <div class="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-400">{{ __('settings.organization.fields.school_timezone') }}</div>
                 <div class="mt-2 truncate text-sm font-semibold text-white">{{ $school_timezone ?: __('crud.common.not_available') }}</div>
+            </div>
+            <div class="rounded-2xl border border-sky-400/20 bg-sky-500/10 p-4">
+                <div class="text-xs font-semibold uppercase tracking-[0.18em] text-sky-200">{{ __('settings.organization.fields.student_number_preview') }}</div>
+                <div class="mt-2 font-mono text-sm font-semibold text-white">{{ $studentNumberPreviewOne }}</div>
+                <p class="mt-2 text-xs leading-5 text-sky-100/80">{{ $studentNumberPreviewHundredTwenty }}</p>
             </div>
         </div>
 
@@ -788,6 +727,20 @@ new class extends Component {
                             <input wire:model="email_domain" type="text" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm lowercase dark:border-neutral-700 dark:bg-neutral-900" placeholder="alkhair.org">
                             <p class="mt-1 text-xs text-neutral-500">{{ __('settings.organization.fields.email_domain_help') }}</p>
                             @error('email_domain') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+                        </div>
+                    </div>
+                    <div class="grid gap-4 md:grid-cols-2">
+                        <div>
+                            <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.student_number_prefix') }}</label>
+                            <input wire:model="student_number_prefix" type="text" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm uppercase dark:border-neutral-700 dark:bg-neutral-900" placeholder="S">
+                            <p class="mt-1 text-xs text-neutral-500">{{ __('settings.organization.fields.student_number_prefix_help') }}</p>
+                            @error('student_number_prefix') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+                        </div>
+                        <div>
+                            <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.student_number_length') }}</label>
+                            <input wire:model="student_number_length" type="number" min="0" max="12" step="1" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900" placeholder="6">
+                            <p class="mt-1 text-xs text-neutral-500">{{ __('settings.organization.fields.student_number_length_help') }}</p>
+                            @error('student_number_length') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
                         </div>
                     </div>
                     <div class="grid gap-4 md:grid-cols-2">
@@ -959,40 +912,32 @@ new class extends Component {
                 @endif
             </div>
 
-            <div class="overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700">
-                <div class="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-200 px-5 py-4 dark:border-neutral-700">
-                    <div>
-                        <div class="text-sm font-medium">{{ __('settings.organization.sections.teacher_job_title.table') }}</div>
-                        <p class="mt-1 text-xs text-neutral-500">{{ __('settings.organization.sections.teacher_job_title.copy') }}</p>
+            @can('students.promote-grade-levels')
+                <div class="overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700">
+                    <div class="border-b border-neutral-200 px-5 py-4 dark:border-neutral-700">
+                        <div class="text-sm font-medium">{{ __('settings.organization.sections.student_promotion.title') }}</div>
+                        <p class="mt-1 text-xs text-neutral-500">{{ __('settings.organization.sections.student_promotion.copy') }}</p>
                     </div>
-                    <button type="button" wire:click="openTeacherJobTitleModal" class="pill-link pill-link--accent">{{ __('settings.organization.actions.create_teacher_job_title') }}</button>
+                    <div class="space-y-4 px-5 py-4">
+                        <div class="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm leading-7 text-neutral-300">
+                            {{ __('settings.organization.sections.student_promotion.note') }}
+                        </div>
+                        @error('studentPromotion')
+                            <div class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{{ $message }}</div>
+                        @enderror
+                        <div class="flex flex-wrap justify-end gap-3">
+                            <button
+                                type="button"
+                                wire:click="promoteStudentsToNextGrade"
+                                wire:confirm="{{ __('settings.organization.actions.promote_students_confirm') }}"
+                                class="pill-link pill-link--accent"
+                            >
+                                {{ __('settings.organization.actions.promote_students') }}
+                            </button>
+                        </div>
+                    </div>
                 </div>
-                @if ($teacherJobTitles->isEmpty())
-                    <div class="px-5 py-10 text-sm text-neutral-500">{{ __('settings.organization.sections.teacher_job_title.empty') }}</div>
-                @else
-                    <div class="overflow-x-auto">
-                        <table class="min-w-full divide-y divide-neutral-200 text-sm dark:divide-neutral-700">
-                            <thead class="bg-neutral-50 dark:bg-neutral-900/60"><tr><th class="px-5 py-3 text-left font-medium">{{ __('settings.organization.table.name') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.organization.table.sort') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.organization.table.teachers') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.organization.table.state') }}</th><th class="px-5 py-3 text-right font-medium">{{ __('settings.organization.table.actions') }}</th></tr></thead>
-                            <tbody class="divide-y divide-neutral-200 dark:divide-neutral-700">
-                                @foreach ($teacherJobTitles as $teacherJobTitle)
-                                    <tr>
-                                        <td class="px-5 py-3 font-medium">{{ $teacherJobTitle->name }}</td>
-                                        <td class="px-5 py-3">{{ $teacherJobTitle->sort_order }}</td>
-                                        <td class="px-5 py-3">{{ number_format($teacherJobTitle->teachers_count) }}</td>
-                                        <td class="px-5 py-3">{{ $teacherJobTitle->is_active ? __('settings.common.states.active') : __('settings.common.states.inactive') }}</td>
-                                        <td class="px-5 py-3">
-                                            <div class="flex justify-end gap-2">
-                                                <button type="button" wire:click="editTeacherJobTitle({{ $teacherJobTitle->id }})" class="rounded-lg border border-neutral-300 px-3 py-1.5 dark:border-neutral-700">{{ __('crud.common.actions.edit') }}</button>
-                                                <button type="button" wire:click="deleteTeacherJobTitle({{ $teacherJobTitle->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="rounded-lg border border-red-300 px-3 py-1.5 text-red-700 dark:border-red-800 dark:text-red-300">{{ __('crud.common.actions.delete') }}</button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                @endforeach
-                            </tbody>
-                        </table>
-                    </div>
-                @endif
-            </div>
+            @endcan
 
             <div class="overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700">
                 <div class="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-200 px-5 py-4 dark:border-neutral-700">
@@ -1061,6 +1006,20 @@ new class extends Component {
                     <input wire:model="email_domain" type="text" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm lowercase dark:border-neutral-700 dark:bg-neutral-900" placeholder="alkhair.org">
                     <p class="mt-1 text-xs text-neutral-500">{{ __('settings.organization.fields.email_domain_help') }}</p>
                     @error('email_domain') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+                </div>
+            </div>
+            <div class="grid gap-4 md:grid-cols-2">
+                <div>
+                    <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.student_number_prefix') }}</label>
+                    <input wire:model="student_number_prefix" type="text" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm uppercase dark:border-neutral-700 dark:bg-neutral-900" placeholder="S">
+                    <p class="mt-1 text-xs text-neutral-500">{{ __('settings.organization.fields.student_number_prefix_help') }}</p>
+                    @error('student_number_prefix') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+                </div>
+                <div>
+                    <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.student_number_length') }}</label>
+                    <input wire:model="student_number_length" type="number" min="0" max="12" step="1" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900" placeholder="6">
+                    <p class="mt-1 text-xs text-neutral-500">{{ __('settings.organization.fields.student_number_length_help') }}</p>
+                    @error('student_number_length') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
                 </div>
             </div>
             <div class="grid gap-4 md:grid-cols-2">
@@ -1174,28 +1133,6 @@ new class extends Component {
                 <button type="button" wire:click="closeGradeLevelModal" class="pill-link">{{ __('crud.common.actions.cancel') }}</button>
                 <button type="submit" class="pill-link pill-link--accent">{{ $grade_level_editing_id ? __('settings.organization.actions.update_grade') : __('settings.organization.actions.create_grade') }}</button>
                 <x-admin.create-and-new-button :show="! $grade_level_editing_id" click="saveAndNew('saveGradeLevel', 'openGradeLevelModal')" />
-            </div>
-        </form>
-    </x-admin.modal>
-
-    <x-admin.modal :show="$showTeacherJobTitleModal" :title="$teacher_job_title_editing_id ? __('settings.organization.sections.teacher_job_title.edit') : __('settings.organization.sections.teacher_job_title.create')" :description="__('settings.organization.sections.teacher_job_title.copy')" close-method="closeTeacherJobTitleModal" max-width="3xl">
-        <form wire:submit="saveTeacherJobTitle" class="space-y-4">
-            <div>
-                <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.name') }}</label>
-                <input wire:model="teacher_job_title_name" type="text" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
-                @error('teacher_job_title_name') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
-            </div>
-            <div>
-                <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.sort_order') }}</label>
-                <input wire:model="teacher_job_title_sort_order" type="number" min="0" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
-                @error('teacher_job_title_sort_order') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
-            </div>
-            <label class="flex items-center gap-3 text-sm"><input wire:model="teacher_job_title_is_active" type="checkbox" class="rounded border-neutral-300 text-neutral-900"><span>{{ __('settings.organization.fields.is_active') }}</span></label>
-            @error('teacherJobTitleDelete') <div class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{{ $message }}</div> @enderror
-            <div class="flex justify-end gap-3">
-                <button type="button" wire:click="closeTeacherJobTitleModal" class="pill-link">{{ __('crud.common.actions.cancel') }}</button>
-                <button type="submit" class="pill-link pill-link--accent">{{ $teacher_job_title_editing_id ? __('settings.organization.actions.update_teacher_job_title') : __('settings.organization.actions.create_teacher_job_title') }}</button>
-                <x-admin.create-and-new-button :show="! $teacher_job_title_editing_id" click="saveAndNew('saveTeacherJobTitle', 'openTeacherJobTitleModal')" />
             </div>
         </form>
     </x-admin.modal>

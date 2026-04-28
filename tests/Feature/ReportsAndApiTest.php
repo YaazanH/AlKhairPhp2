@@ -23,6 +23,12 @@ use App\Models\Payment;
 use App\Models\PaymentMethod;
 use App\Models\PointTransaction;
 use App\Models\PointType;
+use App\Models\QuranFinalTest;
+use App\Models\QuranFinalTestAttempt;
+use App\Models\QuranJuz;
+use App\Models\QuranPartialTest;
+use App\Models\QuranPartialTestAttempt;
+use App\Models\QuranPartialTestPart;
 use App\Models\Student;
 use App\Models\StudentAttendanceRecord;
 use App\Models\Teacher;
@@ -47,6 +53,7 @@ class ReportsAndApiTest extends TestCase
     {
         $this->get(route('reports.index', absolute: false))->assertRedirect('/login');
         $this->getJson('/api/v1/reports/overview')->assertUnauthorized();
+        $this->getJson('/api/v1/reports/teachers/daily-summary')->assertUnauthorized();
     }
 
     public function test_manager_can_view_reports_page_and_api_data(): void
@@ -243,6 +250,109 @@ class ReportsAndApiTest extends TestCase
             ->assertOk()
             ->assertJsonCount(1, 'data')
             ->assertJsonPath('data.0.title', 'Assigned API Quiz');
+    }
+
+    public function test_manager_can_fetch_teacher_daily_summary_api(): void
+    {
+        [$manager, $group] = $this->reportingContext();
+
+        $teacher = $group->teacher()->firstOrFail();
+        $attendanceDay = GroupAttendanceDay::query()->where('group_id', $group->id)->firstOrFail();
+        $juz = QuranJuz::query()->firstOrFail();
+        $absentStatus = AttendanceStatus::query()
+            ->where('scope', '!=', 'teacher')
+            ->where('is_present', false)
+            ->firstOrFail();
+
+        $parent = ParentProfile::create([
+            'father_name' => 'Absent Parent',
+            'father_phone' => '0944000411',
+        ]);
+
+        $student = Student::create([
+            'parent_id' => $parent->id,
+            'first_name' => 'Absent',
+            'last_name' => 'Student',
+            'birth_date' => '2014-05-13',
+            'status' => 'active',
+        ]);
+
+        $enrollment = Enrollment::create([
+            'student_id' => $student->id,
+            'group_id' => $group->id,
+            'enrolled_at' => '2026-09-01',
+            'status' => 'active',
+        ]);
+
+        StudentAttendanceRecord::create([
+            'group_attendance_day_id' => $attendanceDay->id,
+            'enrollment_id' => $enrollment->id,
+            'attendance_status_id' => $absentStatus->id,
+        ]);
+
+        $partialTest = QuranPartialTest::create([
+            'enrollment_id' => $enrollment->id,
+            'student_id' => $student->id,
+            'juz_id' => $juz->id,
+            'status' => 'in_progress',
+            'created_by' => $manager->id,
+        ]);
+
+        $partialPart = QuranPartialTestPart::create([
+            'quran_partial_test_id' => $partialTest->id,
+            'part_number' => 1,
+            'status' => 'pending',
+        ]);
+
+        QuranPartialTestAttempt::create([
+            'quran_partial_test_part_id' => $partialPart->id,
+            'teacher_id' => $teacher->id,
+            'tested_on' => '2026-09-10',
+            'mistake_count' => 7,
+            'status' => 'failed',
+            'attempt_no' => 1,
+        ]);
+
+        $finalTest = QuranFinalTest::create([
+            'enrollment_id' => $enrollment->id,
+            'student_id' => $student->id,
+            'juz_id' => $juz->id,
+            'status' => 'in_progress',
+            'created_by' => $manager->id,
+        ]);
+
+        QuranFinalTestAttempt::create([
+            'quran_final_test_id' => $finalTest->id,
+            'teacher_id' => $teacher->id,
+            'tested_on' => '2026-09-10',
+            'score' => 50,
+            'status' => 'failed',
+            'attempt_no' => 1,
+        ]);
+
+        Sanctum::actingAs($manager);
+
+        $summary = $this->getJson('/api/v1/reports/teachers/daily-summary?date=2026-09-10');
+
+        $summary->assertOk();
+        $summary->assertJsonPath('date', '2026-09-10');
+        $summary->assertJsonPath('teachers_in_scope', 1);
+        $summary->assertJsonPath('teachers_with_activity', 1);
+        $summary->assertJsonPath('totals.absences_count', 1);
+        $summary->assertJsonPath('totals.memorization_sessions_count', 1);
+        $summary->assertJsonPath('totals.memorized_pages', 5);
+        $summary->assertJsonPath('totals.failed_partial_attempts_count', 1);
+        $summary->assertJsonPath('totals.failed_final_attempts_count', 1);
+        $summary->assertJsonPath('teachers.0.teacher.name', 'Report Teacher');
+        $summary->assertJsonPath('teachers.0.absences_count', 1);
+        $summary->assertJsonPath('teachers.0.absences.0.student_name', 'Absent Student');
+        $summary->assertJsonPath('teachers.0.memorization_sessions_count', 1);
+        $summary->assertJsonPath('teachers.0.memorized_pages', 5);
+        $summary->assertJsonPath('teachers.0.failed_partial_attempts_count', 1);
+        $summary->assertJsonPath('teachers.0.failed_partial_attempts.0.part_number', 1);
+        $summary->assertJsonPath('teachers.0.failed_partial_attempts.0.juz_number', $juz->juz_number);
+        $summary->assertJsonPath('teachers.0.failed_final_attempts_count', 1);
+        $summary->assertJsonPath('teachers.0.failed_final_attempts.0.score', 50);
     }
 
     private function reportingContext(): array

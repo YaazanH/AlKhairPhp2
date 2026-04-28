@@ -3,9 +3,14 @@
     $pageDescription = $metaDescription ?? __('ui.app.workspace_tagline');
     $pageUrl = $metaUrl ?? url()->current();
     $pageImage = $metaImage ?? null;
+    $faviconImage = $faviconUrl ?? $pageImage ?? app(\App\Services\WebsiteService::class)->siteSettings()['logo_url'] ?? null;
 
     if (is_string($pageImage) && filled($pageImage) && ! str_starts_with($pageImage, 'http://') && ! str_starts_with($pageImage, 'https://')) {
         $pageImage = url($pageImage);
+    }
+
+    if (is_string($faviconImage) && filled($faviconImage) && ! str_starts_with($faviconImage, 'http://') && ! str_starts_with($faviconImage, 'https://')) {
+        $faviconImage = url($faviconImage);
     }
 @endphp
 
@@ -34,6 +39,12 @@
 @endif
 
 <title>{{ $pageTitle }}</title>
+
+@if ($faviconImage)
+<link rel="icon" href="{{ $faviconImage }}" />
+<link rel="shortcut icon" href="{{ $faviconImage }}" />
+<link rel="apple-touch-icon" href="{{ $faviconImage }}" />
+@endif
 
 <link rel="preconnect" href="https://fonts.bunny.net">
 <link href="https://fonts.bunny.net/css?family=cairo:400,500,600,700|fraunces:600,700|plus-jakarta-sans:400,500,600,700" rel="stylesheet" />

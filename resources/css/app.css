@@ -347,6 +347,10 @@ select:focus[data-flux-control] {
 .app-body {
     min-height: 100vh;
     color: var(--app-text);
+    background:
+        radial-gradient(circle at top left, rgba(11, 143, 67, 0.18), transparent 24rem),
+        radial-gradient(circle at top right, rgba(151, 219, 174, 0.1), transparent 20rem),
+        linear-gradient(180deg, #072112 0%, #031009 100%);
 }
 
 html:not(.dark) .text-white,
@@ -2882,8 +2886,11 @@ html:not(.dark) .public-gallery-slider {
         overflow-x: hidden;
     }
 
-    body {
-        background-size: 28rem 28rem, 24rem 24rem, auto;
+    .app-body {
+        background:
+            radial-gradient(circle at top left, rgba(11, 143, 67, 0.18), transparent 24rem),
+            radial-gradient(circle at top right, rgba(151, 219, 174, 0.1), transparent 20rem),
+            linear-gradient(180deg, #072112 0%, #031009 100%);
     }
 
     .app-shell,

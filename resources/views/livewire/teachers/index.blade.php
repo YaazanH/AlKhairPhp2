@@ -5,13 +5,14 @@ use App\Livewire\Concerns\AuthorizesTeacherAssignments;
 use App\Livewire\Concerns\SupportsCreateAndNew;
 use App\Models\Course;
 use App\Models\Teacher;
-use App\Models\TeacherJobTitle;
 use App\Services\ManagedUserService;
+use App\Support\RoleRegistry;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Livewire\Volt\Component;
 use Livewire\WithFileUploads;
 use Livewire\WithPagination;
+use Spatie\Permission\Models\Role;
 
 new class extends Component {
     use AuthorizesPermissions;
@@ -24,7 +25,7 @@ new class extends Component {
     public string $first_name = '';
     public string $last_name = '';
     public string $phone = '';
-    public string $teacher_job_title_id = '';
+    public string $access_role_id = '';
     public string $course_id = '';
     public string $status = 'active';
     public bool $is_helping = true;
@@ -53,15 +54,14 @@ new class extends Component {
     {
         $baseQuery = $this->scopeTeachersQuery(Teacher::query());
         $filteredQuery = $this->scopeTeachersQuery(Teacher::query())
-            ->with(['jobTitle', 'course'])
+            ->with(['accessRole', 'course'])
             ->when(filled($this->search), function ($query) {
                 $query->where(function ($builder) {
                     $builder
                         ->where('first_name', 'like', '%'.$this->search.'%')
                         ->orWhere('last_name', 'like', '%'.$this->search.'%')
                         ->orWhere('phone', 'like', '%'.$this->search.'%')
-                        ->orWhere('job_title', 'like', '%'.$this->search.'%')
-                        ->orWhereHas('jobTitle', fn ($titleQuery) => $titleQuery->where('name', 'like', '%'.$this->search.'%'))
+                        ->orWhereHas('accessRole', fn ($roleQuery) => $roleQuery->where('name', 'like', '%'.$this->search.'%'))
                         ->orWhereHas('course', fn ($courseQuery) => $courseQuery->where('name', 'like', '%'.$this->search.'%'));
                 });
             })
@@ -84,7 +84,11 @@ new class extends Component {
             'filteredCount' => $filteredCount,
             'statuses' => ['active', 'inactive', 'blocked'],
             'helpingOptions' => ['all', 'helping', 'not_helping'],
-            'jobTitles' => TeacherJobTitle::query()->orderBy('sort_order')->orderBy('name')->get(),
+            'availableRoles' => RoleRegistry::sortCollection(
+                Role::query()
+                    ->whereNotIn('name', RoleRegistry::systemRoles())
+                    ->get()
+            ),
             'courses' => Course::query()->orderByDesc('is_active')->orderBy('name')->get(),
         ];
     }
@@ -110,7 +114,7 @@ new class extends Component {
             'first_name' => ['required', 'string', 'max:255'],
             'last_name' => ['required', 'string', 'max:255'],
             'phone' => ['required', 'string', 'max:30'],
-            'teacher_job_title_id' => ['nullable', 'integer', Rule::exists('teacher_job_titles', 'id')],
+            'access_role_id' => ['nullable', 'integer', Rule::exists('roles', 'id')],
             'course_id' => ['nullable', 'integer', Rule::exists('courses', 'id')],
             'status' => ['required', 'in:active,inactive,blocked'],
             'is_helping' => ['boolean'],
@@ -146,16 +150,21 @@ new class extends Component {
         }
 
         $validated = $this->validate();
-        $jobTitle = filled($validated['teacher_job_title_id'])
-            ? TeacherJobTitle::query()->find((int) $validated['teacher_job_title_id'])
+        $existingTeacher = $this->editingId
+            ? Teacher::query()->with('accessRole')->findOrFail($this->editingId)
+            : null;
+        $previousAccessRoleName = $existingTeacher?->accessRole?->name;
+        $accessRole = filled($validated['access_role_id'])
+            ? Role::query()->find((int) $validated['access_role_id'])
             : null;
 
         $payload = [
             'first_name' => $validated['first_name'],
             'last_name' => $validated['last_name'],
             'phone' => $validated['phone'],
-            'teacher_job_title_id' => filled($validated['teacher_job_title_id']) ? (int) $validated['teacher_job_title_id'] : null,
-            'job_title' => $jobTitle?->name,
+            'teacher_job_title_id' => null,
+            'job_title' => null,
+            'access_role_id' => filled($validated['access_role_id']) ? (int) $validated['access_role_id'] : null,
             'course_id' => filled($validated['course_id']) ? (int) $validated['course_id'] : null,
             'status' => $validated['status'],
             'is_helping' => (bool) $validated['is_helping'],
@@ -189,6 +198,14 @@ new class extends Component {
 
         $teacher->user()->associate($result['user']);
         $teacher->save();
+
+        if ($previousAccessRoleName && $previousAccessRoleName !== $accessRole?->name && $result['user']->hasRole($previousAccessRoleName)) {
+            $result['user']->removeRole($previousAccessRoleName);
+        }
+
+        if ($accessRole && ! $result['user']->hasRole($accessRole->name)) {
+            $result['user']->assignRole($accessRole->name);
+        }
 
         if ($result['credentials']['password']) {
             session()->flash('generated_credentials', $result['credentials']);
@@ -239,12 +256,7 @@ new class extends Component {
         $this->first_name = $teacher->first_name;
         $this->last_name = $teacher->last_name;
         $this->phone = $teacher->phone;
-        $jobTitleId = $teacher->teacher_job_title_id ?: (
-            $teacher->job_title
-                ? TeacherJobTitle::query()->where('name', $teacher->job_title)->value('id')
-                : null
-        );
-        $this->teacher_job_title_id = $jobTitleId ? (string) $jobTitleId : '';
+        $this->access_role_id = $teacher->access_role_id ? (string) $teacher->access_role_id : '';
         $this->course_id = $teacher->course_id ? (string) $teacher->course_id : '';
         $this->status = $teacher->status;
         $this->is_helping = $teacher->is_helping;
@@ -347,7 +359,7 @@ new class extends Component {
         $this->first_name = '';
         $this->last_name = '';
         $this->phone = '';
-        $this->teacher_job_title_id = '';
+        $this->access_role_id = '';
         $this->course_id = '';
         $this->status = 'active';
         $this->is_helping = true;
@@ -532,7 +544,7 @@ new class extends Component {
                         <tr>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.teachers.table.headers.name') }}</th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.teachers.table.headers.phone') }}</th>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.teachers.table.headers.job_title') }}</th>
+                            <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.teachers.table.headers.access_role') }}</th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.teachers.table.headers.course') }}</th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.teachers.table.headers.groups') }}</th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.teachers.table.headers.helping') }}</th>
@@ -542,18 +554,26 @@ new class extends Component {
                     </thead>
                     <tbody class="divide-y divide-white/6">
                         @foreach ($teachers as $teacher)
+                            @php
+                                $accessRoleName = $teacher->accessRole?->name;
+                                $accessRoleLabel = $accessRoleName
+                                    ? ((__('ui.roles.'.$accessRoleName) === 'ui.roles.'.$accessRoleName)
+                                        ? \Illuminate\Support\Str::of($accessRoleName)->replace('_', ' ')->headline()->toString()
+                                        : __('ui.roles.'.$accessRoleName))
+                                    : __('crud.common.not_available');
+                            @endphp
                             <tr>
                                 <td class="px-5 py-4 lg:px-6">
                                     <div class="student-inline">
                                         <x-teacher-avatar :teacher="$teacher" size="sm" />
                                         <div class="student-inline__body">
                                             <div class="student-inline__name">{{ $teacher->first_name }} {{ $teacher->last_name }}</div>
-                                            <div class="student-inline__meta">{{ $teacher->jobTitle?->name ?: ($teacher->job_title ?: __('crud.common.not_available')) }}</div>
+                                            <div class="student-inline__meta">{{ $accessRoleLabel }}</div>
                                         </div>
                                     </div>
                                 </td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $teacher->phone }}</td>
-                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $teacher->jobTitle?->name ?: ($teacher->job_title ?: __('crud.common.not_available')) }}</td>
+                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $accessRoleLabel }}</td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $teacher->course?->name ?: __('crud.common.not_available') }}</td>
                                 <td class="px-5 py-4 text-white lg:px-6">{{ number_format($teacher->assigned_groups_count + $teacher->assisted_groups_count) }}</td>
                                 <td class="px-5 py-4 lg:px-6">
@@ -664,14 +684,15 @@ new class extends Component {
                 </div>
 
                 <div>
-                    <label for="teacher-job-title" class="mb-1 block text-sm font-medium">{{ __('crud.teachers.form.fields.job_title') }}</label>
-                    <select id="teacher-job-title" wire:model="teacher_job_title_id" class="w-full rounded-xl px-4 py-3 text-sm">
-                        <option value="">{{ __('crud.teachers.form.options.select_job_title') }}</option>
-                        @foreach ($jobTitles as $jobTitle)
-                            <option value="{{ $jobTitle->id }}">{{ $jobTitle->name }}{{ $jobTitle->is_active ? '' : ' - '.__('settings.common.states.inactive') }}</option>
+                    <label for="teacher-access-role" class="mb-1 block text-sm font-medium">{{ __('crud.teachers.form.fields.access_role') }}</label>
+                    <select id="teacher-access-role" wire:model="access_role_id" class="w-full rounded-xl px-4 py-3 text-sm">
+                        <option value="">{{ __('crud.teachers.form.options.select_access_role') }}</option>
+                        @foreach ($availableRoles as $availableRole)
+                            <option value="{{ $availableRole->id }}">{{ __('ui.roles.'.$availableRole->name) === 'ui.roles.'.$availableRole->name ? \Illuminate\Support\Str::of($availableRole->name)->replace('_', ' ')->headline()->toString() : __('ui.roles.'.$availableRole->name) }}</option>
                         @endforeach
                     </select>
-                    @error('teacher_job_title_id')
+                    <div class="mt-2 text-xs leading-5 text-neutral-400">{{ __('crud.teachers.form.help_access_role') }}</div>
+                    @error('access_role_id')
                         <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                     @enderror
                 </div>

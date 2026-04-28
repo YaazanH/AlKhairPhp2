@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\V1\FinanceWriteController;
 use App\Http\Controllers\Api\V1\OperationalWriteController;
 use App\Http\Controllers\Api\V1\RecordsController;
 use App\Http\Controllers\Api\V1\ReportOverviewController;
+use App\Http\Controllers\Api\V1\TeacherDailySummaryController;
 use App\Http\Controllers\Api\V1\WriteRecordsController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -18,6 +19,7 @@ Route::post('/v1/auth/token', [AuthTokenController::class, 'store']);
 Route::middleware('auth:sanctum')->prefix('v1')->group(function () {
     Route::delete('auth/token', [AuthTokenController::class, 'destroy']);
     Route::get('reports/overview', ReportOverviewController::class);
+    Route::get('reports/teachers/daily-summary', TeacherDailySummaryController::class);
     Route::controller(RecordsController::class)->group(function () {
         Route::get('students', 'students');
         Route::get('groups', 'groups');

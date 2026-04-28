@@ -62,6 +62,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('reports/export/assessments', [ReportExportController::class, 'assessments'])->middleware('permission:reports.view')->name('reports.exports.assessments');
     Volt::route('settings/organization', 'settings.organization')->middleware('permission:settings.manage')->name('settings.organization');
     Volt::route('settings/tracking', 'settings.tracking')->middleware('permission:settings.manage')->name('settings.tracking');
+    Volt::route('settings/course-completion', 'settings.course-completion')->middleware('permission:course-completion-rules.manage')->name('settings.course-completion');
     Volt::route('settings/points', 'settings.points')->middleware('permission:settings.manage')->name('settings.points');
     Volt::route('settings/finance', 'settings.finance')->middleware('permission:settings.manage')->name('settings.finance');
     Volt::route('settings/access-control', 'settings.access-control')->middleware('permission:roles.manage')->name('settings.access-control');

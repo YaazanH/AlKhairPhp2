@@ -127,7 +127,7 @@ new class extends Component {
 
     protected function teacherData($user): array
     {
-        $teacher = $user->teacherProfile?->load('jobTitle');
+        $teacher = $user->teacherProfile?->load('accessRole');
 
         if (! $teacher) {
             return $this->missingProfileData(
@@ -154,15 +154,22 @@ new class extends Component {
             ->whereHas('academicYear', fn ($query) => $query->where('is_current', true))
             ->count();
 
+        $accessRoleName = $teacher->accessRole?->name;
+        $accessRoleLabel = $accessRoleName
+            ? ((__('ui.roles.'.$accessRoleName) === 'ui.roles.'.$accessRoleName)
+                ? \Illuminate\Support\Str::of($accessRoleName)->replace('_', ' ')->headline()->toString()
+                : __('ui.roles.'.$accessRoleName))
+            : __('dashboard.roles.teacher');
+
         return [
             'dashboardRole' => 'teacher',
             'heading' => __('dashboard.teacher.heading'),
             'subheading' => __('dashboard.teacher.subheading'),
             'intro' => __('dashboard.teacher.intro'),
             'profileName' => $teacher->first_name.' '.$teacher->last_name,
-            'profileJob' => $teacher->jobTitle?->name ?: ($teacher->job_title ?: __('dashboard.roles.teacher')),
+            'profileJob' => $accessRoleLabel,
             'currentAcademicYearName' => AcademicYear::query()->where('is_current', true)->value('name') ?: __('dashboard.manager.profile_meta_no_year'),
-            'profileMeta' => $teacher->jobTitle?->name ?: ($teacher->job_title ?: ucfirst($teacher->status)),
+            'profileMeta' => $accessRoleLabel,
             'stats' => [
                 ['label' => __('dashboard.teacher.stats.assigned_groups.label'), 'value' => $allAssignedGroups, 'hint' => __('dashboard.teacher.stats.assigned_groups.hint')],
                 ['label' => __('dashboard.teacher.stats.active_groups.label'), 'value' => $activeAssignedGroups, 'hint' => __('dashboard.teacher.stats.active_groups.hint')],

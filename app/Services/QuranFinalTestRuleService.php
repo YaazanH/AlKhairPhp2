@@ -6,6 +6,8 @@ use App\Models\AppSetting;
 
 class QuranFinalTestRuleService
 {
+    public const GROUP = 'tracking';
+
     public const FAILED_FROM_KEY = 'quran_final_test_failed_from';
     public const FAILED_TO_KEY = 'quran_final_test_failed_to';
     public const PASSED_FROM_KEY = 'quran_final_test_passed_from';
@@ -13,14 +15,16 @@ class QuranFinalTestRuleService
 
     public function ranges(): array
     {
+        $settings = AppSetting::groupValues(self::GROUP);
+
         return [
             'failed' => [
-                'from' => $this->floatSetting(self::FAILED_FROM_KEY, 0),
-                'to' => $this->floatSetting(self::FAILED_TO_KEY, 59.99),
+                'from' => (float) ($settings->get(self::FAILED_FROM_KEY) ?? 0),
+                'to' => (float) ($settings->get(self::FAILED_TO_KEY) ?? 59.99),
             ],
             'passed' => [
-                'from' => $this->floatSetting(self::PASSED_FROM_KEY, 60),
-                'to' => $this->floatSetting(self::PASSED_TO_KEY, 100),
+                'from' => (float) ($settings->get(self::PASSED_FROM_KEY) ?? 60),
+                'to' => (float) ($settings->get(self::PASSED_TO_KEY) ?? 100),
             ],
         ];
     }
@@ -40,16 +44,9 @@ class QuranFinalTestRuleService
 
     public function store(array $ranges): void
     {
-        AppSetting::storeValue('tracking', self::FAILED_FROM_KEY, $ranges['failed']['from'], 'number');
-        AppSetting::storeValue('tracking', self::FAILED_TO_KEY, $ranges['failed']['to'], 'number');
-        AppSetting::storeValue('tracking', self::PASSED_FROM_KEY, $ranges['passed']['from'], 'number');
-        AppSetting::storeValue('tracking', self::PASSED_TO_KEY, $ranges['passed']['to'], 'number');
-    }
-
-    protected function floatSetting(string $key, float $default): float
-    {
-        $value = AppSetting::value('tracking', $key, $default);
-
-        return is_numeric($value) ? (float) $value : $default;
+        AppSetting::storeValue(self::GROUP, self::FAILED_FROM_KEY, $ranges['failed']['from'], 'float');
+        AppSetting::storeValue(self::GROUP, self::FAILED_TO_KEY, $ranges['failed']['to'], 'float');
+        AppSetting::storeValue(self::GROUP, self::PASSED_FROM_KEY, $ranges['passed']['from'], 'float');
+        AppSetting::storeValue(self::GROUP, self::PASSED_TO_KEY, $ranges['passed']['to'], 'float');
     }
 }

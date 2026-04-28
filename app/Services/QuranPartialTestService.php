@@ -116,19 +116,13 @@ class QuranPartialTestService
         }
 
         return DB::transaction(function () use ($part, $teacher, $data): QuranPartialTestAttempt {
-            $score = $data['score'] !== '' ? (float) $data['score'] : null;
-            $status = $score !== null
-                ? app(QuranPartialTestRuleService::class)->statusForScore($score)
-                : null;
-
-            if (! $status) {
-                throw new LogicException(__('workflow.quran_partial_tests.errors.score_not_in_range'));
-            }
+            $mistakeCount = (int) $data['mistake_count'];
+            $status = app(QuranPartialTestRuleService::class)->statusForMistakeCount($mistakeCount);
 
             $attempt = $part->attempts()->create([
                 'attempt_no' => $part->attempts()->count() + 1,
+                'mistake_count' => $mistakeCount,
                 'notes' => blank($data['notes'] ?? null) ? null : $data['notes'],
-                'score' => $score,
                 'status' => $status,
                 'teacher_id' => $teacher->id,
                 'tested_on' => $data['tested_on'],
@@ -144,7 +138,7 @@ class QuranPartialTestService
 
                 $pointLedger->recordQuranPartialTestPartPoints(
                     $part->fresh(['partialTest.enrollment.student.gradeLevel']),
-                    $attempt->score !== null ? (float) $attempt->score : null,
+                    (float) $attempt->mistake_count,
                 );
 
                 $partialTest = $part->partialTest()->with(['parts', 'enrollment.student.gradeLevel'])->firstOrFail();

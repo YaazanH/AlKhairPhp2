@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\StudentNumberService;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -47,13 +48,7 @@ class Student extends Model
                 ]);
             }
 
-            $expectedStudentNumber = (string) $student->id;
-
-            if ($student->student_number !== $expectedStudentNumber) {
-                $student->forceFill([
-                    'student_number' => $expectedStudentNumber,
-                ])->saveQuietly();
-            }
+            app(StudentNumberService::class)->syncStudent($student);
         });
     }
 

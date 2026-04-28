@@ -32,6 +32,10 @@ return [
             'meta' => 'Rules',
             'title' => 'Tracking',
         ],
+        'completion' => [
+            'meta' => 'Course end',
+            'title' => 'Completion',
+        ],
         'points' => [
             'meta' => 'Rewards',
             'title' => 'Points',
@@ -139,6 +143,11 @@ return [
                 'table' => 'Grade levels',
                 'empty' => 'No grade levels yet.',
             ],
+            'student_promotion' => [
+                'title' => 'Student grade promotion',
+                'copy' => 'Move every student with an assigned grade level up to the next active grade in one step.',
+                'note' => 'Students already in the highest active grade stay there. Students without a grade stay unchanged. Inactive grade levels are skipped.',
+            ],
             'teacher_job_title' => [
                 'create' => 'New teacher job title',
                 'edit' => 'Edit teacher job title',
@@ -164,6 +173,11 @@ return [
             'school_email' => 'Email',
             'email_domain' => 'Generated email domain',
             'email_domain_help' => 'Used when the system creates emails automatically, for example username@your-domain.com.',
+            'student_number_prefix' => 'Student number prefix',
+            'student_number_prefix_help' => 'Optional text placed before every generated student number, for example `S`.',
+            'student_number_length' => 'Student number digits',
+            'student_number_length_help' => 'How many numeric digits should be zero-padded after the prefix. Use `0` to keep plain ids.',
+            'student_number_preview' => 'Preview',
             'school_timezone' => 'Timezone',
             'school_currency' => 'Currency',
             'school_address' => 'Address',
@@ -210,6 +224,8 @@ return [
             'update_year' => 'Update year',
             'create_grade' => 'Create grade',
             'update_grade' => 'Update grade',
+            'promote_students' => 'Promote all students',
+            'promote_students_confirm' => 'Move every student with a grade level up to the next active grade?',
             'create_teacher_job_title' => 'Create job title',
             'update_teacher_job_title' => 'Update job title',
             'create_student_gender' => 'Create gender',
@@ -224,6 +240,7 @@ return [
             'grade_level_created' => 'Grade level created successfully.',
             'grade_level_updated' => 'Grade level updated successfully.',
             'grade_level_deleted' => 'Grade level deleted successfully.',
+            'students_promoted' => ':promoted students promoted. :retained remained in place. :unassigned had no grade level.',
             'teacher_job_title_created' => 'Teacher job title created successfully.',
             'teacher_job_title_updated' => 'Teacher job title updated successfully.',
             'teacher_job_title_deleted' => 'Teacher job title deleted successfully.',
@@ -234,6 +251,7 @@ return [
         'errors' => [
             'academic_year_delete_linked' => 'This academic year cannot be deleted while groups are linked to it.',
             'grade_level_delete_linked' => 'This grade level cannot be deleted while it is linked to groups, students, or point policies.',
+            'student_promotion_requires_multiple_active_grades' => 'At least two active grade levels are required before students can be promoted.',
             'teacher_job_title_delete_linked' => 'This job title cannot be deleted while teachers are using it.',
             'student_gender_delete_linked' => 'This gender cannot be deleted while students are using it.',
             'default_student_gender_requires_active' => 'The default student gender must be active.',
@@ -241,7 +259,7 @@ return [
     ],
     'tracking' => [
         'title' => 'Tracking Rules',
-        'subtitle' => 'Manage attendance states, assessment types, and the score rules that drive the standalone partial and final Quran test workflows.',
+        'subtitle' => 'Manage attendance states, assessment types, the partial-test mistake threshold, and the final-test score rules used by the standalone Quran test workflows.',
         'stats' => [
             'attendance_statuses' => 'Attendance statuses',
             'assessment_types' => 'Assessment types',
@@ -267,10 +285,10 @@ return [
                 'table' => 'Quran test types',
             ],
             'partial_test_rule' => [
-                'title' => 'Partial test score rules',
-                'copy' => 'Partial test attempts use exactly two score ranges. The student result is derived automatically from the score you enter on each part.',
-                'failed_title' => 'Failed range',
-                'passed_title' => 'Passed range',
+                'title' => 'Partial test mistake rule',
+                'copy' => 'Partial test attempts now record the number of mistakes. If the student reaches this number of mistakes or more, the part fails automatically.',
+                'threshold_title' => 'Fail threshold',
+                'threshold_help' => 'If the mistake count is equal to or greater than this number, the student fails the part.',
             ],
             'final_test_rule' => [
                 'title' => 'Final test score rules',
@@ -289,6 +307,7 @@ return [
             'default_attendance_status' => 'Default attendance value',
             'is_active' => 'Active',
             'is_scored' => 'Scored assessment',
+            'fail_at_mistakes' => 'Fail at this many mistakes',
             'from_score' => 'From score',
             'sort_order' => 'Sort order',
             'to_score' => 'To score',
@@ -334,7 +353,7 @@ return [
             'quran_test_type_created' => 'Quran test type created successfully.',
             'quran_test_type_updated' => 'Quran test type updated successfully.',
             'quran_test_type_deleted' => 'Quran test type deleted successfully.',
-            'partial_test_rules_saved' => 'Partial test score rules saved successfully.',
+            'partial_test_rules_saved' => 'Partial test mistake rule saved successfully.',
             'final_test_rules_saved' => 'Final test score rules saved successfully.',
         ],
         'errors' => [
@@ -342,12 +361,69 @@ return [
             'default_attendance_required' => 'At least one active student attendance value must remain selected as the default.',
             'default_requires_student_scope' => 'The default attendance value must be active and available for students.',
             'assessment_type_delete_linked' => 'This assessment type cannot be deleted while assessments or score bands still use it.',
-            'partial_test_rules_order' => 'Each partial-test score range must start before it ends.',
-            'partial_test_rules_overlap' => 'The passed and failed score ranges for partial tests cannot overlap.',
             'final_test_rules_order' => 'Each final-test score range must start before it ends.',
             'final_test_rules_overlap' => 'The passed and failed score ranges for final tests cannot overlap.',
             'quran_test_type_delete_linked' => 'This Quran test type cannot be deleted while test records still use it.',
             'quran_test_type_reserved' => 'The `partial` code is reserved for the standalone partial test workflow and cannot be created here.',
+        ],
+    ],
+    'course_completion' => [
+        'title' => 'Course Completion Rules',
+        'subtitle' => 'Define the end-of-course rules that protect student points, then apply the adjustment as a visible point-ledger entry.',
+        'sections' => [
+            'rules' => [
+                'title' => 'Completion requirements',
+                'copy' => 'A student keeps full points only when every enabled requirement is met.',
+            ],
+            'apply' => [
+                'title' => 'Apply rule impact',
+                'copy' => 'Choose the course scope, then calculate the point effect for the enrollments in that scope.',
+                'note' => 'Applying the rule again recalculates the previous completion adjustment for the same enrollment and writes the new effect to the point ledger.',
+            ],
+        ],
+        'fields' => [
+            'required_passed_final_tests' => 'Required passed final tests',
+            'required_passed_quizzes' => 'Required passed quizzes',
+            'required_present_attendance' => 'Required present attendance records',
+            'retain_percentage' => 'Points kept when rules fail',
+            'academic_year' => 'Academic year',
+            'course' => 'Course',
+            'group' => 'Group',
+            'enrollment_status' => 'Enrollment status',
+        ],
+        'options' => [
+            'all_academic_years' => 'All academic years',
+            'all_courses' => 'All courses',
+            'all_groups' => 'All groups',
+        ],
+        'statuses' => [
+            'all' => 'All statuses',
+            'active' => 'Active only',
+            'completed' => 'Completed only',
+            'inactive' => 'Inactive only',
+            'cancelled' => 'Cancelled only',
+        ],
+        'criteria' => [
+            'final_tests_progress' => 'Passed final tests :actual/:required',
+            'quizzes_progress' => 'Passed quizzes :actual/:required',
+            'attendance_progress' => 'Present attendance :actual/:required',
+        ],
+        'labels' => [
+            'point_effect' => 'If a student misses any enabled rule, the system keeps only :percentage% of the base active points and writes the reduction as a separate point transaction.',
+        ],
+        'actions' => [
+            'save_rules' => 'Save rules',
+            'apply_rules' => 'Apply point effect',
+            'apply_confirm' => 'Apply the course completion point effect to the current scope?',
+        ],
+        'messages' => [
+            'rules_saved' => 'Course completion rules saved successfully.',
+            'rules_applied' => 'Completion rules applied to :evaluated enrollments. :met met all rules, :adjusted were adjusted, :no_positive_points had no positive points to reduce. Total removed points: :points_removed.',
+            'adjustment_recalculated' => 'Recalculated by the course completion rules page.',
+            'adjustment_note' => 'Course completion adjustment applied for :student. Base points :base reduced to :target (:percentage%). Unmet rules: :unmet.',
+        ],
+        'errors' => [
+            'filter_required' => 'Choose at least one scope filter before applying the rule.',
         ],
     ],
     'points' => [
@@ -376,7 +452,7 @@ return [
             'quran_tests' => [
                 'title' => 'Quran test point keys',
                 'copy' => 'Use these `source_type` and `trigger_key` pairs when you want points to be awarded automatically for the new partial workflow or the existing final and awqaf tests.',
-                'score_ranges' => 'Use `from_value` and `to_value` only when the policy depends on the test score. Partial cycle completion has no score of its own, so leave the range empty for `quran_partial_test + partial_passed`.',
+                'score_ranges' => 'Use `from_value` and `to_value` only when the policy depends on the recorded attempt value. For partial-test parts this value is the mistake count, while final and awqaf tests still use scores. Partial cycle completion has no numeric value of its own, so leave the range empty for `quran_partial_test + partial_passed`.',
                 'items' => [
                     'partial_part' => [
                         'title' => 'Passed part attempt',

@@ -7,6 +7,7 @@ use App\Models\QuranFinalTest;
 use App\Models\QuranPartialTest;
 use App\Models\QuranTest;
 use App\Models\QuranTestType;
+use Illuminate\Support\Collection;
 
 class QuranProgressionService
 {
@@ -48,9 +49,48 @@ class QuranProgressionService
             if (! $passedFinal && ! $legacyPassedFinal) {
                 return __('workflow.quran_tests.errors.awqaf_requires_final');
             }
+
+            $existingAwqaf = QuranTest::query()
+                ->where('student_id', $enrollment->student_id)
+                ->where('juz_id', $juzId)
+                ->whereHas('type', fn ($query) => $query->where('code', 'awqaf'))
+                ->exists();
+
+            if ($existingAwqaf) {
+                return __('workflow.quran_tests.errors.awqaf_already_recorded');
+            }
         }
 
         return null;
+    }
+
+    public function eligibleAwqafJuzIdsForStudent(int $studentId): Collection
+    {
+        $passedFinalJuzIds = QuranFinalTest::query()
+            ->where('student_id', $studentId)
+            ->where('status', 'passed')
+            ->pluck('juz_id')
+            ->map(fn ($id) => (int) $id);
+
+        $legacyPassedFinalJuzIds = QuranTest::query()
+            ->where('student_id', $studentId)
+            ->whereHas('type', fn ($query) => $query->where('code', 'final'))
+            ->where('status', 'passed')
+            ->pluck('juz_id')
+            ->map(fn ($id) => (int) $id);
+
+        $recordedAwqafJuzIds = QuranTest::query()
+            ->where('student_id', $studentId)
+            ->whereHas('type', fn ($query) => $query->where('code', 'awqaf'))
+            ->pluck('juz_id')
+            ->map(fn ($id) => (int) $id);
+
+        return $passedFinalJuzIds
+            ->merge($legacyPassedFinalJuzIds)
+            ->unique()
+            ->values()
+            ->diff($recordedAwqafJuzIds)
+            ->values();
     }
 
     public function nextAttemptNumber(Enrollment $enrollment, int $juzId, int $testTypeId): int

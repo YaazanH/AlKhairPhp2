@@ -14,6 +14,7 @@ class QuranPartialTestAttempt extends Model
         'quran_partial_test_part_id',
         'teacher_id',
         'tested_on',
+        'mistake_count',
         'score',
         'status',
         'attempt_no',
@@ -24,6 +25,7 @@ class QuranPartialTestAttempt extends Model
     {
         return [
             'attempt_no' => 'integer',
+            'mistake_count' => 'integer',
             'score' => 'decimal:2',
             'tested_on' => 'date',
         ];

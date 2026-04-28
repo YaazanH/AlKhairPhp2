@@ -131,7 +131,7 @@ class AdminExportController extends Controller
         abort_unless($request->user()?->can('teachers.view'), 403);
 
         $query = $scopes->scopeTeachers(Teacher::query(), $request->user())
-            ->with(['jobTitle', 'course', 'user'])
+            ->with(['accessRole', 'course', 'user'])
             ->withCount(['assignedGroups', 'assistedGroups'])
             ->orderBy('last_name')
             ->orderBy('first_name');
@@ -143,8 +143,7 @@ class AdminExportController extends Controller
                     ->where('first_name', 'like', '%'.$search.'%')
                     ->orWhere('last_name', 'like', '%'.$search.'%')
                     ->orWhere('phone', 'like', '%'.$search.'%')
-                    ->orWhere('job_title', 'like', '%'.$search.'%')
-                    ->orWhereHas('jobTitle', fn ($titleQuery) => $titleQuery->where('name', 'like', '%'.$search.'%'))
+                    ->orWhereHas('accessRole', fn ($roleQuery) => $roleQuery->where('name', 'like', '%'.$search.'%'))
                     ->orWhereHas('course', fn ($courseQuery) => $courseQuery->where('name', 'like', '%'.$search.'%'));
             });
         }
@@ -157,12 +156,12 @@ class AdminExportController extends Controller
             $query->where('is_helping', $request->string('helping')->value() === 'helping');
         }
 
-        return $this->streamXlsx('teachers', ['Teacher', 'Username', 'Password', 'Phone', 'Job Title', 'Course', 'Groups', 'Helping Now', 'Status'], $query->get()->map(fn (Teacher $teacher) => [
+        return $this->streamXlsx('teachers', ['Teacher', 'Username', 'Password', 'Phone', 'Access Role', 'Course', 'Groups', 'Helping Now', 'Status'], $query->get()->map(fn (Teacher $teacher) => [
             trim($teacher->first_name.' '.$teacher->last_name),
             $teacher->user?->username,
             $teacher->user?->issued_password,
             $teacher->phone,
-            $teacher->jobTitle?->name ?: $teacher->job_title,
+            $teacher->accessRole?->name,
             $teacher->course?->name,
             $teacher->assigned_groups_count + $teacher->assisted_groups_count,
             $teacher->is_helping ? 'Yes' : 'No',

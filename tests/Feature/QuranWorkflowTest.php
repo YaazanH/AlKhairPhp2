@@ -22,6 +22,7 @@ use App\Models\StudentPageAchievement;
 use App\Models\Teacher;
 use App\Models\TeacherAttendanceDay;
 use App\Models\User;
+use App\Services\QuranProgressionService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Volt\Volt;
 use Tests\TestCase;
@@ -292,7 +293,21 @@ class QuranWorkflowTest extends TestCase
             'juz_id' => $juz->id,
             'quran_test_type_id' => $awqaf->id,
             'attempt_no' => 1,
+            'teacher_id' => $enrollment->group->teacher_id,
         ]);
+
+        $this->assertFalse(
+            app(QuranProgressionService::class)
+                ->eligibleAwqafJuzIdsForStudent($enrollment->student_id)
+                ->contains($juz->id)
+        );
+
+        Volt::test('enrollments.quran-tests', ['enrollment' => $enrollment])
+            ->set('juz_id', $juz->id)
+            ->set('tested_on', '2026-09-11')
+            ->set('status', 'passed')
+            ->call('saveQuranTest')
+            ->assertHasErrors(['juz_id']);
     }
 
     public function test_point_ledger_allows_manual_entries_and_voiding(): void

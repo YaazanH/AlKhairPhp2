@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Spatie\Permission\Models\Role;
 
 class Teacher extends Model
 {
@@ -21,6 +22,7 @@ class Teacher extends Model
         'job_title',
         'photo_path',
         'teacher_job_title_id',
+        'access_role_id',
         'course_id',
         'status',
         'is_helping',
@@ -50,6 +52,11 @@ class Teacher extends Model
     public function jobTitle(): BelongsTo
     {
         return $this->belongsTo(TeacherJobTitle::class, 'teacher_job_title_id');
+    }
+
+    public function accessRole(): BelongsTo
+    {
+        return $this->belongsTo(Role::class, 'access_role_id');
     }
 
     public function course(): BelongsTo

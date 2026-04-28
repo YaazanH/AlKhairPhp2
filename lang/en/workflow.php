@@ -385,7 +385,7 @@ return [
             ],
             'form' => [
                 'title' => 'Quran test entry',
-                'help' => 'Choose the student first, then select the active group only if the student has more than one active enrollment.',
+                'help' => 'Choose the student first, then select the active group only if the student has more than one active enrollment. Only juzs with a passed final test and no awqaf record are shown.',
                 'student' => 'Student',
                 'group' => 'Group',
                 'select_student' => 'Select student',
@@ -414,7 +414,9 @@ return [
         'errors' => [
             'final_requires_partials' => 'Final tests require a passed partial cycle for the same juz.',
             'awqaf_requires_final' => 'Awqaf tests require a passed final test for the same juz.',
+            'awqaf_already_recorded' => 'An awqaf test has already been recorded for this juz.',
             'no_active_enrollment' => 'This student does not have an active enrollment in your current scope.',
+            'no_teacher_available' => 'This enrollment does not have an assigned teacher to attach to the awqaf test.',
             'partial_moved' => 'Partial tests now use the standalone partial test workflow.',
             'final_moved' => 'Final tests now use the standalone final test workflow.',
             'awqaf_only' => 'This endpoint only records awqaf test results.',
@@ -422,7 +424,7 @@ return [
         ],
         'form' => [
             'title' => 'New awqaf test',
-            'help' => 'Only awqaf results are recorded here. The student must already have a passed standalone final test for the same juz.',
+            'help' => 'Only awqaf results are recorded here. The student must already have a passed standalone final test for the same juz, and each juz can be recorded only once.',
             'teacher' => 'Teacher',
             'tested_on' => 'Tested on',
             'juz' => 'Juz',
@@ -433,6 +435,7 @@ return [
             'select_teacher' => 'Select teacher',
             'select_juz' => 'Select juz',
             'select_type' => 'Select type',
+            'no_eligible_juzs' => 'No eligible juzs are available. The student needs a passed final test and no existing awqaf record for that juz.',
         ],
         'read_only' => [
             'title' => 'Read-only access',
@@ -496,7 +499,6 @@ return [
             'select_group' => 'Select the active group you want to create this partial test under.',
             'juz_not_eligible' => 'This juz is not available for a new partial cycle for the selected student.',
             'part_already_passed' => 'This part is already passed and cannot be attempted again.',
-            'score_not_in_range' => 'This score does not match the configured passed or failed range for partial tests.',
         ],
         'table' => [
             'title' => 'Partial test cycles',
@@ -523,15 +525,18 @@ return [
         ],
         'attempts' => [
             'title' => 'Record part attempt',
-            'copy' => 'Save the testing day, teacher, and score for one part. The passed or failed result is derived automatically from the configured score ranges.',
+            'copy' => 'Save the testing day, teacher, and number of mistakes for one part. The part fails automatically when the mistake count reaches the configured threshold.',
             'teacher_locked' => 'Your linked teacher account will be saved automatically for this attempt.',
-            'range_failed' => 'Failed: :from to :to',
-            'range_passed' => 'Passed: :from to :to',
+            'fail_threshold' => 'Fails at :count mistakes or more',
+            'legacy_score' => 'Legacy score: :value',
+            'fields' => [
+                'mistake_count' => 'Mistake count',
+            ],
             'headers' => [
                 'attempt' => 'Attempt',
                 'date' => 'Date',
                 'teacher' => 'Teacher',
-                'score' => 'Score',
+                'mistake_count' => 'Mistakes',
                 'status' => 'Status',
             ],
         ],

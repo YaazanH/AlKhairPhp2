@@ -16,6 +16,8 @@ use App\Models\StudentPageAchievement;
 use App\Models\Student;
 use App\Models\Teacher;
 use App\Models\User;
+use App\Services\QuranFinalTestService;
+use App\Services\QuranProgressionService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Volt\Volt;
 use Tests\TestCase;
@@ -62,12 +64,13 @@ class StandaloneWorkflowPagesTest extends TestCase
         Volt::test('quran-partial-tests.show', ['partialTest' => $partialTest])
             ->call('openAttemptModal', $part->id)
             ->set('tested_on', '2026-09-10')
-            ->set('score', '95')
+            ->set('mistake_count', '2')
             ->call('saveAttempt')
             ->assertHasNoErrors();
 
         $this->assertDatabaseHas('quran_partial_test_attempts', [
             'attempt_no' => 1,
+            'mistake_count' => 2,
             'quran_partial_test_part_id' => $part->id,
             'status' => 'passed',
             'teacher_id' => $teacher->id,
@@ -217,6 +220,12 @@ class StandaloneWorkflowPagesTest extends TestCase
             'student_id' => $enrollment->student_id,
         ]);
 
+        $this->assertFalse(
+            app(QuranFinalTestService::class)
+                ->eligibleJuzIdsForStudent($enrollment->student->fresh())
+                ->contains($juz->id)
+        );
+
         Volt::test('quran-final-tests.index')
             ->set('selectedStudentId', $enrollment->student_id)
             ->set('selectedEnrollmentId', $enrollment->id)
@@ -257,6 +266,48 @@ class StandaloneWorkflowPagesTest extends TestCase
             'points' => 5,
             'notes' => null,
         ]);
+    }
+
+    public function test_manager_awqaf_workbench_uses_group_teacher_and_hides_recorded_juzs(): void
+    {
+        $enrollment = $this->managerContext();
+        $juz = QuranJuz::query()->where('juz_number', 1)->firstOrFail();
+
+        $finalTest = QuranFinalTest::query()->create([
+            'created_by' => auth()->id(),
+            'enrollment_id' => $enrollment->id,
+            'juz_id' => $juz->id,
+            'passed_on' => '2026-09-12',
+            'status' => 'passed',
+            'student_id' => $enrollment->student_id,
+        ]);
+
+        $finalTest->attempts()->create([
+            'attempt_no' => 1,
+            'score' => 91,
+            'status' => 'passed',
+            'teacher_id' => $enrollment->group->teacher_id,
+            'tested_on' => '2026-09-12',
+        ]);
+
+        Volt::test('quran-tests.index')
+            ->set('selectedStudentId', $enrollment->student_id)
+            ->set('selectedEnrollmentId', $enrollment->id)
+            ->set('juz_id', $juz->id)
+            ->call('save')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('quran_tests', [
+            'enrollment_id' => $enrollment->id,
+            'juz_id' => $juz->id,
+            'teacher_id' => $enrollment->group->teacher_id,
+        ]);
+
+        $this->assertFalse(
+            app(QuranProgressionService::class)
+                ->eligibleAwqafJuzIdsForStudent($enrollment->student_id)
+                ->contains($juz->id)
+        );
     }
 
     private function teacherContext(): array
