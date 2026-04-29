@@ -7,6 +7,7 @@
     $sidebarToggleInset = $isRtl ? 'right' : 'left';
     $desktopDropdownAlign = $isRtl ? 'end' : 'start';
     $mobileIdentitySpacingClass = $isRtl ? 'mr-3' : 'ml-3';
+    $sidebarGroups = app(\App\Services\SidebarNavigationService::class)->sidebarFor(auth()->user());
 @endphp
 
 <!DOCTYPE html>
@@ -47,142 +48,13 @@
                 </div>
 
                 <flux:navlist variant="outline" class="mt-6">
-                    <flux:navlist.group :heading="__('ui.nav.platform')" class="grid">
-                        <flux:navlist.item icon="home" :href="route('dashboard')" :current="request()->routeIs('dashboard')" wire:navigate>{{ __('ui.nav.dashboard') }}</flux:navlist.item>
-                        @can('reports.view')
-                            <flux:navlist.item icon="chart-bar" :href="route('reports.index')" :current="request()->routeIs('reports.*')" wire:navigate>{{ __('ui.nav.reports') }}</flux:navlist.item>
-                        @endcan
-                    </flux:navlist.group>
-
-                    @if (auth()->user()->can('users.view') || auth()->user()->can('parents.view') || auth()->user()->can('teachers.view') || auth()->user()->can('students.view'))
-                        <flux:navlist.group :heading="__('ui.nav.people')" class="grid">
-                            @can('users.view')
-                                <flux:navlist.item icon="users" :href="route('users.index')" :current="request()->routeIs('users.*')" wire:navigate>{{ __('ui.nav.users') }}</flux:navlist.item>
-                            @endcan
-                            @can('parents.view')
-                                <flux:navlist.item icon="user-group" :href="route('parents.index')" :current="request()->routeIs('parents.*')" wire:navigate>{{ __('ui.nav.parents') }}</flux:navlist.item>
-                            @endcan
-                            @can('teachers.view')
-                                <flux:navlist.item icon="academic-cap" :href="route('teachers.index')" :current="request()->routeIs('teachers.*')" wire:navigate>{{ __('ui.nav.teachers') }}</flux:navlist.item>
-                            @endcan
-                            @can('students.view')
-                                <flux:navlist.item icon="identification" :href="route('students.index')" :current="request()->routeIs('students.index', 'students.progress', 'students.files')" wire:navigate>{{ __('ui.nav.students') }}</flux:navlist.item>
-                            @endcan
-                            @can('students.update')
-                                <flux:navlist.item icon="photo" :href="route('students.bulk-photos')" :current="request()->routeIs('students.bulk-photos')" wire:navigate>{{ __('ui.nav.bulk_student_photos') }}</flux:navlist.item>
-                            @endcan
+                    @foreach ($sidebarGroups as $group)
+                        <flux:navlist.group :heading="$group['title']" class="grid">
+                            @foreach ($group['items'] as $item)
+                                <flux:navlist.item :icon="$item['icon']" :href="$item['href']" :current="$item['current']" wire:navigate>{{ $item['label'] }}</flux:navlist.item>
+                            @endforeach
                         </flux:navlist.group>
-                    @endif
-
-                    @if (auth()->user()->can('courses.view') || auth()->user()->can('groups.view') || auth()->user()->can('enrollments.view'))
-                        <flux:navlist.group :heading="__('ui.nav.academics')" class="grid">
-                            @can('courses.view')
-                                <flux:navlist.item icon="book-open" :href="route('courses.index')" :current="request()->routeIs('courses.*')" wire:navigate>{{ __('ui.nav.courses') }}</flux:navlist.item>
-                            @endcan
-                            @can('groups.view')
-                                <flux:navlist.item icon="rectangle-group" :href="route('groups.index')" :current="request()->routeIs('groups.*')" wire:navigate>{{ __('ui.nav.groups') }}</flux:navlist.item>
-                            @endcan
-                            @can('enrollments.view')
-                                <flux:navlist.item icon="clipboard-document-list" :href="route('enrollments.index')" :current="request()->routeIs('enrollments.*')" wire:navigate>{{ __('ui.nav.enrollments') }}</flux:navlist.item>
-                            @endcan
-                        </flux:navlist.group>
-                    @endif
-
-                    @if (auth()->user()->can('attendance.student.view') || auth()->user()->can('attendance.teacher.view'))
-                        <flux:navlist.group :heading="__('ui.nav.tracking_attendance')" class="grid">
-                            @can('attendance.student.view')
-                                <flux:navlist.item icon="calendar-days" :href="route('student-attendance.index')" :current="request()->routeIs('student-attendance.*', 'groups.attendance')" wire:navigate>{{ __('ui.nav.student_attendance') }}</flux:navlist.item>
-                            @endcan
-                            @can('attendance.teacher.view')
-                                <flux:navlist.item icon="clipboard-document-check" :href="route('teachers.attendance')" :current="request()->routeIs('teachers.attendance')" wire:navigate>{{ __('ui.nav.teacher_attendance') }}</flux:navlist.item>
-                            @endcan
-                        </flux:navlist.group>
-                    @endif
-
-                    @if (auth()->user()->can('memorization.view') || auth()->user()->can('memorization.record') || auth()->user()->can('quran-partial-tests.view') || auth()->user()->can('quran-final-tests.view') || auth()->user()->can('quran-tests.view'))
-                        <flux:navlist.group :heading="__('ui.nav.tracking_quran')" class="grid">
-                            @can('memorization.view')
-                                <flux:navlist.item icon="book-open-text" :href="route('memorization.index')" :current="request()->routeIs('memorization.index', 'enrollments.memorization')" wire:navigate>{{ __('ui.nav.memorization') }}</flux:navlist.item>
-                            @endcan
-                            @can('memorization.record')
-                                <flux:navlist.item icon="pencil-square" :href="route('memorization.quick-entry')" :current="request()->routeIs('memorization.quick-entry')" wire:navigate>{{ __('ui.nav.enter_memorize') }}</flux:navlist.item>
-                            @endcan
-                            @can('quran-partial-tests.view')
-                                <flux:navlist.item icon="squares-2x2" :href="route('quran-partial-tests.index')" :current="request()->routeIs('quran-partial-tests.*')" wire:navigate>{{ __('ui.nav.quran_partial_tests') }}</flux:navlist.item>
-                            @endcan
-                            @can('quran-final-tests.view')
-                                <flux:navlist.item icon="check-badge" :href="route('quran-final-tests.index')" :current="request()->routeIs('quran-final-tests.*')" wire:navigate>{{ __('ui.nav.quran_final_tests') }}</flux:navlist.item>
-                            @endcan
-                            @can('quran-tests.view')
-                                <flux:navlist.item icon="document-check" :href="route('quran-tests.index')" :current="request()->routeIs('quran-tests.*', 'enrollments.quran-tests')" wire:navigate>{{ __('ui.nav.quran_tests') }}</flux:navlist.item>
-                            @endcan
-                        </flux:navlist.group>
-                    @endif
-
-                    @if (auth()->user()->can('assessments.view') || auth()->user()->can('points.view'))
-                        <flux:navlist.group :heading="__('ui.nav.tracking_performance')" class="grid">
-                            @can('assessments.view')
-                                <flux:navlist.item icon="chart-pie" :href="route('assessments.index')" :current="request()->routeIs('assessments.*')" wire:navigate>{{ __('ui.nav.assessments') }}</flux:navlist.item>
-                            @endcan
-                            @can('points.view')
-                                <flux:navlist.item icon="trophy" :href="route('points.index')" :current="request()->routeIs('points.*', 'enrollments.points')" wire:navigate>{{ __('ui.nav.point_ledger') }}</flux:navlist.item>
-                            @endcan
-                        </flux:navlist.group>
-                    @endif
-
-                    @if (auth()->user()->can('student-notes.view') || auth()->user()->can('barcode-scans.import'))
-                        <flux:navlist.group :heading="__('ui.nav.tracking_tools')" class="grid">
-                            @can('student-notes.view')
-                                <flux:navlist.item icon="pencil-square" :href="route('student-notes.index')" :current="request()->routeIs('student-notes.*')" wire:navigate>{{ __('ui.nav.student_notes') }}</flux:navlist.item>
-                            @endcan
-                            @can('barcode-scans.import')
-                                <flux:navlist.item icon="qr-code" :href="route('barcode-actions.import')" :current="request()->routeIs('barcode-actions.import')" wire:navigate>{{ __('ui.nav.scanner_import') }}</flux:navlist.item>
-                            @endcan
-                        </flux:navlist.group>
-                    @endif
-
-                    @if (auth()->user()->can('activities.view') || auth()->user()->can('activities.responses.view') || auth()->user()->can('invoices.view'))
-                        <flux:navlist.group :heading="__('ui.nav.finance')" class="grid">
-                            @can('activities.view')
-                                <flux:navlist.item icon="sparkles" :href="route('activities.index')" :current="request()->routeIs('activities.index', 'activities.finance')" wire:navigate>{{ __('ui.nav.activities') }}</flux:navlist.item>
-                            @endcan
-                            @can('activities.responses.view')
-                                <flux:navlist.item icon="heart" :href="route('activities.family')" :current="request()->routeIs('activities.family')" wire:navigate>{{ __('ui.nav.family_activities') }}</flux:navlist.item>
-                            @endcan
-                            @can('invoices.view')
-                                <flux:navlist.item icon="document-currency-dollar" :href="route('invoices.index')" :current="request()->routeIs('invoices.*')" wire:navigate>{{ __('ui.nav.invoices') }}</flux:navlist.item>
-                            @endcan
-                        </flux:navlist.group>
-                    @endif
-
-                    @if (auth()->user()->can('settings.manage') || auth()->user()->can('website.manage'))
-                        <flux:navlist.group :heading="__('ui.nav.configuration')" class="grid">
-                            @can('settings.manage')
-                                <flux:navlist.item icon="cog-6-tooth" :href="route('settings.organization')" :current="request()->routeIs('settings.organization', 'settings.tracking', 'settings.course-completion', 'settings.points', 'settings.finance', 'settings.access-control')" wire:navigate>{{ __('ui.nav.dashboard_settings') }}</flux:navlist.item>
-                            @endcan
-                            @can('website.manage')
-                                <flux:navlist.item icon="globe-alt" :href="route('settings.website')" :current="request()->routeIs('settings.website', 'settings.website.pages', 'settings.website.navigation')" wire:navigate>{{ __('ui.nav.public_website_settings') }}</flux:navlist.item>
-                            @endcan
-                        </flux:navlist.group>
-                    @endif
-
-                    @if (auth()->user()->can('id-cards.view') || auth()->user()->can('id-cards.print') || auth()->user()->can('barcode-actions.view'))
-                        <flux:navlist.group :heading="__('ui.nav.identity_tools')" class="grid">
-                            @can('id-cards.view')
-                                <flux:navlist.item icon="document-duplicate" :href="route('print-templates.templates.index')" :current="request()->routeIs('print-templates.*')" wire:navigate>{{ __('ui.nav.print_templates') }}</flux:navlist.item>
-                            @endcan
-                            @can('id-cards.view')
-                                <flux:navlist.item icon="identification" :href="route('id-cards.templates.index')" :current="request()->routeIs('id-cards.templates.*')" wire:navigate>{{ __('ui.nav.id_card_templates') }}</flux:navlist.item>
-                            @endcan
-                            @can('id-cards.print')
-                                <flux:navlist.item icon="printer" :href="route('id-cards.print.create')" :current="request()->routeIs('id-cards.print.*')" wire:navigate>{{ __('ui.nav.id_card_print') }}</flux:navlist.item>
-                            @endcan
-                            @can('barcode-actions.view')
-                                <flux:navlist.item icon="qr-code" :href="route('barcode-actions.index')" :current="request()->routeIs('barcode-actions.index', 'barcode-actions.print.*')" wire:navigate>{{ __('ui.nav.action_barcodes') }}</flux:navlist.item>
-                            @endcan
-                        </flux:navlist.group>
-                    @endif
-
+                    @endforeach
                 </flux:navlist>
 
                 <flux:spacer />

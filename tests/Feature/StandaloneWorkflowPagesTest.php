@@ -12,6 +12,7 @@ use App\Models\PointType;
 use App\Models\QuranFinalTest;
 use App\Models\QuranJuz;
 use App\Models\QuranPartialTest;
+use App\Models\QuranTest;
 use App\Models\StudentPageAchievement;
 use App\Models\Student;
 use App\Models\Teacher;
@@ -137,6 +138,42 @@ class StandaloneWorkflowPagesTest extends TestCase
         ]);
     }
 
+    public function test_partial_test_workbench_can_filter_by_juz(): void
+    {
+        [$teacher] = $this->teacherContext();
+        $juzs = QuranJuz::query()
+            ->whereIn('juz_number', [1, 2])
+            ->orderBy('juz_number')
+            ->get();
+
+        $firstEnrollment = $this->makeEnrollment($teacher->id, 'Partial Filter Alpha');
+        $secondEnrollment = $this->makeEnrollment($teacher->id, 'Partial Filter Beta');
+
+        foreach ([[$firstEnrollment, $juzs->first(), 'passed'], [$secondEnrollment, $juzs->last(), 'in_progress']] as [$enrollment, $juz, $status]) {
+            $partialTest = QuranPartialTest::query()->create([
+                'created_by' => $teacher->user_id,
+                'enrollment_id' => $enrollment->id,
+                'juz_id' => $juz->id,
+                'passed_on' => $status === 'passed' ? '2026-09-15' : null,
+                'status' => $status,
+                'student_id' => $enrollment->student_id,
+            ]);
+
+            foreach (range(1, 4) as $partNumber) {
+                $partialTest->parts()->create([
+                    'part_number' => $partNumber,
+                    'passed_on' => $status === 'passed' ? '2026-09-1'.$partNumber : null,
+                    'status' => $status === 'passed' ? 'passed' : 'pending',
+                ]);
+            }
+        }
+
+        Volt::test('quran-partial-tests.index')
+            ->set('juzFilter', (string) $juzs->first()->id)
+            ->assertSee('Partial Filter Alpha')
+            ->assertDontSee('Partial Filter Beta');
+    }
+
     public function test_teacher_final_test_workbench_uses_the_logged_in_teacher_and_locks_after_pass(): void
     {
         [$teacher, $enrollment] = $this->teacherContext();
@@ -235,6 +272,40 @@ class StandaloneWorkflowPagesTest extends TestCase
             ->assertSet('existingFinalTestSummary.juz_number', $juz->juz_number);
     }
 
+    public function test_final_test_workbench_can_filter_by_juz(): void
+    {
+        [$teacher] = $this->teacherContext();
+        $juzs = QuranJuz::query()
+            ->whereIn('juz_number', [1, 2])
+            ->orderBy('juz_number')
+            ->get();
+
+        $firstEnrollment = $this->makeEnrollment($teacher->id, 'Final Filter Alpha');
+        $secondEnrollment = $this->makeEnrollment($teacher->id, 'Final Filter Beta');
+
+        QuranFinalTest::query()->create([
+            'created_by' => $teacher->user_id,
+            'enrollment_id' => $firstEnrollment->id,
+            'juz_id' => $juzs->first()->id,
+            'passed_on' => '2026-09-16',
+            'status' => 'passed',
+            'student_id' => $firstEnrollment->student_id,
+        ]);
+
+        QuranFinalTest::query()->create([
+            'created_by' => $teacher->user_id,
+            'enrollment_id' => $secondEnrollment->id,
+            'juz_id' => $juzs->last()->id,
+            'status' => 'in_progress',
+            'student_id' => $secondEnrollment->student_id,
+        ]);
+
+        Volt::test('quran-final-tests.index')
+            ->set('juzFilter', (string) $juzs->first()->id)
+            ->assertSee('Final Filter Alpha')
+            ->assertDontSee('Final Filter Beta');
+    }
+
     public function test_manager_point_ledger_workbench_creates_and_updates_manual_entries(): void
     {
         $enrollment = $this->managerContext();
@@ -308,6 +379,57 @@ class StandaloneWorkflowPagesTest extends TestCase
                 ->eligibleAwqafJuzIdsForStudent($enrollment->student_id)
                 ->contains($juz->id)
         );
+    }
+
+    public function test_awqaf_workbench_can_filter_by_juz(): void
+    {
+        $firstEnrollment = $this->managerContext();
+        $managerUser = auth()->user();
+
+        $teacher = Teacher::create([
+            'first_name' => 'Awqaf',
+            'last_name' => 'Filter Teacher',
+            'phone' => '0998444999',
+            'status' => 'active',
+        ]);
+
+        $secondEnrollment = $this->makeEnrollment($teacher->id, 'Awqaf Filter Beta');
+        $this->actingAs($managerUser);
+
+        $awqafType = \App\Models\QuranTestType::query()->where('code', 'awqaf')->firstOrFail();
+        $juzs = QuranJuz::query()
+            ->whereIn('juz_number', [1, 2])
+            ->orderBy('juz_number')
+            ->get();
+
+        QuranTest::query()->create([
+            'enrollment_id' => $firstEnrollment->id,
+            'student_id' => $firstEnrollment->student_id,
+            'teacher_id' => $firstEnrollment->group->teacher_id,
+            'juz_id' => $juzs->first()->id,
+            'quran_test_type_id' => $awqafType->id,
+            'tested_on' => '2026-09-20',
+            'score' => 90,
+            'status' => 'passed',
+            'attempt_no' => 1,
+        ]);
+
+        QuranTest::query()->create([
+            'enrollment_id' => $secondEnrollment->id,
+            'student_id' => $secondEnrollment->student_id,
+            'teacher_id' => $secondEnrollment->group->teacher_id,
+            'juz_id' => $juzs->last()->id,
+            'quran_test_type_id' => $awqafType->id,
+            'tested_on' => '2026-09-21',
+            'score' => 71,
+            'status' => 'failed',
+            'attempt_no' => 1,
+        ]);
+
+        Volt::test('quran-tests.index')
+            ->set('juzFilter', (string) $juzs->first()->id)
+            ->assertSee('Workbench Manager Group')
+            ->assertDontSee('Awqaf Filter Beta');
     }
 
     private function teacherContext(): array

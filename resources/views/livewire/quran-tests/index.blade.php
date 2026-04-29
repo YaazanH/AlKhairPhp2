@@ -30,6 +30,7 @@ new class extends Component {
     public string $notes = '';
     public string $search = '';
     public string $statusFilter = 'all';
+    public string $juzFilter = 'all';
     public int $perPage = 15;
     public bool $showFormModal = false;
 
@@ -75,6 +76,10 @@ new class extends Component {
                 in_array($this->statusFilter, ['passed', 'failed', 'cancelled'], true),
                 fn (Builder $query) => $query->where('status', $this->statusFilter)
             )
+            ->when(
+                $this->juzFilter !== 'all' && filled($this->juzFilter),
+                fn (Builder $query) => $query->where('juz_id', (int) $this->juzFilter)
+            )
             ->latest('tested_on')
             ->latest('id');
 
@@ -98,6 +103,7 @@ new class extends Component {
                 ->orderByDesc('enrolled_at')
                 ->orderByDesc('id')
                 ->get(),
+            'juzOptions' => QuranJuz::query()->orderBy('juz_number')->get(),
             'eligibleJuzs' => $this->eligibleJuzsForStudentId($this->selectedStudentId),
             'stats' => [
                 'students' => $studentOptions->count(),
@@ -117,6 +123,11 @@ new class extends Component {
     }
 
     public function updatedStatusFilter(): void
+    {
+        $this->resetPage();
+    }
+
+    public function updatedJuzFilter(): void
     {
         $this->resetPage();
     }
@@ -345,6 +356,16 @@ new class extends Component {
                         <option value="passed">{{ __('workflow.common.result_status.passed') }}</option>
                         <option value="failed">{{ __('workflow.common.result_status.failed') }}</option>
                         <option value="cancelled">{{ __('workflow.common.result_status.cancelled') }}</option>
+                    </select>
+                </div>
+
+                <div class="admin-filter-field">
+                    <label for="quran-tests-juz-filter">{{ __('workflow.quran_tests.workbench.filters.juz') }}</label>
+                    <select id="quran-tests-juz-filter" wire:model.live="juzFilter">
+                        <option value="all">{{ __('workflow.quran_tests.workbench.filters.all_juzs') }}</option>
+                        @foreach ($juzOptions as $juzOption)
+                            <option value="{{ $juzOption->id }}">{{ __('workflow.common.labels.juz_number', ['number' => $juzOption->juz_number]) }}</option>
+                        @endforeach
                     </select>
                 </div>
 

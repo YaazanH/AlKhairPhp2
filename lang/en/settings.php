@@ -36,6 +36,10 @@ return [
             'meta' => 'Course end',
             'title' => 'Completion',
         ],
+        'sidebar' => [
+            'meta' => 'Navigation',
+            'title' => 'Sidebar',
+        ],
         'points' => [
             'meta' => 'Rewards',
             'title' => 'Points',
@@ -255,6 +259,43 @@ return [
             'teacher_job_title_delete_linked' => 'This job title cannot be deleted while teachers are using it.',
             'student_gender_delete_linked' => 'This gender cannot be deleted while students are using it.',
             'default_student_gender_requires_active' => 'The default student gender must be active.',
+        ],
+    ],
+    'sidebar_navigation' => [
+        'title' => 'Sidebar Navigation',
+        'subtitle' => 'Reorder sidebar groups and move pages between them without editing the Blade file.',
+        'sections' => [
+            'groups' => [
+                'title' => 'Sidebar groups',
+                'copy' => 'Rename the existing sidebar groups and control the order they appear in.',
+            ],
+            'items' => [
+                'title' => 'Sidebar items',
+                'copy' => 'Move each page into the group you want and control the order inside that group.',
+            ],
+        ],
+        'fields' => [
+            'use_default_title' => 'Use default title',
+            'custom_group_title' => 'Custom group title',
+            'custom_group_title_placeholder' => 'Enter a custom group title',
+            'group_order' => 'Group order',
+            'group' => 'Group',
+            'item_order' => 'Item order',
+        ],
+        'labels' => [
+            'custom_group' => 'Custom group',
+        ],
+        'actions' => [
+            'add_group' => 'Add group',
+            'remove_group' => 'Remove group',
+            'save' => 'Save sidebar layout',
+        ],
+        'messages' => [
+            'saved' => 'Sidebar grouping updated successfully.',
+        ],
+        'errors' => [
+            'custom_group_title_required' => 'Each custom sidebar group needs a title before you can save.',
+            'group_required' => 'Choose a valid sidebar group for this page.',
         ],
     ],
     'tracking' => [

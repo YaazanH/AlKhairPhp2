@@ -377,12 +377,14 @@ return [
                 'tests' => 'Recorded tests',
                 'passed' => 'Passed tests',
             ],
-            'filters' => [
-                'status' => 'Result status',
-                'all_statuses' => 'All result statuses',
-                'test_type' => 'Test type',
-                'all_types' => 'All test types',
-            ],
+        'filters' => [
+            'status' => 'Result status',
+            'all_statuses' => 'All result statuses',
+            'juz' => 'Juz',
+            'all_juzs' => 'All juzs',
+            'test_type' => 'Test type',
+            'all_types' => 'All test types',
+        ],
             'form' => [
                 'title' => 'Quran test entry',
                 'help' => 'Choose the student first, then select the active group only if the student has more than one active enrollment. Only juzs with a passed final test and no awqaf record are shown.',
@@ -465,6 +467,8 @@ return [
         'filters' => [
             'status' => 'Cycle status',
             'all_statuses' => 'All cycle statuses',
+            'juz' => 'Juz',
+            'all_juzs' => 'All juzs',
         ],
         'statuses' => [
             'pending' => 'Pending',
@@ -558,6 +562,8 @@ return [
         'filters' => [
             'status' => 'Cycle status',
             'all_statuses' => 'All cycle statuses',
+            'juz' => 'Juz',
+            'all_juzs' => 'All juzs',
         ],
         'statuses' => [
             'in_progress' => 'In progress',
@@ -897,6 +903,12 @@ return [
     'student_progress' => [
         'title' => 'Student Progress',
         'subtitle' => 'Review the student profile, memorization history, Quran tests, assessment marks, and point history in one place.',
+        'filters' => [
+            'title' => 'Course filter',
+            'copy' => 'Limit the progress view to one course when the student has multiple enrollments.',
+            'course' => 'Course',
+            'all_courses' => 'All courses',
+        ],
         'stats' => [
             'active_enrollments' => 'Active enrollments',
             'memorized_pages' => 'Memorized pages',
@@ -971,6 +983,11 @@ return [
                 'state' => 'State',
                 'notes' => 'Notes',
             ],
+        ],
+        'point_type_summary' => [
+            'title' => 'Point totals by type',
+            'empty' => 'No active point totals are available for the current course filter.',
+            'entries' => ':count entries',
         ],
         'notes' => [
             'title' => 'Parent-visible notes',

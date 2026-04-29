@@ -185,6 +185,7 @@ return [
         'users' => 'المستخدمون',
         'roles' => 'الأدوار والصلاحيات',
         'course-completion-rules' => 'قواعد إتمام الدورة',
+        'sidebar-navigation' => 'تنظيم الشريط الجانبي',
         'id-cards' => 'بطاقات الطلاب',
         'barcode-actions' => 'باركود الإجراءات',
         'barcode-scans' => 'استيراد الماسح',
@@ -214,6 +215,7 @@ return [
     ],
     'permissions' => [
         'course-completion-rules.manage' => 'إدارة قواعد إتمام الدورة وتطبيق تعديلات النقاط',
+        'sidebar-navigation.manage' => 'إدارة تجميع الشريط الجانبي وتوزيع الصفحات داخله',
         'dashboard.admin.view' => 'عرض لوحة مدير النظام',
         'dashboard.manager.view' => 'عرض لوحة المشرف الإداري',
         'dashboard.teacher.view' => 'عرض لوحة الأستاذ',

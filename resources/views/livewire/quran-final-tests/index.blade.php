@@ -23,6 +23,7 @@ new class extends Component {
     public ?int $juz_id = null;
     public string $search = '';
     public string $statusFilter = 'all';
+    public string $juzFilter = 'all';
     public int $perPage = 15;
     public bool $showFormModal = false;
     public bool $showOpenTestWarningModal = false;
@@ -64,6 +65,10 @@ new class extends Component {
                 in_array($this->statusFilter, ['in_progress', 'passed'], true),
                 fn (Builder $query) => $query->where('status', $this->statusFilter)
             )
+            ->when(
+                $this->juzFilter !== 'all' && filled($this->juzFilter),
+                fn (Builder $query) => $query->where('juz_id', (int) $this->juzFilter)
+            )
             ->latest('passed_on')
             ->latest('id');
 
@@ -95,6 +100,7 @@ new class extends Component {
                 ->orderByDesc('enrolled_at')
                 ->orderByDesc('id')
                 ->get(),
+            'juzOptions' => QuranJuz::query()->orderBy('juz_number')->get(),
             'eligibleJuzs' => empty($eligibleJuzIds)
                 ? collect()
                 : QuranJuz::query()->whereIn('id', $eligibleJuzIds)->orderBy('juz_number')->get(),
@@ -112,6 +118,11 @@ new class extends Component {
     }
 
     public function updatedStatusFilter(): void
+    {
+        $this->resetPage();
+    }
+
+    public function updatedJuzFilter(): void
     {
         $this->resetPage();
     }
@@ -310,6 +321,16 @@ new class extends Component {
                         <option value="all">{{ __('workflow.quran_final_tests.filters.all_statuses') }}</option>
                         <option value="in_progress">{{ __('workflow.quran_final_tests.statuses.in_progress') }}</option>
                         <option value="passed">{{ __('workflow.quran_final_tests.statuses.passed') }}</option>
+                    </select>
+                </div>
+
+                <div class="admin-filter-field">
+                    <label for="final-tests-juz-filter">{{ __('workflow.quran_final_tests.filters.juz') }}</label>
+                    <select id="final-tests-juz-filter" wire:model.live="juzFilter">
+                        <option value="all">{{ __('workflow.quran_final_tests.filters.all_juzs') }}</option>
+                        @foreach ($juzOptions as $juzOption)
+                            <option value="{{ $juzOption->id }}">{{ __('workflow.common.labels.juz_number', ['number' => $juzOption->juz_number]) }}</option>
+                        @endforeach
                     </select>
                 </div>
 

@@ -34,6 +34,12 @@
                         <span class="settings-tab__title">{{ __('settings.navigation.completion.title') }}</span>
                     </a>
                 @endcan
+                @can('sidebar-navigation.manage')
+                    <a href="{{ route('settings.sidebar-navigation') }}" wire:navigate class="settings-tab {{ $resolvedCurrent === 'settings.sidebar-navigation' ? 'is-active' : '' }}">
+                        <span class="settings-tab__meta">{{ __('settings.navigation.sidebar.meta') }}</span>
+                        <span class="settings-tab__title">{{ __('settings.navigation.sidebar.title') }}</span>
+                    </a>
+                @endcan
                 <a href="{{ route('settings.points') }}" wire:navigate class="settings-tab {{ $resolvedCurrent === 'settings.points' ? 'is-active' : '' }}">
                     <span class="settings-tab__meta">{{ __('settings.navigation.points.meta') }}</span>
                     <span class="settings-tab__title">{{ __('settings.navigation.points.title') }}</span>

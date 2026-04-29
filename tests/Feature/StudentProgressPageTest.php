@@ -22,6 +22,7 @@ use App\Models\Teacher;
 use App\Models\User;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Livewire\Volt\Volt;
 use Tests\TestCase;
 
 class StudentProgressPageTest extends TestCase
@@ -71,6 +72,126 @@ class StudentProgressPageTest extends TestCase
 
         $this->get(route('students.progress', $otherStudent, absolute: false))
             ->assertForbidden();
+    }
+
+    public function test_student_progress_can_filter_by_course_and_summarize_points_by_type(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        [$parentUser, $ownStudent] = $this->makeScopedProgressData();
+
+        $this->actingAs($parentUser);
+
+        $secondaryTeacher = Teacher::create([
+            'first_name' => 'Huda',
+            'last_name' => 'Teacher',
+            'phone' => '0999000003',
+            'status' => 'active',
+        ]);
+
+        $secondaryCourse = Course::create([
+            'name' => 'Revision Track',
+            'is_active' => true,
+        ]);
+
+        $academicYear = AcademicYear::query()->where('is_current', true)->firstOrFail();
+
+        $secondaryGroup = Group::create([
+            'course_id' => $secondaryCourse->id,
+            'academic_year_id' => $academicYear->id,
+            'teacher_id' => $secondaryTeacher->id,
+            'name' => 'Parent Secondary Group',
+            'capacity' => 10,
+            'is_active' => true,
+        ]);
+
+        $secondaryEnrollment = Enrollment::create([
+            'student_id' => $ownStudent->id,
+            'group_id' => $secondaryGroup->id,
+            'enrolled_at' => '2026-10-01',
+            'status' => 'active',
+            'final_points_cached' => 20,
+            'memorized_pages_cached' => 9,
+        ]);
+
+        $secondaryQuizType = AssessmentType::create([
+            'name' => 'Review Quiz',
+            'code' => 'review_quiz',
+            'is_scored' => true,
+            'is_active' => true,
+        ]);
+
+        $secondaryAssessment = Assessment::create([
+            'group_id' => $secondaryGroup->id,
+            'assessment_type_id' => $secondaryQuizType->id,
+            'title' => 'Course Filter Quiz',
+            'total_mark' => 100,
+            'pass_mark' => 50,
+            'is_active' => true,
+        ]);
+
+        AssessmentResult::create([
+            'assessment_id' => $secondaryAssessment->id,
+            'enrollment_id' => $secondaryEnrollment->id,
+            'student_id' => $ownStudent->id,
+            'teacher_id' => $secondaryTeacher->id,
+            'score' => 73,
+            'status' => 'passed',
+            'attempt_no' => 1,
+        ]);
+
+        $primaryPointType = PointType::query()->where('code', 'quiz_reward')->firstOrFail();
+        PointTransaction::create([
+            'student_id' => $ownStudent->id,
+            'enrollment_id' => Enrollment::query()->where('student_id', $ownStudent->id)->whereHas('group', fn ($query) => $query->where('name', 'Parent Group'))->firstOrFail()->id,
+            'point_type_id' => $primaryPointType->id,
+            'source_type' => 'manual',
+            'points' => 4,
+            'entered_by' => $parentUser->id,
+            'entered_at' => now()->addMinute(),
+            'notes' => 'Second primary points',
+        ]);
+
+        $secondaryPointType = PointType::create([
+            'name' => 'Secondary Bonus',
+            'code' => 'secondary_bonus',
+            'category' => 'bonus',
+            'default_points' => 3,
+            'allow_manual_entry' => true,
+            'allow_negative' => false,
+            'is_active' => true,
+        ]);
+
+        PointTransaction::create([
+            'student_id' => $ownStudent->id,
+            'enrollment_id' => $secondaryEnrollment->id,
+            'point_type_id' => $secondaryPointType->id,
+            'source_type' => 'manual',
+            'points' => 11,
+            'entered_by' => $parentUser->id,
+            'entered_at' => now()->addMinutes(2),
+            'notes' => 'Secondary course points',
+        ]);
+
+        StudentNote::create([
+            'student_id' => $ownStudent->id,
+            'enrollment_id' => $secondaryEnrollment->id,
+            'author_id' => $parentUser->id,
+            'source' => 'teacher',
+            'visibility' => 'visible_to_parent',
+            'body' => 'Second Course Note',
+            'noted_at' => now(),
+        ]);
+
+        Volt::test('students.progress', ['student' => $ownStudent])
+            ->set('courseFilter', (string) Course::query()->where('name', 'Quran Track')->firstOrFail()->id)
+            ->assertSeeText('Parent Group')
+            ->assertSeeText('Quiz Reward')
+            ->assertSeeText('2 حركة')
+            ->assertDontSeeText('Parent Secondary Group')
+            ->assertDontSeeText('Course Filter Quiz')
+            ->assertDontSeeText('Secondary Bonus')
+            ->assertDontSeeText('Second Course Note');
     }
 
     private function makeScopedProgressData(): array

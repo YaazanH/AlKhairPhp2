@@ -23,6 +23,7 @@ use App\Models\StudentGender;
 use App\Models\Teacher;
 use App\Models\User;
 use App\Services\CourseCompletionRuleService;
+use App\Services\SidebarNavigationService;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Volt\Volt;
@@ -56,6 +57,7 @@ class SystemSettingsTest extends TestCase
         $this->get(route('settings.organization'))->assertOk();
         $this->get(route('settings.tracking'))->assertOk();
         $this->get(route('settings.course-completion'))->assertOk();
+        $this->get(route('settings.sidebar-navigation'))->assertOk();
         $this->get(route('settings.points'))->assertOk();
         $this->get(route('settings.finance'))->assertOk();
 
@@ -65,8 +67,30 @@ class SystemSettingsTest extends TestCase
         $this->get(route('settings.organization'))->assertForbidden();
         $this->get(route('settings.tracking'))->assertForbidden();
         $this->get(route('settings.course-completion'))->assertForbidden();
+        $this->get(route('settings.sidebar-navigation'))->assertForbidden();
         $this->get(route('settings.points'))->assertForbidden();
         $this->get(route('settings.finance'))->assertForbidden();
+    }
+
+    public function test_sidebar_navigation_settings_require_the_specific_permission(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $user = User::factory()->create([
+            'name' => 'Navigation Settings User',
+            'phone' => '0777000003',
+            'username' => 'navigation-settings-user',
+        ]);
+
+        $user->givePermissionTo('settings.manage');
+
+        $this->actingAs($user);
+        $this->get(route('settings.sidebar-navigation'))->assertForbidden();
+
+        $user->givePermissionTo('sidebar-navigation.manage');
+        $this->actingAs($user->fresh());
+
+        $this->get(route('settings.sidebar-navigation'))->assertOk();
     }
 
     public function test_manager_can_manage_organization_settings(): void
@@ -368,6 +392,68 @@ class SystemSettingsTest extends TestCase
         ]);
 
         $this->assertSame(20, $enrollment->fresh()->final_points_cached);
+    }
+
+    public function test_authorized_user_can_save_sidebar_navigation_settings(): void
+    {
+        $user = $this->signIn();
+
+        Volt::test('settings.sidebar-navigation')
+            ->set('group_settings.platform.title', 'Home Area')
+            ->set('group_settings.platform.sort_order', '5')
+            ->set('item_settings.reports.group_key', 'finance')
+            ->set('item_settings.reports.sort_order', '99')
+            ->call('save')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('app_settings', [
+            'group' => 'sidebar_navigation',
+            'key' => 'groups',
+        ]);
+
+        $groups = AppSetting::groupValues('sidebar_navigation')->get('groups');
+        $items = AppSetting::groupValues('sidebar_navigation')->get('items');
+
+        $this->assertSame('Home Area', $groups['platform']['title']);
+        $this->assertSame(5, $groups['platform']['sort_order']);
+        $this->assertSame('finance', $items['reports']['group_key']);
+        $this->assertSame(99, $items['reports']['sort_order']);
+    }
+
+    public function test_authorized_user_can_add_a_custom_sidebar_group_and_assign_pages_to_it(): void
+    {
+        $user = $this->signIn();
+
+        $component = Volt::test('settings.sidebar-navigation')
+            ->call('addGroup');
+
+        $groupSettings = $component->get('group_settings');
+        $customGroupKey = collect(array_keys($groupSettings))
+            ->first(fn (string $key): bool => str_starts_with($key, 'custom_'));
+
+        $this->assertNotNull($customGroupKey);
+
+        $component
+            ->set("group_settings.$customGroupKey.title", 'Quran Shortcuts')
+            ->set("group_settings.$customGroupKey.sort_order", '55')
+            ->set('item_settings.quran_partial_tests.group_key', $customGroupKey)
+            ->set('item_settings.quran_partial_tests.sort_order', '1')
+            ->call('save')
+            ->assertHasNoErrors();
+
+        $groups = AppSetting::groupValues('sidebar_navigation')->get('groups');
+        $items = AppSetting::groupValues('sidebar_navigation')->get('items');
+
+        $this->assertSame('Quran Shortcuts', $groups[$customGroupKey]['title']);
+        $this->assertTrue((bool) $groups[$customGroupKey]['is_custom']);
+        $this->assertSame($customGroupKey, $items['quran_partial_tests']['group_key']);
+
+        $sidebarGroups = app(SidebarNavigationService::class)->sidebarFor($user->fresh());
+        $customGroup = collect($sidebarGroups)->firstWhere('key', $customGroupKey);
+
+        $this->assertNotNull($customGroup);
+        $this->assertSame('Quran Shortcuts', $customGroup['title']);
+        $this->assertContains('quran_partial_tests', array_column($customGroup['items'], 'key'));
     }
 
     public function test_student_promotion_action_requires_explicit_permission_to_appear(): void

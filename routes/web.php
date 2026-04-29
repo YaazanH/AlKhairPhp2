@@ -63,6 +63,7 @@ Route::middleware(['auth'])->group(function () {
     Volt::route('settings/organization', 'settings.organization')->middleware('permission:settings.manage')->name('settings.organization');
     Volt::route('settings/tracking', 'settings.tracking')->middleware('permission:settings.manage')->name('settings.tracking');
     Volt::route('settings/course-completion', 'settings.course-completion')->middleware('permission:course-completion-rules.manage')->name('settings.course-completion');
+    Volt::route('settings/sidebar-navigation', 'settings.sidebar-navigation')->middleware('permission:sidebar-navigation.manage')->name('settings.sidebar-navigation');
     Volt::route('settings/points', 'settings.points')->middleware('permission:settings.manage')->name('settings.points');
     Volt::route('settings/finance', 'settings.finance')->middleware('permission:settings.manage')->name('settings.finance');
     Volt::route('settings/access-control', 'settings.access-control')->middleware('permission:roles.manage')->name('settings.access-control');

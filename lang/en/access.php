@@ -182,12 +182,14 @@ return [
     ],
     'permission_groups' => [
         'course-completion-rules' => 'Course completion rules',
+        'sidebar-navigation' => 'Sidebar navigation',
         'students' => 'Students',
         'quran-partial-tests' => 'Quran partial tests',
         'quran-final-tests' => 'Quran final tests',
     ],
     'permissions' => [
         'course-completion-rules.manage' => 'Manage course completion rules and apply point adjustments',
+        'sidebar-navigation.manage' => 'Manage sidebar grouping and item placement',
         'students.promote-grade-levels' => 'Promote all students to the next active grade level',
         'quran-partial-tests.view' => 'View Quran partial tests',
         'quran-partial-tests.record' => 'Record Quran partial test attempts',

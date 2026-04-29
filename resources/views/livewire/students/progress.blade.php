@@ -17,6 +17,7 @@ new class extends Component {
     use AuthorizesTeacherAssignments;
 
     public Student $currentStudent;
+    public string $courseFilter = 'all';
 
     public function mount(Student $student): void
     {
@@ -42,18 +43,38 @@ new class extends Component {
                 ->with(['group.course', 'group.teacher'])
                 ->where('student_id', $this->currentStudent->id)
         )
+            ->when(
+                $this->courseFilter !== 'all' && filled($this->courseFilter),
+                fn ($query) => $query->whereHas('group', fn ($groupQuery) => $groupQuery->where('course_id', (int) $this->courseFilter))
+            )
             ->orderByRaw("case when status = 'active' then 0 else 1 end")
             ->orderByDesc('enrolled_at')
             ->orderByDesc('id')
             ->get();
 
         $enrollmentIds = $enrollments->pluck('id')->all();
+        $courseOptions = $this->scopeEnrollmentsQuery(
+            Enrollment::query()
+                ->with('group.course')
+                ->where('student_id', $this->currentStudent->id)
+        )
+            ->get()
+            ->pluck('group.course')
+            ->filter()
+            ->unique('id')
+            ->sortBy('name')
+            ->values();
 
         $assessmentResults = auth()->user()->can('assessment-results.view')
             ? $this->scopeAssessmentResultsQuery(
                 AssessmentResult::query()
                     ->with(['assessment.type', 'assessment.group.course', 'teacher', 'enrollment.group'])
                     ->where('student_id', $this->currentStudent->id)
+                    ->when(
+                        $enrollmentIds === [],
+                        fn ($query) => $query->whereRaw('1 = 0'),
+                        fn ($query) => $query->whereIn('enrollment_id', $enrollmentIds),
+                    )
             )
                 ->latest('id')
                 ->get()
@@ -124,6 +145,11 @@ new class extends Component {
                 PointTransaction::query()
                     ->with(['enrollment.group.course', 'pointType'])
                     ->where('student_id', $this->currentStudent->id)
+                    ->when(
+                        $enrollmentIds === [],
+                        fn ($query) => $query->whereRaw('1 = 0'),
+                        fn ($query) => $query->whereIn('enrollment_id', $enrollmentIds),
+                    )
             )
                 ->latest('entered_at')
                 ->latest('id')
@@ -136,18 +162,40 @@ new class extends Component {
                 ->with(['author', 'enrollment.group'])
                 ->where('student_id', $this->currentStudent->id)
                 ->where('visibility', 'visible_to_parent')
+                ->when(
+                    $enrollmentIds === [],
+                    fn ($query) => $query->whereRaw('1 = 0'),
+                    fn ($query) => $query->whereIn('enrollment_id', $enrollmentIds),
+                )
         )
             ->latest('noted_at')
             ->latest('id')
             ->get();
 
+        $pointTypeSummary = $pointTransactions
+            ->whereNull('voided_at')
+            ->groupBy(fn (PointTransaction $transaction) => $transaction->pointType?->id ?: 'none')
+            ->map(function ($transactions) {
+                $first = $transactions->first();
+
+                return (object) [
+                    'entries_count' => $transactions->count(),
+                    'label' => $first?->pointType?->name ?: __('crud.common.not_available'),
+                    'points_total' => (int) $transactions->sum('points'),
+                ];
+            })
+            ->sortBy('label')
+            ->values();
+
         return [
             'studentRecord' => $studentRecord,
+            'courseOptions' => $courseOptions,
             'enrollments' => $enrollments,
             'assessmentResults' => $assessmentResults,
             'memorizationSessions' => $memorizationSessions,
             'quranTests' => $quranTests,
             'pointTransactions' => $pointTransactions,
+            'pointTypeSummary' => $pointTypeSummary,
             'parentVisibleNotes' => $parentVisibleNotes,
             'stats' => [
                 'active_enrollments' => $enrollments->where('status', 'active')->count(),
@@ -216,6 +264,27 @@ new class extends Component {
             <div class="kpi-label">{{ __('workflow.student_progress.stats.points') }}</div>
             <div class="metric-value mt-3">{{ number_format($stats['points']) }}</div>
         </article>
+    </section>
+
+    <section class="surface-panel p-5 lg:p-6">
+        <div class="admin-toolbar">
+            <div>
+                <div class="admin-toolbar__title">{{ __('workflow.student_progress.filters.title') }}</div>
+                <p class="admin-toolbar__subtitle">{{ __('workflow.student_progress.filters.copy') }}</p>
+            </div>
+
+            <div class="admin-toolbar__controls">
+                <div class="admin-filter-field">
+                    <label for="student-progress-course-filter">{{ __('workflow.student_progress.filters.course') }}</label>
+                    <select id="student-progress-course-filter" wire:model.live="courseFilter">
+                        <option value="all">{{ __('workflow.student_progress.filters.all_courses') }}</option>
+                        @foreach ($courseOptions as $courseOption)
+                            <option value="{{ $courseOption->id }}">{{ $courseOption->name }}</option>
+                        @endforeach
+                    </select>
+                </div>
+            </div>
+        </div>
     </section>
 
     <section class="surface-table">
@@ -409,6 +478,31 @@ new class extends Component {
     @endcan
 
     @can('points.view')
+        <section class="surface-panel p-5 lg:p-6">
+            <div class="admin-grid-meta">
+                <div>
+                    <div class="admin-grid-meta__title">{{ __('workflow.student_progress.point_type_summary.title') }}</div>
+                    <div class="admin-grid-meta__summary">{{ __('crud.common.badges.in_view', ['count' => number_format($pointTypeSummary->count())]) }}</div>
+                </div>
+            </div>
+
+            @if ($pointTypeSummary->isEmpty())
+                <div class="admin-empty-state">{{ __('workflow.student_progress.point_type_summary.empty') }}</div>
+            @else
+                <div class="admin-kpi-grid mt-5">
+                    @foreach ($pointTypeSummary as $summary)
+                        <article class="stat-card">
+                            <div class="kpi-label">{{ $summary->label }}</div>
+                            <div class="metric-value mt-3">{{ number_format($summary->points_total) }}</div>
+                            <div class="mt-3 text-sm text-neutral-400">
+                                {{ __('workflow.student_progress.point_type_summary.entries', ['count' => number_format($summary->entries_count)]) }}
+                            </div>
+                        </article>
+                    @endforeach
+                </div>
+            @endif
+        </section>
+
         <section class="surface-table">
             <div class="admin-grid-meta">
                 <div>
