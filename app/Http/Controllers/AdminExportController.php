@@ -148,7 +148,7 @@ class AdminExportController extends Controller
             });
         }
 
-        if (in_array($request->string('status')->value(), ['active', 'inactive', 'blocked'], true)) {
+        if (in_array($request->string('status')->value(), ['active', 'inactive', 'blocked', 'pending', 'declined'], true)) {
             $query->where('status', $request->string('status')->value());
         }
 

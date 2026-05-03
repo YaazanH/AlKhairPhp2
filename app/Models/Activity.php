@@ -25,6 +25,7 @@ class Activity extends Model
         'collected_revenue_cached',
         'expense_total_cached',
         'is_active',
+        'status',
     ];
 
     protected function casts(): array
@@ -37,6 +38,16 @@ class Activity extends Model
             'expense_total_cached' => 'decimal:2',
             'is_active' => 'boolean',
         ];
+    }
+
+    public function financeRequests(): HasMany
+    {
+        return $this->hasMany(FinanceRequest::class);
+    }
+
+    public function financeTransactions(): HasMany
+    {
+        return $this->hasMany(FinanceTransaction::class);
     }
 
     public function expenses(): HasMany

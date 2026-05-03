@@ -3,6 +3,7 @@
 namespace App\Services\PrintTemplates;
 
 use App\Models\Activity;
+use App\Models\FinanceRequest;
 use App\Models\ParentProfile;
 use App\Models\Student;
 use App\Models\Teacher;
@@ -41,6 +42,11 @@ class PrintTemplateFieldRegistry
                 'label' => __('print_templates.entities.activity'),
                 'model' => Activity::class,
                 'relations' => ['group'],
+            ],
+            'finance_request' => [
+                'label' => __('print_templates.entities.finance_request'),
+                'model' => FinanceRequest::class,
+                'relations' => ['activity', 'cashBox', 'category', 'requestedBy', 'reviewedBy', 'teacher', 'requestedCurrency', 'acceptedCurrency'],
             ],
         ];
     }
@@ -93,6 +99,16 @@ class PrintTemplateFieldRegistry
                 'activity_date' => $this->field('activity_date', ['text'], fn (Activity $activity) => $activity->activity_date?->format('Y-m-d') ?: __('print_templates.common.not_available')),
                 'fee_amount' => $this->field('fee_amount', ['text'], fn (Activity $activity) => number_format((float) $activity->fee_amount, 2)),
                 'group_name' => $this->field('group_name', ['text'], fn (Activity $activity) => $activity->group?->name ?: __('print_templates.common.not_available')),
+            ],
+            'finance_request' => [
+                'request_no' => $this->field('request_no', ['text', 'barcode'], fn (FinanceRequest $request) => $request->request_no),
+                'type' => $this->field('type', ['text'], fn (FinanceRequest $request) => ucfirst($request->type)),
+                'requested_amount' => $this->field('requested_amount', ['text'], fn (FinanceRequest $request) => number_format((float) $request->requested_amount, 2).' '.$request->requestedCurrency?->code),
+                'accepted_amount' => $this->field('accepted_amount', ['text'], fn (FinanceRequest $request) => $request->accepted_amount !== null ? number_format((float) $request->accepted_amount, 2).' '.$request->acceptedCurrency?->code : __('print_templates.common.not_available')),
+                'cash_box' => $this->field('cash_box', ['text'], fn (FinanceRequest $request) => $request->cashBox?->name ?: __('print_templates.common.not_available')),
+                'activity' => $this->field('activity', ['text'], fn (FinanceRequest $request) => $request->activity?->title ?: __('print_templates.common.not_available')),
+                'requested_by' => $this->field('requested_by', ['text'], fn (FinanceRequest $request) => $request->requestedBy?->name ?: __('print_templates.common.not_available')),
+                'reviewed_by' => $this->field('reviewed_by', ['text'], fn (FinanceRequest $request) => $request->reviewedBy?->name ?: __('print_templates.common.not_available')),
             ],
         ];
     }
@@ -235,6 +251,7 @@ class PrintTemplateFieldRegistry
             'parent' => (string) $model->father_name,
             'user' => trim($model->name.' '.($model->username ? '('.$model->username.')' : '')),
             'activity' => trim($model->title.' '.($model->activity_date ? '('.$model->activity_date->format('Y-m-d').')' : '')),
+            'finance_request' => trim($model->request_no.' '.ucfirst((string) $model->type)),
             default => (string) $model->getKey(),
         };
     }
@@ -247,6 +264,7 @@ class PrintTemplateFieldRegistry
             'parent' => trim($model->father_name.' '.$model->mother_name.' '.$model->father_phone.' '.$model->user?->username),
             'user' => trim($model->name.' '.$model->username.' '.$model->email.' '.$model->phone),
             'activity' => trim($model->title.' '.$model->description),
+            'finance_request' => trim($model->request_no.' '.$model->type.' '.$model->requestedBy?->name.' '.$model->activity?->title),
             default => (string) $model->getKey(),
         };
     }

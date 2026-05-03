@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AdminExportController;
 use App\Http\Controllers\BarcodeActionPrintController;
+use App\Http\Controllers\FinanceRequestPrintController;
 use App\Http\Controllers\IdCards\IdCardBarcodePreviewController;
 use App\Http\Controllers\IdCards\IdCardPrintController;
 use App\Http\Controllers\IdCards\IdCardTemplateController;
@@ -16,6 +17,8 @@ use Livewire\Volt\Volt;
 
 Route::get('/', [WebsiteController::class, 'home'])->name('home');
 Route::get('pages/{page:slug}', [WebsiteController::class, 'show'])->name('website.pages.show');
+Volt::route('teacherSingup', 'public.teacher-signup')->name('teacher-signup');
+Route::redirect('teacherSignup', 'teacherSingup');
 
 Route::get('locale/{locale}', function (Request $request, string $locale) {
     if (! array_key_exists($locale, config('app.supported_locales', []))) {
@@ -65,7 +68,7 @@ Route::middleware(['auth'])->group(function () {
     Volt::route('settings/course-completion', 'settings.course-completion')->middleware('permission:course-completion-rules.manage')->name('settings.course-completion');
     Volt::route('settings/sidebar-navigation', 'settings.sidebar-navigation')->middleware('permission:sidebar-navigation.manage')->name('settings.sidebar-navigation');
     Volt::route('settings/points', 'settings.points')->middleware('permission:settings.manage')->name('settings.points');
-    Volt::route('settings/finance', 'settings.finance')->middleware('permission:settings.manage')->name('settings.finance');
+    Volt::route('settings/finance', 'settings.finance')->middleware('permission:finance.settings.manage')->name('settings.finance');
     Volt::route('settings/access-control', 'settings.access-control')->middleware('permission:roles.manage')->name('settings.access-control');
     Volt::route('settings/website', 'settings.website')->middleware('permission:website.manage')->name('settings.website');
     Volt::route('settings/website/pages', 'settings.website-pages')->middleware('permission:website.manage')->name('settings.website.pages');
@@ -109,6 +112,14 @@ Route::middleware(['auth'])->group(function () {
     Volt::route('activities', 'activities.index')->middleware('permission:activities.view')->name('activities.index');
     Volt::route('activities/family', 'activities.family')->middleware('permission:activities.responses.view')->name('activities.family');
     Volt::route('activities/{activity}/finance', 'activities.finance')->middleware('permission:activities.finance.view')->name('activities.finance');
+    Volt::route('finance/reports', 'finance.reports')->middleware('permission:finance.reports.view')->name('finance.reports.index');
+    Route::get('finance/reports/export', [ReportExportController::class, 'finance'])->middleware('permission:finance.reports.export')->name('finance.reports.export');
+    Volt::route('finance/pull-requests', 'finance.pull-requests')->middleware('permission:finance.pull-requests.view')->name('finance.pull-requests.index');
+    Volt::route('finance/cash-box', 'finance.cash-box')->middleware('permission:finance.cash-box.view')->name('finance.cash-box.index');
+    Volt::route('finance/expense-requests', 'finance.expense-requests')->middleware('permission:finance.expense-requests.view')->name('finance.expense-requests.index');
+    Volt::route('finance/revenue-requests', 'finance.revenue-requests')->middleware('permission:finance.revenue-requests.view')->name('finance.revenue-requests.index');
+    Volt::route('finance/exchange', 'finance.exchange')->middleware('permission:finance.exchange.view')->name('finance.exchange.index');
+    Route::get('finance/requests/{financeRequest}/print', FinanceRequestPrintController::class)->name('finance.requests.print');
     Volt::route('invoices', 'invoices.index')->middleware('permission:invoices.view')->name('invoices.index');
     Volt::route('invoices/{invoice}/payments', 'invoices.payments')->middleware('permission:payments.view')->name('invoices.payments');
     Route::get('invoices/{invoice}/print', [PrintController::class, 'invoice'])->middleware('permission:invoices.view')->name('invoices.print');

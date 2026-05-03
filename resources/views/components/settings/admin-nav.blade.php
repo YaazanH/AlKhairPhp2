@@ -44,10 +44,12 @@
                     <span class="settings-tab__meta">{{ __('settings.navigation.points.meta') }}</span>
                     <span class="settings-tab__title">{{ __('settings.navigation.points.title') }}</span>
                 </a>
-                <a href="{{ route('settings.finance') }}" wire:navigate class="settings-tab {{ $resolvedCurrent === 'settings.finance' ? 'is-active' : '' }}">
-                    <span class="settings-tab__meta">{{ __('settings.navigation.finance.meta') }}</span>
-                    <span class="settings-tab__title">{{ __('settings.navigation.finance.title') }}</span>
-                </a>
+                @can('finance.settings.manage')
+                    <a href="{{ route('settings.finance') }}" wire:navigate class="settings-tab {{ $resolvedCurrent === 'settings.finance' ? 'is-active' : '' }}">
+                        <span class="settings-tab__meta">{{ __('settings.navigation.finance.meta') }}</span>
+                        <span class="settings-tab__title">{{ __('settings.navigation.finance.title') }}</span>
+                    </a>
+                @endcan
                 @can('roles.manage')
                     <a href="{{ route('settings.access-control') }}" wire:navigate class="settings-tab {{ $resolvedCurrent === 'settings.access-control' ? 'is-active' : '' }}">
                         <span class="settings-tab__meta">{{ __('settings.navigation.access.meta') }}</span>

@@ -104,6 +104,16 @@ class Teacher extends Model
         return $this->hasMany(AssessmentResult::class);
     }
 
+    public function financeRequests(): HasMany
+    {
+        return $this->hasMany(FinanceRequest::class);
+    }
+
+    public function financeTransactions(): HasMany
+    {
+        return $this->hasMany(FinanceTransaction::class);
+    }
+
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);

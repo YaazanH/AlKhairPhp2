@@ -22,6 +22,7 @@ new class extends Component {
     public array $selected_group_ids = [];
     public string $fee_amount = '';
     public bool $is_active = true;
+    public string $status = 'active';
     public int $perPage = 15;
     public bool $showForm = false;
 
@@ -68,6 +69,7 @@ new class extends Component {
             'selected_group_ids.*' => ['integer', 'exists:groups,id'],
             'fee_amount' => ['nullable', 'numeric', 'min:0'],
             'is_active' => ['boolean'],
+            'status' => ['required', 'in:planned,active,finished,cancelled'],
         ];
     }
 
@@ -106,7 +108,8 @@ new class extends Component {
                 'audience_scope' => $validated['audience_scope'],
                 'group_id' => $validated['audience_scope'] === ActivityAudienceService::SCOPE_SINGLE_GROUP ? ($validated['group_id'] ?: null) : null,
                 'fee_amount' => $validated['fee_amount'] !== '' ? $validated['fee_amount'] : null,
-                'is_active' => $validated['is_active'],
+                'is_active' => in_array($validated['status'], ['planned', 'active'], true),
+                'status' => $validated['status'],
             ],
         );
 
@@ -141,6 +144,7 @@ new class extends Component {
         $this->selected_group_ids = $audienceService->targetedGroupIds($activity);
         $this->fee_amount = $activity->fee_amount !== null ? number_format((float) $activity->fee_amount, 2, '.', '') : '';
         $this->is_active = $activity->is_active;
+        $this->status = $activity->status ?: ($activity->is_active ? 'active' : 'finished');
         $this->showForm = true;
 
         $this->resetValidation();
@@ -157,6 +161,7 @@ new class extends Component {
         $this->selected_group_ids = [];
         $this->fee_amount = '';
         $this->is_active = true;
+        $this->status = 'active';
 
         if ($closeForm) {
             $this->showForm = false;
@@ -320,6 +325,18 @@ new class extends Component {
                         <span>{{ __('activities.index.form.active_flag') }}</span>
                     </label>
 
+                    <div>
+                        <label class="mb-1 block text-sm font-medium">Activity status</label>
+                        <select wire:model.live="status" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                            <option value="planned">Planned</option>
+                            <option value="active">Active</option>
+                            <option value="finished">Finished</option>
+                            <option value="cancelled">Cancelled</option>
+                        </select>
+                        <p class="mt-1 text-xs text-neutral-500">Finance return requests use the finished status.</p>
+                        @error('status') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+                    </div>
+
                     @error('delete')
                         <div class="rounded-2xl border border-red-500/25 bg-red-500/10 px-3 py-2 text-sm text-red-200">
                             {{ $message }}
@@ -410,7 +427,7 @@ new class extends Component {
                                     </td>
                                     <td class="px-5 py-3">
                                         <span class="status-chip {{ $activity->is_active ? 'status-chip--emerald' : 'status-chip--rose' }}">
-                                            {{ __('activities.common.states.'.($activity->is_active ? 'active' : 'inactive')) }}
+                                            {{ \Illuminate\Support\Str::headline((string) ($activity->status ?: ($activity->is_active ? 'active' : 'inactive'))) }}
                                         </span>
                                     </td>
                                     @if (auth()->user()->can('activities.finance.view') || auth()->user()->can('activities.update') || auth()->user()->can('activities.delete'))

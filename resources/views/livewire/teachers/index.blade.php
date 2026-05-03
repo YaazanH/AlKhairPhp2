@@ -28,10 +28,12 @@ new class extends Component {
     public string $access_role_id = '';
     public string $course_id = '';
     public string $status = 'active';
+    public string $hired_at = '';
     public bool $is_helping = true;
     public string $photo_path = '';
     public $photo_upload = null;
     public string $notes = '';
+    public ?int $reviewingId = null;
     public ?int $accountTeacherId = null;
     public string $account_username = '';
     public string $account_email = '';
@@ -43,6 +45,7 @@ new class extends Component {
     public string $helpingFilter = 'all';
     public int $perPage = 15;
     public bool $showFormModal = false;
+    public bool $showReviewModal = false;
     public bool $showAccountModal = false;
 
     public function mount(): void
@@ -54,18 +57,19 @@ new class extends Component {
     {
         $baseQuery = $this->scopeTeachersQuery(Teacher::query());
         $filteredQuery = $this->scopeTeachersQuery(Teacher::query())
-            ->with(['accessRole', 'course'])
+            ->with(['accessRole', 'course', 'user'])
             ->when(filled($this->search), function ($query) {
                 $query->where(function ($builder) {
                     $builder
                         ->where('first_name', 'like', '%'.$this->search.'%')
                         ->orWhere('last_name', 'like', '%'.$this->search.'%')
                         ->orWhere('phone', 'like', '%'.$this->search.'%')
+                        ->orWhereHas('user', fn ($userQuery) => $userQuery->where('username', 'like', '%'.$this->search.'%'))
                         ->orWhereHas('accessRole', fn ($roleQuery) => $roleQuery->where('name', 'like', '%'.$this->search.'%'))
                         ->orWhereHas('course', fn ($courseQuery) => $courseQuery->where('name', 'like', '%'.$this->search.'%'));
                 });
             })
-            ->when(in_array($this->statusFilter, ['active', 'inactive', 'blocked'], true), fn ($query) => $query->where('status', $this->statusFilter))
+            ->when(in_array($this->statusFilter, ['active', 'inactive', 'blocked', 'pending', 'declined'], true), fn ($query) => $query->where('status', $this->statusFilter))
             ->when(in_array($this->helpingFilter, ['helping', 'not_helping'], true), fn ($query) => $query->where('is_helping', $this->helpingFilter === 'helping'))
             ->withCount(['assignedGroups', 'assistedGroups'])
             ->orderBy('last_name')
@@ -78,11 +82,12 @@ new class extends Component {
             'totals' => [
                 'all' => $baseQuery->count(),
                 'active' => $this->scopeTeachersQuery(Teacher::query()->where('status', 'active'))->count(),
+                'pending' => $this->scopeTeachersQuery(Teacher::query()->where('status', 'pending'))->count(),
                 'blocked' => $this->scopeTeachersQuery(Teacher::query()->where('status', 'blocked'))->count(),
                 'helping' => $this->scopeTeachersQuery(Teacher::query()->where('is_helping', true))->count(),
             ],
             'filteredCount' => $filteredCount,
-            'statuses' => ['active', 'inactive', 'blocked'],
+            'statuses' => ['active', 'inactive', 'blocked', 'pending', 'declined'],
             'helpingOptions' => ['all', 'helping', 'not_helping'],
             'availableRoles' => RoleRegistry::sortCollection(
                 Role::query()
@@ -116,7 +121,23 @@ new class extends Component {
             'phone' => ['required', 'string', 'max:30'],
             'access_role_id' => ['nullable', 'integer', Rule::exists('roles', 'id')],
             'course_id' => ['nullable', 'integer', Rule::exists('courses', 'id')],
-            'status' => ['required', 'in:active,inactive,blocked'],
+            'status' => ['required', 'in:active,inactive,blocked,pending,declined'],
+            'hired_at' => ['nullable', 'date'],
+            'is_helping' => ['boolean'],
+            'photo_upload' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
+            'notes' => ['nullable', 'string'],
+        ];
+    }
+
+    public function reviewRules(): array
+    {
+        return [
+            'first_name' => ['required', 'string', 'max:255'],
+            'last_name' => ['required', 'string', 'max:255'],
+            'phone' => ['required', 'string', 'max:30'],
+            'access_role_id' => ['nullable', 'integer', Rule::exists('roles', 'id')],
+            'course_id' => ['nullable', 'integer', Rule::exists('courses', 'id')],
+            'hired_at' => ['required', 'date'],
             'is_helping' => ['boolean'],
             'photo_upload' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
             'notes' => ['nullable', 'string'],
@@ -167,6 +188,7 @@ new class extends Component {
             'access_role_id' => filled($validated['access_role_id']) ? (int) $validated['access_role_id'] : null,
             'course_id' => filled($validated['course_id']) ? (int) $validated['course_id'] : null,
             'status' => $validated['status'],
+            'hired_at' => $validated['hired_at'] ?: null,
             'is_helping' => (bool) $validated['is_helping'],
             'notes' => $validated['notes'] ?: null,
         ];
@@ -191,7 +213,7 @@ new class extends Component {
             [
                 'name' => trim($validated['first_name'].' '.$validated['last_name']),
                 'phone' => $validated['phone'],
-                'is_active' => $teacher->user?->is_active ?? ! in_array($validated['status'], ['inactive', 'blocked'], true),
+                'is_active' => $teacher->user?->is_active ?? ! in_array($validated['status'], ['inactive', 'blocked', 'pending', 'declined'], true),
             ],
             'teacher',
         );
@@ -221,13 +243,15 @@ new class extends Component {
 
     public function updatedPhotoUpload(): void
     {
-        if (! $this->photo_upload || ! $this->editingId) {
+        $teacherId = $this->editingId ?? $this->reviewingId;
+
+        if (! $this->photo_upload || ! $teacherId) {
             return;
         }
 
-        $this->authorizePermission('teachers.update');
+        $this->authorizePermission($this->reviewingId ? 'teachers.review-signups' : 'teachers.update');
 
-        $teacher = Teacher::query()->findOrFail($this->editingId);
+        $teacher = Teacher::query()->findOrFail($teacherId);
         $this->authorizeScopedTeacherAccess($teacher);
 
         $validated = $this->validateOnly('photo_upload');
@@ -259,11 +283,38 @@ new class extends Component {
         $this->access_role_id = $teacher->access_role_id ? (string) $teacher->access_role_id : '';
         $this->course_id = $teacher->course_id ? (string) $teacher->course_id : '';
         $this->status = $teacher->status;
+        $this->hired_at = $teacher->hired_at?->format('Y-m-d') ?? '';
         $this->is_helping = $teacher->is_helping;
         $this->photo_path = $teacher->photo_path ?? '';
         $this->photo_upload = null;
         $this->notes = $teacher->notes ?? '';
         $this->showFormModal = true;
+
+        $this->resetValidation();
+    }
+
+    public function openReviewModal(int $teacherId): void
+    {
+        $this->authorizePermission('teachers.review-signups');
+
+        $teacher = Teacher::query()->findOrFail($teacherId);
+        $this->authorizeScopedTeacherAccess($teacher);
+
+        abort_unless($teacher->status === 'pending', 403);
+
+        $this->reviewingId = $teacher->id;
+        $this->first_name = $teacher->first_name;
+        $this->last_name = $teacher->last_name;
+        $this->phone = $teacher->phone;
+        $this->access_role_id = $teacher->access_role_id ? (string) $teacher->access_role_id : '';
+        $this->course_id = $teacher->course_id ? (string) $teacher->course_id : '';
+        $this->status = $teacher->status;
+        $this->hired_at = $teacher->hired_at?->format('Y-m-d') ?? '';
+        $this->is_helping = $teacher->is_helping;
+        $this->photo_path = $teacher->photo_path ?? '';
+        $this->photo_upload = null;
+        $this->notes = $teacher->notes ?? '';
+        $this->showReviewModal = true;
 
         $this->resetValidation();
     }
@@ -279,7 +330,7 @@ new class extends Component {
         $this->account_username = $teacher->user?->username ?? '';
         $this->account_email = $teacher->user?->email ?? '';
         $this->account_password = '';
-        $this->account_is_active = $teacher->user?->is_active ?? ! in_array($teacher->status, ['inactive', 'blocked'], true);
+        $this->account_is_active = $teacher->user?->is_active ?? ! in_array($teacher->status, ['inactive', 'blocked', 'pending', 'declined'], true);
         $this->issued_password = $teacher->user?->issued_password;
         $this->showAccountModal = true;
 
@@ -289,6 +340,92 @@ new class extends Component {
             'account_password',
             'account_is_active',
         ]);
+    }
+
+    public function approveSignupRequest(): void
+    {
+        $this->authorizePermission('teachers.review-signups');
+
+        $teacher = Teacher::query()->with(['accessRole', 'user'])->findOrFail($this->reviewingId);
+        $this->authorizeScopedTeacherAccess($teacher);
+
+        abort_unless($teacher->status === 'pending', 403);
+
+        $validated = $this->validate($this->reviewRules());
+        $previousAccessRoleName = $teacher->accessRole?->name;
+        $accessRole = filled($validated['access_role_id'])
+            ? Role::query()->find((int) $validated['access_role_id'])
+            : null;
+
+        $teacher->forceFill([
+            'first_name' => $validated['first_name'],
+            'last_name' => $validated['last_name'],
+            'phone' => $validated['phone'],
+            'access_role_id' => filled($validated['access_role_id']) ? (int) $validated['access_role_id'] : null,
+            'course_id' => filled($validated['course_id']) ? (int) $validated['course_id'] : null,
+            'status' => 'active',
+            'hired_at' => $validated['hired_at'],
+            'is_helping' => (bool) $validated['is_helping'],
+            'notes' => $validated['notes'] ?: null,
+        ])->save();
+
+        if ($this->photo_upload) {
+            if ($teacher->photo_path) {
+                Storage::disk('public')->delete($teacher->photo_path);
+            }
+
+            $teacher->forceFill([
+                'photo_path' => $this->photo_upload->store('teachers/photos/'.$teacher->id, 'public'),
+            ])->save();
+        }
+
+        $result = app(ManagedUserService::class)->syncLinkedUser(
+            $teacher->user,
+            [
+                'name' => trim($validated['first_name'].' '.$validated['last_name']),
+                'phone' => $validated['phone'],
+                'is_active' => true,
+            ],
+            'teacher',
+        );
+
+        $teacher->user()->associate($result['user']);
+        $teacher->save();
+
+        if ($previousAccessRoleName && $previousAccessRoleName !== $accessRole?->name && $result['user']->hasRole($previousAccessRoleName)) {
+            $result['user']->removeRole($previousAccessRoleName);
+        }
+
+        if ($accessRole && ! $result['user']->hasRole($accessRole->name)) {
+            $result['user']->assignRole($accessRole->name);
+        }
+
+        session()->flash('status', __('crud.teachers.messages.request_approved'));
+
+        $this->closeReviewModal();
+    }
+
+    public function declineSignupRequest(): void
+    {
+        $this->authorizePermission('teachers.review-signups');
+
+        $teacher = Teacher::query()->with('user')->findOrFail($this->reviewingId);
+        $this->authorizeScopedTeacherAccess($teacher);
+
+        abort_unless($teacher->status === 'pending', 403);
+
+        $teacher->forceFill([
+            'status' => 'declined',
+            'notes' => $this->notes ?: $teacher->notes,
+        ])->save();
+
+        if ($teacher->user) {
+            $teacher->user->forceFill(['is_active' => false])->save();
+        }
+
+        session()->flash('status', __('crud.teachers.messages.request_declined'));
+
+        $this->closeReviewModal();
     }
 
     public function generateAccountPassword(): void
@@ -353,6 +490,25 @@ new class extends Component {
         ]);
     }
 
+    public function closeReviewModal(): void
+    {
+        $this->reviewingId = null;
+        $this->first_name = '';
+        $this->last_name = '';
+        $this->phone = '';
+        $this->access_role_id = '';
+        $this->course_id = '';
+        $this->status = 'active';
+        $this->hired_at = '';
+        $this->is_helping = true;
+        $this->notes = '';
+        $this->photo_path = '';
+        $this->photo_upload = null;
+        $this->showReviewModal = false;
+
+        $this->resetValidation();
+    }
+
     public function cancel(): void
     {
         $this->editingId = null;
@@ -362,6 +518,7 @@ new class extends Component {
         $this->access_role_id = '';
         $this->course_id = '';
         $this->status = 'active';
+        $this->hired_at = '';
         $this->is_helping = true;
         $this->notes = '';
         $this->photo_path = '';
@@ -385,16 +542,18 @@ new class extends Component {
 
     public function removePhoto(): void
     {
-        $this->authorizePermission('teachers.update');
+        $teacherId = $this->editingId ?? $this->reviewingId;
 
-        if (! $this->editingId) {
+        if (! $teacherId) {
             $this->photo_path = '';
             $this->photo_upload = null;
 
             return;
         }
 
-        $teacher = Teacher::query()->findOrFail($this->editingId);
+        $this->authorizePermission($this->reviewingId ? 'teachers.review-signups' : 'teachers.update');
+
+        $teacher = Teacher::query()->findOrFail($teacherId);
         $this->authorizeScopedTeacherAccess($teacher);
 
         if ($teacher->photo_path) {
@@ -459,7 +618,7 @@ new class extends Component {
         </div>
     @endif
 
-    <div class="grid gap-4 md:grid-cols-4">
+    <div class="grid gap-4 md:grid-cols-5">
         <article class="stat-card">
             <div class="kpi-label">{{ __('crud.teachers.stats.all') }}</div>
             <div class="metric-value mt-6">{{ number_format($totals['all']) }}</div>
@@ -468,6 +627,11 @@ new class extends Component {
         <article class="stat-card">
             <div class="kpi-label">{{ __('crud.teachers.stats.active') }}</div>
             <div class="metric-value mt-6">{{ number_format($totals['active']) }}</div>
+        </article>
+
+        <article class="stat-card">
+            <div class="kpi-label">{{ __('crud.teachers.stats.pending') }}</div>
+            <div class="metric-value mt-6">{{ number_format($totals['pending']) }}</div>
         </article>
 
         <article class="stat-card">
@@ -588,12 +752,17 @@ new class extends Component {
                                     @endcan
                                 </td>
                                 <td class="px-5 py-4 lg:px-6">
-                                    <span class="{{ $teacher->status === 'active' ? 'status-chip status-chip--emerald' : ($teacher->status === 'blocked' ? 'status-chip status-chip--rose' : 'status-chip status-chip--slate') }}">
+                                    <span class="{{ $teacher->status === 'active' ? 'status-chip status-chip--emerald' : ($teacher->status === 'pending' ? 'status-chip status-chip--gold' : (in_array($teacher->status, ['blocked', 'declined'], true) ? 'status-chip status-chip--rose' : 'status-chip status-chip--slate')) }}">
                                         {{ __('crud.common.status_options.' . $teacher->status) }}
                                     </span>
                                 </td>
                                 <td class="px-5 py-4 lg:px-6">
                                     <div class="flex flex-wrap justify-end gap-2">
+                                        @can('teachers.review-signups')
+                                            @if ($teacher->status === 'pending')
+                                                <button type="button" wire:click="openReviewModal({{ $teacher->id }})" class="pill-link pill-link--compact">{{ __('crud.teachers.review.action') }}</button>
+                                            @endif
+                                        @endcan
                                         @can('teachers.update')
                                             <button type="button" wire:click="openAccountModal({{ $teacher->id }})" class="pill-link pill-link--compact">{{ __('crud.common.actions.account') }}</button>
                                         @endcan
@@ -727,6 +896,16 @@ new class extends Component {
                 </div>
             </div>
 
+            <div class="grid gap-4 md:grid-cols-2">
+                <div>
+                    <label for="teacher-hired-at" class="mb-1 block text-sm font-medium">{{ __('crud.teachers.form.fields.hired_at') }}</label>
+                    <input id="teacher-hired-at" wire:model="hired_at" type="date" class="w-full rounded-xl px-4 py-3 text-sm">
+                    @error('hired_at')
+                        <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
+                    @enderror
+                </div>
+            </div>
+
             @if ($editingId)
                 <label class="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm">
                     <input wire:model="is_helping" type="checkbox" class="rounded">
@@ -818,6 +997,132 @@ new class extends Component {
             <div class="flex flex-wrap items-center gap-3">
                 <button type="submit" class="pill-link pill-link--accent">{{ __('access.profile_accounts.actions.save') }}</button>
                 <button type="button" wire:click="closeAccountModal" class="pill-link">{{ __('crud.common.actions.close') }}</button>
+            </div>
+        </form>
+    </x-admin.modal>
+
+    <x-admin.modal
+        :show="$showReviewModal"
+        :title="__('crud.teachers.review.title')"
+        :description="__('crud.teachers.review.description')"
+        close-method="closeReviewModal"
+        max-width="4xl"
+    >
+        <form wire:submit="approveSignupRequest" class="space-y-4">
+            <div class="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-neutral-300">
+                {{ __('crud.teachers.review.help') }}
+            </div>
+
+            <div class="grid gap-4 md:grid-cols-2">
+                <div>
+                    <label for="review-teacher-first-name" class="mb-1 block text-sm font-medium">{{ __('crud.teachers.form.fields.first_name') }}</label>
+                    <input id="review-teacher-first-name" wire:model="first_name" type="text" class="w-full rounded-xl px-4 py-3 text-sm">
+                    @error('first_name')
+                        <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
+                    @enderror
+                </div>
+
+                <div>
+                    <label for="review-teacher-last-name" class="mb-1 block text-sm font-medium">{{ __('crud.teachers.form.fields.last_name') }}</label>
+                    <input id="review-teacher-last-name" wire:model="last_name" type="text" class="w-full rounded-xl px-4 py-3 text-sm">
+                    @error('last_name')
+                        <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
+                    @enderror
+                </div>
+            </div>
+
+            <div class="rounded-3xl border border-white/10 bg-white/5 p-4">
+                <div class="grid gap-4 md:grid-cols-[auto_minmax(0,1fr)] md:items-center">
+                    <div>
+                        @if ($photo_upload)
+                            <img src="{{ $photo_upload->temporaryUrl() }}" alt="{{ __('crud.teachers.photo.preview_alt') }}" class="h-24 w-24 rounded-3xl object-cover shadow-sm">
+                        @elseif ($photo_path)
+                            <img src="{{ asset('storage/'.ltrim($photo_path, '/')) }}" alt="{{ __('crud.teachers.photo.alt') }}" class="h-24 w-24 rounded-3xl object-cover shadow-sm">
+                        @else
+                            <x-teacher-avatar :teacher="(object) ['first_name' => $first_name, 'last_name' => $last_name, 'photo_path' => null]" size="lg" />
+                        @endif
+                    </div>
+
+                    <div>
+                        <label for="review-teacher-photo-upload" class="mb-1 block text-sm font-medium">{{ __('crud.teachers.photo.upload') }}</label>
+                        <input id="review-teacher-photo-upload" wire:model="photo_upload" type="file" accept="image/*" class="block w-full text-sm text-neutral-300">
+                        <p class="mt-2 text-xs leading-5 text-neutral-400">{{ __('crud.teachers.photo.help') }}</p>
+                        @error('photo_upload')
+                            <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
+                        @enderror
+
+                        @if ($photo_path || $photo_upload)
+                            <button type="button" wire:click="removePhoto" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link pill-link--compact mt-3 border-red-400/25 text-red-200 hover:border-red-300/35 hover:bg-red-500/12">
+                                {{ __('crud.teachers.photo.remove') }}
+                            </button>
+                        @endif
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid gap-4 md:grid-cols-2">
+                <div>
+                    <label for="review-teacher-phone" class="mb-1 block text-sm font-medium">{{ __('crud.teachers.form.fields.phone') }}</label>
+                    <input id="review-teacher-phone" wire:model="phone" type="text" class="w-full rounded-xl px-4 py-3 text-sm">
+                    @error('phone')
+                        <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
+                    @enderror
+                </div>
+
+                <div>
+                    <label for="review-teacher-access-role" class="mb-1 block text-sm font-medium">{{ __('crud.teachers.form.fields.access_role') }}</label>
+                    <select id="review-teacher-access-role" wire:model="access_role_id" class="w-full rounded-xl px-4 py-3 text-sm">
+                        <option value="">{{ __('crud.teachers.form.options.select_access_role') }}</option>
+                        @foreach ($availableRoles as $availableRole)
+                            <option value="{{ $availableRole->id }}">{{ __('ui.roles.'.$availableRole->name) === 'ui.roles.'.$availableRole->name ? \Illuminate\Support\Str::of($availableRole->name)->replace('_', ' ')->headline()->toString() : __('ui.roles.'.$availableRole->name) }}</option>
+                        @endforeach
+                    </select>
+                    @error('access_role_id')
+                        <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
+                    @enderror
+                </div>
+            </div>
+
+            <div class="grid gap-4 md:grid-cols-2">
+                <div>
+                    <label for="review-teacher-course" class="mb-1 block text-sm font-medium">{{ __('crud.teachers.form.fields.course') }}</label>
+                    <select id="review-teacher-course" wire:model="course_id" class="w-full rounded-xl px-4 py-3 text-sm">
+                        <option value="">{{ __('crud.teachers.form.options.select_course') }}</option>
+                        @foreach ($courses as $course)
+                            <option value="{{ $course->id }}">{{ $course->name }}{{ $course->is_active ? '' : ' - '.__('settings.common.states.inactive') }}</option>
+                        @endforeach
+                    </select>
+                    @error('course_id')
+                        <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
+                    @enderror
+                </div>
+
+                <div>
+                    <label for="review-teacher-hired-at" class="mb-1 block text-sm font-medium">{{ __('crud.teachers.form.fields.hired_at') }}</label>
+                    <input id="review-teacher-hired-at" wire:model="hired_at" type="date" class="w-full rounded-xl px-4 py-3 text-sm">
+                    @error('hired_at')
+                        <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
+                    @enderror
+                </div>
+            </div>
+
+            <label class="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm">
+                <input wire:model="is_helping" type="checkbox" class="rounded">
+                <span>{{ __('crud.teachers.form.fields.is_helping') }}</span>
+            </label>
+
+            <div>
+                <label for="review-teacher-notes" class="mb-1 block text-sm font-medium">{{ __('crud.teachers.form.fields.notes') }}</label>
+                <textarea id="review-teacher-notes" wire:model="notes" rows="4" class="w-full rounded-xl px-4 py-3 text-sm"></textarea>
+                @error('notes')
+                    <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
+                @enderror
+            </div>
+
+            <div class="flex flex-wrap items-center gap-3">
+                <button type="submit" class="pill-link pill-link--accent">{{ __('crud.teachers.review.approve') }}</button>
+                <button type="button" wire:click="declineSignupRequest" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link border-red-400/25 text-red-200 hover:border-red-300/35 hover:bg-red-500/12">{{ __('crud.teachers.review.decline') }}</button>
+                <button type="button" wire:click="closeReviewModal" class="pill-link">{{ __('crud.common.actions.close') }}</button>
             </div>
         </form>
     </x-admin.modal>

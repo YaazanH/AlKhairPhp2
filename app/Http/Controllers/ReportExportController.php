@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Services\AccessScopeService;
+use App\Services\FinanceReportService;
 use App\Services\ReportingService;
 use App\Services\XlsxExportService;
 use Illuminate\Http\Request;
@@ -55,6 +56,22 @@ class ReportExportController extends Controller
             'points-report',
             ['Entered At', 'Academic Year', 'Group', 'Course', 'Student', 'Point Type', 'Policy', 'Source Type', 'Points', 'Notes'],
             app(ReportingService::class)->pointRows($this->validatedFilters($request)),
+        );
+    }
+
+    public function finance(Request $request): StreamedResponse
+    {
+        abort_unless($request->user()?->can('finance.reports.export'), 403);
+
+        $validated = $request->validate([
+            'quarter' => ['nullable', 'integer', 'between:1,4'],
+            'year' => ['required', 'integer', 'between:2000,2100'],
+        ]);
+
+        return $this->xlsxDownload(
+            'finance-report',
+            ['Date', 'Transaction No', 'Cash Box', 'Currency', 'Type', 'Direction', 'Amount', 'Signed Amount', 'Base Amount', 'Local Amount', 'Category', 'Activity', 'Teacher', 'Description'],
+            app(FinanceReportService::class)->exportRows((int) $validated['year'], isset($validated['quarter']) ? (int) $validated['quarter'] : null),
         );
     }
 

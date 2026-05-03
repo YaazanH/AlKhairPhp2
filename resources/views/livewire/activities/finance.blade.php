@@ -159,7 +159,7 @@ new class extends Component {
             'payment_notes' => ['nullable', 'string'],
         ]);
         $registration = ActivityRegistration::query()->where('activity_id', $this->currentActivity->id)->findOrFail($validated['payment_registration_id']);
-        ActivityPayment::query()->create([
+        $payment = ActivityPayment::query()->create([
             'activity_registration_id' => $registration->id,
             'payment_method_id' => $validated['payment_method_id'],
             'paid_at' => $validated['payment_paid_at'],
@@ -168,6 +168,7 @@ new class extends Component {
             'entered_by' => auth()->id(),
             'notes' => $validated['payment_notes'] ?: null,
         ]);
+        app(FinanceService::class)->recordActivityPayment($payment);
         app(FinanceService::class)->syncActivityTotals($this->currentActivity->fresh());
         $this->payment_registration_id = null;
         $this->payment_method_id = null;
@@ -185,7 +186,9 @@ new class extends Component {
         if ($payment->voided_at) {
             return;
         }
+
         $payment->update(['voided_at' => now(), 'voided_by' => auth()->id(), 'void_reason' => __('activities.finance.payments.void_reason')]);
+        app(FinanceService::class)->reverseSourceTransactions(ActivityPayment::class, $payment->id, auth()->user(), __('activities.finance.payments.void_reason'));
         app(FinanceService::class)->syncActivityTotals($this->currentActivity->fresh());
         session()->flash('status', __('activities.finance.payments.messages.voided'));
     }
@@ -199,7 +202,11 @@ new class extends Component {
             'expense_spent_on' => ['required', 'date'],
             'expense_description' => ['required', 'string', 'max:255'],
         ]);
-        ActivityExpense::query()->updateOrCreate(['id' => $this->editingExpenseId], [
+        $previousAmount = $this->editingExpenseId
+            ? (float) ActivityExpense::query()->where('activity_id', $this->currentActivity->id)->whereKey($this->editingExpenseId)->value('amount')
+            : null;
+
+        $expense = ActivityExpense::query()->updateOrCreate(['id' => $this->editingExpenseId], [
             'activity_id' => $this->currentActivity->id,
             'expense_category_id' => $validated['expense_category_id'],
             'amount' => $validated['expense_amount'],
@@ -207,6 +214,7 @@ new class extends Component {
             'description' => $validated['expense_description'],
             'entered_by' => auth()->id(),
         ]);
+        app(FinanceService::class)->recordActivityExpense($expense, $previousAmount);
         app(FinanceService::class)->syncActivityTotals($this->currentActivity->fresh());
         session()->flash('status', $this->editingExpenseId ? __('activities.finance.expenses.messages.updated') : __('activities.finance.expenses.messages.created'));
         $this->resetExpenseForm();
@@ -228,6 +236,7 @@ new class extends Component {
     {
         $this->authorizePermission('activities.expenses.manage');
         $expense = ActivityExpense::query()->where('activity_id', $this->currentActivity->id)->findOrFail($expenseId);
+        app(FinanceService::class)->reverseSourceTransactions(ActivityExpense::class, $expense->id, auth()->user(), __('activities.finance.expenses.messages.deleted'));
         $expense->delete();
         if ($this->editingExpenseId === $expenseId) {
             $this->resetExpenseForm();

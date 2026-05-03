@@ -98,6 +98,7 @@ class FinanceWriteController extends Controller
             'reference_no' => blank($validated['reference_no'] ?? null) ? null : $validated['reference_no'],
         ]);
 
+        app(FinanceService::class)->recordActivityPayment($payment);
         app(FinanceService::class)->syncActivityTotals($activity->fresh());
 
         return response()->json($this->activityPaymentPayload($payment->fresh(['paymentMethod', 'registration.student'])), 201);
@@ -118,6 +119,7 @@ class FinanceWriteController extends Controller
                 'voided_by' => $request->user()->id,
             ]);
 
+            app(FinanceService::class)->reverseSourceTransactions(ActivityPayment::class, $activityPayment->id, $request->user(), 'Voided from the integration API.');
             app(FinanceService::class)->syncActivityTotals($activity->fresh());
         }
 
@@ -133,6 +135,7 @@ class FinanceWriteController extends Controller
 
         $expense = ActivityExpense::query()->create($this->validatedActivityExpenseData($request, $activity));
 
+        app(FinanceService::class)->recordActivityExpense($expense);
         app(FinanceService::class)->syncActivityTotals($activity->fresh());
 
         return response()->json($this->activityExpensePayload($expense->fresh('category')), 201);
@@ -146,8 +149,11 @@ class FinanceWriteController extends Controller
         $this->authorizePermission($request, 'activities.expenses.manage');
         abort_unless($activityExpense->activity_id === $activity->id, 404);
 
+        $previousAmount = (float) $activityExpense->amount;
+
         $activityExpense->update($this->validatedActivityExpenseData($request, $activity));
 
+        app(FinanceService::class)->recordActivityExpense($activityExpense->fresh(), $previousAmount);
         app(FinanceService::class)->syncActivityTotals($activity->fresh());
 
         return response()->json($this->activityExpensePayload($activityExpense->fresh('category')));
@@ -161,6 +167,7 @@ class FinanceWriteController extends Controller
         $this->authorizePermission($request, 'activities.expenses.manage');
         abort_unless($activityExpense->activity_id === $activity->id, 404);
 
+        app(FinanceService::class)->reverseSourceTransactions(ActivityExpense::class, $activityExpense->id, $request->user(), 'Deleted from the integration API.');
         $activityExpense->delete();
         app(FinanceService::class)->syncActivityTotals($activity->fresh());
 
@@ -235,6 +242,7 @@ class FinanceWriteController extends Controller
             'reference_no' => blank($validated['reference_no'] ?? null) ? null : $validated['reference_no'],
         ]);
 
+        app(FinanceService::class)->recordInvoicePayment($payment);
         app(FinanceService::class)->syncInvoiceTotals($invoice->fresh());
 
         return response()->json($this->invoicePaymentPayload($payment->fresh(['paymentMethod', 'receivedBy'])), 201);
@@ -255,6 +263,7 @@ class FinanceWriteController extends Controller
                 'voided_by' => $request->user()->id,
             ]);
 
+            app(FinanceService::class)->reverseSourceTransactions(Payment::class, $payment->id, $request->user(), 'Voided from the integration API.');
             app(FinanceService::class)->syncInvoiceTotals($invoice->fresh());
         }
 

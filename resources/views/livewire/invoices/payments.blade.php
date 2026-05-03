@@ -136,7 +136,7 @@ new class extends Component {
             'payment_reference_no' => ['nullable', 'string', 'max:255'],
             'payment_notes' => ['nullable', 'string'],
         ]);
-        Payment::query()->create([
+        $payment = Payment::query()->create([
             'invoice_id' => $this->currentInvoice->id,
             'payment_method_id' => $validated['payment_method_id'],
             'paid_at' => $validated['paid_at'],
@@ -145,6 +145,7 @@ new class extends Component {
             'received_by' => auth()->id(),
             'notes' => $validated['payment_notes'] ?: null,
         ]);
+        app(FinanceService::class)->recordInvoicePayment($payment);
         app(FinanceService::class)->syncInvoiceTotals($this->currentInvoice->fresh());
         $this->payment_method_id = null;
         $this->paid_at = now()->toDateString();
@@ -166,6 +167,7 @@ new class extends Component {
             'voided_by' => auth()->id(),
             'void_reason' => __('invoices.detail.payment_form.void_reason'),
         ]);
+        app(FinanceService::class)->reverseSourceTransactions(Payment::class, $payment->id, auth()->user(), __('invoices.detail.payment_form.void_reason'));
         app(FinanceService::class)->syncInvoiceTotals($this->currentInvoice->fresh());
         session()->flash('status', __('invoices.detail.payment_form.messages.voided'));
     }

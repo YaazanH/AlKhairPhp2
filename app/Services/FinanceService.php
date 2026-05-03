@@ -6,13 +6,191 @@ use App\Models\Activity;
 use App\Models\ActivityExpense;
 use App\Models\ActivityPayment;
 use App\Models\ActivityRegistration;
+use App\Models\AppSetting;
+use App\Models\FinanceCashBox;
+use App\Models\FinanceCashBoxTransfer;
+use App\Models\FinanceCategory;
+use App\Models\FinanceCurrency;
+use App\Models\FinanceCurrencyExchange;
+use App\Models\FinanceRequest;
+use App\Models\FinanceTransaction;
 use App\Models\Invoice;
 use App\Models\InvoiceItem;
 use App\Models\Payment;
+use App\Models\User;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class FinanceService
 {
+    public function accessibleCashBoxes(?User $user, bool $activeOnly = true): Builder
+    {
+        $query = FinanceCashBox::query();
+
+        if ($activeOnly) {
+            $query->where('is_active', true);
+        }
+
+        if (! $user || $user->can('finance.cash-box.manage')) {
+            return $query->orderBy('name');
+        }
+
+        return $query
+            ->whereHas('assignedUsers', fn (Builder $builder) => $builder->whereKey($user->id))
+            ->orderBy('name');
+    }
+
+    public function acceptRequest(FinanceRequest $request, float $acceptedAmount, FinanceCashBox $cashBox, ?User $reviewer = null, ?string $notes = null): FinanceRequest
+    {
+        return DB::transaction(function () use ($acceptedAmount, $cashBox, $notes, $request, $reviewer): FinanceRequest {
+            $currency = $request->acceptedCurrency ?: $request->requestedCurrency ?: $this->localCurrency();
+            $direction = in_array($request->type, [FinanceRequest::TYPE_PULL, FinanceRequest::TYPE_EXPENSE], true) ? 'out' : 'in';
+
+            $transaction = $this->postTransaction([
+                'cash_box_id' => $cashBox->id,
+                'currency_id' => $currency->id,
+                'finance_category_id' => $request->finance_category_id,
+                'activity_id' => $request->activity_id,
+                'teacher_id' => $request->teacher_id,
+                'finance_request_id' => $request->id,
+                'source_type' => FinanceRequest::class,
+                'source_id' => $request->id,
+                'type' => $request->type.'_request',
+                'direction' => $direction,
+                'amount' => $acceptedAmount,
+                'transaction_date' => now()->toDateString(),
+                'description' => $request->requested_reason,
+                'entered_by' => $reviewer?->id,
+                'metadata' => [
+                    'requested_amount' => (float) $request->requested_amount,
+                    'accepted_amount' => $acceptedAmount,
+                    'review_notes' => $notes,
+                ],
+            ]);
+
+            $request->update([
+                'accepted_amount' => $acceptedAmount,
+                'accepted_currency_id' => $currency->id,
+                'accepted_at' => now(),
+                'cash_box_id' => $cashBox->id,
+                'declined_at' => null,
+                'posted_transaction_id' => $transaction->id,
+                'review_notes' => $notes,
+                'reviewed_by' => $reviewer?->id,
+                'status' => FinanceRequest::STATUS_ACCEPTED,
+            ]);
+
+            if ($request->activity_id) {
+                $this->syncActivityTotals($request->activity()->first());
+            }
+
+            return $request->fresh();
+        });
+    }
+
+    public function baseCurrency(): FinanceCurrency
+    {
+        return FinanceCurrency::query()
+            ->where('is_base', true)
+            ->where('is_active', true)
+            ->first()
+            ?: FinanceCurrency::query()->where('is_base', true)->firstOrFail();
+    }
+
+    public function cashBoxBalances(?User $user = null): Collection
+    {
+        $cashBoxes = $this->accessibleCashBoxes($user, activeOnly: false)->get();
+        $currencies = FinanceCurrency::query()
+            ->where('is_active', true)
+            ->orderByDesc('is_local')
+            ->orderByDesc('is_base')
+            ->orderBy('code')
+            ->get();
+        $local = $this->localCurrency();
+
+        $rawBalances = FinanceTransaction::query()
+            ->selectRaw('cash_box_id, currency_id, SUM(signed_amount) as balance')
+            ->whereIn('cash_box_id', $cashBoxes->pluck('id'))
+            ->groupBy('cash_box_id', 'currency_id')
+            ->get()
+            ->keyBy(fn ($row) => $row->cash_box_id.'-'.$row->currency_id);
+
+        return $cashBoxes->map(function (FinanceCashBox $cashBox) use ($currencies, $local, $rawBalances) {
+            $currencyRows = $currencies->map(function (FinanceCurrency $currency) use ($cashBox, $local, $rawBalances) {
+                $balance = (float) ($rawBalances->get($cashBox->id.'-'.$currency->id)?->balance ?? 0);
+                $baseEquivalent = $balance * (float) $currency->rate_to_base;
+                $localEquivalent = (float) $local->rate_to_base > 0 ? $baseEquivalent / (float) $local->rate_to_base : $baseEquivalent;
+
+                return [
+                    'currency' => $currency,
+                    'balance' => round($balance, 2),
+                    'local_equivalent' => round($localEquivalent, 2),
+                ];
+            });
+
+            return [
+                'cash_box' => $cashBox,
+                'currencies' => $currencyRows,
+                'local_total' => round($currencyRows->sum('local_equivalent'), 2),
+            ];
+        });
+    }
+
+    public function cashBoxForUser(int $cashBoxId, ?User $user, bool $activeOnly = true): FinanceCashBox
+    {
+        return $this->accessibleCashBoxes($user, $activeOnly)
+            ->whereKey($cashBoxId)
+            ->firstOrFail();
+    }
+
+    public function currencyBalance(FinanceCurrency $currency): float
+    {
+        return round((float) FinanceTransaction::query()
+            ->where('currency_id', $currency->id)
+            ->sum('signed_amount'), 2);
+    }
+
+    public function currencyIsUsed(FinanceCurrency $currency): bool
+    {
+        return FinanceTransaction::query()->where('currency_id', $currency->id)->exists()
+            || FinanceRequest::query()->where('requested_currency_id', $currency->id)->orWhere('accepted_currency_id', $currency->id)->exists()
+            || FinanceCurrencyExchange::query()->where('from_currency_id', $currency->id)->orWhere('to_currency_id', $currency->id)->exists()
+            || FinanceCashBoxTransfer::query()->where('currency_id', $currency->id)->exists();
+    }
+
+    public function declineRequest(FinanceRequest $request, ?User $reviewer = null, ?string $notes = null): FinanceRequest
+    {
+        $request->update([
+            'declined_at' => now(),
+            'review_notes' => $notes,
+            'reviewed_by' => $reviewer?->id,
+            'status' => FinanceRequest::STATUS_DECLINED,
+        ]);
+
+        return $request->fresh();
+    }
+
+    public function defaultCashBox(): FinanceCashBox
+    {
+        $configuredId = AppSetting::groupValues('finance')->get('default_cash_box_id');
+
+        return FinanceCashBox::query()
+            ->when($configuredId, fn (Builder $query) => $query->whereKey((int) $configuredId))
+            ->first()
+            ?: FinanceCashBox::query()->orderBy('id')->firstOrFail();
+    }
+
+    public function localCurrency(): FinanceCurrency
+    {
+        return FinanceCurrency::query()
+            ->where('is_local', true)
+            ->where('is_active', true)
+            ->first()
+            ?: FinanceCurrency::query()->where('is_local', true)->firstOrFail();
+    }
+
     public function nextInvoiceNumber(): string
     {
         $prefix = (string) (DB::table('app_settings')
@@ -34,8 +212,289 @@ class FinanceService
         return sprintf('%s-%06d', $prefix, $nextSequence);
     }
 
-    public function syncActivityTotals(Activity $activity): void
+    public function nextRequestNumber(string $type): string
     {
+        $prefix = strtoupper(match ($type) {
+            FinanceRequest::TYPE_EXPENSE => 'EXP',
+            FinanceRequest::TYPE_REVENUE => 'REV',
+            FinanceRequest::TYPE_RETURN => 'RET',
+            default => 'PUL',
+        });
+
+        $lastRequestNo = FinanceRequest::query()
+            ->where('request_no', 'like', $prefix.'-%')
+            ->latest('id')
+            ->value('request_no');
+
+        $nextSequence = 1;
+
+        if ($lastRequestNo && preg_match('/(\d+)$/', $lastRequestNo, $matches) === 1) {
+            $nextSequence = ((int) $matches[1]) + 1;
+        }
+
+        return sprintf('%s-%06d', $prefix, $nextSequence);
+    }
+
+    public function postTransaction(array $payload): FinanceTransaction
+    {
+        $currency = FinanceCurrency::query()->findOrFail((int) $payload['currency_id']);
+        $direction = (string) ($payload['direction'] ?? 'in');
+        $amount = abs((float) ($payload['amount'] ?? 0));
+        $signedAmount = $direction === 'out' ? -$amount : $amount;
+        $snapshot = $this->amountSnapshot($currency, $signedAmount);
+
+        return FinanceTransaction::query()->create([
+            'transaction_no' => $payload['transaction_no'] ?? $this->nextTransactionNumber(),
+            'cash_box_id' => $payload['cash_box_id'],
+            'currency_id' => $currency->id,
+            'finance_category_id' => $payload['finance_category_id'] ?? null,
+            'activity_id' => $payload['activity_id'] ?? null,
+            'teacher_id' => $payload['teacher_id'] ?? null,
+            'finance_request_id' => $payload['finance_request_id'] ?? null,
+            'source_type' => $payload['source_type'] ?? null,
+            'source_id' => $payload['source_id'] ?? null,
+            'type' => $payload['type'],
+            'direction' => $direction,
+            'amount' => $amount,
+            'signed_amount' => $signedAmount,
+            'rate_to_base' => $snapshot['rate_to_base'],
+            'base_amount' => $snapshot['base_amount'],
+            'local_amount' => $snapshot['local_amount'],
+            'transaction_date' => $payload['transaction_date'] ?? now()->toDateString(),
+            'description' => $payload['description'] ?? null,
+            'entered_by' => $payload['entered_by'] ?? auth()->id(),
+            'pair_uuid' => $payload['pair_uuid'] ?? null,
+            'metadata' => $payload['metadata'] ?? null,
+        ]);
+    }
+
+    public function recordActivityExpense(ActivityExpense $expense, ?float $previousAmount = null): void
+    {
+        if ($previousAmount !== null && FinanceTransaction::query()->where('source_type', ActivityExpense::class)->where('source_id', $expense->id)->exists()) {
+            $difference = round((float) $expense->amount - $previousAmount, 2);
+
+            if (abs($difference) < 0.01) {
+                return;
+            }
+
+            $this->postTransaction([
+                'cash_box_id' => $this->defaultCashBox()->id,
+                'currency_id' => $this->localCurrency()->id,
+                'activity_id' => $expense->activity_id,
+                'source_type' => ActivityExpense::class,
+                'source_id' => $expense->id,
+                'type' => 'activity_expense_adjustment',
+                'direction' => $difference > 0 ? 'out' : 'in',
+                'amount' => abs($difference),
+                'transaction_date' => $expense->spent_on?->toDateString() ?? now()->toDateString(),
+                'description' => $expense->description,
+                'entered_by' => $expense->entered_by,
+                'metadata' => ['adjustment_for_previous_amount' => $previousAmount],
+            ]);
+
+            return;
+        }
+
+        if (FinanceTransaction::query()->where('source_type', ActivityExpense::class)->where('source_id', $expense->id)->where('type', 'activity_expense')->exists()) {
+            return;
+        }
+
+        $this->postTransaction([
+            'cash_box_id' => $this->defaultCashBox()->id,
+            'currency_id' => $this->localCurrency()->id,
+            'activity_id' => $expense->activity_id,
+            'source_type' => ActivityExpense::class,
+            'source_id' => $expense->id,
+            'type' => 'activity_expense',
+            'direction' => 'out',
+            'amount' => (float) $expense->amount,
+            'transaction_date' => $expense->spent_on?->toDateString() ?? now()->toDateString(),
+            'description' => $expense->description,
+            'entered_by' => $expense->entered_by,
+        ]);
+    }
+
+    public function recordActivityPayment(ActivityPayment $payment): void
+    {
+        if ($payment->voided_at || FinanceTransaction::query()->where('source_type', ActivityPayment::class)->where('source_id', $payment->id)->where('type', 'activity_payment')->exists()) {
+            return;
+        }
+
+        $payment->loadMissing('registration');
+
+        $this->postTransaction([
+            'cash_box_id' => $this->defaultCashBox()->id,
+            'currency_id' => $this->localCurrency()->id,
+            'activity_id' => $payment->registration?->activity_id,
+            'source_type' => ActivityPayment::class,
+            'source_id' => $payment->id,
+            'type' => 'activity_payment',
+            'direction' => 'in',
+            'amount' => (float) $payment->amount,
+            'transaction_date' => $payment->paid_at?->toDateString() ?? now()->toDateString(),
+            'description' => $payment->notes,
+            'entered_by' => $payment->entered_by,
+        ]);
+    }
+
+    public function recordCashBoxTransfer(FinanceCashBox $fromCashBox, FinanceCashBox $toCashBox, FinanceCurrency $currency, float $amount, string $date, ?User $user = null, ?string $notes = null): FinanceCashBoxTransfer
+    {
+        return DB::transaction(function () use ($amount, $currency, $date, $fromCashBox, $notes, $toCashBox, $user): FinanceCashBoxTransfer {
+            $pairUuid = (string) Str::uuid();
+
+            $transfer = FinanceCashBoxTransfer::query()->create([
+                'pair_uuid' => $pairUuid,
+                'from_cash_box_id' => $fromCashBox->id,
+                'to_cash_box_id' => $toCashBox->id,
+                'currency_id' => $currency->id,
+                'amount' => $amount,
+                'transfer_date' => $date,
+                'entered_by' => $user?->id,
+                'notes' => $notes,
+            ]);
+
+            foreach ([['box' => $fromCashBox, 'direction' => 'out'], ['box' => $toCashBox, 'direction' => 'in']] as $side) {
+                $this->postTransaction([
+                    'cash_box_id' => $side['box']->id,
+                    'currency_id' => $currency->id,
+                    'source_type' => FinanceCashBoxTransfer::class,
+                    'source_id' => $transfer->id,
+                    'type' => 'cash_box_transfer',
+                    'direction' => $side['direction'],
+                    'amount' => $amount,
+                    'transaction_date' => $date,
+                    'description' => $notes,
+                    'entered_by' => $user?->id,
+                    'pair_uuid' => $pairUuid,
+                ]);
+            }
+
+            return $transfer;
+        });
+    }
+
+    public function recordCurrencyExchange(FinanceCashBox $fromCashBox, FinanceCurrency $fromCurrency, float $fromAmount, FinanceCashBox $toCashBox, FinanceCurrency $toCurrency, float $toAmount, string $date, ?User $user = null, ?string $notes = null): FinanceCurrencyExchange
+    {
+        return DB::transaction(function () use ($date, $fromAmount, $fromCashBox, $fromCurrency, $notes, $toAmount, $toCashBox, $toCurrency, $user): FinanceCurrencyExchange {
+            $pairUuid = (string) Str::uuid();
+            $fromSnapshot = $this->amountSnapshot($fromCurrency, $fromAmount);
+
+            $exchange = FinanceCurrencyExchange::query()->create([
+                'pair_uuid' => $pairUuid,
+                'from_cash_box_id' => $fromCashBox->id,
+                'to_cash_box_id' => $toCashBox->id,
+                'from_currency_id' => $fromCurrency->id,
+                'to_currency_id' => $toCurrency->id,
+                'from_amount' => $fromAmount,
+                'to_amount' => $toAmount,
+                'from_rate_to_base' => $fromCurrency->rate_to_base,
+                'to_rate_to_base' => $toCurrency->rate_to_base,
+                'base_amount' => abs($fromSnapshot['base_amount']),
+                'local_amount' => abs($fromSnapshot['local_amount']),
+                'exchange_date' => $date,
+                'entered_by' => $user?->id,
+                'notes' => $notes,
+            ]);
+
+            $this->postTransaction([
+                'cash_box_id' => $fromCashBox->id,
+                'currency_id' => $fromCurrency->id,
+                'source_type' => FinanceCurrencyExchange::class,
+                'source_id' => $exchange->id,
+                'type' => 'currency_exchange',
+                'direction' => 'out',
+                'amount' => $fromAmount,
+                'transaction_date' => $date,
+                'description' => $notes,
+                'entered_by' => $user?->id,
+                'pair_uuid' => $pairUuid,
+            ]);
+
+            $this->postTransaction([
+                'cash_box_id' => $toCashBox->id,
+                'currency_id' => $toCurrency->id,
+                'source_type' => FinanceCurrencyExchange::class,
+                'source_id' => $exchange->id,
+                'type' => 'currency_exchange',
+                'direction' => 'in',
+                'amount' => $toAmount,
+                'transaction_date' => $date,
+                'description' => $notes,
+                'entered_by' => $user?->id,
+                'pair_uuid' => $pairUuid,
+            ]);
+
+            return $exchange;
+        });
+    }
+
+    public function recordInvoicePayment(Payment $payment): void
+    {
+        if ($payment->voided_at || FinanceTransaction::query()->where('source_type', Payment::class)->where('source_id', $payment->id)->where('type', 'invoice_payment')->exists()) {
+            return;
+        }
+
+        $this->postTransaction([
+            'cash_box_id' => $this->defaultCashBox()->id,
+            'currency_id' => $this->localCurrency()->id,
+            'source_type' => Payment::class,
+            'source_id' => $payment->id,
+            'type' => 'invoice_payment',
+            'direction' => 'in',
+            'amount' => (float) $payment->amount,
+            'transaction_date' => $payment->paid_at?->toDateString() ?? now()->toDateString(),
+            'description' => $payment->notes,
+            'entered_by' => $payment->received_by,
+        ]);
+    }
+
+    public function reverseSourceTransactions(string $sourceType, int $sourceId, ?User $user = null, ?string $reason = null): void
+    {
+        $transactions = FinanceTransaction::query()
+            ->where('source_type', $sourceType)
+            ->where('source_id', $sourceId)
+            ->where('type', 'not like', '%_reversal')
+            ->get();
+
+        foreach ($transactions as $transaction) {
+            if (FinanceTransaction::query()
+                ->where('source_type', $sourceType)
+                ->where('source_id', $sourceId)
+                ->where('type', $transaction->type.'_reversal')
+                ->where('metadata->reversal_of', $transaction->id)
+                ->exists()) {
+                continue;
+            }
+
+            $this->postTransaction([
+                'cash_box_id' => $transaction->cash_box_id,
+                'currency_id' => $transaction->currency_id,
+                'finance_category_id' => $transaction->finance_category_id,
+                'activity_id' => $transaction->activity_id,
+                'teacher_id' => $transaction->teacher_id,
+                'finance_request_id' => $transaction->finance_request_id,
+                'source_type' => $sourceType,
+                'source_id' => $sourceId,
+                'type' => $transaction->type.'_reversal',
+                'direction' => $transaction->direction === 'out' ? 'in' : 'out',
+                'amount' => (float) $transaction->amount,
+                'transaction_date' => now()->toDateString(),
+                'description' => $reason,
+                'entered_by' => $user?->id,
+                'metadata' => [
+                    'reversal_of' => $transaction->id,
+                    'reason' => $reason,
+                ],
+            ]);
+        }
+    }
+
+    public function syncActivityTotals(?Activity $activity): void
+    {
+        if (! $activity) {
+            return;
+        }
+
         $expectedRevenue = ActivityRegistration::query()
             ->where('activity_id', $activity->id)
             ->whereNotIn('status', ['cancelled', 'declined'])
@@ -50,10 +509,22 @@ class FinanceService
             ->where('activity_id', $activity->id)
             ->sum('amount');
 
+        $requestRevenue = FinanceTransaction::query()
+            ->where('activity_id', $activity->id)
+            ->where('source_type', FinanceRequest::class)
+            ->where('signed_amount', '>', 0)
+            ->sum('signed_amount');
+
+        $requestExpenses = abs((float) FinanceTransaction::query()
+            ->where('activity_id', $activity->id)
+            ->where('source_type', FinanceRequest::class)
+            ->where('signed_amount', '<', 0)
+            ->sum('signed_amount'));
+
         $activity->update([
             'expected_revenue_cached' => $expectedRevenue,
-            'collected_revenue_cached' => $collectedRevenue,
-            'expense_total_cached' => $expenseTotal,
+            'collected_revenue_cached' => (float) $collectedRevenue + (float) $requestRevenue,
+            'expense_total_cached' => (float) $expenseTotal + $requestExpenses,
         ]);
     }
 
@@ -77,6 +548,31 @@ class FinanceService
         ]);
     }
 
+    public function updateCurrencyRate(FinanceCurrency $currency, float $rateToBase, ?User $user = null): FinanceCurrency
+    {
+        $currency->update([
+            'rate_to_base' => $currency->is_base ? 1 : $rateToBase,
+            'rate_updated_by' => $user?->id,
+            'rate_updated_at' => now(),
+        ]);
+
+        return $currency->fresh();
+    }
+
+    protected function amountSnapshot(FinanceCurrency $currency, float $signedAmount): array
+    {
+        $rateToBase = (float) $currency->rate_to_base;
+        $baseAmount = round($signedAmount * $rateToBase, 2);
+        $localRate = (float) $this->localCurrency()->rate_to_base;
+        $localAmount = $localRate > 0 ? round($baseAmount / $localRate, 2) : $baseAmount;
+
+        return [
+            'rate_to_base' => $rateToBase,
+            'base_amount' => $baseAmount,
+            'local_amount' => $localAmount,
+        ];
+    }
+
     protected function determineInvoiceStatus(Invoice $invoice, float $paidAmount, float $invoiceTotal): string
     {
         if ($invoice->status === 'cancelled') {
@@ -92,5 +588,21 @@ class FinanceService
         }
 
         return 'paid';
+    }
+
+    protected function nextTransactionNumber(): string
+    {
+        $lastTransactionNo = FinanceTransaction::query()
+            ->where('transaction_no', 'like', 'TX-%')
+            ->latest('id')
+            ->value('transaction_no');
+
+        $nextSequence = 1;
+
+        if ($lastTransactionNo && preg_match('/(\d+)$/', $lastTransactionNo, $matches) === 1) {
+            $nextSequence = ((int) $matches[1]) + 1;
+        }
+
+        return sprintf('TX-%08d', $nextSequence);
     }
 }

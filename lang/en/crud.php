@@ -46,6 +46,8 @@ return [
             'active' => 'Active',
             'inactive' => 'Inactive',
             'blocked' => 'Blocked',
+            'pending' => 'Pending',
+            'declined' => 'Declined',
             'graduated' => 'Graduated',
             'completed' => 'Completed',
             'cancelled' => 'Cancelled',
@@ -113,6 +115,7 @@ return [
         'stats' => [
             'all' => 'Total teachers',
             'active' => 'Active',
+            'pending' => 'Pending requests',
             'blocked' => 'Blocked',
             'helping' => 'Helping now',
         ],
@@ -172,6 +175,14 @@ return [
                 'actions' => 'Actions',
             ],
         ],
+        'review' => [
+            'action' => 'Review request',
+            'title' => 'Review teacher request',
+            'description' => 'Approve the pending teacher request after completing the operational data, or decline it.',
+            'approve' => 'Approve request',
+            'decline' => 'Decline request',
+            'help' => 'Fill the missing data before approval. Approving activates the linked login account.',
+        ],
         'messages' => [
             'created' => 'Teacher created successfully.',
             'updated' => 'Teacher updated successfully.',
@@ -179,6 +190,8 @@ return [
             'helping_updated' => 'Teacher helping status updated successfully.',
             'photo_updated' => 'Teacher photo saved successfully.',
             'photo_removed' => 'Teacher photo removed successfully.',
+            'request_approved' => 'Teacher signup request approved successfully.',
+            'request_declined' => 'Teacher signup request declined successfully.',
         ],
         'errors' => [
             'delete_linked' => 'This teacher cannot be deleted while groups still reference them.',

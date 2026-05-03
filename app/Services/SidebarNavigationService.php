@@ -59,8 +59,15 @@ class SidebarNavigationService
             'activities' => $this->item('ui.nav.activities', 'sparkles', 'activities.index', ['activities.index', 'activities.finance'], 'finance', 10, ['activities.view']),
             'family_activities' => $this->item('ui.nav.family_activities', 'heart', 'activities.family', ['activities.family'], 'finance', 20, ['activities.responses.view']),
             'invoices' => $this->item('ui.nav.invoices', 'document-currency-dollar', 'invoices.index', ['invoices.*'], 'finance', 30, ['invoices.view']),
+            'finance_reports' => $this->item('ui.nav.finance_reports', 'chart-bar', 'finance.reports.index', ['finance.reports.*'], 'finance', 40, ['finance.reports.view']),
+            'finance_pull_requests' => $this->item('ui.nav.finance_pull_requests', 'arrow-down-tray', 'finance.pull-requests.index', ['finance.pull-requests.*'], 'finance', 50, ['finance.pull-requests.view']),
+            'finance_cash_box' => $this->item('ui.nav.finance_cash_box', 'banknotes', 'finance.cash-box.index', ['finance.cash-box.*'], 'finance', 60, ['finance.cash-box.view']),
+            'finance_expense_requests' => $this->item('ui.nav.finance_expense_requests', 'receipt-refund', 'finance.expense-requests.index', ['finance.expense-requests.*'], 'finance', 70, ['finance.expense-requests.view']),
+            'finance_revenue_requests' => $this->item('ui.nav.finance_revenue_requests', 'receipt-percent', 'finance.revenue-requests.index', ['finance.revenue-requests.*'], 'finance', 80, ['finance.revenue-requests.view']),
+            'finance_exchange' => $this->item('ui.nav.finance_exchange', 'arrows-right-left', 'finance.exchange.index', ['finance.exchange.*'], 'finance', 90, ['finance.exchange.view']),
 
-            'dashboard_settings' => $this->item('ui.nav.dashboard_settings', 'cog-6-tooth', 'settings.organization', ['settings.organization', 'settings.tracking', 'settings.course-completion', 'settings.points', 'settings.finance', 'settings.access-control', 'settings.sidebar-navigation'], 'configuration', 10, ['settings.manage']),
+            'dashboard_settings' => $this->item('ui.nav.dashboard_settings', 'cog-6-tooth', 'settings.organization', ['settings.organization', 'settings.tracking', 'settings.course-completion', 'settings.points', 'settings.access-control', 'settings.sidebar-navigation'], 'configuration', 10, ['settings.manage']),
+            'finance_settings' => $this->item('ui.nav.finance_settings', 'currency-dollar', 'settings.finance', ['settings.finance'], 'configuration', 15, ['finance.settings.manage']),
             'public_website_settings' => $this->item('ui.nav.public_website_settings', 'globe-alt', 'settings.website', ['settings.website', 'settings.website.pages', 'settings.website.navigation'], 'configuration', 20, ['website.manage']),
 
             'print_templates' => $this->item('ui.nav.print_templates', 'document-duplicate', 'print-templates.templates.index', ['print-templates.*'], 'identity_tools', 10, ['id-cards.view']),

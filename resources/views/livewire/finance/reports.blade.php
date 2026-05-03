@@ -1,0 +1,72 @@
+<?php
+
+use App\Livewire\Concerns\AuthorizesPermissions;
+use App\Services\FinanceReportService;
+use Livewire\Volt\Component;
+
+new class extends Component {
+    use AuthorizesPermissions;
+
+    public int $year;
+    public string $quarter = '';
+
+    public function mount(): void
+    {
+        $this->authorizePermission('finance.reports.view');
+        $this->year = (int) now()->year;
+    }
+
+    public function with(): array
+    {
+        return [
+            'report' => app(FinanceReportService::class)->report($this->year, $this->quarter !== '' ? (int) $this->quarter : null),
+        ];
+    }
+}; ?>
+
+<div class="page-stack">
+    <section class="page-hero p-6 lg:p-8">
+        <div class="eyebrow">{{ __('ui.nav.finance') }}</div>
+        <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">Financial Report</h1>
+        <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">Review balances, pending pull requests, and where money went by financial year or quarter.</p>
+    </section>
+
+    <section class="surface-panel p-5 lg:p-6">
+        <div class="grid gap-4 md:grid-cols-[12rem_12rem_auto] md:items-end">
+            <div><label class="mb-1 block text-sm font-medium">Year</label><input wire:model.live="year" type="number" min="2000" max="2100" class="w-full rounded-xl px-4 py-3 text-sm"></div>
+            <div><label class="mb-1 block text-sm font-medium">Quarter</label><select wire:model.live="quarter" class="w-full rounded-xl px-4 py-3 text-sm"><option value="">Full year</option><option value="1">Q1</option><option value="2">Q2</option><option value="3">Q3</option><option value="4">Q4</option></select></div>
+            @can('finance.reports.export')
+                <a href="{{ route('finance.reports.export', ['year' => $year, 'quarter' => $quarter ?: null]) }}" class="pill-link pill-link--accent">Export XLSX</a>
+            @endcan
+        </div>
+    </section>
+
+    <section class="admin-kpi-grid">
+        <article class="stat-card"><div class="kpi-label">Income</div><div class="metric-value mt-3">{{ number_format($report['summary']['income'], 2) }}</div></article>
+        <article class="stat-card"><div class="kpi-label">Expenses</div><div class="metric-value mt-3">{{ number_format($report['summary']['expense'], 2) }}</div></article>
+        <article class="stat-card"><div class="kpi-label">Net</div><div class="metric-value mt-3">{{ number_format($report['summary']['net'], 2) }}</div></article>
+        <article class="stat-card"><div class="kpi-label">Transactions</div><div class="metric-value mt-3">{{ number_format($report['summary']['transactions']) }}</div></article>
+    </section>
+
+    <section class="grid gap-6 xl:grid-cols-2">
+        <div class="surface-table">
+            <div class="admin-grid-meta"><div><div class="admin-grid-meta__title">Cash balances</div><div class="admin-grid-meta__summary">Current balance using active exchange rates.</div></div></div>
+            <div class="overflow-x-auto"><table class="text-sm"><thead><tr><th class="px-5 py-3 text-left">Cash box</th><th class="px-5 py-3 text-left">Currency</th><th class="px-5 py-3 text-left">Balance</th><th class="px-5 py-3 text-left">Local equivalent</th></tr></thead><tbody class="divide-y divide-white/6">@foreach ($report['balances'] as $boxBalance)@foreach ($boxBalance['currencies'] as $row)<tr><td class="px-5 py-3">{{ $boxBalance['cash_box']->name }}</td><td class="px-5 py-3">{{ $row['currency']->code }}</td><td class="px-5 py-3">{{ number_format($row['balance'], 2) }}</td><td class="px-5 py-3">{{ number_format($row['local_equivalent'], 2) }}</td></tr>@endforeach@endforeach</tbody></table></div>
+        </div>
+
+        <div class="surface-table">
+            <div class="admin-grid-meta"><div><div class="admin-grid-meta__title">Quarter net totals</div></div></div>
+            <div class="overflow-x-auto"><table class="text-sm"><thead><tr><th class="px-5 py-3 text-left">Quarter</th><th class="px-5 py-3 text-left">Period</th><th class="px-5 py-3 text-left">Net local</th></tr></thead><tbody class="divide-y divide-white/6">@foreach ($report['quarter_totals'] as $quarter)<tr><td class="px-5 py-3">Q{{ $quarter['quarter'] }}</td><td class="px-5 py-3">{{ $quarter['start']->format('Y-m-d') }} to {{ $quarter['end']->format('Y-m-d') }}</td><td class="px-5 py-3">{{ number_format($quarter['net'], 2) }}</td></tr>@endforeach</tbody></table></div>
+        </div>
+    </section>
+
+    <section class="surface-table">
+        <div class="admin-grid-meta"><div><div class="admin-grid-meta__title">Where money went</div><div class="admin-grid-meta__summary">Grouped by finance category.</div></div></div>
+        <div class="overflow-x-auto"><table class="text-sm"><thead><tr><th class="px-5 py-3 text-left">Category</th><th class="px-5 py-3 text-left">Income</th><th class="px-5 py-3 text-left">Expense</th><th class="px-5 py-3 text-left">Net</th></tr></thead><tbody class="divide-y divide-white/6">@foreach ($report['category_totals'] as $row)<tr><td class="px-5 py-3">{{ $row['category'] }}</td><td class="px-5 py-3">{{ number_format($row['income'], 2) }}</td><td class="px-5 py-3">{{ number_format($row['expense'], 2) }}</td><td class="px-5 py-3">{{ number_format($row['net'], 2) }}</td></tr>@endforeach</tbody></table></div>
+    </section>
+
+    <section class="surface-table">
+        <div class="admin-grid-meta"><div><div class="admin-grid-meta__title">Pending pull requests</div></div></div>
+        <div class="overflow-x-auto"><table class="text-sm"><thead><tr><th class="px-5 py-3 text-left">Request</th><th class="px-5 py-3 text-left">Requester</th><th class="px-5 py-3 text-left">Activity</th><th class="px-5 py-3 text-left">Amount</th></tr></thead><tbody class="divide-y divide-white/6">@forelse ($report['pending_pull_requests'] as $request)<tr><td class="px-5 py-3">{{ $request->request_no }}</td><td class="px-5 py-3">{{ $request->requestedBy?->name ?: '-' }}</td><td class="px-5 py-3">{{ $request->activity?->title ?: '-' }}</td><td class="px-5 py-3">{{ number_format((float) $request->requested_amount, 2) }} {{ $request->requestedCurrency?->code }}</td></tr>@empty<tr><td colspan="4" class="px-5 py-10 text-center text-sm text-neutral-500">No pending pull requests.</td></tr>@endforelse</tbody></table></div>
+    </section>
+</div>
