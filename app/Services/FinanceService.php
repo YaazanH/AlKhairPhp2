@@ -22,6 +22,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 class FinanceService
 {
@@ -40,6 +41,12 @@ class FinanceService
         return $query
             ->whereHas('assignedUsers', fn (Builder $builder) => $builder->whereKey($user->id))
             ->orderBy('name');
+    }
+
+    public function accessibleCashBoxesForCurrency(?User $user, ?int $currencyId = null, bool $activeOnly = true): Builder
+    {
+        return $this->accessibleCashBoxes($user, $activeOnly)
+            ->when($currencyId, fn (Builder $query) => $query->whereHas('currencies', fn (Builder $currencyQuery) => $currencyQuery->whereKey($currencyId)));
     }
 
     public function acceptRequest(FinanceRequest $request, float $acceptedAmount, FinanceCashBox $cashBox, ?User $reviewer = null, ?string $notes = null): FinanceRequest
@@ -101,12 +108,12 @@ class FinanceService
 
     public function cashBoxBalances(?User $user = null): Collection
     {
-        $cashBoxes = $this->accessibleCashBoxes($user, activeOnly: false)->get();
-        $currencies = FinanceCurrency::query()
-            ->where('is_active', true)
-            ->orderByDesc('is_local')
-            ->orderByDesc('is_base')
-            ->orderBy('code')
+        $cashBoxes = $this->accessibleCashBoxes($user, activeOnly: false)
+            ->with(['currencies' => fn ($query) => $query
+                ->where('is_active', true)
+                ->orderByDesc('is_local')
+                ->orderByDesc('is_base')
+                ->orderBy('code')])
             ->get();
         $local = $this->localCurrency();
 
@@ -117,8 +124,8 @@ class FinanceService
             ->get()
             ->keyBy(fn ($row) => $row->cash_box_id.'-'.$row->currency_id);
 
-        return $cashBoxes->map(function (FinanceCashBox $cashBox) use ($currencies, $local, $rawBalances) {
-            $currencyRows = $currencies->map(function (FinanceCurrency $currency) use ($cashBox, $local, $rawBalances) {
+        return $cashBoxes->map(function (FinanceCashBox $cashBox) use ($local, $rawBalances) {
+            $currencyRows = $cashBox->currencies->map(function (FinanceCurrency $currency) use ($cashBox, $local, $rawBalances) {
                 $balance = (float) ($rawBalances->get($cashBox->id.'-'.$currency->id)?->balance ?? 0);
                 $baseEquivalent = $balance * (float) $currency->rate_to_base;
                 $localEquivalent = (float) $local->rate_to_base > 0 ? $baseEquivalent / (float) $local->rate_to_base : $baseEquivalent;
@@ -143,6 +150,16 @@ class FinanceService
         return $this->accessibleCashBoxes($user, $activeOnly)
             ->whereKey($cashBoxId)
             ->firstOrFail();
+    }
+
+    public function currenciesForCashBox(?int $cashBoxId = null, bool $activeOnly = true): Builder
+    {
+        return FinanceCurrency::query()
+            ->when($activeOnly, fn (Builder $query) => $query->where('is_active', true))
+            ->when($cashBoxId, fn (Builder $query) => $query->whereHas('cashBoxes', fn (Builder $cashBoxQuery) => $cashBoxQuery->whereKey($cashBoxId)))
+            ->orderByDesc('is_local')
+            ->orderByDesc('is_base')
+            ->orderBy('code');
     }
 
     public function currencyBalance(FinanceCurrency $currency): float
@@ -238,14 +255,18 @@ class FinanceService
     public function postTransaction(array $payload): FinanceTransaction
     {
         $currency = FinanceCurrency::query()->findOrFail((int) $payload['currency_id']);
+        $cashBox = FinanceCashBox::query()->findOrFail((int) $payload['cash_box_id']);
         $direction = (string) ($payload['direction'] ?? 'in');
         $amount = abs((float) ($payload['amount'] ?? 0));
         $signedAmount = $direction === 'out' ? -$amount : $amount;
         $snapshot = $this->amountSnapshot($currency, $signedAmount);
 
+        $this->ensureCashBoxSupportsCurrency($cashBox, $currency);
+        $this->ensureNonNegativeBalance($cashBox, $currency, $signedAmount);
+
         return FinanceTransaction::query()->create([
             'transaction_no' => $payload['transaction_no'] ?? $this->nextTransactionNumber(),
-            'cash_box_id' => $payload['cash_box_id'],
+            'cash_box_id' => $cashBox->id,
             'currency_id' => $currency->id,
             'finance_category_id' => $payload['finance_category_id'] ?? null,
             'activity_id' => $payload['activity_id'] ?? null,
@@ -557,6 +578,46 @@ class FinanceService
         ]);
 
         return $currency->fresh();
+    }
+
+    protected function currentBalance(FinanceCashBox $cashBox, FinanceCurrency $currency): float
+    {
+        return round((float) FinanceTransaction::query()
+            ->where('cash_box_id', $cashBox->id)
+            ->where('currency_id', $currency->id)
+            ->sum('signed_amount'), 2);
+    }
+
+    protected function ensureCashBoxSupportsCurrency(FinanceCashBox $cashBox, FinanceCurrency $currency): void
+    {
+        if ($cashBox->currencies()->whereKey($currency->id)->exists()) {
+            return;
+        }
+
+        throw ValidationException::withMessages([
+            'currency_id' => __('finance.validation.cash_box_currency_mismatch'),
+        ]);
+    }
+
+    protected function ensureNonNegativeBalance(FinanceCashBox $cashBox, FinanceCurrency $currency, float $signedAmount): void
+    {
+        if ($signedAmount >= 0) {
+            return;
+        }
+
+        $available = $this->currentBalance($cashBox, $currency);
+
+        if (round($available + $signedAmount, 2) >= 0) {
+            return;
+        }
+
+        throw ValidationException::withMessages([
+            'amount' => __('finance.validation.insufficient_cash_box_balance', [
+                'available' => number_format($available, 2),
+                'currency' => $currency->code,
+                'cash_box' => $cashBox->name,
+            ]),
+        ]);
     }
 
     protected function amountSnapshot(FinanceCurrency $currency, float $signedAmount): array

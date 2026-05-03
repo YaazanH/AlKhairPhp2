@@ -26,6 +26,7 @@ use App\Models\QuranTestType;
 use App\Models\Student;
 use App\Models\Teacher;
 use App\Models\User;
+use App\Services\FinanceService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -329,6 +330,16 @@ class OperationalWriteApiTest extends TestCase
         $this->withToken($context['token'])->deleteJson('/api/v1/activities/'.$activity->id.'/registrations/'.$registrationId)
             ->assertStatus(422)
             ->assertJsonPath('message', 'This registration cannot be deleted while active payments exist.');
+
+        app(FinanceService::class)->postTransaction([
+            'cash_box_id' => app(FinanceService::class)->defaultCashBox()->id,
+            'currency_id' => app(FinanceService::class)->localCurrency()->id,
+            'type' => 'manual_adjustment',
+            'direction' => 'in',
+            'amount' => 20,
+            'description' => 'API void test reserve balance',
+            'entered_by' => $context['manager']->id,
+        ]);
 
         $this->withToken($context['token'])->postJson('/api/v1/activities/'.$activity->id.'/payments/'.$activityPaymentId.'/void')
             ->assertOk()

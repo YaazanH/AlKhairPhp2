@@ -15,6 +15,7 @@ use App\Models\Student;
 use App\Services\ActivityAudienceService;
 use App\Services\FinanceService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 class FinanceWriteController extends Controller
@@ -113,14 +114,17 @@ class FinanceWriteController extends Controller
         abort_unless($activityPayment->registration?->activity_id === $activity->id, 404);
 
         if (! $activityPayment->voided_at) {
-            $activityPayment->update([
-                'void_reason' => 'Voided from the integration API.',
-                'voided_at' => now(),
-                'voided_by' => $request->user()->id,
-            ]);
+            DB::transaction(function () use ($activity, $activityPayment, $request): void {
+                app(FinanceService::class)->reverseSourceTransactions(ActivityPayment::class, $activityPayment->id, $request->user(), 'Voided from the integration API.');
 
-            app(FinanceService::class)->reverseSourceTransactions(ActivityPayment::class, $activityPayment->id, $request->user(), 'Voided from the integration API.');
-            app(FinanceService::class)->syncActivityTotals($activity->fresh());
+                $activityPayment->update([
+                    'void_reason' => 'Voided from the integration API.',
+                    'voided_at' => now(),
+                    'voided_by' => $request->user()->id,
+                ]);
+
+                app(FinanceService::class)->syncActivityTotals($activity->fresh());
+            });
         }
 
         return response()->json($this->activityPaymentPayload($activityPayment->fresh(['paymentMethod', 'registration.student', 'voidedBy'])));
@@ -257,14 +261,17 @@ class FinanceWriteController extends Controller
         abort_unless($payment->invoice_id === $invoice->id, 404);
 
         if (! $payment->voided_at) {
-            $payment->update([
-                'void_reason' => 'Voided from the integration API.',
-                'voided_at' => now(),
-                'voided_by' => $request->user()->id,
-            ]);
+            DB::transaction(function () use ($invoice, $payment, $request): void {
+                app(FinanceService::class)->reverseSourceTransactions(Payment::class, $payment->id, $request->user(), 'Voided from the integration API.');
 
-            app(FinanceService::class)->reverseSourceTransactions(Payment::class, $payment->id, $request->user(), 'Voided from the integration API.');
-            app(FinanceService::class)->syncInvoiceTotals($invoice->fresh());
+                $payment->update([
+                    'void_reason' => 'Voided from the integration API.',
+                    'voided_at' => now(),
+                    'voided_by' => $request->user()->id,
+                ]);
+
+                app(FinanceService::class)->syncInvoiceTotals($invoice->fresh());
+            });
         }
 
         return response()->json($this->invoicePaymentPayload($payment->fresh(['paymentMethod', 'receivedBy', 'voidedBy'])));

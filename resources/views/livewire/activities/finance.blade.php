@@ -11,6 +11,7 @@ use App\Models\PaymentMethod;
 use App\Models\Student;
 use App\Services\ActivityAudienceService;
 use App\Services\FinanceService;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Livewire\Volt\Component;
 
@@ -187,9 +188,12 @@ new class extends Component {
             return;
         }
 
-        $payment->update(['voided_at' => now(), 'voided_by' => auth()->id(), 'void_reason' => __('activities.finance.payments.void_reason')]);
-        app(FinanceService::class)->reverseSourceTransactions(ActivityPayment::class, $payment->id, auth()->user(), __('activities.finance.payments.void_reason'));
-        app(FinanceService::class)->syncActivityTotals($this->currentActivity->fresh());
+        DB::transaction(function () use ($payment): void {
+            app(FinanceService::class)->reverseSourceTransactions(ActivityPayment::class, $payment->id, auth()->user(), __('activities.finance.payments.void_reason'));
+            $payment->update(['voided_at' => now(), 'voided_by' => auth()->id(), 'void_reason' => __('activities.finance.payments.void_reason')]);
+            app(FinanceService::class)->syncActivityTotals($this->currentActivity->fresh());
+        });
+
         session()->flash('status', __('activities.finance.payments.messages.voided'));
     }
 

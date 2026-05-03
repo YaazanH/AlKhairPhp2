@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\PrintTemplates;
 
 use App\Http\Controllers\Controller;
+use App\Models\FinanceRequest;
 use App\Models\PrintTemplate;
 use App\Services\IdCards\IdCardPrintLayoutService;
 use App\Services\PrintTemplates\PrintTemplateDataSourceService;
@@ -70,6 +71,13 @@ class PrintTemplatePrintController extends Controller
 
         $template = PrintTemplate::query()->findOrFail($validated['template_id']);
         $sources = $this->dataSourceService->normalize($template->data_sources ?? []);
+
+        if (collect($sources)->contains(fn (array $source) => $source['entity'] === 'finance_request' && $source['mode'] === 'single')) {
+            $this->authorizeFinanceRequestPrint($request, $sources);
+        } else {
+            abort_unless($request->user()?->can('id-cards.print'), 403);
+        }
+
         $contexts = $this->contextsFromRequest($request, $sources, (int) ($validated['copy_count'] ?? 1));
 
         if ($contexts instanceof RedirectResponse) {
@@ -101,6 +109,27 @@ class PrintTemplatePrintController extends Controller
             'layout' => $layout,
             'totalItems' => $contexts->count(),
         ]);
+    }
+
+    protected function authorizeFinanceRequestPrint(Request $request, array $sources): void
+    {
+        abort_unless(
+            collect($sources)->contains(fn (array $source) => $source['entity'] === 'finance_request' && $source['mode'] === 'single'),
+            403,
+        );
+
+        $financeRequest = FinanceRequest::query()->findOrFail((int) $request->input('sources.finance_request.single'));
+
+        abort_unless($financeRequest->status === FinanceRequest::STATUS_ACCEPTED, 403);
+
+        abort_unless(
+            match ($financeRequest->type) {
+                FinanceRequest::TYPE_PULL => $request->user()?->can('finance.pull-requests.print'),
+                FinanceRequest::TYPE_EXPENSE => $request->user()?->can('finance.expense-requests.print'),
+                default => $request->user()?->can('finance.revenue-requests.print'),
+            },
+            403,
+        );
     }
 
     protected function contextsFromRequest(Request $request, array $sources, int $copyCount): Collection|RedirectResponse

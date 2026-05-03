@@ -55,7 +55,7 @@ Route::middleware(['auth'])->group(function () {
     Route::put('print-templates/{template}', [PrintTemplateController::class, 'update'])->middleware('permission:id-cards.templates.manage')->name('print-templates.templates.update');
     Route::delete('print-templates/{template}', [PrintTemplateController::class, 'destroy'])->middleware('permission:id-cards.templates.manage')->name('print-templates.templates.destroy');
     Route::get('print-templates/print', [PrintTemplatePrintController::class, 'create'])->middleware('permission:id-cards.print')->name('print-templates.print.create');
-    Route::post('print-templates/print/preview', [PrintTemplatePrintController::class, 'preview'])->middleware('permission:id-cards.print')->name('print-templates.print.preview');
+    Route::post('print-templates/print/preview', [PrintTemplatePrintController::class, 'preview'])->middleware('permission:id-cards.print|finance.pull-requests.print|finance.expense-requests.print|finance.revenue-requests.print')->name('print-templates.print.preview');
     Volt::route('barcode-actions', 'barcode-actions.index')->middleware('permission:barcode-actions.view')->name('barcode-actions.index');
     Route::post('barcode-actions/print/preview', [BarcodeActionPrintController::class, 'preview'])->middleware('permission:barcode-actions.view')->name('barcode-actions.print.preview');
     Volt::route('scanner-imports', 'barcode-actions.import')->middleware('permission:barcode-scans.import')->name('barcode-actions.import');

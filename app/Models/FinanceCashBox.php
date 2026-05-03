@@ -30,6 +30,11 @@ class FinanceCashBox extends Model
         return $this->belongsToMany(User::class, 'finance_cash_box_user')->withTimestamps();
     }
 
+    public function currencies(): BelongsToMany
+    {
+        return $this->belongsToMany(FinanceCurrency::class, 'finance_cash_box_currency')->withTimestamps();
+    }
+
     public function transactions(): HasMany
     {
         return $this->hasMany(FinanceTransaction::class, 'cash_box_id');

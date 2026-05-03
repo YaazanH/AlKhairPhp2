@@ -10,6 +10,7 @@ use App\Models\Payment;
 use App\Models\PaymentMethod;
 use App\Models\Student;
 use App\Services\FinanceService;
+use Illuminate\Support\Facades\DB;
 use Livewire\Volt\Component;
 
 new class extends Component {
@@ -162,13 +163,16 @@ new class extends Component {
         if ($payment->voided_at) {
             return;
         }
-        $payment->update([
-            'voided_at' => now(),
-            'voided_by' => auth()->id(),
-            'void_reason' => __('invoices.detail.payment_form.void_reason'),
-        ]);
-        app(FinanceService::class)->reverseSourceTransactions(Payment::class, $payment->id, auth()->user(), __('invoices.detail.payment_form.void_reason'));
-        app(FinanceService::class)->syncInvoiceTotals($this->currentInvoice->fresh());
+        DB::transaction(function () use ($payment): void {
+            app(FinanceService::class)->reverseSourceTransactions(Payment::class, $payment->id, auth()->user(), __('invoices.detail.payment_form.void_reason'));
+            $payment->update([
+                'voided_at' => now(),
+                'voided_by' => auth()->id(),
+                'void_reason' => __('invoices.detail.payment_form.void_reason'),
+            ]);
+            app(FinanceService::class)->syncInvoiceTotals($this->currentInvoice->fresh());
+        });
+
         session()->flash('status', __('invoices.detail.payment_form.messages.voided'));
     }
 

@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class FinanceCurrency extends Model
@@ -37,6 +38,11 @@ class FinanceCurrency extends Model
     public function rateUpdatedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'rate_updated_by');
+    }
+
+    public function cashBoxes(): BelongsToMany
+    {
+        return $this->belongsToMany(FinanceCashBox::class, 'finance_cash_box_currency')->withTimestamps();
     }
 
     public function transactions(): HasMany

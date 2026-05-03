@@ -30,7 +30,7 @@ class FinanceReportService
             ],
             'balances' => app(FinanceService::class)->cashBoxBalances(auth()->user()),
             'category_totals' => $transactions
-                ->groupBy(fn (FinanceTransaction $transaction) => $transaction->category?->name ?: 'Uncategorized')
+                ->groupBy(fn (FinanceTransaction $transaction) => $transaction->category?->name ?: __('finance.options.uncategorized'))
                 ->map(fn ($rows, $category) => [
                     'category' => $category,
                     'income' => round((float) $rows->where('local_amount', '>', 0)->sum('local_amount'), 2),
@@ -46,6 +46,22 @@ class FinanceReportService
                 ->limit(10)
                 ->get(),
             'quarter_totals' => $this->quarterTotals($year),
+            'summary_by_currency' => $transactions
+                ->groupBy('currency_id')
+                ->map(function ($rows) {
+                    $currency = $rows->first()->currency;
+                    $income = (float) $rows->where('signed_amount', '>', 0)->sum('signed_amount');
+                    $expense = abs((float) $rows->where('signed_amount', '<', 0)->sum('signed_amount'));
+
+                    return [
+                        'currency' => $currency,
+                        'income' => round($income, 2),
+                        'expense' => round($expense, 2),
+                        'net' => round($income - $expense, 2),
+                    ];
+                })
+                ->sortBy(fn (array $row) => sprintf('%d%d%s', $row['currency']?->is_local ? 0 : 1, $row['currency']?->is_base ? 0 : 1, $row['currency']?->code))
+                ->values(),
             'summary' => [
                 'income' => round($income, 2),
                 'expense' => round($expense, 2),

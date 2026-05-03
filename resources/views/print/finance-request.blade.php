@@ -1,66 +1,50 @@
-<x-print.layout :title="'Finance request '.$request->request_no">
-    <div class="header">
-        <div>
-            <h1 class="title">Finance Request</h1>
-            <div class="subtitle">{{ $organization['name'] ?: 'Alkhair' }}</div>
-            @if ($organization['address'] || $organization['phone'] || $organization['email'])
-                <div class="subtitle">
-                    {{ $organization['address'] ?: '' }}
-                    @if ($organization['phone']) <span> | {{ $organization['phone'] }}</span> @endif
-                    @if ($organization['email']) <span> | {{ $organization['email'] }}</span> @endif
+<x-layouts.app>
+    <div class="page-stack">
+        <section class="page-hero p-6 lg:p-8">
+            <div class="eyebrow">{{ __('ui.nav.finance') }}</div>
+            <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('finance.print.title') }}</h1>
+            <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ __('finance.print.subtitle') }}</p>
+        </section>
+
+        <section class="surface-panel p-5 lg:p-6">
+            <div class="admin-toolbar">
+                <div>
+                    <div class="admin-toolbar__title">{{ $request->request_no }}</div>
+                    <p class="admin-toolbar__subtitle">
+                        {{ ucfirst($request->type) }} |
+                        {{ number_format((float) $request->accepted_amount, 2) }}
+                        {{ $request->acceptedCurrency?->code }}
+                    </p>
                 </div>
+            </div>
+
+            @if ($templates->isEmpty())
+                <div class="mt-5 rounded-2xl border border-amber-400/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+                    {{ __('finance.empty.no_templates') }}
+                </div>
+            @else
+                <form method="POST" action="{{ route('print-templates.print.preview') }}" target="_blank" class="mt-5 grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+                    @csrf
+
+                    <input type="hidden" name="sources[finance_request][single]" value="{{ $request->id }}">
+                    <input type="hidden" name="copy_count" value="1">
+
+                    @foreach (['page_width_mm', 'page_height_mm', 'margin_top_mm', 'margin_right_mm', 'margin_bottom_mm', 'margin_left_mm', 'gap_x_mm', 'gap_y_mm'] as $field)
+                        <input type="hidden" name="{{ $field }}" value="{{ $defaults[$field] }}">
+                    @endforeach
+
+                    <div>
+                        <label class="mb-1 block text-sm font-medium">{{ __('finance.print.template') }}</label>
+                        <select name="template_id" class="w-full rounded-xl px-4 py-3 text-sm">
+                            @foreach ($templates as $template)
+                                <option value="{{ $template->id }}">{{ $template->name }} | {{ number_format($template->width_mm, 2) }} x {{ number_format($template->height_mm, 2) }} mm</option>
+                            @endforeach
+                        </select>
+                    </div>
+
+                    <button type="submit" class="pill-link pill-link--accent">{{ __('finance.actions.preview_print') }}</button>
+                </form>
             @endif
-        </div>
-        <div>
-            <div class="meta-label">Request No</div>
-            <div class="meta-value">{{ $request->request_no }}</div>
-            <div class="subtitle">{{ ucfirst($request->type) }} | {{ ucfirst($request->status) }}</div>
-        </div>
+        </section>
     </div>
-
-    <div class="section meta-grid">
-        <div class="meta-card">
-            <span class="meta-label">Requested by</span>
-            <div class="meta-value">{{ $request->requestedBy?->name ?: '-' }}</div>
-            <div class="subtitle">{{ $request->created_at?->format('Y-m-d H:i') }}</div>
-        </div>
-        <div class="meta-card">
-            <span class="meta-label">Reviewed by</span>
-            <div class="meta-value">{{ $request->reviewedBy?->name ?: '-' }}</div>
-            <div class="subtitle">{{ $request->accepted_at?->format('Y-m-d H:i') }}</div>
-        </div>
-    </div>
-
-    <div class="section">
-        <h2>Amounts</h2>
-        <table>
-            <tbody>
-                <tr><th>Requested amount</th><td>{{ number_format((float) $request->requested_amount, 2) }} {{ $request->requestedCurrency?->code }}</td></tr>
-                <tr><th>Accepted amount</th><td>{{ number_format((float) $request->accepted_amount, 2) }} {{ $request->acceptedCurrency?->code }}</td></tr>
-                <tr><th>Cash box</th><td>{{ $request->cashBox?->name ?: '-' }}</td></tr>
-                <tr><th>Activity</th><td>{{ $request->activity?->title ?: '-' }}</td></tr>
-                <tr><th>Teacher</th><td>{{ $request->teacher ? trim($request->teacher->first_name.' '.$request->teacher->last_name) : '-' }}</td></tr>
-                <tr><th>Category</th><td>{{ $request->category?->name ?: '-' }}</td></tr>
-            </tbody>
-        </table>
-    </div>
-
-    @if ($request->requested_reason || $request->review_notes)
-        <div class="section">
-            <h2>Notes</h2>
-            @if ($request->requested_reason)<div class="note-box">{{ $request->requested_reason }}</div>@endif
-            @if ($request->review_notes)<div class="note-box" style="margin-top: 8px;">{{ $request->review_notes }}</div>@endif
-        </div>
-    @endif
-
-    <div class="section meta-grid">
-        <div class="meta-card">
-            <span class="meta-label">Receiver signature</span>
-            <div style="height: 48px;"></div>
-        </div>
-        <div class="meta-card">
-            <span class="meta-label">Finance signature</span>
-            <div style="height: 48px;"></div>
-        </div>
-    </div>
-</x-print.layout>
+</x-layouts.app>

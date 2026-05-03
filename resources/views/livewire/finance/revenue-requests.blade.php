@@ -39,14 +39,22 @@ new class extends Component {
 
     public function with(): array
     {
+        $canReview = auth()->user()?->can('finance.revenue-requests.review') ?? false;
+
         return [
             'activities' => Activity::query()->whereIn('status', ['active', 'finished'])->orderByDesc('activity_date')->orderBy('title')->get(),
-            'cashBoxes' => app(FinanceService::class)->accessibleCashBoxes(auth()->user())->get(),
+            'cashBoxes' => app(FinanceService::class)->accessibleCashBoxesForCurrency(auth()->user(), $this->currency_id)->get(),
+            'cashBoxesByCurrency' => FinanceCurrency::query()
+                ->where('is_active', true)
+                ->pluck('id')
+                ->mapWithKeys(fn ($currencyId) => [(int) $currencyId => app(FinanceService::class)->accessibleCashBoxesForCurrency(auth()->user(), (int) $currencyId)->get()])
+                ->all(),
             'categories' => FinanceCategory::query()->where('is_active', true)->whereIn('type', ['revenue', 'return'])->orderBy('name')->get(),
-            'currencies' => FinanceCurrency::query()->where('is_active', true)->orderByDesc('is_local')->orderByDesc('is_base')->orderBy('code')->get(),
+            'currencies' => app(FinanceService::class)->currenciesForCashBox($this->cash_box_id)->get(),
             'requests' => FinanceRequest::query()
                 ->with(['activity', 'cashBox', 'category', 'requestedBy', 'reviewedBy', 'teacher', 'requestedCurrency', 'acceptedCurrency', 'attachments'])
                 ->whereIn('type', [FinanceRequest::TYPE_REVENUE, FinanceRequest::TYPE_RETURN])
+                ->when(! $canReview, fn ($query) => $query->where('requested_by', auth()->id()))
                 ->latest()
                 ->paginate($this->perPage),
             'teachers' => Teacher::query()->where('status', 'active')->orderBy('first_name')->orderBy('last_name')->get(),
@@ -75,7 +83,7 @@ new class extends Component {
             $activity = Activity::query()->findOrFail($validated['activity_id']);
 
             if ($activity->status !== 'finished') {
-                $this->addError('activity_id', 'Return requests can only be linked to finished activities.');
+                $this->addError('activity_id', __('finance.validation.return_activity_finished'));
 
                 return;
             }
@@ -109,7 +117,21 @@ new class extends Component {
         $this->reset(['amount', 'cash_box_id', 'activity_id', 'teacher_id', 'finance_category_id', 'requested_reason', 'attachments']);
         $this->request_type = 'revenue';
         $this->currency_id = app(FinanceService::class)->localCurrency()->id;
-        session()->flash('status', $canReview ? 'Revenue posted.' : 'Revenue request sent.');
+        session()->flash('status', $canReview ? __('finance.messages.revenue_posted') : __('finance.messages.revenue_sent'));
+    }
+
+    public function updatedCashBoxId(): void
+    {
+        if ($this->cash_box_id && $this->currency_id && ! app(FinanceService::class)->currenciesForCashBox($this->cash_box_id)->whereKey($this->currency_id)->exists()) {
+            $this->currency_id = app(FinanceService::class)->currenciesForCashBox($this->cash_box_id)->value('id');
+        }
+    }
+
+    public function updatedCurrencyId(): void
+    {
+        if ($this->cash_box_id && $this->currency_id && ! app(FinanceService::class)->accessibleCashBoxesForCurrency(auth()->user(), $this->currency_id)->whereKey($this->cash_box_id)->exists()) {
+            $this->cash_box_id = null;
+        }
     }
 
     public function accept(int $requestId): void
@@ -131,7 +153,7 @@ new class extends Component {
             $this->review_notes[$requestId] ?? null,
         );
 
-        session()->flash('status', 'Revenue request accepted and posted.');
+        session()->flash('status', __('finance.messages.revenue_accepted'));
     }
 
     public function decline(int $requestId): void
@@ -139,7 +161,7 @@ new class extends Component {
         $this->authorizePermission('finance.revenue-requests.review');
 
         app(FinanceService::class)->declineRequest(FinanceRequest::query()->whereIn('type', [FinanceRequest::TYPE_REVENUE, FinanceRequest::TYPE_RETURN])->findOrFail($requestId), auth()->user(), $this->review_notes[$requestId] ?? null);
-        session()->flash('status', 'Revenue request declined.');
+        session()->flash('status', __('finance.messages.revenue_declined'));
     }
 
     protected function storeAttachments(FinanceRequest $request): void
@@ -162,29 +184,31 @@ new class extends Component {
 <div class="page-stack">
     <section class="page-hero p-6 lg:p-8">
         <div class="eyebrow">{{ __('ui.nav.finance') }}</div>
-        <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">Revenue Requests</h1>
-        <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">Record revenues and activity return money. Return requests require a finished activity.</p>
+        <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('finance.revenue_requests.title') }}</h1>
+        <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ __('finance.revenue_requests.subtitle') }}</p>
     </section>
 
     @if (session('status')) <div class="flash-success px-4 py-3 text-sm">{{ session('status') }}</div> @endif
+    @error('amount') <div class="rounded-2xl border border-red-400/20 bg-red-500/10 px-4 py-3 text-sm text-red-100">{{ $message }}</div> @enderror
+    @error('currency_id') <div class="rounded-2xl border border-red-400/20 bg-red-500/10 px-4 py-3 text-sm text-red-100">{{ $message }}</div> @enderror
 
     @can('finance.revenue-requests.create')
         <section class="surface-panel p-5 lg:p-6">
-            <div class="admin-section-card__title">New revenue / return</div>
+            <div class="admin-section-card__title">{{ __('finance.revenue_requests.new') }}</div>
             <form wire:submit="submitRequest" class="mt-5 grid gap-4 lg:grid-cols-3">
-                <div><label class="mb-1 block text-sm font-medium">Type</label><select wire:model.live="request_type" class="w-full rounded-xl px-4 py-3 text-sm"><option value="revenue">Revenue</option><option value="return">Activity return</option></select></div>
-                <div><label class="mb-1 block text-sm font-medium">Amount</label><input wire:model="amount" type="number" min="0" step="0.01" class="w-full rounded-xl px-4 py-3 text-sm">@error('amount') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
-                <div><label class="mb-1 block text-sm font-medium">Currency</label><select wire:model="currency_id" class="w-full rounded-xl px-4 py-3 text-sm">@foreach ($currencies as $currency)<option value="{{ $currency->id }}">{{ $currency->code }}</option>@endforeach</select></div>
-                @can('finance.revenue-requests.review')<div><label class="mb-1 block text-sm font-medium">Cash box</label><select wire:model="cash_box_id" class="w-full rounded-xl px-4 py-3 text-sm"><option value="">Choose box</option>@foreach ($cashBoxes as $box)<option value="{{ $box->id }}">{{ $box->name }}</option>@endforeach</select>@error('cash_box_id') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>@endcan
-                <div><label class="mb-1 block text-sm font-medium">Activity</label><select wire:model="activity_id" class="w-full rounded-xl px-4 py-3 text-sm"><option value="">No activity</option>@foreach ($activities as $activity)<option value="{{ $activity->id }}">{{ $activity->title }} | {{ ucfirst($activity->status) }}</option>@endforeach</select>@error('activity_id') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
-                <div><label class="mb-1 block text-sm font-medium">Teacher</label><select wire:model="teacher_id" class="w-full rounded-xl px-4 py-3 text-sm"><option value="">No teacher</option>@foreach ($teachers as $teacher)<option value="{{ $teacher->id }}">{{ $teacher->first_name }} {{ $teacher->last_name }}</option>@endforeach</select></div>
-                <div><label class="mb-1 block text-sm font-medium">Category</label><select wire:model="finance_category_id" class="w-full rounded-xl px-4 py-3 text-sm"><option value="">Choose category</option>@foreach ($categories as $category)<option value="{{ $category->id }}">{{ $category->name }}</option>@endforeach</select></div>
-                <div class="lg:col-span-3"><label class="mb-1 block text-sm font-medium">Description</label><textarea wire:model="requested_reason" rows="2" class="w-full rounded-xl px-4 py-3 text-sm"></textarea>@error('requested_reason') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
-                <div class="lg:col-span-3"><label class="mb-1 block text-sm font-medium">Attachments</label><input wire:model="attachments" type="file" multiple class="w-full rounded-xl px-4 py-3 text-sm">@error('attachments.*') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
-                <div class="lg:col-span-3"><button type="submit" class="pill-link pill-link--accent">Save revenue</button></div>
+                <div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.type') }}</label><select wire:model.live="request_type" class="w-full rounded-xl px-4 py-3 text-sm"><option value="revenue">{{ __('finance.options.revenue') }}</option><option value="return">{{ __('finance.options.activity_return') }}</option></select></div>
+                <div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.amount') }}</label><input wire:model="amount" type="number" min="0" step="0.01" class="w-full rounded-xl px-4 py-3 text-sm">@error('amount') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
+                <div><label class="mb-1 block text-sm font-medium">{{ __('finance.common.currency') }}</label><select wire:model="currency_id" class="w-full rounded-xl px-4 py-3 text-sm">@foreach ($currencies as $currency)<option value="{{ $currency->id }}">{{ $currency->code }}</option>@endforeach</select></div>
+                @can('finance.revenue-requests.review')<div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.cash_box') }}</label><select wire:model="cash_box_id" class="w-full rounded-xl px-4 py-3 text-sm"><option value="">{{ __('finance.actions.choose_box') }}</option>@foreach ($cashBoxes as $box)<option value="{{ $box->id }}">{{ $box->name }}</option>@endforeach</select>@error('cash_box_id') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>@endcan
+                <div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.activity') }}</label><select wire:model="activity_id" class="w-full rounded-xl px-4 py-3 text-sm"><option value="">{{ __('finance.options.no_activity') }}</option>@foreach ($activities as $activity)<option value="{{ $activity->id }}">{{ $activity->title }} | {{ ucfirst($activity->status) }}</option>@endforeach</select>@error('activity_id') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
+                <div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.teacher') }}</label><select wire:model="teacher_id" class="w-full rounded-xl px-4 py-3 text-sm"><option value="">{{ __('finance.options.no_teacher') }}</option>@foreach ($teachers as $teacher)<option value="{{ $teacher->id }}">{{ $teacher->first_name }} {{ $teacher->last_name }}</option>@endforeach</select></div>
+                <div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.category') }}</label><select wire:model="finance_category_id" class="w-full rounded-xl px-4 py-3 text-sm"><option value="">{{ __('finance.actions.choose_category') }}</option>@foreach ($categories as $category)<option value="{{ $category->id }}">{{ $category->name }}</option>@endforeach</select></div>
+                <div class="lg:col-span-3"><label class="mb-1 block text-sm font-medium">{{ __('finance.common.description') }}</label><textarea wire:model="requested_reason" rows="2" class="w-full rounded-xl px-4 py-3 text-sm"></textarea>@error('requested_reason') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
+                <div class="lg:col-span-3"><label class="mb-1 block text-sm font-medium">{{ __('finance.common.attachments') }}</label><input wire:model="attachments" type="file" multiple class="w-full rounded-xl px-4 py-3 text-sm">@error('attachments.*') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
+                <div class="lg:col-span-3"><button type="submit" class="pill-link pill-link--accent">{{ __('finance.actions.save_revenue') }}</button></div>
             </form>
         </section>
     @endcan
 
-    @include('livewire.finance.partials.requests-table', ['requests' => $requests, 'cashBoxes' => $cashBoxes, 'reviewPermission' => 'finance.revenue-requests.review'])
+    @include('livewire.finance.partials.requests-table', ['requests' => $requests, 'cashBoxes' => $cashBoxes, 'cashBoxesByCurrency' => $cashBoxesByCurrency, 'reviewPermission' => 'finance.revenue-requests.review'])
 </div>

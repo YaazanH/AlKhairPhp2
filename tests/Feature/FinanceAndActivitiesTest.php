@@ -97,6 +97,14 @@ class FinanceAndActivitiesTest extends TestCase
         ]);
 
         $payment = ActivityPayment::query()->firstOrFail();
+        app(FinanceService::class)->postTransaction([
+            'cash_box_id' => app(FinanceService::class)->defaultCashBox()->id,
+            'currency_id' => app(FinanceService::class)->localCurrency()->id,
+            'type' => 'manual_adjustment',
+            'direction' => 'in',
+            'amount' => 20,
+            'description' => 'Void test reserve balance',
+        ]);
 
         Volt::test('activities.finance', ['activity' => $activity])
             ->call('voidPayment', $payment->id);
@@ -239,6 +247,15 @@ class FinanceAndActivitiesTest extends TestCase
         $cashBox = FinanceCashBox::query()->firstOrFail();
 
         $this->actingAs($manager);
+        app(FinanceService::class)->postTransaction([
+            'cash_box_id' => $cashBox->id,
+            'currency_id' => app(FinanceService::class)->localCurrency()->id,
+            'type' => 'manual_adjustment',
+            'direction' => 'in',
+            'amount' => 100,
+            'description' => 'Pull request test balance',
+            'entered_by' => $manager->id,
+        ]);
 
         Volt::test('finance.pull-requests')
             ->set("review_amounts.{$request->id}", '75')
@@ -292,6 +309,126 @@ class FinanceAndActivitiesTest extends TestCase
             ->assertHasErrors(['cash_box_is_active']);
     }
 
+    public function test_finance_manager_can_create_teacher_pull_request_and_teacher_scope_is_limited(): void
+    {
+        $this->seed();
+
+        $manager = User::factory()->create([
+            'name' => 'Pull Creator',
+            'username' => 'pull-creator',
+            'phone' => '0991111666',
+        ]);
+        $manager->assignRole('manager');
+
+        $teacherUser = User::factory()->create([
+            'name' => 'Scoped Pull Teacher',
+            'username' => 'scoped-pull-teacher',
+            'phone' => '0991111777',
+        ]);
+        $teacherUser->givePermissionTo('finance.pull-requests.view');
+        $teacher = Teacher::create([
+            'user_id' => $teacherUser->id,
+            'first_name' => 'Scoped',
+            'last_name' => 'Teacher',
+            'phone' => '0944000922',
+            'status' => 'active',
+        ]);
+
+        $otherTeacherUser = User::factory()->create([
+            'name' => 'Other Scoped Teacher',
+            'username' => 'other-scoped-teacher',
+            'phone' => '0991111888',
+        ]);
+        $otherTeacherUser->givePermissionTo('finance.pull-requests.view');
+        Teacher::create([
+            'user_id' => $otherTeacherUser->id,
+            'first_name' => 'Other',
+            'last_name' => 'Scoped',
+            'phone' => '0944000933',
+            'status' => 'active',
+        ]);
+
+        $cashBox = FinanceCashBox::query()->firstOrFail();
+        $this->actingAs($manager);
+        app(FinanceService::class)->postTransaction([
+            'cash_box_id' => $cashBox->id,
+            'currency_id' => app(FinanceService::class)->localCurrency()->id,
+            'type' => 'manual_adjustment',
+            'direction' => 'in',
+            'amount' => 60,
+            'description' => 'Manager pull request balance',
+            'entered_by' => $manager->id,
+        ]);
+
+        Volt::test('finance.pull-requests')
+            ->set('requested_amount', '40')
+            ->set('teacher_id', $teacher->id)
+            ->set('cash_box_id', $cashBox->id)
+            ->set('requested_reason', 'Teacher supplies')
+            ->call('submitRequest')
+            ->assertHasNoErrors();
+
+        $request = FinanceRequest::query()->firstOrFail();
+
+        $this->assertSame(FinanceRequest::STATUS_ACCEPTED, $request->status);
+        $this->assertSame($teacher->id, $request->teacher_id);
+        $this->assertDatabaseHas('finance_transactions', [
+            'finance_request_id' => $request->id,
+            'signed_amount' => -40,
+        ]);
+
+        $this->actingAs($teacherUser);
+        Volt::test('finance.pull-requests')->assertSee($request->request_no);
+
+        $this->actingAs($otherTeacherUser);
+        Volt::test('finance.pull-requests')->assertDontSee($request->request_no);
+    }
+
+    public function test_cash_box_cannot_go_below_zero_and_requires_supported_currency(): void
+    {
+        $this->signIn();
+
+        $service = app(FinanceService::class);
+        $cashBox = FinanceCashBox::query()->firstOrFail();
+        $localCurrency = $service->localCurrency();
+
+        $this->expectException(\Illuminate\Validation\ValidationException::class);
+
+        $service->postTransaction([
+            'cash_box_id' => $cashBox->id,
+            'currency_id' => $localCurrency->id,
+            'type' => 'manual_adjustment',
+            'direction' => 'out',
+            'amount' => 1,
+            'description' => 'Blocked overdraft',
+        ]);
+    }
+
+    public function test_cash_box_currency_assignment_filters_and_blocks_unsupported_currency(): void
+    {
+        $this->signIn();
+
+        $cashBox = FinanceCashBox::query()->firstOrFail();
+        $localCurrency = app(FinanceService::class)->localCurrency();
+        $baseCurrency = app(FinanceService::class)->baseCurrency();
+
+        $cashBox->currencies()->sync([$localCurrency->id]);
+
+        $this->assertTrue(app(FinanceService::class)->currenciesForCashBox($cashBox->id)->whereKey($localCurrency->id)->exists());
+        $this->assertFalse(app(FinanceService::class)->currenciesForCashBox($cashBox->id)->whereKey($baseCurrency->id)->exists());
+
+        $this->expectException(\Illuminate\Validation\ValidationException::class);
+
+        app(FinanceService::class)->postTransaction([
+            'cash_box_id' => $cashBox->id,
+            'currency_id' => $baseCurrency->id,
+            'type' => 'manual_adjustment',
+            'direction' => 'in',
+            'amount' => 10,
+            'description' => 'Unsupported currency',
+        ]);
+    }
+
     public function test_finance_exchange_transfer_balances_and_report_snapshots(): void
     {
         $this->signIn();
@@ -306,6 +443,7 @@ class FinanceAndActivitiesTest extends TestCase
 
         $usd = FinanceCurrency::query()->where('is_base', true)->firstOrFail();
         $syp = FinanceCurrency::query()->where('is_local', true)->firstOrFail();
+        $secondBox->currencies()->sync([$syp->id]);
 
         $service->postTransaction([
             'cash_box_id' => $mainBox->id,
