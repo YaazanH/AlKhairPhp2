@@ -45,6 +45,7 @@
                             <div class="admin-action-cluster admin-action-cluster--end">
                                 @if ($request->status === 'accepted')
                                     <a href="{{ route('finance.requests.print', $request) }}" target="_blank" class="pill-link pill-link--compact">{{ __('finance.actions.print') }}</a>
+                                    <a href="{{ route('finance.requests.print', ['financeRequest' => $request, 'choose' => 1]) }}" target="_blank" class="pill-link pill-link--compact">{{ __('finance.actions.choose_print_template') }}</a>
                                 @endif
                                 @can($reviewPermission)
                                     @if ($request->status === 'pending')

@@ -32,22 +32,13 @@
             <flux:sidebar sticky stashable class="app-sidebar-shell {{ $sidebarBorderClass }}">
                 <flux:sidebar.toggle class="lg:hidden" icon="x-mark" />
 
-                <div class="app-brand-card">
+                <div class="px-1 pt-2">
                     <a href="{{ route('dashboard') }}" class="flex items-center gap-3" wire:navigate>
-                        <x-app-logo />
+                        <x-app-logo :subtitle="now()->locale($currentLocale)->translatedFormat('M Y')" />
                     </a>
-
-                    <div class="mt-5 flex items-center justify-between gap-3">
-                        <span class="badge-soft">{{ $roleLabel ?: __('ui.common.workspace') }}</span>
-                        <span class="text-xs uppercase tracking-[0.24em] text-neutral-400">{{ now()->locale($currentLocale)->translatedFormat('M Y') }}</span>
-                    </div>
-
-                    <p class="mt-4 text-sm leading-6 text-neutral-300">
-                        {{ __('ui.app.workspace_tagline') }}
-                    </p>
                 </div>
 
-                <flux:navlist variant="outline" class="mt-6">
+                <flux:navlist variant="outline" class="mt-5">
                     @foreach ($sidebarGroups as $group)
                         <flux:navlist.group :heading="$group['title']" class="grid">
                             @foreach ($group['items'] as $item)

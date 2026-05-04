@@ -172,21 +172,34 @@ class PrintTemplatePrintController extends Controller
             $fixedContext[$entity] = $models[0];
         }
 
+        foreach ($fixedContext as $sourceEntity => $sourceModel) {
+            foreach ($fixedContext as $targetEntity => $targetModel) {
+                if ($sourceEntity === $targetEntity) {
+                    continue;
+                }
+
+                if (! $this->fieldRegistry->modelsAreRelated($sourceEntity, $sourceModel, $targetEntity, $targetModel)) {
+                    return back()
+                        ->withErrors(['sources' => __('print_templates.print.errors.select_related_records')])
+                        ->withInput();
+                }
+            }
+        }
+
         if (! $repeatingSource) {
             return collect([$fixedContext]);
         }
 
-        if ($repeatingSource['entity'] === 'student' && isset($fixedContext['parent'])) {
-            $parentId = (int) $fixedContext['parent']->getKey();
+        foreach ($fixedContext as $sourceEntity => $sourceModel) {
             $repeatingModels = $repeatingModels
-                ->filter(fn ($student) => (int) $student->parent_id === $parentId)
+                ->filter(fn ($model) => $this->fieldRegistry->modelsAreRelated($sourceEntity, $sourceModel, $repeatingSource['entity'], $model))
                 ->values();
+        }
 
-            if ($repeatingModels->isEmpty()) {
-                return back()
-                    ->withErrors(['sources.student.multiple' => __('print_templates.print.errors.select_related_students')])
-                    ->withInput();
-            }
+        if ($repeatingModels->isEmpty()) {
+            return back()
+                ->withErrors(["sources.{$repeatingSource['entity']}.multiple" => __('print_templates.print.errors.select_related_repeating', ['entity' => $this->fieldRegistry->entities()[$repeatingSource['entity']]['label']])])
+                ->withInput();
         }
 
         return $repeatingModels

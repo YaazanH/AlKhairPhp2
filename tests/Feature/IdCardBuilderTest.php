@@ -2,15 +2,18 @@
 
 namespace Tests\Feature;
 
+use App\Models\Activity;
 use App\Models\IdCardTemplate;
 use App\Models\AcademicYear;
 use App\Models\Course;
 use App\Models\Enrollment;
 use App\Models\Group;
 use App\Models\ParentProfile;
+use App\Models\PrintTemplate;
 use App\Models\Student;
 use App\Models\Teacher;
 use App\Models\User;
+use App\Services\ActivityAudienceService;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -331,5 +334,164 @@ class IdCardBuilderTest extends TestCase
             ->assertOk()
             ->assertSee('Current Group')
             ->assertDontSee('Old Group');
+    }
+
+    public function test_print_template_sources_filter_students_and_teachers_by_activity(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $manager = User::factory()->create();
+        $manager->assignRole('manager');
+
+        $academicYear = AcademicYear::query()->create([
+            'name' => '2026/2027',
+            'starts_on' => '2026-09-01',
+            'ends_on' => '2027-06-30',
+            'is_current' => true,
+            'is_active' => true,
+        ]);
+
+        $course = Course::query()->create([
+            'name' => 'Quran Program',
+            'is_active' => true,
+        ]);
+
+        $teacherA = Teacher::query()->create([
+            'first_name' => 'Activity',
+            'last_name' => 'Teacher',
+            'phone' => '0991000001',
+            'status' => 'active',
+        ]);
+
+        $teacherB = Teacher::query()->create([
+            'first_name' => 'Other',
+            'last_name' => 'Teacher',
+            'phone' => '0991000002',
+            'status' => 'active',
+        ]);
+
+        $groupA = Group::query()->create([
+            'academic_year_id' => $academicYear->id,
+            'capacity' => 12,
+            'course_id' => $course->id,
+            'is_active' => true,
+            'monthly_fee' => 20,
+            'name' => 'Activity Group',
+            'starts_on' => '2026-09-01',
+            'teacher_id' => $teacherA->id,
+        ]);
+
+        $groupB = Group::query()->create([
+            'academic_year_id' => $academicYear->id,
+            'capacity' => 12,
+            'course_id' => $course->id,
+            'is_active' => true,
+            'monthly_fee' => 20,
+            'name' => 'Other Group',
+            'starts_on' => '2026-09-01',
+            'teacher_id' => $teacherB->id,
+        ]);
+
+        $parent = ParentProfile::query()->create([
+            'father_name' => 'Activity Parent',
+            'is_active' => true,
+        ]);
+
+        $eligibleStudent = Student::query()->create([
+            'parent_id' => $parent->id,
+            'first_name' => 'Eligible',
+            'last_name' => 'Student',
+            'birth_date' => '2014-05-12',
+            'status' => 'active',
+        ]);
+
+        $unrelatedStudent = Student::query()->create([
+            'parent_id' => $parent->id,
+            'first_name' => 'Unrelated',
+            'last_name' => 'Student',
+            'birth_date' => '2015-03-03',
+            'status' => 'active',
+        ]);
+
+        Enrollment::query()->create([
+            'student_id' => $eligibleStudent->id,
+            'group_id' => $groupA->id,
+            'enrolled_at' => '2026-09-02',
+            'status' => 'active',
+        ]);
+
+        Enrollment::query()->create([
+            'student_id' => $unrelatedStudent->id,
+            'group_id' => $groupB->id,
+            'enrolled_at' => '2026-09-02',
+            'status' => 'active',
+        ]);
+
+        $activity = Activity::query()->create([
+            'title' => 'Targeted Activity',
+            'activity_date' => '2026-11-01',
+            'audience_scope' => ActivityAudienceService::SCOPE_SINGLE_GROUP,
+            'group_id' => $groupA->id,
+            'fee_amount' => 10,
+            'is_active' => true,
+        ]);
+
+        $template = PrintTemplate::query()->create([
+            'name' => 'Activity Source Template',
+            'width_mm' => 85.6,
+            'height_mm' => 53.98,
+            'data_sources' => [
+                ['entity' => 'activity', 'mode' => 'single'],
+                ['entity' => 'teacher', 'mode' => 'single'],
+                ['entity' => 'student', 'mode' => 'multiple'],
+            ],
+            'layout_json' => [
+                [
+                    'type' => 'dynamic_text',
+                    'source' => 'student',
+                    'field' => 'full_name',
+                    'x' => 8,
+                    'y' => 8,
+                    'width' => 54,
+                    'height' => 8,
+                    'z_index' => 1,
+                    'styling' => [
+                        'font_size' => 4.2,
+                        'font_weight' => '700',
+                        'color' => '#102316',
+                        'text_align' => 'left',
+                    ],
+                ],
+            ],
+            'is_active' => true,
+        ]);
+
+        $this->actingAs($manager)
+            ->get(route('print-templates.print.create', ['template' => $template->id]))
+            ->assertOk()
+            ->assertSee('data-related-student-ids="'.$eligibleStudent->id.'"', false)
+            ->assertSee('data-related-teacher-ids="'.$teacherA->id.'"', false);
+
+        $this->actingAs($manager)
+            ->post(route('print-templates.print.preview'), [
+                'template_id' => $template->id,
+                'sources' => [
+                    'activity' => ['single' => $activity->id],
+                    'teacher' => ['single' => $teacherA->id],
+                    'student' => ['multiple' => [$eligibleStudent->id, $unrelatedStudent->id]],
+                ],
+                'copy_count' => 1,
+                'page_width_mm' => 210,
+                'page_height_mm' => 297,
+                'margin_top_mm' => 10,
+                'margin_right_mm' => 10,
+                'margin_bottom_mm' => 10,
+                'margin_left_mm' => 10,
+                'gap_x_mm' => 6,
+                'gap_y_mm' => 6,
+            ])
+            ->assertOk()
+            ->assertSee('Eligible Student')
+            ->assertDontSee('Unrelated Student');
     }
 }

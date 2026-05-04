@@ -32,16 +32,18 @@ new class extends Component {
 
     public function with(): array
     {
+        $financeService = app(FinanceService::class);
         $cashBoxes = app(FinanceService::class)->accessibleCashBoxes(auth()->user())->get();
 
         return [
-            'balances' => app(FinanceService::class)->cashBoxBalances(auth()->user()),
+            'balances' => $financeService->cashBoxBalances(auth()->user()),
             'cashBoxes' => $cashBoxes,
-            'adjustCashBoxes' => app(FinanceService::class)->accessibleCashBoxesForCurrency(auth()->user(), $this->adjust_currency_id)->get(),
-            'adjustCurrencies' => app(FinanceService::class)->currenciesForCashBox($this->adjust_cash_box_id)->get(),
-            'transferFromCashBoxes' => app(FinanceService::class)->accessibleCashBoxesForCurrency(auth()->user(), $this->transfer_currency_id)->get(),
-            'transferToCashBoxes' => app(FinanceService::class)->accessibleCashBoxesForCurrency(auth()->user(), $this->transfer_currency_id)->get(),
-            'transferCurrencies' => app(FinanceService::class)->currenciesForCashBox($this->transfer_from_cash_box_id)->get(),
+            'localCurrency' => $financeService->localCurrency(),
+            'adjustCashBoxes' => $financeService->accessibleCashBoxesForCurrency(auth()->user(), $this->adjust_currency_id)->get(),
+            'adjustCurrencies' => $financeService->currenciesForCashBox($this->adjust_cash_box_id)->get(),
+            'transferFromCashBoxes' => $financeService->accessibleCashBoxesForCurrency(auth()->user(), $this->transfer_currency_id)->get(),
+            'transferToCashBoxes' => $financeService->accessibleCashBoxesForCurrency(auth()->user(), $this->transfer_currency_id)->get(),
+            'transferCurrencies' => $financeService->currenciesForCashBox($this->transfer_from_cash_box_id)->get(),
             'recentTransactions' => FinanceTransaction::query()
                 ->with(['cashBox', 'currency', 'enteredBy'])
                 ->whereIn('cash_box_id', $cashBoxes->pluck('id'))
@@ -155,10 +157,10 @@ new class extends Component {
         @foreach ($balances as $boxBalance)
             <article class="stat-card">
                 <div class="kpi-label">{{ $boxBalance['cash_box']->name }}</div>
-                <div class="metric-value mt-3">{{ number_format($boxBalance['local_total'], 2) }}</div>
+                <div class="metric-value mt-3">{{ number_format($boxBalance['local_total'], 2) }} {{ $localCurrency->code }}</div>
                 <div class="mt-3 space-y-1 text-sm text-neutral-300">
                     @foreach ($boxBalance['currencies'] as $row)
-                        <div class="flex justify-between gap-3"><span>{{ $row['currency']->code }}</span><span>{{ number_format($row['balance'], 2) }}</span></div>
+                        <div class="flex justify-between gap-3"><span>{{ $row['currency']->code }}</span><span>{{ number_format($row['balance'], 2) }} {{ $row['currency']->code }}</span></div>
                     @endforeach
                 </div>
             </article>

@@ -40,7 +40,7 @@ class FinanceTransaction extends Model
         return [
             'amount' => 'decimal:2',
             'signed_amount' => 'decimal:2',
-            'rate_to_base' => 'decimal:8',
+            'rate_to_base' => 'decimal:12',
             'base_amount' => 'decimal:2',
             'local_amount' => 'decimal:2',
             'transaction_date' => 'date',

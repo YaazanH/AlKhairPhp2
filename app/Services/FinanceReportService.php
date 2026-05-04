@@ -11,6 +11,7 @@ class FinanceReportService
     public function report(int $year, ?int $quarter = null): array
     {
         [$start, $end] = $this->period($year, $quarter);
+        $localCurrency = app(FinanceService::class)->localCurrency();
 
         $transactions = FinanceTransaction::query()
             ->with(['cashBox', 'category', 'currency', 'activity', 'teacher'])
@@ -65,6 +66,7 @@ class FinanceReportService
             'summary' => [
                 'income' => round($income, 2),
                 'expense' => round($expense, 2),
+                'local_currency' => $localCurrency,
                 'net' => round($income - $expense, 2),
                 'transactions' => $transactions->count(),
             ],

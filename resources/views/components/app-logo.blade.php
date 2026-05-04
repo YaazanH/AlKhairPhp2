@@ -1,3 +1,7 @@
+@props([
+    'subtitle' => __('ui.app.short_tagline'),
+])
+
 @php
     $siteLogoUrl = app(\App\Services\WebsiteService::class)->siteSettings()['logo_url'] ?? null;
     $fallbackLogoPath = public_path('storage/website/branding/logo.jpeg');
@@ -13,5 +17,5 @@
 </div>
 <div class="grid flex-1 text-left leading-tight">
     <span class="font-display truncate text-base text-white">{{ __('ui.app.name') }}</span>
-    <span class="mt-1 truncate text-[0.68rem] font-semibold uppercase tracking-[0.28em] text-neutral-400">{{ __('ui.app.short_tagline') }}</span>
+    <span class="mt-1 truncate text-[0.68rem] font-semibold uppercase tracking-[0.28em] text-neutral-400">{{ $subtitle }}</span>
 </div>

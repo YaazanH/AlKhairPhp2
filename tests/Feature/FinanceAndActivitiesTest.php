@@ -19,6 +19,7 @@ use App\Models\Invoice;
 use App\Models\ParentProfile;
 use App\Models\Payment;
 use App\Models\PaymentMethod;
+use App\Models\PrintTemplate;
 use App\Models\Student;
 use App\Models\Teacher;
 use App\Models\Group;
@@ -277,6 +278,47 @@ class FinanceAndActivitiesTest extends TestCase
         ]);
 
         $this->get(route('finance.requests.print', $request))->assertOk()->assertSee('PUL-000001');
+
+        $template = PrintTemplate::query()->create([
+            'name' => 'Pull Request Receipt',
+            'width_mm' => 80,
+            'height_mm' => 40,
+            'data_sources' => [
+                ['entity' => 'finance_request', 'mode' => 'single'],
+            ],
+            'layout_json' => [
+                [
+                    'type' => 'dynamic_text',
+                    'source' => 'finance_request',
+                    'field' => 'request_no',
+                    'x' => 5,
+                    'y' => 5,
+                    'width' => 60,
+                    'height' => 8,
+                    'z_index' => 1,
+                    'styling' => [
+                        'font_size' => 4,
+                        'font_weight' => '700',
+                        'color' => '#102316',
+                        'text_align' => 'left',
+                    ],
+                ],
+            ],
+            'is_active' => true,
+        ]);
+
+        AppSetting::storeValue('finance', 'default_pull_print_template_id', $template->id, 'integer');
+
+        $this->get(route('finance.requests.print', $request))
+            ->assertOk()
+            ->assertSee(__('print_templates.print.preview.title'))
+            ->assertSee('PUL-000001')
+            ->assertSee('Pull Request Receipt');
+
+        $this->get(route('finance.requests.print', ['financeRequest' => $request, 'choose' => 1]))
+            ->assertOk()
+            ->assertSee(__('finance.print.title'))
+            ->assertSee('Pull Request Receipt');
     }
 
     public function test_finance_settings_currency_and_cash_box_rules(): void
@@ -284,6 +326,18 @@ class FinanceAndActivitiesTest extends TestCase
         $this->signIn();
 
         $localCurrency = FinanceCurrency::query()->where('is_local', true)->firstOrFail();
+
+        Volt::test('settings.finance')
+            ->call('editCurrency', $localCurrency->id)
+            ->set('currency_rate_input', '12800')
+            ->call('saveCurrency')
+            ->assertHasNoErrors();
+
+        $localCurrency->refresh();
+
+        $this->assertEqualsWithDelta(1 / 12800, (float) $localCurrency->rate_to_base, 0.000000000001);
+        $this->assertSame('12800', app(FinanceService::class)->currencyRateInput($localCurrency));
+        $this->assertSame('1 USD = 12,800 SYP', app(FinanceService::class)->currencyRateLabel($localCurrency));
 
         Volt::test('settings.finance')
             ->call('editCurrency', $localCurrency->id)
@@ -443,6 +497,7 @@ class FinanceAndActivitiesTest extends TestCase
 
         $usd = FinanceCurrency::query()->where('is_base', true)->firstOrFail();
         $syp = FinanceCurrency::query()->where('is_local', true)->firstOrFail();
+        $syp->update(['rate_to_base' => 1 / 12800]);
         $secondBox->currencies()->sync([$syp->id]);
 
         $service->postTransaction([
@@ -455,13 +510,18 @@ class FinanceAndActivitiesTest extends TestCase
             'description' => 'USD opening balance',
         ]);
 
+        $toAmount = $service->calculateExchangeToAmount($usd, $syp, 10);
+
+        $this->assertSame(128000.0, $toAmount);
+        $this->assertSame('1 USD = 12,800 SYP', $service->exchangeRateLabel((float) $usd->rate_to_base, (float) $syp->rate_to_base, 'USD', 'SYP'));
+
         $exchange = $service->recordCurrencyExchange(
             $mainBox,
             $usd,
             10,
             $secondBox,
             $syp,
-            123000,
+            $toAmount,
             '2026-01-12',
             auth()->user(),
             'Test exchange',
@@ -479,7 +539,7 @@ class FinanceAndActivitiesTest extends TestCase
             'cash_box_id' => $secondBox->id,
             'currency_id' => $syp->id,
             'type' => 'currency_exchange',
-            'signed_amount' => 123000,
+            'signed_amount' => $toAmount,
         ]);
 
         $service->recordCashBoxTransfer($secondBox, $mainBox, $syp, 3000, '2026-01-13', auth()->user(), 'Move local cash');
@@ -490,7 +550,7 @@ class FinanceAndActivitiesTest extends TestCase
 
         $this->assertSame(90.0, $mainBalance['currencies']->firstWhere('currency.id', $usd->id)['balance']);
         $this->assertSame(3000.0, $mainBalance['currencies']->firstWhere('currency.id', $syp->id)['balance']);
-        $this->assertSame(120000.0, $secondBalance['currencies']->firstWhere('currency.id', $syp->id)['balance']);
+        $this->assertSame(125000.0, $secondBalance['currencies']->firstWhere('currency.id', $syp->id)['balance']);
 
         $report = app(FinanceReportService::class)->report(2026, 1);
 

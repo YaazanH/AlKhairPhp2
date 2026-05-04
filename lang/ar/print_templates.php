@@ -254,6 +254,8 @@ return [
         'errors' => [
             'select_repeating' => 'اختر :entity واحداً على الأقل.',
             'select_single' => 'اختر :entity واحداً.',
+            'select_related_records' => 'السجلات المحددة غير مرتبطة ببعضها.',
+            'select_related_repeating' => 'اختر سجلات :entity المطابقة للتصفية المحددة.',
             'select_related_students' => 'اختر الطلاب المرتبطين بولي الأمر المحدد فقط.',
         ],
         'warnings' => [

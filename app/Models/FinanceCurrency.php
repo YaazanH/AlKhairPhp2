@@ -30,7 +30,7 @@ class FinanceCurrency extends Model
             'is_active' => 'boolean',
             'is_local' => 'boolean',
             'is_base' => 'boolean',
-            'rate_to_base' => 'decimal:8',
+            'rate_to_base' => 'decimal:12',
             'rate_updated_at' => 'datetime',
         ];
     }

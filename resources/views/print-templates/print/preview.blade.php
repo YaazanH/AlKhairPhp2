@@ -28,7 +28,7 @@
             </div>
             <div class="admin-action-cluster">
                 <button type="button" class="pill-link pill-link--accent" onclick="window.print()">{{ __('print_templates.print.preview.buttons.print') }}</button>
-                <a href="{{ route('print-templates.print.create') }}" class="pill-link">{{ __('print_templates.print.preview.buttons.back') }}</a>
+                <a href="{{ $backUrl ?? route('print-templates.print.create') }}" class="pill-link">{{ __('print_templates.print.preview.buttons.back') }}</a>
             </div>
         </div>
 

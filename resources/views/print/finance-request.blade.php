@@ -37,7 +37,7 @@
                         <label class="mb-1 block text-sm font-medium">{{ __('finance.print.template') }}</label>
                         <select name="template_id" class="w-full rounded-xl px-4 py-3 text-sm">
                             @foreach ($templates as $template)
-                                <option value="{{ $template->id }}">{{ $template->name }} | {{ number_format($template->width_mm, 2) }} x {{ number_format($template->height_mm, 2) }} mm</option>
+                                <option value="{{ $template->id }}" @selected($defaultTemplate?->id === $template->id)>{{ $template->name }} | {{ number_format($template->width_mm, 2) }} x {{ number_format($template->height_mm, 2) }} mm</option>
                             @endforeach
                         </select>
                     </div>

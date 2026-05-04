@@ -32,8 +32,8 @@ class FinanceCurrencyExchange extends Model
         return [
             'from_amount' => 'decimal:2',
             'to_amount' => 'decimal:2',
-            'from_rate_to_base' => 'decimal:8',
-            'to_rate_to_base' => 'decimal:8',
+            'from_rate_to_base' => 'decimal:12',
+            'to_rate_to_base' => 'decimal:12',
             'base_amount' => 'decimal:2',
             'local_amount' => 'decimal:2',
             'exchange_date' => 'date',

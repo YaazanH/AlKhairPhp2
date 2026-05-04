@@ -26,11 +26,21 @@ new class extends Component {
 
     public function with(): array
     {
+        $financeService = app(FinanceService::class);
+
         return [
-            'fromCashBoxes' => app(FinanceService::class)->accessibleCashBoxesForCurrency(auth()->user(), $this->from_currency_id)->get(),
-            'toCashBoxes' => app(FinanceService::class)->accessibleCashBoxesForCurrency(auth()->user(), $this->to_currency_id)->get(),
-            'fromCurrencies' => app(FinanceService::class)->currenciesForCashBox($this->from_cash_box_id)->get(),
-            'toCurrencies' => app(FinanceService::class)->currenciesForCashBox($this->to_cash_box_id)->get(),
+            'activeCurrencies' => FinanceCurrency::query()
+                ->with('rateUpdatedBy')
+                ->where('is_active', true)
+                ->orderByDesc('is_local')
+                ->orderByDesc('is_base')
+                ->orderBy('code')
+                ->get(),
+            'baseCurrency' => $financeService->baseCurrency(),
+            'fromCashBoxes' => $financeService->accessibleCashBoxesForCurrency(auth()->user(), $this->from_currency_id)->get(),
+            'toCashBoxes' => $financeService->accessibleCashBoxesForCurrency(auth()->user(), $this->to_currency_id)->get(),
+            'fromCurrencies' => $financeService->currenciesForCashBox($this->from_cash_box_id)->get(),
+            'toCurrencies' => $financeService->currenciesForCashBox($this->to_cash_box_id)->get(),
             'exchanges' => FinanceCurrencyExchange::query()->with(['fromCashBox', 'toCashBox', 'fromCurrency', 'toCurrency', 'enteredBy'])->latest('exchange_date')->latest('id')->limit(50)->get(),
         ];
     }
@@ -111,7 +121,7 @@ new class extends Component {
             return;
         }
 
-        $this->to_amount = number_format(($fromAmount * (float) $fromCurrency->rate_to_base) / (float) $toCurrency->rate_to_base, 2, '.', '');
+        $this->to_amount = number_format(app(FinanceService::class)->calculateExchangeToAmount($fromCurrency, $toCurrency, $fromAmount), 2, '.', '');
     }
 }; ?>
 
@@ -125,6 +135,55 @@ new class extends Component {
     @if (session('status')) <div class="flash-success px-4 py-3 text-sm">{{ session('status') }}</div> @endif
     @error('amount') <div class="rounded-2xl border border-red-400/20 bg-red-500/10 px-4 py-3 text-sm text-red-100">{{ $message }}</div> @enderror
     @error('currency_id') <div class="rounded-2xl border border-red-400/20 bg-red-500/10 px-4 py-3 text-sm text-red-100">{{ $message }}</div> @enderror
+
+    <section class="surface-panel overflow-hidden p-0">
+        <div class="relative isolate overflow-hidden p-5 lg:p-6">
+            <div class="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top_left,rgba(16,185,129,0.20),transparent_34%),linear-gradient(135deg,rgba(255,255,255,0.08),transparent_48%)]"></div>
+            <div class="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+                <div>
+                    <div class="eyebrow">{{ __('finance.exchange.rate_board_eyebrow') }}</div>
+                    <h2 class="font-display mt-2 text-2xl text-white">{{ __('finance.exchange.rate_board_title') }}</h2>
+                    <p class="mt-2 max-w-2xl text-sm leading-6 text-neutral-300">{{ __('finance.exchange.rate_board_subtitle') }}</p>
+                </div>
+                <span class="status-chip status-chip--emerald">{{ trans_choice('finance.exchange.active_currency_count', $activeCurrencies->count(), ['count' => number_format($activeCurrencies->count())]) }}</span>
+            </div>
+
+            <div class="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                @foreach ($activeCurrencies as $currency)
+                    <article class="group rounded-3xl border border-white/10 bg-black/20 p-4 shadow-2xl shadow-black/10 transition duration-200 hover:-translate-y-0.5 hover:border-emerald-300/30 hover:bg-emerald-500/[0.07]">
+                        <div class="flex items-start justify-between gap-3">
+                            <div>
+                                <div class="flex items-center gap-2">
+                                    <span class="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/10 text-sm font-semibold text-white">{{ $currency->symbol ?: $currency->code }}</span>
+                                    <div>
+                                        <div class="text-base font-semibold text-white">{{ $currency->code }}</div>
+                                        <div class="text-xs text-neutral-500">{{ $currency->name }}</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="flex flex-wrap justify-end gap-1">
+                                @if ($currency->is_local)<span class="status-chip status-chip--emerald">{{ __('finance.common.local') }}</span>@endif
+                                @if ($currency->is_base)<span class="status-chip status-chip--slate">{{ __('finance.common.base') }}</span>@endif
+                            </div>
+                        </div>
+                        <div class="mt-4 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3">
+                            <div class="text-xs uppercase tracking-[0.18em] text-neutral-500">{{ __('finance.fields.exchange_rate') }}</div>
+                            <div class="mt-1 text-lg font-semibold text-emerald-100">
+                                <bdi dir="ltr" class="inline-block">{{ app(FinanceService::class)->currencyRateLabel($currency, $baseCurrency) }}</bdi>
+                            </div>
+                        </div>
+                        <div class="mt-3 text-xs text-neutral-500">
+                            {{ __('finance.exchange.rate_updated') }}:
+                            {{ $currency->rate_updated_at?->format('Y-m-d H:i') ?: '-' }}
+                            @if ($currency->rateUpdatedBy)
+                                · {{ $currency->rateUpdatedBy->name }}
+                            @endif
+                        </div>
+                    </article>
+                @endforeach
+            </div>
+        </div>
+    </section>
 
     @can('finance.exchange.create')
         <section class="surface-panel p-5 lg:p-6">
@@ -151,7 +210,7 @@ new class extends Component {
                 <thead><tr><th class="px-5 py-3 text-left">{{ __('finance.common.date') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.from') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.to') }}</th><th class="px-5 py-3 text-left">{{ __('finance.exchange.rates') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.user') }}</th></tr></thead>
                 <tbody class="divide-y divide-white/6">
                     @foreach ($exchanges as $exchange)
-                        <tr><td class="px-5 py-3">{{ $exchange->exchange_date?->format('Y-m-d') }}</td><td class="px-5 py-3">{{ number_format((float) $exchange->from_amount, 2) }} {{ $exchange->fromCurrency?->code }} | {{ $exchange->fromCashBox?->name }}</td><td class="px-5 py-3">{{ number_format((float) $exchange->to_amount, 2) }} {{ $exchange->toCurrency?->code }} | {{ $exchange->toCashBox?->name }}</td><td class="px-5 py-3">{{ number_format((float) $exchange->from_rate_to_base, 8) }} / {{ number_format((float) $exchange->to_rate_to_base, 8) }}</td><td class="px-5 py-3">{{ $exchange->enteredBy?->name ?: '-' }}</td></tr>
+                        <tr><td class="px-5 py-3">{{ $exchange->exchange_date?->format('Y-m-d') }}</td><td class="px-5 py-3">{{ number_format((float) $exchange->from_amount, 2) }} {{ $exchange->fromCurrency?->code }} | {{ $exchange->fromCashBox?->name }}</td><td class="px-5 py-3">{{ number_format((float) $exchange->to_amount, 2) }} {{ $exchange->toCurrency?->code }} | {{ $exchange->toCashBox?->name }}</td><td class="px-5 py-3"><bdi dir="ltr" class="inline-block">{{ app(FinanceService::class)->exchangeRateLabel((float) $exchange->from_rate_to_base, (float) $exchange->to_rate_to_base, $exchange->fromCurrency?->code, $exchange->toCurrency?->code) }}</bdi></td><td class="px-5 py-3">{{ $exchange->enteredBy?->name ?: '-' }}</td></tr>
                     @endforeach
                 </tbody>
             </table>

@@ -1,4 +1,6 @@
 <x-layouts.app>
+    @php($filterMetaKeys = ['activity_ids', 'finance_request_ids', 'group_ids', 'parent_ids', 'student_ids', 'teacher_ids', 'user_ids'])
+
     <div class="page-stack">
         <section class="page-hero p-6 lg:p-8">
             <div class="eyebrow">{{ __('ui.nav.identity_tools') }}</div>
@@ -78,7 +80,15 @@
                                     <select name="sources[{{ $entity }}][single]" data-source-single-select="{{ $entity }}">
                                         <option value="">{{ __('print_templates.common.none') }}</option>
                                         @foreach ($payload['options'] as $option)
-                                            <option value="{{ $option['id'] }}">{{ $option['label'] }}</option>
+                                            <option
+                                                value="{{ $option['id'] }}"
+                                                data-record-id="{{ $option['id'] }}"
+                                                @foreach ($filterMetaKeys as $metaKey)
+                                                    @if (array_key_exists($metaKey, $option['meta'] ?? []))
+                                                        data-related-{{ str_replace('_', '-', $metaKey) }}="{{ implode(',', (array) $option['meta'][$metaKey]) }}"
+                                                    @endif
+                                                @endforeach
+                                            >{{ $option['label'] }}</option>
                                         @endforeach
                                     </select>
                                 </div>
@@ -99,18 +109,26 @@
 
                                     <div class="mt-4 id-card-student-grid">
                                         @foreach ($payload['options'] as $option)
-                                            <label
+                                            <div
                                                 class="id-card-student-card"
                                                 data-source-card="{{ $entity }}"
                                                 data-search="{{ $option['search'] }}"
-                                                data-parent-id="{{ $option['meta']['parent_id'] ?? '' }}"
+                                                data-record-id="{{ $option['id'] }}"
+                                                @foreach ($filterMetaKeys as $metaKey)
+                                                    @if (array_key_exists($metaKey, $option['meta'] ?? []))
+                                                        data-related-{{ str_replace('_', '-', $metaKey) }}="{{ implode(',', (array) $option['meta'][$metaKey]) }}"
+                                                    @endif
+                                                @endforeach
+                                                role="checkbox"
+                                                tabindex="0"
+                                                aria-checked="false"
                                             >
                                                 <input type="checkbox" name="sources[{{ $entity }}][multiple][]" value="{{ $option['id'] }}" class="sr-only" data-source-checkbox="{{ $entity }}">
                                                 <div class="student-inline__body">
                                                     <div class="student-inline__name">{{ $option['label'] }}</div>
                                                     <div class="student-inline__meta">#{{ $option['id'] }}</div>
                                                 </div>
-                                            </label>
+                                            </div>
                                         @endforeach
                                     </div>
                                 </div>
@@ -142,32 +160,92 @@
                 return activeSources().find((source) => source.entity === entity);
             }
 
-            function parentStudentFilterApplies() {
-                return activeSource('parent')?.mode === 'single' && activeSource('student')?.mode === 'multiple';
+            function setSourceCardChecked(card, checked) {
+                const checkbox = card.querySelector('input[type="checkbox"]');
+                checkbox.checked = checked;
+                card.classList.toggle('is-selected', checked);
+                card.setAttribute('aria-checked', checked ? 'true' : 'false');
             }
 
-            function selectedParentId() {
-                return document.querySelector('[data-source-single-select="parent"]')?.value || '';
+            function relatedIds(element, entity) {
+                const attribute = `data-related-${entity.replaceAll('_', '-')}-ids`;
+
+                if (!element.hasAttribute(attribute)) {
+                    return null;
+                }
+
+                const value = element.getAttribute(attribute) || '';
+
+                return value.split(',').map((id) => id.trim()).filter(Boolean);
+            }
+
+            function selectedSingleSources(exceptEntity = '') {
+                return [...document.querySelectorAll('[data-source-single-select]')]
+                    .map((select) => ({
+                        entity: select.dataset.sourceSingleSelect,
+                        id: select.value,
+                        option: select.selectedOptions[0],
+                    }))
+                    .filter((source) => source.entity !== exceptEntity && source.id !== '' && source.option);
+            }
+
+            function recordMatchesSelectedSources(targetEntity, targetId, targetElement, exceptEntity = '') {
+                return selectedSingleSources(exceptEntity).every((source) => {
+                    const selectedAllowedIds = relatedIds(source.option, targetEntity);
+
+                    if (selectedAllowedIds !== null && !selectedAllowedIds.includes(String(targetId))) {
+                        return false;
+                    }
+
+                    const targetAllowedIds = relatedIds(targetElement, source.entity);
+
+                    return targetAllowedIds === null || targetAllowedIds.includes(String(source.id));
+                });
+            }
+
+            function applySingleSelectFilter(entity) {
+                const select = document.querySelector(`[data-source-single-select="${entity}"]`);
+
+                if (!select) {
+                    return;
+                }
+
+                [...select.options].forEach((option) => {
+                    if (option.value === '') {
+                        option.hidden = false;
+                        option.disabled = false;
+                        return;
+                    }
+
+                    const visible = recordMatchesSelectedSources(entity, option.value, option, entity);
+                    option.hidden = !visible;
+                    option.disabled = !visible;
+                });
+
+                if (select.value !== '' && select.selectedOptions[0]?.disabled) {
+                    select.value = '';
+                }
             }
 
             function applySourceFilter(entity) {
                 const searchInput = document.querySelector(`[data-source-search="${entity}"]`);
                 const term = (searchInput?.value || '').trim().toLowerCase();
-                const parentId = entity === 'student' && parentStudentFilterApplies() ? selectedParentId() : '';
 
                 document.querySelectorAll(`[data-source-card="${entity}"]`).forEach((card) => {
                     const searchMiss = term !== '' && !card.dataset.search.includes(term);
-                    const relationMiss = parentId !== '' && card.dataset.parentId !== parentId;
+                    const relationMiss = !recordMatchesSelectedSources(entity, card.dataset.recordId, card);
                     card.hidden = searchMiss || relationMiss;
 
                     if (card.hidden) {
-                        card.classList.remove('is-selected');
-                        card.querySelector('input[type="checkbox"]').checked = false;
+                        setSourceCardChecked(card, false);
                     }
                 });
             }
 
             function applyAllFilters() {
+                document.querySelectorAll('[data-source-single-select]').forEach((select) => {
+                    applySingleSelectFilter(select.dataset.sourceSingleSelect);
+                });
                 document.querySelectorAll('[data-source-panel]').forEach((panel) => applySourceFilter(panel.dataset.sourcePanel));
             }
 
@@ -193,10 +271,14 @@
                 const checkbox = card.querySelector('input[type="checkbox"]');
                 card.addEventListener('click', (event) => {
                     if (event.target.matches('input')) return;
-                    checkbox.checked = !checkbox.checked;
-                    card.classList.toggle('is-selected', checkbox.checked);
+                    setSourceCardChecked(card, !checkbox.checked);
                 });
-                checkbox.addEventListener('change', () => card.classList.toggle('is-selected', checkbox.checked));
+                card.addEventListener('keydown', (event) => {
+                    if (!['Enter', ' '].includes(event.key)) return;
+                    event.preventDefault();
+                    setSourceCardChecked(card, !checkbox.checked);
+                });
+                checkbox.addEventListener('change', () => setSourceCardChecked(card, checkbox.checked));
             });
 
             document.querySelectorAll('[data-source-search]').forEach((input) => {
@@ -211,8 +293,7 @@
                 button.addEventListener('click', () => {
                     document.querySelectorAll(`[data-source-card="${button.dataset.sourceSelectVisible}"]`).forEach((card) => {
                         if (card.hidden) return;
-                        card.classList.add('is-selected');
-                        card.querySelector('input[type="checkbox"]').checked = true;
+                        setSourceCardChecked(card, true);
                     });
                 });
             });
@@ -220,8 +301,7 @@
             document.querySelectorAll('[data-source-clear]').forEach((button) => {
                 button.addEventListener('click', () => {
                     document.querySelectorAll(`[data-source-card="${button.dataset.sourceClear}"]`).forEach((card) => {
-                        card.classList.remove('is-selected');
-                        card.querySelector('input[type="checkbox"]').checked = false;
+                        setSourceCardChecked(card, false);
                     });
                 });
             });

@@ -254,6 +254,8 @@ return [
         'errors' => [
             'select_repeating' => 'Select at least one :entity.',
             'select_single' => 'Select one :entity.',
+            'select_related_records' => 'The selected records are not related to each other.',
+            'select_related_repeating' => 'Select :entity records that match the selected filters.',
             'select_related_students' => 'Select students that belong to the selected parent.',
         ],
         'warnings' => [

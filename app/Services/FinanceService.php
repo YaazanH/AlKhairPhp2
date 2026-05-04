@@ -177,6 +177,57 @@ class FinanceService
             || FinanceCashBoxTransfer::query()->where('currency_id', $currency->id)->exists();
     }
 
+    public function currencyRateInput(FinanceCurrency $currency): string
+    {
+        if ($currency->is_base) {
+            return '1';
+        }
+
+        if ($currency->is_local && (float) $currency->rate_to_base > 0) {
+            return $this->formatRateInputNumber(1 / (float) $currency->rate_to_base, 4);
+        }
+
+        return $this->formatRateInputNumber((float) $currency->rate_to_base, 8);
+    }
+
+    public function currencyRateLabel(FinanceCurrency $currency, ?FinanceCurrency $baseCurrency = null): string
+    {
+        $baseCurrency ??= $this->baseCurrency();
+
+        if ($currency->is_base) {
+            return __('finance.rate_formats.base', [
+                'base' => $currency->code,
+            ]);
+        }
+
+        if ($currency->is_local && (float) $currency->rate_to_base > 0) {
+            return __('finance.rate_formats.base_to_local', [
+                'base' => $baseCurrency->code,
+                'amount' => $this->formatRateNumber(1 / (float) $currency->rate_to_base, 4),
+                'local' => $currency->code,
+            ]);
+        }
+
+        return __('finance.rate_formats.to_base', [
+            'currency' => $currency->code,
+            'amount' => $this->formatRateNumber((float) $currency->rate_to_base, 8),
+            'base' => $baseCurrency->code,
+        ]);
+    }
+
+    public function exchangeRateLabel(float $fromRateToBase, float $toRateToBase, ?string $fromCode = null, ?string $toCode = null): string
+    {
+        if ($toRateToBase <= 0) {
+            return '-';
+        }
+
+        return __('finance.rate_formats.exchange', [
+            'from' => $fromCode ?: __('finance.fields.from'),
+            'amount' => $this->formatRateNumber($fromRateToBase / $toRateToBase, 8),
+            'to' => $toCode ?: __('finance.fields.to'),
+        ]);
+    }
+
     public function declineRequest(FinanceRequest $request, ?User $reviewer = null, ?string $notes = null): FinanceRequest
     {
         $request->update([
@@ -187,6 +238,15 @@ class FinanceService
         ]);
 
         return $request->fresh();
+    }
+
+    public function calculateExchangeToAmount(FinanceCurrency $fromCurrency, FinanceCurrency $toCurrency, float $fromAmount): float
+    {
+        if ($fromAmount <= 0 || (float) $toCurrency->rate_to_base <= 0) {
+            return 0.0;
+        }
+
+        return round(($fromAmount * (float) $fromCurrency->rate_to_base) / (float) $toCurrency->rate_to_base, 2);
     }
 
     public function defaultCashBox(): FinanceCashBox
@@ -649,6 +709,20 @@ class FinanceService
         }
 
         return 'paid';
+    }
+
+    protected function formatRateNumber(float $rate, int $maxDecimals): string
+    {
+        $decimals = $rate >= 1 ? min(4, $maxDecimals) : $maxDecimals;
+
+        return rtrim(rtrim(number_format($rate, $decimals, '.', ','), '0'), '.');
+    }
+
+    protected function formatRateInputNumber(float $rate, int $maxDecimals): string
+    {
+        $decimals = $rate >= 1 ? min(4, $maxDecimals) : $maxDecimals;
+
+        return rtrim(rtrim(number_format($rate, $decimals, '.', ''), '0'), '.');
     }
 
     protected function nextTransactionNumber(): string
