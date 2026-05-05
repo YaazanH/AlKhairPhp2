@@ -5,7 +5,7 @@ return [
         'hero' => [
             'eyebrow' => 'Finance workspace',
             'title' => 'Invoices',
-            'subtitle' => 'Create invoice headers here, then open an invoice to manage items, receipts, and payment activity.',
+            'subtitle' => 'Create invoice headers here, then open an invoice to manage its itemized details.',
             'badges' => [
                 'parents' => ':count parent accounts',
                 'invoices' => ':count invoice records',
@@ -15,7 +15,7 @@ return [
             'eyebrow' => 'Billing focus',
             'edit_title' => 'Editing invoice',
             'create_title' => 'New invoice header',
-            'subtitle' => 'Use this screen to manage invoice identity and billing state, then move into the detail screen for charges and payments.',
+            'subtitle' => 'Use this screen to manage invoice identity and billing state, then move into the detail screen for itemized charges.',
         ],
         'stats' => [
             'all' => [
@@ -39,7 +39,7 @@ return [
             'eyebrow' => 'Invoice editor',
             'edit_title' => 'Edit invoice',
             'create_title' => 'Create invoice',
-            'subtitle' => 'The detailed charges and payments are managed from the invoice detail page.',
+            'subtitle' => 'The detailed charges are managed from the invoice detail page.',
             'fields' => [
                 'parent' => 'Parent',
                 'invoice_type' => 'Invoice type',
@@ -89,12 +89,13 @@ return [
     'detail' => [
         'back' => 'Back to invoices',
         'heading' => 'Invoice Detail',
-        'subheading' => 'Manage items and payments for one invoice.',
+        'subheading' => 'Manage the itemized charges for one invoice.',
         'print' => 'Print Invoice',
         'summary' => [
             'status' => 'Status: :status',
             'subtotal' => 'Subtotal',
             'discount' => 'Discount',
+            'total' => 'Total',
             'paid' => 'Paid',
             'balance' => 'Balance',
         ],

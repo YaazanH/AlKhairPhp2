@@ -62,6 +62,22 @@ class PublicWebsiteTest extends TestCase
             ->assertSee('name="twitter:image"', false);
     }
 
+    public function test_public_homepage_can_be_put_under_maintenance_without_blocking_dashboard_route(): void
+    {
+        $this->seed(WebsiteSeeder::class);
+
+        AppSetting::storeValue('website', 'maintenance_enabled', true, 'boolean');
+        AppSetting::storeValue('website', 'maintenance_title', ['en' => 'Maintenance window', 'ar' => 'نافذة صيانة'], 'array');
+        AppSetting::storeValue('website', 'maintenance_message', ['en' => 'We will be back soon.', 'ar' => 'سنعود قريباً.'], 'array');
+
+        $this->get('/')
+            ->assertStatus(503)
+            ->assertSee('Maintenance window')
+            ->assertSee('We will be back soon.');
+
+        $this->get('/dashboard')->assertRedirect(route('login'));
+    }
+
     public function test_website_management_requires_permission_and_manager_can_customize_pages(): void
     {
         $this->seed([RoleSeeder::class, WebsiteSeeder::class]);

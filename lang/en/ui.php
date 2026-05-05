@@ -31,6 +31,7 @@ return [
         'teachers' => 'Teachers',
         'students' => 'Students',
         'bulk_student_photos' => 'Bulk Photos',
+        'community_contacts' => 'Community Contacts',
         'academics' => 'Academics',
         'courses' => 'Courses',
         'groups' => 'Groups',

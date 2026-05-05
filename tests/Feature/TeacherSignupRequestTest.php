@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\AppSetting;
 use App\Models\Teacher;
 use App\Models\User;
 use Database\Seeders\RoleSeeder;
@@ -43,6 +44,14 @@ class TeacherSignupRequestTest extends TestCase
         $this->assertNotNull($teacher->photo_path);
         $this->assertSame($teacher->photo_path, $teacher->user->profile_photo_path);
         Storage::disk('public')->assertExists($teacher->photo_path);
+    }
+
+    public function test_public_teacher_signup_page_can_be_disabled(): void
+    {
+        AppSetting::storeValue('website', 'teacher_signup_enabled', false, 'boolean');
+
+        $this->get('/teacher-signup')->assertNotFound();
+        $this->get('/teacherSingup')->assertNotFound();
     }
 
     public function test_manager_can_approve_pending_teacher_signup_request(): void

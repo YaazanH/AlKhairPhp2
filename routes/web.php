@@ -17,8 +17,9 @@ use Livewire\Volt\Volt;
 
 Route::get('/', [WebsiteController::class, 'home'])->name('home');
 Route::get('pages/{page:slug}', [WebsiteController::class, 'show'])->name('website.pages.show');
-Volt::route('teacherSingup', 'public.teacher-signup')->name('teacher-signup');
-Route::redirect('teacherSignup', 'teacherSingup');
+Volt::route('teacher-signup', 'public.teacher-signup')->name('teacher-signup');
+Volt::route('teacherSingup', 'public.teacher-signup')->name('teacher-signup.legacy-typo');
+Route::redirect('teacherSignup', 'teacher-signup');
 
 Route::get('locale/{locale}', function (Request $request, string $locale) {
     if (! array_key_exists($locale, config('app.supported_locales', []))) {
@@ -38,6 +39,7 @@ Volt::route('dashboard', 'dashboard')
 Route::middleware(['auth'])->group(function () {
     Volt::route('reports', 'reports.index')->middleware('permission:reports.view')->name('reports.index');
     Volt::route('users', 'users.index')->middleware('permission:users.view')->name('users.index');
+    Volt::route('community-contacts', 'community-contacts.index')->middleware('permission:community-contacts.view')->name('community-contacts.index');
     Route::get('users/export', [AdminExportController::class, 'users'])->middleware('permission:users.view')->name('users.export');
     Route::get('id-cards/templates', [IdCardTemplateController::class, 'index'])->middleware('permission:id-cards.view')->name('id-cards.templates.index');
     Route::get('id-cards/templates/create', [IdCardTemplateController::class, 'create'])->middleware('permission:id-cards.templates.manage')->name('id-cards.templates.create');
@@ -121,7 +123,7 @@ Route::middleware(['auth'])->group(function () {
     Volt::route('finance/exchange', 'finance.exchange')->middleware('permission:finance.exchange.view')->name('finance.exchange.index');
     Route::get('finance/requests/{financeRequest}/print', FinanceRequestPrintController::class)->name('finance.requests.print');
     Volt::route('invoices', 'invoices.index')->middleware('permission:invoices.view')->name('invoices.index');
-    Volt::route('invoices/{invoice}/payments', 'invoices.payments')->middleware('permission:payments.view')->name('invoices.payments');
+    Volt::route('invoices/{invoice}/payments', 'invoices.payments')->middleware('permission:invoices.view')->name('invoices.payments');
     Route::get('invoices/{invoice}/print', [PrintController::class, 'invoice'])->middleware('permission:invoices.view')->name('invoices.print');
     Route::get('payments/{payment}/receipt', [PrintController::class, 'receipt'])->middleware('permission:payments.view')->name('payments.receipt');
 

@@ -1,6 +1,7 @@
 <?php
 
 use App\Livewire\Concerns\AuthorizesPermissions;
+use App\Livewire\Concerns\FormatsFinanceNumbers;
 use App\Models\ActivityExpense;
 use App\Models\ActivityPayment;
 use App\Models\AppSetting;
@@ -8,6 +9,8 @@ use App\Models\ExpenseCategory;
 use App\Models\FinanceCashBox;
 use App\Models\FinanceCategory;
 use App\Models\FinanceCurrency;
+use App\Models\FinanceInvoiceKind;
+use App\Models\FinancePullRequestKind;
 use App\Models\FinanceTransaction;
 use App\Models\Payment;
 use App\Models\PaymentMethod;
@@ -20,6 +23,7 @@ use Livewire\Volt\Component;
 
 new class extends Component {
     use AuthorizesPermissions;
+    use FormatsFinanceNumbers;
 
     public string $invoice_prefix = '';
     public string $request_terms = '';
@@ -53,6 +57,19 @@ new class extends Component {
     public string $finance_category_type = 'expense';
     public bool $finance_category_is_active = true;
     public bool $showFinanceCategoryModal = false;
+
+    public ?int $pull_kind_editing_id = null;
+    public string $pull_kind_name = '';
+    public string $pull_kind_code = '';
+    public string $pull_kind_mode = 'count';
+    public bool $pull_kind_is_active = true;
+    public bool $showPullKindModal = false;
+
+    public ?int $invoice_kind_editing_id = null;
+    public string $invoice_kind_name = '';
+    public string $invoice_kind_code = '';
+    public bool $invoice_kind_is_active = true;
+    public bool $showInvoiceKindModal = false;
 
     public ?int $payment_method_editing_id = null;
     public string $payment_method_name = '';
@@ -148,6 +165,40 @@ new class extends Component {
         session()->flash('status', 'Finance category deleted.');
     }
 
+    public function deleteInvoiceKind(int $kindId): void
+    {
+        $this->authorizePermission('finance.settings.manage');
+
+        $kind = FinanceInvoiceKind::query()->findOrFail($kindId);
+
+        if ($kind->invoices()->exists()) {
+            $this->addError('invoiceKindDelete', __('finance.validation.invoice_kind_used'));
+
+            return;
+        }
+
+        $kind->delete();
+        $this->cancelInvoiceKind();
+        session()->flash('status', __('finance.messages.invoice_kind_deleted'));
+    }
+
+    public function deletePullKind(int $kindId): void
+    {
+        $this->authorizePermission('finance.settings.manage');
+
+        $kind = FinancePullRequestKind::query()->findOrFail($kindId);
+
+        if ($kind->requests()->exists()) {
+            $this->addError('pullKindDelete', __('finance.validation.pull_kind_used'));
+
+            return;
+        }
+
+        $kind->delete();
+        $this->cancelPullKind();
+        session()->flash('status', __('finance.messages.pull_kind_deleted'));
+    }
+
     public function deletePaymentMethod(int $paymentMethodId): void
     {
         $this->authorizePermission('finance.settings.manage');
@@ -225,6 +276,33 @@ new class extends Component {
         $this->resetValidation();
     }
 
+    public function editInvoiceKind(int $kindId): void
+    {
+        $this->authorizePermission('finance.settings.manage');
+
+        $kind = FinanceInvoiceKind::query()->findOrFail($kindId);
+        $this->invoice_kind_editing_id = $kind->id;
+        $this->invoice_kind_name = $kind->name;
+        $this->invoice_kind_code = $kind->code;
+        $this->invoice_kind_is_active = $kind->is_active;
+        $this->showInvoiceKindModal = true;
+        $this->resetValidation();
+    }
+
+    public function editPullKind(int $kindId): void
+    {
+        $this->authorizePermission('finance.settings.manage');
+
+        $kind = FinancePullRequestKind::query()->findOrFail($kindId);
+        $this->pull_kind_editing_id = $kind->id;
+        $this->pull_kind_name = $kind->name;
+        $this->pull_kind_code = $kind->code;
+        $this->pull_kind_mode = $kind->mode;
+        $this->pull_kind_is_active = $kind->is_active;
+        $this->showPullKindModal = true;
+        $this->resetValidation();
+    }
+
     public function editPaymentMethod(int $paymentMethodId): void
     {
         $this->authorizePermission('finance.settings.manage');
@@ -284,6 +362,30 @@ new class extends Component {
     public function closeFinanceCategoryModal(): void
     {
         $this->cancelFinanceCategory();
+    }
+
+    public function openPullKindModal(): void
+    {
+        $this->authorizePermission('finance.settings.manage');
+        $this->cancelPullKind();
+        $this->showPullKindModal = true;
+    }
+
+    public function closePullKindModal(): void
+    {
+        $this->cancelPullKind();
+    }
+
+    public function openInvoiceKindModal(): void
+    {
+        $this->authorizePermission('finance.settings.manage');
+        $this->cancelInvoiceKind();
+        $this->showInvoiceKindModal = true;
+    }
+
+    public function closeInvoiceKindModal(): void
+    {
+        $this->cancelInvoiceKind();
     }
 
     public function openPaymentMethodModal(): void
@@ -365,6 +467,7 @@ new class extends Component {
     public function saveCurrency(): void
     {
         $this->authorizePermission('finance.currencies.manage');
+        $this->normalizeFinanceNumberProperty('currency_rate_input');
 
         $validated = $this->validate([
             'currency_code' => ['required', 'string', 'max:10', Rule::unique('finance_currencies', 'code')->ignore($this->currency_editing_id)],
@@ -495,6 +598,54 @@ new class extends Component {
         session()->flash('status', 'Finance category saved.');
     }
 
+    public function saveInvoiceKind(): void
+    {
+        $this->authorizePermission('finance.settings.manage');
+
+        $validated = $this->validate([
+            'invoice_kind_code' => ['required', 'string', 'max:50', Rule::unique('finance_invoice_kinds', 'code')->ignore($this->invoice_kind_editing_id)],
+            'invoice_kind_is_active' => ['boolean'],
+            'invoice_kind_name' => ['required', 'string', 'max:255'],
+        ]);
+
+        FinanceInvoiceKind::query()->updateOrCreate(
+            ['id' => $this->invoice_kind_editing_id],
+            [
+                'code' => strtolower($validated['invoice_kind_code']),
+                'is_active' => $validated['invoice_kind_is_active'],
+                'name' => $validated['invoice_kind_name'],
+            ],
+        );
+
+        $this->cancelInvoiceKind();
+        session()->flash('status', __('finance.messages.invoice_kind_saved'));
+    }
+
+    public function savePullKind(): void
+    {
+        $this->authorizePermission('finance.settings.manage');
+
+        $validated = $this->validate([
+            'pull_kind_code' => ['required', 'string', 'max:50', Rule::unique('finance_pull_request_kinds', 'code')->ignore($this->pull_kind_editing_id)],
+            'pull_kind_is_active' => ['boolean'],
+            'pull_kind_mode' => ['required', Rule::in(FinancePullRequestKind::MODES)],
+            'pull_kind_name' => ['required', 'string', 'max:255'],
+        ]);
+
+        FinancePullRequestKind::query()->updateOrCreate(
+            ['id' => $this->pull_kind_editing_id],
+            [
+                'code' => strtolower($validated['pull_kind_code']),
+                'is_active' => $validated['pull_kind_is_active'],
+                'mode' => $validated['pull_kind_mode'],
+                'name' => $validated['pull_kind_name'],
+            ],
+        );
+
+        $this->cancelPullKind();
+        session()->flash('status', __('finance.messages.pull_kind_saved'));
+    }
+
     public function saveFinanceSettings(): void
     {
         $this->authorizePermission('finance.settings.manage');
@@ -550,8 +701,10 @@ new class extends Component {
             'currencies' => FinanceCurrency::query()->orderByDesc('is_local')->orderByDesc('is_base')->orderBy('code')->get(),
             'expenseCategories' => ExpenseCategory::query()->orderBy('name')->get(),
             'financeCategories' => FinanceCategory::query()->orderBy('type')->orderBy('name')->get(),
+            'financeInvoiceKinds' => FinanceInvoiceKind::query()->orderBy('name')->get(),
             'financeRequestPrintTemplates' => $this->financeRequestPrintTemplates(),
             'paymentMethods' => PaymentMethod::query()->orderBy('name')->get(),
+            'pullRequestKinds' => FinancePullRequestKind::query()->orderBy('mode')->orderBy('name')->get(),
             'users' => User::query()->where('is_active', true)->orderBy('name')->get(),
         ];
     }
@@ -604,6 +757,27 @@ new class extends Component {
         $this->resetValidation();
     }
 
+    public function cancelInvoiceKind(): void
+    {
+        $this->invoice_kind_editing_id = null;
+        $this->invoice_kind_name = '';
+        $this->invoice_kind_code = '';
+        $this->invoice_kind_is_active = true;
+        $this->showInvoiceKindModal = false;
+        $this->resetValidation();
+    }
+
+    public function cancelPullKind(): void
+    {
+        $this->pull_kind_editing_id = null;
+        $this->pull_kind_name = '';
+        $this->pull_kind_code = '';
+        $this->pull_kind_mode = 'count';
+        $this->pull_kind_is_active = true;
+        $this->showPullKindModal = false;
+        $this->resetValidation();
+    }
+
     public function cancelPaymentMethod(): void
     {
         $this->payment_method_editing_id = null;
@@ -651,6 +825,7 @@ new class extends Component {
             <a href="#finance-currencies" class="pill-link pill-link--compact">{{ __('finance.settings.currencies') }}</a>
             <a href="#finance-cash-boxes" class="pill-link pill-link--compact">{{ __('finance.settings.cash_boxes') }}</a>
             <a href="#finance-categories" class="pill-link pill-link--compact">{{ __('finance.settings.categories') }}</a>
+            <a href="#finance-request-kinds" class="pill-link pill-link--compact">{{ __('finance.settings.request_kinds') }}</a>
             <a href="#finance-legacy" class="pill-link pill-link--compact">{{ __('finance.settings.payment_setup') }}</a>
         </div>
     </section>
@@ -779,6 +954,36 @@ new class extends Component {
             <div class="overflow-x-auto"><table class="text-sm"><thead><tr><th class="px-5 py-3 text-left">{{ __('finance.fields.name') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.type') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.state') }}</th><th class="px-5 py-3 text-right">{{ __('finance.actions.actions') }}</th></tr></thead><tbody class="divide-y divide-white/6">@foreach ($financeCategories as $category)<tr><td class="px-5 py-3"><div class="font-medium text-white">{{ $category->name }}</div><div class="text-xs text-neutral-500">{{ $category->code }}</div></td><td class="px-5 py-3">{{ ucfirst($category->type) }}</td><td class="px-5 py-3">{{ $category->is_active ? __('finance.common.active') : __('finance.common.inactive') }}</td><td class="px-5 py-3"><div class="admin-action-cluster admin-action-cluster--end"><button type="button" wire:click="editFinanceCategory({{ $category->id }})" class="pill-link pill-link--compact">{{ __('finance.actions.edit') }}</button><button type="button" wire:click="deleteFinanceCategory({{ $category->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link pill-link--compact border-red-400/25 text-red-200">{{ __('finance.actions.delete') }}</button></div></td></tr>@endforeach</tbody></table></div>
     </section>
 
+    <section id="finance-request-kinds" class="grid gap-6 xl:grid-cols-2">
+        <div class="surface-table">
+            <div class="admin-grid-meta">
+                <div>
+                    <div class="admin-grid-meta__title">{{ __('finance.settings.pull_request_kinds') }}</div>
+                    <div class="admin-grid-meta__summary">{{ __('finance.settings.pull_request_kinds_subtitle') }}</div>
+                </div>
+                @can('finance.settings.manage')
+                    <button type="button" wire:click="openPullKindModal" class="pill-link pill-link--accent">{{ __('finance.actions.create_pull_kind') }}</button>
+                @endcan
+            </div>
+            @error('pullKindDelete') <div class="mx-5 mb-4 rounded-2xl border border-red-500/25 bg-red-500/10 px-3 py-2 text-sm text-red-200">{{ $message }}</div> @enderror
+            <div class="overflow-x-auto"><table class="text-sm"><thead><tr><th class="px-5 py-3 text-left">{{ __('finance.fields.name') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.mode') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.state') }}</th><th class="px-5 py-3 text-right">{{ __('finance.actions.actions') }}</th></tr></thead><tbody class="divide-y divide-white/6">@foreach ($pullRequestKinds as $kind)<tr><td class="px-5 py-3"><div class="font-medium text-white">{{ $kind->name }}</div><div class="text-xs text-neutral-500">{{ $kind->code }}</div></td><td class="px-5 py-3">{{ __('finance.pull_modes.'.$kind->mode) }}</td><td class="px-5 py-3">{{ $kind->is_active ? __('finance.common.active') : __('finance.common.inactive') }}</td><td class="px-5 py-3"><div class="admin-action-cluster admin-action-cluster--end"><button type="button" wire:click="editPullKind({{ $kind->id }})" class="pill-link pill-link--compact">{{ __('finance.actions.edit') }}</button><button type="button" wire:click="deletePullKind({{ $kind->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link pill-link--compact border-red-400/25 text-red-200">{{ __('finance.actions.delete') }}</button></div></td></tr>@endforeach</tbody></table></div>
+        </div>
+
+        <div class="surface-table">
+            <div class="admin-grid-meta">
+                <div>
+                    <div class="admin-grid-meta__title">{{ __('finance.settings.invoice_kinds') }}</div>
+                    <div class="admin-grid-meta__summary">{{ __('finance.settings.invoice_kinds_subtitle') }}</div>
+                </div>
+                @can('finance.settings.manage')
+                    <button type="button" wire:click="openInvoiceKindModal" class="pill-link pill-link--accent">{{ __('finance.actions.create_invoice_kind') }}</button>
+                @endcan
+            </div>
+            @error('invoiceKindDelete') <div class="mx-5 mb-4 rounded-2xl border border-red-500/25 bg-red-500/10 px-3 py-2 text-sm text-red-200">{{ $message }}</div> @enderror
+            <div class="overflow-x-auto"><table class="text-sm"><thead><tr><th class="px-5 py-3 text-left">{{ __('finance.fields.name') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.state') }}</th><th class="px-5 py-3 text-right">{{ __('finance.actions.actions') }}</th></tr></thead><tbody class="divide-y divide-white/6">@foreach ($financeInvoiceKinds as $kind)<tr><td class="px-5 py-3"><div class="font-medium text-white">{{ $kind->name }}</div><div class="text-xs text-neutral-500">{{ $kind->code }}</div></td><td class="px-5 py-3">{{ $kind->is_active ? __('finance.common.active') : __('finance.common.inactive') }}</td><td class="px-5 py-3"><div class="admin-action-cluster admin-action-cluster--end"><button type="button" wire:click="editInvoiceKind({{ $kind->id }})" class="pill-link pill-link--compact">{{ __('finance.actions.edit') }}</button><button type="button" wire:click="deleteInvoiceKind({{ $kind->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link pill-link--compact border-red-400/25 text-red-200">{{ __('finance.actions.delete') }}</button></div></td></tr>@endforeach</tbody></table></div>
+        </div>
+    </section>
+
     <section id="finance-legacy" class="grid gap-6 xl:grid-cols-2">
         <div class="surface-table">
             <div class="admin-grid-meta">
@@ -823,7 +1028,7 @@ new class extends Component {
             </div>
             <div>
                 <label class="mb-1 block text-sm font-medium">{{ $currency_is_local ? __('finance.fields.base_to_local_rate') : __('finance.fields.exchange_rate') }}</label>
-                <input wire:model="currency_rate_input" type="number" min="0" step="0.000000000001" class="w-full rounded-xl px-4 py-3 text-sm">
+                <input wire:model="currency_rate_input" type="text" inputmode="decimal" data-thousand-separator class="w-full rounded-xl px-4 py-3 text-sm">
                 <p class="mt-1 text-xs text-neutral-500">{{ __('finance.settings.rate_help') }}</p>
                 @error('currency_rate_input') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
             </div>
@@ -873,6 +1078,35 @@ new class extends Component {
             <div class="flex justify-end gap-3">
                 <button type="button" wire:click="closeFinanceCategoryModal" class="pill-link">{{ __('finance.actions.cancel') }}</button>
                 <button type="submit" class="pill-link pill-link--accent">{{ $finance_category_editing_id ? __('finance.actions.update_category') : __('finance.actions.create_category') }}</button>
+            </div>
+        </form>
+    </x-admin.modal>
+
+    <x-admin.modal :show="$showPullKindModal" :title="$pull_kind_editing_id ? __('finance.actions.edit').' '.__('finance.fields.pull_kind') : __('finance.actions.create_pull_kind')" :description="__('finance.settings.pull_request_kinds_subtitle')" close-method="closePullKindModal" max-width="3xl">
+        <form wire:submit="savePullKind" class="space-y-4">
+            <div class="grid gap-4 md:grid-cols-2">
+                <div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.name') }}</label><input wire:model="pull_kind_name" type="text" class="w-full rounded-xl px-4 py-3 text-sm">@error('pull_kind_name') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
+                <div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.code') }}</label><input wire:model="pull_kind_code" type="text" class="w-full rounded-xl px-4 py-3 text-sm">@error('pull_kind_code') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
+            </div>
+            <div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.mode') }}</label><select wire:model="pull_kind_mode" class="w-full rounded-xl px-4 py-3 text-sm"><option value="count">{{ __('finance.pull_modes.count') }}</option><option value="invoice">{{ __('finance.pull_modes.invoice') }}</option></select>@error('pull_kind_mode') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
+            <label class="flex items-center gap-3 text-sm"><input wire:model="pull_kind_is_active" type="checkbox" class="rounded"> {{ __('finance.common.active') }}</label>
+            <div class="flex justify-end gap-3">
+                <button type="button" wire:click="closePullKindModal" class="pill-link">{{ __('finance.actions.cancel') }}</button>
+                <button type="submit" class="pill-link pill-link--accent">{{ $pull_kind_editing_id ? __('finance.actions.update_pull_kind') : __('finance.actions.create_pull_kind') }}</button>
+            </div>
+        </form>
+    </x-admin.modal>
+
+    <x-admin.modal :show="$showInvoiceKindModal" :title="$invoice_kind_editing_id ? __('finance.actions.edit').' '.__('finance.fields.invoice_kind') : __('finance.actions.create_invoice_kind')" :description="__('finance.settings.invoice_kinds_subtitle')" close-method="closeInvoiceKindModal" max-width="3xl">
+        <form wire:submit="saveInvoiceKind" class="space-y-4">
+            <div class="grid gap-4 md:grid-cols-2">
+                <div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.name') }}</label><input wire:model="invoice_kind_name" type="text" class="w-full rounded-xl px-4 py-3 text-sm">@error('invoice_kind_name') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
+                <div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.code') }}</label><input wire:model="invoice_kind_code" type="text" class="w-full rounded-xl px-4 py-3 text-sm">@error('invoice_kind_code') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
+            </div>
+            <label class="flex items-center gap-3 text-sm"><input wire:model="invoice_kind_is_active" type="checkbox" class="rounded"> {{ __('finance.common.active') }}</label>
+            <div class="flex justify-end gap-3">
+                <button type="button" wire:click="closeInvoiceKindModal" class="pill-link">{{ __('finance.actions.cancel') }}</button>
+                <button type="submit" class="pill-link pill-link--accent">{{ $invoice_kind_editing_id ? __('finance.actions.update_invoice_kind') : __('finance.actions.create_invoice_kind') }}</button>
             </div>
         </form>
     </x-admin.modal>

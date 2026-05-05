@@ -4,6 +4,11 @@
             <div class="admin-grid-meta__title">{{ __('finance.common.request') }}</div>
             <div class="admin-grid-meta__summary">{{ __('crud.common.badges.in_view', ['count' => number_format($requests->total())]) }}</div>
         </div>
+        @if (($createPermission ?? null) && ($createMethod ?? null) && ($createLabel ?? null))
+            @can($createPermission)
+                <button type="button" wire:click="{{ $createMethod }}" class="pill-link pill-link--accent">{{ $createLabel }}</button>
+            @endcan
+        @endif
     </div>
     <div class="overflow-x-auto">
         <table class="text-sm">
@@ -19,10 +24,20 @@
             </thead>
             <tbody class="divide-y divide-white/6">
                 @forelse ($requests as $request)
+                    @php
+                        $printPermission = match ($request->type) {
+                            \App\Models\FinanceRequest::TYPE_PULL => 'finance.pull-requests.print',
+                            \App\Models\FinanceRequest::TYPE_EXPENSE => 'finance.expense-requests.print',
+                            default => 'finance.revenue-requests.print',
+                        };
+                    @endphp
                     <tr>
                         <td class="px-5 py-3">
                             <div class="font-medium text-white">{{ $request->request_no }}</div>
                             <div class="text-xs text-neutral-500">{{ $request->created_at?->format('Y-m-d H:i') }} | {{ $request->requestedBy?->name ?: '-' }}</div>
+                            @if ($request->requested_reason)
+                                <div class="mt-1 max-w-xs text-xs leading-5 text-neutral-400">{{ $request->requested_reason }}</div>
+                            @endif
                             @if ($request->attachments->isNotEmpty())
                                 <div class="mt-1 flex flex-wrap gap-2 text-xs">
                                     @foreach ($request->attachments as $attachment)
@@ -35,21 +50,26 @@
                             <div>{{ $request->activity?->title ?: '-' }}</div>
                             <div class="text-xs text-neutral-500">{{ $request->teacher ? trim($request->teacher->first_name.' '.$request->teacher->last_name) : '-' }}</div>
                         </td>
-                        <td class="px-5 py-3">{{ $request->category?->name ?: '-' }}</td>
+                        <td class="px-5 py-3">
+                            <div>{{ $request->category?->name ?: ($request->type === \App\Models\FinanceRequest::TYPE_PULL ? __('finance.pull_requests.title') : '-') }}</div>
+                            @if ($request->type === \App\Models\FinanceRequest::TYPE_PULL)
+                                <div class="text-xs text-neutral-500">{{ $request->pullRequestKind?->name ?: '-' }}</div>
+                            @endif
+                        </td>
                         <td class="px-5 py-3">
                             <div>{{ __('finance.fields.requested') }}: {{ number_format((float) $request->requested_amount, 2) }} {{ $request->requestedCurrency?->code }}</div>
                             <div class="text-xs text-neutral-500">{{ __('finance.fields.accepted') }}: {{ $request->accepted_amount !== null ? number_format((float) $request->accepted_amount, 2).' '.$request->acceptedCurrency?->code : '-' }}</div>
                         </td>
-                        <td class="px-5 py-3"><span class="status-chip {{ $request->status === 'accepted' ? 'status-chip--emerald' : ($request->status === 'declined' ? 'status-chip--rose' : 'status-chip--slate') }}">{{ ucfirst($request->status) }}</span></td>
+                        <td class="px-5 py-3"><span class="status-chip {{ $request->status === 'accepted' ? 'status-chip--emerald' : ($request->status === 'declined' ? 'status-chip--rose' : 'status-chip--slate') }}">{{ __('finance.statuses.'.$request->status) }}</span></td>
                         <td class="px-5 py-3">
                             <div class="admin-action-cluster admin-action-cluster--end">
-                                @if ($request->status === 'accepted')
+                                @if ($request->status === 'accepted' && auth()->user()?->can($printPermission))
                                     <a href="{{ route('finance.requests.print', $request) }}" target="_blank" class="pill-link pill-link--compact">{{ __('finance.actions.print') }}</a>
                                     <a href="{{ route('finance.requests.print', ['financeRequest' => $request, 'choose' => 1]) }}" target="_blank" class="pill-link pill-link--compact">{{ __('finance.actions.choose_print_template') }}</a>
                                 @endif
                                 @can($reviewPermission)
                                     @if ($request->status === 'pending')
-                                        <input wire:model="review_amounts.{{ $request->id }}" type="number" min="0" step="0.01" placeholder="{{ number_format((float) $request->requested_amount, 2, '.', '') }}" class="w-28 rounded-xl px-3 py-2 text-sm">
+                                        <input wire:model="review_amounts.{{ $request->id }}" type="text" inputmode="decimal" data-thousand-separator placeholder="{{ number_format((float) $request->requested_amount, 2) }}" class="w-28 rounded-xl px-3 py-2 text-sm">
                                         <select wire:model="review_cash_boxes.{{ $request->id }}" class="w-36 rounded-xl px-3 py-2 text-sm">
                                             <option value="">{{ __('finance.fields.cash_box') }}</option>
                                             @foreach (($cashBoxesByCurrency[$request->requested_currency_id] ?? $cashBoxes) as $box)

@@ -1755,6 +1755,255 @@ html[dir='rtl'] .app-pagination__nav {
     margin-top: 1.5rem;
 }
 
+.public-site:has(.maintenance-page) {
+    --app-text: #132f22;
+    background:
+        radial-gradient(circle at 50% -12rem, color-mix(in srgb, var(--site-accent) 15%, transparent), transparent 24rem),
+        linear-gradient(180deg, #f7faf7 0%, #eef5ef 100%);
+}
+
+.public-site:has(.maintenance-page) .public-backdrop,
+.public-site:has(.maintenance-page) .public-header,
+.public-site:has(.maintenance-page) .public-footer {
+    display: none;
+}
+
+.public-site:has(.maintenance-page) .public-shell {
+    width: min(100%, 78rem);
+}
+
+.public-site:has(.maintenance-page) .public-main {
+    min-height: calc(100vh - 2.5rem);
+    justify-content: center;
+    margin-top: 0;
+}
+
+.maintenance-page {
+    display: grid;
+    min-height: calc(100vh - 2.5rem);
+    place-items: center;
+    padding: clamp(1rem, 3vw, 2.5rem);
+}
+
+.maintenance-card {
+    position: relative;
+    display: grid;
+    width: min(100%, 44rem);
+    overflow: hidden;
+    border: 1px solid rgba(16, 87, 48, 0.12);
+    border-radius: 1.75rem;
+    background:
+        radial-gradient(circle at 18% 12%, color-mix(in srgb, var(--site-accent) 11%, transparent), transparent 12rem),
+        #ffffff;
+    box-shadow: 0 24px 70px rgba(22, 72, 41, 0.16);
+}
+
+.maintenance-card::before {
+    content: '';
+    position: absolute;
+    inset-inline: 2rem;
+    top: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(16, 87, 48, 0.24), transparent);
+}
+
+.maintenance-card__visual {
+    position: relative;
+    min-height: 14rem;
+    border-bottom: 1px solid rgba(16, 87, 48, 0.08);
+    background:
+        linear-gradient(135deg, color-mix(in srgb, var(--site-primary) 10%, transparent), transparent 58%),
+        radial-gradient(circle at center, rgba(16, 87, 48, 0.08), transparent 14rem);
+}
+
+.maintenance-gears {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+}
+
+.maintenance-gear {
+    position: absolute;
+    color: color-mix(in srgb, var(--site-primary) 70%, #26352b);
+    font-family: Georgia, serif;
+    line-height: 1;
+    text-shadow: 0 18px 40px rgba(16, 87, 48, 0.16);
+}
+
+.maintenance-gear--large {
+    font-size: clamp(5.5rem, 18vw, 9.5rem);
+    animation: maintenance-spin 9s linear infinite;
+}
+
+.maintenance-gear--small {
+    margin-inline-start: 8.3rem;
+    margin-block-start: 4.8rem;
+    color: color-mix(in srgb, var(--site-accent) 70%, #46624e);
+    font-size: clamp(3.1rem, 9vw, 5rem);
+    animation: maintenance-spin-reverse 6s linear infinite;
+}
+
+.maintenance-gear--tiny {
+    margin-inline-end: 8.2rem;
+    margin-block-start: -4.8rem;
+    color: rgba(42, 69, 50, 0.34);
+    font-size: clamp(2.4rem, 7vw, 3.75rem);
+    animation: maintenance-spin 7s linear infinite;
+}
+
+.maintenance-card__content {
+    display: grid;
+    justify-items: center;
+    padding: clamp(1.5rem, 5vw, 2.75rem);
+    text-align: center;
+}
+
+.maintenance-card__brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.75rem;
+    color: #163522;
+    font-size: 0.95rem;
+    font-weight: 800;
+}
+
+.maintenance-card__mark {
+    display: grid;
+    width: 3.4rem;
+    height: 3.4rem;
+    place-items: center;
+    border-radius: 1rem;
+    background: color-mix(in srgb, var(--site-primary) 88%, #0b8f43);
+    box-shadow: 0 14px 32px rgba(16, 87, 48, 0.18);
+}
+
+.maintenance-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 1.15rem;
+    border: 1px solid rgba(16, 87, 48, 0.14);
+    border-radius: 9999px;
+    background: rgba(11, 143, 67, 0.08);
+    padding: 0.45rem 0.85rem;
+    color: #24543a;
+    font-size: 0.76rem;
+    font-weight: 800;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+}
+
+.maintenance-status__dot {
+    width: 0.55rem;
+    height: 0.55rem;
+    border-radius: 9999px;
+    background: #fbbf24;
+    box-shadow: 0 0 0 0 rgba(251, 191, 36, 0.48);
+    animation: maintenance-pulse 1.8s ease-out infinite;
+}
+
+.maintenance-card__logo {
+    width: 2.2rem;
+    height: 2.2rem;
+    object-fit: cover;
+}
+
+.maintenance-card__title {
+    margin-top: 1.25rem;
+    font-family: var(--font-display);
+    font-size: clamp(2.6rem, 7vw, 4.8rem);
+    line-height: 0.96;
+    color: #17231a;
+}
+
+.maintenance-card__message {
+    max-width: 34rem;
+    margin-top: 1.2rem;
+    color: #566356;
+    font-size: clamp(1rem, 2vw, 1.18rem);
+    line-height: 1.9;
+}
+
+.maintenance-card__note {
+    max-width: 34rem;
+    margin-top: 1.3rem;
+    color: #6c756c;
+    font-size: 0.92rem;
+    line-height: 1.8;
+}
+
+.maintenance-card__actions {
+    justify-content: center;
+}
+
+@keyframes maintenance-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@keyframes maintenance-spin-reverse {
+    to {
+        transform: rotate(-360deg);
+    }
+}
+
+@keyframes maintenance-pulse {
+    70% {
+        box-shadow: 0 0 0 0.75rem rgba(251, 191, 36, 0);
+    }
+
+    100% {
+        box-shadow: 0 0 0 0 rgba(251, 191, 36, 0);
+    }
+}
+
+@media (max-width: 767px) {
+    .public-site:has(.maintenance-page) .public-shell {
+        padding: 0;
+    }
+
+    .maintenance-page {
+        min-height: 100vh;
+        padding: 0.9rem;
+    }
+
+    .maintenance-card {
+        border-radius: 1.35rem;
+    }
+
+    .maintenance-card__visual {
+        min-height: 11.5rem;
+    }
+
+    .maintenance-card__content {
+        padding: 1.35rem;
+    }
+
+    .maintenance-card__brand {
+        flex-direction: column;
+        gap: 0.55rem;
+    }
+
+    .maintenance-gear--small {
+        margin-inline-start: 5.5rem;
+        margin-block-start: 3.6rem;
+    }
+
+    .maintenance-gear--tiny {
+        margin-inline-end: 5.4rem;
+        margin-block-start: -3.6rem;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .maintenance-gear,
+    .maintenance-status__dot {
+        animation: none;
+    }
+}
+
 .public-hero,
 .public-page-hero,
 .public-section,

@@ -24,9 +24,9 @@ class FinanceRequestPrintController extends Controller
             403,
         );
 
-        abort_unless($financeRequest->status === FinanceRequest::STATUS_ACCEPTED, 404);
+        abort_unless(in_array($financeRequest->status, [FinanceRequest::STATUS_ACCEPTED, FinanceRequest::STATUS_SETTLED], true), 404);
 
-        $financeRequest->load(['activity', 'cashBox', 'category', 'requestedBy', 'reviewedBy', 'teacher', 'requestedCurrency', 'acceptedCurrency']);
+        $financeRequest->load(['activity', 'cashBox', 'category', 'invoice', 'pullRequestKind', 'requestedBy', 'reviewedBy', 'teacher', 'requestedCurrency', 'acceptedCurrency']);
 
         $templates = PrintTemplate::query()
             ->where('is_active', true)

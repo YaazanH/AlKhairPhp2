@@ -13,6 +13,8 @@ use App\Models\FinanceCashBox;
 use App\Models\FinanceCategory;
 use App\Models\FinanceCurrency;
 use App\Models\FinanceCurrencyExchange;
+use App\Models\FinanceInvoiceKind;
+use App\Models\FinancePullRequestKind;
 use App\Models\FinanceRequest;
 use App\Models\FinanceTransaction;
 use App\Models\Invoice;
@@ -127,17 +129,12 @@ class FinanceAndActivitiesTest extends TestCase
         [$parent, $student, $group, $enrollment] = $this->financeContext();
         $paymentMethod = PaymentMethod::query()->where('code', 'cash')->firstOrFail();
 
-        $activity = Activity::create([
-            'title' => 'Invoice Activity',
-            'activity_date' => '2026-11-01',
-            'group_id' => $group->id,
-            'fee_amount' => 30,
-            'is_active' => true,
-        ]);
+        $invoiceKind = FinanceInvoiceKind::query()->where('code', 'general')->firstOrFail();
 
         Volt::test('invoices.index')
-            ->set('parent_id', $parent->id)
-            ->set('invoice_type', 'activity')
+            ->set('invoicer_name', 'Office Supplies Store')
+            ->set('finance_invoice_kind_id', $invoiceKind->id)
+            ->set('invoice_type', 'finance')
             ->set('issue_date', '2026-11-02')
             ->set('due_date', '2026-11-15')
             ->set('status', 'issued')
@@ -148,10 +145,7 @@ class FinanceAndActivitiesTest extends TestCase
         $invoice = Invoice::query()->firstOrFail();
 
         Volt::test('invoices.payments', ['invoice' => $invoice])
-            ->set('item_description', 'Activity fee')
-            ->set('item_student_id', $student->id)
-            ->set('item_enrollment_id', $enrollment->id)
-            ->set('item_activity_id', $activity->id)
+            ->set('item_name', 'Activity fee')
             ->set('item_quantity', '1')
             ->set('item_unit_price', '30')
             ->call('saveItem')
@@ -219,14 +213,17 @@ class FinanceAndActivitiesTest extends TestCase
         ]);
 
         $this->actingAs($teacherUser);
+        $pullKind = FinancePullRequestKind::query()->where('mode', FinancePullRequestKind::MODE_COUNT)->firstOrFail();
 
         Volt::test('finance.pull-requests')
-            ->set('requested_amount', '100')
+            ->set('requested_amount', '1,500')
             ->call('submitRequest')
             ->assertHasErrors(['accepted_terms' => 'accepted']);
 
         Volt::test('finance.pull-requests')
-            ->set('requested_amount', '100')
+            ->set('finance_pull_request_kind_id', $pullKind->id)
+            ->set('requested_amount', '1,500')
+            ->set('requested_count', '1,250')
             ->set('requested_reason', 'Class materials')
             ->set('accepted_terms', true)
             ->call('submitRequest')
@@ -236,6 +233,8 @@ class FinanceAndActivitiesTest extends TestCase
 
         $this->assertSame(FinanceRequest::STATUS_PENDING, $request->status);
         $this->assertSame($teacher->id, $request->teacher_id);
+        $this->assertSame('1500.00', $request->requested_amount);
+        $this->assertSame(1250, $request->requested_count);
         $this->assertSame('I accept the finance pull terms.', $request->terms_snapshot);
         $this->assertNotNull($request->terms_accepted_at);
 
@@ -253,13 +252,13 @@ class FinanceAndActivitiesTest extends TestCase
             'currency_id' => app(FinanceService::class)->localCurrency()->id,
             'type' => 'manual_adjustment',
             'direction' => 'in',
-            'amount' => 100,
+            'amount' => 2000,
             'description' => 'Pull request test balance',
             'entered_by' => $manager->id,
         ]);
 
         Volt::test('finance.pull-requests')
-            ->set("review_amounts.{$request->id}", '75')
+            ->set("review_amounts.{$request->id}", '1,075')
             ->set("review_cash_boxes.{$request->id}", $cashBox->id)
             ->set("review_notes.{$request->id}", 'Approved lower amount')
             ->call('accept', $request->id)
@@ -268,13 +267,13 @@ class FinanceAndActivitiesTest extends TestCase
         $request->refresh();
 
         $this->assertSame(FinanceRequest::STATUS_ACCEPTED, $request->status);
-        $this->assertSame('75.00', $request->accepted_amount);
+        $this->assertSame('1075.00', $request->accepted_amount);
         $this->assertSame($cashBox->id, $request->cash_box_id);
         $this->assertDatabaseHas('finance_transactions', [
             'finance_request_id' => $request->id,
             'cash_box_id' => $cashBox->id,
             'type' => 'pull_request',
-            'signed_amount' => -75,
+            'signed_amount' => -1075,
         ]);
 
         $this->get(route('finance.requests.print', $request))->assertOk()->assertSee('PUL-000001');
@@ -336,7 +335,7 @@ class FinanceAndActivitiesTest extends TestCase
         $localCurrency->refresh();
 
         $this->assertEqualsWithDelta(1 / 12800, (float) $localCurrency->rate_to_base, 0.000000000001);
-        $this->assertSame('12800', app(FinanceService::class)->currencyRateInput($localCurrency));
+        $this->assertSame('12,800', app(FinanceService::class)->currencyRateInput($localCurrency));
         $this->assertSame('1 USD = 12,800 SYP', app(FinanceService::class)->currencyRateLabel($localCurrency));
 
         Volt::test('settings.finance')
@@ -415,7 +414,9 @@ class FinanceAndActivitiesTest extends TestCase
         ]);
 
         Volt::test('finance.pull-requests')
+            ->set('finance_pull_request_kind_id', FinancePullRequestKind::query()->where('mode', FinancePullRequestKind::MODE_COUNT)->firstOrFail()->id)
             ->set('requested_amount', '40')
+            ->set('requested_count', '4')
             ->set('teacher_id', $teacher->id)
             ->set('cash_box_id', $cashBox->id)
             ->set('requested_reason', 'Teacher supplies')
@@ -430,12 +431,202 @@ class FinanceAndActivitiesTest extends TestCase
             'finance_request_id' => $request->id,
             'signed_amount' => -40,
         ]);
+        Volt::test('finance.expense-requests')
+            ->assertSee($request->request_no)
+            ->assertSee('Count request');
 
         $this->actingAs($teacherUser);
         Volt::test('finance.pull-requests')->assertSee($request->request_no);
 
         $this->actingAs($otherTeacherUser);
         Volt::test('finance.pull-requests')->assertDontSee($request->request_no);
+    }
+
+    public function test_count_pull_request_settlement_posts_remaining_income(): void
+    {
+        $this->signIn();
+
+        $cashBox = FinanceCashBox::query()->firstOrFail();
+        app(FinanceService::class)->postTransaction([
+            'cash_box_id' => $cashBox->id,
+            'currency_id' => app(FinanceService::class)->localCurrency()->id,
+            'type' => 'manual_adjustment',
+            'direction' => 'in',
+            'amount' => 100,
+            'description' => 'Count pull balance',
+        ]);
+        $teacher = Teacher::create([
+            'first_name' => 'Count',
+            'last_name' => 'Teacher',
+            'phone' => '0944000991',
+            'status' => 'active',
+        ]);
+
+        Volt::test('finance.pull-requests')
+            ->set('finance_pull_request_kind_id', FinancePullRequestKind::query()->where('mode', FinancePullRequestKind::MODE_COUNT)->firstOrFail()->id)
+            ->set('requested_amount', '80')
+            ->set('requested_count', '8')
+            ->set('teacher_id', $teacher->id)
+            ->set('cash_box_id', $cashBox->id)
+            ->call('submitRequest')
+            ->assertHasNoErrors();
+
+        $request = FinanceRequest::query()->firstOrFail();
+
+        Volt::test('finance.pull-requests')
+            ->set("settlement_counts.{$request->id}", '7')
+            ->set("settlement_remaining_amounts.{$request->id}", '15')
+            ->call('settleCount', $request->id)
+            ->assertHasNoErrors();
+
+        $request->refresh();
+
+        $this->assertSame(FinanceRequest::STATUS_SETTLED, $request->status);
+        $this->assertSame(7, $request->final_count);
+        $this->assertSame('15.00', $request->remaining_amount);
+        $returnRequest = FinanceRequest::query()
+            ->where('type', FinanceRequest::TYPE_RETURN)
+            ->where('requested_reason', 'like', '%'.$request->request_no.'%')
+            ->firstOrFail();
+
+        $this->assertDatabaseHas('finance_transactions', [
+            'finance_request_id' => $returnRequest->id,
+            'type' => 'pull_request_return',
+            'signed_amount' => 15,
+        ]);
+
+        Volt::test('finance.revenue-requests')
+            ->assertSee($returnRequest->request_no)
+            ->assertSee($request->request_no);
+    }
+
+    public function test_invoice_pull_request_creates_invoice_and_closes_remaining_money(): void
+    {
+        $this->signIn();
+
+        $cashBox = FinanceCashBox::query()->firstOrFail();
+        app(FinanceService::class)->postTransaction([
+            'cash_box_id' => $cashBox->id,
+            'currency_id' => app(FinanceService::class)->localCurrency()->id,
+            'type' => 'manual_adjustment',
+            'direction' => 'in',
+            'amount' => 120,
+            'description' => 'Invoice pull balance',
+        ]);
+        $teacher = Teacher::create([
+            'first_name' => 'Invoice',
+            'last_name' => 'Teacher',
+            'phone' => '0944000992',
+            'status' => 'active',
+        ]);
+
+        Volt::test('finance.pull-requests')
+            ->set('finance_pull_request_kind_id', FinancePullRequestKind::query()->where('mode', FinancePullRequestKind::MODE_INVOICE)->firstOrFail()->id)
+            ->set('requested_amount', '100')
+            ->set('teacher_id', $teacher->id)
+            ->set('cash_box_id', $cashBox->id)
+            ->call('submitRequest')
+            ->assertHasNoErrors();
+
+        $request = FinanceRequest::query()->firstOrFail();
+
+        Volt::test('finance.pull-requests')
+            ->call('insertInvoice', $request->id)
+            ->assertHasNoErrors();
+
+        $invoice = Invoice::query()->where('finance_request_id', $request->id)->firstOrFail();
+
+        Volt::test('invoices.payments', ['invoice' => $invoice])
+            ->set('item_name', 'Printed materials')
+            ->set('item_quantity', '2')
+            ->set('item_unit_price', '40')
+            ->call('saveItem')
+            ->assertHasNoErrors()
+            ->call('settleLinkedPullRequest')
+            ->assertHasNoErrors();
+
+        $request->refresh();
+
+        $this->assertSame(FinanceRequest::STATUS_SETTLED, $request->status);
+        $this->assertSame($invoice->id, $request->invoice_id);
+        $this->assertSame('20.00', $request->remaining_amount);
+        $returnRequest = FinanceRequest::query()
+            ->where('type', FinanceRequest::TYPE_RETURN)
+            ->where('invoice_id', $invoice->id)
+            ->firstOrFail();
+
+        $this->assertDatabaseHas('finance_transactions', [
+            'finance_request_id' => $returnRequest->id,
+            'source_type' => FinanceRequest::class,
+            'type' => 'invoice_pull_return',
+            'signed_amount' => 20,
+        ]);
+
+        Volt::test('finance.revenue-requests')
+            ->assertSee($returnRequest->request_no)
+            ->assertSee($invoice->invoice_no);
+    }
+
+    public function test_invoice_pull_request_closing_extra_amount_appears_in_expense_grid(): void
+    {
+        $this->signIn();
+
+        $cashBox = FinanceCashBox::query()->firstOrFail();
+        app(FinanceService::class)->postTransaction([
+            'cash_box_id' => $cashBox->id,
+            'currency_id' => app(FinanceService::class)->localCurrency()->id,
+            'type' => 'manual_adjustment',
+            'direction' => 'in',
+            'amount' => 200,
+            'description' => 'Invoice closing balance',
+        ]);
+        $teacher = Teacher::create([
+            'first_name' => 'Closing',
+            'last_name' => 'Teacher',
+            'phone' => '0944000993',
+            'status' => 'active',
+        ]);
+
+        Volt::test('finance.pull-requests')
+            ->set('finance_pull_request_kind_id', FinancePullRequestKind::query()->where('mode', FinancePullRequestKind::MODE_INVOICE)->firstOrFail()->id)
+            ->set('requested_amount', '100')
+            ->set('teacher_id', $teacher->id)
+            ->set('cash_box_id', $cashBox->id)
+            ->call('submitRequest')
+            ->assertHasNoErrors();
+
+        $request = FinanceRequest::query()->where('type', FinanceRequest::TYPE_PULL)->firstOrFail();
+
+        Volt::test('finance.pull-requests')
+            ->call('insertInvoice', $request->id)
+            ->assertHasNoErrors();
+
+        $invoice = Invoice::query()->where('finance_request_id', $request->id)->firstOrFail();
+
+        Volt::test('invoices.payments', ['invoice' => $invoice])
+            ->set('item_name', 'Extra materials')
+            ->set('item_quantity', '3')
+            ->set('item_unit_price', '40')
+            ->call('saveItem')
+            ->assertHasNoErrors()
+            ->call('settleLinkedPullRequest')
+            ->assertHasNoErrors();
+
+        $expenseRequest = FinanceRequest::query()
+            ->where('type', FinanceRequest::TYPE_EXPENSE)
+            ->where('invoice_id', $invoice->id)
+            ->firstOrFail();
+
+        $this->assertDatabaseHas('finance_transactions', [
+            'finance_request_id' => $expenseRequest->id,
+            'source_type' => FinanceRequest::class,
+            'type' => 'invoice_pull_closing_expense',
+            'signed_amount' => -20,
+        ]);
+
+        Volt::test('finance.expense-requests')
+            ->assertSee($expenseRequest->request_no)
+            ->assertSee($invoice->invoice_no);
     }
 
     public function test_cash_box_cannot_go_below_zero_and_requires_supported_currency(): void
@@ -456,6 +647,48 @@ class FinanceAndActivitiesTest extends TestCase
             'amount' => 1,
             'description' => 'Blocked overdraft',
         ]);
+    }
+
+    public function test_pull_request_review_maps_insufficient_balance_to_modal_amount_field(): void
+    {
+        $this->signIn();
+
+        $teacher = Teacher::create([
+            'first_name' => 'Short',
+            'last_name' => 'Balance',
+            'phone' => '0944000800',
+            'status' => 'active',
+        ]);
+        $currency = app(FinanceService::class)->localCurrency();
+        $cashBox = FinanceCashBox::query()->firstOrFail();
+        $pullKind = FinancePullRequestKind::query()->where('mode', FinancePullRequestKind::MODE_INVOICE)->firstOrFail();
+
+        $request = FinanceRequest::query()->create([
+            'request_no' => app(FinanceService::class)->nextRequestNumber(FinanceRequest::TYPE_PULL),
+            'type' => FinanceRequest::TYPE_PULL,
+            'status' => FinanceRequest::STATUS_PENDING,
+            'finance_pull_request_kind_id' => $pullKind->id,
+            'requested_currency_id' => $currency->id,
+            'requested_amount' => 100,
+            'teacher_id' => $teacher->id,
+            'requested_by' => auth()->id(),
+            'requested_reason' => 'Needs visible error',
+        ]);
+        $expectedMessage = __('finance.validation.insufficient_cash_box_balance', [
+            'available' => number_format(0, 2),
+            'currency' => $currency->code,
+            'cash_box' => $cashBox->name,
+        ]);
+
+        Volt::test('finance.pull-requests')
+            ->call('openReviewModal', $request->id)
+            ->set("review_amounts.{$request->id}", '100')
+            ->set("review_cash_boxes.{$request->id}", $cashBox->id)
+            ->call('accept', $request->id)
+            ->assertHasErrors(["review_amounts.{$request->id}"])
+            ->assertSee($expectedMessage);
+
+        $this->assertSame(FinanceRequest::STATUS_PENDING, $request->fresh()->status);
     }
 
     public function test_cash_box_currency_assignment_filters_and_blocks_unsupported_currency(): void

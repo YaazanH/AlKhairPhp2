@@ -183,6 +183,7 @@ return [
     'permission_groups' => [
         'dashboard' => 'لوحات التحكم',
         'users' => 'المستخدمون',
+        'community-contacts' => 'الجهات المساعدة',
         'roles' => 'الأدوار والصلاحيات',
         'course-completion-rules' => 'قواعد إتمام الدورة',
         'sidebar-navigation' => 'تنظيم الشريط الجانبي',
@@ -217,6 +218,10 @@ return [
     'permissions' => [
         'course-completion-rules.manage' => 'إدارة قواعد إتمام الدورة وتطبيق تعديلات النقاط',
         'sidebar-navigation.manage' => 'إدارة تجميع الشريط الجانبي وتوزيع الصفحات داخله',
+        'community-contacts.view' => 'عرض الجهات المساعدة',
+        'community-contacts.create' => 'إنشاء جهات مساعدة',
+        'community-contacts.update' => 'تعديل الجهات المساعدة',
+        'community-contacts.delete' => 'حذف الجهات المساعدة',
         'dashboard.admin.view' => 'عرض لوحة مدير النظام',
         'dashboard.manager.view' => 'عرض لوحة المشرف الإداري',
         'dashboard.teacher.view' => 'عرض لوحة الأستاذ',
@@ -352,8 +357,8 @@ return [
         'inactive' => 'هذا الحساب غير نشط حالياً.',
     ],
     'teacher_signup' => [
-        'title' => 'طلب تسجيل أستاذ',
-        'description' => 'أرسل طلب حساب الأستاذ إلى إدارة المسجد. سيبقى الحساب غير نشط حتى تتم مراجعة الطلب.',
+        'title' => 'انشاء حساب أستاذ',
+        'description' => '',
         'fields' => [
             'full_name' => 'الاسم الكامل',
             'username' => 'اسم المستخدم',
@@ -364,7 +369,7 @@ return [
             'photo' => 'ارفع صورة JPG أو PNG أو WebP بحجم لا يتجاوز 2 ميغابايت.',
         ],
         'actions' => [
-            'submit' => 'إرسال الطلب',
+            'submit' => 'انشاء حساب',
             'back_home' => 'العودة إلى الرئيسية',
         ],
         'messages' => [

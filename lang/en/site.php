@@ -35,6 +35,16 @@ return [
             'next' => 'Next slide',
             'go_to' => 'Go to slide :number',
         ],
+        'maintenance' => [
+            'eyebrow' => 'Maintenance',
+            'status' => 'Under maintenance',
+            'dashboard' => 'Dashboard',
+            'dashboard_available' => 'Available',
+            'dashboard_note' => 'The public homepage is under maintenance only. Authorized users can continue using the dashboard.',
+            'default_title' => 'Under Maintenance',
+            'default_message' => 'Our team is hard at work updating the website. Please wait while we finish this.',
+            'service_status' => 'Website status',
+        ],
     ],
     'admin' => [
         'nav' => [
@@ -76,6 +86,10 @@ return [
                     'title' => 'Identity & contact',
                     'copy' => 'These values drive the public header, footer, contact section, and shared website palette.',
                 ],
+                'maintenance' => [
+                    'title' => 'Homepage maintenance',
+                    'copy' => 'Pause only the public homepage with an official 503 maintenance message while the dashboard stays available.',
+                ],
                 'hero' => [
                     'title' => 'Homepage hero',
                     'copy' => 'Set the first message visitors see before they log in.',
@@ -100,6 +114,7 @@ return [
             'media' => [
                 'logo_alt' => 'Website logo preview',
                 'hero_alt' => 'Homepage hero preview',
+                'maintenance_alt' => 'Maintenance image preview',
                 'gallery_alt' => 'Gallery image preview',
             ],
             'actions' => [
@@ -129,8 +144,17 @@ return [
                 'whatsapp_url' => 'WhatsApp URL',
                 'primary_color' => 'Primary brand color',
                 'accent_color' => 'Accent color',
+                'maintenance_enabled' => 'Put public homepage under maintenance',
+                'maintenance_enabled_help' => 'Only the main public page returns a maintenance message. Dashboard and admin pages continue to run.',
+                'teacher_signup_enabled' => 'Activate teacher signup page',
+                'teacher_signup_enabled_help' => 'When disabled, the public teacher signup URL is closed and no new teacher requests can be submitted.',
+                'maintenance_title_en' => 'Maintenance title (English)',
+                'maintenance_title_ar' => 'Maintenance title (Arabic)',
+                'maintenance_message_en' => 'Maintenance message (English)',
+                'maintenance_message_ar' => 'Maintenance message (Arabic)',
                 'logo_upload' => 'Logo image',
                 'hero_image_upload' => 'Hero image',
+                'maintenance_image_upload' => 'Maintenance image',
                 'featured_video_upload' => 'Featured video',
                 'gallery_uploads' => 'Gallery images',
                 'gallery_title_en' => 'Slide title (English)',

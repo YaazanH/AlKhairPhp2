@@ -473,6 +473,122 @@ if (document.body) {
     });
 }
 
+const financeNumberInputSelector = 'input[data-thousand-separator]';
+
+function normalizeFinanceNumberInputValue(value) {
+    return String(value ?? '').replace(/[\s,\u00a0,\u066c,\u060c]/g, '');
+}
+
+function groupFinanceIntegerPart(value) {
+    return value.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+}
+
+function formatFinanceNumberInputValue(value) {
+    const initialValue = String(value ?? '').trim();
+
+    if (['', '-', '.', '-.'].includes(initialValue)) {
+        return initialValue;
+    }
+
+    let normalizedValue = normalizeFinanceNumberInputValue(initialValue);
+    const isNegative = normalizedValue.startsWith('-');
+
+    normalizedValue = normalizedValue.replace(/^-/, '');
+
+    const hasDecimalPoint = normalizedValue.includes('.');
+    const hasTrailingDecimalPoint = normalizedValue.endsWith('.');
+    const [rawInteger = '', ...rawDecimalParts] = normalizedValue.split('.');
+    const integerPart = rawInteger.replace(/\D/g, '').replace(/^0+(?=\d)/, '');
+    const decimalPart = rawDecimalParts.join('').replace(/\D/g, '');
+
+    if (integerPart === '' && decimalPart === '') {
+        return isNegative ? '-' : '';
+    }
+
+    const formattedInteger = groupFinanceIntegerPart(integerPart === '' ? '0' : integerPart);
+    const formattedDecimal = hasDecimalPoint || hasTrailingDecimalPoint ? `.${decimalPart}` : '';
+
+    return `${isNegative ? '-' : ''}${formattedInteger}${formattedDecimal}`;
+}
+
+function formatFinanceNumberInput(input) {
+    const previousValue = input.value;
+    const formattedValue = formatFinanceNumberInputValue(previousValue);
+
+    if (previousValue === formattedValue) {
+        return;
+    }
+
+    const cursorFromEnd = previousValue.length - (input.selectionStart ?? previousValue.length);
+    input.value = formattedValue;
+
+    if (document.activeElement === input && input.selectionStart !== null) {
+        const nextCursor = Math.max(formattedValue.length - cursorFromEnd, 0);
+
+        try {
+            input.setSelectionRange(nextCursor, nextCursor);
+        } catch (_error) {
+            // Some mobile keyboards do not allow selection changes while composing.
+        }
+    }
+}
+
+function initializeFinanceNumberInputs() {
+    document.querySelectorAll(financeNumberInputSelector).forEach((input) => {
+        if (input instanceof HTMLInputElement) {
+            formatFinanceNumberInput(input);
+        }
+    });
+}
+
+function scheduleFinanceNumberInitialization() {
+    window.requestAnimationFrame(initializeFinanceNumberInputs);
+
+    [80, 220, 500].forEach((delay) => {
+        window.setTimeout(initializeFinanceNumberInputs, delay);
+    });
+}
+
+document.addEventListener('input', (event) => {
+    const input = event.target instanceof HTMLInputElement
+        ? event.target.closest(financeNumberInputSelector)
+        : null;
+
+    if (input instanceof HTMLInputElement) {
+        formatFinanceNumberInput(input);
+    }
+}, true);
+
+document.addEventListener('DOMContentLoaded', scheduleFinanceNumberInitialization);
+document.addEventListener('livewire:navigated', scheduleFinanceNumberInitialization);
+document.addEventListener('livewire:initialized', scheduleFinanceNumberInitialization);
+document.addEventListener('livewire:update', scheduleFinanceNumberInitialization);
+document.addEventListener('livewire:commit', scheduleFinanceNumberInitialization);
+
+const financeNumberInputObserver = new MutationObserver((mutations) => {
+    const shouldInitialize = mutations.some((mutation) => {
+        if (mutation.target instanceof HTMLInputElement && mutation.target.matches(financeNumberInputSelector)) {
+            return true;
+        }
+
+        return Array.from(mutation.addedNodes).some((node) => {
+            return node instanceof Element && (node.matches(financeNumberInputSelector) || node.querySelector(financeNumberInputSelector));
+        });
+    });
+
+    if (shouldInitialize) {
+        scheduleFinanceNumberInitialization();
+    }
+});
+
+if (document.body) {
+    financeNumberInputObserver.observe(document.body, { childList: true, subtree: true });
+} else {
+    document.addEventListener('DOMContentLoaded', () => {
+        financeNumberInputObserver.observe(document.body, { childList: true, subtree: true });
+    });
+}
+
 function initializePublicGallerySliders() {
     document.querySelectorAll('[data-public-gallery-slider]').forEach((slider) => {
         if (slider.dataset.bound === 'true') {

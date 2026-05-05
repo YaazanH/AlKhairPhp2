@@ -425,8 +425,10 @@ return [
         'fields' => [
             'required_passed_final_tests' => 'عدد الاختبارات النهائية الناجحة المطلوبة',
             'required_passed_quizzes' => 'عدد الاختبارات القصيرة الناجحة المطلوبة',
+            'assessment_type_requirements' => 'شروط أنواع التقييم',
             'required_present_attendance' => 'عدد سجلات الحضور المطلوبة',
             'retain_percentage' => 'نسبة النقاط التي تبقى عند فشل الشروط',
+            'minimum_points' => 'الحد الأدنى للنقاط بعد التعديل',
             'academic_year' => 'السنة الدراسية',
             'course' => 'الدورة',
             'group' => 'المجموعة',
@@ -447,10 +449,14 @@ return [
         'criteria' => [
             'final_tests_progress' => 'الاختبارات النهائية الناجحة :actual/:required',
             'quizzes_progress' => 'الاختبارات القصيرة الناجحة :actual/:required',
+            'assessment_type_progress' => ':type نتائج ناجحة :actual/:required',
             'attendance_progress' => 'سجلات الحضور :actual/:required',
         ],
         'labels' => [
-            'point_effect' => 'إذا أخفق الطالب في أي شرط مفعل، يحتفظ النظام فقط بنسبة :percentage% من النقاط الأساسية النشطة ويكتب التخفيض كسجل نقاط مستقل.',
+            'assessment_type_requirements_help' => 'حدد الحد الأدنى من النتائج الناجحة لكل نوع تقييم نشط. أدخل 0 لتعطيل النوع.',
+            'no_assessment_types' => 'لا توجد أنواع تقييم نشطة حالياً.',
+            'unknown_assessment_type' => 'نوع تقييم غير معروف',
+            'point_effect' => 'إذا أخفق الطالب في أي شرط مفعل، يحتفظ النظام بنسبة :percentage% من النقاط الأساسية النشطة، لكنه لا ينزل عن :minimum نقطة إلا إذا كان الطالب يملك أقل من ذلك أصلاً.',
         ],
         'actions' => [
             'save_rules' => 'حفظ القواعد',

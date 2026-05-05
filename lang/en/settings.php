@@ -425,8 +425,10 @@ return [
         'fields' => [
             'required_passed_final_tests' => 'Required passed final tests',
             'required_passed_quizzes' => 'Required passed quizzes',
+            'assessment_type_requirements' => 'Assessment type requirements',
             'required_present_attendance' => 'Required present attendance records',
             'retain_percentage' => 'Points kept when rules fail',
+            'minimum_points' => 'Minimum points after adjustment',
             'academic_year' => 'Academic year',
             'course' => 'Course',
             'group' => 'Group',
@@ -447,10 +449,14 @@ return [
         'criteria' => [
             'final_tests_progress' => 'Passed final tests :actual/:required',
             'quizzes_progress' => 'Passed quizzes :actual/:required',
+            'assessment_type_progress' => ':type passed assessments :actual/:required',
             'attendance_progress' => 'Present attendance :actual/:required',
         ],
         'labels' => [
-            'point_effect' => 'If a student misses any enabled rule, the system keeps only :percentage% of the base active points and writes the reduction as a separate point transaction.',
+            'assessment_type_requirements_help' => 'Set the minimum passed results for each active assessment type. Enter 0 to disable a type.',
+            'no_assessment_types' => 'No active assessment types are available.',
+            'unknown_assessment_type' => 'Unknown assessment type',
+            'point_effect' => 'If a student misses any enabled rule, the system keeps :percentage% of the base active points, but will not drop below :minimum points unless the student had fewer points already.',
         ],
         'actions' => [
             'save_rules' => 'Save rules',

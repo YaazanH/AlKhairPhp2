@@ -1,6 +1,7 @@
 <?php
 
 use App\Livewire\Concerns\AuthorizesPermissions;
+use App\Models\AssessmentType;
 use App\Services\CourseCompletionRuleService;
 use Illuminate\Validation\Rule;
 use Livewire\Volt\Component;
@@ -12,6 +13,8 @@ new class extends Component {
     public string $required_passed_quizzes = '1';
     public string $required_present_attendance = '1';
     public string $retain_percentage = '50';
+    public string $minimum_points = '0';
+    public array $assessment_type_requirements = [];
 
     public mixed $academic_year_id = null;
     public mixed $course_id = null;
@@ -45,6 +48,7 @@ new class extends Component {
             'academicYears' => $options['academicYears'],
             'courses' => $options['courses'],
             'groups' => $service->groups($filters),
+            'assessmentTypes' => AssessmentType::query()->where('is_active', true)->orderBy('name')->get(['id', 'name', 'code']),
             'statusOptions' => ['all', 'active', 'completed', 'inactive', 'cancelled'],
         ];
     }
@@ -66,9 +70,21 @@ new class extends Component {
         $validated = $this->validate([
             'required_passed_final_tests' => ['required', 'integer', 'min:0'],
             'required_passed_quizzes' => ['required', 'integer', 'min:0'],
+            'assessment_type_requirements' => ['nullable', 'array'],
+            'assessment_type_requirements.*' => ['nullable', 'integer', 'min:0'],
             'required_present_attendance' => ['required', 'integer', 'min:0'],
             'retain_percentage' => ['required', 'integer', 'min:0', 'max:100'],
+            'minimum_points' => ['required', 'integer', 'min:0'],
         ]);
+
+        $validated['assessment_type_requirements'] = collect($validated['assessment_type_requirements'] ?? [])
+            ->mapWithKeys(fn (mixed $value, mixed $key): array => [(int) $key => max(0, (int) $value)])
+            ->all();
+        $quizTypeId = AssessmentType::query()->where('code', 'quiz')->value('id');
+
+        if ($quizTypeId) {
+            $validated['required_passed_quizzes'] = $validated['assessment_type_requirements'][(int) $quizTypeId] ?? 0;
+        }
 
         app(CourseCompletionRuleService::class)->saveSettings($validated);
 
@@ -113,6 +129,17 @@ new class extends Component {
         $this->required_passed_quizzes = (string) $settings['required_passed_quizzes'];
         $this->required_present_attendance = (string) $settings['required_present_attendance'];
         $this->retain_percentage = (string) $settings['retain_percentage'];
+        $this->minimum_points = (string) $settings['minimum_points'];
+
+        $storedRequirements = $settings['assessment_type_requirements'] ?? [];
+        $this->assessment_type_requirements = AssessmentType::query()
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get(['id'])
+            ->mapWithKeys(fn (AssessmentType $assessmentType): array => [
+                $assessmentType->id => (string) ($storedRequirements[$assessmentType->id] ?? 0),
+            ])
+            ->all();
     }
 
     protected function dropInvalidGroupFilter(): void
@@ -151,14 +178,14 @@ new class extends Component {
         <div class="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">{{ session('status') }}</div>
     @endif
 
-    <div class="grid gap-4 md:grid-cols-4">
+    <div class="grid gap-4 md:grid-cols-5">
         <div class="rounded-xl border border-neutral-200 p-5 dark:border-neutral-700">
             <div class="text-sm text-neutral-500">{{ __('settings.course_completion.fields.required_passed_final_tests') }}</div>
             <div class="mt-2 text-3xl font-semibold">{{ number_format((int) $required_passed_final_tests) }}</div>
         </div>
         <div class="rounded-xl border border-neutral-200 p-5 dark:border-neutral-700">
-            <div class="text-sm text-neutral-500">{{ __('settings.course_completion.fields.required_passed_quizzes') }}</div>
-            <div class="mt-2 text-3xl font-semibold">{{ number_format((int) $required_passed_quizzes) }}</div>
+            <div class="text-sm text-neutral-500">{{ __('settings.course_completion.fields.assessment_type_requirements') }}</div>
+            <div class="mt-2 text-3xl font-semibold">{{ number_format(collect($assessment_type_requirements)->filter(fn ($value) => (int) $value > 0)->count()) }}</div>
         </div>
         <div class="rounded-xl border border-neutral-200 p-5 dark:border-neutral-700">
             <div class="text-sm text-neutral-500">{{ __('settings.course_completion.fields.required_present_attendance') }}</div>
@@ -167,6 +194,10 @@ new class extends Component {
         <div class="rounded-xl border border-neutral-200 p-5 dark:border-neutral-700">
             <div class="text-sm text-neutral-500">{{ __('settings.course_completion.fields.retain_percentage') }}</div>
             <div class="mt-2 text-3xl font-semibold">{{ number_format((int) $retain_percentage) }}%</div>
+        </div>
+        <div class="rounded-xl border border-neutral-200 p-5 dark:border-neutral-700">
+            <div class="text-sm text-neutral-500">{{ __('settings.course_completion.fields.minimum_points') }}</div>
+            <div class="mt-2 text-3xl font-semibold">{{ number_format((int) $minimum_points) }}</div>
         </div>
     </div>
 
@@ -188,28 +219,45 @@ new class extends Component {
                     </div>
 
                     <div>
-                        <label class="mb-1 block text-sm font-medium">{{ __('settings.course_completion.fields.required_passed_quizzes') }}</label>
-                        <input wire:model="required_passed_quizzes" type="number" min="0" class="w-full rounded-xl px-4 py-3 text-sm">
-                        @error('required_passed_quizzes') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
+                        <label class="mb-1 block text-sm font-medium">{{ __('settings.course_completion.fields.required_present_attendance') }}</label>
+                        <input wire:model="required_present_attendance" type="number" min="0" class="w-full rounded-xl px-4 py-3 text-sm">
+                        @error('required_present_attendance') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
                     </div>
                 </div>
 
                 <div class="grid gap-4 md:grid-cols-2">
                     <div>
-                        <label class="mb-1 block text-sm font-medium">{{ __('settings.course_completion.fields.required_present_attendance') }}</label>
-                        <input wire:model="required_present_attendance" type="number" min="0" class="w-full rounded-xl px-4 py-3 text-sm">
-                        @error('required_present_attendance') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
-                    </div>
-
-                    <div>
                         <label class="mb-1 block text-sm font-medium">{{ __('settings.course_completion.fields.retain_percentage') }}</label>
                         <input wire:model="retain_percentage" type="number" min="0" max="100" class="w-full rounded-xl px-4 py-3 text-sm">
                         @error('retain_percentage') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
                     </div>
+
+                    <div>
+                        <label class="mb-1 block text-sm font-medium">{{ __('settings.course_completion.fields.minimum_points') }}</label>
+                        <input wire:model="minimum_points" type="number" min="0" class="w-full rounded-xl px-4 py-3 text-sm">
+                        @error('minimum_points') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
+                    </div>
+                </div>
+
+                <div class="rounded-2xl border border-white/10 bg-white/5 p-4">
+                    <div class="text-sm font-semibold text-white">{{ __('settings.course_completion.fields.assessment_type_requirements') }}</div>
+                    <p class="mt-2 text-sm leading-6 text-neutral-400">{{ __('settings.course_completion.labels.assessment_type_requirements_help') }}</p>
+
+                    <div class="mt-4 grid gap-4 md:grid-cols-2">
+                        @forelse ($assessmentTypes as $assessmentType)
+                            <div>
+                                <label class="mb-1 block text-sm font-medium">{{ $assessmentType->name }}</label>
+                                <input wire:model="assessment_type_requirements.{{ $assessmentType->id }}" type="number" min="0" class="w-full rounded-xl px-4 py-3 text-sm">
+                                @error('assessment_type_requirements.'.$assessmentType->id) <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
+                            </div>
+                        @empty
+                            <div class="text-sm text-neutral-400">{{ __('settings.course_completion.labels.no_assessment_types') }}</div>
+                        @endforelse
+                    </div>
                 </div>
 
                 <div class="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm leading-7 text-neutral-300">
-                    {{ __('settings.course_completion.labels.point_effect', ['percentage' => (int) $retain_percentage]) }}
+                    {{ __('settings.course_completion.labels.point_effect', ['percentage' => (int) $retain_percentage, 'minimum' => number_format((int) $minimum_points)]) }}
                 </div>
 
                 <div class="flex justify-end">

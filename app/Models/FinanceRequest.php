@@ -19,15 +19,21 @@ class FinanceRequest extends Model
     public const STATUS_PENDING = 'pending';
     public const STATUS_ACCEPTED = 'accepted';
     public const STATUS_DECLINED = 'declined';
+    public const STATUS_SETTLED = 'settled';
 
     protected $fillable = [
         'request_no',
         'type',
         'status',
+        'finance_pull_request_kind_id',
         'requested_currency_id',
         'requested_amount',
+        'requested_count',
         'accepted_currency_id',
         'accepted_amount',
+        'accepted_count',
+        'final_count',
+        'remaining_amount',
         'cash_box_id',
         'activity_id',
         'teacher_id',
@@ -35,6 +41,9 @@ class FinanceRequest extends Model
         'requested_by',
         'reviewed_by',
         'posted_transaction_id',
+        'invoice_id',
+        'return_transaction_id',
+        'closing_transaction_id',
         'requested_reason',
         'review_notes',
         'terms_snapshot',
@@ -42,6 +51,8 @@ class FinanceRequest extends Model
         'terms_accepted_by',
         'accepted_at',
         'declined_at',
+        'settled_at',
+        'settled_by',
     ];
 
     protected function casts(): array
@@ -49,9 +60,11 @@ class FinanceRequest extends Model
         return [
             'requested_amount' => 'decimal:2',
             'accepted_amount' => 'decimal:2',
+            'remaining_amount' => 'decimal:2',
             'terms_accepted_at' => 'datetime',
             'accepted_at' => 'datetime',
             'declined_at' => 'datetime',
+            'settled_at' => 'datetime',
         ];
     }
 
@@ -68,6 +81,11 @@ class FinanceRequest extends Model
     public function cashBox(): BelongsTo
     {
         return $this->belongsTo(FinanceCashBox::class, 'cash_box_id');
+    }
+
+    public function closingTransaction(): BelongsTo
+    {
+        return $this->belongsTo(FinanceTransaction::class, 'closing_transaction_id');
     }
 
     public function category(): BelongsTo
@@ -103,6 +121,26 @@ class FinanceRequest extends Model
     public function postedTransaction(): BelongsTo
     {
         return $this->belongsTo(FinanceTransaction::class, 'posted_transaction_id');
+    }
+
+    public function pullRequestKind(): BelongsTo
+    {
+        return $this->belongsTo(FinancePullRequestKind::class, 'finance_pull_request_kind_id');
+    }
+
+    public function invoice(): BelongsTo
+    {
+        return $this->belongsTo(Invoice::class);
+    }
+
+    public function returnTransaction(): BelongsTo
+    {
+        return $this->belongsTo(FinanceTransaction::class, 'return_transaction_id');
+    }
+
+    public function settledBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'settled_by');
     }
 
     public function termsAcceptedBy(): BelongsTo

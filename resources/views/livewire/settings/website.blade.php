@@ -26,12 +26,20 @@ new class extends Component {
     public ?string $logo_path = null;
     public ?string $hero_image_path = null;
     public ?string $featured_video_path = null;
+    public ?string $maintenance_image_path = null;
     public array $gallery_paths = [];
     public array $gallery_items = [];
     public $logo_upload = null;
     public $hero_image_upload = null;
     public $featured_video_upload = null;
+    public $maintenance_image_upload = null;
     public array $gallery_uploads = [];
+    public bool $maintenance_enabled = false;
+    public bool $teacher_signup_enabled = true;
+    public string $maintenance_title_en = '';
+    public string $maintenance_title_ar = '';
+    public string $maintenance_message_en = '';
+    public string $maintenance_message_ar = '';
     public string $hero_eyebrow_en = '';
     public string $hero_eyebrow_ar = '';
     public string $hero_title_en = '';
@@ -70,7 +78,7 @@ new class extends Component {
                 'published_pages' => WebsitePage::query()->where('is_home', false)->where('is_published', true)->count(),
                 'program_cards' => count($this->program_cards),
                 'quick_stats' => count($this->stats),
-                'media_assets' => count(array_filter([$this->logo_path, $this->hero_image_path, $this->featured_video_path])) + count($this->gallery_items),
+                'media_assets' => count(array_filter([$this->logo_path, $this->hero_image_path, $this->featured_video_path, $this->maintenance_image_path])) + count($this->gallery_items),
             ],
         ];
     }
@@ -88,6 +96,11 @@ new class extends Component {
     public function updatedFeaturedVideoUpload(): void
     {
         $this->autoSaveWebsiteAsset('featured_video_upload', 'featured_video_path', 'website/video', ['nullable', 'file', 'mimetypes:video/mp4,video/quicktime,video/webm', 'max:51200']);
+    }
+
+    public function updatedMaintenanceImageUpload(): void
+    {
+        $this->autoSaveWebsiteAsset('maintenance_image_upload', 'maintenance_image_path', 'website/maintenance', ['nullable', 'image', 'max:4096']);
     }
 
     public function updatedGalleryUploads(): void
@@ -152,7 +165,7 @@ new class extends Component {
 
     public function removeWebsiteAsset(string $asset): void
     {
-        $map = ['logo' => 'logo_path', 'hero_image' => 'hero_image_path', 'featured_video' => 'featured_video_path'];
+        $map = ['logo' => 'logo_path', 'hero_image' => 'hero_image_path', 'featured_video' => 'featured_video_path', 'maintenance_image' => 'maintenance_image_path'];
         abort_unless(isset($map[$asset]), 404);
         $property = $map[$asset];
 
@@ -202,6 +215,13 @@ new class extends Component {
             'logo_upload' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,svg', 'max:2048'],
             'hero_image_upload' => ['nullable', 'image', 'max:4096'],
             'featured_video_upload' => ['nullable', 'file', 'mimetypes:video/mp4,video/quicktime,video/webm', 'max:51200'],
+            'maintenance_image_upload' => ['nullable', 'image', 'max:4096'],
+            'maintenance_enabled' => ['boolean'],
+            'teacher_signup_enabled' => ['boolean'],
+            'maintenance_title_en' => ['nullable', 'string', 'max:255'],
+            'maintenance_title_ar' => ['nullable', 'string', 'max:255'],
+            'maintenance_message_en' => ['nullable', 'string'],
+            'maintenance_message_ar' => ['nullable', 'string'],
             'gallery_uploads' => ['nullable', 'array'],
             'gallery_uploads.*' => ['image', 'max:4096'],
             'gallery_items' => ['nullable', 'array'],
@@ -248,7 +268,7 @@ new class extends Component {
             'stats.*.label_ar' => ['required', 'string', 'max:255'],
         ]);
 
-        foreach (['logo_upload' => ['logo_path', 'website/branding'], 'hero_image_upload' => ['hero_image_path', 'website/gallery'], 'featured_video_upload' => ['featured_video_path', 'website/video']] as $field => [$property, $directory]) {
+        foreach (['logo_upload' => ['logo_path', 'website/branding'], 'hero_image_upload' => ['hero_image_path', 'website/gallery'], 'featured_video_upload' => ['featured_video_path', 'website/video'], 'maintenance_image_upload' => ['maintenance_image_path', 'website/maintenance']] as $field => [$property, $directory]) {
             if ($validated[$field] ?? null) {
                 if ($this->{$property}) {
                     Storage::disk('public')->delete($this->{$property});
@@ -300,6 +320,11 @@ new class extends Component {
         AppSetting::storeValue('website', 'logo_path', $this->logo_path);
         AppSetting::storeValue('website', 'hero_image_path', $this->hero_image_path);
         AppSetting::storeValue('website', 'featured_video_path', $this->featured_video_path);
+        AppSetting::storeValue('website', 'maintenance_image_path', $this->maintenance_image_path);
+        AppSetting::storeValue('website', 'maintenance_enabled', (bool) $validated['maintenance_enabled'], 'boolean');
+        AppSetting::storeValue('website', 'teacher_signup_enabled', (bool) $validated['teacher_signup_enabled'], 'boolean');
+        AppSetting::storeValue('website', 'maintenance_title', ['en' => $validated['maintenance_title_en'], 'ar' => $validated['maintenance_title_ar']], 'array');
+        AppSetting::storeValue('website', 'maintenance_message', ['en' => $validated['maintenance_message_en'], 'ar' => $validated['maintenance_message_ar']], 'array');
         $this->persistGallery();
 
         WebsitePage::query()->updateOrCreate(['slug' => 'home'], [
@@ -321,7 +346,7 @@ new class extends Component {
             ],
         ]);
 
-        $this->reset('logo_upload', 'hero_image_upload', 'featured_video_upload', 'gallery_uploads');
+        $this->reset('logo_upload', 'hero_image_upload', 'featured_video_upload', 'maintenance_image_upload', 'gallery_uploads');
         session()->flash('status', __('site.admin.website.messages.saved'));
     }
 
@@ -333,9 +358,12 @@ new class extends Component {
         $story = $sections->firstWhere('type', 'story') ?? [];
         $programs = $sections->firstWhere('type', 'programs') ?? [];
         $stats = $sections->firstWhere('type', 'stats')['items'] ?? [];
-        foreach (['site_name', 'contact_phone', 'contact_email', 'maps_url', 'whatsapp_url', 'primary_color', 'accent_color', 'logo_path', 'hero_image_path', 'featured_video_path'] as $key) {
+        foreach (['site_name', 'contact_phone', 'contact_email', 'maps_url', 'whatsapp_url', 'primary_color', 'accent_color', 'logo_path', 'hero_image_path', 'featured_video_path', 'maintenance_image_path'] as $key) {
             $this->{$key} = (string) ($settings->get($key) ?? $this->{$key});
         }
+
+        $this->maintenance_enabled = (bool) ($settings->get('maintenance_enabled') ?? false);
+        $this->teacher_signup_enabled = (bool) ($settings->get('teacher_signup_enabled') ?? true);
 
         $this->gallery_items = collect($settings->get('gallery_items') ?: [])
             ->map(fn (array $item) => [
@@ -360,9 +388,25 @@ new class extends Component {
         }
 
         $this->syncGalleryPaths();
-        foreach (['site_tagline', 'site_description', 'contact_address'] as $key) {
+        foreach (['site_tagline', 'site_description', 'contact_address', 'maintenance_title', 'maintenance_message'] as $key) {
             $this->{$key.'_en'} = (string) data_get($settings->get($key, []), 'en', '');
             $this->{$key.'_ar'} = (string) data_get($settings->get($key, []), 'ar', '');
+        }
+
+        if ($this->maintenance_title_en === '') {
+            $this->maintenance_title_en = __('site.public.maintenance.default_title', [], 'en');
+        }
+
+        if ($this->maintenance_title_ar === '') {
+            $this->maintenance_title_ar = __('site.public.maintenance.default_title', [], 'ar');
+        }
+
+        if ($this->maintenance_message_en === '') {
+            $this->maintenance_message_en = __('site.public.maintenance.default_message', [], 'en');
+        }
+
+        if ($this->maintenance_message_ar === '') {
+            $this->maintenance_message_ar = __('site.public.maintenance.default_message', [], 'ar');
         }
         foreach (['hero_eyebrow' => 'eyebrow', 'hero_title' => 'title', 'hero_subtitle' => 'subtitle', 'primary_cta_label' => 'primary_cta_label', 'secondary_cta_label' => 'secondary_cta_label'] as $property => $source) {
             $this->{$property.'_en'} = (string) data_get($hero, $source.'.en', '');
@@ -440,6 +484,7 @@ new class extends Component {
     @php
         $homepageSections = [
             ['id' => 'identity', 'title' => __('site.admin.website.sections.identity.title'), 'copy' => __('site.admin.website.sections.identity.copy')],
+            ['id' => 'maintenance', 'title' => __('site.admin.website.sections.maintenance.title'), 'copy' => __('site.admin.website.sections.maintenance.copy')],
             ['id' => 'media', 'title' => __('site.admin.website.sections.gallery.title'), 'copy' => __('site.admin.website.sections.gallery.copy')],
             ['id' => 'hero', 'title' => __('site.admin.website.sections.hero.title'), 'copy' => __('site.admin.website.sections.hero.copy')],
             ['id' => 'story', 'title' => __('site.admin.website.sections.story.title'), 'copy' => __('site.admin.website.sections.story.copy')],
@@ -485,6 +530,46 @@ new class extends Component {
                     <input wire:model="primary_color" type="text" dir="ltr" class="admin-locale-field--en rounded-xl px-4 py-3 text-sm" placeholder="{{ __('site.admin.website.fields.primary_color') }}">
                     <input wire:model="accent_color" type="text" dir="ltr" class="admin-locale-field--en rounded-xl px-4 py-3 text-sm" placeholder="{{ __('site.admin.website.fields.accent_color') }}">
                 </div>
+            </div>
+        </section>
+
+        <section id="maintenance" class="surface-panel p-6 website-section-card">
+            <div class="mb-4">
+                <div class="text-lg font-semibold text-white">{{ __('site.admin.website.sections.maintenance.title') }}</div>
+                <p class="mt-2 text-sm text-neutral-400">{{ __('site.admin.website.sections.maintenance.copy') }}</p>
+            </div>
+
+            <label class="soft-callout flex items-start gap-3 p-4 text-sm text-neutral-200">
+                <input wire:model="maintenance_enabled" type="checkbox" class="mt-1 rounded border-neutral-300 text-neutral-900">
+                <span>
+                    <span class="block font-semibold text-white">{{ __('site.admin.website.fields.maintenance_enabled') }}</span>
+                    <span class="mt-1 block leading-6 text-neutral-400">{{ __('site.admin.website.fields.maintenance_enabled_help') }}</span>
+                </span>
+            </label>
+
+            <label class="soft-callout mt-4 flex items-start gap-3 p-4 text-sm text-neutral-200">
+                <input wire:model="teacher_signup_enabled" type="checkbox" class="mt-1 rounded border-neutral-300 text-neutral-900">
+                <span>
+                    <span class="block font-semibold text-white">{{ __('site.admin.website.fields.teacher_signup_enabled') }}</span>
+                    <span class="mt-1 block leading-6 text-neutral-400">{{ __('site.admin.website.fields.teacher_signup_enabled_help') }}</span>
+                </span>
+            </label>
+
+            <div class="mt-4 grid gap-4 lg:grid-cols-2">
+                <input wire:model="maintenance_title_en" type="text" dir="ltr" class="admin-locale-field--en rounded-xl px-4 py-3 text-sm" placeholder="{{ __('site.admin.website.fields.maintenance_title_en') }}">
+                <input wire:model="maintenance_title_ar" type="text" dir="rtl" class="admin-locale-field--ar rounded-xl px-4 py-3 text-sm" placeholder="{{ __('site.admin.website.fields.maintenance_title_ar') }}">
+                <textarea wire:model="maintenance_message_en" rows="3" dir="ltr" class="admin-locale-field--en rounded-xl px-4 py-3 text-sm" placeholder="{{ __('site.admin.website.fields.maintenance_message_en') }}"></textarea>
+                <textarea wire:model="maintenance_message_ar" rows="3" dir="rtl" class="admin-locale-field--ar rounded-xl px-4 py-3 text-sm" placeholder="{{ __('site.admin.website.fields.maintenance_message_ar') }}"></textarea>
+            </div>
+
+            <div class="mt-4 soft-callout p-4">
+                @if ($maintenance_image_path)
+                    <img src="{{ asset('storage/'.ltrim($maintenance_image_path, '/')) }}" alt="{{ __('site.admin.website.media.maintenance_alt') }}" class="mb-3 h-40 w-full rounded-2xl object-cover">
+                @endif
+                <input wire:model="maintenance_image_upload" type="file" accept="image/*" class="block w-full text-sm">
+                @if ($maintenance_image_path)
+                    <button type="button" wire:click="removeWebsiteAsset('maintenance_image')" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link pill-link--compact mt-3">{{ __('site.admin.website.actions.remove_media') }}</button>
+                @endif
             </div>
         </section>
 

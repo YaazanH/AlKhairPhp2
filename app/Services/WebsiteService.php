@@ -219,9 +219,20 @@ class WebsiteService
             'gallery_items' => $galleryItems->all(),
             'maps_url' => $website->get('maps_url'),
             'whatsapp_url' => $website->get('whatsapp_url'),
+            'maintenance_enabled' => (bool) ($website->get('maintenance_enabled') ?? false),
+            'maintenance_title' => $website->get('maintenance_title') ?: [
+                'en' => __('site.public.maintenance.default_title', [], 'en'),
+                'ar' => __('site.public.maintenance.default_title', [], 'ar'),
+            ],
+            'maintenance_message' => $website->get('maintenance_message') ?: [
+                'en' => __('site.public.maintenance.default_message', [], 'en'),
+                'ar' => __('site.public.maintenance.default_message', [], 'ar'),
+            ],
+            'maintenance_image_path' => $website->get('maintenance_image_path'),
             'logo_url' => $this->mediaUrl($website->get('logo_path')),
             'hero_image_url' => $this->mediaUrl($website->get('hero_image_path')),
             'featured_video_url' => $this->mediaUrl($website->get('featured_video_path')),
+            'maintenance_image_url' => $this->mediaUrl($website->get('maintenance_image_path')),
             'gallery_urls' => $galleryItems->pluck('url')->all(),
         ];
     }

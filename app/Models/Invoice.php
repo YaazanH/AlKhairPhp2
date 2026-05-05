@@ -16,7 +16,10 @@ class Invoice extends Model
     protected $fillable = [
         'parent_id',
         'invoice_no',
+        'invoicer_name',
         'invoice_type',
+        'finance_invoice_kind_id',
+        'finance_request_id',
         'issue_date',
         'due_date',
         'status',
@@ -40,6 +43,16 @@ class Invoice extends Model
     public function items(): HasMany
     {
         return $this->hasMany(InvoiceItem::class);
+    }
+
+    public function financeRequest(): BelongsTo
+    {
+        return $this->belongsTo(FinanceRequest::class);
+    }
+
+    public function invoiceKind(): BelongsTo
+    {
+        return $this->belongsTo(FinanceInvoiceKind::class, 'finance_invoice_kind_id');
     }
 
     public function parentProfile(): BelongsTo

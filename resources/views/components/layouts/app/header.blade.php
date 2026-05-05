@@ -6,7 +6,6 @@
     $sidebarBorderClass = $isRtl ? 'border-l' : 'border-r';
     $sidebarToggleInset = $isRtl ? 'right' : 'left';
     $headerBrandSpacingClass = $isRtl ? 'mr-2 ml-5 lg:mr-0' : 'ml-2 mr-5 lg:ml-0';
-    $desktopLocaleSpacingClass = $isRtl ? 'ml-3' : 'mr-3';
     $navbarSpacingClass = $isRtl ? 'ml-1.5 space-x-reverse space-x-0.5' : 'mr-1.5 space-x-0.5';
     $dropdownAlign = $isRtl ? 'start' : 'end';
     $mobileLogoSpacingClass = $isRtl ? 'mr-1' : 'ml-1';
@@ -39,10 +38,6 @@
 
             <flux:spacer />
 
-            <div class="{{ $desktopLocaleSpacingClass }} hidden lg:block">
-                <x-locale-switcher compact />
-            </div>
-
             <flux:navbar class="{{ $navbarSpacingClass }} py-0!">
                 <flux:tooltip content="Search" position="bottom">
                     <flux:navbar.item class="!h-10 [&>div>svg]:size-5" icon="magnifying-glass" href="#" label="Search" />
@@ -71,6 +66,7 @@
             <flux:dropdown position="top" align="{{ $dropdownAlign }}">
                 <flux:profile
                     class="cursor-pointer"
+                    :avatar="auth()->user()->profilePhotoUrl()"
                     :initials="auth()->user()->initials()"
                 />
 
@@ -78,13 +74,7 @@
                     <flux:menu.radio.group>
                         <div class="p-0 text-sm font-normal">
                             <div class="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
-                                <span class="relative flex h-8 w-8 shrink-0 overflow-hidden rounded-lg">
-                                    <span
-                                        class="flex h-full w-full items-center justify-center rounded-lg bg-neutral-200 text-black dark:bg-neutral-700 dark:text-white"
-                                    >
-                                        {{ auth()->user()->initials() }}
-                                    </span>
-                                </span>
+                                <x-user-avatar :user="auth()->user()" size="sm" />
 
                                 <div class="grid flex-1 text-left text-sm leading-tight">
                                     <span class="truncate font-semibold">{{ auth()->user()->name }}</span>
@@ -93,6 +83,12 @@
                             </div>
                         </div>
                     </flux:menu.radio.group>
+
+                    <flux:menu.separator />
+
+                    <div class="px-2 py-2">
+                        <x-locale-switcher compact />
+                    </div>
 
                     <flux:menu.separator />
 
@@ -129,8 +125,6 @@
             </flux:navlist>
 
             <flux:spacer />
-
-            <x-locale-switcher compact />
 
             <flux:navlist variant="outline">
                 <flux:navlist.item icon="folder-git-2" href="https://github.com/laravel/livewire-starter-kit" target="_blank">

@@ -49,17 +49,20 @@ class FinanceService
             ->when($currencyId, fn (Builder $query) => $query->whereHas('currencies', fn (Builder $currencyQuery) => $currencyQuery->whereKey($currencyId)));
     }
 
-    public function acceptRequest(FinanceRequest $request, float $acceptedAmount, FinanceCashBox $cashBox, ?User $reviewer = null, ?string $notes = null): FinanceRequest
+    public function acceptRequest(FinanceRequest $request, float $acceptedAmount, FinanceCashBox $cashBox, ?User $reviewer = null, ?string $notes = null, ?int $acceptedCount = null): FinanceRequest
     {
-        return DB::transaction(function () use ($acceptedAmount, $cashBox, $notes, $request, $reviewer): FinanceRequest {
+        return DB::transaction(function () use ($acceptedAmount, $acceptedCount, $cashBox, $notes, $request, $reviewer): FinanceRequest {
+            $request->loadMissing(['invoice', 'pullRequestKind']);
             $currency = $request->acceptedCurrency ?: $request->requestedCurrency ?: $this->localCurrency();
             $direction = in_array($request->type, [FinanceRequest::TYPE_PULL, FinanceRequest::TYPE_EXPENSE], true) ? 'out' : 'in';
+            $reference = $this->financeRequestReference($request);
+            $isPull = $request->type === FinanceRequest::TYPE_PULL;
 
             $transaction = $this->postTransaction([
                 'cash_box_id' => $cashBox->id,
                 'currency_id' => $currency->id,
                 'finance_category_id' => $request->finance_category_id,
-                'activity_id' => $request->activity_id,
+                'activity_id' => $isPull ? null : $request->activity_id,
                 'teacher_id' => $request->teacher_id,
                 'finance_request_id' => $request->id,
                 'source_type' => FinanceRequest::class,
@@ -68,17 +71,23 @@ class FinanceService
                 'direction' => $direction,
                 'amount' => $acceptedAmount,
                 'transaction_date' => now()->toDateString(),
-                'description' => $request->requested_reason,
+                'description' => trim($reference.' '.$request->requested_reason),
                 'entered_by' => $reviewer?->id,
                 'metadata' => [
+                    'reference' => $reference,
+                    'pull_kind' => $request->pullRequestKind?->code,
+                    'pull_mode' => $request->pullRequestKind?->mode,
                     'requested_amount' => (float) $request->requested_amount,
                     'accepted_amount' => $acceptedAmount,
+                    'requested_count' => $request->requested_count,
+                    'accepted_count' => $acceptedCount,
                     'review_notes' => $notes,
                 ],
             ]);
 
             $request->update([
                 'accepted_amount' => $acceptedAmount,
+                'accepted_count' => $acceptedCount,
                 'accepted_currency_id' => $currency->id,
                 'accepted_at' => now(),
                 'cash_box_id' => $cashBox->id,
@@ -92,6 +101,194 @@ class FinanceService
             if ($request->activity_id) {
                 $this->syncActivityTotals($request->activity()->first());
             }
+
+            return $request->fresh();
+        });
+    }
+
+    public function settleCountPullRequest(FinanceRequest $request, int $finalCount, float $remainingAmount, ?User $user = null): FinanceRequest
+    {
+        return DB::transaction(function () use ($finalCount, $remainingAmount, $request, $user): FinanceRequest {
+            $request->loadMissing(['acceptedCurrency', 'cashBox', 'pullRequestKind']);
+
+            if ($request->type !== FinanceRequest::TYPE_PULL || $request->status !== FinanceRequest::STATUS_ACCEPTED) {
+                throw ValidationException::withMessages([
+                    'request' => __('finance.validation.pull_request_not_settleable'),
+                ]);
+            }
+
+            if ($request->pullRequestKind?->mode !== 'count') {
+                throw ValidationException::withMessages([
+                    'request' => __('finance.validation.pull_request_wrong_mode'),
+                ]);
+            }
+
+            $returnTransaction = null;
+            $remainingAmount = round(max($remainingAmount, 0), 2);
+
+            if ($remainingAmount > 0) {
+                $generatedRequest = $this->createGeneratedRequestFromPull(
+                    $request,
+                    FinanceRequest::TYPE_RETURN,
+                    $remainingAmount,
+                    __('finance.descriptions.pull_request_return', ['request' => $request->request_no]),
+                    $user,
+                );
+
+                $returnTransaction = $this->postTransaction([
+                    'cash_box_id' => $generatedRequest->cash_box_id,
+                    'currency_id' => $generatedRequest->accepted_currency_id,
+                    'teacher_id' => $generatedRequest->teacher_id,
+                    'finance_request_id' => $generatedRequest->id,
+                    'source_type' => FinanceRequest::class,
+                    'source_id' => $generatedRequest->id,
+                    'type' => 'pull_request_return',
+                    'direction' => 'in',
+                    'amount' => $remainingAmount,
+                    'transaction_date' => now()->toDateString(),
+                    'description' => $generatedRequest->requested_reason,
+                    'entered_by' => $user?->id,
+                    'metadata' => [
+                        'reference' => $request->request_no,
+                        'final_count' => $finalCount,
+                        'parent_pull_request_id' => $request->id,
+                        'parent_pull_request_no' => $request->request_no,
+                    ],
+                ]);
+
+                $this->markGeneratedRequestPosted($generatedRequest, $returnTransaction, $user);
+            }
+
+            $request->update([
+                'final_count' => $finalCount,
+                'remaining_amount' => $remainingAmount,
+                'return_transaction_id' => $returnTransaction?->id,
+                'settled_at' => now(),
+                'settled_by' => $user?->id,
+                'status' => FinanceRequest::STATUS_SETTLED,
+            ]);
+
+            return $request->fresh();
+        });
+    }
+
+    public function settleInvoicePullRequest(FinanceRequest $request, Invoice $invoice, ?User $user = null): FinanceRequest
+    {
+        return DB::transaction(function () use ($invoice, $request, $user): FinanceRequest {
+            $request->loadMissing(['acceptedCurrency', 'cashBox', 'postedTransaction', 'pullRequestKind']);
+            $invoice->refresh();
+
+            if ($request->type !== FinanceRequest::TYPE_PULL || $request->status !== FinanceRequest::STATUS_ACCEPTED) {
+                throw ValidationException::withMessages([
+                    'request' => __('finance.validation.pull_request_not_settleable'),
+                ]);
+            }
+
+            if ($request->pullRequestKind?->mode !== 'invoice') {
+                throw ValidationException::withMessages([
+                    'request' => __('finance.validation.pull_request_wrong_mode'),
+                ]);
+            }
+
+            if ((int) $invoice->finance_request_id !== (int) $request->id) {
+                throw ValidationException::withMessages([
+                    'invoice' => __('finance.validation.invoice_pull_mismatch'),
+                ]);
+            }
+
+            $reference = $this->financeRequestReference($request, $invoice);
+            $acceptedAmount = (float) $request->accepted_amount;
+            $invoiceTotal = (float) $invoice->total;
+            $difference = round($acceptedAmount - $invoiceTotal, 2);
+            $returnTransaction = null;
+            $closingTransaction = null;
+
+            if ($request->postedTransaction) {
+                $metadata = $request->postedTransaction->metadata ?: [];
+                $metadata['reference'] = $reference;
+                $metadata['invoice_total'] = $invoiceTotal;
+
+                $request->postedTransaction->update([
+                    'description' => $reference,
+                    'metadata' => $metadata,
+                ]);
+            }
+
+            if ($difference > 0) {
+                $generatedRequest = $this->createGeneratedRequestFromPull(
+                    $request,
+                    FinanceRequest::TYPE_RETURN,
+                    $difference,
+                    __('finance.descriptions.invoice_pull_return', ['invoice' => $invoice->invoice_no, 'request' => $request->request_no]),
+                    $user,
+                    $invoice,
+                );
+
+                $returnTransaction = $this->postTransaction([
+                    'cash_box_id' => $generatedRequest->cash_box_id,
+                    'currency_id' => $generatedRequest->accepted_currency_id,
+                    'teacher_id' => $generatedRequest->teacher_id,
+                    'finance_request_id' => $generatedRequest->id,
+                    'source_type' => FinanceRequest::class,
+                    'source_id' => $generatedRequest->id,
+                    'type' => 'invoice_pull_return',
+                    'direction' => 'in',
+                    'amount' => $difference,
+                    'transaction_date' => $invoice->issue_date?->toDateString() ?? now()->toDateString(),
+                    'description' => $generatedRequest->requested_reason,
+                    'entered_by' => $user?->id,
+                    'metadata' => [
+                        'reference' => $reference,
+                        'invoice_total' => $invoiceTotal,
+                        'parent_pull_request_id' => $request->id,
+                        'parent_pull_request_no' => $request->request_no,
+                    ],
+                ]);
+
+                $this->markGeneratedRequestPosted($generatedRequest, $returnTransaction, $user);
+            } elseif ($difference < 0) {
+                $generatedRequest = $this->createGeneratedRequestFromPull(
+                    $request,
+                    FinanceRequest::TYPE_EXPENSE,
+                    abs($difference),
+                    __('finance.descriptions.invoice_pull_closing', ['invoice' => $invoice->invoice_no, 'request' => $request->request_no]),
+                    $user,
+                    $invoice,
+                );
+
+                $closingTransaction = $this->postTransaction([
+                    'cash_box_id' => $generatedRequest->cash_box_id,
+                    'currency_id' => $generatedRequest->accepted_currency_id,
+                    'teacher_id' => $generatedRequest->teacher_id,
+                    'finance_request_id' => $generatedRequest->id,
+                    'source_type' => FinanceRequest::class,
+                    'source_id' => $generatedRequest->id,
+                    'type' => 'invoice_pull_closing_expense',
+                    'direction' => 'out',
+                    'amount' => abs($difference),
+                    'transaction_date' => $invoice->issue_date?->toDateString() ?? now()->toDateString(),
+                    'description' => $generatedRequest->requested_reason,
+                    'entered_by' => $user?->id,
+                    'metadata' => [
+                        'reference' => $reference,
+                        'invoice_total' => $invoiceTotal,
+                        'parent_pull_request_id' => $request->id,
+                        'parent_pull_request_no' => $request->request_no,
+                    ],
+                ]);
+
+                $this->markGeneratedRequestPosted($generatedRequest, $closingTransaction, $user);
+            }
+
+            $request->update([
+                'invoice_id' => $invoice->id,
+                'remaining_amount' => max($difference, 0),
+                'return_transaction_id' => $returnTransaction?->id,
+                'closing_transaction_id' => $closingTransaction?->id,
+                'settled_at' => now(),
+                'settled_by' => $user?->id,
+                'status' => FinanceRequest::STATUS_SETTLED,
+            ]);
 
             return $request->fresh();
         });
@@ -648,6 +845,50 @@ class FinanceService
             ->sum('signed_amount'), 2);
     }
 
+    protected function createGeneratedRequestFromPull(FinanceRequest $pullRequest, string $type, float $amount, string $reason, ?User $user = null, ?Invoice $invoice = null): FinanceRequest
+    {
+        $currencyId = $pullRequest->accepted_currency_id ?: $pullRequest->requested_currency_id;
+
+        return FinanceRequest::query()->create([
+            'request_no' => $this->nextRequestNumber($type),
+            'type' => $type,
+            'status' => FinanceRequest::STATUS_PENDING,
+            'requested_currency_id' => $currencyId,
+            'requested_amount' => $amount,
+            'accepted_currency_id' => $currencyId,
+            'accepted_amount' => $amount,
+            'cash_box_id' => $pullRequest->cash_box_id,
+            'teacher_id' => $pullRequest->teacher_id,
+            'requested_by' => $pullRequest->requested_by ?: $user?->id,
+            'reviewed_by' => $user?->id,
+            'invoice_id' => $invoice?->id,
+            'requested_reason' => $reason,
+            'review_notes' => __('finance.descriptions.generated_from_pull', ['request' => $pullRequest->request_no]),
+            'accepted_at' => now(),
+        ]);
+    }
+
+    protected function markGeneratedRequestPosted(FinanceRequest $request, FinanceTransaction $transaction, ?User $user = null): void
+    {
+        $request->update([
+            'accepted_at' => $request->accepted_at ?: now(),
+            'posted_transaction_id' => $transaction->id,
+            'reviewed_by' => $user?->id ?: $request->reviewed_by,
+            'status' => FinanceRequest::STATUS_ACCEPTED,
+        ]);
+    }
+
+    protected function financeRequestReference(FinanceRequest $request, ?Invoice $invoice = null): string
+    {
+        $invoice ??= $request->invoice;
+
+        if ($request->type === FinanceRequest::TYPE_PULL && $request->pullRequestKind?->mode === 'invoice' && $invoice?->invoice_no) {
+            return $invoice->invoice_no.' - '.$request->request_no;
+        }
+
+        return $request->request_no;
+    }
+
     protected function ensureCashBoxSupportsCurrency(FinanceCashBox $cashBox, FinanceCurrency $currency): void
     {
         if ($cashBox->currencies()->whereKey($currency->id)->exists()) {
@@ -722,7 +963,7 @@ class FinanceService
     {
         $decimals = $rate >= 1 ? min(4, $maxDecimals) : $maxDecimals;
 
-        return rtrim(rtrim(number_format($rate, $decimals, '.', ''), '0'), '.');
+        return rtrim(rtrim(number_format($rate, $decimals, '.', ','), '0'), '.');
     }
 
     protected function nextTransactionNumber(): string

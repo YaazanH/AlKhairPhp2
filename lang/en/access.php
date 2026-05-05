@@ -183,6 +183,7 @@ return [
     'permission_groups' => [
         'course-completion-rules' => 'Course completion rules',
         'sidebar-navigation' => 'Sidebar navigation',
+        'community-contacts' => 'Community contacts',
         'students' => 'Students',
         'quran-partial-tests' => 'Quran partial tests',
         'quran-final-tests' => 'Quran final tests',
@@ -191,6 +192,10 @@ return [
     'permissions' => [
         'course-completion-rules.manage' => 'Manage course completion rules and apply point adjustments',
         'sidebar-navigation.manage' => 'Manage sidebar grouping and item placement',
+        'community-contacts.view' => 'View community contacts',
+        'community-contacts.create' => 'Create community contacts',
+        'community-contacts.update' => 'Update community contacts',
+        'community-contacts.delete' => 'Delete community contacts',
         'teachers.review-signups' => 'Review, approve, and decline teacher signup requests',
         'students.promote-grade-levels' => 'Promote all students to the next active grade level',
         'quran-partial-tests.view' => 'View Quran partial tests',

@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\AcademicYear;
 use App\Models\AppSetting;
 use App\Models\AssessmentResult;
+use App\Models\AssessmentType;
 use App\Models\Course;
 use App\Models\Enrollment;
 use App\Models\Group;
@@ -14,6 +15,7 @@ use App\Models\QuranFinalTest;
 use App\Models\StudentAttendanceRecord;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Collection;
 
 class CourseCompletionRuleService
 {
@@ -27,8 +29,10 @@ class CourseCompletionRuleService
         return [
             'required_passed_final_tests' => max(0, (int) ($settings->get('required_passed_final_tests') ?? 1)),
             'required_passed_quizzes' => max(0, (int) ($settings->get('required_passed_quizzes') ?? 1)),
+            'assessment_type_requirements' => $this->assessmentTypeRequirements($settings),
             'required_present_attendance' => max(0, (int) ($settings->get('required_present_attendance') ?? 1)),
             'retain_percentage' => min(100, max(0, (int) ($settings->get('retain_percentage') ?? 50))),
+            'minimum_points' => max(0, (int) ($settings->get('minimum_points') ?? 0)),
         ];
     }
 
@@ -39,15 +43,32 @@ class CourseCompletionRuleService
             'required_passed_quizzes',
             'required_present_attendance',
             'retain_percentage',
+            'minimum_points',
         ] as $key) {
             AppSetting::storeValue('course_completion', $key, (int) $validated[$key], 'integer');
         }
+
+        $requirements = collect($validated['assessment_type_requirements'] ?? [])
+            ->mapWithKeys(fn (mixed $value, mixed $key): array => [(int) $key => max(0, (int) $value)])
+            ->filter(fn (int $value): bool => $value > 0)
+            ->all();
+
+        if ($requirements === [] && (int) $validated['required_passed_quizzes'] > 0) {
+            $quizTypeId = AssessmentType::query()->where('code', 'quiz')->value('id');
+
+            if ($quizTypeId) {
+                $requirements[(int) $quizTypeId] = (int) $validated['required_passed_quizzes'];
+            }
+        }
+
+        AppSetting::storeValue('course_completion', 'assessment_type_requirements', $requirements, 'array');
     }
 
     public function apply(array $filters, User $actor): array
     {
         $settings = $this->settings();
         $retainPercentage = $settings['retain_percentage'];
+        $minimumPoints = $settings['minimum_points'];
         $summary = [
             'evaluated' => 0,
             'met_rules' => 0,
@@ -93,7 +114,8 @@ class CourseCompletionRuleService
                 continue;
             }
 
-            $targetPoints = (int) ($basePoints * ($retainPercentage / 100));
+            $retainedPoints = (int) ($basePoints * ($retainPercentage / 100));
+            $targetPoints = min($basePoints, max($retainedPoints, $minimumPoints));
             $adjustmentPoints = $targetPoints - $basePoints;
 
             if ($adjustmentPoints === 0) {
@@ -180,6 +202,24 @@ class CourseCompletionRuleService
             ->where('status', 'passed')
             ->whereHas('assessment.type', fn (Builder $query) => $query->where('code', 'quiz'))
             ->count();
+        $assessmentTypeRequirements = $settings['assessment_type_requirements'] ?? [];
+        $assessmentTypes = AssessmentType::query()
+            ->whereIn('id', array_keys($assessmentTypeRequirements))
+            ->get(['id', 'name'])
+            ->keyBy('id');
+        $passedAssessmentsByType = [];
+
+        foreach ($assessmentTypeRequirements as $assessmentTypeId => $requiredCount) {
+            if ($requiredCount <= 0) {
+                continue;
+            }
+
+            $passedAssessmentsByType[$assessmentTypeId] = AssessmentResult::query()
+                ->where('enrollment_id', $enrollment->id)
+                ->where('status', 'passed')
+                ->whereHas('assessment', fn (Builder $query) => $query->where('assessment_type_id', $assessmentTypeId))
+                ->count();
+        }
 
         $presentAttendance = StudentAttendanceRecord::query()
             ->where('enrollment_id', $enrollment->id)
@@ -195,10 +235,23 @@ class CourseCompletionRuleService
             ]);
         }
 
-        if ($settings['required_passed_quizzes'] > 0 && $passedQuizzes < $settings['required_passed_quizzes']) {
-            $unmet[] = __('settings.course_completion.criteria.quizzes_progress', [
-                'actual' => $passedQuizzes,
-                'required' => $settings['required_passed_quizzes'],
+        foreach ($assessmentTypeRequirements as $assessmentTypeId => $requiredCount) {
+            if ($requiredCount <= 0) {
+                continue;
+            }
+
+            $actualCount = $passedAssessmentsByType[$assessmentTypeId] ?? 0;
+
+            if ($actualCount >= $requiredCount) {
+                continue;
+            }
+
+            $assessmentTypeName = $assessmentTypes->get($assessmentTypeId)?->name ?: __('settings.course_completion.labels.unknown_assessment_type');
+
+            $unmet[] = __('settings.course_completion.criteria.assessment_type_progress', [
+                'type' => $assessmentTypeName,
+                'actual' => $actualCount,
+                'required' => $requiredCount,
             ]);
         }
 
@@ -213,9 +266,35 @@ class CourseCompletionRuleService
             'passed' => $unmet === [],
             'passed_final_tests' => $passedFinalTests,
             'passed_quizzes' => $passedQuizzes,
+            'passed_assessments_by_type' => $passedAssessmentsByType,
             'present_attendance' => $presentAttendance,
             'unmet' => $unmet,
         ];
+    }
+
+    protected function assessmentTypeRequirements(Collection $settings): array
+    {
+        $storedRequirements = $settings->get('assessment_type_requirements');
+
+        $requirements = is_array($storedRequirements)
+            ? collect($storedRequirements)
+                ->mapWithKeys(fn (mixed $value, mixed $key): array => [(int) $key => max(0, (int) $value)])
+                ->filter(fn (int $value): bool => $value > 0)
+                ->all()
+            : [];
+
+        if ($requirements !== []) {
+            return $requirements;
+        }
+
+        $requiredQuizzes = max(0, (int) ($settings->get('required_passed_quizzes') ?? 1));
+        $quizTypeId = AssessmentType::query()->where('code', 'quiz')->value('id');
+
+        if (! $quizTypeId || $requiredQuizzes <= 0) {
+            return [];
+        }
+
+        return [(int) $quizTypeId => $requiredQuizzes];
     }
 
     protected function adjustmentNote(Enrollment $enrollment, array $criteria, int $basePoints, int $targetPoints, int $retainPercentage): string

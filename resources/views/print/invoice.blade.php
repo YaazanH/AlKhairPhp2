@@ -2,9 +2,10 @@
     $invoiceStatusLabel = trans()->has('print.invoice.statuses.'.$invoice->status)
         ? __('print.invoice.statuses.'.$invoice->status)
         : __('print.invoice.statuses.unknown');
-    $invoiceTypeLabel = trans()->has('print.invoice.types.'.$invoice->invoice_type)
-        ? __('print.invoice.types.'.$invoice->invoice_type)
-        : \Illuminate\Support\Str::headline((string) $invoice->invoice_type);
+    $invoiceTypeLabel = $invoice->invoiceKind?->name
+        ?: (trans()->has('print.invoice.types.'.$invoice->invoice_type)
+            ? __('print.invoice.types.'.$invoice->invoice_type)
+            : \Illuminate\Support\Str::headline((string) $invoice->invoice_type));
 @endphp
 
 <x-print.layout :title="__('print.invoice.title').' '.$invoice->invoice_no">
@@ -33,12 +34,9 @@
 
     <div class="section meta-grid">
         <div class="meta-card">
-            <span class="meta-label">{{ __('print.invoice.billed_to') }}</span>
-            <div class="meta-value">{{ $invoice->parentProfile?->father_name ?: __('print.invoice.unknown_parent') }}</div>
-            <div class="subtitle">
-                {{ __('print.invoice.students') }}
-                {{ $invoice->parentProfile?->students?->pluck('first_name')->implode(', ') ?: __('print.invoice.no_students') }}
-            </div>
+            <span class="meta-label">{{ __('finance.fields.invoicer_name') }}</span>
+            <div class="meta-value">{{ $invoice->invoicer_name ?: ($invoice->parentProfile?->father_name ?: '-') }}</div>
+            <div class="subtitle">{{ $invoice->financeRequest?->request_no ?: '' }}</div>
         </div>
         <div class="meta-card">
             <span class="meta-label">{{ __('print.invoice.dates') }}</span>
@@ -54,7 +52,7 @@
             <thead>
                 <tr>
                     <th>{{ __('print.invoice.headers.description') }}</th>
-                    <th>{{ __('print.invoice.headers.student_link') }}</th>
+                    <th>#</th>
                     <th>{{ __('print.invoice.headers.qty') }}</th>
                     <th>{{ __('print.invoice.headers.unit_price') }}</th>
                     <th>{{ __('print.invoice.headers.amount') }}</th>
@@ -63,11 +61,13 @@
             <tbody>
                 @forelse ($invoice->items as $item)
                     <tr>
-                        <td>{{ $item->description }}</td>
                         <td>
-                            {{ $item->student ? $item->student->first_name.' '.$item->student->last_name : '-' }}
-                            <div class="subtitle">{{ $item->activity?->title ?: ($item->enrollment?->group?->name ?: '-') }}</div>
+                            {{ $item->item_name ?: $item->description }}
+                            @if ($item->student)
+                                <div class="subtitle">{{ $item->student->first_name }} {{ $item->student->last_name }}</div>
+                            @endif
                         </td>
+                        <td>{{ $item->line_no ?: $loop->iteration }}</td>
                         <td>{{ number_format((float) $item->quantity, 2) }}</td>
                         <td>{{ number_format((float) $item->unit_price, 2) }}</td>
                         <td>{{ number_format((float) $item->amount, 2) }}</td>

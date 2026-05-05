@@ -1,6 +1,7 @@
 <?php
 
 use App\Livewire\Concerns\AuthorizesPermissions;
+use App\Livewire\Concerns\FormatsFinanceNumbers;
 use App\Models\FinanceCurrency;
 use App\Models\FinanceCurrencyExchange;
 use App\Services\FinanceService;
@@ -8,6 +9,7 @@ use Livewire\Volt\Component;
 
 new class extends Component {
     use AuthorizesPermissions;
+    use FormatsFinanceNumbers;
 
     public ?int $from_cash_box_id = null;
     public ?int $to_cash_box_id = null;
@@ -48,6 +50,8 @@ new class extends Component {
     public function saveExchange(): void
     {
         $this->authorizePermission('finance.exchange.create');
+        $this->normalizeFinanceNumberProperty('from_amount');
+        $this->normalizeFinanceNumberProperty('to_amount');
 
         $validated = $this->validate([
             'exchange_date' => ['required', 'date'],
@@ -61,7 +65,7 @@ new class extends Component {
 
         $this->calculateToAmount();
 
-        if ((float) $this->to_amount <= 0) {
+        if ((float) $this->normalizeFinanceNumber($this->to_amount) <= 0) {
             $this->addError('to_amount', __('finance.validation.cash_box_currency_mismatch'));
 
             return;
@@ -73,7 +77,7 @@ new class extends Component {
             (float) $validated['from_amount'],
             app(FinanceService::class)->cashBoxForUser((int) $validated['to_cash_box_id'], auth()->user()),
             FinanceCurrency::query()->findOrFail($validated['to_currency_id']),
-            (float) $this->to_amount,
+            (float) $this->normalizeFinanceNumber($this->to_amount),
             $validated['exchange_date'],
             auth()->user(),
             $validated['notes'] ?: null,
@@ -111,7 +115,7 @@ new class extends Component {
 
     protected function calculateToAmount(): void
     {
-        $fromAmount = (float) $this->from_amount;
+        $fromAmount = (float) $this->normalizeFinanceNumber($this->from_amount);
         $fromCurrency = $this->from_currency_id ? FinanceCurrency::query()->find($this->from_currency_id) : null;
         $toCurrency = $this->to_currency_id ? FinanceCurrency::query()->find($this->to_currency_id) : null;
 
@@ -121,7 +125,7 @@ new class extends Component {
             return;
         }
 
-        $this->to_amount = number_format(app(FinanceService::class)->calculateExchangeToAmount($fromCurrency, $toCurrency, $fromAmount), 2, '.', '');
+        $this->to_amount = $this->formatFinanceNumberForInput(app(FinanceService::class)->calculateExchangeToAmount($fromCurrency, $toCurrency, $fromAmount));
     }
 }; ?>
 
@@ -191,11 +195,11 @@ new class extends Component {
             <form wire:submit="saveExchange" class="mt-5 grid gap-4 lg:grid-cols-4">
                 <div><label class="mb-1 block text-sm font-medium">{{ __('finance.exchange.from_box') }}</label><select wire:model.live="from_cash_box_id" class="w-full rounded-xl px-4 py-3 text-sm"><option value="">{{ __('finance.actions.choose_box') }}</option>@foreach ($fromCashBoxes as $box)<option value="{{ $box->id }}">{{ $box->name }}</option>@endforeach</select></div>
                 <div><label class="mb-1 block text-sm font-medium">{{ __('finance.exchange.from_currency') }}</label><select wire:model.live="from_currency_id" class="w-full rounded-xl px-4 py-3 text-sm"><option value="">{{ __('finance.options.currency') }}</option>@foreach ($fromCurrencies as $currency)<option value="{{ $currency->id }}">{{ $currency->code }}</option>@endforeach</select></div>
-                <div><label class="mb-1 block text-sm font-medium">{{ __('finance.exchange.from_amount') }}</label><input wire:model.live="from_amount" type="number" min="0" step="0.01" class="w-full rounded-xl px-4 py-3 text-sm"></div>
+                <div><label class="mb-1 block text-sm font-medium">{{ __('finance.exchange.from_amount') }}</label><input wire:model.live="from_amount" type="text" inputmode="decimal" data-thousand-separator class="w-full rounded-xl px-4 py-3 text-sm"></div>
                 <div><label class="mb-1 block text-sm font-medium">{{ __('finance.common.date') }}</label><input wire:model="exchange_date" type="date" class="w-full rounded-xl px-4 py-3 text-sm"></div>
                 <div><label class="mb-1 block text-sm font-medium">{{ __('finance.exchange.to_box') }}</label><select wire:model.live="to_cash_box_id" class="w-full rounded-xl px-4 py-3 text-sm"><option value="">{{ __('finance.actions.choose_box') }}</option>@foreach ($toCashBoxes as $box)<option value="{{ $box->id }}">{{ $box->name }}</option>@endforeach</select></div>
                 <div><label class="mb-1 block text-sm font-medium">{{ __('finance.exchange.to_currency') }}</label><select wire:model.live="to_currency_id" class="w-full rounded-xl px-4 py-3 text-sm"><option value="">{{ __('finance.options.currency') }}</option>@foreach ($toCurrencies as $currency)<option value="{{ $currency->id }}">{{ $currency->code }}</option>@endforeach</select></div>
-                <div><label class="mb-1 block text-sm font-medium">{{ __('finance.exchange.to_amount') }}</label><input wire:model="to_amount" type="number" min="0" step="0.01" readonly class="w-full rounded-xl px-4 py-3 text-sm opacity-75"></div>
+                <div><label class="mb-1 block text-sm font-medium">{{ __('finance.exchange.to_amount') }}</label><input wire:model="to_amount" type="text" inputmode="decimal" data-thousand-separator readonly class="w-full rounded-xl px-4 py-3 text-sm opacity-75"></div>
                 <div><label class="mb-1 block text-sm font-medium">{{ __('finance.common.notes') }}</label><input wire:model="notes" type="text" class="w-full rounded-xl px-4 py-3 text-sm"></div>
                 @error('from_currency_id') <div class="lg:col-span-4 text-sm text-red-400">{{ $message }}</div> @enderror
                 <div class="lg:col-span-4"><button type="submit" class="pill-link pill-link--accent">{{ __('finance.actions.post_exchange') }}</button></div>

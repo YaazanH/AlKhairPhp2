@@ -31,6 +31,7 @@ return [
         'teachers' => 'الاساتذة',
         'students' => 'الطلاب',
         'bulk_student_photos' => 'صور الطلاب',
+        'community_contacts' => 'جهات مساعدة',
         'academics' => 'الأكاديمي',
         'courses' => 'الدورات',
         'groups' => 'المجموعات',

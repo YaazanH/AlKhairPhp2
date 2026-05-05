@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\AppSetting;
 use App\Models\Teacher;
 use App\Services\ManagedUserService;
 use Illuminate\Validation\Rule;
@@ -15,8 +16,15 @@ new #[Layout('components.layouts.auth')] class extends Component {
     public string $password = '';
     public $photo_upload = null;
 
+    public function mount(): void
+    {
+        $this->ensureSignupEnabled();
+    }
+
     public function submit(): void
     {
+        $this->ensureSignupEnabled();
+
         $validated = $this->validate([
             'full_name' => ['required', 'string', 'max:255'],
             'username' => ['required', 'string', 'max:255', Rule::unique('users', 'username')],
@@ -85,6 +93,11 @@ new #[Layout('components.layouts.auth')] class extends Component {
             $parts->implode(' '),
         ];
     }
+
+    protected function ensureSignupEnabled(): void
+    {
+        abort_unless((bool) (AppSetting::groupValues('website')->get('teacher_signup_enabled') ?? true), 404);
+    }
 }; ?>
 
 <div class="flex flex-col gap-6">
@@ -146,8 +159,4 @@ new #[Layout('components.layouts.auth')] class extends Component {
             <flux:button variant="primary" type="submit" class="w-full">{{ __('access.teacher_signup.actions.submit') }}</flux:button>
         </div>
     </form>
-
-    <div class="space-x-1 text-center text-sm text-zinc-600 dark:text-zinc-400">
-        <x-text-link href="{{ route('home') }}">{{ __('access.teacher_signup.actions.back_home') }}</x-text-link>
-    </div>
 </div>

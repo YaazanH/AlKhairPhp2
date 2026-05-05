@@ -18,6 +18,8 @@ class PrintController extends Controller
         abort_unless(app(AccessScopeService::class)->canAccessInvoice(request()->user(), $invoice), 403);
 
         $invoice->load([
+            'financeRequest',
+            'invoiceKind',
             'items.activity',
             'items.enrollment.group.course',
             'items.student',

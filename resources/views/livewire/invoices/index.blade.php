@@ -2,9 +2,10 @@
 
 use App\Livewire\Concerns\AuthorizesPermissions;
 use App\Livewire\Concerns\AuthorizesTeacherAssignments;
+use App\Livewire\Concerns\FormatsFinanceNumbers;
 use App\Livewire\Concerns\SupportsCreateAndNew;
+use App\Models\FinanceInvoiceKind;
 use App\Models\Invoice;
-use App\Models\ParentProfile;
 use App\Services\FinanceService;
 use Livewire\Volt\Component;
 use Livewire\WithPagination;
@@ -12,12 +13,14 @@ use Livewire\WithPagination;
 new class extends Component {
     use AuthorizesPermissions;
     use AuthorizesTeacherAssignments;
+    use FormatsFinanceNumbers;
     use SupportsCreateAndNew;
     use WithPagination;
 
     public ?int $editingId = null;
-    public ?int $parent_id = null;
-    public string $invoice_type = 'tuition';
+    public string $invoicer_name = '';
+    public ?int $finance_invoice_kind_id = null;
+    public string $invoice_type = 'finance';
     public string $issue_date = '';
     public string $due_date = '';
     public string $status = 'draft';
@@ -30,13 +33,14 @@ new class extends Component {
     {
         $this->authorizePermission('invoices.view');
         $this->issue_date = now()->toDateString();
+        $this->finance_invoice_kind_id = FinanceInvoiceKind::query()->where('is_active', true)->orderBy('name')->value('id');
     }
 
     public function with(): array
     {
         $invoiceQuery = $this->scopeInvoicesQuery(
             Invoice::query()
-                ->with(['parentProfile'])
+                ->with(['financeRequest', 'invoiceKind', 'parentProfile'])
                 ->withCount(['items'])
                 ->withSum(['payments as active_paid_total' => fn ($query) => $query->whereNull('voided_at')], 'amount')
                 ->latest('issue_date')
@@ -45,9 +49,7 @@ new class extends Component {
 
         return [
             'invoices' => $invoiceQuery->paginate($this->perPage),
-            'parents' => $this->scopeParentsQuery(
-                ParentProfile::query()->withCount('students')->orderBy('father_name')
-            )->get(),
+            'invoiceKinds' => FinanceInvoiceKind::query()->where('is_active', true)->orderBy('name')->get(),
             'totals' => [
                 'all' => $this->scopeInvoicesQuery(Invoice::query())->count(),
                 'open' => $this->scopeInvoicesQuery(Invoice::query()->whereIn('status', ['issued', 'partial']))->count(),
@@ -64,8 +66,9 @@ new class extends Component {
     public function rules(): array
     {
         return [
-            'parent_id' => ['required', 'exists:parents,id'],
-            'invoice_type' => ['required', 'in:tuition,activity,other'],
+            'finance_invoice_kind_id' => ['required', 'exists:finance_invoice_kinds,id'],
+            'invoicer_name' => ['required', 'string', 'max:255'],
+            'invoice_type' => ['required', 'string', 'max:50'],
             'issue_date' => ['required', 'date'],
             'due_date' => ['nullable', 'date', 'after_or_equal:issue_date'],
             'status' => ['required', 'in:draft,issued,partial,paid,cancelled'],
@@ -85,18 +88,19 @@ new class extends Component {
     public function save(): void
     {
         $this->authorizePermission($this->editingId ? 'invoices.update' : 'invoices.create');
+        $this->normalizeFinanceNumberProperty('discount');
 
         $validated = $this->validate();
-        $this->authorizeScopedParentAccess(ParentProfile::query()->findOrFail((int) $validated['parent_id']));
 
         $invoice = Invoice::query()->updateOrCreate(
             ['id' => $this->editingId],
             [
-                'parent_id' => $validated['parent_id'],
                 'invoice_no' => $this->editingId
                     ? Invoice::query()->findOrFail($this->editingId)->invoice_no
                     : app(FinanceService::class)->nextInvoiceNumber(),
+                'invoicer_name' => $validated['invoicer_name'],
                 'invoice_type' => $validated['invoice_type'],
+                'finance_invoice_kind_id' => $validated['finance_invoice_kind_id'],
                 'issue_date' => $validated['issue_date'],
                 'due_date' => $validated['due_date'] ?: null,
                 'status' => $validated['status'],
@@ -123,12 +127,13 @@ new class extends Component {
         $this->authorizeScopedInvoiceAccess($invoice);
 
         $this->editingId = $invoice->id;
-        $this->parent_id = $invoice->parent_id;
+        $this->invoicer_name = $invoice->invoicer_name ?? '';
+        $this->finance_invoice_kind_id = $invoice->finance_invoice_kind_id;
         $this->invoice_type = $invoice->invoice_type;
         $this->issue_date = $invoice->issue_date?->format('Y-m-d') ?? '';
         $this->due_date = $invoice->due_date?->format('Y-m-d') ?? '';
         $this->status = $invoice->status;
-        $this->discount = number_format((float) $invoice->discount, 2, '.', '');
+        $this->discount = $this->formatFinanceNumberForInput($invoice->discount);
         $this->notes = $invoice->notes ?? '';
         $this->showForm = true;
 
@@ -138,8 +143,9 @@ new class extends Component {
     public function cancel(bool $closeForm = true): void
     {
         $this->editingId = null;
-        $this->parent_id = null;
-        $this->invoice_type = 'tuition';
+        $this->invoicer_name = '';
+        $this->finance_invoice_kind_id = FinanceInvoiceKind::query()->where('is_active', true)->orderBy('name')->value('id');
+        $this->invoice_type = 'finance';
         $this->issue_date = now()->toDateString();
         $this->due_date = '';
         $this->status = 'draft';
@@ -186,7 +192,7 @@ new class extends Component {
                 <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('invoices.index.hero.title') }}</h1>
                 <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ __('invoices.index.hero.subtitle') }}</p>
                 <div class="mt-6 flex flex-wrap gap-3">
-                    <span class="badge-soft">{{ __('invoices.index.hero.badges.parents', ['count' => number_format($parents->count())]) }}</span>
+                    <span class="badge-soft">{{ __('finance.settings.invoice_kinds') }}: {{ number_format($invoiceKinds->count()) }}</span>
                     <span class="badge-soft badge-soft--emerald">{{ __('invoices.index.hero.badges.invoices', ['count' => number_format($filteredCount)]) }}</span>
                 </div>
             </div>
@@ -232,27 +238,27 @@ new class extends Component {
                 </div>
 
                 <form wire:submit="save" class="space-y-4">
-                    <div>
-                        <label class="mb-1 block text-sm font-medium">{{ __('invoices.index.form.fields.parent') }}</label>
-                        <select wire:model="parent_id" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
-                            <option value="">{{ __('invoices.index.form.placeholders.parent') }}</option>
-                            @foreach ($parents as $parent)
-                                <option value="{{ $parent->id }}">{{ $parent->father_name }} ({{ __('invoices.index.form.parent_option', ['count' => $parent->students_count]) }})</option>
-                            @endforeach
-                        </select>
-                        @error('parent_id') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
-                    </div>
+                    <input wire:model="invoice_type" type="hidden">
 
                     <div class="grid gap-4 md:grid-cols-2">
                         <div>
-                            <label class="mb-1 block text-sm font-medium">{{ __('invoices.index.form.fields.invoice_type') }}</label>
-                            <select wire:model="invoice_type" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
-                                <option value="tuition">{{ __('print.invoice.types.tuition') }}</option>
-                                <option value="activity">{{ __('print.invoice.types.activity') }}</option>
-                                <option value="other">{{ __('print.invoice.types.other') }}</option>
-                            </select>
-                            @error('invoice_type') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+                            <label class="mb-1 block text-sm font-medium">{{ __('finance.fields.invoicer_name') }}</label>
+                            <input wire:model="invoicer_name" type="text" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                            @error('invoicer_name') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
                         </div>
+                        <div>
+                            <label class="mb-1 block text-sm font-medium">{{ __('finance.fields.invoice_kind') }}</label>
+                            <select wire:model="finance_invoice_kind_id" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                                <option value="">{{ __('finance.actions.choose_category') }}</option>
+                                @foreach ($invoiceKinds as $kind)
+                                    <option value="{{ $kind->id }}">{{ $kind->name }}</option>
+                                @endforeach
+                            </select>
+                            @error('finance_invoice_kind_id') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+                        </div>
+                    </div>
+
+                    <div class="grid gap-4 md:grid-cols-2">
                         <div>
                             <label class="mb-1 block text-sm font-medium">{{ __('invoices.index.form.fields.status') }}</label>
                             <select wire:model="status" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
@@ -281,7 +287,7 @@ new class extends Component {
 
                     <div>
                         <label class="mb-1 block text-sm font-medium">{{ __('invoices.index.form.fields.discount') }}</label>
-                        <input wire:model="discount" type="number" min="0" step="0.01" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                        <input wire:model="discount" type="text" inputmode="decimal" data-thousand-separator class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
                         @error('discount') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
                     </div>
 
@@ -335,7 +341,7 @@ new class extends Component {
                         <thead>
                             <tr>
                                 <th class="px-5 py-4 text-left lg:px-6">{{ __('invoices.index.table.headers.invoice') }}</th>
-                                <th class="px-5 py-4 text-left lg:px-6">{{ __('invoices.index.table.headers.parent') }}</th>
+                                <th class="px-5 py-4 text-left lg:px-6">{{ __('finance.fields.invoicer_name') }}</th>
                                 <th class="px-5 py-4 text-left lg:px-6">{{ __('invoices.index.table.headers.amounts') }}</th>
                                 <th class="px-5 py-4 text-left lg:px-6">{{ __('invoices.index.table.headers.status') }}</th>
                                 <th class="px-5 py-4 text-right lg:px-6">{{ __('invoices.index.table.headers.actions') }}</th>
@@ -354,9 +360,9 @@ new class extends Component {
                                 <tr>
                                     <td class="px-5 py-4 lg:px-6">
                                         <div class="font-semibold text-white">{{ $invoice->invoice_no }}</div>
-                                        <div class="mt-1 text-xs uppercase tracking-[0.18em] text-neutral-500">{{ trans()->has('print.invoice.types.'.$invoice->invoice_type) ? __('print.invoice.types.'.$invoice->invoice_type) : __('print.invoice.types.other') }} | {{ $invoice->issue_date?->format('Y-m-d') }}</div>
+                                        <div class="mt-1 text-xs uppercase tracking-[0.18em] text-neutral-500">{{ $invoice->invoiceKind?->name ?: $invoice->invoice_type }} | {{ $invoice->issue_date?->format('Y-m-d') }}</div>
                                     </td>
-                                    <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $invoice->parentProfile?->father_name ?: '-' }}</td>
+                                    <td class="px-5 py-4 text-neutral-300 lg:px-6"><div>{{ $invoice->invoicer_name ?: '-' }}</div><div class="text-xs text-neutral-500">{{ $invoice->financeRequest?->request_no ?: '-' }}</div></td>
                                     <td class="px-5 py-4 lg:px-6">
                                         <div class="text-white">{{ __('invoices.index.table.amounts.total', ['amount' => number_format((float) $invoice->total, 2)]) }}</div>
                                         <div class="mt-1 text-xs uppercase tracking-[0.18em] text-neutral-500">{{ __('invoices.index.table.amounts.meta', ['paid' => number_format((float) ($invoice->active_paid_total ?? 0), 2), 'items' => number_format($invoice->items_count)]) }}</div>
@@ -364,7 +370,7 @@ new class extends Component {
                                     <td class="px-5 py-4 lg:px-6"><span class="{{ $invoiceStatusClass }}">{{ trans()->has('print.invoice.statuses.'.$invoice->status) ? __('print.invoice.statuses.'.$invoice->status) : __('print.invoice.statuses.unknown') }}</span></td>
                                     <td class="px-5 py-4 lg:px-6">
                                         <div class="flex flex-wrap justify-end gap-2">
-                                            @can('payments.view')
+                                            @can('invoices.view')
                                                 <a href="{{ route('invoices.payments', $invoice) }}" wire:navigate class="pill-link pill-link--compact">{{ __('invoices.index.table.actions.detail') }}</a>
                                             @endcan
                                             @can('invoices.view')

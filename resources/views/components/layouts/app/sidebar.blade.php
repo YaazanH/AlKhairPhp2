@@ -8,6 +8,7 @@
     $desktopDropdownAlign = $isRtl ? 'end' : 'start';
     $mobileIdentitySpacingClass = $isRtl ? 'mr-3' : 'ml-3';
     $sidebarGroups = app(\App\Services\SidebarNavigationService::class)->sidebarFor(auth()->user());
+    $monthLabel = now()->locale('en')->translatedFormat('M Y').' / '.\App\Support\ArabicMonthFormatter::monthYear(now());
 @endphp
 
 <!DOCTYPE html>
@@ -34,7 +35,7 @@
 
                 <div class="px-1 pt-2">
                     <a href="{{ route('dashboard') }}" class="flex items-center gap-3" wire:navigate>
-                        <x-app-logo :subtitle="now()->locale($currentLocale)->translatedFormat('M Y')" />
+                        <x-app-logo :subtitle="$monthLabel" />
                     </a>
                 </div>
 
@@ -50,33 +51,11 @@
 
                 <flux:spacer />
 
-                <div class="app-sidebar-footer">
-                    <div class="eyebrow">{{ __('ui.common.current_account') }}</div>
-                    <div class="mt-3 flex items-center gap-3">
-                        <x-user-avatar :user="auth()->user()" size="sm" />
-                        <div class="min-w-0">
-                            <div class="truncate text-base font-semibold text-white">{{ auth()->user()->name }}</div>
-                            <p class="truncate text-sm leading-6 text-neutral-300">
-                                {{ auth()->user()->email ?: (auth()->user()->username ?: 'No account identifier recorded.') }}
-                            </p>
-                        </div>
-                    </div>
-
-                    <div class="mt-5">
-                        <x-locale-switcher />
-                    </div>
-
-                    <div class="mt-4">
-                        <a href="{{ route('home') }}" target="_blank" class="pill-link pill-link--compact w-full justify-center">
-                            {{ __('ui.common.visit_site') }}
-                        </a>
-                    </div>
-                </div>
-
                 <div class="mt-4">
                     <flux:dropdown position="bottom" align="{{ $desktopDropdownAlign }}">
                         <flux:profile
                             :name="auth()->user()->name"
+                            :avatar="auth()->user()->profilePhotoUrl()"
                             :initials="auth()->user()->initials()"
                             icon-trailing="chevrons-up-down"
                         />
@@ -97,8 +76,15 @@
 
                             <flux:menu.separator />
 
+                            <div class="px-2 py-2">
+                                <x-locale-switcher compact />
+                            </div>
+
+                            <flux:menu.separator />
+
                             <flux:menu.radio.group>
                                 <flux:menu.item href="/settings/profile" icon="cog" wire:navigate>{{ __('ui.common.settings') }}</flux:menu.item>
+                                <flux:menu.item href="{{ route('home') }}" icon="globe-alt">{{ __('ui.common.visit_site') }}</flux:menu.item>
                             </flux:menu.radio.group>
 
                             <flux:menu.separator />
@@ -127,6 +113,7 @@
 
                     <flux:dropdown position="top" align="end">
                         <flux:profile
+                            :avatar="auth()->user()->profilePhotoUrl()"
                             :initials="auth()->user()->initials()"
                             icon-trailing="chevron-down"
                         />
@@ -147,8 +134,15 @@
 
                             <flux:menu.separator />
 
+                            <div class="px-2 py-2">
+                                <x-locale-switcher compact />
+                            </div>
+
+                            <flux:menu.separator />
+
                             <flux:menu.radio.group>
                                 <flux:menu.item href="/settings/profile" icon="cog" wire:navigate>{{ __('ui.common.settings') }}</flux:menu.item>
+                                <flux:menu.item href="{{ route('home') }}" icon="globe-alt">{{ __('ui.common.visit_site') }}</flux:menu.item>
                             </flux:menu.radio.group>
 
                             <flux:menu.separator />

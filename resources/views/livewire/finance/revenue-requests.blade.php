@@ -1,6 +1,7 @@
 <?php
 
 use App\Livewire\Concerns\AuthorizesPermissions;
+use App\Livewire\Concerns\FormatsFinanceNumbers;
 use App\Models\Activity;
 use App\Models\FinanceCategory;
 use App\Models\FinanceCurrency;
@@ -14,6 +15,7 @@ use Livewire\WithPagination;
 
 new class extends Component {
     use AuthorizesPermissions;
+    use FormatsFinanceNumbers;
     use WithFileUploads;
     use WithPagination;
 
@@ -30,6 +32,7 @@ new class extends Component {
     public array $review_cash_boxes = [];
     public array $review_notes = [];
     public int $perPage = 15;
+    public bool $showCreateModal = false;
 
     public function mount(): void
     {
@@ -66,6 +69,8 @@ new class extends Component {
         $this->authorizePermission('finance.revenue-requests.create');
 
         $canReview = auth()->user()?->can('finance.revenue-requests.review') ?? false;
+        $this->normalizeFinanceNumberProperty('amount');
+
         $validated = $this->validate([
             'activity_id' => [$this->request_type === FinanceRequest::TYPE_RETURN ? 'required' : 'nullable', 'exists:activities,id'],
             'amount' => ['required', 'numeric', 'gt:0'],
@@ -114,10 +119,23 @@ new class extends Component {
             );
         }
 
-        $this->reset(['amount', 'cash_box_id', 'activity_id', 'teacher_id', 'finance_category_id', 'requested_reason', 'attachments']);
-        $this->request_type = 'revenue';
-        $this->currency_id = app(FinanceService::class)->localCurrency()->id;
+        $this->resetCreateForm();
+        $this->showCreateModal = false;
         session()->flash('status', $canReview ? __('finance.messages.revenue_posted') : __('finance.messages.revenue_sent'));
+    }
+
+    public function openCreateModal(): void
+    {
+        $this->authorizePermission('finance.revenue-requests.create');
+
+        $this->resetCreateForm();
+        $this->showCreateModal = true;
+    }
+
+    public function closeCreateModal(): void
+    {
+        $this->resetCreateForm();
+        $this->showCreateModal = false;
     }
 
     public function updatedCashBoxId(): void
@@ -139,15 +157,18 @@ new class extends Component {
         $this->authorizePermission('finance.revenue-requests.review');
 
         $request = FinanceRequest::query()->whereIn('type', [FinanceRequest::TYPE_REVENUE, FinanceRequest::TYPE_RETURN])->findOrFail($requestId);
+        $this->normalizeFinanceNumberArrayValue('review_amounts', $requestId);
 
         $this->validate([
             "review_amounts.{$requestId}" => ['nullable', 'numeric', 'gt:0'],
             "review_cash_boxes.{$requestId}" => ['required', 'exists:finance_cash_boxes,id'],
         ]);
 
+        $reviewAmount = $this->review_amounts[$requestId] ?? null;
+
         app(FinanceService::class)->acceptRequest(
             $request,
-            (float) ($this->review_amounts[$requestId] ?? $request->requested_amount),
+            (float) (($reviewAmount === null || $reviewAmount === '') ? $request->requested_amount : $reviewAmount),
             app(FinanceService::class)->cashBoxForUser((int) $this->review_cash_boxes[$requestId], auth()->user()),
             auth()->user(),
             $this->review_notes[$requestId] ?? null,
@@ -179,6 +200,21 @@ new class extends Component {
             ]);
         }
     }
+
+    protected function resetCreateForm(): void
+    {
+        $this->request_type = 'revenue';
+        $this->amount = '';
+        $this->currency_id = app(FinanceService::class)->localCurrency()->id;
+        $this->cash_box_id = null;
+        $this->activity_id = null;
+        $this->teacher_id = null;
+        $this->finance_category_id = null;
+        $this->requested_reason = '';
+        $this->attachments = [];
+
+        $this->resetValidation();
+    }
 }; ?>
 
 <div class="page-stack">
@@ -192,23 +228,29 @@ new class extends Component {
     @error('amount') <div class="rounded-2xl border border-red-400/20 bg-red-500/10 px-4 py-3 text-sm text-red-100">{{ $message }}</div> @enderror
     @error('currency_id') <div class="rounded-2xl border border-red-400/20 bg-red-500/10 px-4 py-3 text-sm text-red-100">{{ $message }}</div> @enderror
 
-    @can('finance.revenue-requests.create')
-        <section class="surface-panel p-5 lg:p-6">
-            <div class="admin-section-card__title">{{ __('finance.revenue_requests.new') }}</div>
-            <form wire:submit="submitRequest" class="mt-5 grid gap-4 lg:grid-cols-3">
-                <div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.type') }}</label><select wire:model.live="request_type" class="w-full rounded-xl px-4 py-3 text-sm"><option value="revenue">{{ __('finance.options.revenue') }}</option><option value="return">{{ __('finance.options.activity_return') }}</option></select></div>
-                <div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.amount') }}</label><input wire:model="amount" type="number" min="0" step="0.01" class="w-full rounded-xl px-4 py-3 text-sm">@error('amount') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
-                <div><label class="mb-1 block text-sm font-medium">{{ __('finance.common.currency') }}</label><select wire:model="currency_id" class="w-full rounded-xl px-4 py-3 text-sm">@foreach ($currencies as $currency)<option value="{{ $currency->id }}">{{ $currency->code }}</option>@endforeach</select></div>
-                @can('finance.revenue-requests.review')<div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.cash_box') }}</label><select wire:model="cash_box_id" class="w-full rounded-xl px-4 py-3 text-sm"><option value="">{{ __('finance.actions.choose_box') }}</option>@foreach ($cashBoxes as $box)<option value="{{ $box->id }}">{{ $box->name }}</option>@endforeach</select>@error('cash_box_id') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>@endcan
-                <div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.activity') }}</label><select wire:model="activity_id" class="w-full rounded-xl px-4 py-3 text-sm"><option value="">{{ __('finance.options.no_activity') }}</option>@foreach ($activities as $activity)<option value="{{ $activity->id }}">{{ $activity->title }} | {{ ucfirst($activity->status) }}</option>@endforeach</select>@error('activity_id') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
-                <div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.teacher') }}</label><select wire:model="teacher_id" class="w-full rounded-xl px-4 py-3 text-sm"><option value="">{{ __('finance.options.no_teacher') }}</option>@foreach ($teachers as $teacher)<option value="{{ $teacher->id }}">{{ $teacher->first_name }} {{ $teacher->last_name }}</option>@endforeach</select></div>
-                <div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.category') }}</label><select wire:model="finance_category_id" class="w-full rounded-xl px-4 py-3 text-sm"><option value="">{{ __('finance.actions.choose_category') }}</option>@foreach ($categories as $category)<option value="{{ $category->id }}">{{ $category->name }}</option>@endforeach</select></div>
-                <div class="lg:col-span-3"><label class="mb-1 block text-sm font-medium">{{ __('finance.common.description') }}</label><textarea wire:model="requested_reason" rows="2" class="w-full rounded-xl px-4 py-3 text-sm"></textarea>@error('requested_reason') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
-                <div class="lg:col-span-3"><label class="mb-1 block text-sm font-medium">{{ __('finance.common.attachments') }}</label><input wire:model="attachments" type="file" multiple class="w-full rounded-xl px-4 py-3 text-sm">@error('attachments.*') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
-                <div class="lg:col-span-3"><button type="submit" class="pill-link pill-link--accent">{{ __('finance.actions.save_revenue') }}</button></div>
-            </form>
-        </section>
-    @endcan
+    <x-admin.modal
+        :show="$showCreateModal"
+        :title="__('finance.revenue_requests.new')"
+        :description="__('finance.revenue_requests.subtitle')"
+        close-method="closeCreateModal"
+        max-width="5xl"
+    >
+        <form wire:submit="submitRequest" class="grid gap-4 lg:grid-cols-3">
+            <div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.type') }}</label><select wire:model.live="request_type" class="w-full rounded-xl px-4 py-3 text-sm"><option value="revenue">{{ __('finance.options.revenue') }}</option><option value="return">{{ __('finance.options.activity_return') }}</option></select></div>
+            <div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.amount') }}</label><input wire:model="amount" type="text" inputmode="decimal" data-thousand-separator class="w-full rounded-xl px-4 py-3 text-sm">@error('amount') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
+            <div><label class="mb-1 block text-sm font-medium">{{ __('finance.common.currency') }}</label><select wire:model="currency_id" class="w-full rounded-xl px-4 py-3 text-sm">@foreach ($currencies as $currency)<option value="{{ $currency->id }}">{{ $currency->code }}</option>@endforeach</select></div>
+            @can('finance.revenue-requests.review')<div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.cash_box') }}</label><select wire:model="cash_box_id" class="w-full rounded-xl px-4 py-3 text-sm"><option value="">{{ __('finance.actions.choose_box') }}</option>@foreach ($cashBoxes as $box)<option value="{{ $box->id }}">{{ $box->name }}</option>@endforeach</select>@error('cash_box_id') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>@endcan
+            <div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.activity') }}</label><select wire:model="activity_id" class="w-full rounded-xl px-4 py-3 text-sm"><option value="">{{ __('finance.options.no_activity') }}</option>@foreach ($activities as $activity)<option value="{{ $activity->id }}">{{ $activity->title }} | {{ ucfirst($activity->status) }}</option>@endforeach</select>@error('activity_id') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
+            <div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.teacher') }}</label><select wire:model="teacher_id" class="w-full rounded-xl px-4 py-3 text-sm"><option value="">{{ __('finance.options.no_teacher') }}</option>@foreach ($teachers as $teacher)<option value="{{ $teacher->id }}">{{ $teacher->first_name }} {{ $teacher->last_name }}</option>@endforeach</select></div>
+            <div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.category') }}</label><select wire:model="finance_category_id" class="w-full rounded-xl px-4 py-3 text-sm"><option value="">{{ __('finance.actions.choose_category') }}</option>@foreach ($categories as $category)<option value="{{ $category->id }}">{{ $category->name }}</option>@endforeach</select></div>
+            <div class="lg:col-span-3"><label class="mb-1 block text-sm font-medium">{{ __('finance.common.description') }}</label><textarea wire:model="requested_reason" rows="2" class="w-full rounded-xl px-4 py-3 text-sm"></textarea>@error('requested_reason') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
+            <div class="lg:col-span-3"><label class="mb-1 block text-sm font-medium">{{ __('finance.common.attachments') }}</label><input wire:model="attachments" type="file" multiple class="w-full rounded-xl px-4 py-3 text-sm">@error('attachments.*') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
+            <div class="lg:col-span-3 flex flex-wrap justify-end gap-3">
+                <button type="button" wire:click="closeCreateModal" class="pill-link">{{ __('crud.common.actions.close') }}</button>
+                <button type="submit" class="pill-link pill-link--accent">{{ __('finance.actions.save_revenue') }}</button>
+            </div>
+        </form>
+    </x-admin.modal>
 
-    @include('livewire.finance.partials.requests-table', ['requests' => $requests, 'cashBoxes' => $cashBoxes, 'cashBoxesByCurrency' => $cashBoxesByCurrency, 'reviewPermission' => 'finance.revenue-requests.review'])
+    @include('livewire.finance.partials.requests-table', ['requests' => $requests, 'cashBoxes' => $cashBoxes, 'cashBoxesByCurrency' => $cashBoxesByCurrency, 'reviewPermission' => 'finance.revenue-requests.review', 'createPermission' => 'finance.revenue-requests.create', 'createMethod' => 'openCreateModal', 'createLabel' => __('finance.revenue_requests.new')])
 </div>
