@@ -381,7 +381,7 @@ new class extends Component {
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.enrollments.table.headers.course') }}</th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.enrollments.table.headers.enrolled') }}</th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.enrollments.table.headers.status') }}</th>
-                            @if (auth()->user()->can('memorization.view') || auth()->user()->can('quran-tests.view') || auth()->user()->can('points.view') || auth()->user()->can('enrollments.update') || auth()->user()->can('enrollments.delete'))
+                            @if (auth()->user()->can('memorization.view') || auth()->user()->can('quran-awqaf-tests.view') || auth()->user()->can('quran-tests.view') || auth()->user()->can('points.view') || auth()->user()->can('enrollments.update') || auth()->user()->can('enrollments.delete'))
                                 <th class="px-5 py-4 text-right lg:px-6">{{ __('crud.enrollments.table.headers.actions') }}</th>
                             @endif
                         </tr>
@@ -412,7 +412,7 @@ new class extends Component {
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $enrollment->group?->course?->name ?: __('crud.common.not_available') }}</td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $enrollment->enrolled_at?->format('Y-m-d') }}</td>
                                 <td class="px-5 py-4 lg:px-6"><span class="{{ $enrollmentStatusClass }}">{{ __('crud.common.status_options.'.$enrollment->status) }}</span></td>
-                                @if (auth()->user()->can('memorization.view') || auth()->user()->can('quran-tests.view') || auth()->user()->can('points.view') || auth()->user()->can('enrollments.update') || auth()->user()->can('enrollments.delete'))
+                                @if (auth()->user()->can('memorization.view') || auth()->user()->can('quran-awqaf-tests.view') || auth()->user()->can('quran-tests.view') || auth()->user()->can('points.view') || auth()->user()->can('enrollments.update') || auth()->user()->can('enrollments.delete'))
                                     <td class="px-5 py-4 lg:px-6">
                                         <div class="flex flex-wrap justify-end gap-2">
                                             @can('memorization.view')
@@ -420,11 +420,11 @@ new class extends Component {
                                                     {{ __('crud.common.actions.memorization') }}
                                                 </a>
                                             @endcan
-                                            @can('quran-tests.view')
+                                            @canany(['quran-awqaf-tests.view', 'quran-tests.view'])
                                                 <a href="{{ route('enrollments.quran-tests', $enrollment) }}" wire:navigate class="pill-link pill-link--compact">
                                                     {{ __('crud.common.actions.tests') }}
                                                 </a>
-                                            @endcan
+                                            @endcanany
                                             @can('points.view')
                                                 <a href="{{ route('enrollments.points', $enrollment) }}" wire:navigate class="pill-link pill-link--compact">
                                                     {{ __('crud.common.actions.points') }}

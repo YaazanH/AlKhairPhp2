@@ -121,6 +121,9 @@ class ManagementCrudTest extends TestCase
         Volt::test('courses.index')
             ->call('delete', $course->id);
 
+        $parentUserId = $parent->fresh()->user_id;
+        $teacherUserId = $teacher->fresh()->user_id;
+
         Volt::test('parents.index')
             ->call('delete', $parent->id);
 
@@ -130,6 +133,8 @@ class ManagementCrudTest extends TestCase
         $this->assertSoftDeleted('courses', ['id' => $course->id]);
         $this->assertSoftDeleted('parents', ['id' => $parent->id]);
         $this->assertSoftDeleted('teachers', ['id' => $teacher->id]);
+        $this->assertDatabaseMissing('users', ['id' => $parentUserId]);
+        $this->assertDatabaseMissing('users', ['id' => $teacherUserId]);
     }
 
     public function test_profile_account_access_is_managed_separately_from_profile_data(): void
@@ -351,6 +356,9 @@ class ManagementCrudTest extends TestCase
             ->call('save')
             ->assertHasNoErrors();
 
+        $studentUserId = $student->fresh()->user_id;
+        $parentUserId = $parent->fresh()->user_id;
+
         Volt::test('students.index')
             ->call('delete', $student->id);
 
@@ -360,6 +368,8 @@ class ManagementCrudTest extends TestCase
         $this->assertSoftDeleted('groups', ['id' => $group->id]);
         $this->assertSoftDeleted('students', ['id' => $student->id]);
         $this->assertSoftDeleted('parents', ['id' => $parent->id]);
+        $this->assertDatabaseMissing('users', ['id' => $studentUserId]);
+        $this->assertDatabaseMissing('users', ['id' => $parentUserId]);
     }
 
     public function test_enrollment_create_and_new_keeps_selected_group_and_ignores_exit_fields(): void

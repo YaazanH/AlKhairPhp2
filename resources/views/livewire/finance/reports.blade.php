@@ -45,7 +45,6 @@ new class extends Component {
         <article class="stat-card"><div class="kpi-label">{{ __('finance.fields.income') }}</div><div class="metric-value mt-3">{{ number_format($report['summary']['income'], 2) }} {{ $report['summary']['local_currency']?->code }}</div></article>
         <article class="stat-card"><div class="kpi-label">{{ __('finance.fields.expense') }}</div><div class="metric-value mt-3">{{ number_format($report['summary']['expense'], 2) }} {{ $report['summary']['local_currency']?->code }}</div></article>
         <article class="stat-card"><div class="kpi-label">{{ __('finance.fields.net') }}</div><div class="metric-value mt-3">{{ number_format($report['summary']['net'], 2) }} {{ $report['summary']['local_currency']?->code }}</div></article>
-        <article class="stat-card"><div class="kpi-label">{{ __('finance.fields.transactions') }}</div><div class="metric-value mt-3">{{ number_format($report['summary']['transactions']) }}</div></article>
     </section>
 
     <section class="grid gap-6 xl:grid-cols-2">
@@ -63,6 +62,11 @@ new class extends Component {
             <div class="admin-grid-meta"><div><div class="admin-grid-meta__title">{{ __('finance.reports.quarter_totals') }}</div></div></div>
             <div class="overflow-x-auto"><table class="text-sm"><thead><tr><th class="px-5 py-3 text-left">{{ __('finance.fields.quarter') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.period') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.net_local') }}</th></tr></thead><tbody class="divide-y divide-white/6">@foreach ($report['quarter_totals'] as $quarter)<tr><td class="px-5 py-3">Q{{ $quarter['quarter'] }}</td><td class="px-5 py-3">{{ $quarter['start']->format('Y-m-d') }} - {{ $quarter['end']->format('Y-m-d') }}</td><td class="px-5 py-3">{{ number_format($quarter['net'], 2) }} {{ $report['summary']['local_currency']?->code }}</td></tr>@endforeach</tbody></table></div>
         </div>
+
+        <div class="surface-table">
+            <div class="admin-grid-meta"><div><div class="admin-grid-meta__title">{{ __('finance.reports.pending_pull_requests') }}</div></div></div>
+            <div class="overflow-x-auto"><table class="text-sm"><thead><tr><th class="px-5 py-3 text-left">{{ __('finance.common.request') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.requester') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.pull_kind') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.amount') }}</th></tr></thead><tbody class="divide-y divide-white/6">@forelse ($report['pending_pull_requests'] as $request)<tr><td class="px-5 py-3">{{ $request->request_no }}</td><td class="px-5 py-3">{{ $request->requestedBy?->name ?: '-' }}</td><td class="px-5 py-3">{{ $request->pullRequestKind?->name ?: '-' }}</td><td class="px-5 py-3">{{ number_format((float) $request->requested_amount, 2) }} {{ $request->requestedCurrency?->code }}</td></tr>@empty<tr><td colspan="4" class="px-5 py-10 text-center text-sm text-neutral-500">{{ __('finance.empty.no_pending_pull_requests') }}</td></tr>@endforelse</tbody></table></div>
+        </div>
     </section>
 
     <section class="surface-table">
@@ -70,8 +74,4 @@ new class extends Component {
         <div class="overflow-x-auto"><table class="text-sm"><thead><tr><th class="px-5 py-3 text-left">{{ __('finance.fields.category') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.income') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.expense') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.net') }}</th></tr></thead><tbody class="divide-y divide-white/6">@foreach ($report['category_totals'] as $row)<tr><td class="px-5 py-3">{{ $row['category'] }}</td><td class="px-5 py-3">{{ number_format($row['income'], 2) }} {{ $report['summary']['local_currency']?->code }}</td><td class="px-5 py-3">{{ number_format($row['expense'], 2) }} {{ $report['summary']['local_currency']?->code }}</td><td class="px-5 py-3">{{ number_format($row['net'], 2) }} {{ $report['summary']['local_currency']?->code }}</td></tr>@endforeach</tbody></table></div>
     </section>
 
-    <section class="surface-table">
-        <div class="admin-grid-meta"><div><div class="admin-grid-meta__title">{{ __('finance.reports.pending_pull_requests') }}</div></div></div>
-        <div class="overflow-x-auto"><table class="text-sm"><thead><tr><th class="px-5 py-3 text-left">{{ __('finance.common.request') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.requester') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.activity') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.amount') }}</th></tr></thead><tbody class="divide-y divide-white/6">@forelse ($report['pending_pull_requests'] as $request)<tr><td class="px-5 py-3">{{ $request->request_no }}</td><td class="px-5 py-3">{{ $request->requestedBy?->name ?: '-' }}</td><td class="px-5 py-3">{{ $request->activity?->title ?: '-' }}</td><td class="px-5 py-3">{{ number_format((float) $request->requested_amount, 2) }} {{ $request->requestedCurrency?->code }}</td></tr>@empty<tr><td colspan="4" class="px-5 py-10 text-center text-sm text-neutral-500">{{ __('finance.empty.no_pending_pull_requests') }}</td></tr>@endforelse</tbody></table></div>
-    </section>
 </div>

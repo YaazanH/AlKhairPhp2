@@ -282,7 +282,7 @@ new class extends Component {
     {
         $this->authorizePermission('parents.delete');
 
-        $parent = ParentProfile::query()->withCount('students')->findOrFail($parentId);
+        $parent = ParentProfile::query()->with('user')->withCount('students')->findOrFail($parentId);
         $this->authorizeScopedParentAccess($parent);
 
         if ($parent->students_count > 0) {
@@ -291,7 +291,9 @@ new class extends Component {
             return;
         }
 
+        $linkedUser = $parent->user;
         $parent->delete();
+        $linkedUser?->delete();
 
         if ($this->editingId === $parentId) {
             $this->cancel();

@@ -7,8 +7,10 @@ use App\Models\Enrollment;
 use App\Models\QuranFinalTest;
 use App\Models\QuranJuz;
 use App\Models\Student;
+use App\Services\PointLedgerService;
 use App\Services\QuranFinalTestService;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\DB;
 use Livewire\Volt\Component;
 use Livewire\WithPagination;
 
@@ -267,6 +269,31 @@ new class extends Component {
         $this->redirect(route('quran-final-tests.show', $finalTest), navigate: true);
     }
 
+    public function delete(int $finalTestId): void
+    {
+        $this->authorizePermission('quran-final-tests.delete');
+
+        $finalTest = $this->scopeQuranFinalTestsQuery(
+            QuranFinalTest::query()->with(['enrollment.student'])
+        )->findOrFail($finalTestId);
+
+        $this->authorizeScopedStudentAccess($finalTest->student);
+
+        DB::transaction(function () use ($finalTest): void {
+            $ledger = app(PointLedgerService::class);
+            $ledger->voidSourceTransactions('quran_final_test', $finalTest->id, __('workflow.quran_final_tests.messages.deleted_void_reason'));
+
+            $enrollment = $finalTest->enrollment;
+            $finalTest->delete();
+
+            if ($enrollment) {
+                $ledger->syncEnrollmentCaches($enrollment->fresh(['student']));
+            }
+        });
+
+        session()->flash('status', __('workflow.quran_final_tests.messages.deleted'));
+    }
+
     public function resetForm(): void
     {
         $this->selectedStudentId = null;
@@ -385,7 +412,14 @@ new class extends Component {
                                 <td class="px-5 py-4 text-white lg:px-6">{{ __('workflow.common.labels.juz_number', ['number' => $finalTest->juz?->juz_number ?: __('workflow.common.not_available')]) }}</td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ number_format($finalTest->attempts->count()) }}</td>
                                 <td class="px-5 py-4 lg:px-6"><span class="status-chip status-chip--slate">{{ __('workflow.quran_final_tests.statuses.'.$finalTest->status) }}</span></td>
-                                <td class="px-5 py-4 text-right lg:px-6"><a href="{{ route('quran-final-tests.show', $finalTest) }}" wire:navigate class="pill-link pill-link--compact">{{ __('workflow.quran_final_tests.actions.open') }}</a></td>
+                                <td class="px-5 py-4 text-right lg:px-6">
+                                    <div class="flex flex-wrap justify-end gap-2">
+                                        <a href="{{ route('quran-final-tests.show', $finalTest) }}" wire:navigate class="pill-link pill-link--compact">{{ __('workflow.quran_final_tests.actions.open') }}</a>
+                                        @can('quran-final-tests.delete')
+                                            <button type="button" wire:click="delete({{ $finalTest->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link pill-link--compact border-red-400/25 text-red-200 hover:border-red-300/35 hover:bg-red-500/12">{{ __('crud.common.actions.delete') }}</button>
+                                        @endcan
+                                    </div>
+                                </td>
                             </tr>
                         @endforeach
                     </tbody>

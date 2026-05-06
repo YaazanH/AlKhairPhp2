@@ -8,6 +8,7 @@ return [
             'eyebrow' => 'Read only',
         ],
         'actions' => [
+            'actions' => 'Actions',
             'create' => 'Create',
             'create_and_new' => 'Create and new',
             'cancel' => 'Cancel',
@@ -367,6 +368,7 @@ return [
         ],
         'errors' => [
             'delete_linked' => 'This student cannot be deleted while enrollments still exist.',
+            'delete_memorization' => 'This student cannot be deleted because memorization or Quran page progress exists.',
         ],
     ],
     'groups' => [

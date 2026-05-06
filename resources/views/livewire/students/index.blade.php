@@ -443,7 +443,10 @@ new class extends Component {
     {
         $this->authorizePermission('students.delete');
 
-        $student = Student::query()->withCount('enrollments')->findOrFail($studentId);
+        $student = Student::query()
+            ->with('user')
+            ->withCount(['enrollments', 'memorizationSessions', 'pageAchievements'])
+            ->findOrFail($studentId);
         $this->authorizeScopedStudentAccess($student);
 
         if ($student->enrollments_count > 0) {
@@ -452,7 +455,15 @@ new class extends Component {
             return;
         }
 
+        if (($student->memorization_sessions_count + $student->page_achievements_count) > 0) {
+            $this->addError('delete', __('crud.students.errors.delete_memorization'));
+
+            return;
+        }
+
+        $linkedUser = $student->user;
         $student->delete();
+        $linkedUser?->delete();
 
         if ($this->editingId === $studentId) {
             $this->cancel();

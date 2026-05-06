@@ -23,7 +23,7 @@ new class extends Component {
 
     public function mount(Enrollment $enrollment): void
     {
-        $this->authorizePermission('quran-tests.view');
+        $this->authorizeAnyPermission(['quran-awqaf-tests.view', 'quran-tests.view']);
 
         $this->currentEnrollment = Enrollment::query()
             ->with(['student.quranCurrentJuz', 'group.course', 'group.teacher'])
@@ -52,7 +52,7 @@ new class extends Component {
 
     public function saveQuranTest(): void
     {
-        $this->authorizePermission('quran-tests.record');
+        $this->authorizeAnyPermission(['quran-awqaf-tests.record', 'quran-tests.record']);
 
         $validated = $this->validate([
             'juz_id' => ['required', 'exists:quran_juzs,id'],
@@ -76,7 +76,7 @@ new class extends Component {
         $testType = QuranTestType::query()->where('code', 'awqaf')->where('is_active', true)->firstOrFail();
         $progression = app(QuranProgressionService::class)->validate($this->currentEnrollment, (int) $validated['juz_id'], $testType);
 
-        if ($progression && ! auth()->user()->can('quran-tests.override-progression')) {
+        if ($progression && ! $this->canAnyPermission(['quran-awqaf-tests.override-progression', 'quran-tests.override-progression'])) {
             $this->addError('juz_id', $progression);
 
             return;
@@ -132,7 +132,24 @@ new class extends Component {
 
     protected function currentTeacher(): ?Teacher
     {
-        return $this->linkedTeacherForPermission('quran-tests.record-linked-teacher');
+        return $this->linkedTeacherForPermission('quran-awqaf-tests.record-linked-teacher')
+            ?: $this->linkedTeacherForPermission('quran-tests.record-linked-teacher');
+    }
+
+    protected function authorizeAnyPermission(array $permissions): void
+    {
+        abort_unless($this->canAnyPermission($permissions), 403);
+    }
+
+    protected function canAnyPermission(array $permissions): bool
+    {
+        foreach ($permissions as $permission) {
+            if (auth()->user()?->can($permission)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }; ?>
 
@@ -151,7 +168,7 @@ new class extends Component {
 
     <div class="grid gap-6 xl:grid-cols-[28rem_minmax(0,1fr)]">
         <section class="surface-panel p-5 lg:p-6">
-            @if (auth()->user()->can('quran-tests.record'))
+            @if (auth()->user()->can('quran-awqaf-tests.record') || auth()->user()->can('quran-tests.record'))
                 <div class="mb-4">
                     <h2 class="text-lg font-semibold">{{ __('workflow.quran_tests.form.title') }}</h2>
                     <p class="text-sm text-neutral-400">{{ __('workflow.quran_tests.form.help') }}</p>

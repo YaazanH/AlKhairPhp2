@@ -572,6 +572,7 @@ new class extends Component {
         $this->authorizePermission('teachers.delete');
 
         $teacher = Teacher::query()
+            ->with('user')
             ->withCount(['assignedGroups', 'assistedGroups'])
             ->findOrFail($teacherId);
         $this->authorizeScopedTeacherAccess($teacher);
@@ -582,7 +583,9 @@ new class extends Component {
             return;
         }
 
+        $linkedUser = $teacher->user;
         $teacher->delete();
+        $linkedUser?->delete();
 
         if ($this->editingId === $teacherId) {
             $this->cancel();

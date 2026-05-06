@@ -40,7 +40,7 @@ class FinanceReportService
                 ])
                 ->values(),
             'pending_pull_requests' => FinanceRequest::query()
-                ->with(['activity', 'requestedBy', 'requestedCurrency'])
+                ->with(['activity', 'pullRequestKind', 'requestedBy', 'requestedCurrency'])
                 ->where('type', FinanceRequest::TYPE_PULL)
                 ->where('status', FinanceRequest::STATUS_PENDING)
                 ->latest()

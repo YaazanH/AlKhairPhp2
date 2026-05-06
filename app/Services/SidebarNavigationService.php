@@ -49,7 +49,7 @@ class SidebarNavigationService
             'enter_memorize' => $this->item('ui.nav.enter_memorize', 'pencil-square', 'memorization.quick-entry', ['memorization.quick-entry'], 'tracking_quran', 20, ['memorization.record']),
             'quran_partial_tests' => $this->item('ui.nav.quran_partial_tests', 'squares-2x2', 'quran-partial-tests.index', ['quran-partial-tests.*'], 'tracking_quran', 30, ['quran-partial-tests.view']),
             'quran_final_tests' => $this->item('ui.nav.quran_final_tests', 'check-badge', 'quran-final-tests.index', ['quran-final-tests.*'], 'tracking_quran', 40, ['quran-final-tests.view']),
-            'quran_tests' => $this->item('ui.nav.quran_tests', 'document-check', 'quran-tests.index', ['quran-tests.*', 'enrollments.quran-tests'], 'tracking_quran', 50, ['quran-tests.view']),
+            'quran_tests' => $this->item('ui.nav.quran_tests', 'document-check', 'quran-tests.index', ['quran-tests.*', 'enrollments.quran-tests'], 'tracking_quran', 50, ['quran-awqaf-tests.view']),
 
             'assessments' => $this->item('ui.nav.assessments', 'chart-pie', 'assessments.index', ['assessments.*'], 'tracking_performance', 10, ['assessments.view']),
             'point_ledger' => $this->item('ui.nav.point_ledger', 'trophy', 'points.index', ['points.*', 'enrollments.points'], 'tracking_performance', 20, ['points.view']),

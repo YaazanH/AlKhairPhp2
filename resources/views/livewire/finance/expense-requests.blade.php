@@ -2,13 +2,14 @@
 
 use App\Livewire\Concerns\AuthorizesPermissions;
 use App\Livewire\Concerns\FormatsFinanceNumbers;
-use App\Models\Activity;
+use App\Livewire\Concerns\SupportsCreateAndNew;
 use App\Models\FinanceCategory;
 use App\Models\FinanceCurrency;
+use App\Models\FinancePullRequestKind;
 use App\Models\FinanceRequest;
 use App\Models\FinanceRequestAttachment;
-use App\Models\Teacher;
 use App\Services\FinanceService;
+use Illuminate\Validation\ValidationException;
 use Livewire\Volt\Component;
 use Livewire\WithFileUploads;
 use Livewire\WithPagination;
@@ -16,19 +17,21 @@ use Livewire\WithPagination;
 new class extends Component {
     use AuthorizesPermissions;
     use FormatsFinanceNumbers;
+    use SupportsCreateAndNew;
     use WithFileUploads;
     use WithPagination;
 
     public string $amount = '';
+    public string $request_date = '';
     public ?int $currency_id = null;
     public ?int $cash_box_id = null;
-    public ?int $activity_id = null;
-    public ?int $teacher_id = null;
     public ?int $finance_category_id = null;
+    public ?int $finance_pull_request_kind_id = null;
     public string $requested_reason = '';
     public array $attachments = [];
     public array $review_amounts = [];
     public array $review_cash_boxes = [];
+    public array $review_dates = [];
     public array $review_notes = [];
     public int $perPage = 15;
     public bool $showCreateModal = false;
@@ -44,7 +47,6 @@ new class extends Component {
         $canReview = auth()->user()?->can('finance.expense-requests.review') ?? false;
 
         return [
-            'activities' => Activity::query()->orderByDesc('activity_date')->orderBy('title')->get(),
             'cashBoxes' => app(FinanceService::class)->accessibleCashBoxesForCurrency(auth()->user(), $this->currency_id)->get(),
             'cashBoxesByCurrency' => FinanceCurrency::query()
                 ->where('is_active', true)
@@ -53,6 +55,7 @@ new class extends Component {
                 ->all(),
             'categories' => FinanceCategory::query()->where('is_active', true)->whereIn('type', ['expense', 'management'])->orderBy('name')->get(),
             'currencies' => app(FinanceService::class)->currenciesForCashBox($this->cash_box_id)->get(),
+            'pullKinds' => FinancePullRequestKind::query()->where('is_active', true)->orderBy('mode')->orderBy('name')->get(),
             'requests' => FinanceRequest::query()
                 ->with(['activity', 'cashBox', 'category', 'pullRequestKind', 'requestedBy', 'reviewedBy', 'teacher', 'requestedCurrency', 'acceptedCurrency', 'attachments'])
                 ->where(function ($query): void {
@@ -71,7 +74,6 @@ new class extends Component {
                 }))
                 ->latest()
                 ->paginate($this->perPage),
-            'teachers' => Teacher::query()->where('status', 'active')->orderBy('first_name')->orderBy('last_name')->get(),
         ];
     }
 
@@ -80,34 +82,31 @@ new class extends Component {
         $this->authorizePermission('finance.expense-requests.create');
 
         $canReview = auth()->user()?->can('finance.expense-requests.review') ?? false;
+        $this->finance_pull_request_kind_id ??= FinancePullRequestKind::query()->where('is_active', true)->orderBy('mode')->orderBy('name')->value('id');
         $this->normalizeFinanceNumberProperty('amount');
+        if (auth()->user()?->can('finance.entries.update') && blank($this->request_date)) {
+            $this->request_date = now()->toDateString();
+        }
 
         $validated = $this->validate([
-            'activity_id' => ['nullable', 'exists:activities,id'],
             'amount' => ['required', 'numeric', 'gt:0'],
             'attachments' => ['array'],
             'attachments.*' => ['file', 'max:4096', 'mimes:jpg,jpeg,png,webp,pdf'],
             'cash_box_id' => [$canReview ? 'required' : 'nullable', 'exists:finance_cash_boxes,id'],
             'currency_id' => ['required', 'exists:finance_currencies,id'],
             'finance_category_id' => ['nullable', 'exists:finance_categories,id'],
+            'finance_pull_request_kind_id' => ['required', 'exists:finance_pull_request_kinds,id'],
+            'request_date' => [auth()->user()?->can('finance.entries.update') ? 'required' : 'nullable', 'date'],
             'requested_reason' => ['required', 'string', 'max:2000'],
-            'teacher_id' => ['nullable', 'exists:teachers,id'],
         ]);
-
-        if (! $validated['activity_id'] && ! $validated['teacher_id'] && ! $validated['finance_category_id']) {
-            $this->addError('finance_category_id', __('finance.validation.request_target_required'));
-
-            return;
-        }
 
         $request = FinanceRequest::query()->create([
             'request_no' => app(FinanceService::class)->nextRequestNumber(FinanceRequest::TYPE_EXPENSE),
             'type' => FinanceRequest::TYPE_EXPENSE,
             'status' => FinanceRequest::STATUS_PENDING,
+            'finance_pull_request_kind_id' => $validated['finance_pull_request_kind_id'],
             'requested_currency_id' => $validated['currency_id'],
             'requested_amount' => $validated['amount'],
-            'activity_id' => $validated['activity_id'] ?: null,
-            'teacher_id' => $validated['teacher_id'] ?: null,
             'finance_category_id' => $validated['finance_category_id'] ?: null,
             'requested_by' => auth()->id(),
             'requested_reason' => $validated['requested_reason'],
@@ -116,13 +115,22 @@ new class extends Component {
         $this->storeAttachments($request);
 
         if ($canReview) {
-            app(FinanceService::class)->acceptRequest(
-                $request,
-                (float) $validated['amount'],
-                app(FinanceService::class)->cashBoxForUser((int) $validated['cash_box_id'], auth()->user()),
-                auth()->user(),
-                'Auto-posted by finance management.',
-            );
+            try {
+                app(FinanceService::class)->acceptRequest(
+                    $request,
+                    (float) $validated['amount'],
+                    app(FinanceService::class)->cashBoxForUser((int) $validated['cash_box_id'], auth()->user()),
+                    auth()->user(),
+                    'Auto-posted by finance management.',
+                    null,
+                    auth()->user()?->can('finance.entries.update') ? $validated['request_date'] : null,
+                );
+            } catch (ValidationException $exception) {
+                $request->delete();
+                $this->addError('amount', $this->firstValidationMessage($exception));
+
+                return;
+            }
         }
 
         $this->resetCreateForm();
@@ -164,21 +172,33 @@ new class extends Component {
 
         $request = FinanceRequest::query()->where('type', FinanceRequest::TYPE_EXPENSE)->findOrFail($requestId);
         $this->normalizeFinanceNumberArrayValue('review_amounts', $requestId);
+        if (auth()->user()?->can('finance.entries.update') && blank($this->review_dates[$requestId] ?? null)) {
+            $this->review_dates[$requestId] = now()->toDateString();
+        }
 
         $this->validate([
             "review_amounts.{$requestId}" => ['nullable', 'numeric', 'gt:0'],
             "review_cash_boxes.{$requestId}" => ['required', 'exists:finance_cash_boxes,id'],
+            "review_dates.{$requestId}" => [auth()->user()?->can('finance.entries.update') ? 'required' : 'nullable', 'date'],
         ]);
 
         $reviewAmount = $this->review_amounts[$requestId] ?? null;
 
-        app(FinanceService::class)->acceptRequest(
-            $request,
-            (float) (($reviewAmount === null || $reviewAmount === '') ? $request->requested_amount : $reviewAmount),
-            app(FinanceService::class)->cashBoxForUser((int) $this->review_cash_boxes[$requestId], auth()->user()),
-            auth()->user(),
-            $this->review_notes[$requestId] ?? null,
-        );
+        try {
+            app(FinanceService::class)->acceptRequest(
+                $request,
+                (float) (($reviewAmount === null || $reviewAmount === '') ? $request->requested_amount : $reviewAmount),
+                app(FinanceService::class)->cashBoxForUser((int) $this->review_cash_boxes[$requestId], auth()->user()),
+                auth()->user(),
+                $this->review_notes[$requestId] ?? null,
+                null,
+                auth()->user()?->can('finance.entries.update') ? ($this->review_dates[$requestId] ?? null) : null,
+            );
+        } catch (ValidationException $exception) {
+            $this->addError("review_amounts.{$requestId}", $this->firstValidationMessage($exception));
+
+            return;
+        }
 
         session()->flash('status', __('finance.messages.expense_accepted'));
     }
@@ -210,15 +230,26 @@ new class extends Component {
     protected function resetCreateForm(): void
     {
         $this->amount = '';
+        $this->request_date = now()->toDateString();
         $this->currency_id = app(FinanceService::class)->localCurrency()->id;
         $this->cash_box_id = null;
-        $this->activity_id = null;
-        $this->teacher_id = null;
         $this->finance_category_id = null;
+        $this->finance_pull_request_kind_id = FinancePullRequestKind::query()->where('is_active', true)->orderBy('mode')->orderBy('name')->value('id');
         $this->requested_reason = '';
         $this->attachments = [];
 
         $this->resetValidation();
+    }
+
+    protected function firstValidationMessage(ValidationException $exception): string
+    {
+        foreach ($exception->errors() as $messages) {
+            if (is_array($messages) && isset($messages[0])) {
+                return (string) $messages[0];
+            }
+        }
+
+        return $exception->getMessage();
     }
 }; ?>
 
@@ -241,16 +272,17 @@ new class extends Component {
         max-width="5xl"
     >
         <form wire:submit="submitRequest" class="grid gap-4 lg:grid-cols-3">
+            <div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.pull_kind') }}</label><select wire:model="finance_pull_request_kind_id" class="w-full rounded-xl px-4 py-3 text-sm"><option value="">{{ __('finance.actions.choose_pull_kind') }}</option>@foreach ($pullKinds as $kind)<option value="{{ $kind->id }}">{{ $kind->name }} - {{ __('finance.pull_modes.'.$kind->mode) }}</option>@endforeach</select>@error('finance_pull_request_kind_id') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
             <div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.amount') }}</label><input wire:model="amount" type="text" inputmode="decimal" data-thousand-separator class="w-full rounded-xl px-4 py-3 text-sm">@error('amount') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
             <div><label class="mb-1 block text-sm font-medium">{{ __('finance.common.currency') }}</label><select wire:model="currency_id" class="w-full rounded-xl px-4 py-3 text-sm">@foreach ($currencies as $currency)<option value="{{ $currency->id }}">{{ $currency->code }}</option>@endforeach</select></div>
+            @can('finance.entries.update')<div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.entry_date') }}</label><input wire:model="request_date" type="date" class="w-full rounded-xl px-4 py-3 text-sm">@error('request_date') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>@endcan
             @can('finance.expense-requests.review')<div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.cash_box') }}</label><select wire:model="cash_box_id" class="w-full rounded-xl px-4 py-3 text-sm"><option value="">{{ __('finance.actions.choose_box') }}</option>@foreach ($cashBoxes as $box)<option value="{{ $box->id }}">{{ $box->name }}</option>@endforeach</select>@error('cash_box_id') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>@endcan
-            <div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.activity') }}</label><select wire:model="activity_id" class="w-full rounded-xl px-4 py-3 text-sm"><option value="">{{ __('finance.options.no_activity') }}</option>@foreach ($activities as $activity)<option value="{{ $activity->id }}">{{ $activity->title }}</option>@endforeach</select></div>
-            <div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.teacher') }}</label><select wire:model="teacher_id" class="w-full rounded-xl px-4 py-3 text-sm"><option value="">{{ __('finance.options.no_teacher') }}</option>@foreach ($teachers as $teacher)<option value="{{ $teacher->id }}">{{ $teacher->first_name }} {{ $teacher->last_name }}</option>@endforeach</select></div>
             <div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.category') }}</label><select wire:model="finance_category_id" class="w-full rounded-xl px-4 py-3 text-sm"><option value="">{{ __('finance.actions.choose_category') }}</option>@foreach ($categories as $category)<option value="{{ $category->id }}">{{ $category->name }}</option>@endforeach</select>@error('finance_category_id') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
             <div class="lg:col-span-3"><label class="mb-1 block text-sm font-medium">{{ __('finance.common.description') }}</label><textarea wire:model="requested_reason" rows="2" class="w-full rounded-xl px-4 py-3 text-sm"></textarea>@error('requested_reason') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
             <div class="lg:col-span-3"><label class="mb-1 block text-sm font-medium">{{ __('finance.common.attachments') }}</label><input wire:model="attachments" type="file" multiple class="w-full rounded-xl px-4 py-3 text-sm">@error('attachments.*') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
             <div class="lg:col-span-3 flex flex-wrap justify-end gap-3">
                 <button type="button" wire:click="closeCreateModal" class="pill-link">{{ __('crud.common.actions.close') }}</button>
+                <x-admin.create-and-new-button click="saveAndNew('submitRequest', 'openCreateModal')" />
                 <button type="submit" class="pill-link pill-link--accent">{{ __('finance.actions.save_expense') }}</button>
             </div>
         </form>

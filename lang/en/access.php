@@ -187,6 +187,7 @@ return [
         'students' => 'Students',
         'quran-partial-tests' => 'Quran partial tests',
         'quran-final-tests' => 'Quran final tests',
+        'quran-awqaf-tests' => 'Quran awqaf tests',
         'finance' => 'Finance',
     ],
     'permissions' => [
@@ -201,9 +202,16 @@ return [
         'quran-partial-tests.view' => 'View Quran partial tests',
         'quran-partial-tests.record' => 'Record Quran partial test attempts',
         'quran-partial-tests.record-linked-teacher' => 'Auto-fill the linked teacher on Quran partial test attempts',
+        'quran-partial-tests.delete' => 'Delete Quran partial tests',
         'quran-final-tests.view' => 'View Quran final tests',
         'quran-final-tests.record' => 'Record Quran final test attempts',
         'quran-final-tests.record-linked-teacher' => 'Auto-fill the linked teacher on Quran final test attempts',
+        'quran-final-tests.delete' => 'Delete Quran final tests',
+        'quran-awqaf-tests.view' => 'View Quran awqaf tests',
+        'quran-awqaf-tests.record' => 'Record Quran awqaf tests',
+        'quran-awqaf-tests.record-linked-teacher' => 'Auto-fill the linked teacher on awqaf Quran tests',
+        'quran-awqaf-tests.override-progression' => 'Override Quran awqaf test progression',
+        'quran-awqaf-tests.delete' => 'Delete Quran awqaf tests',
         'quran-tests.record-linked-teacher' => 'Auto-fill the linked teacher on awqaf Quran tests',
         'finance.settings.manage' => 'Manage finance settings',
         'finance.currencies.manage' => 'Manage finance currencies',
@@ -230,6 +238,7 @@ return [
         'finance.revenue-requests.print' => 'Print accepted finance revenue and return requests',
         'finance.reports.view' => 'View finance reports',
         'finance.reports.export' => 'Export finance reports',
+        'finance.entries.update' => 'Update finance entry dates and posted data',
     ],
     'login' => [
         'title' => 'Log in',
@@ -243,10 +252,13 @@ return [
         'inactive' => 'This account is currently inactive.',
     ],
     'teacher_signup' => [
-        'title' => 'Teacher signup request',
-        'description' => 'Send your teacher account request to mosque management. Your account will stay inactive until the request is reviewed.',
+        'title' => 'Create teacher account',
+        'description' => '',
         'fields' => [
+            'first_name' => 'First name',
+            'last_name' => 'Last name',
             'full_name' => 'Full name',
+            'phone' => 'Phone',
             'username' => 'Username',
             'password' => 'Password',
             'personal_photo' => 'Personal photo',
@@ -255,7 +267,7 @@ return [
             'photo' => 'Upload JPG, PNG, or WebP up to 2 MB.',
         ],
         'actions' => [
-            'submit' => 'Send request',
+            'submit' => 'Create account',
             'back_home' => 'Back to home',
         ],
         'messages' => [

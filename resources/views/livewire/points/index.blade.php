@@ -23,7 +23,7 @@ new class extends Component {
     public ?int $selectedEnrollmentId = null;
     public ?int $manual_point_type_id = null;
     public string $search = '';
-    public string $stateFilter = 'all';
+    public string $stateFilter = 'active';
     public int $perPage = 15;
     public bool $showFormModal = false;
     public bool $showVoidModal = false;
@@ -307,8 +307,21 @@ new class extends Component {
             'void_reason' => __('workflow.points.void.form.reason'),
         ]);
 
+        if (! $this->voidTransactionId) {
+            $this->addError('void_reason', __('workflow.points.errors.void_transaction_missing'));
+
+            return;
+        }
+
         $transaction = $this->scopePointTransactionsQuery(PointTransaction::query())
-            ->findOrFail($this->voidTransactionId);
+            ->whereKey($this->voidTransactionId)
+            ->first();
+
+        if (! $transaction) {
+            $this->addError('void_reason', __('workflow.points.errors.void_transaction_missing'));
+
+            return;
+        }
 
         if ($transaction->voided_at) {
             $this->closeVoidModal();
@@ -322,10 +335,13 @@ new class extends Component {
             'void_reason' => $validated['void_reason'],
         ]);
 
-        $enrollment = $this->scopeEnrollmentsQuery(Enrollment::query()->with('student'))
-            ->findOrFail($transaction->enrollment_id);
+        $enrollment = $transaction->enrollment_id
+            ? $this->scopeEnrollmentsQuery(Enrollment::query()->with('student'))->find($transaction->enrollment_id)
+            : null;
 
-        app(PointLedgerService::class)->syncEnrollmentCaches($enrollment->fresh(['student']));
+        if ($enrollment) {
+            app(PointLedgerService::class)->syncEnrollmentCaches($enrollment->fresh(['student']));
+        }
 
         if ($this->editingTransactionId === $transaction->id) {
             $this->resetManualForm();
@@ -588,7 +604,7 @@ new class extends Component {
             </div>
 
             <div class="flex flex-wrap items-center gap-3">
-                <button type="submit" class="pill-link border-red-400/25 text-red-200 hover:border-red-300/35 hover:bg-red-500/12">
+                <button type="submit" wire:loading.attr="disabled" wire:target="voidSelected" class="pill-link border-red-400/25 text-red-200 hover:border-red-300/35 hover:bg-red-500/12">
                     {{ __('workflow.common.actions.void') }}
                 </button>
                 <button type="button" wire:click="closeVoidModal" class="pill-link">

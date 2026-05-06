@@ -2,6 +2,7 @@
 
 use App\Livewire\Concerns\AuthorizesPermissions;
 use App\Livewire\Concerns\FormatsFinanceNumbers;
+use App\Livewire\Concerns\SupportsCreateAndNew;
 use App\Models\AppSetting;
 use App\Models\FinanceInvoiceKind;
 use App\Models\FinancePullRequestKind;
@@ -16,10 +17,12 @@ use Livewire\WithPagination;
 new class extends Component {
     use AuthorizesPermissions;
     use FormatsFinanceNumbers;
+    use SupportsCreateAndNew;
     use WithPagination;
 
     public string $requested_amount = '';
     public string $requested_count = '';
+    public string $request_date = '';
     public ?int $finance_pull_request_kind_id = null;
     public ?int $cash_box_id = null;
     public ?int $teacher_id = null;
@@ -28,11 +31,13 @@ new class extends Component {
     public array $review_amounts = [];
     public array $review_cash_boxes = [];
     public array $review_counts = [];
+    public array $review_dates = [];
     public array $review_notes = [];
     public array $settlement_counts = [];
     public array $settlement_remaining_amounts = [];
     public int $perPage = 15;
     public bool $showCreateModal = false;
+    public bool $showTermsModal = false;
     public ?int $reviewingRequestId = null;
     public ?int $settlingRequestId = null;
 
@@ -87,10 +92,14 @@ new class extends Component {
         $kind = FinancePullRequestKind::query()->where('is_active', true)->findOrFail((int) $this->finance_pull_request_kind_id);
         $this->normalizeFinanceNumberProperty('requested_amount');
         $this->normalizeFinanceNumberProperty('requested_count');
+        if (auth()->user()?->can('finance.entries.update') && blank($this->request_date)) {
+            $this->request_date = now()->toDateString();
+        }
 
         $rules = [
             'cash_box_id' => [$canReview ? 'required' : 'nullable', 'exists:finance_cash_boxes,id'],
             'finance_pull_request_kind_id' => ['required', 'exists:finance_pull_request_kinds,id'],
+            'request_date' => [auth()->user()?->can('finance.entries.update') ? 'required' : 'nullable', 'date'],
             'requested_amount' => ['required', 'numeric', 'gt:0'],
             'requested_count' => [$kind->mode === FinancePullRequestKind::MODE_COUNT ? 'required' : 'nullable', 'integer', 'min:1'],
             'requested_reason' => ['nullable', 'string'],
@@ -129,6 +138,7 @@ new class extends Component {
                     auth()->user(),
                     'Auto-posted by finance management.',
                     $kind->mode === FinancePullRequestKind::MODE_COUNT ? (int) $validated['requested_count'] : null,
+                    auth()->user()?->can('finance.entries.update') ? $validated['request_date'] : null,
                 );
             } catch (ValidationException $exception) {
                 $request->delete();
@@ -171,6 +181,7 @@ new class extends Component {
         $this->reviewingRequestId = $request->id;
         $this->review_amounts[$request->id] = $this->formatFinanceNumberForInput($this->review_amounts[$request->id] ?? $request->requested_amount);
         $this->review_cash_boxes[$request->id] = $this->review_cash_boxes[$request->id] ?? ($request->cash_box_id ?: '');
+        $this->review_dates[$request->id] = $this->review_dates[$request->id] ?? now()->toDateString();
         $this->review_notes[$request->id] = $this->review_notes[$request->id] ?? '';
 
         if ($request->pullRequestKind?->mode === FinancePullRequestKind::MODE_COUNT) {
@@ -217,11 +228,16 @@ new class extends Component {
         $request->loadMissing('pullRequestKind');
         $this->normalizeFinanceNumberArrayValue('review_amounts', $requestId);
         $this->normalizeFinanceNumberArrayValue('review_counts', $requestId);
+        if (auth()->user()?->can('finance.entries.update') && blank($this->review_dates[$requestId] ?? null)) {
+            $this->review_dates[$requestId] = now()->toDateString();
+        }
+
         $cashBoxId = (int) ($this->review_cash_boxes[$requestId] ?? 0);
 
         $rules = [
             "review_amounts.{$requestId}" => ['nullable', 'numeric', 'gt:0'],
             "review_cash_boxes.{$requestId}" => ['required', 'exists:finance_cash_boxes,id'],
+            "review_dates.{$requestId}" => [auth()->user()?->can('finance.entries.update') ? 'required' : 'nullable', 'date'],
         ];
 
         if ($request->pullRequestKind?->mode === FinancePullRequestKind::MODE_COUNT) {
@@ -247,6 +263,7 @@ new class extends Component {
                 auth()->user(),
                 $this->review_notes[$requestId] ?? null,
                 $count,
+                auth()->user()?->can('finance.entries.update') ? ($this->review_dates[$requestId] ?? null) : null,
             );
         } catch (ValidationException $exception) {
             $this->addError("review_amounts.{$requestId}", $this->firstValidationMessage($exception));
@@ -254,7 +271,7 @@ new class extends Component {
             return;
         }
 
-        unset($this->review_amounts[$requestId], $this->review_counts[$requestId], $this->review_cash_boxes[$requestId], $this->review_notes[$requestId]);
+        unset($this->review_amounts[$requestId], $this->review_counts[$requestId], $this->review_cash_boxes[$requestId], $this->review_dates[$requestId], $this->review_notes[$requestId]);
         $this->reviewingRequestId = null;
         session()->flash('status', __('finance.messages.pull_accepted'));
     }
@@ -265,7 +282,7 @@ new class extends Component {
 
         $request = FinanceRequest::query()->where('type', FinanceRequest::TYPE_PULL)->findOrFail($requestId);
         app(FinanceService::class)->declineRequest($request, auth()->user(), $this->review_notes[$requestId] ?? null);
-        unset($this->review_amounts[$requestId], $this->review_counts[$requestId], $this->review_cash_boxes[$requestId], $this->review_notes[$requestId]);
+        unset($this->review_amounts[$requestId], $this->review_counts[$requestId], $this->review_cash_boxes[$requestId], $this->review_dates[$requestId], $this->review_notes[$requestId]);
         $this->reviewingRequestId = null;
         session()->flash('status', __('finance.messages.pull_declined'));
     }
@@ -335,12 +352,24 @@ new class extends Component {
     {
         $this->requested_amount = '';
         $this->requested_count = '';
+        $this->request_date = now()->toDateString();
         $this->cash_box_id = null;
         $this->teacher_id = null;
         $this->requested_reason = '';
         $this->accepted_terms = false;
+        $this->showTermsModal = false;
 
         $this->resetValidation();
+    }
+
+    public function openTermsModal(): void
+    {
+        $this->showTermsModal = true;
+    }
+
+    public function closeTermsModal(): void
+    {
+        $this->showTermsModal = false;
     }
 
     protected function firstValidationMessage(ValidationException $exception): string
@@ -376,6 +405,9 @@ new class extends Component {
         <form wire:submit="submitRequest" class="grid gap-4 lg:grid-cols-4">
             <div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.pull_kind') }}</label><select wire:model.live="finance_pull_request_kind_id" class="w-full rounded-xl px-4 py-3 text-sm">@foreach ($pullKinds as $kind)<option value="{{ $kind->id }}">{{ $kind->name }} - {{ __('finance.pull_modes.'.$kind->mode) }}</option>@endforeach</select>@error('finance_pull_request_kind_id') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
             <div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.amount') }} ({{ $localCurrency->code }})</label><input wire:model="requested_amount" type="text" inputmode="decimal" data-thousand-separator class="w-full rounded-xl px-4 py-3 text-sm">@error('requested_amount') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
+            @can('finance.entries.update')
+                <div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.entry_date') }}</label><input wire:model="request_date" type="date" class="w-full rounded-xl px-4 py-3 text-sm">@error('request_date') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
+            @endcan
             @if ($selectedPullKind?->mode === 'count')
                 <div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.people_count') }}</label><input wire:model="requested_count" type="text" inputmode="numeric" data-thousand-separator class="w-full rounded-xl px-4 py-3 text-sm">@error('requested_count') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
             @endif
@@ -385,14 +417,33 @@ new class extends Component {
             @endcan
             <div class="lg:col-span-4"><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.reason') }}</label><textarea wire:model="requested_reason" rows="2" class="w-full rounded-xl px-4 py-3 text-sm"></textarea></div>
             @if ($terms !== '')
-                <label class="lg:col-span-4 flex items-start gap-3 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm"><input wire:model="accepted_terms" type="checkbox" class="mt-1 rounded"><span>{{ $terms }}</span></label>
+                <div class="lg:col-span-4 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm">
+                    <label class="flex flex-wrap items-center gap-3">
+                        <input wire:model="accepted_terms" type="checkbox" class="rounded">
+                        <span>{{ __('finance.pull_requests.terms_agree_prefix') }}</span>
+                        <button type="button" wire:click="openTermsModal" class="font-semibold text-emerald-200 underline decoration-emerald-300/40 underline-offset-4 hover:text-white">{{ __('finance.pull_requests.terms_button') }}</button>
+                    </label>
+                </div>
                 @error('accepted_terms') <div class="lg:col-span-4 text-sm text-red-400">{{ $message }}</div> @enderror
             @endif
             <div class="lg:col-span-4 flex flex-wrap justify-end gap-3">
                 <button type="button" wire:click="closeCreateModal" class="pill-link">{{ __('crud.common.actions.close') }}</button>
+                <x-admin.create-and-new-button click="saveAndNew('submitRequest', 'openCreateModal')" />
                 <button type="submit" class="pill-link pill-link--accent">{{ __('finance.actions.submit_request') }}</button>
             </div>
         </form>
+    </x-admin.modal>
+
+    <x-admin.modal
+        :show="$showTermsModal"
+        :title="__('finance.pull_requests.terms_title')"
+        close-method="closeTermsModal"
+        max-width="3xl"
+    >
+        <div class="whitespace-pre-line rounded-2xl border border-white/10 bg-white/[0.03] p-5 text-sm leading-7 text-neutral-200">{{ $terms }}</div>
+        <div class="mt-4 flex justify-end">
+            <button type="button" wire:click="closeTermsModal" class="pill-link">{{ __('crud.common.actions.close') }}</button>
+        </div>
     </x-admin.modal>
 
     @if ($reviewRequest)
@@ -445,6 +496,13 @@ new class extends Component {
                         @error("review_counts.{$reviewRequest->id}") <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
                     </div>
                 @endif
+                @can('finance.entries.update')
+                    <div>
+                        <label class="mb-1 block text-sm font-medium">{{ __('finance.fields.entry_date') }}</label>
+                        <input wire:model="review_dates.{{ $reviewRequest->id }}" type="date" class="w-full rounded-xl px-4 py-3 text-sm">
+                        @error("review_dates.{$reviewRequest->id}") <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
+                    </div>
+                @endcan
                 <div>
                     <label class="mb-1 block text-sm font-medium">{{ __('finance.fields.cash_box') }}</label>
                     <select wire:model="review_cash_boxes.{{ $reviewRequest->id }}" class="w-full rounded-xl px-4 py-3 text-sm">

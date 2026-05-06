@@ -22,10 +22,13 @@ class TeacherSignupRequestTest extends TestCase
         Storage::fake('public');
         $this->seed(RoleSeeder::class);
 
-        $this->get('/teacherSingup')->assertOk();
+        $this->get('/teacher-signup')->assertOk();
+        $this->get('/teacherSingup')->assertNotFound();
 
         Volt::test('public.teacher-signup')
-            ->set('full_name', 'Ahmad Darwish')
+            ->set('first_name', 'Ahmad')
+            ->set('last_name', 'Darwish')
+            ->set('phone', '0944000100')
             ->set('username', 'ahmad-darwish')
             ->set('password', 'Secret123')
             ->set('photo_upload', UploadedFile::fake()->create('teacher-photo.jpg', 128, 'image/jpeg'))
@@ -37,7 +40,7 @@ class TeacherSignupRequestTest extends TestCase
         $this->assertSame('Ahmad', $teacher->first_name);
         $this->assertSame('Darwish', $teacher->last_name);
         $this->assertSame('pending', $teacher->status);
-        $this->assertSame('', $teacher->phone);
+        $this->assertSame('0944000100', $teacher->phone);
         $this->assertFalse($teacher->user->is_active);
         $this->assertTrue($teacher->user->hasRole('teacher'));
         $this->assertSame('ahmad-darwish', $teacher->user->username);
@@ -52,6 +55,7 @@ class TeacherSignupRequestTest extends TestCase
 
         $this->get('/teacher-signup')->assertNotFound();
         $this->get('/teacherSingup')->assertNotFound();
+        $this->get('/teacherSignup')->assertNotFound();
     }
 
     public function test_manager_can_approve_pending_teacher_signup_request(): void

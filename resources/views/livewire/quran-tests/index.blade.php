@@ -12,6 +12,7 @@ use App\Models\Teacher;
 use App\Services\PointLedgerService;
 use App\Services\QuranProgressionService;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\DB;
 use Livewire\Volt\Component;
 use Livewire\WithPagination;
 
@@ -36,7 +37,7 @@ new class extends Component {
 
     public function mount(): void
     {
-        $this->authorizePermission('quran-tests.view');
+        $this->authorizeAnyPermission(['quran-awqaf-tests.view', 'quran-tests.view']);
         $this->resetForm();
     }
 
@@ -160,7 +161,7 @@ new class extends Component {
 
     public function openCreateModal(): void
     {
-        $this->authorizePermission('quran-tests.record');
+        $this->authorizeAnyPermission(['quran-awqaf-tests.record', 'quran-tests.record']);
 
         $this->resetForm();
         $this->showFormModal = true;
@@ -174,7 +175,7 @@ new class extends Component {
 
     public function save(): void
     {
-        $this->authorizePermission('quran-tests.record');
+        $this->authorizeAnyPermission(['quran-awqaf-tests.record', 'quran-tests.record']);
 
         $validated = $this->validate([
             'selectedStudentId' => ['required', 'exists:students,id'],
@@ -234,7 +235,7 @@ new class extends Component {
         $testType = QuranTestType::query()->where('code', 'awqaf')->where('is_active', true)->firstOrFail();
         $progression = app(QuranProgressionService::class)->validate($enrollment, (int) $validated['juz_id'], $testType);
 
-        if ($progression && ! auth()->user()->can('quran-tests.override-progression')) {
+        if ($progression && ! $this->canAnyPermission(['quran-awqaf-tests.override-progression', 'quran-tests.override-progression'])) {
             $this->addError('juz_id', $progression);
 
             return;
@@ -261,6 +262,33 @@ new class extends Component {
 
         session()->flash('status', __('workflow.quran_tests.messages.saved'));
         $this->closeFormModal();
+    }
+
+    public function delete(int $testId): void
+    {
+        $this->authorizePermission('quran-awqaf-tests.delete');
+
+        $test = $this->scopeQuranTestsQuery(
+            QuranTest::query()->with(['enrollment.student', 'type'])
+        )
+            ->whereHas('type', fn (Builder $query) => $query->where('code', 'awqaf'))
+            ->findOrFail($testId);
+
+        $this->authorizeScopedStudentAccess($test->student);
+
+        DB::transaction(function () use ($test): void {
+            $ledger = app(PointLedgerService::class);
+            $ledger->voidSourceTransactions('quran_test', $test->id, __('workflow.quran_tests.messages.deleted_void_reason'));
+
+            $enrollment = $test->enrollment;
+            $test->delete();
+
+            if ($enrollment) {
+                $ledger->syncEnrollmentCaches($enrollment->fresh(['student']));
+            }
+        });
+
+        session()->flash('status', __('workflow.quran_tests.messages.deleted'));
     }
 
     public function resetForm(): void
@@ -316,7 +344,24 @@ new class extends Component {
 
     protected function currentTeacher(): ?Teacher
     {
-        return $this->linkedTeacherForPermission('quran-tests.record-linked-teacher');
+        return $this->linkedTeacherForPermission('quran-awqaf-tests.record-linked-teacher')
+            ?: $this->linkedTeacherForPermission('quran-tests.record-linked-teacher');
+    }
+
+    protected function authorizeAnyPermission(array $permissions): void
+    {
+        abort_unless($this->canAnyPermission($permissions), 403);
+    }
+
+    protected function canAnyPermission(array $permissions): bool
+    {
+        foreach ($permissions as $permission) {
+            if (auth()->user()?->can($permission)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }; ?>
 
@@ -370,9 +415,9 @@ new class extends Component {
                 </div>
 
                 <div class="admin-toolbar__actions">
-                    @can('quran-tests.record')
+                    @canany(['quran-awqaf-tests.record', 'quran-tests.record'])
                         <button type="button" wire:click="openCreateModal" class="pill-link pill-link--accent">{{ __('workflow.quran_tests.workbench.create') }}</button>
-                    @endcan
+                    @endcanany
                 </div>
             </div>
         </div>
@@ -400,6 +445,9 @@ new class extends Component {
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.quran_tests.workbench.table.headers.score') }}</th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.quran_tests.workbench.table.headers.status') }}</th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.quran_tests.workbench.table.headers.teacher') }}</th>
+                            @can('quran-awqaf-tests.delete')
+                                <th class="px-5 py-4 text-right lg:px-6">{{ __('crud.common.actions.actions') }}</th>
+                            @endcan
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-white/6">
@@ -427,6 +475,11 @@ new class extends Component {
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $test->score !== null ? $test->score : __('workflow.common.not_available') }}</td>
                                 <td class="px-5 py-4 lg:px-6"><span class="status-chip status-chip--slate">{{ __('workflow.common.result_status.'.$test->status) }}</span></td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $test->teacher?->first_name }} {{ $test->teacher?->last_name }}</td>
+                                @can('quran-awqaf-tests.delete')
+                                    <td class="px-5 py-4 text-right lg:px-6">
+                                        <button type="button" wire:click="delete({{ $test->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link pill-link--compact border-red-400/25 text-red-200 hover:border-red-300/35 hover:bg-red-500/12">{{ __('crud.common.actions.delete') }}</button>
+                                    </td>
+                                @endcan
                             </tr>
                         @endforeach
                     </tbody>

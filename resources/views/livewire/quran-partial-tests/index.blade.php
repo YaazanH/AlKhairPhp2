@@ -7,8 +7,10 @@ use App\Models\Enrollment;
 use App\Models\QuranJuz;
 use App\Models\QuranPartialTest;
 use App\Models\Student;
+use App\Services\PointLedgerService;
 use App\Services\QuranPartialTestService;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\DB;
 use Livewire\Volt\Component;
 use Livewire\WithPagination;
 
@@ -234,6 +236,37 @@ new class extends Component {
         $this->attemptCreatePartialTest($student, $enrollment, (int) $validated['juz_id']);
     }
 
+    public function delete(int $partialTestId): void
+    {
+        $this->authorizePermission('quran-partial-tests.delete');
+
+        $partialTest = $this->scopeQuranPartialTestsQuery(
+            QuranPartialTest::query()->with(['enrollment.student', 'parts'])
+        )->findOrFail($partialTestId);
+
+        $this->authorizeScopedStudentAccess($partialTest->student);
+
+        DB::transaction(function () use ($partialTest): void {
+            $ledger = app(PointLedgerService::class);
+            $reason = __('workflow.quran_partial_tests.messages.deleted_void_reason');
+
+            foreach ($partialTest->parts as $part) {
+                $ledger->voidSourceTransactions('quran_partial_test_part', $part->id, $reason);
+            }
+
+            $ledger->voidSourceTransactions('quran_partial_test', $partialTest->id, $reason);
+
+            $enrollment = $partialTest->enrollment;
+            $partialTest->delete();
+
+            if ($enrollment) {
+                $ledger->syncEnrollmentCaches($enrollment->fresh(['student']));
+            }
+        });
+
+        session()->flash('status', __('workflow.quran_partial_tests.messages.deleted'));
+    }
+
     protected function attemptCreatePartialTest(Student $student, Enrollment $enrollment, int $juzId, bool $ignoreOpenTestWarning = false): void
     {
         if (! $ignoreOpenTestWarning) {
@@ -406,7 +439,14 @@ new class extends Component {
                                 <td class="px-5 py-4 text-white lg:px-6">{{ __('workflow.common.labels.juz_number', ['number' => $partialTest->juz?->juz_number ?: __('workflow.common.not_available')]) }}</td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $partialTest->parts->where('status', 'passed')->count() }} / 4</td>
                                 <td class="px-5 py-4 lg:px-6"><span class="status-chip status-chip--slate">{{ __('workflow.quran_partial_tests.statuses.'.$partialTest->status) }}</span></td>
-                                <td class="px-5 py-4 text-right lg:px-6"><a href="{{ route('quran-partial-tests.show', $partialTest) }}" wire:navigate class="pill-link pill-link--compact">{{ __('workflow.quran_partial_tests.actions.open') }}</a></td>
+                                <td class="px-5 py-4 text-right lg:px-6">
+                                    <div class="flex flex-wrap justify-end gap-2">
+                                        <a href="{{ route('quran-partial-tests.show', $partialTest) }}" wire:navigate class="pill-link pill-link--compact">{{ __('workflow.quran_partial_tests.actions.open') }}</a>
+                                        @can('quran-partial-tests.delete')
+                                            <button type="button" wire:click="delete({{ $partialTest->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link pill-link--compact border-red-400/25 text-red-200 hover:border-red-300/35 hover:bg-red-500/12">{{ __('crud.common.actions.delete') }}</button>
+                                        @endcan
+                                    </div>
+                                </td>
                             </tr>
                         @endforeach
                     </tbody>

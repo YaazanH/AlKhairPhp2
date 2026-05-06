@@ -18,8 +18,6 @@ use Livewire\Volt\Volt;
 Route::get('/', [WebsiteController::class, 'home'])->name('home');
 Route::get('pages/{page:slug}', [WebsiteController::class, 'show'])->name('website.pages.show');
 Volt::route('teacher-signup', 'public.teacher-signup')->name('teacher-signup');
-Volt::route('teacherSingup', 'public.teacher-signup')->name('teacher-signup.legacy-typo');
-Route::redirect('teacherSignup', 'teacher-signup');
 
 Route::get('locale/{locale}', function (Request $request, string $locale) {
     if (! array_key_exists($locale, config('app.supported_locales', []))) {
@@ -106,10 +104,10 @@ Route::middleware(['auth'])->group(function () {
     Volt::route('quran-partial-tests/{partialTest}', 'quran-partial-tests.show')->middleware('permission:quran-partial-tests.view')->name('quran-partial-tests.show');
     Volt::route('quran-final-tests', 'quran-final-tests.index')->middleware('permission:quran-final-tests.view')->name('quran-final-tests.index');
     Volt::route('quran-final-tests/{finalTest}', 'quran-final-tests.show')->middleware('permission:quran-final-tests.view')->name('quran-final-tests.show');
-    Volt::route('quran-tests', 'quran-tests.index')->middleware('permission:quran-tests.view')->name('quran-tests.index');
+    Volt::route('quran-tests', 'quran-tests.index')->middleware('permission:quran-awqaf-tests.view|quran-tests.view')->name('quran-tests.index');
     Volt::route('points', 'points.index')->middleware('permission:points.view')->name('points.index');
     Volt::route('enrollments/{enrollment}/memorization', 'enrollments.memorization')->middleware('permission:memorization.view')->name('enrollments.memorization');
-    Volt::route('enrollments/{enrollment}/quran-tests', 'enrollments.quran-tests')->middleware('permission:quran-tests.view')->name('enrollments.quran-tests');
+    Volt::route('enrollments/{enrollment}/quran-tests', 'enrollments.quran-tests')->middleware('permission:quran-awqaf-tests.view|quran-tests.view')->name('enrollments.quran-tests');
     Volt::route('enrollments/{enrollment}/points', 'enrollments.points')->middleware('permission:points.view')->name('enrollments.points');
     Volt::route('activities', 'activities.index')->middleware('permission:activities.view')->name('activities.index');
     Volt::route('activities/family', 'activities.family')->middleware('permission:activities.responses.view')->name('activities.family');

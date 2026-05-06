@@ -51,9 +51,9 @@
                             <div class="text-xs text-neutral-500">{{ $request->teacher ? trim($request->teacher->first_name.' '.$request->teacher->last_name) : '-' }}</div>
                         </td>
                         <td class="px-5 py-3">
-                            <div>{{ $request->category?->name ?: ($request->type === \App\Models\FinanceRequest::TYPE_PULL ? __('finance.pull_requests.title') : '-') }}</div>
-                            @if ($request->type === \App\Models\FinanceRequest::TYPE_PULL)
-                                <div class="text-xs text-neutral-500">{{ $request->pullRequestKind?->name ?: '-' }}</div>
+                            <div>{{ $request->category?->name ?: ($request->pullRequestKind ? __('finance.fields.pull_kind') : ($request->type === \App\Models\FinanceRequest::TYPE_PULL ? __('finance.pull_requests.title') : '-')) }}</div>
+                            @if ($request->pullRequestKind)
+                                <div class="text-xs text-neutral-500">{{ $request->pullRequestKind->name }} - {{ __('finance.pull_modes.'.$request->pullRequestKind->mode) }}</div>
                             @endif
                         </td>
                         <td class="px-5 py-3">
@@ -76,6 +76,9 @@
                                                 <option value="{{ $box->id }}">{{ $box->name }}</option>
                                             @endforeach
                                         </select>
+                                        @can('finance.entries.update')
+                                            <input wire:model="review_dates.{{ $request->id }}" type="date" class="w-36 rounded-xl px-3 py-2 text-sm">
+                                        @endcan
                                         <input wire:model="review_notes.{{ $request->id }}" type="text" placeholder="{{ __('finance.common.notes') }}" class="w-40 rounded-xl px-3 py-2 text-sm">
                                         <button type="button" wire:click="accept({{ $request->id }})" class="pill-link pill-link--compact pill-link--accent">{{ __('finance.actions.accept') }}</button>
                                         <button type="button" wire:click="decline({{ $request->id }})" class="pill-link pill-link--compact border-red-400/25 text-red-200">{{ __('finance.actions.decline') }}</button>

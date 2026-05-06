@@ -8,7 +8,9 @@ use App\Models\AssessmentResult;
 use App\Models\AssessmentType;
 use App\Models\Course;
 use App\Models\Group;
+use App\Services\PointLedgerService;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
 use Livewire\Volt\Component;
 use Livewire\WithPagination;
 
@@ -242,16 +244,32 @@ new class extends Component {
     {
         $this->authorizePermission('assessments.delete');
 
-        $assessment = Assessment::query()->withCount('results')->with('group')->findOrFail($assessmentId);
+        $assessment = Assessment::query()->with(['group', 'results.enrollment.student'])->findOrFail($assessmentId);
         $this->authorizeTeacherAssessmentAccess($assessment);
 
-        if ($assessment->results_count > 0) {
-            $this->addError('delete', __('workflow.assessments.index.errors.delete_results'));
+        DB::transaction(function () use ($assessment): void {
+            $ledger = app(PointLedgerService::class);
+            $enrollments = $assessment->results
+                ->pluck('enrollment')
+                ->filter()
+                ->unique('id');
 
-            return;
-        }
+            foreach ($assessment->results as $result) {
+                $ledger->voidSourceTransactions('assessment_result', $result->id, __('workflow.assessments.index.messages.deleted_void_reason'));
+            }
 
-        $assessment->delete();
+            $assessment->results()->delete();
+            $assessment->groupDetails()->delete();
+            $assessment->delete();
+
+            foreach ($enrollments as $enrollment) {
+                $freshEnrollment = $enrollment->fresh(['student']);
+
+                if ($freshEnrollment) {
+                    $ledger->syncEnrollmentCaches($freshEnrollment);
+                }
+            }
+        });
 
         if ($this->editingId === $assessmentId) {
             $this->cancel();

@@ -314,10 +314,11 @@ class OperationalWriteController extends Controller
      */
     public function storeQuranTest(Request $request, Enrollment $enrollment)
     {
-        $this->authorizePermission($request, 'quran-tests.record');
+        $this->authorizeAnyPermission($request, ['quran-awqaf-tests.record', 'quran-tests.record']);
         $this->authorizeTeacherEnrollmentScope($request, $enrollment);
 
-        $linkedTeacherId = $this->linkedTeacherIdForPermission($request, 'quran-tests.record-linked-teacher');
+        $linkedTeacherId = $this->linkedTeacherIdForPermission($request, 'quran-awqaf-tests.record-linked-teacher')
+            ?: $this->linkedTeacherIdForPermission($request, 'quran-tests.record-linked-teacher');
 
         $validated = $request->validate([
             'juz_id' => ['required', 'integer', Rule::exists('quran_juzs', 'id')],
@@ -361,7 +362,7 @@ class OperationalWriteController extends Controller
         $progression = app(QuranProgressionService::class)->validate($enrollment, (int) $validated['juz_id'], $testType);
         $score = $validated['score'] ?? null;
 
-        if ($progression && ! $request->user()?->can('quran-tests.override-progression')) {
+        if ($progression && ! $this->canAnyPermission($request, ['quran-awqaf-tests.override-progression', 'quran-tests.override-progression'])) {
             return response()->json([
                 'message' => $progression,
             ], 422);
@@ -576,6 +577,22 @@ class OperationalWriteController extends Controller
     protected function authorizePermission(Request $request, string $permission): void
     {
         abort_unless($request->user()?->can($permission), 403);
+    }
+
+    protected function authorizeAnyPermission(Request $request, array $permissions): void
+    {
+        abort_unless($this->canAnyPermission($request, $permissions), 403);
+    }
+
+    protected function canAnyPermission(Request $request, array $permissions): bool
+    {
+        foreach ($permissions as $permission) {
+            if ($request->user()?->can($permission)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     protected function authorizeTeacherAssessmentScope(Request $request, Assessment $assessment): void

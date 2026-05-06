@@ -49,9 +49,9 @@ class FinanceService
             ->when($currencyId, fn (Builder $query) => $query->whereHas('currencies', fn (Builder $currencyQuery) => $currencyQuery->whereKey($currencyId)));
     }
 
-    public function acceptRequest(FinanceRequest $request, float $acceptedAmount, FinanceCashBox $cashBox, ?User $reviewer = null, ?string $notes = null, ?int $acceptedCount = null): FinanceRequest
+    public function acceptRequest(FinanceRequest $request, float $acceptedAmount, FinanceCashBox $cashBox, ?User $reviewer = null, ?string $notes = null, ?int $acceptedCount = null, ?string $transactionDate = null): FinanceRequest
     {
-        return DB::transaction(function () use ($acceptedAmount, $acceptedCount, $cashBox, $notes, $request, $reviewer): FinanceRequest {
+        return DB::transaction(function () use ($acceptedAmount, $acceptedCount, $cashBox, $notes, $request, $reviewer, $transactionDate): FinanceRequest {
             $request->loadMissing(['invoice', 'pullRequestKind']);
             $currency = $request->acceptedCurrency ?: $request->requestedCurrency ?: $this->localCurrency();
             $direction = in_array($request->type, [FinanceRequest::TYPE_PULL, FinanceRequest::TYPE_EXPENSE], true) ? 'out' : 'in';
@@ -70,7 +70,7 @@ class FinanceService
                 'type' => $request->type.'_request',
                 'direction' => $direction,
                 'amount' => $acceptedAmount,
-                'transaction_date' => now()->toDateString(),
+                'transaction_date' => $transactionDate ?: now()->toDateString(),
                 'description' => trim($reference.' '.$request->requested_reason),
                 'entered_by' => $reviewer?->id,
                 'metadata' => [

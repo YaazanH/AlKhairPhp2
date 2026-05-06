@@ -11,7 +11,9 @@ use Livewire\WithFileUploads;
 new #[Layout('components.layouts.auth')] class extends Component {
     use WithFileUploads;
 
-    public string $full_name = '';
+    public string $first_name = '';
+    public string $last_name = '';
+    public string $phone = '';
     public string $username = '';
     public string $password = '';
     public $photo_upload = null;
@@ -26,19 +28,22 @@ new #[Layout('components.layouts.auth')] class extends Component {
         $this->ensureSignupEnabled();
 
         $validated = $this->validate([
-            'full_name' => ['required', 'string', 'max:255'],
+            'first_name' => ['required', 'string', 'max:255'],
+            'last_name' => ['required', 'string', 'max:255'],
+            'phone' => ['required', 'string', 'max:30'],
             'username' => ['required', 'string', 'max:255', Rule::unique('users', 'username')],
             'password' => ['required', 'string', 'min:8'],
             'photo_upload' => ['required', 'file', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
         ]);
 
-        [$firstName, $lastName] = $this->splitFullName($validated['full_name']);
+        $fullName = trim($validated['first_name'].' '.$validated['last_name']);
 
         $result = app(ManagedUserService::class)->syncLinkedUser(
             null,
             [
-                'name' => trim($validated['full_name']),
+                'name' => $fullName,
                 'username' => $validated['username'],
+                'phone' => $validated['phone'],
                 'password' => $validated['password'],
                 'is_active' => false,
             ],
@@ -47,9 +52,9 @@ new #[Layout('components.layouts.auth')] class extends Component {
 
         $teacher = Teacher::query()->create([
             'user_id' => $result['user']->id,
-            'first_name' => $firstName,
-            'last_name' => $lastName,
-            'phone' => '',
+            'first_name' => $validated['first_name'],
+            'last_name' => $validated['last_name'],
+            'phone' => $validated['phone'],
             'access_role_id' => null,
             'course_id' => null,
             'status' => 'pending',
@@ -65,33 +70,15 @@ new #[Layout('components.layouts.auth')] class extends Component {
         session()->flash('status', __('access.teacher_signup.messages.submitted'));
 
         $this->reset([
-            'full_name',
+            'first_name',
+            'last_name',
+            'phone',
             'username',
             'password',
             'photo_upload',
         ]);
 
         $this->resetValidation();
-    }
-
-    protected function splitFullName(string $fullName): array
-    {
-        $parts = collect(preg_split('/\s+/u', trim($fullName)) ?: [])
-            ->filter(fn (?string $part) => filled($part))
-            ->values();
-
-        if ($parts->isEmpty()) {
-            return ['', ''];
-        }
-
-        if ($parts->count() === 1) {
-            return [$parts[0], $parts[0]];
-        }
-
-        return [
-            (string) $parts->shift(),
-            $parts->implode(' '),
-        ];
     }
 
     protected function ensureSignupEnabled(): void
@@ -107,13 +94,32 @@ new #[Layout('components.layouts.auth')] class extends Component {
 
     <form wire:submit="submit" class="flex flex-col gap-6">
         <flux:input
-            wire:model="full_name"
-            :label="__('access.teacher_signup.fields.full_name')"
+            wire:model="first_name"
+            :label="__('access.teacher_signup.fields.first_name')"
             type="text"
-            name="full_name"
+            name="first_name"
             required
             autofocus
-            :placeholder="__('access.teacher_signup.fields.full_name')"
+            :placeholder="__('access.teacher_signup.fields.first_name')"
+        />
+
+        <flux:input
+            wire:model="last_name"
+            :label="__('access.teacher_signup.fields.last_name')"
+            type="text"
+            name="last_name"
+            required
+            :placeholder="__('access.teacher_signup.fields.last_name')"
+        />
+
+        <flux:input
+            wire:model="phone"
+            :label="__('access.teacher_signup.fields.phone')"
+            type="text"
+            name="phone"
+            required
+            autocomplete="tel"
+            :placeholder="__('access.teacher_signup.fields.phone')"
         />
 
         <flux:input

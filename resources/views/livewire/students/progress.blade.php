@@ -91,7 +91,7 @@ new class extends Component {
                 ->get()
             : collect();
 
-        $quranTests = auth()->user()->can('quran-tests.view')
+        $quranTests = auth()->user()->can('quran-awqaf-tests.view') || auth()->user()->can('quran-tests.view')
             ? $this->scopeQuranTestsQuery(
                 QuranTest::query()
                     ->with(['enrollment.group', 'juz', 'teacher', 'type'])
@@ -334,9 +334,9 @@ new class extends Component {
                                         @can('memorization.view')
                                             <a href="{{ route('enrollments.memorization', $enrollment) }}" wire:navigate class="pill-link pill-link--compact">{{ __('crud.common.actions.memorization') }}</a>
                                         @endcan
-                                        @can('quran-tests.view')
+                                        @canany(['quran-awqaf-tests.view', 'quran-tests.view'])
                                             <a href="{{ route('enrollments.quran-tests', $enrollment) }}" wire:navigate class="pill-link pill-link--compact">{{ __('crud.common.actions.tests') }}</a>
-                                        @endcan
+                                        @endcanany
                                         @can('points.view')
                                             <a href="{{ route('enrollments.points', $enrollment) }}" wire:navigate class="pill-link pill-link--compact">{{ __('crud.common.actions.points') }}</a>
                                         @endcan
@@ -435,7 +435,7 @@ new class extends Component {
         </section>
     @endcan
 
-    @can('quran-tests.view')
+    @canany(['quran-awqaf-tests.view', 'quran-tests.view'])
         <section class="surface-table">
             <div class="admin-grid-meta">
                 <div>
@@ -475,7 +475,7 @@ new class extends Component {
                 </div>
             @endif
         </section>
-    @endcan
+    @endcanany
 
     @can('points.view')
         <section class="surface-panel p-5 lg:p-6">

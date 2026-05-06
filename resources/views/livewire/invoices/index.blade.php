@@ -91,17 +91,21 @@ new class extends Component {
         $this->normalizeFinanceNumberProperty('discount');
 
         $validated = $this->validate();
+        $existingInvoice = $this->editingId ? Invoice::query()->findOrFail($this->editingId) : null;
+        $canUpdateEntryDate = auth()->user()?->can('finance.entries.update') ?? false;
 
         $invoice = Invoice::query()->updateOrCreate(
             ['id' => $this->editingId],
             [
                 'invoice_no' => $this->editingId
-                    ? Invoice::query()->findOrFail($this->editingId)->invoice_no
+                    ? $existingInvoice->invoice_no
                     : app(FinanceService::class)->nextInvoiceNumber(),
                 'invoicer_name' => $validated['invoicer_name'],
                 'invoice_type' => $validated['invoice_type'],
                 'finance_invoice_kind_id' => $validated['finance_invoice_kind_id'],
-                'issue_date' => $validated['issue_date'],
+                'issue_date' => $canUpdateEntryDate
+                    ? $validated['issue_date']
+                    : ($existingInvoice?->issue_date?->toDateString() ?? now()->toDateString()),
                 'due_date' => $validated['due_date'] ?: null,
                 'status' => $validated['status'],
                 'discount' => $validated['discount'],
@@ -275,7 +279,7 @@ new class extends Component {
                     <div class="grid gap-4 md:grid-cols-2">
                         <div>
                             <label class="mb-1 block text-sm font-medium">{{ __('invoices.index.form.fields.issue_date') }}</label>
-                            <input wire:model="issue_date" type="date" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                            <input wire:model="issue_date" type="date" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900" @disabled(! auth()->user()?->can('finance.entries.update'))>
                             @error('issue_date') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
                         </div>
                         <div>

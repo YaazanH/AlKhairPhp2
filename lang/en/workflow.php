@@ -412,6 +412,8 @@ return [
         ],
         'messages' => [
             'saved' => 'Awqaf test saved successfully.',
+            'deleted' => 'Awqaf test deleted successfully.',
+            'deleted_void_reason' => 'Awqaf test deleted.',
         ],
         'errors' => [
             'final_requires_partials' => 'Final tests require a passed partial cycle for the same juz.',
@@ -497,6 +499,8 @@ return [
         'messages' => [
             'created' => 'Partial test created successfully.',
             'attempt_saved' => 'Partial test attempt saved successfully.',
+            'deleted' => 'Partial test deleted successfully.',
+            'deleted_void_reason' => 'Partial test deleted.',
         ],
         'errors' => [
             'no_active_enrollment' => 'This student does not have an active enrollment in your current scope.',
@@ -591,6 +595,8 @@ return [
         'messages' => [
             'created' => 'Final test created successfully.',
             'attempt_saved' => 'Final test attempt saved successfully.',
+            'deleted' => 'Final test deleted successfully.',
+            'deleted_void_reason' => 'Final test deleted.',
         ],
         'errors' => [
             'already_passed' => 'This final test is already passed and cannot be attempted again.',
@@ -708,6 +714,7 @@ return [
             'invalid_manual_point_type' => 'Choose an active manual point type with a configured non-zero amount.',
             'no_active_enrollment' => 'This student does not have an active enrollment in your current scope.',
             'select_group' => 'Select the active group you want to record this point entry under.',
+            'void_transaction_missing' => 'This point entry is no longer available. Reopen the delete dialog and try again.',
         ],
         'form' => [
             'title' => 'Manual point entry',
@@ -761,6 +768,7 @@ return [
                 'created' => 'Assessment created successfully.',
                 'updated' => 'Assessment updated successfully.',
                 'deleted' => 'Assessment deleted successfully.',
+                'deleted_void_reason' => 'Assessment deleted.',
             ],
             'errors' => [
                 'delete_results' => 'This assessment cannot be deleted while results exist.',
