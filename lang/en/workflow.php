@@ -941,6 +941,7 @@ return [
         'juz_progress' => [
             'title' => 'Quran juz memorization',
             'summary' => ':count completed juz',
+            'empty' => 'No juz has been started yet.',
             'complete' => 'Complete',
             'incomplete' => ':count missing pages',
             'show_missing' => 'Missing pages',

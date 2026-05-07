@@ -251,7 +251,9 @@ new class extends Component {
                     'missing_pages' => $missingPages,
                     'is_complete' => $missingPages->isEmpty(),
                 ];
-            });
+            })
+            ->filter(fn ($row) => $row->memorized_pages > 0)
+            ->values();
 
         $selectedMissingJuz = $this->missingJuzId
             ? $quranJuzProgress->first(fn ($row) => (int) $row->juz->id === (int) $this->missingJuzId)
@@ -327,8 +329,8 @@ new class extends Component {
                         ['label' => __('workflow.student_progress.profile.group'), 'value' => $activeEnrollment?->group?->name ?: __('crud.common.not_available')],
                     ];
                 @endphp
-                <div class="grid gap-5 lg:grid-cols-[9rem_minmax(0,1fr)] lg:items-start">
-                    <div class="aspect-square overflow-hidden rounded-3xl border border-white/10 bg-white/5 shadow-2xl shadow-black/10">
+                <div class="grid gap-5 lg:grid-cols-[7rem_minmax(0,1fr)] lg:items-start">
+                    <div class="h-28 w-28 overflow-hidden rounded-3xl border border-white/10 bg-white/5 shadow-2xl shadow-black/10">
                         @if ($studentPhotoUrl)
                             <img src="{{ $studentPhotoUrl }}" alt="{{ $studentRecord->full_name }}" class="h-full w-full object-cover">
                         @else
@@ -400,6 +402,9 @@ new class extends Component {
             </div>
         </div>
 
+        @if ($quranJuzProgress->isEmpty())
+            <div class="admin-empty-state">{{ __('workflow.student_progress.juz_progress.empty') }}</div>
+        @else
         <div class="overflow-x-auto">
             <table class="text-sm">
                 <thead>
@@ -430,6 +435,7 @@ new class extends Component {
                 </tbody>
             </table>
         </div>
+        @endif
     </section>
 
     @can('quran-partial-tests.view')

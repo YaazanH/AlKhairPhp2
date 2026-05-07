@@ -941,6 +941,7 @@ return [
         'juz_progress' => [
             'title' => 'الأجزاء المحفوظة من القرآن',
             'summary' => ':count جزء مكتمل',
+            'empty' => 'لم يبدأ الطالب بأي جزء بعد.',
             'complete' => 'مكتمل',
             'incomplete' => ':count صفحة ناقصة',
             'show_missing' => 'الصفحات الناقصة',
