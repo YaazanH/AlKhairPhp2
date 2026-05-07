@@ -32,7 +32,7 @@ new class extends Component {
 
         return [
             'activeCurrencies' => FinanceCurrency::query()
-                ->with('rateUpdatedBy')
+                ->with(['rateReferenceCurrency', 'rateUpdatedBy'])
                 ->where('is_active', true)
                 ->orderByDesc('is_local')
                 ->orderByDesc('is_base')

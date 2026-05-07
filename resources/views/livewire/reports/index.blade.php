@@ -21,6 +21,7 @@ new class extends Component {
     public function mount(): void
     {
         $this->authorizePermission('reports.view');
+        $this->academic_year_id = $this->currentAcademicYearId();
     }
 
     public function updatedAcademicYearId(): void
@@ -43,7 +44,7 @@ new class extends Component {
 
     public function clearFilters(): void
     {
-        $this->academic_year_id = null;
+        $this->academic_year_id = $this->currentAcademicYearId();
         $this->assessment_type_id = null;
         $this->group_id = null;
         $this->date_from = '';
@@ -101,6 +102,14 @@ new class extends Component {
 
         return (int) $value;
     }
+
+    protected function currentAcademicYearId(): ?int
+    {
+        return AcademicYear::query()
+            ->where('is_current', true)
+            ->where('is_active', true)
+            ->value('id');
+    }
 }; ?>
 
 @php
@@ -146,7 +155,7 @@ new class extends Component {
                 <p class="mt-3 max-w-3xl text-sm leading-7 text-neutral-300">{{ __('reports.filters.subtitle') }}</p>
             </div>
 
-            <div class="grid gap-4 md:grid-cols-2">
+            <div class="grid gap-4">
                 <div class="grid gap-4">
                     <div>
                         <label class="report-field-label mb-2 block text-sm font-medium">{{ __('reports.filters.academic_year') }}</label>
@@ -169,7 +178,7 @@ new class extends Component {
                     </div>
                 </div>
 
-                <div class="grid gap-4">
+                <div class="grid gap-4 md:grid-cols-2">
                     <div>
                         <label class="report-field-label mb-2 block text-sm font-medium">{{ __('reports.filters.date_from') }}</label>
                         <input wire:model.live="date_from" type="date" class="report-control w-full rounded-xl px-3 py-2.5 text-sm">

@@ -57,8 +57,13 @@
                             @endif
                         </td>
                         <td class="px-5 py-3">
-                            <div>{{ __('finance.fields.requested') }}: {{ number_format((float) $request->requested_amount, 2) }} {{ $request->requestedCurrency?->code }}</div>
-                            <div class="text-xs text-neutral-500">{{ __('finance.fields.accepted') }}: {{ $request->accepted_amount !== null ? number_format((float) $request->accepted_amount, 2).' '.$request->acceptedCurrency?->code : '-' }}</div>
+                            @if ($request->accepted_amount !== null)
+                                <div class="text-base font-semibold text-white">{{ __('finance.fields.accepted') }}: {{ number_format((float) $request->accepted_amount, 2) }} {{ $request->acceptedCurrency?->code }}</div>
+                                <div class="mt-1 text-xs text-neutral-500">{{ __('finance.fields.requested') }}: {{ number_format((float) $request->requested_amount, 2) }} {{ $request->requestedCurrency?->code }}</div>
+                            @else
+                                <div class="text-base font-semibold text-white">{{ __('finance.fields.requested') }}: {{ number_format((float) $request->requested_amount, 2) }} {{ $request->requestedCurrency?->code }}</div>
+                                <div class="mt-1 text-xs text-neutral-500">{{ __('finance.fields.accepted') }}: -</div>
+                            @endif
                         </td>
                         <td class="px-5 py-3"><span class="status-chip {{ $request->status === 'accepted' ? 'status-chip--emerald' : ($request->status === 'declined' ? 'status-chip--rose' : 'status-chip--slate') }}">{{ __('finance.statuses.'.$request->status) }}</span></td>
                         <td class="px-5 py-3">

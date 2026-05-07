@@ -1,4 +1,5 @@
 @props([
+    'title' => __('ui.app.name'),
     'subtitle' => __('ui.app.short_tagline'),
 ])
 
@@ -16,6 +17,6 @@
     @endif
 </div>
 <div class="grid flex-1 text-left leading-tight">
-    <span class="font-display truncate text-base text-white">{{ __('ui.app.name') }}</span>
+    <span class="font-display truncate text-base text-white">{{ $title }}</span>
     <span class="mt-1 truncate text-[0.68rem] font-semibold uppercase tracking-[0.28em] text-neutral-400">{{ $subtitle }}</span>
 </div>

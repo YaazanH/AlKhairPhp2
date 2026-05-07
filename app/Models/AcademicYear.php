@@ -28,6 +28,19 @@ class AcademicYear extends Model
         ];
     }
 
+    protected static function booted(): void
+    {
+        static::saved(function (self $academicYear): void {
+            if (! $academicYear->is_current) {
+                return;
+            }
+
+            static::query()
+                ->whereKeyNot($academicYear->getKey())
+                ->update(['is_current' => false]);
+        });
+    }
+
     public function groups(): HasMany
     {
         return $this->hasMany(Group::class);

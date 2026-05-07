@@ -373,35 +373,22 @@ new class extends Component {
     <section class="page-hero p-6 lg:p-8">
         <div class="dashboard-split grid gap-6 xl:grid-cols-[minmax(0,1.35fr)_22rem] xl:items-start">
             <div>
-                <div class="eyebrow">{{ __('dashboard.hero.workspace', ['role' => __('dashboard.roles.'.$dashboardRole)]) }}</div>
                 <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ $heading }}</h1>
-                <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ $subheading }}</p>
-                <p class="mt-4 max-w-2xl text-sm leading-7 text-neutral-300">{{ $intro }}</p>
+                <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ $currentAcademicYearName }}</p>
+                @if ($dashboardRole === 'unassigned')
+                    <p class="mt-4 max-w-2xl text-sm leading-7 text-neutral-300">{{ $intro }}</p>
+                @endif
 
             </div>
 
             <aside class="surface-panel surface-panel--soft p-4 lg:p-5">
                 <div class="flex items-center gap-4">
-                    <x-user-avatar :user="auth()->user()" size="lg" />
+                    <div class="flex size-20 shrink-0 items-center justify-center overflow-hidden rounded-3xl border border-white/10 bg-white/5">
+                        <x-user-avatar :user="auth()->user()" size="lg" />
+                    </div>
                     <div class="min-w-0">
-                        <div class="eyebrow">{{ __('dashboard.hero.signed_in_as') }}</div>
                         <div class="mt-2 truncate text-xl font-semibold text-white">{{ $profileName }}</div>
-                        <p class="mt-1 truncate text-sm leading-6 text-neutral-300">{{ $profileMeta }}</p>
-                    </div>
-                </div>
-
-                <div class="mt-5 grid gap-3">
-                    <div class="rounded-2xl border border-white/8 bg-white/4 p-3">
-                        <div class="kpi-label">{{ __('dashboard.hero.role') }}</div>
-                        <div class="mt-2 text-sm font-semibold text-white">{{ __('dashboard.roles.'.$dashboardRole) }}</div>
-                    </div>
-                    <div class="rounded-2xl border border-white/8 bg-white/4 p-3">
-                        <div class="kpi-label">{{ __('dashboard.hero.job') }}</div>
-                        <div class="mt-2 text-sm font-semibold text-white">{{ $profileJob }}</div>
-                    </div>
-                    <div class="rounded-2xl border border-white/8 bg-white/4 p-3">
-                        <div class="kpi-label">{{ __('dashboard.hero.current_academic_year') }}</div>
-                        <div class="mt-2 text-sm font-semibold text-white">{{ $currentAcademicYearName }}</div>
+                        <p class="mt-1 truncate text-sm leading-6 text-neutral-300">{{ $profileJob }}</p>
                     </div>
                 </div>
             </aside>

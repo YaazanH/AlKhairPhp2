@@ -2,6 +2,7 @@
 
 use App\Livewire\Concerns\AuthorizesPermissions;
 use App\Livewire\Concerns\FormatsFinanceNumbers;
+use App\Models\AppSetting;
 use App\Models\FinanceCurrency;
 use App\Models\FinanceTransaction;
 use App\Services\FinanceService;
@@ -60,6 +61,8 @@ new class extends Component {
         return [
             'balances' => $financeService->cashBoxBalances(auth()->user()),
             'cashBoxes' => $cashBoxes,
+            'manualAdjustmentEnabled' => $this->financeSettingEnabled('cash_box_manual_adjustment_enabled'),
+            'transferEnabled' => $this->financeSettingEnabled('cash_box_transfer_enabled'),
             'currencies' => FinanceCurrency::query()->where('is_active', true)->orderByDesc('is_local')->orderByDesc('is_base')->orderBy('code')->get(),
             'localCurrency' => $financeService->localCurrency(),
             'adjustCashBoxes' => $financeService->accessibleCashBoxesForCurrency(auth()->user(), $this->adjust_currency_id)->get(),
@@ -114,6 +117,7 @@ new class extends Component {
     public function adjust(): void
     {
         $this->authorizePermission('finance.cash-box.adjust');
+        abort_unless($this->financeSettingEnabled('cash_box_manual_adjustment_enabled'), 404);
         $this->normalizeFinanceNumberProperty('adjust_amount');
 
         $validated = $this->validate([
@@ -174,6 +178,7 @@ new class extends Component {
     public function transfer(): void
     {
         $this->authorizePermission('finance.cash-box.transfer');
+        abort_unless($this->financeSettingEnabled('cash_box_transfer_enabled'), 404);
         $this->normalizeFinanceNumberProperty('transfer_amount');
 
         $validated = $this->validate([
@@ -198,6 +203,13 @@ new class extends Component {
         $this->reset(['transfer_from_cash_box_id', 'transfer_to_cash_box_id', 'transfer_amount', 'transfer_notes']);
         $this->transfer_date = now()->toDateString();
         session()->flash('status', __('finance.messages.transfer_posted'));
+    }
+
+    protected function financeSettingEnabled(string $key): bool
+    {
+        $settings = AppSetting::groupValues('finance');
+
+        return $settings->has($key) ? (bool) $settings->get($key) : true;
     }
 }; ?>
 
@@ -227,6 +239,7 @@ new class extends Component {
     </section>
 
     <section class="grid gap-6 xl:grid-cols-2">
+        @if ($manualAdjustmentEnabled)
         @can('finance.cash-box.adjust')
             <div class="surface-panel p-5 lg:p-6">
                 <div class="admin-section-card__title">{{ __('finance.cash_box.manual_adjustment') }}</div>
@@ -240,7 +253,9 @@ new class extends Component {
                 </form>
             </div>
         @endcan
+        @endif
 
+        @if ($transferEnabled)
         @can('finance.cash-box.transfer')
             <div class="surface-panel p-5 lg:p-6">
                 <div class="admin-section-card__title">{{ __('finance.cash_box.transfer') }}</div>
@@ -255,6 +270,7 @@ new class extends Component {
                 </form>
             </div>
         @endcan
+        @endif
     </section>
 
     <section class="surface-table">

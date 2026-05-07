@@ -8,7 +8,7 @@
     $desktopDropdownAlign = $isRtl ? 'end' : 'start';
     $mobileIdentitySpacingClass = $isRtl ? 'mr-3' : 'ml-3';
     $sidebarGroups = app(\App\Services\SidebarNavigationService::class)->sidebarFor(auth()->user());
-    $monthLabel = now()->locale('en')->translatedFormat('M Y').' / '.\App\Support\ArabicMonthFormatter::monthYear(now());
+    $monthLabel = \App\Support\ArabicMonthFormatter::monthYear(now());
 @endphp
 
 <!DOCTYPE html>
@@ -35,7 +35,7 @@
 
                 <div class="px-1 pt-2">
                     <a href="{{ route('dashboard') }}" class="flex items-center gap-3" wire:navigate>
-                        <x-app-logo :subtitle="$monthLabel" />
+                        <x-app-logo :title="__('ui.app.quran_course')" :subtitle="$monthLabel" />
                     </a>
                 </div>
 

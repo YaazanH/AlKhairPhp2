@@ -7,9 +7,13 @@ use App\Models\Enrollment;
 use App\Models\MemorizationSession;
 use App\Models\PointTransaction;
 use App\Models\QuranFinalTest;
+use App\Models\QuranJuz;
+use App\Models\QuranPartialTest;
 use App\Models\QuranTest;
 use App\Models\Student;
+use App\Models\StudentAttendanceRecord;
 use App\Models\StudentNote;
+use App\Models\StudentPageAchievement;
 use Livewire\Volt\Component;
 
 new class extends Component {
@@ -18,6 +22,7 @@ new class extends Component {
 
     public Student $currentStudent;
     public string $courseFilter = 'all';
+    public ?int $missingJuzId = null;
 
     public function mount(Student $student): void
     {
@@ -28,6 +33,16 @@ new class extends Component {
             ->findOrFail($student->id);
 
         $this->authorizeScopedStudentAccess($this->currentStudent);
+    }
+
+    public function showMissingPages(int $juzId): void
+    {
+        $this->missingJuzId = $juzId;
+    }
+
+    public function closeMissingPages(): void
+    {
+        $this->missingJuzId = null;
     }
 
     public function with(): array
@@ -53,6 +68,24 @@ new class extends Component {
             ->get();
 
         $enrollmentIds = $enrollments->pluck('id')->all();
+        $activeEnrollment = $enrollments->firstWhere('status', 'active') ?: $enrollments->first();
+        $pageAchievementQuery = StudentPageAchievement::query()
+            ->where('student_id', $this->currentStudent->id)
+            ->when(
+                $this->courseFilter !== 'all' && filled($this->courseFilter),
+                fn ($query) => $enrollmentIds === []
+                    ? $query->whereRaw('1 = 0')
+                    : $query->whereIn('first_enrollment_id', $enrollmentIds),
+            );
+
+        $memorizedPages = (clone $pageAchievementQuery)
+            ->distinct()
+            ->pluck('page_no')
+            ->map(fn ($page) => (int) $page)
+            ->unique()
+            ->values();
+
+        $memorizedPageSet = $memorizedPages->flip();
         $courseOptions = $this->scopeEnrollmentsQuery(
             Enrollment::query()
                 ->with('group.course')
@@ -140,6 +173,21 @@ new class extends Component {
                 ->values()
             : collect();
 
+        $quranPartialTests = auth()->user()->can('quran-partial-tests.view')
+            ? $this->scopeQuranPartialTestsQuery(
+                QuranPartialTest::query()
+                    ->with(['enrollment.group', 'juz', 'parts.attempts.teacher'])
+                    ->where('student_id', $this->currentStudent->id)
+                    ->when(
+                        $enrollmentIds === [],
+                        fn ($query) => $query->whereRaw('1 = 0'),
+                        fn ($query) => $query->whereIn('enrollment_id', $enrollmentIds),
+                    )
+            )
+                ->latest('id')
+                ->get()
+            : collect();
+
         $pointTransactions = auth()->user()->can('points.view')
             ? $this->scopePointTransactionsQuery(
                 PointTransaction::query()
@@ -172,6 +220,43 @@ new class extends Component {
             ->latest('id')
             ->get();
 
+        $attendanceDays = auth()->user()->can('attendance.student.view')
+            ? $this->scopeStudentAttendanceRecordsQuery(
+                StudentAttendanceRecord::query()
+                    ->with('status')
+                    ->whereHas('status', fn ($query) => $query->where('is_present', true))
+                    ->when(
+                        $enrollmentIds === [],
+                        fn ($query) => $query->whereRaw('1 = 0'),
+                        fn ($query) => $query->whereIn('enrollment_id', $enrollmentIds),
+                    )
+            )
+                ->distinct('group_attendance_day_id')
+                ->count('group_attendance_day_id')
+            : 0;
+
+        $quranJuzProgress = QuranJuz::query()
+            ->orderBy('juz_number')
+            ->get()
+            ->map(function (QuranJuz $juz) use ($memorizedPageSet) {
+                $pages = range((int) $juz->from_page, (int) $juz->to_page);
+                $missingPages = collect($pages)
+                    ->reject(fn (int $page) => $memorizedPageSet->has($page))
+                    ->values();
+
+                return (object) [
+                    'juz' => $juz,
+                    'total_pages' => count($pages),
+                    'memorized_pages' => count($pages) - $missingPages->count(),
+                    'missing_pages' => $missingPages,
+                    'is_complete' => $missingPages->isEmpty(),
+                ];
+            });
+
+        $selectedMissingJuz = $this->missingJuzId
+            ? $quranJuzProgress->first(fn ($row) => (int) $row->juz->id === (int) $this->missingJuzId)
+            : null;
+
         $pointTypeSummary = $pointTransactions
             ->whereNull('voided_at')
             ->groupBy(fn (PointTransaction $transaction) => $transaction->pointType?->id ?: 'none')
@@ -193,15 +278,28 @@ new class extends Component {
             'enrollments' => $enrollments,
             'assessmentResults' => $assessmentResults,
             'memorizationSessions' => $memorizationSessions,
+            'activeEnrollment' => $activeEnrollment,
             'quranTests' => $quranTests,
+            'quranPartialTests' => $quranPartialTests,
+            'quranJuzProgress' => $quranJuzProgress,
+            'selectedMissingJuz' => $selectedMissingJuz,
             'pointTransactions' => $pointTransactions,
+            'latestPointTransactions' => $pointTransactions->take(10),
             'pointTypeSummary' => $pointTypeSummary,
             'parentVisibleNotes' => $parentVisibleNotes,
             'stats' => [
-                'active_enrollments' => $enrollments->where('status', 'active')->count(),
-                'memorized_pages' => (int) $enrollments->sum('memorized_pages_cached'),
-                'assessment_results' => $assessmentResults->count(),
-                'points' => (int) $enrollments->sum('final_points_cached'),
+                'attendance_days' => $attendanceDays,
+                'memorized_pages' => $memorizedPages->count(),
+                'quran_partial_tests' => $quranPartialTests->count(),
+                'quran_final_tests' => auth()->user()->can('quran-final-tests.view') ? QuranFinalTest::query()
+                    ->where('student_id', $this->currentStudent->id)
+                    ->when(
+                        $enrollmentIds === [],
+                        fn ($query) => $query->whereRaw('1 = 0'),
+                        fn ($query) => $query->whereIn('enrollment_id', $enrollmentIds),
+                    )
+                    ->count() : 0,
+                'points' => (int) $pointTransactions->whereNull('voided_at')->sum('points'),
             ],
         ];
     }
@@ -209,7 +307,7 @@ new class extends Component {
 
 <div class="page-stack">
     <section class="page-hero p-6 lg:p-8">
-        <div class="dashboard-split grid gap-6 xl:grid-cols-[minmax(0,1.35fr)_22rem] xl:items-start">
+        <div class="dashboard-split grid gap-6 xl:grid-cols-[minmax(0,1fr)] xl:items-start">
             <div>
                 <a href="{{ route('students.index') }}" wire:navigate class="text-sm font-medium text-neutral-200/80 hover:text-white">{{ __('ui.nav.students') }}</a>
                 <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('workflow.student_progress.title') }}</h1>
@@ -217,48 +315,55 @@ new class extends Component {
             </div>
 
             <aside class="surface-panel surface-panel--soft p-5 lg:p-6">
-                <div class="student-inline">
-                    <x-student-avatar :student="$studentRecord" size="md" />
-                    <div class="student-inline__body">
-                        <div class="student-inline__name">{{ $studentRecord->first_name }} {{ $studentRecord->last_name }}</div>
-                        <div class="student-inline__meta">{{ $studentRecord->gradeLevel?->name ?: __('crud.common.not_available') }}</div>
+                @php
+                    $studentPhotoUrl = $studentRecord->photo_path ? asset('storage/'.ltrim($studentRecord->photo_path, '/')) : null;
+                    $profileRows = [
+                        ['label' => __('workflow.student_progress.profile.student_no'), 'value' => $studentRecord->student_number ?: __('crud.common.not_available')],
+                        ['label' => __('workflow.student_progress.profile.student_name'), 'value' => $studentRecord->full_name],
+                        ['label' => __('workflow.student_progress.profile.father_name'), 'value' => $studentRecord->parentProfile?->father_name ?: __('crud.common.not_available')],
+                        ['label' => __('workflow.student_progress.profile.birth_year'), 'value' => $studentRecord->birth_date?->format('Y') ?: __('crud.common.not_available')],
+                        ['label' => __('workflow.student_progress.profile.grade'), 'value' => $studentRecord->gradeLevel?->name ?: __('crud.common.not_available')],
+                        ['label' => __('workflow.student_progress.profile.school'), 'value' => $studentRecord->school_name ?: __('crud.common.not_available')],
+                        ['label' => __('workflow.student_progress.profile.group'), 'value' => $activeEnrollment?->group?->name ?: __('crud.common.not_available')],
+                    ];
+                @endphp
+                <div class="grid gap-5 lg:grid-cols-[9rem_minmax(0,1fr)] lg:items-start">
+                    <div class="aspect-square overflow-hidden rounded-3xl border border-white/10 bg-white/5 shadow-2xl shadow-black/10">
+                        @if ($studentPhotoUrl)
+                            <img src="{{ $studentPhotoUrl }}" alt="{{ $studentRecord->full_name }}" class="h-full w-full object-cover">
+                        @else
+                            <div class="flex h-full w-full items-center justify-center text-4xl font-semibold text-white">{{ \Illuminate\Support\Str::upper(\Illuminate\Support\Str::substr($studentRecord->first_name ?: 'S', 0, 1)) }}</div>
+                        @endif
                     </div>
-                </div>
-
-                <div class="mt-6 space-y-4 text-sm">
-                    <div>
-                        <div class="kpi-label">{{ __('workflow.student_progress.profile.parent') }}</div>
-                        <div class="mt-2 text-white">{{ $studentRecord->parentProfile?->father_name ?: __('crud.common.not_available') }}</div>
-                    </div>
-                    <div>
-                        <div class="kpi-label">{{ __('workflow.student_progress.profile.school') }}</div>
-                        <div class="mt-2 text-white">{{ $studentRecord->school_name ?: __('crud.common.not_available') }}</div>
-                    </div>
-                    <div>
-                        <div class="kpi-label">{{ __('workflow.student_progress.profile.current_juz') }}</div>
-                        <div class="mt-2 text-white">{{ $studentRecord->quranCurrentJuz ? __('workflow.common.labels.juz_number', ['number' => $studentRecord->quranCurrentJuz->juz_number]) : __('crud.common.not_available') }}</div>
-                    </div>
-                    <div>
-                        <div class="kpi-label">{{ __('workflow.student_progress.profile.joined_at') }}</div>
-                        <div class="mt-2 text-white">{{ $studentRecord->joined_at?->format('Y-m-d') ?: __('crud.common.not_available') }}</div>
+                    <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                        @foreach ($profileRows as $row)
+                            <div class="rounded-2xl border border-white/8 bg-white/4 p-3">
+                                <div class="kpi-label">{{ $row['label'] }}</div>
+                                <div class="mt-2 text-sm font-semibold text-white">{{ $row['value'] }}</div>
+                            </div>
+                        @endforeach
                     </div>
                 </div>
             </aside>
         </div>
     </section>
 
-    <section class="admin-kpi-grid">
+    <section class="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         <article class="stat-card">
-            <div class="kpi-label">{{ __('workflow.student_progress.stats.active_enrollments') }}</div>
-            <div class="metric-value mt-3">{{ number_format($stats['active_enrollments']) }}</div>
+            <div class="kpi-label">{{ __('workflow.student_progress.stats.attendance_days') }}</div>
+            <div class="metric-value mt-3">{{ number_format($stats['attendance_days']) }}</div>
         </article>
         <article class="stat-card">
             <div class="kpi-label">{{ __('workflow.student_progress.stats.memorized_pages') }}</div>
             <div class="metric-value mt-3">{{ number_format($stats['memorized_pages']) }}</div>
         </article>
         <article class="stat-card">
-            <div class="kpi-label">{{ __('workflow.student_progress.stats.assessment_results') }}</div>
-            <div class="metric-value mt-3">{{ number_format($stats['assessment_results']) }}</div>
+            <div class="kpi-label">{{ __('workflow.student_progress.stats.quran_partial_tests') }}</div>
+            <div class="metric-value mt-3">{{ number_format($stats['quran_partial_tests']) }}</div>
+        </article>
+        <article class="stat-card">
+            <div class="kpi-label">{{ __('workflow.student_progress.stats.quran_final_tests') }}</div>
+            <div class="metric-value mt-3">{{ number_format($stats['quran_final_tests']) }}</div>
         </article>
         <article class="stat-card">
             <div class="kpi-label">{{ __('workflow.student_progress.stats.points') }}</div>
@@ -286,6 +391,89 @@ new class extends Component {
             </div>
         </div>
     </section>
+
+    <section class="surface-table">
+        <div class="admin-grid-meta">
+            <div>
+                <div class="admin-grid-meta__title">{{ __('workflow.student_progress.juz_progress.title') }}</div>
+                <div class="admin-grid-meta__summary">{{ __('workflow.student_progress.juz_progress.summary', ['count' => number_format($quranJuzProgress->where('is_complete', true)->count())]) }}</div>
+            </div>
+        </div>
+
+        <div class="overflow-x-auto">
+            <table class="text-sm">
+                <thead>
+                    <tr>
+                        <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_progress.juz_progress.headers.juz') }}</th>
+                        <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_progress.juz_progress.headers.pages') }}</th>
+                        <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_progress.juz_progress.headers.status') }}</th>
+                        <th class="px-5 py-4 text-right lg:px-6">{{ __('workflow.student_progress.juz_progress.headers.actions') }}</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-white/6">
+                    @foreach ($quranJuzProgress as $row)
+                        <tr>
+                            <td class="px-5 py-4 text-white lg:px-6">{{ __('workflow.common.labels.juz_number', ['number' => $row->juz->juz_number]) }}</td>
+                            <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ number_format($row->memorized_pages) }} / {{ number_format($row->total_pages) }}</td>
+                            <td class="px-5 py-4 lg:px-6">
+                                <span class="status-chip {{ $row->is_complete ? 'status-chip--emerald' : 'status-chip--slate' }}">
+                                    {{ $row->is_complete ? __('workflow.student_progress.juz_progress.complete') : __('workflow.student_progress.juz_progress.incomplete', ['count' => number_format($row->missing_pages->count())]) }}
+                                </span>
+                            </td>
+                            <td class="px-5 py-4 text-right lg:px-6">
+                                <button type="button" wire:click="showMissingPages({{ $row->juz->id }})" class="pill-link pill-link--compact">
+                                    {{ __('workflow.student_progress.juz_progress.show_missing') }}
+                                </button>
+                            </td>
+                        </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    @can('quran-partial-tests.view')
+        <section class="surface-table">
+            <div class="admin-grid-meta">
+                <div>
+                    <div class="admin-grid-meta__title">{{ __('workflow.student_progress.partial_tests.title') }}</div>
+                    <div class="admin-grid-meta__summary">{{ __('crud.common.badges.in_view', ['count' => number_format($quranPartialTests->count())]) }}</div>
+                </div>
+            </div>
+
+            @if ($quranPartialTests->isEmpty())
+                <div class="admin-empty-state">{{ __('workflow.student_progress.partial_tests.empty') }}</div>
+            @else
+                <div class="overflow-x-auto">
+                    <table class="text-sm">
+                        <thead>
+                            <tr>
+                                <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_progress.partial_tests.headers.juz') }}</th>
+                                <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_progress.partial_tests.headers.group') }}</th>
+                                <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_progress.partial_tests.headers.parts') }}</th>
+                                <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_progress.partial_tests.headers.status') }}</th>
+                                <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_progress.partial_tests.headers.passed_on') }}</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-white/6">
+                            @foreach ($quranPartialTests as $partialTest)
+                                @php
+                                    $passedParts = $partialTest->parts->where('status', 'passed')->count();
+                                @endphp
+                                <tr>
+                                    <td class="px-5 py-4 text-white lg:px-6">{{ $partialTest->juz ? __('workflow.common.labels.juz_number', ['number' => $partialTest->juz->juz_number]) : __('crud.common.not_available') }}</td>
+                                    <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $partialTest->enrollment?->group?->name ?: __('crud.common.not_available') }}</td>
+                                    <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ number_format($passedParts) }} / {{ number_format($partialTest->parts->count()) }}</td>
+                                    <td class="px-5 py-4 lg:px-6"><span class="status-chip {{ $partialTest->status === 'passed' ? 'status-chip--emerald' : 'status-chip--slate' }}">{{ __('workflow.quran_partial_tests.statuses.'.$partialTest->status) }}</span></td>
+                                    <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $partialTest->passed_on?->format('Y-m-d') ?: __('crud.common.not_available') }}</td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            @endif
+        </section>
+    @endcan
 
     <section class="surface-table">
         <div class="admin-grid-meta">
@@ -506,12 +694,12 @@ new class extends Component {
         <section class="surface-table">
             <div class="admin-grid-meta">
                 <div>
-                    <div class="admin-grid-meta__title">{{ __('workflow.student_progress.points.title') }}</div>
-                    <div class="admin-grid-meta__summary">{{ __('crud.common.badges.in_view', ['count' => number_format($pointTransactions->count())]) }}</div>
+                    <div class="admin-grid-meta__title">{{ __('workflow.student_progress.points.latest_title') }}</div>
+                    <div class="admin-grid-meta__summary">{{ __('crud.common.badges.in_view', ['count' => number_format($latestPointTransactions->count())]) }}</div>
                 </div>
             </div>
 
-            @if ($pointTransactions->isEmpty())
+            @if ($latestPointTransactions->isEmpty())
                 <div class="admin-empty-state">{{ __('workflow.student_progress.points.empty') }}</div>
             @else
                 <div class="overflow-x-auto">
@@ -527,7 +715,7 @@ new class extends Component {
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-white/6">
-                            @foreach ($pointTransactions as $transaction)
+                            @foreach ($latestPointTransactions as $transaction)
                                 @php
                                     $state = $transaction->voided_at ? 'voided' : 'active';
                                 @endphp
@@ -580,4 +768,24 @@ new class extends Component {
             </div>
         @endif
     </section>
+
+    <x-admin.modal :show="$selectedMissingJuz !== null" :title="$selectedMissingJuz ? __('workflow.student_progress.juz_progress.missing_title', ['juz' => $selectedMissingJuz->juz->juz_number]) : ''" :description="__('workflow.student_progress.juz_progress.missing_subtitle')" close-method="closeMissingPages" max-width="2xl">
+        @if ($selectedMissingJuz)
+            @if ($selectedMissingJuz->missing_pages->isEmpty())
+                <div class="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
+                    {{ __('workflow.student_progress.juz_progress.no_missing_pages') }}
+                </div>
+            @else
+                <div class="flex flex-wrap gap-2">
+                    @foreach ($selectedMissingJuz->missing_pages as $page)
+                        <span class="badge-soft">{{ $page }}</span>
+                    @endforeach
+                </div>
+            @endif
+
+            <div class="mt-5 flex justify-end">
+                <button type="button" wire:click="closeMissingPages" class="pill-link">{{ __('crud.common.actions.close') }}</button>
+            </div>
+        @endif
+    </x-admin.modal>
 </div>

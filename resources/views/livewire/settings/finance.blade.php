@@ -31,12 +31,15 @@ new class extends Component {
     public string $default_expense_print_template_id = '';
     public string $default_revenue_print_template_id = '';
     public string $default_return_print_template_id = '';
+    public bool $cash_box_manual_adjustment_enabled = true;
+    public bool $cash_box_transfer_enabled = true;
 
     public ?int $currency_editing_id = null;
     public string $currency_code = '';
     public string $currency_name = '';
     public string $currency_symbol = '';
     public string $currency_rate_input = '1';
+    public ?int $currency_rate_reference_currency_id = null;
     public bool $currency_is_active = true;
     public bool $currency_is_local = false;
     public bool $currency_is_base = false;
@@ -236,7 +239,7 @@ new class extends Component {
     {
         $this->authorizePermission('finance.currencies.manage');
 
-        $currency = FinanceCurrency::query()->findOrFail($currencyId);
+        $currency = FinanceCurrency::query()->with('rateReferenceCurrency')->findOrFail($currencyId);
         $this->currency_editing_id = $currency->id;
         $this->currency_code = $currency->code;
         $this->currency_name = $currency->name;
@@ -245,6 +248,7 @@ new class extends Component {
         $this->currency_is_local = $currency->is_local;
         $this->currency_is_base = $currency->is_base;
         $this->currency_rate_input = app(FinanceService::class)->currencyRateInput($currency);
+        $this->currency_rate_reference_currency_id = $currency->rate_reference_currency_id ?: app(FinanceService::class)->baseCurrency()->id;
         $this->showCurrencyModal = true;
         $this->resetValidation();
     }
@@ -476,6 +480,7 @@ new class extends Component {
             'currency_is_local' => ['boolean'],
             'currency_name' => ['required', 'string', 'max:255'],
             'currency_rate_input' => ['required', 'numeric', 'gt:0'],
+            'currency_rate_reference_currency_id' => ['nullable', 'integer', 'exists:finance_currencies,id'],
             'currency_symbol' => ['nullable', 'string', 'max:20'],
         ]);
 
@@ -513,14 +518,26 @@ new class extends Component {
             return;
         }
 
-        $rateToBase = (float) $validated['currency_rate_input'];
+        $referenceCurrency = $validated['currency_rate_reference_currency_id']
+            ? FinanceCurrency::query()->find((int) $validated['currency_rate_reference_currency_id'])
+            : app(FinanceService::class)->baseCurrency();
+
+        if (! $validated['currency_is_base'] && $current && $referenceCurrency && (int) $referenceCurrency->id === (int) $current->id) {
+            $this->addError('currency_rate_reference_currency_id', __('finance.validation.currency_reference_self'));
+
+            return;
+        }
+
+        $rateToBase = $referenceCurrency
+            ? (float) $referenceCurrency->rate_to_base / (float) $validated['currency_rate_input']
+            : (float) $validated['currency_rate_input'];
 
         if ($validated['currency_is_base']) {
             $validated['currency_is_active'] = true;
             $rateToBase = 1;
+            $referenceCurrency = null;
         } elseif ($validated['currency_is_local']) {
             $validated['currency_is_active'] = true;
-            $rateToBase = 1 / (float) $validated['currency_rate_input'];
         }
 
         $currency = FinanceCurrency::query()->updateOrCreate(
@@ -531,6 +548,7 @@ new class extends Component {
                 'is_base' => $validated['currency_is_base'],
                 'is_local' => $validated['currency_is_local'],
                 'name' => $validated['currency_name'],
+                'rate_reference_currency_id' => $validated['currency_is_base'] ? null : $referenceCurrency?->id,
                 'rate_to_base' => $rateToBase,
                 'rate_updated_at' => now(),
                 'rate_updated_by' => auth()->id(),
@@ -657,6 +675,8 @@ new class extends Component {
             'default_expense_print_template_id' => ['nullable', 'integer', 'exists:print_templates,id'],
             'default_revenue_print_template_id' => ['nullable', 'integer', 'exists:print_templates,id'],
             'default_return_print_template_id' => ['nullable', 'integer', 'exists:print_templates,id'],
+            'cash_box_manual_adjustment_enabled' => ['boolean'],
+            'cash_box_transfer_enabled' => ['boolean'],
         ]);
 
         AppSetting::storeValue('finance', 'invoice_prefix', strtoupper($validated['invoice_prefix']));
@@ -665,6 +685,8 @@ new class extends Component {
         AppSetting::storeValue('finance', 'default_expense_print_template_id', $validated['default_expense_print_template_id'] ?: null, 'integer');
         AppSetting::storeValue('finance', 'default_revenue_print_template_id', $validated['default_revenue_print_template_id'] ?: null, 'integer');
         AppSetting::storeValue('finance', 'default_return_print_template_id', $validated['default_return_print_template_id'] ?: null, 'integer');
+        AppSetting::storeValue('finance', 'cash_box_manual_adjustment_enabled', $validated['cash_box_manual_adjustment_enabled'], 'boolean');
+        AppSetting::storeValue('finance', 'cash_box_transfer_enabled', $validated['cash_box_transfer_enabled'], 'boolean');
 
         session()->flash('status', __('settings.finance.messages.settings_saved'));
     }
@@ -698,7 +720,7 @@ new class extends Component {
             'baseCurrency' => app(FinanceService::class)->baseCurrency(),
             'balances' => app(FinanceService::class)->cashBoxBalances(auth()->user()),
             'cashBoxes' => FinanceCashBox::query()->with(['assignedUsers', 'currencies'])->orderBy('name')->get(),
-            'currencies' => FinanceCurrency::query()->orderByDesc('is_local')->orderByDesc('is_base')->orderBy('code')->get(),
+            'currencies' => FinanceCurrency::query()->with('rateReferenceCurrency')->orderByDesc('is_local')->orderByDesc('is_base')->orderBy('code')->get(),
             'expenseCategories' => ExpenseCategory::query()->orderBy('name')->get(),
             'financeCategories' => FinanceCategory::query()->orderBy('type')->orderBy('name')->get(),
             'financeInvoiceKinds' => FinanceInvoiceKind::query()->orderBy('name')->get(),
@@ -729,6 +751,7 @@ new class extends Component {
         $this->currency_name = '';
         $this->currency_symbol = '';
         $this->currency_rate_input = '1';
+        $this->currency_rate_reference_currency_id = app(FinanceService::class)->baseCurrency()->id;
         $this->currency_is_active = true;
         $this->currency_is_local = false;
         $this->currency_is_base = false;
@@ -798,6 +821,8 @@ new class extends Component {
         $this->default_expense_print_template_id = (string) ($settings->get('default_expense_print_template_id') ?: '');
         $this->default_revenue_print_template_id = (string) ($settings->get('default_revenue_print_template_id') ?: '');
         $this->default_return_print_template_id = (string) ($settings->get('default_return_print_template_id') ?: '');
+        $this->cash_box_manual_adjustment_enabled = $settings->has('cash_box_manual_adjustment_enabled') ? (bool) $settings->get('cash_box_manual_adjustment_enabled') : true;
+        $this->cash_box_transfer_enabled = $settings->has('cash_box_transfer_enabled') ? (bool) $settings->get('cash_box_transfer_enabled') : true;
     }
 
     protected function financeRequestPrintTemplates()
@@ -853,6 +878,23 @@ new class extends Component {
                     <textarea wire:model="request_terms" rows="2" class="w-full rounded-xl px-4 py-3 text-sm"></textarea>
                     @error('request_terms') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
                 </div>
+            </div>
+
+            <div class="grid gap-3 rounded-3xl border border-white/10 bg-white/[0.03] p-4 md:grid-cols-2">
+                <label class="flex items-start gap-3 text-sm">
+                    <input wire:model="cash_box_manual_adjustment_enabled" type="checkbox" class="mt-1 rounded">
+                    <span>
+                        <span class="block font-semibold text-white">{{ __('finance.settings.show_manual_adjustment') }}</span>
+                        <span class="mt-1 block text-xs leading-5 text-neutral-400">{{ __('finance.settings.show_manual_adjustment_help') }}</span>
+                    </span>
+                </label>
+                <label class="flex items-start gap-3 text-sm">
+                    <input wire:model="cash_box_transfer_enabled" type="checkbox" class="mt-1 rounded">
+                    <span>
+                        <span class="block font-semibold text-white">{{ __('finance.settings.show_cash_box_transfer') }}</span>
+                        <span class="mt-1 block text-xs leading-5 text-neutral-400">{{ __('finance.settings.show_cash_box_transfer_help') }}</span>
+                    </span>
+                </label>
             </div>
 
             <div>
@@ -1026,11 +1068,24 @@ new class extends Component {
                 <input wire:model="currency_name" type="text" class="w-full rounded-xl px-4 py-3 text-sm">
                 @error('currency_name') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
             </div>
-            <div>
-                <label class="mb-1 block text-sm font-medium">{{ $currency_is_local ? __('finance.fields.base_to_local_rate') : __('finance.fields.exchange_rate') }}</label>
+            <div class="grid gap-4 md:grid-cols-[16rem_minmax(0,1fr)]">
+                <div>
+                    <label class="mb-1 block text-sm font-medium">{{ __('finance.fields.rate_reference_currency') }}</label>
+                    <select wire:model="currency_rate_reference_currency_id" @disabled($currency_is_base) class="w-full rounded-xl px-4 py-3 text-sm">
+                        @foreach ($currencies as $currencyOption)
+                            @if (! $currency_editing_id || (int) $currencyOption->id !== (int) $currency_editing_id)
+                                <option value="{{ $currencyOption->id }}">{{ $currencyOption->code }} - {{ $currencyOption->name }}</option>
+                            @endif
+                        @endforeach
+                    </select>
+                    @error('currency_rate_reference_currency_id') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
+                </div>
+                <div>
+                <label class="mb-1 block text-sm font-medium">{{ __('finance.fields.exchange_rate') }}</label>
                 <input wire:model="currency_rate_input" type="text" inputmode="decimal" data-thousand-separator class="w-full rounded-xl px-4 py-3 text-sm">
                 <p class="mt-1 text-xs text-neutral-500">{{ __('finance.settings.rate_help') }}</p>
                 @error('currency_rate_input') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
+                </div>
             </div>
             <div class="grid gap-3 text-sm">
                 <label class="flex items-center gap-3"><input wire:model="currency_is_active" type="checkbox" class="rounded"> {{ __('finance.common.active') }}</label>

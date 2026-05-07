@@ -589,7 +589,16 @@ new class extends Component {
                             <td class="px-5 py-3"><div class="font-medium text-white">{{ $request->request_no }}</div><div class="text-xs text-neutral-500">{{ $request->created_at?->format('Y-m-d H:i') }}</div></td>
                             <td class="px-5 py-3"><div>{{ $request->requestedBy?->name ?: '-' }}</div><div class="text-xs text-neutral-500">{{ $request->teacher ? trim($request->teacher->first_name.' '.$request->teacher->last_name) : '-' }}</div></td>
                             <td class="px-5 py-3"><div>{{ $request->pullRequestKind?->name ?: '-' }}</div><div class="text-xs text-neutral-500">{{ $request->pullRequestKind ? __('finance.pull_modes.'.$request->pullRequestKind->mode) : '-' }}</div></td>
-                            <td class="px-5 py-3"><div>{{ __('finance.fields.requested') }}: {{ number_format((float) $request->requested_amount, 2) }} {{ $request->requestedCurrency?->code }}</div><div class="text-xs text-neutral-500">{{ __('finance.fields.accepted') }}: {{ $request->accepted_amount !== null ? number_format((float) $request->accepted_amount, 2).' '.$request->acceptedCurrency?->code : '-' }}</div>@if($request->requested_count)<div class="text-xs text-neutral-500">{{ __('finance.fields.people_count') }}: {{ number_format((float) ($request->accepted_count ?: $request->requested_count)) }}</div>@endif</td>
+                            <td class="px-5 py-3">
+                                @if ($request->accepted_amount !== null)
+                                    <div class="text-base font-semibold text-white">{{ __('finance.fields.accepted') }}: {{ number_format((float) $request->accepted_amount, 2) }} {{ $request->acceptedCurrency?->code }}</div>
+                                    <div class="mt-1 text-xs text-neutral-500">{{ __('finance.fields.requested') }}: {{ number_format((float) $request->requested_amount, 2) }} {{ $request->requestedCurrency?->code }}</div>
+                                @else
+                                    <div class="text-base font-semibold text-white">{{ __('finance.fields.requested') }}: {{ number_format((float) $request->requested_amount, 2) }} {{ $request->requestedCurrency?->code }}</div>
+                                    <div class="mt-1 text-xs text-neutral-500">{{ __('finance.fields.accepted') }}: -</div>
+                                @endif
+                                @if($request->requested_count)<div class="text-xs text-neutral-500">{{ __('finance.fields.people_count') }}: {{ number_format((float) ($request->accepted_count ?: $request->requested_count)) }}</div>@endif
+                            </td>
                             <td class="px-5 py-3"><span class="status-chip {{ in_array($request->status, ['accepted', 'settled'], true) ? 'status-chip--emerald' : ($request->status === 'declined' ? 'status-chip--rose' : 'status-chip--slate') }}">{{ __('finance.statuses.'.$request->status) }}</span></td>
                             <td class="px-5 py-3">
                                 <div class="flex min-w-[13rem] flex-col items-end gap-2">

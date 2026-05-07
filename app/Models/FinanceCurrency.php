@@ -17,6 +17,7 @@ class FinanceCurrency extends Model
         'name',
         'symbol',
         'rate_to_base',
+        'rate_reference_currency_id',
         'is_active',
         'is_local',
         'is_base',
@@ -38,6 +39,11 @@ class FinanceCurrency extends Model
     public function rateUpdatedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'rate_updated_by');
+    }
+
+    public function rateReferenceCurrency(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'rate_reference_currency_id');
     }
 
     public function cashBoxes(): BelongsToMany

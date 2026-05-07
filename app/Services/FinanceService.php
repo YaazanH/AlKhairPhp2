@@ -380,11 +380,7 @@ class FinanceService
             return '1';
         }
 
-        if ($currency->is_local && (float) $currency->rate_to_base > 0) {
-            return $this->formatRateInputNumber(1 / (float) $currency->rate_to_base, 4);
-        }
-
-        return $this->formatRateInputNumber((float) $currency->rate_to_base, 8);
+        return $this->formatRateInputNumber($this->currencyReferenceQuoteAmount($currency), 8);
     }
 
     public function currencyRateLabel(FinanceCurrency $currency, ?FinanceCurrency $baseCurrency = null): string
@@ -397,18 +393,12 @@ class FinanceService
             ]);
         }
 
-        if ($currency->is_local && (float) $currency->rate_to_base > 0) {
-            return __('finance.rate_formats.base_to_local', [
-                'base' => $baseCurrency->code,
-                'amount' => $this->formatRateNumber(1 / (float) $currency->rate_to_base, 4),
-                'local' => $currency->code,
-            ]);
-        }
+        $referenceCurrency = $currency->rateReferenceCurrency ?: $baseCurrency;
 
-        return __('finance.rate_formats.to_base', [
+        return __('finance.rate_formats.reference_to_currency', [
+            'reference' => $referenceCurrency->code,
+            'amount' => $this->formatRateNumber($this->currencyReferenceQuoteAmount($currency, $referenceCurrency), 8),
             'currency' => $currency->code,
-            'amount' => $this->formatRateNumber((float) $currency->rate_to_base, 8),
-            'base' => $baseCurrency->code,
         ]);
     }
 
@@ -826,15 +816,27 @@ class FinanceService
         ]);
     }
 
-    public function updateCurrencyRate(FinanceCurrency $currency, float $rateToBase, ?User $user = null): FinanceCurrency
+    public function updateCurrencyRate(FinanceCurrency $currency, float $rateToBase, ?User $user = null, ?FinanceCurrency $referenceCurrency = null): FinanceCurrency
     {
         $currency->update([
             'rate_to_base' => $currency->is_base ? 1 : $rateToBase,
+            'rate_reference_currency_id' => $currency->is_base ? null : $referenceCurrency?->id,
             'rate_updated_by' => $user?->id,
             'rate_updated_at' => now(),
         ]);
 
         return $currency->fresh();
+    }
+
+    protected function currencyReferenceQuoteAmount(FinanceCurrency $currency, ?FinanceCurrency $referenceCurrency = null): float
+    {
+        if ((float) $currency->rate_to_base <= 0) {
+            return 1.0;
+        }
+
+        $referenceCurrency ??= $currency->rateReferenceCurrency ?: $this->baseCurrency();
+
+        return (float) $referenceCurrency->rate_to_base / (float) $currency->rate_to_base;
     }
 
     protected function currentBalance(FinanceCashBox $cashBox, FinanceCurrency $currency): float
