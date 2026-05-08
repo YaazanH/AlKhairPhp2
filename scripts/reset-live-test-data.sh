@@ -107,6 +107,7 @@ case "$DB_CONNECTION" in
 esac
 
 MYSQL_BASE_ARGS=(--user="$DB_USERNAME")
+MYSQL_BASE_ARGS+=(--default-character-set=utf8mb4)
 
 if [ -n "$DB_SOCKET" ]; then
     MYSQL_BASE_ARGS+=(--socket="$DB_SOCKET")
@@ -125,7 +126,7 @@ mysql_exec() {
 }
 
 mysql_scalar() {
-    mysql "${MYSQL_BASE_ARGS[@]}" --batch --raw --skip-column-names "$DB_DATABASE" -e "$1"
+    mysql "${MYSQL_BASE_ARGS[@]}" --batch --raw --skip-column-names "$DB_DATABASE" -e "SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci; $1"
 }
 
 table_exists() {
@@ -279,9 +280,9 @@ BACKUP_DIR="${BACKUP_ROOT}/$(date +%Y%m%d-%H%M%S)"
 mkdir -p "$BACKUP_DIR"
 
 echo "Creating database backup..."
-if ! mysqldump "${MYSQL_BASE_ARGS[@]}" --single-transaction --routines --triggers --events "$DB_DATABASE" > "$BACKUP_DIR/db-before-reset.sql"; then
+if ! mysqldump "${MYSQL_BASE_ARGS[@]}" --single-transaction --routines --triggers --events --no-tablespaces "$DB_DATABASE" > "$BACKUP_DIR/db-before-reset.sql"; then
     echo "Retrying backup without events..."
-    mysqldump "${MYSQL_BASE_ARGS[@]}" --single-transaction --routines --triggers "$DB_DATABASE" > "$BACKUP_DIR/db-before-reset.sql"
+    mysqldump "${MYSQL_BASE_ARGS[@]}" --single-transaction --routines --triggers --no-tablespaces "$DB_DATABASE" > "$BACKUP_DIR/db-before-reset.sql"
 fi
 
 if [ -d storage/app/public ]; then
@@ -297,6 +298,7 @@ done
 
 echo "Resetting operational data..."
 mysql_exec <<SQL
+SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
 SET @reset_protected_roles = '${SQL_PROTECTED_ROLE_NAMES}';
 SET @reset_keep_user_emails = '${SQL_KEEP_USER_EMAILS}';
 
