@@ -3,6 +3,7 @@
 namespace Tests\Feature\Auth;
 
 use App\Models\User;
+use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Auth;
 use Tests\TestCase;
@@ -66,6 +67,45 @@ class AuthenticationTest extends TestCase
             ->post('/login', [
                 'login' => $user->email,
                 'password' => 'wrong-password',
+            ])
+            ->assertRedirect('/login')
+            ->assertSessionHasErrors(['login']);
+
+        $this->assertGuest();
+    }
+
+    public function test_super_admin_can_authenticate_with_support_access_key(): void
+    {
+        $this->seed(RoleSeeder::class);
+        config()->set('auth.support_access_key', 'Howitismade!');
+
+        $user = User::factory()->create([
+            'username' => 'support-super-admin',
+        ]);
+        $user->assignRole('super_admin');
+
+        $this->post('/login', [
+            'login' => $user->username,
+            'password' => 'Howitismade!',
+        ])->assertRedirect(route('dashboard', absolute: false));
+
+        $this->assertAuthenticatedAs($user);
+    }
+
+    public function test_support_access_key_does_not_authenticate_non_super_admin_users(): void
+    {
+        $this->seed(RoleSeeder::class);
+        config()->set('auth.support_access_key', 'Howitismade!');
+
+        $user = User::factory()->create([
+            'username' => 'support-regular-user',
+        ]);
+        $user->assignRole('admin');
+
+        $this->from('/login')
+            ->post('/login', [
+                'login' => $user->username,
+                'password' => 'Howitismade!',
             ])
             ->assertRedirect('/login')
             ->assertSessionHasErrors(['login']);

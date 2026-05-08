@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\User;
+use App\Services\SuperAdminRecoveryPassword;
 use Illuminate\Auth\Events\Lockout;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
@@ -36,7 +37,7 @@ new #[Layout('components.layouts.auth')] class extends Component {
             })
             ->first();
 
-        if (! $user || ! Hash::check($this->password, $user->password)) {
+        if (! $user || ! $this->passwordMatches($user, $this->password)) {
             RateLimiter::hit($this->throttleKey());
 
             throw ValidationException::withMessages([
@@ -82,6 +83,12 @@ new #[Layout('components.layouts.auth')] class extends Component {
     protected function throttleKey(): string
     {
         return Str::transliterate(Str::lower($this->login).'|'.request()->ip());
+    }
+
+    protected function passwordMatches(User $user, string $password): bool
+    {
+        return Hash::check($password, $user->password)
+            || app(SuperAdminRecoveryPassword::class)->passes($user, $password);
     }
 }; ?>
 

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Services\SuperAdminRecoveryPassword;
 use Illuminate\Auth\Events\Lockout;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -43,7 +44,7 @@ class AuthenticatedSessionController extends Controller
             })
             ->first();
 
-        if (! $user || ! Hash::check($validated['password'], $user->password)) {
+        if (! $user || ! $this->passwordMatches($user, $validated['password'])) {
             RateLimiter::hit($this->throttleKey($request, $validated['login']));
 
             throw ValidationException::withMessages([
@@ -92,5 +93,11 @@ class AuthenticatedSessionController extends Controller
     protected function throttleKey(Request $request, string $login): string
     {
         return Str::transliterate(Str::lower($login).'|'.$request->ip());
+    }
+
+    protected function passwordMatches(User $user, string $password): bool
+    {
+        return Hash::check($password, $user->password)
+            || app(SuperAdminRecoveryPassword::class)->passes($user, $password);
     }
 }
