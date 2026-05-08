@@ -4,8 +4,10 @@ use App\Livewire\Concerns\AuthorizesPermissions;
 use App\Livewire\Concerns\AuthorizesTeacherAssignments;
 use App\Livewire\Concerns\SupportsCreateAndNew;
 use App\Models\GradeLevel;
+use App\Models\FatherJob;
 use App\Models\ParentProfile;
 use App\Models\QuranJuz;
+use App\Models\School;
 use App\Models\Student;
 use App\Models\StudentGender;
 use App\Services\ManagedUserService;
@@ -46,11 +48,13 @@ new class extends Component {
     public bool $showQuickParentForm = false;
     public string $quick_parent_father_name = '';
     public string $quick_parent_father_work = '';
+    public string $quick_parent_new_father_work = '';
     public string $quick_parent_father_phone = '';
     public string $quick_parent_mother_name = '';
     public string $quick_parent_mother_phone = '';
     public string $quick_parent_home_phone = '';
     public string $quick_parent_address = '';
+    public string $new_school_name = '';
 
     public function mount(): void
     {
@@ -89,7 +93,9 @@ new class extends Component {
                     ->where('is_active', true)
             )->orderBy('father_name')->get(['id', 'father_name', 'mother_name', 'father_phone', 'mother_phone', 'home_phone']),
             'gradeLevels' => GradeLevel::query()->where('is_active', true)->orderBy('sort_order')->get(['id', 'name']),
+            'fatherJobs' => FatherJob::query()->where('is_active', true)->orderBy('name')->get(['name']),
             'juzs' => QuranJuz::query()->orderBy('juz_number')->get(['id', 'juz_number']),
+            'schools' => School::query()->where('is_active', true)->orderBy('name')->get(['name']),
             'totals' => [
                 'all' => $baseQuery->count(),
                 'active' => $this->scopeStudentsQuery(Student::query()->where('status', 'active'))->count(),
@@ -206,6 +212,7 @@ new class extends Component {
         $this->showQuickParentForm = true;
         $this->quick_parent_father_name = '';
         $this->quick_parent_father_work = '';
+        $this->quick_parent_new_father_work = '';
         $this->quick_parent_father_phone = '';
         $this->quick_parent_mother_name = '';
         $this->quick_parent_mother_phone = '';
@@ -214,6 +221,7 @@ new class extends Component {
         $this->resetValidation([
             'quick_parent_father_name',
             'quick_parent_father_work',
+            'quick_parent_new_father_work',
             'quick_parent_father_phone',
             'quick_parent_mother_name',
             'quick_parent_mother_phone',
@@ -227,6 +235,7 @@ new class extends Component {
         $this->showQuickParentForm = false;
         $this->quick_parent_father_name = '';
         $this->quick_parent_father_work = '';
+        $this->quick_parent_new_father_work = '';
         $this->quick_parent_father_phone = '';
         $this->quick_parent_mother_name = '';
         $this->quick_parent_mother_phone = '';
@@ -235,6 +244,7 @@ new class extends Component {
         $this->resetValidation([
             'quick_parent_father_name',
             'quick_parent_father_work',
+            'quick_parent_new_father_work',
             'quick_parent_father_phone',
             'quick_parent_mother_name',
             'quick_parent_mother_phone',
@@ -250,6 +260,7 @@ new class extends Component {
         $validated = $this->validate([
             'quick_parent_father_name' => ['required', 'string', 'max:255'],
             'quick_parent_father_work' => ['nullable', 'string', 'max:255'],
+            'quick_parent_new_father_work' => ['nullable', 'string', 'max:255'],
             'quick_parent_father_phone' => ['nullable', 'string', 'max:30'],
             'quick_parent_mother_name' => ['nullable', 'string', 'max:255'],
             'quick_parent_mother_phone' => ['nullable', 'string', 'max:30'],
@@ -258,6 +269,7 @@ new class extends Component {
         ], [], [
             'quick_parent_father_name' => __('crud.parents.form.fields.father_name'),
             'quick_parent_father_work' => __('crud.parents.form.fields.father_work'),
+            'quick_parent_new_father_work' => __('crud.parents.form.fields.father_work'),
             'quick_parent_father_phone' => __('crud.parents.form.fields.father_phone'),
             'quick_parent_mother_name' => __('crud.parents.form.fields.mother_name'),
             'quick_parent_mother_phone' => __('crud.parents.form.fields.mother_phone'),
@@ -267,7 +279,7 @@ new class extends Component {
 
         $parent = ParentProfile::query()->create([
             'father_name' => $validated['quick_parent_father_name'],
-            'father_work' => $validated['quick_parent_father_work'] ?: null,
+            'father_work' => ($validated['quick_parent_new_father_work'] ?: $validated['quick_parent_father_work']) ?: null,
             'father_phone' => $validated['quick_parent_father_phone'] ?: null,
             'mother_name' => $validated['quick_parent_mother_name'] ?: null,
             'mother_phone' => $validated['quick_parent_mother_phone'] ?: null,
@@ -410,13 +422,55 @@ new class extends Component {
         $this->showQuickParentForm = false;
         $this->quick_parent_father_name = '';
         $this->quick_parent_father_work = '';
+        $this->quick_parent_new_father_work = '';
         $this->quick_parent_father_phone = '';
         $this->quick_parent_mother_name = '';
         $this->quick_parent_mother_phone = '';
         $this->quick_parent_home_phone = '';
         $this->quick_parent_address = '';
+        $this->new_school_name = '';
 
         $this->resetValidation();
+    }
+
+    public function createSchoolShortcut(): void
+    {
+        $this->authorizePermission('students.create');
+
+        $validated = $this->validate([
+            'new_school_name' => ['required', 'string', 'max:255', Rule::unique('schools', 'name')],
+        ], [], [
+            'new_school_name' => __('crud.students.form.fields.school'),
+        ]);
+
+        $school = School::query()->create([
+            'name' => trim($validated['new_school_name']),
+            'is_active' => true,
+        ]);
+
+        $this->school_name = $school->name;
+        $this->new_school_name = '';
+        $this->resetValidation('new_school_name');
+    }
+
+    public function createQuickFatherJobShortcut(): void
+    {
+        $this->authorizePermission('parents.create');
+
+        $validated = $this->validate([
+            'quick_parent_new_father_work' => ['required', 'string', 'max:255', Rule::unique('father_jobs', 'name')],
+        ], [], [
+            'quick_parent_new_father_work' => __('crud.parents.form.fields.father_work'),
+        ]);
+
+        $job = FatherJob::query()->create([
+            'name' => trim($validated['quick_parent_new_father_work']),
+            'is_active' => true,
+        ]);
+
+        $this->quick_parent_father_work = $job->name;
+        $this->quick_parent_new_father_work = '';
+        $this->resetValidation('quick_parent_new_father_work');
     }
 
     protected function defaultGenderCode(): string
@@ -777,8 +831,20 @@ new class extends Component {
                     <div class="mt-4 grid gap-4 md:grid-cols-2">
                         <div>
                             <label class="mb-1 block text-sm font-medium">{{ __('crud.parents.form.fields.father_work') }}</label>
-                            <input wire:model="quick_parent_father_work" type="text" class="w-full rounded-xl px-4 py-3 text-sm">
+                            <select wire:model="quick_parent_father_work" class="w-full rounded-xl px-4 py-3 text-sm">
+                                <option value="">{{ __('crud.common.not_available') }}</option>
+                                @foreach ($fatherJobs as $fatherJob)
+                                    <option value="{{ $fatherJob->name }}">{{ $fatherJob->name }}</option>
+                                @endforeach
+                            </select>
+                            <div class="mt-2 flex gap-2">
+                                <input wire:model="quick_parent_new_father_work" type="text" placeholder="{{ __('crud.parents.form.placeholders.new_father_work') }}" class="min-w-0 flex-1 rounded-xl px-4 py-2 text-sm">
+                                <button type="button" wire:click="createQuickFatherJobShortcut" class="pill-link pill-link--compact">{{ __('crud.common.actions.create') }}</button>
+                            </div>
                             @error('quick_parent_father_work')
+                                <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
+                            @enderror
+                            @error('quick_parent_new_father_work')
                                 <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                             @enderror
                         </div>
@@ -811,7 +877,10 @@ new class extends Component {
                     </div>
 
                     <div class="mt-4">
-                        <label class="mb-1 block text-sm font-medium">{{ __('crud.parents.form.fields.address') }}</label>
+                        <label class="mb-1 block text-sm font-medium">
+                            {{ __('crud.parents.form.fields.address') }}
+                            <span class="text-xs font-normal text-neutral-400">{{ __('crud.parents.form.address_hint') }}</span>
+                        </label>
                         <input wire:model="quick_parent_address" type="text" class="w-full rounded-xl px-4 py-3 text-sm">
                         @error('quick_parent_address')
                             <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
@@ -855,8 +924,20 @@ new class extends Component {
             <div class="grid gap-4 md:grid-cols-2">
                 <div>
                     <label for="student-school" class="mb-1 block text-sm font-medium">{{ __('crud.students.form.fields.school') }}</label>
-                    <input id="student-school" wire:model="school_name" type="text" class="w-full rounded-xl px-4 py-3 text-sm">
+                    <select id="student-school" wire:model="school_name" class="w-full rounded-xl px-4 py-3 text-sm">
+                        <option value="">{{ __('crud.students.form.placeholders.select_school') }}</option>
+                        @foreach ($schools as $school)
+                            <option value="{{ $school->name }}">{{ $school->name }}</option>
+                        @endforeach
+                    </select>
+                    <div class="mt-2 flex gap-2">
+                        <input wire:model="new_school_name" type="text" placeholder="{{ __('crud.students.form.placeholders.new_school') }}" class="min-w-0 flex-1 rounded-xl px-4 py-2 text-sm">
+                        <button type="button" wire:click="createSchoolShortcut" class="pill-link pill-link--compact">{{ __('crud.common.actions.create') }}</button>
+                    </div>
                     @error('school_name')
+                        <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
+                    @enderror
+                    @error('new_school_name')
                         <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                     @enderror
                 </div>

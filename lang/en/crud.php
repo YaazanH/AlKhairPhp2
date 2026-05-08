@@ -84,6 +84,10 @@ return [
                 'address' => 'Address',
                 'notes' => 'Notes',
             ],
+            'placeholders' => [
+                'new_father_work' => 'New father job',
+            ],
+            'address_hint' => '(city - region - details)',
             'active_profile' => 'Active profile',
             'create_submit' => 'Create parent',
             'update_submit' => 'Update parent',
@@ -308,6 +312,8 @@ return [
                 'select_gender' => 'Select gender',
                 'select_grade' => 'Select grade',
                 'select_juz' => 'Select juz',
+                'select_school' => 'Select school',
+                'new_school' => 'New school name',
             ],
             'parent_shortcut' => [
                 'action' => 'Quick add parent',

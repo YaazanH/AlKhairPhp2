@@ -3,6 +3,7 @@
 use App\Livewire\Concerns\AuthorizesPermissions;
 use App\Livewire\Concerns\AuthorizesTeacherAssignments;
 use App\Livewire\Concerns\SupportsCreateAndNew;
+use App\Models\FatherJob;
 use App\Models\ParentProfile;
 use App\Services\ManagedUserService;
 use Illuminate\Validation\Rule;
@@ -18,6 +19,7 @@ new class extends Component {
     public ?int $editingId = null;
     public string $father_name = '';
     public string $father_work = '';
+    public string $new_father_work = '';
     public string $father_phone = '';
     public string $mother_name = '';
     public string $mother_phone = '';
@@ -64,6 +66,7 @@ new class extends Component {
 
         return [
             'parents' => $filteredQuery->paginate($this->perPage),
+            'fatherJobs' => FatherJob::query()->where('is_active', true)->orderBy('name')->get(['name']),
             'totals' => [
                 'all' => $baseQuery->count(),
                 'active' => $this->scopeParentsQuery(ParentProfile::query()->where('is_active', true))->count(),
@@ -164,6 +167,7 @@ new class extends Component {
         $this->editingId = $parent->id;
         $this->father_name = $parent->father_name;
         $this->father_work = $parent->father_work ?? '';
+        $this->new_father_work = '';
         $this->father_phone = $parent->father_phone ?? '';
         $this->mother_name = $parent->mother_name ?? '';
         $this->mother_phone = $parent->mother_phone ?? '';
@@ -266,6 +270,7 @@ new class extends Component {
         $this->editingId = null;
         $this->father_name = '';
         $this->father_work = '';
+        $this->new_father_work = '';
         $this->father_phone = '';
         $this->mother_name = '';
         $this->mother_phone = '';
@@ -276,6 +281,26 @@ new class extends Component {
         $this->showFormModal = false;
 
         $this->resetValidation();
+    }
+
+    public function createFatherJobShortcut(): void
+    {
+        $this->authorizePermission('parents.create');
+
+        $validated = $this->validate([
+            'new_father_work' => ['required', 'string', 'max:255', Rule::unique('father_jobs', 'name')],
+        ], [], [
+            'new_father_work' => __('crud.parents.form.fields.father_work'),
+        ]);
+
+        $job = FatherJob::query()->create([
+            'name' => trim($validated['new_father_work']),
+            'is_active' => true,
+        ]);
+
+        $this->father_work = $job->name;
+        $this->new_father_work = '';
+        $this->resetValidation('new_father_work');
     }
 
     public function delete(int $parentId): void
@@ -458,8 +483,20 @@ new class extends Component {
             <div class="grid gap-4 md:grid-cols-2">
                 <div>
                     <label for="father-work" class="mb-1 block text-sm font-medium">{{ __('crud.parents.form.fields.father_work') }}</label>
-                    <input id="father-work" wire:model="father_work" type="text" class="w-full rounded-xl px-4 py-3 text-sm">
+                    <select id="father-work" wire:model="father_work" class="w-full rounded-xl px-4 py-3 text-sm">
+                        <option value="">{{ __('crud.common.not_available') }}</option>
+                        @foreach ($fatherJobs as $fatherJob)
+                            <option value="{{ $fatherJob->name }}">{{ $fatherJob->name }}</option>
+                        @endforeach
+                    </select>
+                    <div class="mt-2 flex gap-2">
+                        <input wire:model="new_father_work" type="text" placeholder="{{ __('crud.parents.form.placeholders.new_father_work') }}" class="min-w-0 flex-1 rounded-xl px-4 py-2 text-sm">
+                        <button type="button" wire:click="createFatherJobShortcut" class="pill-link pill-link--compact">{{ __('crud.common.actions.create') }}</button>
+                    </div>
                     @error('father_work')
+                        <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
+                    @enderror
+                    @error('new_father_work')
                         <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                     @enderror
                 </div>
@@ -501,7 +538,10 @@ new class extends Component {
                 </div>
 
                 <div>
-                    <label for="parent-address" class="mb-1 block text-sm font-medium">{{ __('crud.parents.form.fields.address') }}</label>
+                    <label for="parent-address" class="mb-1 block text-sm font-medium">
+                        {{ __('crud.parents.form.fields.address') }}
+                        <span class="text-xs font-normal text-neutral-400">{{ __('crud.parents.form.address_hint') }}</span>
+                    </label>
                     <input id="parent-address" wire:model="address" type="text" class="w-full rounded-xl px-4 py-3 text-sm">
                     @error('address')
                         <div class="mt-1 text-sm text-red-400">{{ $message }}</div>

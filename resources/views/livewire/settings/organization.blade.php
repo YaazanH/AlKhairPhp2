@@ -4,7 +4,11 @@ use App\Livewire\Concerns\AuthorizesPermissions;
 use App\Livewire\Concerns\SupportsCreateAndNew;
 use App\Models\AcademicYear;
 use App\Models\AppSetting;
+use App\Models\FatherJob;
 use App\Models\GradeLevel;
+use App\Models\ParentProfile;
+use App\Models\School;
+use App\Models\Student;
 use App\Models\StudentGender;
 use App\Services\StudentGradePromotionService;
 use App\Services\StudentNumberService;
@@ -53,6 +57,16 @@ new class extends Component {
     public bool $grade_level_is_active = true;
     public bool $showGradeLevelModal = false;
 
+    public ?int $school_reference_editing_id = null;
+    public string $school_reference_name = '';
+    public bool $school_reference_is_active = true;
+    public bool $showSchoolReferenceModal = false;
+
+    public ?int $father_job_editing_id = null;
+    public string $father_job_name = '';
+    public bool $father_job_is_active = true;
+    public bool $showFatherJobModal = false;
+
     public ?int $student_gender_editing_id = null;
     public string $student_gender_code = '';
     public string $student_gender_name = '';
@@ -80,6 +94,8 @@ new class extends Component {
                 ->orderBy('sort_order')
                 ->orderBy('name')
                 ->get(),
+            'schoolReferences' => School::query()->orderBy('name')->get(),
+            'fatherJobs' => FatherJob::query()->orderBy('name')->get(),
             'studentGenders' => StudentGender::query()
                 ->orderBy('sort_order')
                 ->orderBy('name')
@@ -87,7 +103,9 @@ new class extends Component {
             'totals' => [
                 'academic_years' => AcademicYear::count(),
                 'active_grade_levels' => GradeLevel::query()->where('is_active', true)->count(),
+                'father_jobs' => FatherJob::count(),
                 'grade_levels' => GradeLevel::count(),
+                'schools' => School::count(),
                 'student_genders' => StudentGender::count(),
             ],
         ];
@@ -173,6 +191,136 @@ new class extends Component {
         }
 
         session()->flash('status', __('settings.organization.messages.student_gender_deleted'));
+    }
+
+    public function openSchoolReferenceModal(): void
+    {
+        $this->authorizePermission('settings.manage');
+        $this->cancelSchoolReference();
+        $this->showSchoolReferenceModal = true;
+    }
+
+    public function editSchoolReference(int $schoolId): void
+    {
+        $this->authorizePermission('settings.manage');
+
+        $school = School::query()->findOrFail($schoolId);
+        $this->school_reference_editing_id = $school->id;
+        $this->school_reference_name = $school->name;
+        $this->school_reference_is_active = $school->is_active;
+        $this->showSchoolReferenceModal = true;
+        $this->resetValidation();
+    }
+
+    public function saveSchoolReference(): void
+    {
+        $this->authorizePermission('settings.manage');
+
+        $validated = $this->validate([
+            'school_reference_name' => ['required', 'string', 'max:255', Rule::unique('schools', 'name')->ignore($this->school_reference_editing_id)],
+            'school_reference_is_active' => ['boolean'],
+        ]);
+
+        School::query()->updateOrCreate(
+            ['id' => $this->school_reference_editing_id],
+            [
+                'name' => trim($validated['school_reference_name']),
+                'is_active' => (bool) $validated['school_reference_is_active'],
+            ],
+        );
+
+        session()->flash('status', $this->school_reference_editing_id ? __('settings.organization.messages.school_updated') : __('settings.organization.messages.school_created'));
+        $this->cancelSchoolReference();
+    }
+
+    public function deleteSchoolReference(int $schoolId): void
+    {
+        $this->authorizePermission('settings.manage');
+
+        $school = School::query()->findOrFail($schoolId);
+
+        if (Student::query()->where('school_name', $school->name)->exists()) {
+            $this->addError('schoolReferenceDelete', __('settings.organization.errors.school_delete_linked'));
+
+            return;
+        }
+
+        $school->delete();
+        session()->flash('status', __('settings.organization.messages.school_deleted'));
+    }
+
+    public function cancelSchoolReference(): void
+    {
+        $this->school_reference_editing_id = null;
+        $this->school_reference_name = '';
+        $this->school_reference_is_active = true;
+        $this->showSchoolReferenceModal = false;
+        $this->resetValidation();
+    }
+
+    public function openFatherJobModal(): void
+    {
+        $this->authorizePermission('settings.manage');
+        $this->cancelFatherJob();
+        $this->showFatherJobModal = true;
+    }
+
+    public function editFatherJob(int $fatherJobId): void
+    {
+        $this->authorizePermission('settings.manage');
+
+        $fatherJob = FatherJob::query()->findOrFail($fatherJobId);
+        $this->father_job_editing_id = $fatherJob->id;
+        $this->father_job_name = $fatherJob->name;
+        $this->father_job_is_active = $fatherJob->is_active;
+        $this->showFatherJobModal = true;
+        $this->resetValidation();
+    }
+
+    public function saveFatherJob(): void
+    {
+        $this->authorizePermission('settings.manage');
+
+        $validated = $this->validate([
+            'father_job_name' => ['required', 'string', 'max:255', Rule::unique('father_jobs', 'name')->ignore($this->father_job_editing_id)],
+            'father_job_is_active' => ['boolean'],
+        ]);
+
+        FatherJob::query()->updateOrCreate(
+            ['id' => $this->father_job_editing_id],
+            [
+                'name' => trim($validated['father_job_name']),
+                'is_active' => (bool) $validated['father_job_is_active'],
+            ],
+        );
+
+        session()->flash('status', $this->father_job_editing_id ? __('settings.organization.messages.father_job_updated') : __('settings.organization.messages.father_job_created'));
+        $this->cancelFatherJob();
+    }
+
+    public function deleteFatherJob(int $fatherJobId): void
+    {
+        $this->authorizePermission('settings.manage');
+
+        $fatherJob = FatherJob::query()->findOrFail($fatherJobId);
+
+        if (ParentProfile::query()->where('father_work', $fatherJob->name)->exists()) {
+            $this->addError('fatherJobDelete', __('settings.organization.errors.father_job_delete_linked'));
+
+            return;
+        }
+
+        $fatherJob->delete();
+        session()->flash('status', __('settings.organization.messages.father_job_deleted'));
+    }
+
+    public function cancelFatherJob(): void
+    {
+        $this->father_job_editing_id = null;
+        $this->father_job_name = '';
+        $this->father_job_is_active = true;
+        $this->showFatherJobModal = false;
+        $this->resetValidation();
     }
 
     public function openOrganizationModal(): void
@@ -912,6 +1060,76 @@ new class extends Component {
                 @endif
             </div>
 
+            <div class="grid gap-6 xl:grid-cols-2">
+                <div class="overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700">
+                    <div class="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-200 px-5 py-4 dark:border-neutral-700">
+                        <div>
+                            <div class="text-sm font-medium">{{ __('settings.organization.sections.school_reference.table') }}</div>
+                            <p class="mt-1 text-xs text-neutral-500">{{ __('settings.organization.sections.school_reference.copy') }}</p>
+                        </div>
+                        <button type="button" wire:click="openSchoolReferenceModal" class="pill-link pill-link--accent">{{ __('settings.organization.actions.create_school') }}</button>
+                    </div>
+                    @error('schoolReferenceDelete') <div class="px-5 pt-4 text-sm text-red-600">{{ $message }}</div> @enderror
+                    @if ($schoolReferences->isEmpty())
+                        <div class="px-5 py-10 text-sm text-neutral-500">{{ __('settings.organization.sections.school_reference.empty') }}</div>
+                    @else
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-neutral-200 text-sm dark:divide-neutral-700">
+                                <thead class="bg-neutral-50 dark:bg-neutral-900/60"><tr><th class="px-5 py-3 text-left font-medium">{{ __('settings.organization.table.name') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.organization.table.state') }}</th><th class="px-5 py-3 text-right font-medium">{{ __('settings.organization.table.actions') }}</th></tr></thead>
+                                <tbody class="divide-y divide-neutral-200 dark:divide-neutral-700">
+                                    @foreach ($schoolReferences as $schoolReference)
+                                        <tr>
+                                            <td class="px-5 py-3 font-medium">{{ $schoolReference->name }}</td>
+                                            <td class="px-5 py-3">{{ $schoolReference->is_active ? __('settings.common.states.active') : __('settings.common.states.inactive') }}</td>
+                                            <td class="px-5 py-3">
+                                                <div class="flex justify-end gap-2">
+                                                    <button type="button" wire:click="editSchoolReference({{ $schoolReference->id }})" class="rounded-lg border border-neutral-300 px-3 py-1.5 dark:border-neutral-700">{{ __('crud.common.actions.edit') }}</button>
+                                                    <button type="button" wire:click="deleteSchoolReference({{ $schoolReference->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="rounded-lg border border-red-300 px-3 py-1.5 text-red-700 dark:border-red-800 dark:text-red-300">{{ __('crud.common.actions.delete') }}</button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                    @endif
+                </div>
+
+                <div class="overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700">
+                    <div class="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-200 px-5 py-4 dark:border-neutral-700">
+                        <div>
+                            <div class="text-sm font-medium">{{ __('settings.organization.sections.father_job.table') }}</div>
+                            <p class="mt-1 text-xs text-neutral-500">{{ __('settings.organization.sections.father_job.copy') }}</p>
+                        </div>
+                        <button type="button" wire:click="openFatherJobModal" class="pill-link pill-link--accent">{{ __('settings.organization.actions.create_father_job') }}</button>
+                    </div>
+                    @error('fatherJobDelete') <div class="px-5 pt-4 text-sm text-red-600">{{ $message }}</div> @enderror
+                    @if ($fatherJobs->isEmpty())
+                        <div class="px-5 py-10 text-sm text-neutral-500">{{ __('settings.organization.sections.father_job.empty') }}</div>
+                    @else
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-neutral-200 text-sm dark:divide-neutral-700">
+                                <thead class="bg-neutral-50 dark:bg-neutral-900/60"><tr><th class="px-5 py-3 text-left font-medium">{{ __('settings.organization.table.name') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.organization.table.state') }}</th><th class="px-5 py-3 text-right font-medium">{{ __('settings.organization.table.actions') }}</th></tr></thead>
+                                <tbody class="divide-y divide-neutral-200 dark:divide-neutral-700">
+                                    @foreach ($fatherJobs as $fatherJob)
+                                        <tr>
+                                            <td class="px-5 py-3 font-medium">{{ $fatherJob->name }}</td>
+                                            <td class="px-5 py-3">{{ $fatherJob->is_active ? __('settings.common.states.active') : __('settings.common.states.inactive') }}</td>
+                                            <td class="px-5 py-3">
+                                                <div class="flex justify-end gap-2">
+                                                    <button type="button" wire:click="editFatherJob({{ $fatherJob->id }})" class="rounded-lg border border-neutral-300 px-3 py-1.5 dark:border-neutral-700">{{ __('crud.common.actions.edit') }}</button>
+                                                    <button type="button" wire:click="deleteFatherJob({{ $fatherJob->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="rounded-lg border border-red-300 px-3 py-1.5 text-red-700 dark:border-red-800 dark:text-red-300">{{ __('crud.common.actions.delete') }}</button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                    @endif
+                </div>
+            </div>
+
             @can('students.promote-grade-levels')
                 <div class="overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700">
                     <div class="border-b border-neutral-200 px-5 py-4 dark:border-neutral-700">
@@ -1133,6 +1351,38 @@ new class extends Component {
                 <button type="button" wire:click="closeGradeLevelModal" class="pill-link">{{ __('crud.common.actions.cancel') }}</button>
                 <button type="submit" class="pill-link pill-link--accent">{{ $grade_level_editing_id ? __('settings.organization.actions.update_grade') : __('settings.organization.actions.create_grade') }}</button>
                 <x-admin.create-and-new-button :show="! $grade_level_editing_id" click="saveAndNew('saveGradeLevel', 'openGradeLevelModal')" />
+            </div>
+        </form>
+    </x-admin.modal>
+
+    <x-admin.modal :show="$showSchoolReferenceModal" :title="$school_reference_editing_id ? __('settings.organization.sections.school_reference.edit') : __('settings.organization.sections.school_reference.create')" :description="__('settings.organization.sections.school_reference.copy')" close-method="cancelSchoolReference" max-width="2xl">
+        <form wire:submit="saveSchoolReference" class="space-y-4">
+            <div>
+                <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.name') }}</label>
+                <input wire:model="school_reference_name" type="text" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                @error('school_reference_name') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+            </div>
+            <label class="flex items-center gap-3 text-sm"><input wire:model="school_reference_is_active" type="checkbox" class="rounded border-neutral-300 text-neutral-900"><span>{{ __('settings.organization.fields.is_active') }}</span></label>
+            <div class="flex justify-end gap-3">
+                <button type="button" wire:click="cancelSchoolReference" class="pill-link">{{ __('crud.common.actions.cancel') }}</button>
+                <button type="submit" class="pill-link pill-link--accent">{{ $school_reference_editing_id ? __('settings.organization.actions.update_school') : __('settings.organization.actions.create_school') }}</button>
+                <x-admin.create-and-new-button :show="! $school_reference_editing_id" click="saveAndNew('saveSchoolReference', 'openSchoolReferenceModal')" />
+            </div>
+        </form>
+    </x-admin.modal>
+
+    <x-admin.modal :show="$showFatherJobModal" :title="$father_job_editing_id ? __('settings.organization.sections.father_job.edit') : __('settings.organization.sections.father_job.create')" :description="__('settings.organization.sections.father_job.copy')" close-method="cancelFatherJob" max-width="2xl">
+        <form wire:submit="saveFatherJob" class="space-y-4">
+            <div>
+                <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.name') }}</label>
+                <input wire:model="father_job_name" type="text" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                @error('father_job_name') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+            </div>
+            <label class="flex items-center gap-3 text-sm"><input wire:model="father_job_is_active" type="checkbox" class="rounded border-neutral-300 text-neutral-900"><span>{{ __('settings.organization.fields.is_active') }}</span></label>
+            <div class="flex justify-end gap-3">
+                <button type="button" wire:click="cancelFatherJob" class="pill-link">{{ __('crud.common.actions.cancel') }}</button>
+                <button type="submit" class="pill-link pill-link--accent">{{ $father_job_editing_id ? __('settings.organization.actions.update_father_job') : __('settings.organization.actions.create_father_job') }}</button>
+                <x-admin.create-and-new-button :show="! $father_job_editing_id" click="saveAndNew('saveFatherJob', 'openFatherJobModal')" />
             </div>
         </form>
     </x-admin.modal>

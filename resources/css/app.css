@@ -1144,6 +1144,11 @@ html[dir='rtl'] .app-pagination__nav {
     flex-direction: row-reverse;
 }
 
+[dir='rtl'] .student-inline--teacher-attendance {
+    justify-content: flex-end;
+    text-align: right;
+}
+
 .student-inline__body {
     min-width: 0;
 }

@@ -20,6 +20,9 @@ class PointPolicy extends Model
         'to_value',
         'points',
         'priority',
+        'period_type',
+        'active_from',
+        'active_until',
         'is_active',
     ];
 
@@ -30,6 +33,8 @@ class PointPolicy extends Model
             'to_value' => 'decimal:2',
             'points' => 'integer',
             'priority' => 'integer',
+            'active_from' => 'date',
+            'active_until' => 'date',
             'is_active' => 'boolean',
         ];
     }

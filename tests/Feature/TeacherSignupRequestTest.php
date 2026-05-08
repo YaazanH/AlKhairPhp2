@@ -49,6 +49,27 @@ class TeacherSignupRequestTest extends TestCase
         Storage::disk('public')->assertExists($teacher->photo_path);
     }
 
+    public function test_public_teacher_signup_photo_is_optional(): void
+    {
+        Storage::fake('public');
+        $this->seed(RoleSeeder::class);
+
+        Volt::test('public.teacher-signup')
+            ->set('first_name', 'No')
+            ->set('last_name', 'Photo')
+            ->set('phone', '0944000101')
+            ->set('username', 'teacher-no-photo')
+            ->set('password', 'Secret123')
+            ->call('submit')
+            ->assertHasNoErrors();
+
+        $teacher = Teacher::query()->with('user')->firstOrFail();
+
+        $this->assertSame('pending', $teacher->status);
+        $this->assertNull($teacher->photo_path);
+        $this->assertNull($teacher->user->profile_photo_path);
+    }
+
     public function test_public_teacher_signup_page_can_be_disabled(): void
     {
         AppSetting::storeValue('website', 'teacher_signup_enabled', false, 'boolean');

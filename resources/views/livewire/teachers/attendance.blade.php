@@ -314,7 +314,7 @@ new class extends Component {
                         @endphp
                         <tr>
                             <td class="px-5 py-4 lg:px-6">
-                                <div class="student-inline">
+                                <div class="student-inline student-inline--teacher-attendance">
                                     <x-teacher-avatar :teacher="$teacher" size="sm" />
                                     <div class="student-inline__body">
                                         <div class="student-inline__name">{{ $teacher->first_name }} {{ $teacher->last_name }}</div>

@@ -29,6 +29,7 @@ new class extends Component {
     public ?int $point_policy_editing_id = null;
     public ?int $point_policy_point_type_id = null;
     public string $point_policy_name = '';
+    public string $point_policy_rule_key = '';
     public string $point_policy_source_type = '';
     public string $point_policy_trigger_key = '';
     public ?int $point_policy_grade_level_id = null;
@@ -36,6 +37,9 @@ new class extends Component {
     public string $point_policy_to_value = '';
     public string $point_policy_points = '0';
     public string $point_policy_priority = '0';
+    public string $point_policy_period_type = 'global';
+    public string $point_policy_active_from = '';
+    public string $point_policy_active_until = '';
     public bool $point_policy_is_active = true;
     public bool $showPointPolicyModal = false;
 
@@ -95,6 +99,7 @@ new class extends Component {
         $this->point_policy_editing_id = $pointPolicy->id;
         $this->point_policy_point_type_id = $pointPolicy->point_type_id;
         $this->point_policy_name = $pointPolicy->name;
+        $this->point_policy_rule_key = $this->pointPolicyRuleKey($pointPolicy->source_type, $pointPolicy->trigger_key);
         $this->point_policy_source_type = $pointPolicy->source_type;
         $this->point_policy_trigger_key = $pointPolicy->trigger_key;
         $this->point_policy_grade_level_id = $pointPolicy->grade_level_id;
@@ -102,6 +107,9 @@ new class extends Component {
         $this->point_policy_to_value = $pointPolicy->to_value !== null ? number_format((float) $pointPolicy->to_value, 2, '.', '') : '';
         $this->point_policy_points = (string) $pointPolicy->points;
         $this->point_policy_priority = (string) $pointPolicy->priority;
+        $this->point_policy_period_type = $pointPolicy->period_type ?: 'global';
+        $this->point_policy_active_from = $pointPolicy->active_from?->toDateString() ?? '';
+        $this->point_policy_active_until = $pointPolicy->active_until?->toDateString() ?? '';
         $this->point_policy_is_active = $pointPolicy->is_active;
         $this->showPointPolicyModal = true;
 
@@ -158,6 +166,7 @@ new class extends Component {
             'point_policy_grade_level_id' => ['nullable', 'integer', Rule::exists('grade_levels', 'id')],
             'point_policy_is_active' => ['boolean'],
             'point_policy_name' => ['required', 'string', 'max:255'],
+            'point_policy_period_type' => ['required', 'in:global,date_window'],
             'point_policy_point_type_id' => [
                 'required',
                 'integer',
@@ -168,9 +177,12 @@ new class extends Component {
             ],
             'point_policy_points' => ['required', 'integer'],
             'point_policy_priority' => ['required', 'integer', 'min:0'],
-            'point_policy_source_type' => ['required', 'string', 'max:50'],
+            'point_policy_rule_key' => [$this->point_policy_source_type !== '' && $this->point_policy_trigger_key !== '' ? 'nullable' : 'required', 'string', Rule::in(array_keys($this->pointPolicyRuleOptions()))],
+            'point_policy_source_type' => [$this->point_policy_rule_key !== '' ? 'nullable' : 'required', 'string', 'max:50'],
             'point_policy_to_value' => ['nullable', 'numeric'],
-            'point_policy_trigger_key' => ['required', 'string', 'max:100'],
+            'point_policy_trigger_key' => [$this->point_policy_rule_key !== '' ? 'nullable' : 'required', 'string', 'max:100'],
+            'point_policy_active_from' => [$this->point_policy_period_type === 'date_window' ? 'required' : 'nullable', 'date'],
+            'point_policy_active_until' => [$this->point_policy_period_type === 'date_window' ? 'required' : 'nullable', 'date', 'after_or_equal:point_policy_active_from'],
         ];
     }
 
@@ -197,9 +209,14 @@ new class extends Component {
         $this->authorizePermission('settings.manage');
 
         $validated = $this->validate($this->pointPolicyRules());
+        [$sourceType, $triggerKey] = $validated['point_policy_rule_key'] !== ''
+            ? explode(':', $validated['point_policy_rule_key'], 2)
+            : [$validated['point_policy_source_type'], $validated['point_policy_trigger_key']];
 
         $fromValue = $validated['point_policy_from_value'] === '' ? null : $validated['point_policy_from_value'];
         $toValue = $validated['point_policy_to_value'] === '' ? null : $validated['point_policy_to_value'];
+        $activeFrom = $validated['point_policy_period_type'] === 'date_window' ? $validated['point_policy_active_from'] : null;
+        $activeUntil = $validated['point_policy_period_type'] === 'date_window' ? $validated['point_policy_active_until'] : null;
 
         if ($fromValue !== null && $toValue !== null && (float) $fromValue > (float) $toValue) {
             $this->addError('point_policy_to_value', __('settings.points.errors.range_invalid'));
@@ -217,9 +234,12 @@ new class extends Component {
                 'point_type_id' => $validated['point_policy_point_type_id'],
                 'points' => (int) $validated['point_policy_points'],
                 'priority' => (int) $validated['point_policy_priority'],
-                'source_type' => $validated['point_policy_source_type'],
+                'period_type' => $validated['point_policy_period_type'],
+                'active_from' => $activeFrom,
+                'active_until' => $activeUntil,
+                'source_type' => $sourceType,
                 'to_value' => $toValue,
-                'trigger_key' => $validated['point_policy_trigger_key'],
+                'trigger_key' => $triggerKey,
             ],
         );
 
@@ -298,6 +318,7 @@ new class extends Component {
         $this->point_policy_editing_id = null;
         $this->point_policy_point_type_id = null;
         $this->point_policy_name = '';
+        $this->point_policy_rule_key = '';
         $this->point_policy_source_type = '';
         $this->point_policy_trigger_key = '';
         $this->point_policy_grade_level_id = null;
@@ -305,6 +326,9 @@ new class extends Component {
         $this->point_policy_to_value = '';
         $this->point_policy_points = '0';
         $this->point_policy_priority = '0';
+        $this->point_policy_period_type = 'global';
+        $this->point_policy_active_from = '';
+        $this->point_policy_active_until = '';
         $this->point_policy_is_active = true;
         $this->showPointPolicyModal = false;
         $this->resetValidation();
@@ -329,6 +353,24 @@ new class extends Component {
         return PointType::query()
             ->whereNotIn('category', $this->hiddenPointTypeCategories)
             ->where('code', '!=', PointLedgerService::ATTENDANCE_POINT_TYPE_CODE);
+    }
+
+    public function pointPolicyRuleKey(string $sourceType, string $triggerKey): string
+    {
+        $key = $sourceType.':'.$triggerKey;
+
+        return array_key_exists($key, $this->pointPolicyRuleOptions()) ? $key : '';
+    }
+
+    public function pointPolicyRuleOptions(): array
+    {
+        return [
+            'memorization:page' => __('settings.points.rule_options.memorization_pages'),
+            'quran_partial_test_part:part_passed' => __('settings.points.rule_options.partial_part_passed'),
+            'quran_partial_test:partial_passed' => __('settings.points.rule_options.partial_passed'),
+            'quran_final_test:final_passed' => __('settings.points.rule_options.final_passed'),
+            'quran_test:awqaf_passed' => __('settings.points.rule_options.awqaf_passed'),
+        ];
     }
 }; ?>
 
@@ -508,7 +550,14 @@ new class extends Component {
                             @foreach ($pointPolicies as $pointPolicy)
                                 <tr>
                                     <td class="px-5 py-3"><div class="font-medium">{{ $pointPolicy->name }}</div><div class="text-xs text-neutral-500">{{ __('settings.points.labels.point_policy_meta', ['pointType' => $pointPolicy->pointType?->name ?: __('crud.common.not_available'), 'gradeLevel' => $pointPolicy->gradeLevel?->name ?: __('settings.points.fields.all_grade_levels')]) }}</div></td>
-                                    <td class="px-5 py-3">{{ $pointPolicy->source_type }} / {{ $pointPolicy->trigger_key }}</td>
+                                    <td class="px-5 py-3">
+                                        <div>{{ $this->pointPolicyRuleOptions()[$this->pointPolicyRuleKey($pointPolicy->source_type, $pointPolicy->trigger_key)] ?? $pointPolicy->source_type.' / '.$pointPolicy->trigger_key }}</div>
+                                        <div class="mt-1 text-xs text-neutral-500">
+                                            {{ $pointPolicy->period_type === 'date_window'
+                                                ? __('settings.points.labels.date_window', ['from' => $pointPolicy->active_from?->toDateString() ?: __('crud.common.not_available'), 'to' => $pointPolicy->active_until?->toDateString() ?: __('crud.common.not_available')])
+                                                : __('settings.points.labels.global_policy') }}
+                                        </div>
+                                    </td>
                                     <td class="px-5 py-3">{{ __('settings.points.labels.point_policy_range', ['from' => $pointPolicy->from_value ?? __('crud.common.not_available'), 'to' => $pointPolicy->to_value ?? __('crud.common.not_available')]) }}</td>
                                     <td class="px-5 py-3">{{ __('settings.points.labels.point_policy_points', ['points' => $pointPolicy->points, 'priority' => $pointPolicy->priority]) }}</td>
                                     <td class="px-5 py-3">{{ $pointPolicy->is_active ? __('settings.common.states.active') : __('settings.common.states.inactive') }}</td>
@@ -555,9 +604,35 @@ new class extends Component {
                 @error('point_policy_point_type_id') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
             </div>
             <div><label class="mb-1 block text-sm font-medium">{{ __('settings.points.fields.policy_name') }}</label><input wire:model="point_policy_name" type="text" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">@error('point_policy_name') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror</div>
-            <div class="grid gap-4 md:grid-cols-2">
-                <div><label class="mb-1 block text-sm font-medium">{{ __('settings.points.fields.source_type') }}</label><input wire:model="point_policy_source_type" type="text" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">@error('point_policy_source_type') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror</div>
-                <div><label class="mb-1 block text-sm font-medium">{{ __('settings.points.fields.trigger_key') }}</label><input wire:model="point_policy_trigger_key" type="text" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">@error('point_policy_trigger_key') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror</div>
+            <div>
+                <label class="mb-1 block text-sm font-medium">{{ __('settings.points.fields.reward_rule') }}</label>
+                <select wire:model="point_policy_rule_key" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                    <option value="">{{ __('settings.points.fields.reward_rule') }}</option>
+                    @foreach ($this->pointPolicyRuleOptions() as $ruleKey => $ruleLabel)
+                        <option value="{{ $ruleKey }}">{{ $ruleLabel }}</option>
+                    @endforeach
+                </select>
+                @error('point_policy_rule_key') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+            </div>
+            <div class="grid gap-4 md:grid-cols-3">
+                <div>
+                    <label class="mb-1 block text-sm font-medium">{{ __('settings.points.fields.period_type') }}</label>
+                    <select wire:model.live="point_policy_period_type" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                        <option value="global">{{ __('settings.points.period_types.global') }}</option>
+                        <option value="date_window">{{ __('settings.points.period_types.date_window') }}</option>
+                    </select>
+                    @error('point_policy_period_type') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+                </div>
+                <div>
+                    <label class="mb-1 block text-sm font-medium">{{ __('settings.points.fields.active_from') }}</label>
+                    <input wire:model="point_policy_active_from" type="date" @disabled($point_policy_period_type === 'global') class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm disabled:opacity-50 dark:border-neutral-700 dark:bg-neutral-900">
+                    @error('point_policy_active_from') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+                </div>
+                <div>
+                    <label class="mb-1 block text-sm font-medium">{{ __('settings.points.fields.active_until') }}</label>
+                    <input wire:model="point_policy_active_until" type="date" @disabled($point_policy_period_type === 'global') class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm disabled:opacity-50 dark:border-neutral-700 dark:bg-neutral-900">
+                    @error('point_policy_active_until') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+                </div>
             </div>
             <div>
                 <label class="mb-1 block text-sm font-medium">{{ __('settings.points.fields.grade_level') }}</label>

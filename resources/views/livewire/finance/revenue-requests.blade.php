@@ -3,12 +3,9 @@
 use App\Livewire\Concerns\AuthorizesPermissions;
 use App\Livewire\Concerns\FormatsFinanceNumbers;
 use App\Livewire\Concerns\SupportsCreateAndNew;
-use App\Models\Activity;
-use App\Models\FinanceCategory;
 use App\Models\FinanceCurrency;
 use App\Models\FinanceRequest;
 use App\Models\FinanceRequestAttachment;
-use App\Models\Teacher;
 use App\Services\FinanceService;
 use Illuminate\Validation\ValidationException;
 use Livewire\Volt\Component;
@@ -27,9 +24,6 @@ new class extends Component {
     public string $request_date = '';
     public ?int $currency_id = null;
     public ?int $cash_box_id = null;
-    public ?int $activity_id = null;
-    public ?int $teacher_id = null;
-    public ?int $finance_category_id = null;
     public string $requested_reason = '';
     public array $attachments = [];
     public array $review_amounts = [];
@@ -50,14 +44,12 @@ new class extends Component {
         $canReview = auth()->user()?->can('finance.revenue-requests.review') ?? false;
 
         return [
-            'activities' => Activity::query()->whereIn('status', ['active', 'finished'])->orderByDesc('activity_date')->orderBy('title')->get(),
             'cashBoxes' => app(FinanceService::class)->accessibleCashBoxesForCurrency(auth()->user(), $this->currency_id)->get(),
             'cashBoxesByCurrency' => FinanceCurrency::query()
                 ->where('is_active', true)
                 ->pluck('id')
                 ->mapWithKeys(fn ($currencyId) => [(int) $currencyId => app(FinanceService::class)->accessibleCashBoxesForCurrency(auth()->user(), (int) $currencyId)->get()])
                 ->all(),
-            'categories' => FinanceCategory::query()->where('is_active', true)->whereIn('type', ['revenue', 'return'])->orderBy('name')->get(),
             'currencies' => app(FinanceService::class)->currenciesForCashBox($this->cash_box_id)->get(),
             'requests' => FinanceRequest::query()
                 ->with(['activity', 'cashBox', 'category', 'requestedBy', 'reviewedBy', 'teacher', 'requestedCurrency', 'acceptedCurrency', 'attachments'])
@@ -65,7 +57,6 @@ new class extends Component {
                 ->when(! $canReview, fn ($query) => $query->where('requested_by', auth()->id()))
                 ->latest()
                 ->paginate($this->perPage),
-            'teachers' => Teacher::query()->where('status', 'active')->orderBy('first_name')->orderBy('last_name')->get(),
         ];
     }
 
@@ -80,28 +71,15 @@ new class extends Component {
         }
 
         $validated = $this->validate([
-            'activity_id' => [$this->request_type === FinanceRequest::TYPE_RETURN ? 'required' : 'nullable', 'exists:activities,id'],
             'amount' => ['required', 'numeric', 'gt:0'],
             'attachments' => ['array'],
             'attachments.*' => ['file', 'max:4096', 'mimes:jpg,jpeg,png,webp,pdf'],
             'cash_box_id' => [$canReview ? 'required' : 'nullable', 'exists:finance_cash_boxes,id'],
             'currency_id' => ['required', 'exists:finance_currencies,id'],
-            'finance_category_id' => ['nullable', 'exists:finance_categories,id'],
             'request_date' => [auth()->user()?->can('finance.entries.update') ? 'required' : 'nullable', 'date'],
             'request_type' => ['required', 'in:revenue,return'],
             'requested_reason' => ['required', 'string', 'max:2000'],
-            'teacher_id' => ['nullable', 'exists:teachers,id'],
         ]);
-
-        if ($validated['request_type'] === FinanceRequest::TYPE_RETURN) {
-            $activity = Activity::query()->findOrFail($validated['activity_id']);
-
-            if ($activity->status !== 'finished') {
-                $this->addError('activity_id', __('finance.validation.return_activity_finished'));
-
-                return;
-            }
-        }
 
         $request = FinanceRequest::query()->create([
             'request_no' => app(FinanceService::class)->nextRequestNumber($validated['request_type']),
@@ -109,9 +87,6 @@ new class extends Component {
             'status' => FinanceRequest::STATUS_PENDING,
             'requested_currency_id' => $validated['currency_id'],
             'requested_amount' => $validated['amount'],
-            'activity_id' => $validated['activity_id'] ?: null,
-            'teacher_id' => $validated['teacher_id'] ?: null,
-            'finance_category_id' => $validated['finance_category_id'] ?: null,
             'requested_by' => auth()->id(),
             'requested_reason' => $validated['requested_reason'],
         ]);
@@ -238,9 +213,6 @@ new class extends Component {
         $this->request_date = now()->toDateString();
         $this->currency_id = app(FinanceService::class)->localCurrency()->id;
         $this->cash_box_id = null;
-        $this->activity_id = null;
-        $this->teacher_id = null;
-        $this->finance_category_id = null;
         $this->requested_reason = '';
         $this->attachments = [];
 
@@ -283,9 +255,6 @@ new class extends Component {
             <div><label class="mb-1 block text-sm font-medium">{{ __('finance.common.currency') }}</label><select wire:model="currency_id" class="w-full rounded-xl px-4 py-3 text-sm">@foreach ($currencies as $currency)<option value="{{ $currency->id }}">{{ $currency->code }}</option>@endforeach</select></div>
             @can('finance.entries.update')<div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.entry_date') }}</label><input wire:model="request_date" type="date" class="w-full rounded-xl px-4 py-3 text-sm">@error('request_date') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>@endcan
             @can('finance.revenue-requests.review')<div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.cash_box') }}</label><select wire:model="cash_box_id" class="w-full rounded-xl px-4 py-3 text-sm"><option value="">{{ __('finance.actions.choose_box') }}</option>@foreach ($cashBoxes as $box)<option value="{{ $box->id }}">{{ $box->name }}</option>@endforeach</select>@error('cash_box_id') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>@endcan
-            <div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.activity') }}</label><select wire:model="activity_id" class="w-full rounded-xl px-4 py-3 text-sm"><option value="">{{ __('finance.options.no_activity') }}</option>@foreach ($activities as $activity)<option value="{{ $activity->id }}">{{ $activity->title }} | {{ ucfirst($activity->status) }}</option>@endforeach</select>@error('activity_id') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
-            <div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.teacher') }}</label><select wire:model="teacher_id" class="w-full rounded-xl px-4 py-3 text-sm"><option value="">{{ __('finance.options.no_teacher') }}</option>@foreach ($teachers as $teacher)<option value="{{ $teacher->id }}">{{ $teacher->first_name }} {{ $teacher->last_name }}</option>@endforeach</select></div>
-            <div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.category') }}</label><select wire:model="finance_category_id" class="w-full rounded-xl px-4 py-3 text-sm"><option value="">{{ __('finance.actions.choose_category') }}</option>@foreach ($categories as $category)<option value="{{ $category->id }}">{{ $category->name }}</option>@endforeach</select></div>
             <div class="lg:col-span-3"><label class="mb-1 block text-sm font-medium">{{ __('finance.common.description') }}</label><textarea wire:model="requested_reason" rows="2" class="w-full rounded-xl px-4 py-3 text-sm"></textarea>@error('requested_reason') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
             <div class="lg:col-span-3"><label class="mb-1 block text-sm font-medium">{{ __('finance.common.attachments') }}</label><input wire:model="attachments" type="file" multiple class="w-full rounded-xl px-4 py-3 text-sm">@error('attachments.*') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
             <div class="lg:col-span-3 flex flex-wrap justify-end gap-3">

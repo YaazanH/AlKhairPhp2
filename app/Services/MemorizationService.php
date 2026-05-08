@@ -196,6 +196,7 @@ class MemorizationService
                     'page',
                     $enrollment?->student?->grade_level_id,
                     $newPageCount,
+                    $session->recorded_on?->toDateString() ?? now()->toDateString(),
                 );
 
                 if ($policy?->pointType) {

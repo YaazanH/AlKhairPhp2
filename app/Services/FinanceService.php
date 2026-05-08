@@ -203,6 +203,10 @@ class FinanceService
             $returnTransaction = null;
             $closingTransaction = null;
 
+            if ($invoice->status === 'draft') {
+                $invoice->update(['status' => 'issued']);
+            }
+
             if ($request->postedTransaction) {
                 $metadata = $request->postedTransaction->metadata ?: [];
                 $metadata['reference'] = $reference;

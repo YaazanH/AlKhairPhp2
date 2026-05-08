@@ -20,12 +20,24 @@ class PointLedgerService
 {
     public const ATTENDANCE_POINT_TYPE_CODE = 'system-attendance';
 
-    public function resolvePolicy(string $sourceType, string $triggerKey, ?int $gradeLevelId = null, ?float $value = null): ?PointPolicy
+    public function resolvePolicy(string $sourceType, string $triggerKey, ?int $gradeLevelId = null, ?float $value = null, ?string $eventDate = null): ?PointPolicy
     {
+        $eventDate ??= now()->toDateString();
+
         return PointPolicy::query()
             ->where('source_type', $sourceType)
             ->where('trigger_key', $triggerKey)
             ->where('is_active', true)
+            ->where(fn (Builder $query) => $query
+                ->where('period_type', 'global')
+                ->orWhere(fn (Builder $window) => $window
+                    ->where('period_type', 'date_window')
+                    ->where(fn (Builder $dateQuery) => $dateQuery
+                        ->whereNull('active_from')
+                        ->orWhere('active_from', '<=', $eventDate))
+                    ->where(fn (Builder $dateQuery) => $dateQuery
+                        ->whereNull('active_until')
+                        ->orWhere('active_until', '>=', $eventDate))))
             ->where(fn (Builder $query) => $query
                 ->whereNull('grade_level_id')
                 ->orWhere('grade_level_id', $gradeLevelId))
@@ -36,6 +48,7 @@ class PointLedgerService
                 ->where(fn (Builder $inner) => $inner
                     ->whereNull('to_value')
                     ->orWhere('to_value', '>=', $value)))
+            ->orderByRaw("case when period_type = 'date_window' then 0 else 1 end")
             ->orderByRaw('case when grade_level_id is null then 1 else 0 end')
             ->orderByDesc('priority')
             ->first();
@@ -158,6 +171,7 @@ class PointLedgerService
             'part_passed',
             $partialTest->student?->grade_level_id,
             $score,
+            now()->toDateString(),
         );
 
         if (! $policy?->pointType) {
@@ -188,6 +202,8 @@ class PointLedgerService
             'quran_partial_test',
             'partial_passed',
             $partialTest->student?->grade_level_id,
+            null,
+            now()->toDateString(),
         );
 
         if (! $policy?->pointType) {
@@ -219,6 +235,7 @@ class PointLedgerService
             'final_passed',
             $finalTest->student?->grade_level_id,
             $score,
+            now()->toDateString(),
         );
 
         if (! $policy?->pointType) {
@@ -260,6 +277,7 @@ class PointLedgerService
             $triggerKey,
             $test->student?->grade_level_id,
             $test->score !== null ? (float) $test->score : null,
+            $test->tested_on?->toDateString() ?? now()->toDateString(),
         );
 
         if (! $policy?->pointType) {

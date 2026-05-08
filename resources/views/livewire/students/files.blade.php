@@ -18,6 +18,7 @@ new class extends Component {
     public $photo_upload = null;
     public $file_upload = null;
     public string $file_type = '';
+    public string $captured_photo_data = '';
 
     public function mount(Student $student): void
     {
@@ -94,6 +95,45 @@ new class extends Component {
         ]);
 
         session()->flash('status', __('media.student_files.messages.photo_removed'));
+    }
+
+    public function saveCapturedPhoto(): void
+    {
+        $this->authorizePermission('students.photo.update');
+
+        $validated = $this->validate([
+            'captured_photo_data' => ['required', 'string'],
+        ]);
+
+        if (! preg_match('/^data:image\/(jpeg|jpg|png|webp);base64,/', $validated['captured_photo_data'], $matches)) {
+            $this->addError('captured_photo_data', __('media.student_files.photo.camera_invalid'));
+
+            return;
+        }
+
+        $extension = $matches[1] === 'jpeg' ? 'jpg' : $matches[1];
+        $binary = base64_decode(substr($validated['captured_photo_data'], strpos($validated['captured_photo_data'], ',') + 1), true);
+
+        if ($binary === false || strlen($binary) > 4 * 1024 * 1024) {
+            $this->addError('captured_photo_data', __('media.student_files.photo.camera_invalid'));
+
+            return;
+        }
+
+        $path = 'students/photos/'.$this->currentStudent->id.'/captured-'.now()->format('YmdHis').'.'.$extension;
+        Storage::disk('public')->put($path, $binary);
+
+        if ($this->currentStudent->photo_path) {
+            Storage::disk('public')->delete($this->currentStudent->photo_path);
+        }
+
+        $this->currentStudent->update([
+            'photo_path' => $path,
+        ]);
+
+        $this->captured_photo_data = '';
+
+        session()->flash('status', __('media.student_files.messages.photo_updated'));
     }
 
     public function uploadFile(): void
@@ -216,6 +256,32 @@ new class extends Component {
                             @endif
                         </div>
                     </form>
+
+                    <div class="mt-6 rounded-3xl border border-white/10 bg-white/[0.03] p-4" data-student-camera>
+                        <div class="text-sm font-semibold text-white">{{ __('media.student_files.photo.camera_title') }}</div>
+                        <p class="mt-1 text-xs leading-5 text-neutral-400">{{ __('media.student_files.photo.camera_help') }}</p>
+
+                        <div class="mt-4 overflow-hidden rounded-3xl border border-white/10 bg-black/30">
+                            <video data-camera-video playsinline autoplay muted class="hidden aspect-square w-full object-cover"></video>
+                            <img data-camera-preview alt="{{ __('media.student_files.photo.preview_alt') }}" class="hidden aspect-square w-full object-cover">
+                            <canvas data-camera-canvas class="hidden"></canvas>
+                            <div data-camera-empty class="flex aspect-square w-full items-center justify-center px-6 text-center text-sm text-neutral-400">
+                                {{ __('media.student_files.photo.camera_empty') }}
+                            </div>
+                        </div>
+
+                        <input type="hidden" wire:model="captured_photo_data" data-camera-input>
+                        @error('captured_photo_data')
+                            <div class="mt-2 text-sm text-red-400">{{ $message }}</div>
+                        @enderror
+
+                        <div class="mt-4 flex flex-wrap gap-2">
+                            <button type="button" class="pill-link pill-link--compact" data-camera-start>{{ __('media.student_files.photo.camera_start') }}</button>
+                            <button type="button" class="pill-link pill-link--compact" data-camera-switch>{{ __('media.student_files.photo.camera_switch') }}</button>
+                            <button type="button" class="pill-link pill-link--compact" data-camera-capture>{{ __('media.student_files.photo.camera_capture') }}</button>
+                            <button type="button" wire:click="saveCapturedPhoto" class="pill-link pill-link--compact pill-link--accent">{{ __('media.student_files.photo.camera_save') }}</button>
+                        </div>
+                    </div>
                 @else
                     <div class="mt-5 soft-callout px-4 py-4 text-sm leading-6">
                         {{ __('media.student_files.photo.readonly') }}
@@ -306,4 +372,71 @@ new class extends Component {
             </div>
         </section>
     </div>
+
+    <script>
+        (() => {
+            const boot = () => {
+                document.querySelectorAll('[data-student-camera]').forEach((root) => {
+                    if (root.dataset.ready === '1') return;
+                    root.dataset.ready = '1';
+
+                    const video = root.querySelector('[data-camera-video]');
+                    const preview = root.querySelector('[data-camera-preview]');
+                    const canvas = root.querySelector('[data-camera-canvas]');
+                    const empty = root.querySelector('[data-camera-empty]');
+                    const input = root.querySelector('[data-camera-input]');
+                    let facingMode = 'environment';
+                    let stream = null;
+
+                    const stop = () => {
+                        if (stream) {
+                            stream.getTracks().forEach((track) => track.stop());
+                            stream = null;
+                        }
+                    };
+
+                    const start = async () => {
+                        stop();
+                        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode }, audio: false });
+                        video.srcObject = stream;
+                        video.classList.remove('hidden');
+                        preview.classList.add('hidden');
+                        empty.classList.add('hidden');
+                    };
+
+                    root.querySelector('[data-camera-start]')?.addEventListener('click', () => {
+                        if (! navigator.mediaDevices?.getUserMedia) {
+                            empty.textContent = @js(__('media.student_files.photo.camera_unavailable'));
+                            return;
+                        }
+
+                        start().catch(() => {
+                            empty.textContent = @js(__('media.student_files.photo.camera_denied'));
+                            empty.classList.remove('hidden');
+                        });
+                    });
+
+                    root.querySelector('[data-camera-switch]')?.addEventListener('click', () => {
+                        facingMode = facingMode === 'environment' ? 'user' : 'environment';
+                        start().catch(() => {});
+                    });
+
+                    root.querySelector('[data-camera-capture]')?.addEventListener('click', () => {
+                        if (! stream || ! video.videoWidth) return;
+
+                        canvas.width = video.videoWidth;
+                        canvas.height = video.videoHeight;
+                        canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+                        input.value = canvas.toDataURL('image/jpeg', 0.9);
+                        input.dispatchEvent(new Event('input', { bubbles: true }));
+                        preview.src = input.value;
+                        preview.classList.remove('hidden');
+                    });
+                });
+            };
+
+            document.addEventListener('livewire:navigated', boot);
+            boot();
+        })();
+    </script>
 </div>

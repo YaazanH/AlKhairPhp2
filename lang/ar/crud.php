@@ -84,6 +84,10 @@ return [
                 'address' => 'العنوان',
                 'notes' => 'ملاحظات',
             ],
+            'placeholders' => [
+                'new_father_work' => 'عمل أب جديد',
+            ],
+            'address_hint' => '(المدينة - المنطقة - التفاصيل)',
             'active_profile' => 'ملف نشط',
             'create_submit' => 'إضافة ولي أمر',
             'update_submit' => 'تحديث ولي الأمر',
@@ -308,6 +312,8 @@ return [
                 'select_gender' => 'اختر الجنس',
                 'select_grade' => 'اختر المرحلة',
                 'select_juz' => 'اختر الجزء',
+                'select_school' => 'اختر المدرسة',
+                'new_school' => 'اسم مدرسة جديد',
             ],
             'parent_shortcut' => [
                 'action' => 'إضافة ولي أمر بسرعة',

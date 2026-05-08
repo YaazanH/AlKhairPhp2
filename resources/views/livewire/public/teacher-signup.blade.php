@@ -33,7 +33,7 @@ new #[Layout('components.layouts.auth')] class extends Component {
             'phone' => ['required', 'string', 'max:30'],
             'username' => ['required', 'string', 'max:255', Rule::unique('users', 'username')],
             'password' => ['required', 'string', 'min:8'],
-            'photo_upload' => ['required', 'file', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
+            'photo_upload' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
         ]);
 
         $fullName = trim($validated['first_name'].' '.$validated['last_name']);
@@ -63,9 +63,11 @@ new #[Layout('components.layouts.auth')] class extends Component {
             'notes' => null,
         ]);
 
-        $teacher->forceFill([
-            'photo_path' => $validated['photo_upload']->store('teachers/photos/'.$teacher->id, 'public'),
-        ])->save();
+        if ($validated['photo_upload'] ?? null) {
+            $teacher->forceFill([
+                'photo_path' => $validated['photo_upload']->store('teachers/photos/'.$teacher->id, 'public'),
+            ])->save();
+        }
 
         session()->flash('status', __('access.teacher_signup.messages.submitted'));
 
