@@ -375,6 +375,42 @@ new class extends Component {
 
     <script>
         (() => {
+            const cameraState = window.__alkhairStudentCameraState ??= {
+                cleanupCallbacks: new Set(),
+                listenersAttached: false,
+            };
+
+            const stopAllCameras = () => {
+                cameraState.cleanupCallbacks.forEach((cleanup) => cleanup());
+            };
+
+            const stopWhenLeavingCameraPage = () => {
+                if (! document.querySelector('[data-student-camera]')) {
+                    stopAllCameras();
+                }
+            };
+
+            if (! cameraState.listenersAttached) {
+                cameraState.listenersAttached = true;
+                document.addEventListener('click', (event) => {
+                    if (event.target.closest('a[href]')) {
+                        stopAllCameras();
+                    }
+                }, true);
+                document.addEventListener('submit', stopAllCameras, true);
+                document.addEventListener('visibilitychange', () => {
+                    if (document.visibilityState === 'hidden') {
+                        stopAllCameras();
+                    }
+                });
+                document.addEventListener('livewire:navigate', stopAllCameras);
+                document.addEventListener('livewire:navigating', stopAllCameras);
+                document.addEventListener('livewire:navigated', stopWhenLeavingCameraPage);
+                window.addEventListener('popstate', stopAllCameras);
+                window.addEventListener('pagehide', stopAllCameras);
+                window.addEventListener('beforeunload', stopAllCameras);
+            }
+
             const boot = () => {
                 document.querySelectorAll('[data-student-camera]').forEach((root) => {
                     if (root.dataset.ready === '1') return;
@@ -389,11 +425,30 @@ new class extends Component {
                     let stream = null;
 
                     const stop = () => {
+                        video.pause();
+
                         if (stream) {
                             stream.getTracks().forEach((track) => track.stop());
                             stream = null;
                         }
+
+                        video.srcObject = null;
+                        video.classList.add('hidden');
+                        empty.classList.remove('hidden');
                     };
+
+                    const cleanup = () => stop();
+                    cameraState.cleanupCallbacks.add(cleanup);
+
+                    const observer = new MutationObserver(() => {
+                        if (! document.body.contains(root)) {
+                            cleanup();
+                            cameraState.cleanupCallbacks.delete(cleanup);
+                            observer.disconnect();
+                        }
+                    });
+
+                    observer.observe(document.body, { childList: true, subtree: true });
 
                     const start = async () => {
                         stop();

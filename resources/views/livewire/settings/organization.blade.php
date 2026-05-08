@@ -18,11 +18,13 @@ use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Livewire\Volt\Component;
 use Livewire\WithFileUploads;
+use Livewire\WithPagination;
 
 new class extends Component {
     use AuthorizesPermissions;
     use SupportsCreateAndNew;
     use WithFileUploads;
+    use WithPagination;
 
     public string $school_name = '';
     public string $school_phone = '';
@@ -88,18 +90,18 @@ new class extends Component {
                 ->withCount('groups')
                 ->orderByDesc('is_current')
                 ->orderByDesc('starts_on')
-                ->get(),
+                ->paginate(10, ['*'], 'academic_years_page'),
             'gradeLevels' => GradeLevel::query()
                 ->withCount(['groups', 'students', 'pointPolicies'])
                 ->orderBy('sort_order')
                 ->orderBy('name')
-                ->get(),
-            'schoolReferences' => School::query()->orderBy('name')->get(),
-            'fatherJobs' => FatherJob::query()->orderBy('name')->get(),
+                ->paginate(10, ['*'], 'grade_levels_page'),
+            'schoolReferences' => School::query()->orderBy('name')->paginate(10, ['*'], 'schools_page'),
+            'fatherJobs' => FatherJob::query()->orderBy('name')->paginate(10, ['*'], 'father_jobs_page'),
             'studentGenders' => StudentGender::query()
                 ->orderBy('sort_order')
                 ->orderBy('name')
-                ->get(),
+                ->paginate(10, ['*'], 'student_genders_page'),
             'totals' => [
                 'academic_years' => AcademicYear::count(),
                 'active_grade_levels' => GradeLevel::query()->where('is_active', true)->count(),
@@ -140,6 +142,7 @@ new class extends Component {
         }
 
         $academicYear->delete();
+        $this->resetPage('academic_years_page');
 
         if ($this->academic_year_editing_id === $academicYearId) {
             $this->cancelAcademicYear();
@@ -163,6 +166,7 @@ new class extends Component {
         }
 
         $gradeLevel->delete();
+        $this->resetPage('grade_levels_page');
 
         if ($this->grade_level_editing_id === $gradeLevelId) {
             $this->cancelGradeLevel();
@@ -184,6 +188,7 @@ new class extends Component {
         }
 
         $studentGender->delete();
+        $this->resetPage('student_genders_page');
         $this->ensureDefaultStudentGender();
 
         if ($this->student_gender_editing_id === $studentGenderId) {
@@ -246,6 +251,7 @@ new class extends Component {
         }
 
         $school->delete();
+        $this->resetPage('schools_page');
         session()->flash('status', __('settings.organization.messages.school_deleted'));
     }
 
@@ -311,6 +317,7 @@ new class extends Component {
         }
 
         $fatherJob->delete();
+        $this->resetPage('father_jobs_page');
         session()->flash('status', __('settings.organization.messages.father_job_deleted'));
     }
 
@@ -1022,6 +1029,11 @@ new class extends Component {
                             </tbody>
                         </table>
                     </div>
+                    @if ($academicYears->hasPages())
+                        <div class="border-t border-neutral-200 px-5 py-4 dark:border-neutral-700">
+                            {{ $academicYears->links() }}
+                        </div>
+                    @endif
                 @endif
             </div>
 
@@ -1057,6 +1069,11 @@ new class extends Component {
                             </tbody>
                         </table>
                     </div>
+                    @if ($gradeLevels->hasPages())
+                        <div class="border-t border-neutral-200 px-5 py-4 dark:border-neutral-700">
+                            {{ $gradeLevels->links() }}
+                        </div>
+                    @endif
                 @endif
             </div>
 
@@ -1092,6 +1109,11 @@ new class extends Component {
                                 </tbody>
                             </table>
                         </div>
+                        @if ($schoolReferences->hasPages())
+                            <div class="border-t border-neutral-200 px-5 py-4 dark:border-neutral-700">
+                                {{ $schoolReferences->links() }}
+                            </div>
+                        @endif
                     @endif
                 </div>
 
@@ -1126,6 +1148,11 @@ new class extends Component {
                                 </tbody>
                             </table>
                         </div>
+                        @if ($fatherJobs->hasPages())
+                            <div class="border-t border-neutral-200 px-5 py-4 dark:border-neutral-700">
+                                {{ $fatherJobs->links() }}
+                            </div>
+                        @endif
                     @endif
                 </div>
             </div>
@@ -1196,6 +1223,11 @@ new class extends Component {
                             </tbody>
                         </table>
                     </div>
+                    @if ($studentGenders->hasPages())
+                        <div class="border-t border-neutral-200 px-5 py-4 dark:border-neutral-700">
+                            {{ $studentGenders->links() }}
+                        </div>
+                    @endif
                 @endif
             </div>
         </section>

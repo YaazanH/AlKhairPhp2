@@ -623,16 +623,18 @@ new class extends Component {
                     </select>
                     @error('point_policy_period_type') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
                 </div>
-                <div>
-                    <label class="mb-1 block text-sm font-medium">{{ __('settings.points.fields.active_from') }}</label>
-                    <input wire:model="point_policy_active_from" type="date" @disabled($point_policy_period_type === 'global') class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm disabled:opacity-50 dark:border-neutral-700 dark:bg-neutral-900">
-                    @error('point_policy_active_from') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
-                </div>
-                <div>
-                    <label class="mb-1 block text-sm font-medium">{{ __('settings.points.fields.active_until') }}</label>
-                    <input wire:model="point_policy_active_until" type="date" @disabled($point_policy_period_type === 'global') class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm disabled:opacity-50 dark:border-neutral-700 dark:bg-neutral-900">
-                    @error('point_policy_active_until') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
-                </div>
+                @if ($point_policy_period_type === 'date_window')
+                    <div>
+                        <label class="mb-1 block text-sm font-medium">{{ __('settings.points.fields.active_from') }}</label>
+                        <input wire:model="point_policy_active_from" type="date" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                        @error('point_policy_active_from') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+                    </div>
+                    <div>
+                        <label class="mb-1 block text-sm font-medium">{{ __('settings.points.fields.active_until') }}</label>
+                        <input wire:model="point_policy_active_until" type="date" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                        @error('point_policy_active_until') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+                    </div>
+                @endif
             </div>
             <div>
                 <label class="mb-1 block text-sm font-medium">{{ __('settings.points.fields.grade_level') }}</label>

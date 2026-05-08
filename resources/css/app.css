@@ -1145,7 +1145,19 @@ html[dir='rtl'] .app-pagination__nav {
 }
 
 [dir='rtl'] .student-inline--teacher-attendance {
-    justify-content: flex-end;
+    width: 100%;
+    direction: ltr;
+    flex-direction: row-reverse;
+    justify-content: flex-start;
+    text-align: right;
+}
+
+.student-inline--teacher-attendance .student-inline__body {
+    text-align: start;
+}
+
+[dir='rtl'] .student-inline--teacher-attendance .student-inline__body {
+    direction: rtl;
     text-align: right;
 }
 
