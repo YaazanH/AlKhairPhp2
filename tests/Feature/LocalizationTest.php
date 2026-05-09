@@ -45,7 +45,7 @@ class LocalizationTest extends TestCase
             ->assertSee('app-sidebar-shell border-l', false)
             ->assertDontSee('lg:order-2', false)
             ->assertDontSee('lg:order-1', false)
-            ->assertSee('لوحة التحكم')
+            ->assertSee('الصفحة الرئيسية')
             ->assertSee('التقارير');
     }
 }

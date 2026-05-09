@@ -70,7 +70,6 @@ class ManagedUserService
     {
         $base = Str::of($preferred)
             ->trim()
-            ->lower()
             ->replaceMatches('/[^a-z0-9._-]+/i', '-')
             ->trim('-_.')
             ->value();

@@ -42,6 +42,7 @@ return [
         'first_name' => 'الاسم الأول',
         'last_name' => 'اسم العائلة',
         'student_number' => 'رقم الطالب',
+        'parent_number' => 'رقم ولي الأمر',
         'father_name' => 'اسم الأب',
         'father_work' => 'عمل الأب',
         'father_phone' => 'رقم الأب',

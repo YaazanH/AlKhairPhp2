@@ -42,6 +42,7 @@ return [
         'first_name' => 'first name',
         'last_name' => 'last name',
         'student_number' => 'student number',
+        'parent_number' => 'parent number',
         'father_name' => 'father name',
         'father_work' => 'father work',
         'father_phone' => 'father phone number',

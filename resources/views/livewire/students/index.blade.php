@@ -25,6 +25,7 @@ new class extends Component {
     public ?int $parent_id = null;
     public string $first_name = '';
     public string $last_name = '';
+    public string $student_phone = '';
     public string $birth_date = '';
     public string $gender = '';
     public string $school_name = '';
@@ -123,6 +124,7 @@ new class extends Component {
             'parent_id' => ['required', 'exists:parents,id'],
             'first_name' => ['required', 'string', 'max:255'],
             'last_name' => ['required', 'string', 'max:255'],
+            'student_phone' => ['nullable', 'string', 'max:30', Rule::unique('users', 'phone')->ignore($this->linkedUserId())],
             'birth_date' => ['required', 'string', function (string $attribute, mixed $value, \Closure $fail): void {
                 if (! $this->isValidBirthYearValue((string) $value)) {
                     $fail(__('validation.date', ['attribute' => __('crud.students.form.fields.birth_year')]));
@@ -167,6 +169,8 @@ new class extends Component {
 
         $validated = $this->validate();
         $this->authorizeScopedParentAccess(ParentProfile::query()->findOrFail($validated['parent_id']));
+        $studentPhone = filled($validated['student_phone'] ?? null) ? trim((string) $validated['student_phone']) : null;
+        unset($validated['student_phone']);
         $validated['birth_date'] = $this->normalizeBirthYearValue((string) $validated['birth_date']);
         $validated['gender'] = $validated['gender'] ?: null;
         $validated['grade_level_id'] = $validated['grade_level_id'] ?: null;
@@ -179,12 +183,14 @@ new class extends Component {
             ['id' => $this->editingId],
             $validated,
         );
+        $student->refresh();
 
         $result = app(ManagedUserService::class)->syncLinkedUser(
             $student->user,
             [
                 'name' => trim($validated['first_name'].' '.$validated['last_name']),
-                'phone' => null,
+                'username' => $student->student_number ?: null,
+                'phone' => $studentPhone,
                 'is_active' => $student->user?->is_active ?? ! in_array($validated['status'], ['inactive', 'blocked'], true),
             ],
             'student',
@@ -288,6 +294,24 @@ new class extends Component {
             'is_active' => true,
         ]);
 
+        $result = app(ManagedUserService::class)->syncLinkedUser(
+            $parent->user,
+            [
+                'name' => $parent->father_name,
+                'username' => $parent->parent_number ?: null,
+                'phone' => $parent->father_phone ?: ($parent->mother_phone ?: $parent->home_phone),
+                'is_active' => true,
+            ],
+            'parent',
+        );
+
+        $parent->user()->associate($result['user']);
+        $parent->save();
+
+        if ($result['credentials']['password']) {
+            session()->flash('generated_credentials', $result['credentials']);
+        }
+
         $this->parent_id = $parent->id;
         session()->flash('status', __('crud.students.messages.parent_shortcut_created', ['name' => $parent->father_name]));
         $this->closeQuickParentForm();
@@ -304,6 +328,7 @@ new class extends Component {
         $this->parent_id = $student->parent_id;
         $this->first_name = $student->first_name;
         $this->last_name = $student->last_name;
+        $this->student_phone = $student->user?->phone ?? '';
         $this->birth_date = $student->birth_date?->format('Y') ?? '';
         $this->gender = $student->gender ?? '';
         $this->school_name = $student->school_name ?? '';
@@ -326,7 +351,7 @@ new class extends Component {
         $this->authorizeScopedStudentAccess($student);
 
         $this->accountStudentId = $student->id;
-        $this->account_username = $student->user?->username ?? '';
+        $this->account_username = $student->user?->username ?? ($student->student_number ?? '');
         $this->account_email = $student->user?->email ?? '';
         $this->account_password = '';
         $this->account_is_active = $student->user?->is_active ?? ! in_array($student->status, ['inactive', 'blocked'], true);
@@ -360,7 +385,7 @@ new class extends Component {
             $student->user,
             [
                 'name' => trim($student->first_name.' '.$student->last_name),
-                'username' => $validated['account_username'] ?: null,
+                'username' => $validated['account_username'] ?: ($student->student_number ?: null),
                 'email' => $validated['account_email'] ?: null,
                 'phone' => null,
                 'password' => $validated['account_password'] ?: null,
@@ -409,6 +434,7 @@ new class extends Component {
         $this->parent_id = null;
         $this->first_name = '';
         $this->last_name = '';
+        $this->student_phone = '';
         $this->birth_date = '';
         $this->gender = $this->defaultGenderCode();
         $this->school_name = '';
@@ -761,6 +787,15 @@ new class extends Component {
                     <label for="student-last-name" class="mb-1 block text-sm font-medium">{{ __('crud.students.form.fields.last_name') }}</label>
                     <input id="student-last-name" wire:model="last_name" type="text" class="w-full rounded-xl px-4 py-3 text-sm">
                     @error('last_name')
+                        <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
+                    @enderror
+                </div>
+
+                <div>
+                    <label for="student-phone" class="mb-1 block text-sm font-medium">{{ __('crud.students.form.fields.phone') }}</label>
+                    <input id="student-phone" wire:model="student_phone" type="text" class="w-full rounded-xl px-4 py-3 text-sm">
+                    <p class="mt-1 text-xs text-neutral-500">{{ __('crud.students.form.student_phone_help') }}</p>
+                    @error('student_phone')
                         <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                     @enderror
                 </div>

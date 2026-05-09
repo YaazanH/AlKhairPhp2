@@ -12,6 +12,7 @@ use App\Models\FinanceCashBoxTransfer;
 use App\Models\FinanceCategory;
 use App\Models\FinanceCurrency;
 use App\Models\FinanceCurrencyExchange;
+use App\Models\FinanceInvoiceKind;
 use App\Models\FinanceRequest;
 use App\Models\FinanceTransaction;
 use App\Models\Invoice;
@@ -138,6 +139,7 @@ class FinanceService
                 $returnTransaction = $this->postTransaction([
                     'cash_box_id' => $generatedRequest->cash_box_id,
                     'currency_id' => $generatedRequest->accepted_currency_id,
+                    'finance_category_id' => $generatedRequest->finance_category_id,
                     'teacher_id' => $generatedRequest->teacher_id,
                     'finance_request_id' => $generatedRequest->id,
                     'source_type' => FinanceRequest::class,
@@ -231,6 +233,7 @@ class FinanceService
                 $returnTransaction = $this->postTransaction([
                     'cash_box_id' => $generatedRequest->cash_box_id,
                     'currency_id' => $generatedRequest->accepted_currency_id,
+                    'finance_category_id' => $generatedRequest->finance_category_id,
                     'teacher_id' => $generatedRequest->teacher_id,
                     'finance_request_id' => $generatedRequest->id,
                     'source_type' => FinanceRequest::class,
@@ -263,6 +266,7 @@ class FinanceService
                 $closingTransaction = $this->postTransaction([
                     'cash_box_id' => $generatedRequest->cash_box_id,
                     'currency_id' => $generatedRequest->accepted_currency_id,
+                    'finance_category_id' => $generatedRequest->finance_category_id,
                     'teacher_id' => $generatedRequest->teacher_id,
                     'finance_request_id' => $generatedRequest->id,
                     'source_type' => FinanceRequest::class,
@@ -448,6 +452,25 @@ class FinanceService
             ->when($configuredId, fn (Builder $query) => $query->whereKey((int) $configuredId))
             ->first()
             ?: FinanceCashBox::query()->orderBy('id')->firstOrFail();
+    }
+
+    public function defaultInvoiceKindId(): int
+    {
+        $kind = FinanceInvoiceKind::query()
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->first()
+            ?: FinanceInvoiceKind::query()->orderBy('name')->first();
+
+        if ($kind) {
+            return (int) $kind->id;
+        }
+
+        return (int) FinanceInvoiceKind::query()->create([
+            'code' => 'general',
+            'is_active' => true,
+            'name' => 'General',
+        ])->id;
     }
 
     public function localCurrency(): FinanceCurrency
@@ -864,6 +887,7 @@ class FinanceService
             'accepted_currency_id' => $currencyId,
             'accepted_amount' => $amount,
             'cash_box_id' => $pullRequest->cash_box_id,
+            'finance_category_id' => $this->defaultFinanceCategoryId($type),
             'teacher_id' => $pullRequest->teacher_id,
             'requested_by' => $pullRequest->requested_by ?: $user?->id,
             'reviewed_by' => $user?->id,
@@ -872,6 +896,15 @@ class FinanceService
             'review_notes' => __('finance.descriptions.generated_from_pull', ['request' => $pullRequest->request_no]),
             'accepted_at' => now(),
         ]);
+    }
+
+    protected function defaultFinanceCategoryId(string $type): ?int
+    {
+        return FinanceCategory::query()
+            ->where('is_active', true)
+            ->where('type', $type)
+            ->orderBy('name')
+            ->value('id');
     }
 
     protected function markGeneratedRequestPosted(FinanceRequest $request, FinanceTransaction $transaction, ?User $user = null): void

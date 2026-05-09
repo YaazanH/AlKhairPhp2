@@ -61,7 +61,8 @@ class AdminExportController extends Controller
             $search = $request->string('search')->value();
             $query->where(function ($builder) use ($search) {
                 $builder
-                    ->where('father_name', 'like', '%'.$search.'%')
+                    ->where('parent_number', 'like', '%'.$search.'%')
+                    ->orWhere('father_name', 'like', '%'.$search.'%')
                     ->orWhere('mother_name', 'like', '%'.$search.'%')
                     ->orWhere('father_phone', 'like', '%'.$search.'%')
                     ->orWhere('mother_phone', 'like', '%'.$search.'%')
@@ -73,7 +74,8 @@ class AdminExportController extends Controller
             $query->where('is_active', $request->string('status')->value() === 'active');
         }
 
-        return $this->streamXlsx('parents', ['Father', 'Mother', 'Username', 'Password', 'Students', 'Primary Phone', 'Status'], $query->get()->map(fn (ParentProfile $parent) => [
+        return $this->streamXlsx('parents', ['Parent No.', 'Father', 'Mother', 'Username', 'Password', 'Students', 'Primary Phone', 'Status'], $query->get()->map(fn (ParentProfile $parent) => [
+            $parent->parent_number,
             $parent->father_name,
             $parent->mother_name,
             $parent->user?->username,

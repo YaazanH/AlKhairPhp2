@@ -68,8 +68,10 @@ class ManagementCrudTest extends TestCase
 
         $parent = ParentProfile::query()->firstOrFail();
 
+        $this->assertSame('P'.str_pad((string) $parent->id, 6, '0', STR_PAD_LEFT), $parent->parent_number);
         $this->assertNotNull($parent->user_id);
         $this->assertTrue($parent->user->hasRole('parent'));
+        $this->assertSame($parent->parent_number, $parent->user->username);
 
         Volt::test('parents.index')
             ->call('edit', $parent->id)
@@ -255,9 +257,15 @@ class ManagementCrudTest extends TestCase
 
         $parent = ParentProfile::query()->firstOrFail();
 
+        $this->assertNotNull($parent->user_id);
+        $this->assertTrue($parent->user->hasRole('parent'));
+        $this->assertNotEmpty($parent->user->issued_password);
+        $this->assertSame($parent->parent_number, $parent->user->username);
+
         $studentComponent
             ->set('first_name', 'Omar')
             ->set('last_name', 'Hasan')
+            ->set('student_phone', '0944999911')
             ->set('birth_date', '2014-05-12')
             ->set('gender', 'male')
             ->set('school_name', 'Alkhair School')
@@ -271,6 +279,8 @@ class ManagementCrudTest extends TestCase
 
         $this->assertNotNull($student->user_id);
         $this->assertTrue($student->user->hasRole('student'));
+        $this->assertSame($student->student_number, $student->user->username);
+        $this->assertSame('0944999911', $student->user->phone);
 
         Volt::test('groups.index')
             ->set('course_id', $course->id)

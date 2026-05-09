@@ -102,6 +102,7 @@ return [
         'expense' => 'المصاريف',
         'net' => 'الصافي',
         'reason' => 'السبب',
+        'revenue_kind' => 'نوع الإيراد',
         'request_no' => 'رقم الطلب',
         'requester' => 'مقدم الطلب',
         'requested' => 'المطلوب',
@@ -191,6 +192,12 @@ return [
     'pull_modes' => [
         'count' => 'عدد',
         'invoice' => 'فاتورة',
+    ],
+    'category_types' => [
+        'expense' => 'مصروف',
+        'management' => 'إداري',
+        'return' => 'إرجاع',
+        'revenue' => 'إيراد',
     ],
     'pull_requests' => [
         'title' => 'طلبات السحب',

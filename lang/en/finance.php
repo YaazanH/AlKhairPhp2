@@ -102,6 +102,7 @@ return [
         'expense' => 'Expense',
         'net' => 'Net',
         'reason' => 'Reason',
+        'revenue_kind' => 'Revenue kind',
         'request_no' => 'Request no.',
         'requester' => 'Requester',
         'requested' => 'Requested',
@@ -191,6 +192,12 @@ return [
     'pull_modes' => [
         'count' => 'Count',
         'invoice' => 'Invoice',
+    ],
+    'category_types' => [
+        'expense' => 'Expense',
+        'management' => 'Management',
+        'return' => 'Return',
+        'revenue' => 'Revenue',
     ],
     'pull_requests' => [
         'title' => 'Pull Requests',

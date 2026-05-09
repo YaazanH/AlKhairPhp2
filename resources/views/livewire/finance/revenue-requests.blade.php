@@ -3,10 +3,12 @@
 use App\Livewire\Concerns\AuthorizesPermissions;
 use App\Livewire\Concerns\FormatsFinanceNumbers;
 use App\Livewire\Concerns\SupportsCreateAndNew;
+use App\Models\FinanceCategory;
 use App\Models\FinanceCurrency;
 use App\Models\FinanceRequest;
 use App\Models\FinanceRequestAttachment;
 use App\Services\FinanceService;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Livewire\Volt\Component;
 use Livewire\WithFileUploads;
@@ -24,6 +26,7 @@ new class extends Component {
     public string $request_date = '';
     public ?int $currency_id = null;
     public ?int $cash_box_id = null;
+    public ?int $finance_category_id = null;
     public string $requested_reason = '';
     public array $attachments = [];
     public array $review_amounts = [];
@@ -51,6 +54,11 @@ new class extends Component {
                 ->mapWithKeys(fn ($currencyId) => [(int) $currencyId => app(FinanceService::class)->accessibleCashBoxesForCurrency(auth()->user(), (int) $currencyId)->get()])
                 ->all(),
             'currencies' => app(FinanceService::class)->currenciesForCashBox($this->cash_box_id)->get(),
+            'revenueCategories' => FinanceCategory::query()
+                ->where('is_active', true)
+                ->whereIn('type', [FinanceRequest::TYPE_REVENUE, FinanceRequest::TYPE_RETURN])
+                ->orderBy('name')
+                ->get(),
             'requests' => FinanceRequest::query()
                 ->with(['activity', 'cashBox', 'category', 'requestedBy', 'reviewedBy', 'teacher', 'requestedCurrency', 'acceptedCurrency', 'attachments'])
                 ->whereIn('type', [FinanceRequest::TYPE_REVENUE, FinanceRequest::TYPE_RETURN])
@@ -76,17 +84,28 @@ new class extends Component {
             'attachments.*' => ['file', 'max:4096', 'mimes:jpg,jpeg,png,webp,pdf'],
             'cash_box_id' => [$canReview ? 'required' : 'nullable', 'exists:finance_cash_boxes,id'],
             'currency_id' => ['required', 'exists:finance_currencies,id'],
+            'finance_category_id' => [
+                'required',
+                Rule::exists('finance_categories', 'id')
+                    ->where('is_active', true)
+                    ->whereIn('type', [FinanceRequest::TYPE_REVENUE, FinanceRequest::TYPE_RETURN]),
+            ],
             'request_date' => [auth()->user()?->can('finance.entries.update') ? 'required' : 'nullable', 'date'],
-            'request_type' => ['required', 'in:revenue,return'],
             'requested_reason' => ['required', 'string', 'max:2000'],
         ]);
+        $category = FinanceCategory::query()
+            ->whereKey($validated['finance_category_id'])
+            ->whereIn('type', [FinanceRequest::TYPE_REVENUE, FinanceRequest::TYPE_RETURN])
+            ->firstOrFail();
+        $requestType = $category->type;
 
         $request = FinanceRequest::query()->create([
-            'request_no' => app(FinanceService::class)->nextRequestNumber($validated['request_type']),
-            'type' => $validated['request_type'],
+            'request_no' => app(FinanceService::class)->nextRequestNumber($requestType),
+            'type' => $requestType,
             'status' => FinanceRequest::STATUS_PENDING,
             'requested_currency_id' => $validated['currency_id'],
             'requested_amount' => $validated['amount'],
+            'finance_category_id' => $category->id,
             'requested_by' => auth()->id(),
             'requested_reason' => $validated['requested_reason'],
         ]);
@@ -142,6 +161,22 @@ new class extends Component {
     {
         if ($this->cash_box_id && $this->currency_id && ! app(FinanceService::class)->accessibleCashBoxesForCurrency(auth()->user(), $this->currency_id)->whereKey($this->cash_box_id)->exists()) {
             $this->cash_box_id = null;
+        }
+    }
+
+    public function updatedRequestType(): void
+    {
+        $this->finance_category_id = $this->defaultCategoryIdForType($this->request_type);
+    }
+
+    public function updatedFinanceCategoryId(): void
+    {
+        $categoryType = FinanceCategory::query()
+            ->whereKey($this->finance_category_id)
+            ->value('type');
+
+        if (in_array($categoryType, [FinanceRequest::TYPE_REVENUE, FinanceRequest::TYPE_RETURN], true)) {
+            $this->request_type = $categoryType;
         }
     }
 
@@ -213,10 +248,31 @@ new class extends Component {
         $this->request_date = now()->toDateString();
         $this->currency_id = app(FinanceService::class)->localCurrency()->id;
         $this->cash_box_id = null;
+        $this->finance_category_id = $this->defaultRevenueKindId();
+        $this->updatedFinanceCategoryId();
         $this->requested_reason = '';
         $this->attachments = [];
 
         $this->resetValidation();
+    }
+
+    protected function defaultCategoryIdForType(string $type): ?int
+    {
+        return FinanceCategory::query()
+            ->where('is_active', true)
+            ->where('type', $type)
+            ->orderBy('name')
+            ->value('id');
+    }
+
+    protected function defaultRevenueKindId(): ?int
+    {
+        return FinanceCategory::query()
+            ->where('is_active', true)
+            ->whereIn('type', [FinanceRequest::TYPE_REVENUE, FinanceRequest::TYPE_RETURN])
+            ->orderByRaw("case when type = 'revenue' then 0 else 1 end")
+            ->orderBy('name')
+            ->value('id');
     }
 
     protected function firstValidationMessage(ValidationException $exception): string
@@ -250,7 +306,7 @@ new class extends Component {
         max-width="5xl"
     >
         <form wire:submit="submitRequest" class="grid gap-4 lg:grid-cols-3">
-            <div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.type') }}</label><select wire:model.live="request_type" class="w-full rounded-xl px-4 py-3 text-sm"><option value="revenue">{{ __('finance.options.revenue') }}</option><option value="return">{{ __('finance.options.activity_return') }}</option></select></div>
+            <div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.revenue_kind') }}</label><select wire:model.live="finance_category_id" class="w-full rounded-xl px-4 py-3 text-sm"><option value="">{{ __('finance.actions.choose_category') }}</option>@foreach ($revenueCategories as $category)<option value="{{ $category->id }}">{{ $category->name }}</option>@endforeach</select>@error('finance_category_id') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
             <div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.amount') }}</label><input wire:model="amount" type="text" inputmode="decimal" data-thousand-separator class="w-full rounded-xl px-4 py-3 text-sm">@error('amount') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
             <div><label class="mb-1 block text-sm font-medium">{{ __('finance.common.currency') }}</label><select wire:model="currency_id" class="w-full rounded-xl px-4 py-3 text-sm">@foreach ($currencies as $currency)<option value="{{ $currency->id }}">{{ $currency->code }}</option>@endforeach</select></div>
             @can('finance.entries.update')<div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.entry_date') }}</label><input wire:model="request_date" type="date" class="w-full rounded-xl px-4 py-3 text-sm">@error('request_date') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>@endcan

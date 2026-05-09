@@ -24,7 +24,7 @@ return [
     ],
     'nav' => [
         'platform' => 'المنصة',
-        'dashboard' => 'لوحة التحكم',
+        'dashboard' => 'الصفحة الرئيسية',
         'reports' => 'التقارير',
         'people' => 'الأشخاص',
         'users' => 'المستخدمون',
@@ -69,7 +69,7 @@ return [
         'action_barcodes' => 'باركود الإجراءات',
         'scanner_import' => 'استيراد الماسح',
         'configuration' => 'الإعدادات',
-        'dashboard_settings' => 'إعدادات لوحة التحكم',
+        'dashboard_settings' => 'إعدادات الصفحة الرئيسية',
         'public_website_settings' => 'إعدادات الموقع العام',
         'organization' => 'الهيكل',
         'tracking_rules' => 'قواعد المتابعة',

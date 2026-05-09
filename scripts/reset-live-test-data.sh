@@ -142,8 +142,17 @@ table_count() {
     mysql_scalar "SELECT COUNT(*) FROM \`${table}\`;"
 }
 
+table_has_auto_increment() {
+    local table="$1"
+    local escaped
+
+    escaped="$(sql_escape "$table")"
+    mysql_scalar "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = '${escaped}' AND extra LIKE '%auto_increment%';"
+}
+
 PROTECTED_ROLE_NAMES="${PROTECTED_ROLE_NAMES:-super_admin,admin,manager}"
 KEEP_USER_EMAILS="${KEEP_USER_EMAILS:-}"
+
 SQL_PROTECTED_ROLE_NAMES="$(sql_escape "$PROTECTED_ROLE_NAMES")"
 SQL_KEEP_USER_EMAILS="$(sql_escape "$KEEP_USER_EMAILS")"
 
@@ -239,15 +248,25 @@ FROM (
         FROM users
         JOIN model_has_roles
             ON model_has_roles.model_id = users.id
-            AND model_has_roles.model_type LIKE '%User'
+            AND CONVERT(model_has_roles.model_type USING utf8mb4) COLLATE utf8mb4_unicode_ci LIKE CONVERT('%User' USING utf8mb4) COLLATE utf8mb4_unicode_ci
         JOIN roles ON roles.id = model_has_roles.role_id
-        WHERE FIND_IN_SET(roles.name, '${SQL_PROTECTED_ROLE_NAMES}') > 0
+        WHERE FIND_IN_SET(
+            CONVERT(roles.name USING utf8mb4) COLLATE utf8mb4_unicode_ci,
+            CONVERT('${SQL_PROTECTED_ROLE_NAMES}' USING utf8mb4) COLLATE utf8mb4_unicode_ci
+        ) > 0
+
         UNION
+
         SELECT MIN(id) AS id FROM users
+
         UNION
+
         SELECT id FROM users
         WHERE '${SQL_KEEP_USER_EMAILS}' <> ''
-        AND FIND_IN_SET(email, '${SQL_KEEP_USER_EMAILS}') > 0
+        AND FIND_IN_SET(
+            CONVERT(email USING utf8mb4) COLLATE utf8mb4_unicode_ci,
+            CONVERT('${SQL_KEEP_USER_EMAILS}' USING utf8mb4) COLLATE utf8mb4_unicode_ci
+        ) > 0
     ) protected_users ON protected_users.id = profile_users.id
     WHERE protected_users.id IS NULL
 ) final_users;
@@ -257,9 +276,11 @@ echo "Project: $(pwd)"
 echo "Environment: ${APP_ENV:-unknown}"
 echo "Database: ${DB_DATABASE}"
 echo "Protected roles: ${PROTECTED_ROLE_NAMES}"
+
 if [ -n "$KEEP_USER_EMAILS" ]; then
     echo "Extra protected emails: ${KEEP_USER_EMAILS}"
 fi
+
 echo "Community contacts reset: $([ "$INCLUDE_COMMUNITY_CONTACTS" -eq 1 ] && echo yes || echo no)"
 echo
 
@@ -267,6 +288,7 @@ echo "Records that will be cleared:"
 for table in "${RESET_TABLES[@]}"; do
     printf '  %-35s %s\n' "$table" "$(table_count "$table")"
 done
+
 printf '  %-35s %s\n' "non-protected profile users" "$(mysql_scalar "$profile_user_delete_count_sql")"
 echo
 
@@ -277,6 +299,7 @@ fi
 
 BACKUP_ROOT="${BACKUP_ROOT:-$(pwd)/storage/app/reset-backups}"
 BACKUP_DIR="${BACKUP_ROOT}/$(date +%Y%m%d-%H%M%S)"
+
 mkdir -p "$BACKUP_DIR"
 
 echo "Creating database backup..."
@@ -297,10 +320,12 @@ for table in "${RESET_TABLES[@]}"; do
 done
 
 echo "Resetting operational data..."
+
 mysql_exec <<SQL
 SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
-SET @reset_protected_roles = '${SQL_PROTECTED_ROLE_NAMES}';
-SET @reset_keep_user_emails = '${SQL_KEEP_USER_EMAILS}';
+
+SET @reset_protected_roles = CONVERT('${SQL_PROTECTED_ROLE_NAMES}' USING utf8mb4) COLLATE utf8mb4_unicode_ci;
+SET @reset_keep_user_emails = CONVERT('${SQL_KEEP_USER_EMAILS}' USING utf8mb4) COLLATE utf8mb4_unicode_ci;
 
 CREATE TEMPORARY TABLE reset_profile_users_to_delete (
     id BIGINT UNSIGNED NOT NULL PRIMARY KEY
@@ -324,9 +349,12 @@ SELECT DISTINCT users.id
 FROM users
 JOIN model_has_roles
     ON model_has_roles.model_id = users.id
-    AND model_has_roles.model_type LIKE '%User'
+    AND CONVERT(model_has_roles.model_type USING utf8mb4) COLLATE utf8mb4_unicode_ci LIKE CONVERT('%User' USING utf8mb4) COLLATE utf8mb4_unicode_ci
 JOIN roles ON roles.id = model_has_roles.role_id
-WHERE FIND_IN_SET(roles.name, @reset_protected_roles) > 0;
+WHERE FIND_IN_SET(
+    CONVERT(roles.name USING utf8mb4) COLLATE utf8mb4_unicode_ci,
+    @reset_protected_roles
+) > 0;
 
 INSERT IGNORE INTO reset_protected_users (id)
 SELECT id FROM users ORDER BY id LIMIT 1;
@@ -335,7 +363,10 @@ INSERT IGNORE INTO reset_protected_users (id)
 SELECT id
 FROM users
 WHERE @reset_keep_user_emails <> ''
-AND FIND_IN_SET(email, @reset_keep_user_emails) > 0;
+AND FIND_IN_SET(
+    CONVERT(email USING utf8mb4) COLLATE utf8mb4_unicode_ci,
+    @reset_keep_user_emails
+) > 0;
 
 CREATE TEMPORARY TABLE reset_final_users_to_delete (
     id BIGINT UNSIGNED NOT NULL PRIMARY KEY
@@ -349,11 +380,11 @@ LEFT JOIN reset_protected_users
 WHERE reset_protected_users.id IS NULL;
 
 CREATE TEMPORARY TABLE reset_final_user_emails (
-    email VARCHAR(255) NOT NULL PRIMARY KEY
+    email VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL PRIMARY KEY
 ) ENGINE=MEMORY;
 
 INSERT IGNORE INTO reset_final_user_emails (email)
-SELECT email
+SELECT CONVERT(users.email USING utf8mb4) COLLATE utf8mb4_unicode_ci
 FROM users
 JOIN reset_final_users_to_delete
     ON reset_final_users_to_delete.id = users.id
@@ -368,21 +399,22 @@ DELETE FROM finance_cash_box_user
 WHERE user_id IN (SELECT id FROM reset_final_users_to_delete);
 
 DELETE FROM personal_access_tokens
-WHERE tokenable_type LIKE '%User'
+WHERE CONVERT(tokenable_type USING utf8mb4) COLLATE utf8mb4_unicode_ci LIKE CONVERT('%User' USING utf8mb4) COLLATE utf8mb4_unicode_ci
 AND tokenable_id IN (SELECT id FROM reset_final_users_to_delete);
 
 DELETE FROM model_has_permissions
-WHERE model_type LIKE '%User'
+WHERE CONVERT(model_type USING utf8mb4) COLLATE utf8mb4_unicode_ci LIKE CONVERT('%User' USING utf8mb4) COLLATE utf8mb4_unicode_ci
 AND model_id IN (SELECT id FROM reset_final_users_to_delete);
 
 DELETE FROM model_has_roles
-WHERE model_type LIKE '%User'
+WHERE CONVERT(model_type USING utf8mb4) COLLATE utf8mb4_unicode_ci LIKE CONVERT('%User' USING utf8mb4) COLLATE utf8mb4_unicode_ci
 AND model_id IN (SELECT id FROM reset_final_users_to_delete);
 
 DELETE password_reset_tokens
 FROM password_reset_tokens
 JOIN reset_final_user_emails
-    ON reset_final_user_emails.email = password_reset_tokens.email;
+    ON CONVERT(reset_final_user_emails.email USING utf8mb4) COLLATE utf8mb4_unicode_ci =
+       CONVERT(password_reset_tokens.email USING utf8mb4) COLLATE utf8mb4_unicode_ci;
 
 DELETE FROM users
 WHERE id IN (SELECT id FROM reset_final_users_to_delete);
@@ -390,6 +422,14 @@ WHERE id IN (SELECT id FROM reset_final_users_to_delete);
 COMMIT;
 SET FOREIGN_KEY_CHECKS = 1;
 SQL
+
+echo "Resetting operational auto-increment counters..."
+
+for table in "${RESET_TABLES[@]}"; do
+    if [ "$(table_has_auto_increment "$table")" = "1" ]; then
+        mysql_exec -e "SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci; SET FOREIGN_KEY_CHECKS = 0; ALTER TABLE \`${table}\` AUTO_INCREMENT = 1; SET FOREIGN_KEY_CHECKS = 1;"
+    fi
+done
 
 if [ "$DELETE_OPERATIONAL_FILES" -eq 1 ]; then
     echo "Deleting operational uploaded files..."

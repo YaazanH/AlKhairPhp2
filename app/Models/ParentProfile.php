@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\ParentNumberService;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -17,6 +18,7 @@ class ParentProfile extends Model
 
     protected $fillable = [
         'user_id',
+        'parent_number',
         'father_name',
         'father_work',
         'father_phone',
@@ -33,6 +35,13 @@ class ParentProfile extends Model
         return [
             'is_active' => 'boolean',
         ];
+    }
+
+    protected static function booted(): void
+    {
+        static::saved(function (self $parent): void {
+            app(ParentNumberService::class)->syncParent($parent);
+        });
     }
 
     public function students(): HasMany

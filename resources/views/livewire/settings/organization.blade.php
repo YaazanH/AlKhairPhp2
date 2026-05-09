@@ -2,14 +2,17 @@
 
 use App\Livewire\Concerns\AuthorizesPermissions;
 use App\Livewire\Concerns\SupportsCreateAndNew;
+use App\Models\ActivityExpense;
 use App\Models\AcademicYear;
 use App\Models\AppSetting;
+use App\Models\ExpenseCategory;
 use App\Models\FatherJob;
 use App\Models\GradeLevel;
 use App\Models\ParentProfile;
 use App\Models\School;
 use App\Models\Student;
 use App\Models\StudentGender;
+use App\Services\ParentNumberService;
 use App\Services\StudentGradePromotionService;
 use App\Services\StudentNumberService;
 use App\Support\AvatarDefaults;
@@ -32,6 +35,8 @@ new class extends Component {
     public string $email_domain = '';
     public string $student_number_prefix = '';
     public string $student_number_length = '0';
+    public string $parent_number_prefix = 'P';
+    public string $parent_number_length = '6';
     public string $school_address = '';
     public string $school_timezone = '';
     public string $school_currency = '';
@@ -69,6 +74,12 @@ new class extends Component {
     public bool $father_job_is_active = true;
     public bool $showFatherJobModal = false;
 
+    public ?int $expense_category_editing_id = null;
+    public string $expense_category_name = '';
+    public string $expense_category_code = '';
+    public bool $expense_category_is_active = true;
+    public bool $showExpenseCategoryModal = false;
+
     public ?int $student_gender_editing_id = null;
     public string $student_gender_code = '';
     public string $student_gender_name = '';
@@ -98,6 +109,7 @@ new class extends Component {
                 ->paginate(10, ['*'], 'grade_levels_page'),
             'schoolReferences' => School::query()->orderBy('name')->paginate(10, ['*'], 'schools_page'),
             'fatherJobs' => FatherJob::query()->orderBy('name')->paginate(10, ['*'], 'father_jobs_page'),
+            'expenseCategories' => ExpenseCategory::query()->orderBy('name')->paginate(10, ['*'], 'expense_categories_page'),
             'studentGenders' => StudentGender::query()
                 ->orderBy('sort_order')
                 ->orderBy('name')
@@ -106,6 +118,7 @@ new class extends Component {
                 'academic_years' => AcademicYear::count(),
                 'active_grade_levels' => GradeLevel::query()->where('is_active', true)->count(),
                 'father_jobs' => FatherJob::count(),
+                'expense_categories' => ExpenseCategory::count(),
                 'grade_levels' => GradeLevel::count(),
                 'schools' => School::count(),
                 'student_genders' => StudentGender::count(),
@@ -327,6 +340,76 @@ new class extends Component {
         $this->father_job_name = '';
         $this->father_job_is_active = true;
         $this->showFatherJobModal = false;
+        $this->resetValidation();
+    }
+
+    public function openExpenseCategoryModal(): void
+    {
+        $this->authorizePermission('settings.manage');
+        $this->cancelExpenseCategory();
+        $this->showExpenseCategoryModal = true;
+    }
+
+    public function editExpenseCategory(int $expenseCategoryId): void
+    {
+        $this->authorizePermission('settings.manage');
+
+        $expenseCategory = ExpenseCategory::query()->findOrFail($expenseCategoryId);
+        $this->expense_category_editing_id = $expenseCategory->id;
+        $this->expense_category_name = $expenseCategory->name;
+        $this->expense_category_code = $expenseCategory->code;
+        $this->expense_category_is_active = $expenseCategory->is_active;
+        $this->showExpenseCategoryModal = true;
+        $this->resetValidation();
+    }
+
+    public function saveExpenseCategory(): void
+    {
+        $this->authorizePermission('settings.manage');
+
+        $validated = $this->validate([
+            'expense_category_code' => ['required', 'string', 'max:50', Rule::unique('expense_categories', 'code')->ignore($this->expense_category_editing_id)],
+            'expense_category_is_active' => ['boolean'],
+            'expense_category_name' => ['required', 'string', 'max:255'],
+        ]);
+
+        ExpenseCategory::query()->updateOrCreate(
+            ['id' => $this->expense_category_editing_id],
+            [
+                'code' => Str::of($validated['expense_category_code'])->lower()->toString(),
+                'is_active' => (bool) $validated['expense_category_is_active'],
+                'name' => trim($validated['expense_category_name']),
+            ],
+        );
+
+        session()->flash('status', $this->expense_category_editing_id ? __('settings.organization.messages.expense_category_updated') : __('settings.organization.messages.expense_category_created'));
+        $this->cancelExpenseCategory();
+    }
+
+    public function deleteExpenseCategory(int $expenseCategoryId): void
+    {
+        $this->authorizePermission('settings.manage');
+
+        $expenseCategory = ExpenseCategory::query()->findOrFail($expenseCategoryId);
+
+        if (ActivityExpense::query()->where('expense_category_id', $expenseCategory->id)->exists()) {
+            $this->addError('expenseCategoryDelete', __('settings.organization.errors.expense_category_delete_linked'));
+
+            return;
+        }
+
+        $expenseCategory->delete();
+        $this->resetPage('expense_categories_page');
+        session()->flash('status', __('settings.organization.messages.expense_category_deleted'));
+    }
+
+    public function cancelExpenseCategory(): void
+    {
+        $this->expense_category_editing_id = null;
+        $this->expense_category_name = '';
+        $this->expense_category_code = '';
+        $this->expense_category_is_active = true;
+        $this->showExpenseCategoryModal = false;
         $this->resetValidation();
     }
 
@@ -587,6 +670,8 @@ new class extends Component {
             'email_domain' => ['required', 'string', 'max:255', 'regex:/^(?!-)[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/'],
             'student_number_prefix' => ['nullable', 'string', 'max:20', 'regex:/^[A-Za-z0-9_-]*$/'],
             'student_number_length' => ['required', 'integer', 'min:0', 'max:12'],
+            'parent_number_prefix' => ['nullable', 'string', 'max:20', 'regex:/^[A-Za-z0-9_-]*$/'],
+            'parent_number_length' => ['required', 'integer', 'min:0', 'max:12'],
             'school_name' => ['required', 'string', 'max:255'],
             'school_phone' => ['nullable', 'string', 'max:50'],
             'school_timezone' => ['required', 'string', 'max:100'],
@@ -599,10 +684,19 @@ new class extends Component {
         $generalSettings = AppSetting::groupValues('general');
         $studentNumberPrefix = trim((string) ($validated['student_number_prefix'] ?? ''));
         $studentNumberLength = (int) $validated['student_number_length'];
+        $parentNumberPrefix = trim((string) ($validated['parent_number_prefix'] ?? ''));
+        $parentNumberLength = (int) $validated['parent_number_length'];
         $validated['student_number_prefix'] = $studentNumberPrefix;
         $validated['student_number_length'] = $studentNumberLength;
+        $validated['parent_number_prefix'] = $parentNumberPrefix;
+        $validated['parent_number_length'] = $parentNumberLength;
         $studentNumberFormatChanged = $studentNumberPrefix !== trim((string) ($generalSettings->get('student_number_prefix') ?? ''))
             || $studentNumberLength !== (is_numeric($generalSettings->get('student_number_length')) ? (int) $generalSettings->get('student_number_length') : 0);
+        $currentParentNumberPrefix = $generalSettings->has('parent_number_prefix')
+            ? trim((string) $generalSettings->get('parent_number_prefix'))
+            : ParentNumberService::DEFAULT_PREFIX;
+        $parentNumberFormatChanged = $parentNumberPrefix !== $currentParentNumberPrefix
+            || $parentNumberLength !== (is_numeric($generalSettings->get('parent_number_length')) ? (int) $generalSettings->get('parent_number_length') : ParentNumberService::DEFAULT_LENGTH);
 
         foreach ([
             'school_name' => ['group' => 'general', 'type' => 'string'],
@@ -611,6 +705,8 @@ new class extends Component {
             'email_domain' => ['group' => 'general', 'type' => 'string'],
             'student_number_prefix' => ['group' => 'general', 'type' => 'string'],
             'student_number_length' => ['group' => 'general', 'type' => 'integer'],
+            'parent_number_prefix' => ['group' => 'general', 'type' => 'string'],
+            'parent_number_length' => ['group' => 'general', 'type' => 'integer'],
             'school_address' => ['group' => 'general', 'type' => 'string'],
             'school_timezone' => ['group' => 'general', 'type' => 'string'],
             'school_currency' => ['group' => 'general', 'type' => 'string'],
@@ -647,6 +743,10 @@ new class extends Component {
 
         if ($studentNumberFormatChanged) {
             app(StudentNumberService::class)->syncAll();
+        }
+
+        if ($parentNumberFormatChanged) {
+            app(ParentNumberService::class)->syncAll();
         }
 
         session()->flash('status', __('settings.organization.messages.settings_saved'));
@@ -732,7 +832,7 @@ new class extends Component {
     {
         $settings = AppSetting::query()
             ->where('group', 'general')
-            ->whereIn('key', ['school_name', 'school_phone', 'school_email', 'email_domain', 'student_number_prefix', 'student_number_length', 'school_address', 'school_timezone', 'school_currency'])
+            ->whereIn('key', ['school_name', 'school_phone', 'school_email', 'email_domain', 'student_number_prefix', 'student_number_length', 'parent_number_prefix', 'parent_number_length', 'school_address', 'school_timezone', 'school_currency'])
             ->pluck('value', 'key');
         $media = AppSetting::groupValues('media');
 
@@ -742,6 +842,10 @@ new class extends Component {
         $this->email_domain = (string) ($settings['email_domain'] ?? 'alkhair.local');
         $this->student_number_prefix = (string) ($settings['student_number_prefix'] ?? '');
         $this->student_number_length = (string) ($settings['student_number_length'] ?? '0');
+        $this->parent_number_prefix = $settings->has('parent_number_prefix')
+            ? (string) $settings['parent_number_prefix']
+            : ParentNumberService::DEFAULT_PREFIX;
+        $this->parent_number_length = (string) ($settings['parent_number_length'] ?? ParentNumberService::DEFAULT_LENGTH);
         $this->school_address = (string) ($settings['school_address'] ?? '');
         $this->school_timezone = (string) ($settings['school_timezone'] ?? config('app.timezone', 'UTC'));
         $this->school_currency = (string) ($settings['school_currency'] ?? 'USD');
@@ -799,6 +903,9 @@ new class extends Component {
             $studentNumberDigits = max(0, (int) $student_number_length);
             $studentNumberPreviewOne = ($student_number_prefix ?: '').($studentNumberDigits > 0 ? str_pad('1', $studentNumberDigits, '0', STR_PAD_LEFT) : '1');
             $studentNumberPreviewHundredTwenty = ($student_number_prefix ?: '').($studentNumberDigits > 0 ? str_pad('120', $studentNumberDigits, '0', STR_PAD_LEFT) : '120');
+            $parentNumberDigits = max(0, (int) $parent_number_length);
+            $parentNumberPreviewOne = ($parent_number_prefix ?: '').($parentNumberDigits > 0 ? str_pad('1', $parentNumberDigits, '0', STR_PAD_LEFT) : '1');
+            $parentNumberPreviewHundredTwenty = ($parent_number_prefix ?: '').($parentNumberDigits > 0 ? str_pad('120', $parentNumberDigits, '0', STR_PAD_LEFT) : '120');
         @endphp
 
         <div class="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -823,6 +930,11 @@ new class extends Component {
                 <div class="text-xs font-semibold uppercase tracking-[0.18em] text-sky-200">{{ __('settings.organization.fields.student_number_preview') }}</div>
                 <div class="mt-2 font-mono text-sm font-semibold text-white">{{ $studentNumberPreviewOne }}</div>
                 <p class="mt-2 text-xs leading-5 text-sky-100/80">{{ $studentNumberPreviewHundredTwenty }}</p>
+            </div>
+            <div class="rounded-2xl border border-amber-400/20 bg-amber-500/10 p-4">
+                <div class="text-xs font-semibold uppercase tracking-[0.18em] text-amber-200">{{ __('settings.organization.fields.parent_number_preview') }}</div>
+                <div class="mt-2 font-mono text-sm font-semibold text-white">{{ $parentNumberPreviewOne }}</div>
+                <p class="mt-2 text-xs leading-5 text-amber-100/80">{{ $parentNumberPreviewHundredTwenty }}</p>
             </div>
         </div>
 
@@ -896,6 +1008,18 @@ new class extends Component {
                             <input wire:model="student_number_length" type="number" min="0" max="12" step="1" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900" placeholder="6">
                             <p class="mt-1 text-xs text-neutral-500">{{ __('settings.organization.fields.student_number_length_help') }}</p>
                             @error('student_number_length') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+                        </div>
+                        <div>
+                            <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.parent_number_prefix') }}</label>
+                            <input wire:model="parent_number_prefix" type="text" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm uppercase dark:border-neutral-700 dark:bg-neutral-900" placeholder="P">
+                            <p class="mt-1 text-xs text-neutral-500">{{ __('settings.organization.fields.parent_number_prefix_help') }}</p>
+                            @error('parent_number_prefix') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+                        </div>
+                        <div>
+                            <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.parent_number_length') }}</label>
+                            <input wire:model="parent_number_length" type="number" min="0" max="12" step="1" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900" placeholder="6">
+                            <p class="mt-1 text-xs text-neutral-500">{{ __('settings.organization.fields.parent_number_length_help') }}</p>
+                            @error('parent_number_length') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
                         </div>
                     </div>
                     <div class="grid gap-4 md:grid-cols-2">
@@ -1157,6 +1281,46 @@ new class extends Component {
                 </div>
             </div>
 
+            <div class="overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700">
+                <div class="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-200 px-5 py-4 dark:border-neutral-700">
+                    <div>
+                        <div class="text-sm font-medium">{{ __('settings.organization.sections.activity_expense_category.table') }}</div>
+                        <p class="mt-1 text-xs text-neutral-500">{{ __('settings.organization.sections.activity_expense_category.copy') }}</p>
+                    </div>
+                    <button type="button" wire:click="openExpenseCategoryModal" class="pill-link pill-link--accent">{{ __('settings.organization.actions.create_expense_category') }}</button>
+                </div>
+                @error('expenseCategoryDelete') <div class="px-5 pt-4 text-sm text-red-600">{{ $message }}</div> @enderror
+                @if ($expenseCategories->isEmpty())
+                    <div class="px-5 py-10 text-sm text-neutral-500">{{ __('settings.organization.sections.activity_expense_category.empty') }}</div>
+                @else
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-neutral-200 text-sm dark:divide-neutral-700">
+                            <thead class="bg-neutral-50 dark:bg-neutral-900/60"><tr><th class="px-5 py-3 text-left font-medium">{{ __('settings.organization.table.name') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.organization.table.code') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.organization.table.state') }}</th><th class="px-5 py-3 text-right font-medium">{{ __('settings.organization.table.actions') }}</th></tr></thead>
+                            <tbody class="divide-y divide-neutral-200 dark:divide-neutral-700">
+                                @foreach ($expenseCategories as $expenseCategory)
+                                    <tr>
+                                        <td class="px-5 py-3 font-medium">{{ $expenseCategory->name }}</td>
+                                        <td class="px-5 py-3 font-mono">{{ $expenseCategory->code }}</td>
+                                        <td class="px-5 py-3">{{ $expenseCategory->is_active ? __('settings.common.states.active') : __('settings.common.states.inactive') }}</td>
+                                        <td class="px-5 py-3">
+                                            <div class="flex justify-end gap-2">
+                                                <button type="button" wire:click="editExpenseCategory({{ $expenseCategory->id }})" class="rounded-lg border border-neutral-300 px-3 py-1.5 dark:border-neutral-700">{{ __('crud.common.actions.edit') }}</button>
+                                                <button type="button" wire:click="deleteExpenseCategory({{ $expenseCategory->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="rounded-lg border border-red-300 px-3 py-1.5 text-red-700 dark:border-red-800 dark:text-red-300">{{ __('crud.common.actions.delete') }}</button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                    @if ($expenseCategories->hasPages())
+                        <div class="border-t border-neutral-200 px-5 py-4 dark:border-neutral-700">
+                            {{ $expenseCategories->links() }}
+                        </div>
+                    @endif
+                @endif
+            </div>
+
             @can('students.promote-grade-levels')
                 <div class="overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700">
                     <div class="border-b border-neutral-200 px-5 py-4 dark:border-neutral-700">
@@ -1270,6 +1434,18 @@ new class extends Component {
                     <input wire:model="student_number_length" type="number" min="0" max="12" step="1" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900" placeholder="6">
                     <p class="mt-1 text-xs text-neutral-500">{{ __('settings.organization.fields.student_number_length_help') }}</p>
                     @error('student_number_length') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+                </div>
+                <div>
+                    <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.parent_number_prefix') }}</label>
+                    <input wire:model="parent_number_prefix" type="text" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm uppercase dark:border-neutral-700 dark:bg-neutral-900" placeholder="P">
+                    <p class="mt-1 text-xs text-neutral-500">{{ __('settings.organization.fields.parent_number_prefix_help') }}</p>
+                    @error('parent_number_prefix') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+                </div>
+                <div>
+                    <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.parent_number_length') }}</label>
+                    <input wire:model="parent_number_length" type="number" min="0" max="12" step="1" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900" placeholder="6">
+                    <p class="mt-1 text-xs text-neutral-500">{{ __('settings.organization.fields.parent_number_length_help') }}</p>
+                    @error('parent_number_length') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
                 </div>
             </div>
             <div class="grid gap-4 md:grid-cols-2">
@@ -1415,6 +1591,27 @@ new class extends Component {
                 <button type="button" wire:click="cancelFatherJob" class="pill-link">{{ __('crud.common.actions.cancel') }}</button>
                 <button type="submit" class="pill-link pill-link--accent">{{ $father_job_editing_id ? __('settings.organization.actions.update_father_job') : __('settings.organization.actions.create_father_job') }}</button>
                 <x-admin.create-and-new-button :show="! $father_job_editing_id" click="saveAndNew('saveFatherJob', 'openFatherJobModal')" />
+            </div>
+        </form>
+    </x-admin.modal>
+
+    <x-admin.modal :show="$showExpenseCategoryModal" :title="$expense_category_editing_id ? __('settings.organization.sections.activity_expense_category.edit') : __('settings.organization.sections.activity_expense_category.create')" :description="__('settings.organization.sections.activity_expense_category.copy')" close-method="cancelExpenseCategory" max-width="2xl">
+        <form wire:submit="saveExpenseCategory" class="space-y-4">
+            <div>
+                <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.name') }}</label>
+                <input wire:model="expense_category_name" type="text" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                @error('expense_category_name') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+            </div>
+            <div>
+                <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.code') }}</label>
+                <input wire:model="expense_category_code" type="text" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm lowercase dark:border-neutral-700 dark:bg-neutral-900">
+                @error('expense_category_code') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+            </div>
+            <label class="flex items-center gap-3 text-sm"><input wire:model="expense_category_is_active" type="checkbox" class="rounded border-neutral-300 text-neutral-900"><span>{{ __('settings.organization.fields.is_active') }}</span></label>
+            <div class="flex flex-wrap justify-end gap-3">
+                <button type="button" wire:click="cancelExpenseCategory" class="pill-link">{{ __('crud.common.actions.cancel') }}</button>
+                <button type="submit" class="pill-link pill-link--accent">{{ $expense_category_editing_id ? __('settings.organization.actions.update_expense_category') : __('settings.organization.actions.create_expense_category') }}</button>
+                <x-admin.create-and-new-button :show="! $expense_category_editing_id" click="saveAndNew('saveExpenseCategory', 'openExpenseCategoryModal')" />
             </div>
         </form>
     </x-admin.modal>

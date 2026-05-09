@@ -6,6 +6,7 @@ use App\Livewire\Concerns\SupportsCreateAndNew;
 use App\Models\FatherJob;
 use App\Models\ParentProfile;
 use App\Services\ManagedUserService;
+use App\Services\ParentNumberService;
 use Illuminate\Validation\Rule;
 use Livewire\Volt\Component;
 use Livewire\WithPagination;
@@ -51,7 +52,8 @@ new class extends Component {
             ->when(filled($this->search), function ($query) {
                 $query->where(function ($builder) {
                     $builder
-                        ->where('father_name', 'like', '%'.$this->search.'%')
+                        ->where('parent_number', 'like', '%'.$this->search.'%')
+                        ->orWhere('father_name', 'like', '%'.$this->search.'%')
                         ->orWhere('mother_name', 'like', '%'.$this->search.'%')
                         ->orWhere('father_phone', 'like', '%'.$this->search.'%')
                         ->orWhere('mother_phone', 'like', '%'.$this->search.'%')
@@ -103,7 +105,7 @@ new class extends Component {
     public function accountRules(): array
     {
         return [
-            'account_username' => ['nullable', 'string', 'max:255', Rule::unique('users', 'username')->ignore($this->linkedUserId())],
+            'account_username' => ['nullable', 'string', 'max:255'],
             'account_email' => ['nullable', 'string', 'email', 'max:255', Rule::unique('users', 'email')->ignore($this->linkedUserId())],
             'account_password' => ['nullable', 'string', 'min:8'],
             'account_is_active' => ['boolean'],
@@ -136,6 +138,7 @@ new class extends Component {
             $parent->user,
             [
                 'name' => $validated['father_name'],
+                'username' => $parent->parent_number ?: null,
                 'phone' => $validated['father_phone'] ?: ($validated['mother_phone'] ?: ($validated['home_phone'] ?: null)),
                 'is_active' => $parent->user?->is_active ?? (bool) $validated['is_active'],
             ],
@@ -186,9 +189,11 @@ new class extends Component {
 
         $parent = ParentProfile::query()->findOrFail($parentId);
         $this->authorizeScopedParentAccess($parent);
+        app(ParentNumberService::class)->syncParent($parent);
+        $parent->refresh();
 
         $this->accountParentId = $parent->id;
-        $this->account_username = $parent->user?->username ?? '';
+        $this->account_username = $parent->parent_number ?? ($parent->user?->username ?? '');
         $this->account_email = $parent->user?->email ?? '';
         $this->account_password = '';
         $this->account_is_active = $parent->user?->is_active ?? $parent->is_active;
@@ -222,7 +227,7 @@ new class extends Component {
             $parent->user,
             [
                 'name' => $parent->father_name,
-                'username' => $validated['account_username'] ?: null,
+                'username' => $parent->parent_number ?: ($validated['account_username'] ?: null),
                 'email' => $validated['account_email'] ?: null,
                 'phone' => $parent->father_phone ?: ($parent->mother_phone ?: ($parent->home_phone ?: null)),
                 'password' => $validated['account_password'] ?: null,
@@ -418,6 +423,7 @@ new class extends Component {
                     <thead>
                         <tr>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.parents.table.headers.father') }}</th>
+                            <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.parents.table.headers.parent_number') }}</th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.parents.table.headers.mother') }}</th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.parents.table.headers.students') }}</th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.parents.table.headers.phone') }}</th>
@@ -429,6 +435,7 @@ new class extends Component {
                         @foreach ($parents as $parent)
                             <tr>
                                 <td class="px-5 py-4 text-white lg:px-6">{{ $parent->father_name }}</td>
+                                <td class="px-5 py-4 font-mono text-white lg:px-6">{{ $parent->parent_number ?: $parent->id }}</td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $parent->mother_name ?: __('crud.common.not_available') }}</td>
                                 <td class="px-5 py-4 text-white lg:px-6">{{ number_format($parent->students_count) }}</td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $parent->father_phone ?: ($parent->mother_phone ?: $parent->home_phone ?: __('crud.common.not_available')) }}</td>
@@ -587,7 +594,7 @@ new class extends Component {
                 <div class="mt-4 grid gap-4 md:grid-cols-2">
                     <div>
                         <label class="mb-1 block text-sm font-medium">{{ __('access.profile_accounts.fields.username') }}</label>
-                        <input wire:model="account_username" type="text" class="w-full rounded-xl px-4 py-3 text-sm">
+                        <input wire:model="account_username" type="text" readonly class="w-full rounded-xl px-4 py-3 text-sm opacity-80">
                         @error('account_username')
                             <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                         @enderror

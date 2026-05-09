@@ -108,7 +108,7 @@ new class extends Component {
     }
 }; ?>
 
-<div class="page-stack" wire:init="resetAttendanceDateToToday">
+<div class="page-stack barcode-import-page" wire:init="resetAttendanceDateToToday">
     @php
         $readyCount = (int) ($preview['ready_count'] ?? 0);
         $skippedCount = (int) ($preview['skipped_count'] ?? 0);

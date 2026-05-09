@@ -101,6 +101,7 @@ class SystemSettingsTest extends TestCase
             'father_name' => 'Mahmoud Darwish',
             'is_active' => true,
         ]);
+        $this->assertSame('P'.str_pad((string) $parent->id, 6, '0', STR_PAD_LEFT), $parent->fresh()->parent_number);
 
         $student = Student::query()->create([
             'birth_date' => '2013-05-10',
@@ -118,6 +119,8 @@ class SystemSettingsTest extends TestCase
             ->set('school_email', 'info@alkhair.test')
             ->set('student_number_prefix', 'S')
             ->set('student_number_length', '6')
+            ->set('parent_number_prefix', 'F')
+            ->set('parent_number_length', '5')
             ->set('school_address', 'Damascus')
             ->set('school_timezone', 'Asia/Damascus')
             ->set('school_currency', 'SYP')
@@ -142,7 +145,20 @@ class SystemSettingsTest extends TestCase
             'value' => '6',
         ]);
 
+        $this->assertDatabaseHas('app_settings', [
+            'group' => 'general',
+            'key' => 'parent_number_prefix',
+            'value' => 'F',
+        ]);
+
+        $this->assertDatabaseHas('app_settings', [
+            'group' => 'general',
+            'key' => 'parent_number_length',
+            'value' => '5',
+        ]);
+
         $this->assertSame('S'.str_pad((string) $student->id, 6, '0', STR_PAD_LEFT), $student->fresh()->student_number);
+        $this->assertSame('F'.str_pad((string) $parent->id, 5, '0', STR_PAD_LEFT), $parent->fresh()->parent_number);
 
         $secondStudent = Student::query()->create([
             'birth_date' => '2014-01-01',
@@ -153,6 +169,13 @@ class SystemSettingsTest extends TestCase
         ]);
 
         $this->assertSame('S'.str_pad((string) $secondStudent->id, 6, '0', STR_PAD_LEFT), $secondStudent->fresh()->student_number);
+
+        $secondParent = ParentProfile::query()->create([
+            'father_name' => 'Bilal Darwish',
+            'is_active' => true,
+        ]);
+
+        $this->assertSame('F'.str_pad((string) $secondParent->id, 5, '0', STR_PAD_LEFT), $secondParent->fresh()->parent_number);
 
         Volt::test('settings.organization')
             ->set('academic_year_name', '2026/2027')
@@ -685,7 +708,7 @@ class SystemSettingsTest extends TestCase
             'name' => 'Bank Transfer',
         ]);
 
-        Volt::test('settings.finance')
+        Volt::test('settings.organization')
             ->set('expense_category_name', 'Transport')
             ->set('expense_category_code', 'transport')
             ->call('saveExpenseCategory')

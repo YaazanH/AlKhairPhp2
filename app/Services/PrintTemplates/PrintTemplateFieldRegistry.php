@@ -80,6 +80,7 @@ class PrintTemplateFieldRegistry
                 'photo' => $this->field('photo', ['image'], fn (Teacher $teacher) => $this->storageUrl($teacher->photo_path) ?: AvatarDefaults::url('teacher')),
             ],
             'parent' => [
+                'parent_number' => $this->field('parent_number', ['text', 'barcode'], fn (ParentProfile $parent) => $parent->parent_number ?: __('print_templates.common.not_available')),
                 'father_name' => $this->field('father_name', ['text', 'barcode'], fn (ParentProfile $parent) => $parent->father_name),
                 'mother_name' => $this->field('mother_name', ['text'], fn (ParentProfile $parent) => $parent->mother_name ?: __('print_templates.common.not_available')),
                 'father_phone' => $this->field('father_phone', ['text', 'barcode'], fn (ParentProfile $parent) => $parent->father_phone ?: __('print_templates.common.not_available')),

@@ -4,7 +4,6 @@ use App\Livewire\Concerns\AuthorizesPermissions;
 use App\Livewire\Concerns\FormatsFinanceNumbers;
 use App\Livewire\Concerns\SupportsCreateAndNew;
 use App\Models\AppSetting;
-use App\Models\FinanceInvoiceKind;
 use App\Models\FinancePullRequestKind;
 use App\Models\FinanceRequest;
 use App\Models\Invoice;
@@ -329,13 +328,11 @@ new class extends Component {
 
         abort_unless($request->status === FinanceRequest::STATUS_ACCEPTED && $request->pullRequestKind?->mode === FinancePullRequestKind::MODE_INVOICE, 404);
 
-        $kindId = FinanceInvoiceKind::query()->where('is_active', true)->orderBy('name')->value('id');
-
         $invoice = Invoice::query()->create([
             'invoice_no' => app(FinanceService::class)->nextInvoiceNumber(),
             'invoicer_name' => $request->teacher ? trim($request->teacher->first_name.' '.$request->teacher->last_name) : ($request->requestedBy?->name ?: $request->request_no),
             'invoice_type' => 'finance',
-            'finance_invoice_kind_id' => $kindId,
+            'finance_invoice_kind_id' => app(FinanceService::class)->defaultInvoiceKindId(),
             'finance_request_id' => $request->id,
             'issue_date' => now()->toDateString(),
             'status' => 'draft',

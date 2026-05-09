@@ -4,7 +4,6 @@ use App\Livewire\Concerns\AuthorizesPermissions;
 use App\Livewire\Concerns\AuthorizesTeacherAssignments;
 use App\Livewire\Concerns\FormatsFinanceNumbers;
 use App\Livewire\Concerns\SupportsCreateAndNew;
-use App\Models\FinanceInvoiceKind;
 use App\Models\Invoice;
 use App\Services\FinanceService;
 use Livewire\Volt\Component;
@@ -33,7 +32,7 @@ new class extends Component {
     {
         $this->authorizePermission('invoices.view');
         $this->issue_date = now()->toDateString();
-        $this->finance_invoice_kind_id = FinanceInvoiceKind::query()->where('is_active', true)->orderBy('name')->value('id');
+        $this->finance_invoice_kind_id = app(FinanceService::class)->defaultInvoiceKindId();
     }
 
     public function with(): array
@@ -49,7 +48,6 @@ new class extends Component {
 
         return [
             'invoices' => $invoiceQuery->paginate($this->perPage),
-            'invoiceKinds' => FinanceInvoiceKind::query()->where('is_active', true)->orderBy('name')->get(),
             'totals' => [
                 'all' => $this->scopeInvoicesQuery(Invoice::query())->count(),
                 'open' => $this->scopeInvoicesQuery(Invoice::query()->whereIn('status', ['issued', 'partial']))->count(),
@@ -66,7 +64,7 @@ new class extends Component {
     public function rules(): array
     {
         return [
-            'finance_invoice_kind_id' => ['required', 'exists:finance_invoice_kinds,id'],
+            'finance_invoice_kind_id' => ['nullable', 'exists:finance_invoice_kinds,id'],
             'invoicer_name' => ['required', 'string', 'max:255'],
             'invoice_type' => ['required', 'string', 'max:50'],
             'issue_date' => ['required', 'date'],
@@ -102,7 +100,7 @@ new class extends Component {
                     : app(FinanceService::class)->nextInvoiceNumber(),
                 'invoicer_name' => $validated['invoicer_name'],
                 'invoice_type' => $validated['invoice_type'],
-                'finance_invoice_kind_id' => $validated['finance_invoice_kind_id'],
+                'finance_invoice_kind_id' => $validated['finance_invoice_kind_id'] ?: app(FinanceService::class)->defaultInvoiceKindId(),
                 'issue_date' => $canUpdateEntryDate
                     ? $validated['issue_date']
                     : ($existingInvoice?->issue_date?->toDateString() ?? now()->toDateString()),
@@ -148,7 +146,7 @@ new class extends Component {
     {
         $this->editingId = null;
         $this->invoicer_name = '';
-        $this->finance_invoice_kind_id = FinanceInvoiceKind::query()->where('is_active', true)->orderBy('name')->value('id');
+        $this->finance_invoice_kind_id = app(FinanceService::class)->defaultInvoiceKindId();
         $this->invoice_type = 'finance';
         $this->issue_date = now()->toDateString();
         $this->due_date = '';
@@ -196,7 +194,6 @@ new class extends Component {
                 <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('invoices.index.hero.title') }}</h1>
                 <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ __('invoices.index.hero.subtitle') }}</p>
                 <div class="mt-6 flex flex-wrap gap-3">
-                    <span class="badge-soft">{{ __('finance.settings.invoice_kinds') }}: {{ number_format($invoiceKinds->count()) }}</span>
                     <span class="badge-soft badge-soft--emerald">{{ __('invoices.index.hero.badges.invoices', ['count' => number_format($filteredCount)]) }}</span>
                 </div>
             </div>
@@ -249,16 +246,6 @@ new class extends Component {
                             <label class="mb-1 block text-sm font-medium">{{ __('finance.fields.invoicer_name') }}</label>
                             <input wire:model="invoicer_name" type="text" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
                             @error('invoicer_name') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
-                        </div>
-                        <div>
-                            <label class="mb-1 block text-sm font-medium">{{ __('finance.fields.invoice_kind') }}</label>
-                            <select wire:model="finance_invoice_kind_id" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
-                                <option value="">{{ __('finance.actions.choose_category') }}</option>
-                                @foreach ($invoiceKinds as $kind)
-                                    <option value="{{ $kind->id }}">{{ $kind->name }}</option>
-                                @endforeach
-                            </select>
-                            @error('finance_invoice_kind_id') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
                         </div>
                     </div>
 

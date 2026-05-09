@@ -75,6 +75,7 @@ return [
             'edit_title' => 'Edit parent profile',
             'help' => 'Student-specific school data stays on the student record. Keep family contact data here.',
             'fields' => [
+                'parent_number' => 'Parent number',
                 'father_name' => 'Father full name',
                 'father_work' => 'Father work',
                 'father_phone' => 'Father phone',
@@ -97,6 +98,7 @@ return [
             'title' => 'Parent records',
             'empty' => 'No parent records yet.',
             'headers' => [
+                'parent_number' => 'Parent No.',
                 'father' => 'Father full name',
                 'mother' => 'Mother',
                 'students' => 'Students',
@@ -296,6 +298,7 @@ return [
                 'first_name' => 'First name',
                 'last_name' => 'Last name',
                 'student_number' => 'Student number',
+                'phone' => 'Student phone',
                 'birth_date' => 'Birth date',
                 'birth_year' => 'Birth year',
                 'gender' => 'Gender',
@@ -307,6 +310,7 @@ return [
                 'joined_at' => 'Joined at',
                 'notes' => 'Notes',
             ],
+            'student_phone_help' => 'Optional. Used for login or contact when needed.',
             'placeholders' => [
                 'select_parent' => 'Select parent',
                 'select_gender' => 'Select gender',

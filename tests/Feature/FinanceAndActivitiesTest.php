@@ -500,6 +500,40 @@ class FinanceAndActivitiesTest extends TestCase
             ->assertSee($request->request_no);
     }
 
+    public function test_revenue_requests_support_configurable_revenue_categories(): void
+    {
+        $this->signIn();
+
+        $cashBox = FinanceCashBox::query()->firstOrFail();
+        $currency = app(FinanceService::class)->localCurrency();
+        $category = FinanceCategory::query()->create([
+            'code' => 'donations',
+            'is_active' => true,
+            'name' => 'Donations',
+            'type' => 'revenue',
+        ]);
+
+        Volt::test('finance.revenue-requests')
+            ->set('request_type', FinanceRequest::TYPE_REVENUE)
+            ->set('finance_category_id', $category->id)
+            ->set('amount', '45')
+            ->set('currency_id', $currency->id)
+            ->set('cash_box_id', $cashBox->id)
+            ->set('requested_reason', 'Friday donation')
+            ->call('submitRequest')
+            ->assertHasNoErrors();
+
+        $request = FinanceRequest::query()->where('type', FinanceRequest::TYPE_REVENUE)->firstOrFail();
+
+        $this->assertSame($category->id, $request->finance_category_id);
+        $this->assertDatabaseHas('finance_transactions', [
+            'finance_category_id' => $category->id,
+            'finance_request_id' => $request->id,
+            'signed_amount' => 45,
+            'type' => 'revenue_request',
+        ]);
+    }
+
     public function test_invoice_pull_request_creates_invoice_and_closes_remaining_money(): void
     {
         $this->signIn();

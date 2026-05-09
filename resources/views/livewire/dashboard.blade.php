@@ -383,7 +383,7 @@ new class extends Component {
 
             <aside class="surface-panel surface-panel--soft p-4 lg:p-5">
                 <div class="flex items-center gap-4">
-                    <div class="flex size-20 shrink-0 items-center justify-center overflow-hidden rounded-3xl border border-white/10 bg-white/5">
+                    <div class="dashboard-profile-photo flex size-20 shrink-0 items-center justify-center overflow-hidden rounded-3xl border border-white/10 bg-white/5">
                         <x-user-avatar :user="auth()->user()" size="lg" />
                     </div>
                     <div class="min-w-0">
