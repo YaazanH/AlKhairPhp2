@@ -325,7 +325,7 @@ class ReportingService
         $this->applyDateRange($query, 'paid_at', $filters);
 
         $query->whereHas('registration.activity', function (Builder $builder) use ($filters) {
-            $this->applyGroupScope($builder, $filters);
+            $this->applyActivityScope($builder, $filters);
         });
 
         return $query;
@@ -477,17 +477,28 @@ class ReportingService
             return;
         }
 
-        $query->whereHas('activity.group', fn (Builder $builder) => $this->applyGroupScope($builder, $filters));
+        $query->whereHas('activity', fn (Builder $builder) => $this->applyActivityScope($builder, $filters));
     }
 
     protected function applyActivityRegistrationScope(Builder $query, array $filters, bool $includeDateRange = false): void
     {
-        $query->whereHas('activity', function (Builder $builder) use ($filters, $includeDateRange) {
-            if ($includeDateRange) {
-                $this->applyDateRange($builder, 'activity_date', $filters);
-            }
+        $query->whereHas('activity', fn (Builder $builder) => $this->applyActivityScope($builder, $filters, $includeDateRange));
+    }
 
-            $this->applyGroupScope($builder, $filters);
+    protected function applyActivityScope(Builder $query, array $filters, bool $includeDateRange = false): void
+    {
+        if ($includeDateRange) {
+            $this->applyDateRange($query, 'activity_date', $filters);
+        }
+
+        if (! $filters['group_id'] && ! $filters['academic_year_id']) {
+            return;
+        }
+
+        $query->where(function (Builder $activityBuilder) use ($filters) {
+            $activityBuilder
+                ->whereHas('group', fn (Builder $groupBuilder) => $this->applyGroupScope($groupBuilder, $filters))
+                ->orWhereHas('targetGroups', fn (Builder $groupBuilder) => $this->applyGroupScope($groupBuilder, $filters));
         });
     }
 
