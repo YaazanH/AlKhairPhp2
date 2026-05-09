@@ -1,23 +1,13 @@
 <?php
 
-use App\Models\User;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Validation\Rule;
 use Livewire\Volt\Component;
 use Livewire\WithFileUploads;
 
 new class extends Component {
     use WithFileUploads;
 
-    public string $name = '';
-    public string $email = '';
     public $profile_photo_upload = null;
-
-    public function mount(): void
-    {
-        $this->name = (string) Auth::user()->name;
-        $this->email = (string) Auth::user()->email;
-    }
 
     public function updatedProfilePhotoUpload(): void
     {
@@ -30,33 +20,6 @@ new class extends Component {
         $user->storeProfilePhotoUpload($this->profile_photo_upload);
 
         $this->reset('profile_photo_upload');
-        $this->dispatch('profile-updated', name: $user->name);
-    }
-
-    public function updateProfileInformation(): void
-    {
-        $user = Auth::user();
-
-        $validated = $this->validate([
-            'name' => ['required', 'string', 'max:255'],
-            'email' => [
-                'required',
-                'string',
-                'lowercase',
-                'email',
-                'max:255',
-                Rule::unique(User::class)->ignore($user->id),
-            ],
-        ]);
-
-        $user->fill($validated);
-
-        if ($user->isDirty('email')) {
-            $user->email_verified_at = null;
-        }
-
-        $user->save();
-
         $this->dispatch('profile-updated', name: $user->name);
     }
 }; ?>
@@ -88,27 +51,21 @@ new class extends Component {
                 </div>
             </div>
 
-            <form wire:submit="updateProfileInformation" class="admin-form-grid">
-                <div class="admin-form-field admin-form-field--full">
-                    <label for="profile-name" class="mb-1 block text-sm font-medium">{{ __('settings.account.profile.fields.name') }}</label>
-                    <input id="profile-name" wire:model="name" type="text" name="name" required autofocus autocomplete="name" class="w-full rounded-xl px-4 py-3 text-sm">
-                    @error('name') <div class="mt-1 text-sm text-red-200">{{ $message }}</div> @enderror
+            <div class="grid gap-4 md:grid-cols-2">
+                <div class="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                    <div class="text-xs uppercase tracking-[0.18em] text-neutral-500">{{ __('settings.account.profile.fields.name') }}</div>
+                    <div class="mt-2 text-base font-semibold text-white">{{ $profileUser->name }}</div>
                 </div>
+                <div class="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                    <div class="text-xs uppercase tracking-[0.18em] text-neutral-500">{{ __('settings.account.profile.fields.email') }}</div>
+                    <div class="mt-2 text-base font-semibold text-white">{{ $profileUser->email ?: '-' }}</div>
+                    <p class="mt-2 text-xs leading-5 text-neutral-400">{{ __('settings.account.profile.identity_locked') }}</p>
+                </div>
+            </div>
 
-                <div class="admin-form-field admin-form-field--full">
-                    <label for="profile-email" class="mb-1 block text-sm font-medium">{{ __('settings.account.profile.fields.email') }}</label>
-                    <input id="profile-email" wire:model="email" type="email" name="email" required autocomplete="email" class="w-full rounded-xl px-4 py-3 text-sm">
-                    @error('email') <div class="mt-1 text-sm text-red-200">{{ $message }}</div> @enderror
-                    <p class="mt-2 text-xs leading-5 text-neutral-400">{{ __('settings.account.profile.email_help') }}</p>
-                </div>
-
-                <div class="admin-action-cluster admin-form-field--full">
-                    <button type="submit" class="pill-link pill-link--accent">{{ __('settings.common.actions.save') }}</button>
-                    <x-action-message class="text-sm text-emerald-200" on="profile-updated">
-                        {{ __('settings.account.profile.saved') }}
-                    </x-action-message>
-                </div>
-            </form>
+            <x-action-message class="mt-4 text-sm text-emerald-200" on="profile-updated">
+                {{ __('settings.account.profile.saved') }}
+            </x-action-message>
         </x-settings.layout>
     </div>
 </section>

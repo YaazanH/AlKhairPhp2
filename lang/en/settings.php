@@ -63,15 +63,16 @@ return [
         ],
         'profile' => [
             'title' => 'Profile settings',
-            'subtitle' => 'Update the name and email used for your dashboard account.',
+            'subtitle' => 'Update your profile photo. Account identity is managed by administration.',
             'form_title' => 'Profile information',
-            'form_subtitle' => 'Keep your account information clear for reports, audit logs, and assignments.',
+            'form_subtitle' => 'You can change your photo here. Name and email changes are handled by administration.',
             'fields' => [
                 'name' => 'Name',
                 'email' => 'Email',
                 'photo' => 'Profile photo',
             ],
             'email_help' => 'Email is kept for account identity. Password recovery is handled by mosque management.',
+            'identity_locked' => 'Contact administration to change account identity.',
             'photo_help' => 'Upload a profile photo. It saves automatically after selection.',
             'photo_linked' => 'This account uses the linked student or teacher photo.',
             'photo_managed_by_profile' => 'This account is linked to a student or teacher. Uploading here updates that linked profile photo too.',

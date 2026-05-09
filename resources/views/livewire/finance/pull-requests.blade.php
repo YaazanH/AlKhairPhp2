@@ -52,7 +52,7 @@ new class extends Component {
         $kinds = FinancePullRequestKind::query()->where('is_active', true)->orderBy('mode')->orderBy('name')->get();
 
         if (! $this->finance_pull_request_kind_id && $kinds->isNotEmpty()) {
-            $this->finance_pull_request_kind_id = $kinds->first()->id;
+            $this->finance_pull_request_kind_id = app(FinanceService::class)->defaultPullRequestKindId() ?: $kinds->first()->id;
         }
 
         return [
@@ -87,7 +87,7 @@ new class extends Component {
 
         $terms = (string) (AppSetting::groupValues('finance')->get('request_terms') ?: '');
         $canReview = auth()->user()?->can('finance.pull-requests.review') ?? false;
-        $this->finance_pull_request_kind_id ??= FinancePullRequestKind::query()->where('is_active', true)->orderBy('mode')->orderBy('name')->value('id');
+        $this->finance_pull_request_kind_id ??= app(FinanceService::class)->defaultPullRequestKindId();
         $kind = FinancePullRequestKind::query()->where('is_active', true)->findOrFail((int) $this->finance_pull_request_kind_id);
         $this->normalizeFinanceNumberProperty('requested_amount');
         $this->normalizeFinanceNumberProperty('requested_count');
@@ -347,10 +347,13 @@ new class extends Component {
 
     protected function resetCreateForm(): void
     {
+        $localCurrency = app(FinanceService::class)->localCurrency();
+
         $this->requested_amount = '';
         $this->requested_count = '';
         $this->request_date = now()->toDateString();
-        $this->cash_box_id = null;
+        $this->cash_box_id = app(FinanceService::class)->defaultCashBoxForUser(auth()->user(), $localCurrency->id)?->id;
+        $this->finance_pull_request_kind_id = app(FinanceService::class)->defaultPullRequestKindId();
         $this->teacher_id = null;
         $this->requested_reason = '';
         $this->accepted_terms = false;

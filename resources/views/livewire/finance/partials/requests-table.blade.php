@@ -1,7 +1,11 @@
 <section class="surface-table">
+    @php
+        $recordLabel = $recordLabel ?? __('finance.common.request');
+        $emptyLabel = $emptyLabel ?? __('finance.empty.no_requests');
+    @endphp
     <div class="admin-grid-meta">
         <div>
-            <div class="admin-grid-meta__title">{{ __('finance.common.request') }}</div>
+            <div class="admin-grid-meta__title">{{ $recordLabel }}</div>
             <div class="admin-grid-meta__summary">{{ __('crud.common.badges.in_view', ['count' => number_format($requests->total())]) }}</div>
         </div>
         @if (($createPermission ?? null) && ($createMethod ?? null) && ($createLabel ?? null))
@@ -14,7 +18,7 @@
         <table class="text-sm">
             <thead>
                 <tr>
-                    <th class="px-5 py-3 text-left">{{ __('finance.common.request') }}</th>
+                    <th class="px-5 py-3 text-left">{{ $recordLabel }}</th>
                     <th class="px-5 py-3 text-left">{{ __('finance.fields.activity') }}</th>
                     <th class="px-5 py-3 text-left">{{ __('finance.fields.category') }}</th>
                     <th class="px-5 py-3 text-left">{{ __('finance.common.amounts') }}</th>
@@ -93,7 +97,7 @@
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="6" class="px-5 py-10 text-center text-sm text-neutral-500">{{ __('finance.empty.no_requests') }}</td></tr>
+                    <tr><td colspan="6" class="px-5 py-10 text-center text-sm text-neutral-500">{{ $emptyLabel }}</td></tr>
                 @endforelse
             </tbody>
         </table>

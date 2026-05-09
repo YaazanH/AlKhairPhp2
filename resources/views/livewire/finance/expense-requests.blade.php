@@ -79,7 +79,7 @@ new class extends Component {
         $this->authorizePermission('finance.expense-requests.create');
 
         $canReview = auth()->user()?->can('finance.expense-requests.review') ?? false;
-        $this->finance_pull_request_kind_id ??= FinancePullRequestKind::query()->where('is_active', true)->orderBy('mode')->orderBy('name')->value('id');
+        $this->finance_pull_request_kind_id ??= app(FinanceService::class)->defaultPullRequestKindId();
         $this->normalizeFinanceNumberProperty('amount');
         if (auth()->user()?->can('finance.entries.update') && blank($this->request_date)) {
             $this->request_date = now()->toDateString();
@@ -228,8 +228,8 @@ new class extends Component {
         $this->amount = '';
         $this->request_date = now()->toDateString();
         $this->currency_id = app(FinanceService::class)->localCurrency()->id;
-        $this->cash_box_id = null;
-        $this->finance_pull_request_kind_id = FinancePullRequestKind::query()->where('is_active', true)->orderBy('mode')->orderBy('name')->value('id');
+        $this->cash_box_id = app(FinanceService::class)->defaultCashBoxForUser(auth()->user(), $this->currency_id)?->id;
+        $this->finance_pull_request_kind_id = app(FinanceService::class)->defaultPullRequestKindId();
         $this->requested_reason = '';
         $this->attachments = [];
 
@@ -282,5 +282,5 @@ new class extends Component {
         </form>
     </x-admin.modal>
 
-    @include('livewire.finance.partials.requests-table', ['requests' => $requests, 'cashBoxes' => $cashBoxes, 'cashBoxesByCurrency' => $cashBoxesByCurrency, 'reviewPermission' => 'finance.expense-requests.review', 'createPermission' => 'finance.expense-requests.create', 'createMethod' => 'openCreateModal', 'createLabel' => __('finance.expense_requests.new')])
+    @include('livewire.finance.partials.requests-table', ['requests' => $requests, 'cashBoxes' => $cashBoxes, 'cashBoxesByCurrency' => $cashBoxesByCurrency, 'reviewPermission' => 'finance.expense-requests.review', 'createPermission' => 'finance.expense-requests.create', 'createMethod' => 'openCreateModal', 'createLabel' => __('finance.expense_requests.new'), 'recordLabel' => __('finance.fields.expense'), 'emptyLabel' => __('finance.empty.no_expenses')])
 </div>

@@ -8,6 +8,7 @@ use App\Models\FinanceCashBox;
 use App\Models\FinanceCategory;
 use App\Models\FinanceCurrency;
 use App\Models\FinancePullRequestKind;
+use App\Models\FinanceRequest;
 use App\Models\FinanceTransaction;
 use App\Models\Payment;
 use App\Models\PaymentMethod;
@@ -24,6 +25,9 @@ new class extends Component {
 
     public string $invoice_prefix = '';
     public string $request_terms = '';
+    public string $default_cash_box_id = '';
+    public string $default_pull_request_kind_id = '';
+    public string $default_revenue_category_id = '';
     public string $default_pull_print_template_id = '';
     public string $default_expense_print_template_id = '';
     public string $default_revenue_print_template_id = '';
@@ -526,6 +530,15 @@ new class extends Component {
         $validated = $this->validate([
             'invoice_prefix' => ['required', 'string', 'max:20'],
             'request_terms' => ['nullable', 'string'],
+            'default_cash_box_id' => ['nullable', 'integer', Rule::exists('finance_cash_boxes', 'id')->where('is_active', true)],
+            'default_pull_request_kind_id' => ['nullable', 'integer', Rule::exists('finance_pull_request_kinds', 'id')->where('is_active', true)],
+            'default_revenue_category_id' => [
+                'nullable',
+                'integer',
+                Rule::exists('finance_categories', 'id')
+                    ->where('is_active', true)
+                    ->whereIn('type', [FinanceRequest::TYPE_REVENUE, FinanceRequest::TYPE_RETURN]),
+            ],
             'default_pull_print_template_id' => ['nullable', 'integer', 'exists:print_templates,id'],
             'default_expense_print_template_id' => ['nullable', 'integer', 'exists:print_templates,id'],
             'default_revenue_print_template_id' => ['nullable', 'integer', 'exists:print_templates,id'],
@@ -536,6 +549,9 @@ new class extends Component {
 
         AppSetting::storeValue('finance', 'invoice_prefix', strtoupper($validated['invoice_prefix']));
         AppSetting::storeValue('finance', 'request_terms', $validated['request_terms'] ?: null);
+        AppSetting::storeValue('finance', 'default_cash_box_id', $validated['default_cash_box_id'] ?: null, 'integer');
+        AppSetting::storeValue('finance', 'default_pull_request_kind_id', $validated['default_pull_request_kind_id'] ?: null, 'integer');
+        AppSetting::storeValue('finance', 'default_revenue_category_id', $validated['default_revenue_category_id'] ?: null, 'integer');
         AppSetting::storeValue('finance', 'default_pull_print_template_id', $validated['default_pull_print_template_id'] ?: null, 'integer');
         AppSetting::storeValue('finance', 'default_expense_print_template_id', $validated['default_expense_print_template_id'] ?: null, 'integer');
         AppSetting::storeValue('finance', 'default_revenue_print_template_id', $validated['default_revenue_print_template_id'] ?: null, 'integer');
@@ -576,6 +592,14 @@ new class extends Component {
             'balances' => app(FinanceService::class)->cashBoxBalances(auth()->user()),
             'cashBoxes' => FinanceCashBox::query()->with(['assignedUsers', 'currencies'])->orderBy('name')->get(),
             'currencies' => FinanceCurrency::query()->with('rateReferenceCurrency')->orderByDesc('is_local')->orderByDesc('is_base')->orderBy('code')->get(),
+            'defaultCashBoxes' => FinanceCashBox::query()->where('is_active', true)->orderBy('name')->get(),
+            'defaultPullRequestKinds' => FinancePullRequestKind::query()->where('is_active', true)->orderBy('mode')->orderBy('name')->get(),
+            'defaultRevenueCategories' => FinanceCategory::query()
+                ->where('is_active', true)
+                ->whereIn('type', [FinanceRequest::TYPE_REVENUE, FinanceRequest::TYPE_RETURN])
+                ->orderByRaw("case when type = 'revenue' then 0 else 1 end")
+                ->orderBy('name')
+                ->get(),
             'financeCategories' => FinanceCategory::query()->orderBy('type')->orderBy('name')->get(),
             'financeRequestPrintTemplates' => $this->financeRequestPrintTemplates(),
             'paymentMethods' => PaymentMethod::query()->orderBy('name')->get(),
@@ -650,6 +674,9 @@ new class extends Component {
 
         $this->invoice_prefix = (string) ($settings->get('invoice_prefix') ?: 'INV');
         $this->request_terms = (string) ($settings->get('request_terms') ?: '');
+        $this->default_cash_box_id = (string) ($settings->get('default_cash_box_id') ?: '');
+        $this->default_pull_request_kind_id = (string) ($settings->get('default_pull_request_kind_id') ?: '');
+        $this->default_revenue_category_id = (string) ($settings->get('default_revenue_category_id') ?: '');
         $this->default_pull_print_template_id = (string) ($settings->get('default_pull_print_template_id') ?: '');
         $this->default_expense_print_template_id = (string) ($settings->get('default_expense_print_template_id') ?: '');
         $this->default_revenue_print_template_id = (string) ($settings->get('default_revenue_print_template_id') ?: '');
@@ -710,6 +737,45 @@ new class extends Component {
                     <label class="mb-1 block text-sm font-medium">{{ __('finance.settings.teacher_pull_terms') }}</label>
                     <textarea wire:model="request_terms" rows="2" class="w-full rounded-xl px-4 py-3 text-sm"></textarea>
                     @error('request_terms') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
+                </div>
+            </div>
+
+            <div>
+                <div class="mb-3">
+                    <div class="admin-section-card__title">{{ __('finance.settings.default_create_values') }}</div>
+                    <p class="mt-1 text-sm text-neutral-400">{{ __('finance.settings.default_create_values_subtitle') }}</p>
+                </div>
+                <div class="grid gap-4 md:grid-cols-3">
+                    <div>
+                        <label class="mb-1 block text-sm font-medium">{{ __('finance.settings.default_cash_box') }}</label>
+                        <select wire:model="default_cash_box_id" class="w-full rounded-xl px-4 py-3 text-sm">
+                            <option value="">{{ __('finance.settings.default_auto') }}</option>
+                            @foreach ($defaultCashBoxes as $box)
+                                <option value="{{ $box->id }}">{{ $box->name }}</option>
+                            @endforeach
+                        </select>
+                        @error('default_cash_box_id') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
+                    </div>
+                    <div>
+                        <label class="mb-1 block text-sm font-medium">{{ __('finance.settings.default_pull_kind') }}</label>
+                        <select wire:model="default_pull_request_kind_id" class="w-full rounded-xl px-4 py-3 text-sm">
+                            <option value="">{{ __('finance.settings.default_auto') }}</option>
+                            @foreach ($defaultPullRequestKinds as $kind)
+                                <option value="{{ $kind->id }}">{{ $kind->name }} - {{ __('finance.pull_modes.'.$kind->mode) }}</option>
+                            @endforeach
+                        </select>
+                        @error('default_pull_request_kind_id') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
+                    </div>
+                    <div>
+                        <label class="mb-1 block text-sm font-medium">{{ __('finance.settings.default_revenue_kind') }}</label>
+                        <select wire:model="default_revenue_category_id" class="w-full rounded-xl px-4 py-3 text-sm">
+                            <option value="">{{ __('finance.settings.default_auto') }}</option>
+                            @foreach ($defaultRevenueCategories as $category)
+                                <option value="{{ $category->id }}">{{ $category->name }} - {{ __('finance.category_types.'.$category->type) }}</option>
+                            @endforeach
+                        </select>
+                        @error('default_revenue_category_id') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
+                    </div>
                 </div>
             </div>
 

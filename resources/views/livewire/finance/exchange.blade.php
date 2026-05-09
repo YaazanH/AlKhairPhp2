@@ -24,6 +24,12 @@ new class extends Component {
     {
         $this->authorizePermission('finance.exchange.view');
         $this->exchange_date = now()->toDateString();
+        $baseCurrency = app(FinanceService::class)->baseCurrency();
+        $localCurrency = app(FinanceService::class)->localCurrency();
+        $this->from_currency_id = $baseCurrency->id;
+        $this->to_currency_id = $localCurrency->id;
+        $this->from_cash_box_id = app(FinanceService::class)->defaultCashBoxForUser(auth()->user(), $baseCurrency->id)?->id;
+        $this->to_cash_box_id = app(FinanceService::class)->defaultCashBoxForUser(auth()->user(), $localCurrency->id)?->id;
     }
 
     public function with(): array
@@ -83,7 +89,13 @@ new class extends Component {
             $validated['notes'] ?: null,
         );
 
-        $this->reset(['from_cash_box_id', 'to_cash_box_id', 'from_currency_id', 'to_currency_id', 'from_amount', 'to_amount', 'notes']);
+        $baseCurrency = app(FinanceService::class)->baseCurrency();
+        $localCurrency = app(FinanceService::class)->localCurrency();
+        $this->reset(['from_amount', 'to_amount', 'notes']);
+        $this->from_currency_id = $baseCurrency->id;
+        $this->to_currency_id = $localCurrency->id;
+        $this->from_cash_box_id = app(FinanceService::class)->defaultCashBoxForUser(auth()->user(), $baseCurrency->id)?->id;
+        $this->to_cash_box_id = app(FinanceService::class)->defaultCashBoxForUser(auth()->user(), $localCurrency->id)?->id;
         $this->exchange_date = now()->toDateString();
         session()->flash('status', __('finance.messages.exchange_posted'));
     }

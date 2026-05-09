@@ -18,40 +18,17 @@ class ProfileUpdateTest extends TestCase
         $this->get('/settings/profile')->assertOk();
     }
 
-    public function test_profile_information_can_be_updated(): void
+    public function test_profile_identity_is_read_only(): void
     {
         $user = User::factory()->create();
 
         $this->actingAs($user);
 
-        $response = Volt::test('settings.profile')
-            ->set('name', 'Test User')
-            ->set('email', 'test@example.com')
-            ->call('updateProfileInformation');
-
-        $response->assertHasNoErrors();
-
-        $user->refresh();
-
-        $this->assertEquals('Test User', $user->name);
-        $this->assertEquals('test@example.com', $user->email);
-        $this->assertNull($user->email_verified_at);
-    }
-
-    public function test_email_verification_status_is_unchanged_when_email_address_is_unchanged(): void
-    {
-        $user = User::factory()->create();
-
-        $this->actingAs($user);
-
-        $response = Volt::test('settings.profile')
-            ->set('name', 'Test User')
-            ->set('email', $user->email)
-            ->call('updateProfileInformation');
-
-        $response->assertHasNoErrors();
-
-        $this->assertNotNull($user->refresh()->email_verified_at);
+        Volt::test('settings.profile')
+            ->assertSee($user->name)
+            ->assertSee($user->email)
+            ->assertDontSee('profile-name')
+            ->assertDontSee('profile-email');
     }
 
     public function test_user_can_delete_their_account(): void

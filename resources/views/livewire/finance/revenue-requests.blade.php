@@ -247,8 +247,8 @@ new class extends Component {
         $this->amount = '';
         $this->request_date = now()->toDateString();
         $this->currency_id = app(FinanceService::class)->localCurrency()->id;
-        $this->cash_box_id = null;
-        $this->finance_category_id = $this->defaultRevenueKindId();
+        $this->cash_box_id = app(FinanceService::class)->defaultCashBoxForUser(auth()->user(), $this->currency_id)?->id;
+        $this->finance_category_id = app(FinanceService::class)->defaultRevenueCategoryId();
         $this->updatedFinanceCategoryId();
         $this->requested_reason = '';
         $this->attachments = [];
@@ -261,16 +261,6 @@ new class extends Component {
         return FinanceCategory::query()
             ->where('is_active', true)
             ->where('type', $type)
-            ->orderBy('name')
-            ->value('id');
-    }
-
-    protected function defaultRevenueKindId(): ?int
-    {
-        return FinanceCategory::query()
-            ->where('is_active', true)
-            ->whereIn('type', [FinanceRequest::TYPE_REVENUE, FinanceRequest::TYPE_RETURN])
-            ->orderByRaw("case when type = 'revenue' then 0 else 1 end")
             ->orderBy('name')
             ->value('id');
     }
@@ -321,5 +311,5 @@ new class extends Component {
         </form>
     </x-admin.modal>
 
-    @include('livewire.finance.partials.requests-table', ['requests' => $requests, 'cashBoxes' => $cashBoxes, 'cashBoxesByCurrency' => $cashBoxesByCurrency, 'reviewPermission' => 'finance.revenue-requests.review', 'createPermission' => 'finance.revenue-requests.create', 'createMethod' => 'openCreateModal', 'createLabel' => __('finance.revenue_requests.new')])
+    @include('livewire.finance.partials.requests-table', ['requests' => $requests, 'cashBoxes' => $cashBoxes, 'cashBoxesByCurrency' => $cashBoxesByCurrency, 'reviewPermission' => 'finance.revenue-requests.review', 'createPermission' => 'finance.revenue-requests.create', 'createMethod' => 'openCreateModal', 'createLabel' => __('finance.revenue_requests.new'), 'recordLabel' => __('finance.options.revenue'), 'emptyLabel' => __('finance.empty.no_revenue')])
 </div>

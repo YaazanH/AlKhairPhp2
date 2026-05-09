@@ -37,9 +37,12 @@ new class extends Component {
     public function mount(): void
     {
         $this->authorizePermission('finance.cash-box.view');
+        $localCurrency = app(FinanceService::class)->localCurrency();
         $this->transfer_date = now()->toDateString();
-        $this->adjust_currency_id = app(FinanceService::class)->localCurrency()->id;
-        $this->transfer_currency_id = app(FinanceService::class)->localCurrency()->id;
+        $this->adjust_currency_id = $localCurrency->id;
+        $this->transfer_currency_id = $localCurrency->id;
+        $this->adjust_cash_box_id = app(FinanceService::class)->defaultCashBoxForUser(auth()->user(), $localCurrency->id)?->id;
+        $this->transfer_from_cash_box_id = app(FinanceService::class)->defaultCashBoxForUser(auth()->user(), $localCurrency->id)?->id;
     }
 
     public function with(): array
@@ -139,7 +142,8 @@ new class extends Component {
             'entered_by' => auth()->id(),
         ]);
 
-        $this->reset(['adjust_cash_box_id', 'adjust_amount', 'adjust_description']);
+        $this->reset(['adjust_amount', 'adjust_description']);
+        $this->adjust_cash_box_id = app(FinanceService::class)->defaultCashBoxForUser(auth()->user(), $this->adjust_currency_id)?->id;
         session()->flash('status', __('finance.messages.adjustment_posted'));
     }
 
@@ -200,7 +204,8 @@ new class extends Component {
             $validated['transfer_notes'] ?: null,
         );
 
-        $this->reset(['transfer_from_cash_box_id', 'transfer_to_cash_box_id', 'transfer_amount', 'transfer_notes']);
+        $this->reset(['transfer_to_cash_box_id', 'transfer_amount', 'transfer_notes']);
+        $this->transfer_from_cash_box_id = app(FinanceService::class)->defaultCashBoxForUser(auth()->user(), $this->transfer_currency_id)?->id;
         $this->transfer_date = now()->toDateString();
         session()->flash('status', __('finance.messages.transfer_posted'));
     }

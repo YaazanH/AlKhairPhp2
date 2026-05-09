@@ -13,6 +13,7 @@ use App\Models\FinanceCategory;
 use App\Models\FinanceCurrency;
 use App\Models\FinanceCurrencyExchange;
 use App\Models\FinanceInvoiceKind;
+use App\Models\FinancePullRequestKind;
 use App\Models\FinanceRequest;
 use App\Models\FinanceTransaction;
 use App\Models\Invoice;
@@ -449,9 +450,27 @@ class FinanceService
         $configuredId = AppSetting::groupValues('finance')->get('default_cash_box_id');
 
         return FinanceCashBox::query()
+            ->where('is_active', true)
             ->when($configuredId, fn (Builder $query) => $query->whereKey((int) $configuredId))
             ->first()
-            ?: FinanceCashBox::query()->orderBy('id')->firstOrFail();
+            ?: FinanceCashBox::query()->where('is_active', true)->orderBy('id')->firstOrFail();
+    }
+
+    public function defaultCashBoxForUser(?User $user = null, ?int $currencyId = null): ?FinanceCashBox
+    {
+        $configuredId = AppSetting::groupValues('finance')->get('default_cash_box_id');
+
+        if ($configuredId) {
+            $configured = $this->accessibleCashBoxesForCurrency($user, $currencyId)
+                ->whereKey((int) $configuredId)
+                ->first();
+
+            if ($configured) {
+                return $configured;
+            }
+        }
+
+        return $this->accessibleCashBoxesForCurrency($user, $currencyId)->first();
     }
 
     public function defaultInvoiceKindId(): int
@@ -471,6 +490,41 @@ class FinanceService
             'is_active' => true,
             'name' => 'General',
         ])->id;
+    }
+
+    public function defaultPullRequestKindId(): ?int
+    {
+        $configuredId = AppSetting::groupValues('finance')->get('default_pull_request_kind_id');
+
+        if ($configuredId && FinancePullRequestKind::query()->where('is_active', true)->whereKey((int) $configuredId)->exists()) {
+            return (int) $configuredId;
+        }
+
+        return FinancePullRequestKind::query()
+            ->where('is_active', true)
+            ->orderBy('mode')
+            ->orderBy('name')
+            ->value('id');
+    }
+
+    public function defaultRevenueCategoryId(): ?int
+    {
+        $configuredId = AppSetting::groupValues('finance')->get('default_revenue_category_id');
+
+        if ($configuredId && FinanceCategory::query()
+            ->where('is_active', true)
+            ->whereIn('type', [FinanceRequest::TYPE_REVENUE, FinanceRequest::TYPE_RETURN])
+            ->whereKey((int) $configuredId)
+            ->exists()) {
+            return (int) $configuredId;
+        }
+
+        return FinanceCategory::query()
+            ->where('is_active', true)
+            ->whereIn('type', [FinanceRequest::TYPE_REVENUE, FinanceRequest::TYPE_RETURN])
+            ->orderByRaw("case when type = 'revenue' then 0 else 1 end")
+            ->orderBy('name')
+            ->value('id');
     }
 
     public function localCurrency(): FinanceCurrency
