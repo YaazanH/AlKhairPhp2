@@ -69,6 +69,7 @@ class SidebarNavigationService
 
             'dashboard_settings' => $this->item('ui.nav.dashboard_settings', 'cog-6-tooth', 'settings.organization', ['settings.organization', 'settings.tracking', 'settings.course-completion', 'settings.points', 'settings.access-control', 'settings.sidebar-navigation'], 'configuration', 10, ['settings.manage']),
             'finance_settings' => $this->item('ui.nav.finance_settings', 'currency-dollar', 'settings.finance', ['settings.finance'], 'configuration', 15, ['finance.settings.manage']),
+            'finance_report_templates' => $this->item('ui.nav.finance_report_templates', 'document-chart-bar', 'settings.finance.report-templates', ['settings.finance.report-templates'], 'configuration', 18, ['finance.report-templates.manage']),
             'public_website_settings' => $this->item('ui.nav.public_website_settings', 'globe-alt', 'settings.website', ['settings.website', 'settings.website.pages', 'settings.website.navigation'], 'configuration', 20, ['website.manage']),
 
             'print_templates' => $this->item('ui.nav.print_templates', 'document-duplicate', 'print-templates.templates.index', ['print-templates.*'], 'identity_tools', 10, ['id-cards.view']),

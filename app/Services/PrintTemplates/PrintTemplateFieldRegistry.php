@@ -11,6 +11,7 @@ use App\Models\Student;
 use App\Models\Teacher;
 use App\Models\User;
 use App\Services\ActivityAudienceService;
+use App\Services\FinanceService;
 use App\Support\AvatarDefaults;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -107,10 +108,11 @@ class PrintTemplateFieldRegistry
             'finance_request' => [
                 'request_no' => $this->field('request_no', ['text', 'barcode'], fn (FinanceRequest $request) => $request->request_no),
                 'type' => $this->field('type', ['text'], fn (FinanceRequest $request) => ucfirst($request->type)),
-                'requested_amount' => $this->field('requested_amount', ['text'], fn (FinanceRequest $request) => number_format((float) $request->requested_amount, 2).' '.$request->requestedCurrency?->code),
-                'accepted_amount' => $this->field('accepted_amount', ['text'], fn (FinanceRequest $request) => $request->accepted_amount !== null ? number_format((float) $request->accepted_amount, 2).' '.$request->acceptedCurrency?->code : __('print_templates.common.not_available')),
+                'requested_amount' => $this->field('requested_amount', ['text'], fn (FinanceRequest $request) => app(FinanceService::class)->formatCurrencyAmount($request->requested_amount, $request->requestedCurrency)),
+                'accepted_amount' => $this->field('accepted_amount', ['text'], fn (FinanceRequest $request) => $request->accepted_amount !== null ? app(FinanceService::class)->formatCurrencyAmount($request->accepted_amount, $request->acceptedCurrency) : __('print_templates.common.not_available')),
                 'cash_box' => $this->field('cash_box', ['text'], fn (FinanceRequest $request) => $request->cashBox?->name ?: __('print_templates.common.not_available')),
                 'activity' => $this->field('activity', ['text'], fn (FinanceRequest $request) => $request->activity?->title ?: __('print_templates.common.not_available')),
+                'revenue_name' => $this->field('revenue_name', ['text'], fn (FinanceRequest $request) => $request->maskedCounterpartyName() ?: __('print_templates.common.not_available')),
                 'requested_by' => $this->field('requested_by', ['text'], fn (FinanceRequest $request) => $request->requestedBy?->name ?: __('print_templates.common.not_available')),
                 'reviewed_by' => $this->field('reviewed_by', ['text'], fn (FinanceRequest $request) => $request->reviewedBy?->name ?: __('print_templates.common.not_available')),
             ],

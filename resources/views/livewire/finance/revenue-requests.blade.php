@@ -2,6 +2,7 @@
 
 use App\Livewire\Concerns\AuthorizesPermissions;
 use App\Livewire\Concerns\FormatsFinanceNumbers;
+use App\Livewire\Concerns\HandlesFinanceRequestMaintenance;
 use App\Livewire\Concerns\SupportsCreateAndNew;
 use App\Models\FinanceCategory;
 use App\Models\FinanceCurrency;
@@ -17,6 +18,7 @@ use Livewire\WithPagination;
 new class extends Component {
     use AuthorizesPermissions;
     use FormatsFinanceNumbers;
+    use HandlesFinanceRequestMaintenance;
     use SupportsCreateAndNew;
     use WithFileUploads;
     use WithPagination;
@@ -27,6 +29,7 @@ new class extends Component {
     public ?int $currency_id = null;
     public ?int $cash_box_id = null;
     public ?int $finance_category_id = null;
+    public string $counterparty_name = '';
     public string $requested_reason = '';
     public array $attachments = [];
     public array $review_amounts = [];
@@ -47,7 +50,7 @@ new class extends Component {
         $canReview = auth()->user()?->can('finance.revenue-requests.review') ?? false;
 
         return [
-            'cashBoxes' => app(FinanceService::class)->accessibleCashBoxesForCurrency(auth()->user(), $this->currency_id)->get(),
+            'cashBoxes' => app(FinanceService::class)->accessibleCashBoxes(auth()->user())->get(),
             'cashBoxesByCurrency' => FinanceCurrency::query()
                 ->where('is_active', true)
                 ->pluck('id')
@@ -90,6 +93,7 @@ new class extends Component {
                     ->where('is_active', true)
                     ->whereIn('type', [FinanceRequest::TYPE_REVENUE, FinanceRequest::TYPE_RETURN]),
             ],
+            'counterparty_name' => ['nullable', 'string', 'max:255'],
             'request_date' => [auth()->user()?->can('finance.entries.update') ? 'required' : 'nullable', 'date'],
             'requested_reason' => ['required', 'string', 'max:2000'],
         ]);
@@ -106,6 +110,7 @@ new class extends Component {
             'requested_currency_id' => $validated['currency_id'],
             'requested_amount' => $validated['amount'],
             'finance_category_id' => $category->id,
+            'counterparty_name' => $validated['counterparty_name'] ?: null,
             'requested_by' => auth()->id(),
             'requested_reason' => $validated['requested_reason'],
         ]);
@@ -159,7 +164,7 @@ new class extends Component {
 
     public function updatedCurrencyId(): void
     {
-        if ($this->cash_box_id && $this->currency_id && ! app(FinanceService::class)->accessibleCashBoxesForCurrency(auth()->user(), $this->currency_id)->whereKey($this->cash_box_id)->exists()) {
+        if ($this->cash_box_id && ! app(FinanceService::class)->accessibleCashBoxes(auth()->user())->whereKey($this->cash_box_id)->exists()) {
             $this->cash_box_id = null;
         }
     }
@@ -250,6 +255,7 @@ new class extends Component {
         $this->cash_box_id = app(FinanceService::class)->defaultCashBoxForUser(auth()->user(), $this->currency_id)?->id;
         $this->finance_category_id = app(FinanceService::class)->defaultRevenueCategoryId();
         $this->updatedFinanceCategoryId();
+        $this->counterparty_name = '';
         $this->requested_reason = '';
         $this->attachments = [];
 
@@ -263,6 +269,11 @@ new class extends Component {
             ->where('type', $type)
             ->orderBy('name')
             ->value('id');
+    }
+
+    protected function financeRequestMaintenanceTypes(): array
+    {
+        return [FinanceRequest::TYPE_REVENUE, FinanceRequest::TYPE_RETURN];
     }
 
     protected function firstValidationMessage(ValidationException $exception): string
@@ -297,6 +308,7 @@ new class extends Component {
     >
         <form wire:submit="submitRequest" class="grid gap-4 lg:grid-cols-3">
             <div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.revenue_kind') }}</label><select wire:model.live="finance_category_id" class="w-full rounded-xl px-4 py-3 text-sm"><option value="">{{ __('finance.actions.choose_category') }}</option>@foreach ($revenueCategories as $category)<option value="{{ $category->id }}">{{ $category->name }}</option>@endforeach</select>@error('finance_category_id') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
+            <div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.revenue_name') }}</label><input wire:model="counterparty_name" type="text" class="w-full rounded-xl px-4 py-3 text-sm"><p class="mt-1 text-xs text-neutral-500">{{ __('finance.messages.revenue_name_mask_help') }}</p>@error('counterparty_name') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
             <div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.amount') }}</label><input wire:model="amount" type="text" inputmode="decimal" data-thousand-separator class="w-full rounded-xl px-4 py-3 text-sm">@error('amount') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
             <div><label class="mb-1 block text-sm font-medium">{{ __('finance.common.currency') }}</label><select wire:model="currency_id" class="w-full rounded-xl px-4 py-3 text-sm">@foreach ($currencies as $currency)<option value="{{ $currency->id }}">{{ $currency->code }}</option>@endforeach</select></div>
             @can('finance.entries.update')<div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.entry_date') }}</label><input wire:model="request_date" type="date" class="w-full rounded-xl px-4 py-3 text-sm">@error('request_date') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>@endcan
@@ -312,4 +324,5 @@ new class extends Component {
     </x-admin.modal>
 
     @include('livewire.finance.partials.requests-table', ['requests' => $requests, 'cashBoxes' => $cashBoxes, 'cashBoxesByCurrency' => $cashBoxesByCurrency, 'reviewPermission' => 'finance.revenue-requests.review', 'createPermission' => 'finance.revenue-requests.create', 'createMethod' => 'openCreateModal', 'createLabel' => __('finance.revenue_requests.new'), 'recordLabel' => __('finance.options.revenue'), 'emptyLabel' => __('finance.empty.no_revenue')])
+    @include('livewire.finance.partials.request-maintenance-modals')
 </div>

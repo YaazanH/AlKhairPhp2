@@ -2,6 +2,7 @@
 
 use App\Livewire\Concerns\AuthorizesPermissions;
 use App\Livewire\Concerns\FormatsFinanceNumbers;
+use App\Livewire\Concerns\HandlesFinanceRequestMaintenance;
 use App\Livewire\Concerns\SupportsCreateAndNew;
 use App\Models\FinanceCurrency;
 use App\Models\FinancePullRequestKind;
@@ -16,6 +17,7 @@ use Livewire\WithPagination;
 new class extends Component {
     use AuthorizesPermissions;
     use FormatsFinanceNumbers;
+    use HandlesFinanceRequestMaintenance;
     use SupportsCreateAndNew;
     use WithFileUploads;
     use WithPagination;
@@ -246,6 +248,11 @@ new class extends Component {
 
         return $exception->getMessage();
     }
+
+    protected function financeRequestMaintenanceTypes(): array
+    {
+        return [FinanceRequest::TYPE_EXPENSE, FinanceRequest::TYPE_PULL];
+    }
 }; ?>
 
 <div class="page-stack">
@@ -283,4 +290,5 @@ new class extends Component {
     </x-admin.modal>
 
     @include('livewire.finance.partials.requests-table', ['requests' => $requests, 'cashBoxes' => $cashBoxes, 'cashBoxesByCurrency' => $cashBoxesByCurrency, 'reviewPermission' => 'finance.expense-requests.review', 'createPermission' => 'finance.expense-requests.create', 'createMethod' => 'openCreateModal', 'createLabel' => __('finance.expense_requests.new'), 'recordLabel' => __('finance.fields.expense'), 'emptyLabel' => __('finance.empty.no_expenses')])
+    @include('livewire.finance.partials.request-maintenance-modals')
 </div>

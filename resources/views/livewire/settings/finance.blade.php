@@ -37,6 +37,7 @@ new class extends Component {
 
     public ?int $currency_editing_id = null;
     public string $currency_code = '';
+    public string $currency_decimal_places = '2';
     public string $currency_name = '';
     public string $currency_symbol = '';
     public string $currency_rate_input = '1';
@@ -197,6 +198,7 @@ new class extends Component {
         $currency = FinanceCurrency::query()->with('rateReferenceCurrency')->findOrFail($currencyId);
         $this->currency_editing_id = $currency->id;
         $this->currency_code = $currency->code;
+        $this->currency_decimal_places = (string) ($currency->decimal_places ?? 2);
         $this->currency_name = $currency->name;
         $this->currency_symbol = $currency->symbol ?? '';
         $this->currency_is_active = $currency->is_active;
@@ -380,6 +382,7 @@ new class extends Component {
 
         $validated = $this->validate([
             'currency_code' => ['required', 'string', 'max:10', Rule::unique('finance_currencies', 'code')->ignore($this->currency_editing_id)],
+            'currency_decimal_places' => ['required', 'integer', 'min:0', 'max:6'],
             'currency_is_active' => ['boolean'],
             'currency_is_base' => ['boolean'],
             'currency_is_local' => ['boolean'],
@@ -449,6 +452,7 @@ new class extends Component {
             ['id' => $this->currency_editing_id],
             [
                 'code' => strtoupper($validated['currency_code']),
+                'decimal_places' => (int) $validated['currency_decimal_places'],
                 'is_active' => $validated['currency_is_active'],
                 'is_base' => $validated['currency_is_base'],
                 'is_local' => $validated['currency_is_local'],
@@ -625,6 +629,7 @@ new class extends Component {
     {
         $this->currency_editing_id = null;
         $this->currency_code = '';
+        $this->currency_decimal_places = '2';
         $this->currency_name = '';
         $this->currency_symbol = '';
         $this->currency_rate_input = '1';
@@ -922,7 +927,7 @@ new class extends Component {
 
     <x-admin.modal :show="$showCurrencyModal" :title="$currency_editing_id ? __('finance.actions.edit').' '.__('finance.common.currency') : __('finance.actions.create_currency')" :description="__('finance.settings.currencies_subtitle')" close-method="closeCurrencyModal" max-width="3xl">
         <form wire:submit="saveCurrency" class="space-y-4">
-            <div class="grid gap-4 md:grid-cols-2">
+            <div class="grid gap-4 md:grid-cols-3">
                 <div>
                     <label class="mb-1 block text-sm font-medium">{{ __('finance.fields.code') }}</label>
                     <input wire:model="currency_code" type="text" class="w-full rounded-xl px-4 py-3 text-sm uppercase">
@@ -931,6 +936,11 @@ new class extends Component {
                 <div>
                     <label class="mb-1 block text-sm font-medium">{{ __('finance.fields.symbol') }}</label>
                     <input wire:model="currency_symbol" type="text" class="w-full rounded-xl px-4 py-3 text-sm">
+                </div>
+                <div>
+                    <label class="mb-1 block text-sm font-medium">{{ __('finance.fields.decimal_places') }}</label>
+                    <input wire:model="currency_decimal_places" type="number" min="0" max="6" step="1" class="w-full rounded-xl px-4 py-3 text-sm">
+                    @error('currency_decimal_places') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
                 </div>
             </div>
             <div>

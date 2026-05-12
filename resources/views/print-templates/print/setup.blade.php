@@ -45,10 +45,25 @@
                             <input id="print-template-copy-count" name="copy_count" type="number" min="1" max="1000" value="{{ old('copy_count', 1) }}">
                         </div>
 
+                        <div class="admin-form-field admin-form-field--full">
+                            <label for="print-template-page-size">{{ __('settings.organization.sections.print_page_size.table') }}</label>
+                            <select id="print-template-page-size" name="print_page_size_id" data-print-page-size-select>
+                                @foreach ($pageSizes as $pageSize)
+                                    <option
+                                        value="{{ $pageSize->id }}"
+                                        data-layout='@json($pageSize->layoutConfig())'
+                                        @selected((string) old('print_page_size_id', $defaultPageSize?->id) === (string) $pageSize->id)
+                                    >
+                                        {{ $pageSize->name }} | {{ number_format($pageSize->page_width_mm, 1) }} × {{ number_format($pageSize->page_height_mm, 1) }} mm
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
+
                         @foreach (['page_width_mm', 'page_height_mm', 'margin_top_mm', 'margin_right_mm', 'margin_bottom_mm', 'margin_left_mm', 'gap_x_mm', 'gap_y_mm'] as $field)
                             <div class="admin-form-field">
                                 <label>{{ __('id_cards.print.setup.fields.'.$field) }}</label>
-                                <input name="{{ $field }}" type="number" min="0" step="0.1" value="{{ old($field, $defaults[$field]) }}">
+                                <input name="{{ $field }}" type="number" min="0" step="0.1" value="{{ old($field, $defaults[$field]) }}" data-page-layout-field="{{ $field }}">
                             </div>
                         @endforeach
                     </div>
@@ -150,7 +165,20 @@
         (() => {
             const configs = JSON.parse(document.getElementById('print-template-configs-json').textContent);
             const templateSelect = document.querySelector('[data-print-template-select]');
+            const pageSizeSelect = document.querySelector('[data-print-page-size-select]');
             const copyPanel = document.querySelector('[data-copy-count-panel]');
+
+            function applyPageSize() {
+                const layout = JSON.parse(pageSizeSelect?.selectedOptions?.[0]?.dataset.layout || '{}');
+
+                Object.entries(layout).forEach(([field, value]) => {
+                    const input = document.querySelector(`[data-page-layout-field="${field}"]`);
+
+                    if (input && value !== null && value !== undefined) {
+                        input.value = value;
+                    }
+                });
+            }
 
             function activeSources() {
                 return configs[templateSelect.value]?.sources || [];
@@ -307,6 +335,7 @@
             });
 
             templateSelect?.addEventListener('change', updatePanels);
+            pageSizeSelect?.addEventListener('change', applyPageSize);
             updatePanels();
         })();
     </script>

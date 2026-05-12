@@ -1742,6 +1742,98 @@ html:not(.dark) .report-export-link.pill-link--accent {
     color: #ffffff !important;
 }
 
+html:not(.dark) .page-hero h1,
+html:not(.dark) .surface-panel h1,
+html:not(.dark) .surface-panel h2,
+html:not(.dark) .surface-table h1,
+html:not(.dark) .surface-table h2,
+html:not(.dark) .admin-grid-meta__title,
+html:not(.dark) .admin-section-card__title,
+html:not(.dark) .student-inline__name,
+html:not(.dark) .id-card-layer-card__title {
+    color: #112d1e !important;
+}
+
+html:not(.dark) .page-hero p,
+html:not(.dark) .surface-panel p,
+html:not(.dark) .surface-table p,
+html:not(.dark) .admin-grid-meta__summary,
+html:not(.dark) .admin-toolbar__subtitle,
+html:not(.dark) .muted-copy,
+html:not(.dark) .text-xs.text-neutral-500,
+html:not(.dark) .text-sm.text-neutral-500 {
+    color: #526d58 !important;
+}
+
+html:not(.dark) .metric-value,
+html:not(.dark) .report-kpi-value,
+html:not(.dark) .stat-card .metric-value {
+    color: #102817 !important;
+    opacity: 1 !important;
+    text-shadow: none !important;
+}
+
+html:not(.dark) .surface-table td,
+html:not(.dark) .surface-table td .font-medium,
+html:not(.dark) .surface-table td .text-white {
+    color: #183727 !important;
+}
+
+html:not(.dark) .surface-table th {
+    color: #49644f !important;
+}
+
+html:not(.dark) .surface-table tbody tr:hover {
+    background: rgba(22, 104, 57, 0.035);
+}
+
+html:not(.dark) .rounded-lg.border-red-300,
+html:not(.dark) button[class*='border-red-300'],
+html:not(.dark) .pill-link--danger,
+html:not(.dark) button[wire\:confirm] {
+    border-color: rgba(185, 28, 28, 0.38) !important;
+    background: linear-gradient(135deg, #fee2e2, #fecaca) !important;
+    color: #991b1b !important;
+}
+
+html:not(.dark) .print-template-setup-panel,
+html:not(.dark) .print-template-studio,
+html:not(.dark) .print-template-source-card,
+html:not(.dark) .print-template-panel,
+html:not(.dark) .print-template-command-bar,
+html:not(.dark) .print-template-canvas-card {
+    border-color: rgba(24, 92, 53, 0.16);
+    background: linear-gradient(145deg, rgba(255, 254, 247, 0.98), rgba(240, 247, 235, 0.94));
+    color: #123326;
+}
+
+html:not(.dark) .print-template-command-bar__title,
+html:not(.dark) .print-template-file-drop__title {
+    color: #123326;
+}
+
+html:not(.dark) .print-template-input,
+html:not(.dark) .print-template-number-control,
+html:not(.dark) .print-template-file-drop {
+    border-color: rgba(24, 92, 53, 0.18);
+    background: rgba(255, 255, 250, 0.94);
+    color: #143226;
+}
+
+.website-workbench--editor,
+.print-template-setup-panel,
+.print-template-source-card,
+.print-template-panel,
+.print-template-studio,
+.print-template-command-bar {
+    overflow: visible;
+}
+
+.print-template-placeholder-palette .pill-link {
+    padding: 0.45rem 0.7rem;
+    font-size: 0.74rem;
+}
+
 .muted-copy {
     color: var(--app-muted);
 }

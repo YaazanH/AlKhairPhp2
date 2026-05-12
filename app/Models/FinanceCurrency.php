@@ -14,6 +14,7 @@ class FinanceCurrency extends Model
 
     protected $fillable = [
         'code',
+        'decimal_places',
         'name',
         'symbol',
         'rate_to_base',
@@ -31,6 +32,7 @@ class FinanceCurrency extends Model
             'is_active' => 'boolean',
             'is_local' => 'boolean',
             'is_base' => 'boolean',
+            'decimal_places' => 'integer',
             'rate_to_base' => 'decimal:12',
             'rate_updated_at' => 'datetime',
         ];

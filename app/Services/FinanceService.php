@@ -22,6 +22,7 @@ use App\Models\Payment;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -411,6 +412,14 @@ class FinanceService
         ]);
     }
 
+    public function formatCurrencyAmount(float|int|string|null $amount, ?FinanceCurrency $currency, bool $withCode = true): string
+    {
+        $decimals = max(0, min(6, (int) ($currency?->decimal_places ?? 2)));
+        $formatted = number_format((float) ($amount ?? 0), $decimals);
+
+        return $withCode && $currency?->code ? trim($formatted.' '.$currency->code) : $formatted;
+    }
+
     public function exchangeRateLabel(float $fromRateToBase, float $toRateToBase, ?string $fromCode = null, ?string $toCode = null): string
     {
         if ($toRateToBase <= 0) {
@@ -434,6 +443,54 @@ class FinanceService
         ]);
 
         return $request->fresh();
+    }
+
+    public function updateFinanceRequestEntry(FinanceRequest $request, array $payload, ?User $user = null): FinanceRequest
+    {
+        return DB::transaction(function () use ($payload, $request): FinanceRequest {
+            $date = $payload['request_date'] ?? null;
+            $updates = [
+                'counterparty_name' => $payload['counterparty_name'] ?? $request->counterparty_name,
+                'requested_reason' => $payload['requested_reason'] ?? $request->requested_reason,
+            ];
+
+            if ($date) {
+                $transactions = FinanceTransaction::query()
+                    ->where('source_type', FinanceRequest::class)
+                    ->where('source_id', $request->id)
+                    ->get();
+
+                foreach ($transactions as $transaction) {
+                    $transaction->update(['transaction_date' => $date]);
+                }
+
+                if ($request->accepted_at) {
+                    $updates['accepted_at'] = Carbon::parse($date)->setTimeFrom($request->accepted_at);
+                }
+
+                if ($request->settled_at) {
+                    $updates['settled_at'] = Carbon::parse($date)->setTimeFrom($request->settled_at);
+                }
+            }
+
+            $request->update($updates);
+
+            return $request->fresh();
+        });
+    }
+
+    public function deleteFinanceRequestEntry(FinanceRequest $request, ?User $user = null, ?string $reason = null): void
+    {
+        DB::transaction(function () use ($reason, $request, $user): void {
+            $this->reverseSourceTransactions(
+                FinanceRequest::class,
+                $request->id,
+                $user,
+                $reason ?: __('finance.descriptions.request_deleted', ['request' => $request->request_no]),
+            );
+
+            $request->delete();
+        });
     }
 
     public function calculateExchangeToAmount(FinanceCurrency $fromCurrency, FinanceCurrency $toCurrency, float $fromAmount): float
@@ -1007,7 +1064,7 @@ class FinanceService
 
         throw ValidationException::withMessages([
             'amount' => __('finance.validation.insufficient_cash_box_balance', [
-                'available' => number_format($available, 2),
+                'available' => $this->formatCurrencyAmount($available, $currency, false),
                 'currency' => $currency->code,
                 'cash_box' => $cashBox->name,
             ]),

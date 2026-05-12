@@ -39,10 +39,14 @@
                         <td class="px-5 py-3">
                             <div class="font-medium text-white">{{ $request->request_no }}</div>
                             <div class="text-xs text-neutral-500">{{ $request->created_at?->format('Y-m-d H:i') }} | {{ $request->requestedBy?->name ?: '-' }}</div>
+                            @if ($request->counterparty_name)
+                                <div class="mt-1 text-xs text-emerald-200">{{ __('finance.fields.revenue_name') }}: {{ $request->maskedCounterpartyName() }}</div>
+                            @endif
                             @if ($request->requested_reason)
                                 <div class="mt-1 max-w-xs text-xs leading-5 text-neutral-400">{{ $request->requested_reason }}</div>
                             @endif
                             @if ($request->attachments->isNotEmpty())
+                                <div class="mt-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-neutral-500">{{ __('finance.common.attachments') }}</div>
                                 <div class="mt-1 flex flex-wrap gap-2 text-xs">
                                     @foreach ($request->attachments as $attachment)
                                         <a href="{{ asset('storage/'.$attachment->path) }}" target="_blank" class="text-emerald-200 underline decoration-emerald-300/40 underline-offset-4">{{ $attachment->original_name ?: 'Attachment' }}</a>
@@ -62,10 +66,10 @@
                         </td>
                         <td class="px-5 py-3">
                             @if ($request->accepted_amount !== null)
-                                <div class="text-base font-semibold text-white">{{ __('finance.fields.accepted') }}: {{ number_format((float) $request->accepted_amount, 2) }} {{ $request->acceptedCurrency?->code }}</div>
-                                <div class="mt-1 text-xs text-neutral-500">{{ __('finance.fields.requested') }}: {{ number_format((float) $request->requested_amount, 2) }} {{ $request->requestedCurrency?->code }}</div>
+                                <div class="text-base font-semibold text-white">{{ __('finance.fields.accepted') }}: {{ app(\App\Services\FinanceService::class)->formatCurrencyAmount($request->accepted_amount, $request->acceptedCurrency) }}</div>
+                                <div class="mt-1 text-xs text-neutral-500">{{ __('finance.fields.requested') }}: {{ app(\App\Services\FinanceService::class)->formatCurrencyAmount($request->requested_amount, $request->requestedCurrency) }}</div>
                             @else
-                                <div class="text-base font-semibold text-white">{{ __('finance.fields.requested') }}: {{ number_format((float) $request->requested_amount, 2) }} {{ $request->requestedCurrency?->code }}</div>
+                                <div class="text-base font-semibold text-white">{{ __('finance.fields.requested') }}: {{ app(\App\Services\FinanceService::class)->formatCurrencyAmount($request->requested_amount, $request->requestedCurrency) }}</div>
                                 <div class="mt-1 text-xs text-neutral-500">{{ __('finance.fields.accepted') }}: -</div>
                             @endif
                         </td>
@@ -76,9 +80,15 @@
                                     <a href="{{ route('finance.requests.print', $request) }}" target="_blank" class="pill-link pill-link--compact">{{ __('finance.actions.print') }}</a>
                                     <a href="{{ route('finance.requests.print', ['financeRequest' => $request, 'choose' => 1]) }}" target="_blank" class="pill-link pill-link--compact">{{ __('finance.actions.choose_print_template') }}</a>
                                 @endif
+                                @can('finance.entries.update')
+                                    <button type="button" wire:click="openFinanceRequestEditModal({{ $request->id }})" class="pill-link pill-link--compact">{{ __('finance.actions.edit_entry') }}</button>
+                                @endcan
+                                @can('finance.entries.delete')
+                                    <button type="button" wire:click="openFinanceRequestDeleteModal({{ $request->id }})" class="pill-link pill-link--compact pill-link--danger">{{ __('finance.actions.delete') }}</button>
+                                @endcan
                                 @can($reviewPermission)
                                     @if ($request->status === 'pending')
-                                        <input wire:model="review_amounts.{{ $request->id }}" type="text" inputmode="decimal" data-thousand-separator placeholder="{{ number_format((float) $request->requested_amount, 2) }}" class="w-28 rounded-xl px-3 py-2 text-sm">
+                                        <input wire:model="review_amounts.{{ $request->id }}" type="text" inputmode="decimal" data-thousand-separator placeholder="{{ app(\App\Services\FinanceService::class)->formatCurrencyAmount($request->requested_amount, $request->requestedCurrency, false) }}" class="w-28 rounded-xl px-3 py-2 text-sm">
                                         <select wire:model="review_cash_boxes.{{ $request->id }}" class="w-36 rounded-xl px-3 py-2 text-sm">
                                             <option value="">{{ __('finance.fields.cash_box') }}</option>
                                             @foreach (($cashBoxesByCurrency[$request->requested_currency_id] ?? $cashBoxes) as $box)

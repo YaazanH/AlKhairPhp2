@@ -75,6 +75,7 @@ return [
         'tracking_rules' => 'قواعد المتابعة',
         'points' => 'النقاط',
         'finance_settings' => 'إعدادات المالية',
+        'finance_report_templates' => 'قوالب التقارير المالية',
         'access_control' => 'التحكم بالصلاحيات',
         'website' => 'الموقع',
         'website_pages' => 'صفحات الموقع',

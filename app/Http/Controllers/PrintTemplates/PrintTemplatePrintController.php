@@ -4,6 +4,7 @@ namespace App\Http\Controllers\PrintTemplates;
 
 use App\Http\Controllers\Controller;
 use App\Models\FinanceRequest;
+use App\Models\PrintPageSize;
 use App\Models\PrintTemplate;
 use App\Services\IdCards\IdCardPrintLayoutService;
 use App\Services\PrintTemplates\PrintTemplateDataSourceService;
@@ -41,6 +42,7 @@ class PrintTemplatePrintController extends Controller
             ->get();
 
         return view('print-templates.print.setup', [
+            'defaultPageSize' => $this->defaultPageSize(),
             'templates' => $templates,
             'templateConfigs' => $templates
                 ->mapWithKeys(fn (PrintTemplate $template) => [
@@ -50,7 +52,8 @@ class PrintTemplatePrintController extends Controller
                 ])
                 ->all(),
             'entities' => $entities,
-            'defaults' => $this->printLayoutService->defaults(),
+            'defaults' => $this->defaultPageSize()?->layoutConfig() ?? $this->printLayoutService->defaults(),
+            'pageSizes' => PrintPageSize::query()->orderByDesc('is_default')->orderBy('name')->get(),
         ]);
     }
 
@@ -67,6 +70,7 @@ class PrintTemplatePrintController extends Controller
             'margin_left_mm' => ['required', 'numeric', 'min:0', 'max:40'],
             'gap_x_mm' => ['required', 'numeric', 'min:0', 'max:30'],
             'gap_y_mm' => ['required', 'numeric', 'min:0', 'max:30'],
+            'print_page_size_id' => ['nullable', 'exists:print_page_sizes,id'],
         ]);
 
         $template = PrintTemplate::query()->findOrFail($validated['template_id']);
@@ -205,5 +209,14 @@ class PrintTemplatePrintController extends Controller
         return $repeatingModels
             ->map(fn ($model) => $fixedContext + [$repeatingSource['entity'] => $model])
             ->values();
+    }
+
+    protected function defaultPageSize(): ?PrintPageSize
+    {
+        return PrintPageSize::query()
+            ->where('is_default', true)
+            ->orderBy('id')
+            ->first()
+            ?: PrintPageSize::query()->orderBy('id')->first();
     }
 }

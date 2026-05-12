@@ -75,6 +75,7 @@ return [
         'tracking_rules' => 'Tracking Rules',
         'points' => 'Points',
         'finance_settings' => 'Finance Settings',
+        'finance_report_templates' => 'Finance Report Templates',
         'access_control' => 'Access Control',
         'website' => 'Website',
         'website_pages' => 'Website Pages',

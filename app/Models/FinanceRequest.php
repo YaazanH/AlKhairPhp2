@@ -6,10 +6,12 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class FinanceRequest extends Model
 {
     use HasFactory;
+    use SoftDeletes;
 
     public const TYPE_PULL = 'pull';
     public const TYPE_EXPENSE = 'expense';
@@ -44,6 +46,7 @@ class FinanceRequest extends Model
         'invoice_id',
         'return_transaction_id',
         'closing_transaction_id',
+        'counterparty_name',
         'requested_reason',
         'review_notes',
         'terms_snapshot',
@@ -66,6 +69,30 @@ class FinanceRequest extends Model
             'declined_at' => 'datetime',
             'settled_at' => 'datetime',
         ];
+    }
+
+    public static function maskDisplayName(?string $name): string
+    {
+        $parts = collect(preg_split('/\s+/u', trim((string) $name)) ?: [])
+            ->filter()
+            ->map(function (string $part): string {
+                $length = mb_strlen($part);
+
+                if ($length <= 0) {
+                    return '';
+                }
+
+                return mb_substr($part, 0, 1).str_repeat('*', max($length - 1, 1));
+            })
+            ->filter()
+            ->values();
+
+        return $parts->isEmpty() ? '' : $parts->implode(' ');
+    }
+
+    public function maskedCounterpartyName(): string
+    {
+        return static::maskDisplayName($this->counterparty_name);
     }
 
     public function activity(): BelongsTo

@@ -233,10 +233,10 @@ new class extends Component {
         @foreach ($balances as $boxBalance)
             <article class="stat-card">
                 <div class="kpi-label">{{ $boxBalance['cash_box']->name }}</div>
-                <div class="metric-value mt-3">{{ number_format($boxBalance['local_total'], 2) }} {{ $localCurrency->code }}</div>
+                <div class="metric-value mt-3">{{ app(FinanceService::class)->formatCurrencyAmount($boxBalance['local_total'], $localCurrency) }}</div>
                 <div class="mt-3 space-y-1 text-sm text-neutral-300">
                     @foreach ($boxBalance['currencies'] as $row)
-                        <div class="flex justify-between gap-3"><span>{{ $row['currency']->code }}</span><span>{{ number_format($row['balance'], 2) }} {{ $row['currency']->code }}</span></div>
+                        <div class="flex justify-between gap-3"><span>{{ $row['currency']->code }}</span><span>{{ app(FinanceService::class)->formatCurrencyAmount($row['balance'], $row['currency']) }}</span></div>
                     @endforeach
                 </div>
             </article>
@@ -356,7 +356,7 @@ new class extends Component {
                                     <div class="mt-1 max-w-xs text-xs leading-5 text-neutral-500">{{ $transaction->description }}</div>
                                 @endif
                             </td>
-                            <td class="px-5 py-3">{{ number_format((float) $transaction->signed_amount, 2) }} {{ $transaction->currency?->code }}</td>
+                            <td class="px-5 py-3">{{ app(FinanceService::class)->formatCurrencyAmount($transaction->signed_amount, $transaction->currency) }}</td>
                             <td class="px-5 py-3">{{ $transaction->enteredBy?->name ?: '-' }}</td>
                         </tr>
                     @empty

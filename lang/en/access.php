@@ -238,7 +238,9 @@ return [
         'finance.revenue-requests.print' => 'Print accepted finance revenue and returns',
         'finance.reports.view' => 'View finance reports',
         'finance.reports.export' => 'Export finance reports',
+        'finance.report-templates.manage' => 'Manage finance report templates',
         'finance.entries.update' => 'Update finance entry dates and posted data',
+        'finance.entries.delete' => 'Delete finance entries and reverse posted ledger rows',
     ],
     'login' => [
         'title' => 'Log in',

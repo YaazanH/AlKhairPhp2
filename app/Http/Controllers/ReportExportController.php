@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Services\AccessScopeService;
 use App\Services\FinanceReportService;
+use App\Services\FinanceService;
 use App\Services\ReportingService;
 use App\Services\XlsxExportService;
 use Illuminate\Http\Request;
@@ -73,6 +74,42 @@ class ReportExportController extends Controller
             ['Date', 'Transaction No', 'Cash Box', 'Currency', 'Type', 'Direction', 'Amount', 'Signed Amount', 'Base Amount', 'Local Amount', 'Category', 'Activity', 'Teacher', 'Description'],
             app(FinanceReportService::class)->exportRows((int) $validated['year'], isset($validated['quarter']) ? (int) $validated['quarter'] : null),
         );
+    }
+
+    public function financeLedger(Request $request)
+    {
+        abort_unless($request->user()?->can('finance.reports.export'), 403);
+
+        $validated = $request->validate([
+            'cash_box_id' => ['required', 'integer', 'exists:finance_cash_boxes,id'],
+            'currency_id' => ['required', 'integer', 'exists:finance_currencies,id'],
+            'date_from' => ['required', 'date'],
+            'date_to' => ['required', 'date', 'after_or_equal:date_from'],
+            'format' => ['required', 'in:xlsx,pdf'],
+            'template_id' => ['nullable', 'integer', 'exists:finance_report_templates,id'],
+        ]);
+
+        $financeService = app(FinanceService::class);
+        $reportService = app(FinanceReportService::class);
+        $template = isset($validated['template_id'])
+            ? \App\Models\FinanceReportTemplate::query()->findOrFail((int) $validated['template_id'])
+            : $reportService->defaultLedgerTemplate();
+        $cashBox = $financeService->cashBoxForUser((int) $validated['cash_box_id'], $request->user());
+        $currency = $financeService->currenciesForCashBox($cashBox->id)
+            ->whereKey((int) $validated['currency_id'])
+            ->firstOrFail();
+
+        if ($validated['format'] === 'pdf') {
+            return view('reports.finance-ledger-pdf', [
+                'report' => $reportService->ledgerReport($template, $cashBox, $currency, $validated['date_from'], $validated['date_to']),
+                'service' => $reportService,
+            ]);
+        }
+
+        $rows = $reportService->ledgerExportRows($template, $cashBox, $currency, $validated['date_from'], $validated['date_to']);
+        $headers = array_shift($rows) ?: [$template->title];
+
+        return $this->xlsxDownload('finance-ledger-report', $headers, $rows);
     }
 
     protected function xlsxDownload(string $filenamePrefix, array $headers, array $rows): StreamedResponse

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\AppSetting;
 use App\Models\FinanceRequest;
+use App\Models\PrintPageSize;
 use App\Models\PrintTemplate;
 use App\Services\IdCards\IdCardPrintLayoutService;
 use App\Services\PrintTemplates\PrintTemplateDataSourceService;
@@ -44,8 +45,10 @@ class FinanceRequestPrintController extends Controller
 
         return view('print.finance-request', [
             'defaultTemplate' => $defaultTemplate,
-            'defaults' => app(IdCardPrintLayoutService::class)->defaults(),
+            'defaultPageSize' => $this->defaultPageSize(),
+            'defaults' => $this->defaultPageSize()?->layoutConfig() ?? app(IdCardPrintLayoutService::class)->defaults(),
             'organization' => $this->organizationProfile(),
+            'pageSizes' => PrintPageSize::query()->orderByDesc('is_default')->orderBy('name')->get(),
             'request' => $financeRequest,
             'templates' => $templates,
         ]);
@@ -74,7 +77,7 @@ class FinanceRequestPrintController extends Controller
 
     protected function previewWithTemplate(FinanceRequest $financeRequest, PrintTemplate $template): View
     {
-        $defaults = app(IdCardPrintLayoutService::class)->defaults();
+        $defaults = $this->defaultPageSize()?->layoutConfig() ?? app(IdCardPrintLayoutService::class)->defaults();
         $contexts = collect([['finance_request' => $financeRequest]]);
         $layout = app(IdCardPrintLayoutService::class)->paginateDimensions(
             $template->width_mm,
@@ -117,5 +120,14 @@ class FinanceRequestPrintController extends Controller
             'name' => (string) ($settings['school_name'] ?? config('app.name', 'Alkhair')),
             'phone' => (string) ($settings['school_phone'] ?? ''),
         ];
+    }
+
+    protected function defaultPageSize(): ?PrintPageSize
+    {
+        return PrintPageSize::query()
+            ->where('is_default', true)
+            ->orderBy('id')
+            ->first()
+            ?: PrintPageSize::query()->orderBy('id')->first();
     }
 }

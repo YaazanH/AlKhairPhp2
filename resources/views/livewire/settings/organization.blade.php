@@ -9,6 +9,7 @@ use App\Models\ExpenseCategory;
 use App\Models\FatherJob;
 use App\Models\GradeLevel;
 use App\Models\ParentProfile;
+use App\Models\PrintPageSize;
 use App\Models\School;
 use App\Models\Student;
 use App\Models\StudentGender;
@@ -88,6 +89,19 @@ new class extends Component {
     public bool $student_gender_is_default = false;
     public bool $showStudentGenderModal = false;
 
+    public ?int $print_page_size_editing_id = null;
+    public string $print_page_size_name = '';
+    public string $print_page_width_mm = '210';
+    public string $print_page_height_mm = '297';
+    public string $print_margin_top_mm = '10';
+    public string $print_margin_right_mm = '10';
+    public string $print_margin_bottom_mm = '10';
+    public string $print_margin_left_mm = '10';
+    public string $print_gap_x_mm = '6';
+    public string $print_gap_y_mm = '6';
+    public bool $print_page_size_is_default = false;
+    public bool $showPrintPageSizeModal = false;
+
     public function mount(): void
     {
         $this->authorizePermission('settings.manage');
@@ -114,6 +128,10 @@ new class extends Component {
                 ->orderBy('sort_order')
                 ->orderBy('name')
                 ->paginate(10, ['*'], 'student_genders_page'),
+            'printPageSizes' => PrintPageSize::query()
+                ->orderByDesc('is_default')
+                ->orderBy('name')
+                ->paginate(10, ['*'], 'print_page_sizes_page'),
             'totals' => [
                 'academic_years' => AcademicYear::count(),
                 'active_grade_levels' => GradeLevel::query()->where('is_active', true)->count(),
@@ -828,6 +846,134 @@ new class extends Component {
         $fallback->update(['is_default' => true]);
     }
 
+    public function openPrintPageSizeModal(): void
+    {
+        $this->authorizePermission('settings.manage');
+        $this->cancelPrintPageSize();
+        $this->showPrintPageSizeModal = true;
+    }
+
+    public function editPrintPageSize(int $printPageSizeId): void
+    {
+        $this->authorizePermission('settings.manage');
+
+        $pageSize = PrintPageSize::query()->findOrFail($printPageSizeId);
+
+        $this->print_page_size_editing_id = $pageSize->id;
+        $this->print_page_size_name = $pageSize->name;
+        $this->print_page_width_mm = (string) $pageSize->page_width_mm;
+        $this->print_page_height_mm = (string) $pageSize->page_height_mm;
+        $this->print_margin_top_mm = (string) $pageSize->margin_top_mm;
+        $this->print_margin_right_mm = (string) $pageSize->margin_right_mm;
+        $this->print_margin_bottom_mm = (string) $pageSize->margin_bottom_mm;
+        $this->print_margin_left_mm = (string) $pageSize->margin_left_mm;
+        $this->print_gap_x_mm = (string) $pageSize->gap_x_mm;
+        $this->print_gap_y_mm = (string) $pageSize->gap_y_mm;
+        $this->print_page_size_is_default = $pageSize->is_default;
+        $this->showPrintPageSizeModal = true;
+    }
+
+    public function savePrintPageSize(): void
+    {
+        $this->authorizePermission('settings.manage');
+
+        $validated = $this->validate([
+            'print_gap_x_mm' => ['required', 'numeric', 'min:0', 'max:30'],
+            'print_gap_y_mm' => ['required', 'numeric', 'min:0', 'max:30'],
+            'print_margin_bottom_mm' => ['required', 'numeric', 'min:0', 'max:40'],
+            'print_margin_left_mm' => ['required', 'numeric', 'min:0', 'max:40'],
+            'print_margin_right_mm' => ['required', 'numeric', 'min:0', 'max:40'],
+            'print_margin_top_mm' => ['required', 'numeric', 'min:0', 'max:40'],
+            'print_page_height_mm' => ['required', 'numeric', 'min:80', 'max:500'],
+            'print_page_size_is_default' => ['boolean'],
+            'print_page_size_name' => ['required', 'string', 'max:255', Rule::unique('print_page_sizes', 'name')->ignore($this->print_page_size_editing_id)],
+            'print_page_width_mm' => ['required', 'numeric', 'min:80', 'max:500'],
+        ]);
+
+        if ((bool) $validated['print_page_size_is_default']) {
+            PrintPageSize::query()->update(['is_default' => false]);
+        }
+
+        $pageSize = PrintPageSize::query()->updateOrCreate(
+            ['id' => $this->print_page_size_editing_id],
+            [
+                'gap_x_mm' => (float) $validated['print_gap_x_mm'],
+                'gap_y_mm' => (float) $validated['print_gap_y_mm'],
+                'is_default' => (bool) $validated['print_page_size_is_default'],
+                'margin_bottom_mm' => (float) $validated['print_margin_bottom_mm'],
+                'margin_left_mm' => (float) $validated['print_margin_left_mm'],
+                'margin_right_mm' => (float) $validated['print_margin_right_mm'],
+                'margin_top_mm' => (float) $validated['print_margin_top_mm'],
+                'name' => trim($validated['print_page_size_name']),
+                'page_height_mm' => (float) $validated['print_page_height_mm'],
+                'page_width_mm' => (float) $validated['print_page_width_mm'],
+            ],
+        );
+
+        if (! PrintPageSize::query()->where('is_default', true)->exists()) {
+            $pageSize->update(['is_default' => true]);
+        }
+
+        session()->flash('status', $this->print_page_size_editing_id
+            ? __('settings.organization.messages.print_page_size_updated')
+            : __('settings.organization.messages.print_page_size_created'));
+
+        $this->resetPage('print_page_sizes_page');
+        $this->cancelPrintPageSize();
+    }
+
+    public function deletePrintPageSize(int $printPageSizeId): void
+    {
+        $this->authorizePermission('settings.manage');
+
+        if (PrintPageSize::query()->count() <= 1) {
+            $this->addError('printPageSizeDelete', __('settings.organization.errors.print_page_size_keep_one'));
+
+            return;
+        }
+
+        $pageSize = PrintPageSize::query()->findOrFail($printPageSizeId);
+        $wasDefault = $pageSize->is_default;
+        $pageSize->delete();
+
+        if ($wasDefault) {
+            PrintPageSize::query()->orderBy('id')->first()?->update(['is_default' => true]);
+        }
+
+        $this->resetPage('print_page_sizes_page');
+        $this->cancelPrintPageSize();
+        session()->flash('status', __('settings.organization.messages.print_page_size_deleted'));
+    }
+
+    public function cancelPrintPageSize(): void
+    {
+        $this->resetErrorBag([
+            'printPageSizeDelete',
+            'print_gap_x_mm',
+            'print_gap_y_mm',
+            'print_margin_bottom_mm',
+            'print_margin_left_mm',
+            'print_margin_right_mm',
+            'print_margin_top_mm',
+            'print_page_height_mm',
+            'print_page_size_name',
+            'print_page_width_mm',
+        ]);
+
+        $this->print_page_size_editing_id = null;
+        $this->print_page_size_name = '';
+        $this->print_page_width_mm = '210';
+        $this->print_page_height_mm = '297';
+        $this->print_margin_top_mm = '10';
+        $this->print_margin_right_mm = '10';
+        $this->print_margin_bottom_mm = '10';
+        $this->print_margin_left_mm = '10';
+        $this->print_gap_x_mm = '6';
+        $this->print_gap_y_mm = '6';
+        $this->print_page_size_is_default = ! PrintPageSize::query()->where('is_default', true)->exists();
+        $this->showPrintPageSizeModal = false;
+    }
+
     protected function loadOrganizationSettings(): void
     {
         $settings = AppSetting::query()
@@ -1394,6 +1540,68 @@ new class extends Component {
                     @endif
                 @endif
             </div>
+
+            <div class="overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700">
+                <div class="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-200 px-5 py-4 dark:border-neutral-700">
+                    <div>
+                        <div class="text-sm font-medium">{{ __('settings.organization.sections.print_page_size.table') }}</div>
+                        <p class="mt-1 text-xs text-neutral-500">{{ __('settings.organization.sections.print_page_size.copy') }}</p>
+                    </div>
+                    <button type="button" wire:click="openPrintPageSizeModal" class="pill-link pill-link--accent">{{ __('settings.organization.actions.create_print_page_size') }}</button>
+                </div>
+                @error('printPageSizeDelete') <div class="px-5 pt-4 text-sm text-red-600">{{ $message }}</div> @enderror
+                @if ($printPageSizes->isEmpty())
+                    <div class="px-5 py-10 text-sm text-neutral-500">{{ __('settings.organization.sections.print_page_size.empty') }}</div>
+                @else
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-neutral-200 text-sm dark:divide-neutral-700">
+                            <thead class="bg-neutral-50 dark:bg-neutral-900/60">
+                                <tr>
+                                    <th class="px-5 py-3 text-left font-medium">{{ __('settings.organization.table.name') }}</th>
+                                    <th class="px-5 py-3 text-left font-medium">{{ __('settings.organization.table.size') }}</th>
+                                    <th class="px-5 py-3 text-left font-medium">{{ __('settings.organization.table.margins') }}</th>
+                                    <th class="px-5 py-3 text-left font-medium">{{ __('settings.organization.table.default') }}</th>
+                                    <th class="px-5 py-3 text-right font-medium">{{ __('settings.organization.table.actions') }}</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-neutral-200 dark:divide-neutral-700">
+                                @foreach ($printPageSizes as $pageSize)
+                                    <tr>
+                                        <td class="px-5 py-3 font-medium">{{ $pageSize->name }}</td>
+                                        <td class="px-5 py-3">{{ number_format($pageSize->page_width_mm, 1) }} × {{ number_format($pageSize->page_height_mm, 1) }} mm</td>
+                                        <td class="px-5 py-3 text-xs text-neutral-500">
+                                            {{ __('settings.organization.labels.print_page_margins', [
+                                                'top' => number_format($pageSize->margin_top_mm, 1),
+                                                'right' => number_format($pageSize->margin_right_mm, 1),
+                                                'bottom' => number_format($pageSize->margin_bottom_mm, 1),
+                                                'left' => number_format($pageSize->margin_left_mm, 1),
+                                            ]) }}
+                                        </td>
+                                        <td class="px-5 py-3">
+                                            @if ($pageSize->is_default)
+                                                <span class="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-200">{{ __('settings.organization.labels.default_print_page_size') }}</span>
+                                            @else
+                                                <span class="text-neutral-400">-</span>
+                                            @endif
+                                        </td>
+                                        <td class="px-5 py-3">
+                                            <div class="flex justify-end gap-2">
+                                                <button type="button" wire:click="editPrintPageSize({{ $pageSize->id }})" class="rounded-lg border border-neutral-300 px-3 py-1.5 dark:border-neutral-700">{{ __('crud.common.actions.edit') }}</button>
+                                                <button type="button" wire:click="deletePrintPageSize({{ $pageSize->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="rounded-lg border border-red-300 px-3 py-1.5 text-red-700 dark:border-red-800 dark:text-red-300">{{ __('crud.common.actions.delete') }}</button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                    @if ($printPageSizes->hasPages())
+                        <div class="border-t border-neutral-200 px-5 py-4 dark:border-neutral-700">
+                            {{ $printPageSizes->links() }}
+                        </div>
+                    @endif
+                @endif
+            </div>
         </section>
     </div>
 
@@ -1641,6 +1849,68 @@ new class extends Component {
                 <button type="button" wire:click="closeStudentGenderModal" class="pill-link">{{ __('crud.common.actions.cancel') }}</button>
                 <button type="submit" class="pill-link pill-link--accent">{{ $student_gender_editing_id ? __('settings.organization.actions.update_student_gender') : __('settings.organization.actions.create_student_gender') }}</button>
                 <x-admin.create-and-new-button :show="! $student_gender_editing_id" click="saveAndNew('saveStudentGender', 'openStudentGenderModal')" />
+            </div>
+        </form>
+    </x-admin.modal>
+
+    <x-admin.modal :show="$showPrintPageSizeModal" :title="$print_page_size_editing_id ? __('settings.organization.sections.print_page_size.edit') : __('settings.organization.sections.print_page_size.create')" :description="__('settings.organization.sections.print_page_size.copy')" close-method="cancelPrintPageSize" max-width="3xl">
+        <form wire:submit="savePrintPageSize" class="space-y-4">
+            <div>
+                <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.name') }}</label>
+                <input wire:model="print_page_size_name" type="text" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                @error('print_page_size_name') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+            </div>
+            <div class="grid gap-4 md:grid-cols-2">
+                <div>
+                    <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.page_width_mm') }}</label>
+                    <input wire:model="print_page_width_mm" type="number" min="80" max="500" step="0.1" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                    @error('print_page_width_mm') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+                </div>
+                <div>
+                    <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.page_height_mm') }}</label>
+                    <input wire:model="print_page_height_mm" type="number" min="80" max="500" step="0.1" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                    @error('print_page_height_mm') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+                </div>
+            </div>
+            <div class="grid gap-4 md:grid-cols-4">
+                <div>
+                    <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.margin_top_mm') }}</label>
+                    <input wire:model="print_margin_top_mm" type="number" min="0" max="40" step="0.1" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                    @error('print_margin_top_mm') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+                </div>
+                <div>
+                    <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.margin_right_mm') }}</label>
+                    <input wire:model="print_margin_right_mm" type="number" min="0" max="40" step="0.1" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                    @error('print_margin_right_mm') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+                </div>
+                <div>
+                    <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.margin_bottom_mm') }}</label>
+                    <input wire:model="print_margin_bottom_mm" type="number" min="0" max="40" step="0.1" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                    @error('print_margin_bottom_mm') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+                </div>
+                <div>
+                    <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.margin_left_mm') }}</label>
+                    <input wire:model="print_margin_left_mm" type="number" min="0" max="40" step="0.1" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                    @error('print_margin_left_mm') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+                </div>
+            </div>
+            <div class="grid gap-4 md:grid-cols-2">
+                <div>
+                    <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.gap_x_mm') }}</label>
+                    <input wire:model="print_gap_x_mm" type="number" min="0" max="30" step="0.1" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                    @error('print_gap_x_mm') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+                </div>
+                <div>
+                    <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.gap_y_mm') }}</label>
+                    <input wire:model="print_gap_y_mm" type="number" min="0" max="30" step="0.1" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                    @error('print_gap_y_mm') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+                </div>
+            </div>
+            <label class="flex items-center gap-3 text-sm"><input wire:model="print_page_size_is_default" type="checkbox" class="rounded border-neutral-300 text-neutral-900"><span>{{ __('settings.organization.fields.default_print_page_size') }}</span></label>
+            <div class="flex justify-end gap-3">
+                <button type="button" wire:click="cancelPrintPageSize" class="pill-link">{{ __('crud.common.actions.cancel') }}</button>
+                <button type="submit" class="pill-link pill-link--accent">{{ $print_page_size_editing_id ? __('settings.organization.actions.update_print_page_size') : __('settings.organization.actions.create_print_page_size') }}</button>
+                <x-admin.create-and-new-button :show="! $print_page_size_editing_id" click="saveAndNew('savePrintPageSize', 'openPrintPageSizeModal')" />
             </div>
         </form>
     </x-admin.modal>

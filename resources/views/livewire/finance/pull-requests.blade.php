@@ -2,6 +2,7 @@
 
 use App\Livewire\Concerns\AuthorizesPermissions;
 use App\Livewire\Concerns\FormatsFinanceNumbers;
+use App\Livewire\Concerns\HandlesFinanceRequestMaintenance;
 use App\Livewire\Concerns\SupportsCreateAndNew;
 use App\Models\AppSetting;
 use App\Models\FinancePullRequestKind;
@@ -16,6 +17,7 @@ use Livewire\WithPagination;
 new class extends Component {
     use AuthorizesPermissions;
     use FormatsFinanceNumbers;
+    use HandlesFinanceRequestMaintenance;
     use SupportsCreateAndNew;
     use WithPagination;
 
@@ -382,6 +384,11 @@ new class extends Component {
 
         return $exception->getMessage();
     }
+
+    protected function financeRequestMaintenanceTypes(): array
+    {
+        return [FinanceRequest::TYPE_PULL];
+    }
 }; ?>
 
 <div class="page-stack">
@@ -459,7 +466,7 @@ new class extends Component {
             <div class="grid gap-3 md:grid-cols-3">
                 <div class="rounded-3xl border border-white/10 bg-white/[0.04] p-4">
                     <div class="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">{{ __('finance.fields.requested') }}</div>
-                    <div class="mt-2 text-2xl font-semibold text-white">{{ number_format((float) $reviewRequest->requested_amount, 2) }} {{ $reviewRequest->requestedCurrency?->code }}</div>
+                    <div class="mt-2 text-2xl font-semibold text-white">{{ app(FinanceService::class)->formatCurrencyAmount($reviewRequest->requested_amount, $reviewRequest->requestedCurrency) }}</div>
                     @if ($reviewIsCount)
                         <div class="mt-1 text-sm text-neutral-400">{{ __('finance.fields.people_count') }}: {{ number_format((float) $reviewRequest->requested_count) }}</div>
                     @endif
@@ -537,7 +544,7 @@ new class extends Component {
             <div class="grid gap-3 md:grid-cols-3">
                 <div class="rounded-3xl border border-white/10 bg-white/[0.04] p-4">
                     <div class="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">{{ __('finance.fields.accepted') }}</div>
-                    <div class="mt-2 text-2xl font-semibold text-white">{{ number_format((float) $settlementRequest->accepted_amount, 2) }} {{ $settlementRequest->acceptedCurrency?->code }}</div>
+                    <div class="mt-2 text-2xl font-semibold text-white">{{ app(FinanceService::class)->formatCurrencyAmount($settlementRequest->accepted_amount, $settlementRequest->acceptedCurrency) }}</div>
                 </div>
                 <div class="rounded-3xl border border-white/10 bg-white/[0.04] p-4">
                     <div class="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">{{ __('finance.fields.people_count') }}</div>
@@ -591,10 +598,10 @@ new class extends Component {
                             <td class="px-5 py-3"><div>{{ $request->pullRequestKind?->name ?: '-' }}</div><div class="text-xs text-neutral-500">{{ $request->pullRequestKind ? __('finance.pull_modes.'.$request->pullRequestKind->mode) : '-' }}</div></td>
                             <td class="px-5 py-3">
                                 @if ($request->accepted_amount !== null)
-                                    <div class="text-base font-semibold text-white">{{ __('finance.fields.accepted') }}: {{ number_format((float) $request->accepted_amount, 2) }} {{ $request->acceptedCurrency?->code }}</div>
-                                    <div class="mt-1 text-xs text-neutral-500">{{ __('finance.fields.requested') }}: {{ number_format((float) $request->requested_amount, 2) }} {{ $request->requestedCurrency?->code }}</div>
+                                    <div class="text-base font-semibold text-white">{{ __('finance.fields.accepted') }}: {{ app(FinanceService::class)->formatCurrencyAmount($request->accepted_amount, $request->acceptedCurrency) }}</div>
+                                    <div class="mt-1 text-xs text-neutral-500">{{ __('finance.fields.requested') }}: {{ app(FinanceService::class)->formatCurrencyAmount($request->requested_amount, $request->requestedCurrency) }}</div>
                                 @else
-                                    <div class="text-base font-semibold text-white">{{ __('finance.fields.requested') }}: {{ number_format((float) $request->requested_amount, 2) }} {{ $request->requestedCurrency?->code }}</div>
+                                    <div class="text-base font-semibold text-white">{{ __('finance.fields.requested') }}: {{ app(FinanceService::class)->formatCurrencyAmount($request->requested_amount, $request->requestedCurrency) }}</div>
                                     <div class="mt-1 text-xs text-neutral-500">{{ __('finance.fields.accepted') }}: -</div>
                                 @endif
                                 @if($request->requested_count)<div class="text-xs text-neutral-500">{{ __('finance.fields.people_count') }}: {{ number_format((float) ($request->accepted_count ?: $request->requested_count)) }}</div>@endif
@@ -609,6 +616,14 @@ new class extends Component {
                                         @else
                                             <span class="text-xs text-neutral-500">-</span>
                                         @endcan
+                                        <div class="flex flex-wrap justify-end gap-2">
+                                            @can('finance.entries.update')
+                                                <button type="button" wire:click="openFinanceRequestEditModal({{ $request->id }})" class="pill-link pill-link--compact">{{ __('finance.actions.edit_entry') }}</button>
+                                            @endcan
+                                            @can('finance.entries.delete')
+                                                <button type="button" wire:click="openFinanceRequestDeleteModal({{ $request->id }})" class="pill-link pill-link--compact pill-link--danger">{{ __('finance.actions.delete') }}</button>
+                                            @endcan
+                                        </div>
                                     @else
                                         @if (in_array($request->status, ['accepted', 'settled'], true))
                                             <div class="flex flex-wrap justify-end gap-2">
@@ -616,6 +631,15 @@ new class extends Component {
                                                 <a href="{{ route('finance.requests.print', ['financeRequest' => $request, 'choose' => 1]) }}" target="_blank" class="pill-link pill-link--compact">{{ __('finance.actions.choose_print_template') }}</a>
                                             </div>
                                         @endif
+
+                                        <div class="flex flex-wrap justify-end gap-2">
+                                            @can('finance.entries.update')
+                                                <button type="button" wire:click="openFinanceRequestEditModal({{ $request->id }})" class="pill-link pill-link--compact">{{ __('finance.actions.edit_entry') }}</button>
+                                            @endcan
+                                            @can('finance.entries.delete')
+                                                <button type="button" wire:click="openFinanceRequestDeleteModal({{ $request->id }})" class="pill-link pill-link--compact pill-link--danger">{{ __('finance.actions.delete') }}</button>
+                                            @endcan
+                                        </div>
 
                                         @can('finance.pull-requests.review')
                                             @if ($request->status === 'accepted' && $request->pullRequestKind?->mode === 'count')
@@ -639,4 +663,5 @@ new class extends Component {
         </div>
         @if ($requests->hasPages()) <div class="border-t border-white/8 px-5 py-4">{{ $requests->links() }}</div> @endif
     </section>
+    @include('livewire.finance.partials.request-maintenance-modals')
 </div>

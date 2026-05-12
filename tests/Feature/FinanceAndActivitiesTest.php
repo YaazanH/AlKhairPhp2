@@ -15,12 +15,14 @@ use App\Models\FinanceCurrency;
 use App\Models\FinanceCurrencyExchange;
 use App\Models\FinanceInvoiceKind;
 use App\Models\FinancePullRequestKind;
+use App\Models\FinanceReportTemplate;
 use App\Models\FinanceRequest;
 use App\Models\FinanceTransaction;
 use App\Models\Invoice;
 use App\Models\ParentProfile;
 use App\Models\Payment;
 use App\Models\PaymentMethod;
+use App\Models\PrintPageSize;
 use App\Models\PrintTemplate;
 use App\Models\Student;
 use App\Models\Teacher;
@@ -329,14 +331,17 @@ class FinanceAndActivitiesTest extends TestCase
         Volt::test('settings.finance')
             ->call('editCurrency', $localCurrency->id)
             ->set('currency_rate_input', '12800')
+            ->set('currency_decimal_places', '0')
             ->call('saveCurrency')
             ->assertHasNoErrors();
 
         $localCurrency->refresh();
 
         $this->assertEqualsWithDelta(1 / 12800, (float) $localCurrency->rate_to_base, 0.000000000001);
+        $this->assertSame(0, $localCurrency->decimal_places);
         $this->assertSame('12,800', app(FinanceService::class)->currencyRateInput($localCurrency));
         $this->assertSame('1 USD = 12,800 SYP', app(FinanceService::class)->currencyRateLabel($localCurrency));
+        $this->assertSame('1,235 SYP', app(FinanceService::class)->formatCurrencyAmount(1234.56, $localCurrency));
 
         Volt::test('settings.finance')
             ->call('editCurrency', $localCurrency->id)
@@ -531,6 +536,84 @@ class FinanceAndActivitiesTest extends TestCase
             'finance_request_id' => $request->id,
             'signed_amount' => 45,
             'type' => 'revenue_request',
+        ]);
+    }
+
+    public function test_finance_revenue_entries_can_be_named_edited_and_reversed(): void
+    {
+        $this->signIn();
+
+        $service = app(FinanceService::class);
+        $cashBox = FinanceCashBox::query()->firstOrFail();
+        $localCurrency = $service->localCurrency();
+        $secondBox = FinanceCashBox::query()->create([
+            'code' => 'secondary-revenue',
+            'is_active' => true,
+            'name' => 'Secondary revenue box',
+        ]);
+        $secondBox->currencies()->sync([$localCurrency->id]);
+        $category = FinanceCategory::query()->create([
+            'code' => 'privacy-donation',
+            'is_active' => true,
+            'name' => 'Privacy donation',
+            'type' => FinanceRequest::TYPE_REVENUE,
+        ]);
+
+        Volt::test('finance.revenue-requests')
+            ->call('openCreateModal')
+            ->assertSet('cash_box_id', $service->defaultCashBoxForUser(auth()->user(), $localCurrency->id)?->id)
+            ->assertSee('Secondary revenue box')
+            ->set('finance_category_id', $category->id)
+            ->set('counterparty_name', 'Yazan Al Hamwi')
+            ->set('amount', '75')
+            ->set('currency_id', $localCurrency->id)
+            ->set('cash_box_id', $cashBox->id)
+            ->set('request_date', '2026-02-01')
+            ->set('requested_reason', 'Private donation')
+            ->call('submitRequest')
+            ->assertHasNoErrors();
+
+        $request = FinanceRequest::query()->where('type', FinanceRequest::TYPE_REVENUE)->firstOrFail();
+
+        $this->assertSame('Yazan Al Hamwi', $request->counterparty_name);
+        $this->assertSame('Y**** A* H****', $request->maskedCounterpartyName());
+        $this->assertDatabaseHas('finance_transactions', [
+            'finance_request_id' => $request->id,
+            'signed_amount' => 75,
+            'transaction_date' => '2026-02-01 00:00:00',
+        ]);
+
+        Volt::test('finance.revenue-requests')
+            ->assertSee('Y**** A* H****')
+            ->call('openFinanceRequestEditModal', $request->id)
+            ->set('edit_counterparty_name', 'Updated Donor')
+            ->set('edit_request_date', '2026-02-05')
+            ->set('edit_requested_reason', 'Updated note')
+            ->call('saveFinanceRequestEdit')
+            ->assertHasNoErrors();
+
+        $request->refresh();
+
+        $this->assertSame('Updated Donor', $request->counterparty_name);
+        $this->assertSame('Updated note', $request->requested_reason);
+        $this->assertDatabaseHas('finance_transactions', [
+            'finance_request_id' => $request->id,
+            'signed_amount' => 75,
+            'transaction_date' => '2026-02-05 00:00:00',
+        ]);
+
+        Volt::test('finance.revenue-requests')
+            ->call('openFinanceRequestDeleteModal', $request->id)
+            ->set('delete_reason', 'Duplicate entry')
+            ->call('deleteFinanceRequestEntry')
+            ->assertHasNoErrors();
+
+        $this->assertSoftDeleted('finance_requests', ['id' => $request->id]);
+        $this->assertDatabaseHas('finance_transactions', [
+            'source_type' => FinanceRequest::class,
+            'source_id' => $request->id,
+            'type' => 'revenue_request_reversal',
+            'signed_amount' => -75,
         ]);
     }
 
@@ -823,6 +906,137 @@ class FinanceAndActivitiesTest extends TestCase
 
         $this->assertGreaterThan(0, $report['summary']['transactions']);
         $this->assertNotEmpty($report['quarter_totals']);
+    }
+
+    public function test_finance_ledger_report_exports_opening_running_and_closing_balances(): void
+    {
+        $this->signIn();
+
+        $service = app(FinanceService::class);
+        $cashBox = FinanceCashBox::query()->firstOrFail();
+        $currency = $service->localCurrency();
+        $template = FinanceReportTemplate::query()->firstOrFail();
+
+        $service->postTransaction([
+            'cash_box_id' => $cashBox->id,
+            'currency_id' => $currency->id,
+            'type' => 'manual_adjustment',
+            'direction' => 'in',
+            'amount' => 100,
+            'transaction_date' => '2026-01-01',
+            'description' => 'Opening',
+        ]);
+        $service->postTransaction([
+            'cash_box_id' => $cashBox->id,
+            'currency_id' => $currency->id,
+            'type' => 'revenue_request',
+            'direction' => 'in',
+            'amount' => 75,
+            'transaction_date' => '2026-02-01',
+            'description' => 'Income',
+        ]);
+        $service->postTransaction([
+            'cash_box_id' => $cashBox->id,
+            'currency_id' => $currency->id,
+            'type' => 'expense_request',
+            'direction' => 'out',
+            'amount' => 20,
+            'transaction_date' => '2026-02-02',
+            'description' => 'Expense',
+        ]);
+
+        $report = app(FinanceReportService::class)->ledgerReport($template, $cashBox, $currency, '2026-02-01', '2026-02-28');
+
+        $this->assertSame(100.0, $report['opening_balance']);
+        $this->assertSame(75.0, $report['income']);
+        $this->assertSame(20.0, $report['expense']);
+        $this->assertSame(155.0, $report['closing_balance']);
+        $this->assertSame(2, $report['rows']->count());
+        $this->assertSame(175.0, $report['rows']->first()['running_balance']);
+        $this->assertSame(155.0, $report['rows']->last()['running_balance']);
+
+        Volt::test('finance.reports')
+            ->assertSee(__('finance.reports.ledger_export_title'))
+            ->assertSee($cashBox->name)
+            ->assertSee($currency->code);
+
+        $this->get(route('finance.reports.ledger.export', [
+            'cash_box_id' => $cashBox->id,
+            'currency_id' => $currency->id,
+            'date_from' => '2026-02-01',
+            'date_to' => '2026-02-28',
+            'format' => 'pdf',
+            'template_id' => $template->id,
+        ]))
+            ->assertOk()
+            ->assertSee($template->title)
+            ->assertSee('155.00 '.$currency->code);
+
+        $this->get(route('finance.reports.ledger.export', [
+            'cash_box_id' => $cashBox->id,
+            'currency_id' => $currency->id,
+            'date_from' => '2026-02-01',
+            'date_to' => '2026-02-28',
+            'format' => 'xlsx',
+            'template_id' => $template->id,
+        ]))
+            ->assertOk()
+            ->assertHeader('content-type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    }
+
+    public function test_finance_report_template_page_keeps_one_default_template(): void
+    {
+        $this->signIn();
+
+        Volt::test('settings.finance-report-templates')
+            ->call('openTemplateModal')
+            ->set('name', 'Arabic ledger')
+            ->set('title', 'تقرير الصندوق')
+            ->set('language', FinanceReportTemplate::LANGUAGE_AR)
+            ->set('is_default', true)
+            ->set('columns', ['transaction_date', 'income', 'expense', 'running_balance'])
+            ->call('saveTemplate')
+            ->assertHasNoErrors();
+
+        $this->assertSame(1, FinanceReportTemplate::query()->where('is_default', true)->count());
+        $this->assertDatabaseHas('finance_report_templates', [
+            'name' => 'Arabic ledger',
+            'is_default' => true,
+        ]);
+
+        $default = FinanceReportTemplate::query()->where('name', 'Arabic ledger')->firstOrFail();
+
+        Volt::test('settings.finance-report-templates')
+            ->call('deleteTemplate', $default->id)
+            ->assertHasNoErrors();
+
+        $this->assertSame(1, FinanceReportTemplate::query()->where('is_default', true)->count());
+    }
+
+    public function test_print_page_sizes_are_managed_from_organization_settings(): void
+    {
+        $this->signIn();
+
+        Volt::test('settings.organization')
+            ->call('openPrintPageSizeModal')
+            ->set('print_page_size_name', 'Compact A5')
+            ->set('print_page_width_mm', '148')
+            ->set('print_page_height_mm', '210')
+            ->set('print_margin_top_mm', '8')
+            ->set('print_margin_right_mm', '7')
+            ->set('print_margin_bottom_mm', '8')
+            ->set('print_margin_left_mm', '7')
+            ->set('print_gap_x_mm', '4')
+            ->set('print_gap_y_mm', '5')
+            ->set('print_page_size_is_default', true)
+            ->call('savePrintPageSize')
+            ->assertHasNoErrors();
+
+        $this->assertSame(1, PrintPageSize::query()->where('is_default', true)->count());
+        $this->assertDatabaseHas('print_page_sizes', [
+            'name' => 'Compact A5',
+            'is_default' => true,
+        ]);
     }
 
     public function test_parent_users_can_view_and_respond_to_targeted_activities(): void

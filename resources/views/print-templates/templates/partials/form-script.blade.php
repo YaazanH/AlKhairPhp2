@@ -33,6 +33,7 @@
             textAlignments: @json(__('print_templates.templates.form.text_alignments')),
             imageFit: @json(__('print_templates.templates.form.image_fit')),
             preview: @json(__('print_templates.templates.form.preview_fallbacks')),
+            placeholderPicker: @json(__('print_templates.templates.form.element.placeholder_picker')),
         };
 
         const state = {
@@ -378,6 +379,30 @@
             return fields.map((field) => `<option value="${h(field.key)}" ${field.key === element.field ? 'selected' : ''}>${h(field.label)}</option>`).join('');
         }
 
+        function placeholderButtons() {
+            const groups = groupsFor('dynamic_text');
+
+            if (!groups.length) {
+                return '';
+            }
+
+            return `
+                <div class="print-template-placeholder-palette admin-form-field--full">
+                    <div class="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-neutral-400">${h(labels.placeholderPicker)}</div>
+                    <div class="grid gap-2">
+                        ${groups.map((group) => `
+                            <div class="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+                                <div class="mb-2 text-xs font-semibold text-neutral-300">${h(group.entity_label)}</div>
+                                <div class="flex flex-wrap gap-2">
+                                    ${group.fields.map((field) => `<button type="button" class="pill-link pill-link--compact" data-placeholder-token="${h(group.entity)}.${h(field.key)}">${h(field.label)}</button>`).join('')}
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
         function renderInspector() {
             const element = selectedElement();
             if (!element) {
@@ -395,7 +420,7 @@
 
             inspector.innerHTML = `
                 <div class="admin-form-field"><label>${h(labels.element.type)}</label><select class="w-full rounded-xl px-4 py-3 text-sm" data-i="type">${typeOptions}</select></div>
-                ${element.type === 'custom_text' ? `<div class="admin-form-field admin-form-field--full"><label>${h(labels.element.content)}</label><textarea rows="5" class="w-full rounded-xl px-4 py-3 text-sm" data-i="content">${h(element.content || '')}</textarea><p class="mt-1 text-xs text-neutral-400">${h(labels.element.placeholder_help)}</p></div>` : ''}
+                ${element.type === 'custom_text' ? `<div class="admin-form-field admin-form-field--full"><label>${h(labels.element.content)}</label><textarea rows="5" class="w-full rounded-xl px-4 py-3 text-sm" data-i="content">${h(element.content || '')}</textarea><p class="mt-1 text-xs text-neutral-400">${h(labels.element.placeholder_help)}</p></div>${placeholderButtons()}` : ''}
                 ${element.type !== 'custom_text' ? `<div class="admin-form-field"><label>${h(labels.element.source)}</label><select class="w-full rounded-xl px-4 py-3 text-sm" data-i="source">${sourceSelect(element)}</select></div><div class="admin-form-field"><label>${h(labels.element.field)}</label><select class="w-full rounded-xl px-4 py-3 text-sm" data-i="field">${fieldSelect(element)}</select></div>` : ''}
                 <div class="admin-form-field"><label>${h(labels.element.x)}</label><input class="w-full rounded-xl px-4 py-3 text-sm" type="number" step="0.1" min="0" value="${h(element.x)}" data-n="x"></div>
                 <div class="admin-form-field"><label>${h(labels.element.y)}</label><input class="w-full rounded-xl px-4 py-3 text-sm" type="number" step="0.1" min="0" value="${h(element.y)}" data-n="y"></div>
@@ -518,6 +543,25 @@
 
         inspector.addEventListener('input', updateElement);
         inspector.addEventListener('change', updateElement);
+        inspector.addEventListener('click', (event) => {
+            const button = event.target.closest('[data-placeholder-token]');
+            if (!button) return;
+
+            const element = selectedElement();
+            const textarea = inspector.querySelector('[data-i="content"]');
+            if (!element || !textarea) return;
+
+            const token = `{{ ${button.dataset.placeholderToken} }}`;
+            const start = textarea.selectionStart ?? textarea.value.length;
+            const end = textarea.selectionEnd ?? textarea.value.length;
+            textarea.value = `${textarea.value.slice(0, start)}${token}${textarea.value.slice(end)}`;
+            textarea.selectionStart = textarea.selectionEnd = start + token.length;
+            textarea.focus();
+            element.content = textarea.value;
+            syncHidden();
+            renderStage();
+            renderLayers();
+        });
 
         function updateElement(event) {
             const element = selectedElement();
