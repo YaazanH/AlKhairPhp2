@@ -13,6 +13,7 @@ return [
         'settings' => 'Settings',
         'current_account' => 'Current Account',
         'visit_site' => 'Visit Site',
+        'menu' => 'Menu',
     ],
     'roles' => [
         'super_admin' => 'Super Admin',

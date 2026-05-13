@@ -16,6 +16,7 @@
         const sourcesInput = document.querySelector('[data-print-template-data-sources-input]');
         const layerList = document.querySelector('[data-print-template-layer-list]');
         const inspector = document.querySelector('[data-print-template-inspector]');
+        const layersPanel = document.querySelector('[data-print-template-layers-panel]');
         const backgroundInput = document.querySelector('[data-print-template-background-input]');
         const removeBackgroundInput = document.querySelector('[data-print-template-remove-background]');
         const backgroundFileName = document.querySelector('[data-print-template-file-name]');
@@ -100,7 +101,15 @@
         }
 
         function enabledSources() {
-            return state.sources.map((source) => source.entity);
+            return [...new Set(state.sources.map((source) => source.entity || source.key).filter(Boolean))];
+        }
+
+        function checkedSources() {
+            const checked = Array.from(document.querySelectorAll('[data-source-enabled]:checked'))
+                .map((checkbox) => checkbox.dataset.sourceEnabled)
+                .filter(Boolean);
+
+            return checked.length ? [...new Set(checked)] : enabledSources();
         }
 
         function groupsFor(type) {
@@ -380,7 +389,10 @@
         }
 
         function placeholderButtons() {
-            const groups = groupsFor('dynamic_text');
+            const enabled = [...new Set([...checkedSources(), ...enabledSources()])];
+            const groups = (fieldOptions.dynamic_text || [])
+                .filter((group) => enabled.includes(group.entity))
+                .sort((a, b) => enabled.indexOf(a.entity) - enabled.indexOf(b.entity));
 
             if (!groups.length) {
                 return '';
@@ -389,10 +401,10 @@
             return `
                 <div class="print-template-placeholder-palette admin-form-field--full">
                     <div class="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-neutral-400">${h(labels.placeholderPicker)}</div>
-                    <div class="grid gap-2">
+                    <div class="print-template-placeholder-palette__groups">
                         ${groups.map((group) => `
-                            <div class="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
-                                <div class="mb-2 text-xs font-semibold text-neutral-300">${h(group.entity_label)}</div>
+                            <div class="print-template-placeholder-group">
+                                <div class="print-template-placeholder-group__title">${h(group.entity_label)}</div>
                                 <div class="flex flex-wrap gap-2">
                                     ${group.fields.map((field) => `<button type="button" class="pill-link pill-link--compact" data-placeholder-token="${h(group.entity)}.${h(field.key)}">${h(field.label)}</button>`).join('')}
                                 </div>
@@ -551,7 +563,7 @@
             const textarea = inspector.querySelector('[data-i="content"]');
             if (!element || !textarea) return;
 
-            const token = `{{ ${button.dataset.placeholderToken} }}`;
+            const token = `${String.fromCharCode(123, 123)} ${button.dataset.placeholderToken} ${String.fromCharCode(125, 125)}`;
             const start = textarea.selectionStart ?? textarea.value.length;
             const end = textarea.selectionEnd ?? textarea.value.length;
             textarea.value = `${textarea.value.slice(0, start)}${token}${textarea.value.slice(end)}`;
@@ -670,9 +682,23 @@
         const stopDrag = () => state.drag = null;
         window.addEventListener('pointerup', stopDrag);
         window.addEventListener('pointercancel', stopDrag);
-        window.addEventListener('resize', () => renderStage());
+        function syncLayerPanelForViewport() {
+            if (!layersPanel) return;
+
+            const compact = window.matchMedia('(max-width: 1199px)').matches;
+
+            if (compact) {
+                layersPanel.removeAttribute('open');
+            }
+        }
+
+        window.addEventListener('resize', () => {
+            renderStage();
+            syncLayerPanelForViewport();
+        });
 
         syncSourcesToControls();
+        syncLayerPanelForViewport();
         ensureElementBindings();
         state.elements.forEach((element) => {
             element.styling = element.styling || {};

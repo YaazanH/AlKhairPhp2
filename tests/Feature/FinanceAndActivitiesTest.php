@@ -524,18 +524,77 @@ class FinanceAndActivitiesTest extends TestCase
             ->set('amount', '45')
             ->set('currency_id', $currency->id)
             ->set('cash_box_id', $cashBox->id)
-            ->set('requested_reason', 'Friday donation')
             ->call('submitRequest')
             ->assertHasNoErrors();
 
         $request = FinanceRequest::query()->where('type', FinanceRequest::TYPE_REVENUE)->firstOrFail();
 
         $this->assertSame($category->id, $request->finance_category_id);
+        $this->assertNull($request->requested_reason);
         $this->assertDatabaseHas('finance_transactions', [
             'finance_category_id' => $category->id,
             'finance_request_id' => $request->id,
             'signed_amount' => 45,
             'type' => 'revenue_request',
+        ]);
+    }
+
+    public function test_expense_requests_allow_empty_reason_and_edit_posted_amount_details(): void
+    {
+        $this->signIn();
+
+        $service = app(FinanceService::class);
+        $cashBox = FinanceCashBox::query()->firstOrFail();
+        $currency = $service->localCurrency();
+        $pullKind = FinancePullRequestKind::query()->where('mode', FinancePullRequestKind::MODE_INVOICE)->firstOrFail();
+
+        $service->postTransaction([
+            'amount' => 100,
+            'cash_box_id' => $cashBox->id,
+            'currency_id' => $currency->id,
+            'description' => 'Expense edit balance',
+            'direction' => 'in',
+            'type' => 'manual_adjustment',
+        ]);
+
+        Volt::test('finance.expense-requests')
+            ->call('openCreateModal')
+            ->set('amount', '40')
+            ->set('currency_id', $currency->id)
+            ->set('cash_box_id', $cashBox->id)
+            ->set('finance_pull_request_kind_id', $pullKind->id)
+            ->call('submitRequest')
+            ->assertHasNoErrors();
+
+        $request = FinanceRequest::query()->where('type', FinanceRequest::TYPE_EXPENSE)->firstOrFail();
+
+        $this->assertNull($request->requested_reason);
+        $this->assertSame(FinanceRequest::STATUS_ACCEPTED, $request->status);
+        $this->assertDatabaseHas('finance_transactions', [
+            'finance_request_id' => $request->id,
+            'signed_amount' => -40,
+        ]);
+
+        Volt::test('finance.expense-requests')
+            ->call('openFinanceRequestEditModal', $request->id)
+            ->set('edit_amount', '60')
+            ->set('edit_currency_id', $currency->id)
+            ->set('edit_cash_box_id', $cashBox->id)
+            ->set('edit_finance_pull_request_kind_id', $pullKind->id)
+            ->set('edit_request_date', '2026-02-10')
+            ->set('edit_requested_reason', 'Updated expense')
+            ->call('saveFinanceRequestEdit')
+            ->assertHasNoErrors();
+
+        $request->refresh();
+
+        $this->assertSame('60.00', $request->requested_amount);
+        $this->assertSame('60.00', $request->accepted_amount);
+        $this->assertSame('Updated expense', $request->requested_reason);
+        $this->assertDatabaseHas('finance_transactions', [
+            'finance_request_id' => $request->id,
+            'signed_amount' => -60,
+            'transaction_date' => '2026-02-10 00:00:00',
         ]);
     }
 

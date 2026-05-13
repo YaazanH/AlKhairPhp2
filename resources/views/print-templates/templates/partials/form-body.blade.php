@@ -124,17 +124,22 @@
         </div>
 
         <div class="print-template-studio__workspace">
-            <aside class="print-template-panel print-template-panel--layers">
-                <div class="print-template-panel__header">
+            <details class="print-template-panel print-template-panel--layers" open data-print-template-layers-panel>
+                <summary class="print-template-panel__summary">
                     <div>
                         <div class="eyebrow">{{ __('print_templates.templates.form.sections.layers') }}</div>
                         <div class="admin-section-card__title">{{ __('print_templates.templates.form.sections.layers') }}</div>
                     </div>
-                </div>
+                    <span class="print-template-layer-toggle" aria-hidden="true">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                    </span>
+                </summary>
                 <div class="id-card-layer-list" data-print-template-layer-list>
                     <div class="admin-empty-state">{{ __('print_templates.templates.form.empty_layers') }}</div>
                 </div>
-            </aside>
+            </details>
 
             <section class="print-template-panel print-template-panel--inspector">
                 <div class="print-template-panel__header">

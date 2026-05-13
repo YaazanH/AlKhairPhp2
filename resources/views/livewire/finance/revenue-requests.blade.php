@@ -95,7 +95,7 @@ new class extends Component {
             ],
             'counterparty_name' => ['nullable', 'string', 'max:255'],
             'request_date' => [auth()->user()?->can('finance.entries.update') ? 'required' : 'nullable', 'date'],
-            'requested_reason' => ['required', 'string', 'max:2000'],
+            'requested_reason' => ['nullable', 'string', 'max:2000'],
         ]);
         $category = FinanceCategory::query()
             ->whereKey($validated['finance_category_id'])
@@ -112,7 +112,7 @@ new class extends Component {
             'finance_category_id' => $category->id,
             'counterparty_name' => $validated['counterparty_name'] ?: null,
             'requested_by' => auth()->id(),
-            'requested_reason' => $validated['requested_reason'],
+            'requested_reason' => $validated['requested_reason'] ?: null,
         ]);
 
         $this->storeAttachments($request);

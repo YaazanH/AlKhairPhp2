@@ -173,14 +173,6 @@
     </section>
 
     <section class="public-section">
-        <div class="public-section__heading">
-            <div>
-                <div class="eyebrow">{{ __('site.public.sections.gallery') }}</div>
-                <h2 class="public-section__title">{{ $site['site_name'] }}</h2>
-            </div>
-            <p class="public-section__lede">{{ $metaDescription }}</p>
-        </div>
-
         <div class="public-gallery-showcase">
             <div class="public-gallery-slider" data-public-gallery-slider aria-label="{{ __('site.public.sections.gallery') }}">
                 @foreach (($site['gallery_items'] ?? []) as $galleryItem)

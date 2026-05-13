@@ -29,6 +29,12 @@
             <div class="app-backdrop__orb app-backdrop__orb--plum"></div>
         </div>
 
+        <button type="button" class="app-sidebar-toggle-button" data-app-sidebar-toggle aria-label="{{ __('ui.common.menu') }}">
+            <span></span>
+            <span></span>
+            <span></span>
+        </button>
+
         <div class="app-shell flex min-h-screen">
             <flux:sidebar sticky stashable class="app-sidebar-shell {{ $sidebarBorderClass }}">
                 <flux:sidebar.toggle class="lg:hidden" icon="x-mark" />
@@ -203,5 +209,28 @@
         </div>
 
         @fluxScripts
+
+        <script>
+            (() => {
+                const storageKey = 'alkhair.sidebar.collapsed';
+                const root = document.documentElement;
+
+                function apply(collapsed) {
+                    root.classList.toggle('app-sidebar-is-collapsed', collapsed);
+                    document.querySelector('[data-app-sidebar-toggle]')?.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+                }
+
+                apply(localStorage.getItem(storageKey) === '1');
+
+                document.addEventListener('click', (event) => {
+                    const button = event.target.closest('[data-app-sidebar-toggle]');
+                    if (!button) return;
+
+                    const collapsed = !root.classList.contains('app-sidebar-is-collapsed');
+                    localStorage.setItem(storageKey, collapsed ? '1' : '0');
+                    apply(collapsed);
+                });
+            })();
+        </script>
     </body>
 </html>

@@ -95,7 +95,7 @@ new class extends Component {
             'currency_id' => ['required', 'exists:finance_currencies,id'],
             'finance_pull_request_kind_id' => ['required', 'exists:finance_pull_request_kinds,id'],
             'request_date' => [auth()->user()?->can('finance.entries.update') ? 'required' : 'nullable', 'date'],
-            'requested_reason' => ['required', 'string', 'max:2000'],
+            'requested_reason' => ['nullable', 'string', 'max:2000'],
         ]);
 
         $request = FinanceRequest::query()->create([
@@ -107,7 +107,7 @@ new class extends Component {
             'requested_amount' => $validated['amount'],
             'finance_category_id' => null,
             'requested_by' => auth()->id(),
-            'requested_reason' => $validated['requested_reason'],
+            'requested_reason' => $validated['requested_reason'] ?: null,
         ]);
 
         $this->storeAttachments($request);

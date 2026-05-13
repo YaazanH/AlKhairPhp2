@@ -61,10 +61,7 @@
                         </div>
 
                         @foreach (['page_width_mm', 'page_height_mm', 'margin_top_mm', 'margin_right_mm', 'margin_bottom_mm', 'margin_left_mm', 'gap_x_mm', 'gap_y_mm'] as $field)
-                            <div class="admin-form-field">
-                                <label>{{ __('id_cards.print.setup.fields.'.$field) }}</label>
-                                <input name="{{ $field }}" type="number" min="0" step="0.1" value="{{ old($field, $defaults[$field]) }}" data-page-layout-field="{{ $field }}">
-                            </div>
+                            <input name="{{ $field }}" type="hidden" value="{{ old($field, $defaults[$field]) }}" data-page-layout-field="{{ $field }}">
                         @endforeach
                     </div>
                 </section>

@@ -13,6 +13,7 @@ return [
         'settings' => 'الإعدادات',
         'current_account' => 'الحساب الحالي',
         'visit_site' => 'زيارة الموقع',
+        'menu' => 'القائمة',
     ],
     'roles' => [
         'super_admin' => 'المشرف الأعلى',

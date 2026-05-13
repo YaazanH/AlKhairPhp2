@@ -447,12 +447,65 @@ class FinanceService
 
     public function updateFinanceRequestEntry(FinanceRequest $request, array $payload, ?User $user = null): FinanceRequest
     {
-        return DB::transaction(function () use ($payload, $request): FinanceRequest {
+        return DB::transaction(function () use ($payload, $request, $user): FinanceRequest {
             $date = $payload['request_date'] ?? null;
+            $requestedReason = array_key_exists('requested_reason', $payload) ? $payload['requested_reason'] : $request->requested_reason;
             $updates = [
-                'counterparty_name' => $payload['counterparty_name'] ?? $request->counterparty_name,
-                'requested_reason' => $payload['requested_reason'] ?? $request->requested_reason,
+                'counterparty_name' => array_key_exists('counterparty_name', $payload) ? $payload['counterparty_name'] : $request->counterparty_name,
+                'requested_reason' => $requestedReason,
             ];
+
+            if ($request->type === FinanceRequest::TYPE_EXPENSE && isset($payload['amount'], $payload['cash_box_id'], $payload['currency_id'])) {
+                $amount = abs((float) $payload['amount']);
+                $cashBox = $this->cashBoxForUser((int) $payload['cash_box_id'], $user);
+                $currency = FinanceCurrency::query()->findOrFail((int) $payload['currency_id']);
+                $this->ensureCashBoxSupportsCurrency($cashBox, $currency);
+
+                $transaction = $request->postedTransaction ?: FinanceTransaction::query()
+                    ->where('source_type', FinanceRequest::class)
+                    ->where('source_id', $request->id)
+                    ->where('type', FinanceRequest::TYPE_EXPENSE.'_request')
+                    ->latest('id')
+                    ->first();
+
+                $updates['cash_box_id'] = $cashBox->id;
+                $updates['finance_pull_request_kind_id'] = $payload['finance_pull_request_kind_id'] ?? $request->finance_pull_request_kind_id;
+                $updates['requested_amount'] = $amount;
+                $updates['requested_currency_id'] = $currency->id;
+
+                if ($request->accepted_amount !== null || $transaction) {
+                    $updates['accepted_amount'] = $amount;
+                    $updates['accepted_currency_id'] = $currency->id;
+                }
+
+                if ($transaction) {
+                    $signedAmount = -$amount;
+                    $snapshot = $this->amountSnapshot($currency, $signedAmount);
+                    $this->ensureNonNegativeReplacementBalance($cashBox, $currency, $signedAmount, $transaction);
+
+                    $transaction->update([
+                        'amount' => $amount,
+                        'base_amount' => $snapshot['base_amount'],
+                        'cash_box_id' => $cashBox->id,
+                        'currency_id' => $currency->id,
+                        'description' => trim($this->financeRequestReference($request).' '.($requestedReason ?? '')),
+                        'direction' => 'out',
+                        'entered_by' => $user?->id ?: $transaction->entered_by,
+                        'finance_category_id' => $request->finance_category_id,
+                        'local_amount' => $snapshot['local_amount'],
+                        'metadata' => array_merge($transaction->metadata ?? [], [
+                            'edited_at' => now()->toISOString(),
+                            'edited_by' => $user?->id,
+                            'edited_from_amount' => (float) $transaction->amount,
+                        ]),
+                        'rate_to_base' => $snapshot['rate_to_base'],
+                        'signed_amount' => $signedAmount,
+                        'transaction_date' => $date ?: $transaction->transaction_date,
+                    ]);
+
+                    $updates['posted_transaction_id'] = $transaction->id;
+                }
+            }
 
             if ($date) {
                 $transactions = FinanceTransaction::query()
@@ -1057,6 +1110,33 @@ class FinanceService
         }
 
         $available = $this->currentBalance($cashBox, $currency);
+
+        if (round($available + $signedAmount, 2) >= 0) {
+            return;
+        }
+
+        throw ValidationException::withMessages([
+            'amount' => __('finance.validation.insufficient_cash_box_balance', [
+                'available' => $this->formatCurrencyAmount($available, $currency, false),
+                'currency' => $currency->code,
+                'cash_box' => $cashBox->name,
+            ]),
+        ]);
+    }
+
+    protected function ensureNonNegativeReplacementBalance(FinanceCashBox $cashBox, FinanceCurrency $currency, float $signedAmount, ?FinanceTransaction $replacedTransaction = null): void
+    {
+        if ($signedAmount >= 0) {
+            return;
+        }
+
+        $available = $this->currentBalance($cashBox, $currency);
+
+        if ($replacedTransaction
+            && (int) $replacedTransaction->cash_box_id === (int) $cashBox->id
+            && (int) $replacedTransaction->currency_id === (int) $currency->id) {
+            $available -= (float) $replacedTransaction->signed_amount;
+        }
 
         if (round($available + $signedAmount, 2) >= 0) {
             return;

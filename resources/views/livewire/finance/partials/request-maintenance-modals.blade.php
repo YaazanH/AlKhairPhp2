@@ -6,6 +6,48 @@
     max-width="3xl"
 >
     <form wire:submit="saveFinanceRequestEdit" class="space-y-4">
+        @if ($edit_supports_expense_details)
+            <div class="grid gap-4 md:grid-cols-2">
+                <div>
+                    <label class="mb-1 block text-sm font-medium">{{ __('finance.fields.amount') }}</label>
+                    <input wire:model="edit_amount" type="text" inputmode="decimal" data-thousand-separator class="w-full rounded-xl px-4 py-3 text-sm">
+                    @error('edit_amount') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
+                </div>
+
+                <div>
+                    <label class="mb-1 block text-sm font-medium">{{ __('finance.common.currency') }}</label>
+                    <select wire:model.live="edit_currency_id" class="w-full rounded-xl px-4 py-3 text-sm">
+                        @foreach (app(\App\Services\FinanceService::class)->currenciesForCashBox($edit_cash_box_id)->get() as $currency)
+                            <option value="{{ $currency->id }}">{{ $currency->code }} - {{ $currency->name }}</option>
+                        @endforeach
+                    </select>
+                    @error('edit_currency_id') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
+                </div>
+
+                <div>
+                    <label class="mb-1 block text-sm font-medium">{{ __('finance.fields.cash_box') }}</label>
+                    <select wire:model.live="edit_cash_box_id" class="w-full rounded-xl px-4 py-3 text-sm">
+                        <option value="">{{ __('finance.actions.choose_box') }}</option>
+                        @foreach (app(\App\Services\FinanceService::class)->accessibleCashBoxesForCurrency(auth()->user(), $edit_currency_id)->get() as $box)
+                            <option value="{{ $box->id }}">{{ $box->name }}</option>
+                        @endforeach
+                    </select>
+                    @error('edit_cash_box_id') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
+                </div>
+
+                <div>
+                    <label class="mb-1 block text-sm font-medium">{{ __('finance.fields.pull_kind') }}</label>
+                    <select wire:model="edit_finance_pull_request_kind_id" class="w-full rounded-xl px-4 py-3 text-sm">
+                        <option value="">{{ __('finance.actions.choose_pull_kind') }}</option>
+                        @foreach (\App\Models\FinancePullRequestKind::query()->where('is_active', true)->orderBy('mode')->orderBy('name')->get() as $kind)
+                            <option value="{{ $kind->id }}">{{ $kind->name }} - {{ __('finance.pull_modes.'.$kind->mode) }}</option>
+                        @endforeach
+                    </select>
+                    @error('edit_finance_pull_request_kind_id') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
+                </div>
+            </div>
+        @endif
+
         @if ($edit_supports_counterparty_name)
             <div>
                 <label class="mb-1 block text-sm font-medium">{{ __('finance.fields.revenue_name') }}</label>
