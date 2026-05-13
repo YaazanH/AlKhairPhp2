@@ -634,12 +634,15 @@ html:not(.dark) .app-backdrop__orb--plum {
 }
 
 .app-shell {
+    --app-sidebar-width: 17rem;
     position: relative;
     z-index: 1;
     min-height: 100vh;
 }
 
 .app-sidebar-shell {
+    width: var(--app-sidebar-width) !important;
+    flex: 0 0 var(--app-sidebar-width) !important;
     border-color: var(--app-border) !important;
     background: rgba(15, 12, 9, 0.82) !important;
     box-shadow: 24px 0 60px rgba(0, 0, 0, 0.28);
@@ -1515,6 +1518,16 @@ html:not(.dark) .admin-section-card__title {
     z-index: 80;
 }
 
+@media (min-width: 1024px) {
+    .admin-modal {
+        inset-inline-start: var(--app-sidebar-width, 17rem);
+    }
+
+    .app-sidebar-is-collapsed .admin-modal {
+        inset-inline-start: 0;
+    }
+}
+
 .admin-modal__backdrop {
     position: absolute;
     inset: 0;
@@ -1606,6 +1619,54 @@ html:not(.dark) .admin-modal__title {
 
 .admin-modal__body:has(.searchable-select--open) {
     overflow: visible;
+}
+
+.admin-modal .searchable-select__panel {
+    max-height: min(18rem, calc(100vh - 8rem));
+}
+
+.admin-modal .searchable-select__list {
+    max-height: min(14rem, calc(100vh - 12rem));
+}
+
+@media (min-width: 768px) and (max-height: 760px) {
+    .admin-modal .searchable-select--open {
+        z-index: 260;
+    }
+
+    .admin-modal .searchable-select__panel {
+        position: fixed;
+        top: auto;
+        bottom: 1rem;
+        z-index: 260;
+        max-height: min(24rem, 62vh);
+        border-radius: 1.25rem;
+    }
+
+    html:not([dir='rtl']) .admin-modal .searchable-select__panel {
+        right: 1.5rem;
+        left: calc(var(--app-sidebar-width, 17rem) + 1.5rem);
+    }
+
+    html[dir='rtl'] .admin-modal .searchable-select__panel {
+        right: calc(var(--app-sidebar-width, 17rem) + 1.5rem);
+        left: 1.5rem;
+    }
+
+    .app-sidebar-is-collapsed .admin-modal .searchable-select__panel {
+        right: 1.5rem;
+        left: 1.5rem;
+    }
+
+    .admin-modal .searchable-select__search {
+        position: sticky;
+        top: 0;
+        z-index: 1;
+    }
+
+    .admin-modal .searchable-select__list {
+        max-height: min(19rem, 48vh);
+    }
 }
 
 .admin-modal__close {
@@ -3936,6 +3997,7 @@ html:not(.dark) .public-gallery-slider {
 
     .app-sidebar-shell {
         width: min(88vw, 22rem) !important;
+        flex-basis: min(88vw, 22rem) !important;
     }
 
     .app-brand-card,
@@ -4063,6 +4125,30 @@ html:not(.dark) .public-gallery-slider {
 
     .searchable-select__list {
         max-height: min(14rem, 44vh);
+    }
+
+    .admin-modal .searchable-select--open {
+        z-index: 260;
+    }
+
+    .admin-modal .searchable-select__panel {
+        position: fixed;
+        inset-inline: 1rem;
+        top: auto;
+        bottom: 1rem;
+        z-index: 260;
+        max-height: min(24rem, 62vh);
+        border-radius: 1.25rem;
+    }
+
+    .admin-modal .searchable-select__search {
+        position: sticky;
+        top: 0;
+        z-index: 1;
+    }
+
+    .admin-modal .searchable-select__list {
+        max-height: min(19rem, 48vh);
     }
 
     .admin-kpi-grid,
