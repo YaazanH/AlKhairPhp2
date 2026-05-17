@@ -53,7 +53,6 @@
 
         @foreach ($pages as $pageIndex => $pageItems)
             <section class="print-template-sheet">
-                <div class="mb-4 text-sm font-semibold text-neutral-500">{{ __('id_cards.print.preview.page_label', ['number' => $pageIndex + 1]) }}</div>
                 <div class="print-template-grid">
                     @foreach ($pageItems as $item)
                         @include('print-templates.partials.item', ['item' => $item])

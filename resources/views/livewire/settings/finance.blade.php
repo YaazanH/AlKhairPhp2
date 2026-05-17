@@ -697,7 +697,7 @@ new class extends Component {
             ->orderBy('name')
             ->get()
             ->filter(fn (PrintTemplate $template) => collect(app(PrintTemplateDataSourceService::class)->normalize($template->data_sources ?? []))
-                ->contains(fn (array $source) => $source['entity'] === 'finance_request' && $source['mode'] === 'single'))
+                ->contains(fn (array $source) => in_array($source['entity'], ['finance_request', 'revenue'], true) && $source['mode'] === 'single'))
             ->values();
     }
 }; ?>

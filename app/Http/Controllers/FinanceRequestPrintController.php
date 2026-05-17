@@ -34,7 +34,7 @@ class FinanceRequestPrintController extends Controller
             ->orderBy('name')
             ->get()
             ->filter(fn (PrintTemplate $template) => collect(app(PrintTemplateDataSourceService::class)->normalize($template->data_sources ?? []))
-                ->contains(fn (array $source) => $source['entity'] === 'finance_request' && $source['mode'] === 'single'))
+                ->contains(fn (array $source) => in_array($source['entity'], $financeRequest->type === FinanceRequest::TYPE_PULL || $financeRequest->type === FinanceRequest::TYPE_EXPENSE ? ['finance_request'] : ['finance_request', 'revenue'], true) && $source['mode'] === 'single'))
             ->values();
 
         $defaultTemplate = $this->defaultTemplateFor($financeRequest, $templates);
@@ -78,7 +78,8 @@ class FinanceRequestPrintController extends Controller
     protected function previewWithTemplate(FinanceRequest $financeRequest, PrintTemplate $template): View
     {
         $defaults = $this->defaultPageSize()?->layoutConfig() ?? app(IdCardPrintLayoutService::class)->defaults();
-        $contexts = collect([['finance_request' => $financeRequest]]);
+        $contextKey = in_array($financeRequest->type, [FinanceRequest::TYPE_REVENUE, FinanceRequest::TYPE_RETURN], true) ? 'revenue' : 'finance_request';
+        $contexts = collect([[$contextKey => $financeRequest]]);
         $layout = app(IdCardPrintLayoutService::class)->paginateDimensions(
             $template->width_mm,
             $template->height_mm,
@@ -92,9 +93,9 @@ class FinanceRequestPrintController extends Controller
         );
 
         $pages = collect($layout['pages'])
-            ->map(fn ($pageContexts) => collect($pageContexts)
+            ->map(fn ($pageContexts, $pageIndex) => collect($pageContexts)
                 ->values()
-                ->map(fn (array $context, int $index) => app(PrintTemplateRenderService::class)->render($template, $context, $index + 1))
+                ->map(fn (array $context, int $index) => app(PrintTemplateRenderService::class)->render($template, $context, $index + 1, $pageIndex + 1))
                 ->all())
             ->all();
 

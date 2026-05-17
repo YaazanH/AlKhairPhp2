@@ -3833,9 +3833,12 @@ html:not(.dark) .public-gallery-slider {
 }
 
 .id-card-builder-stage__element--text {
+    align-items: flex-start;
     justify-content: flex-start;
-    white-space: nowrap;
-    text-overflow: ellipsis;
+    overflow-wrap: anywhere;
+    padding: 0;
+    text-overflow: clip;
+    white-space: pre-wrap;
 }
 
 .id-card-builder-stage__element--image {

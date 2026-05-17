@@ -229,6 +229,10 @@ new class extends Component {
             $result['user']->assignRole($accessRole->name);
         }
 
+        if ($accessRole && $result['user']->hasRole('teacher')) {
+            $result['user']->removeRole('teacher');
+        }
+
         if ($result['credentials']['password']) {
             session()->flash('generated_credentials', $result['credentials']);
         }
@@ -400,6 +404,10 @@ new class extends Component {
             $result['user']->assignRole($accessRole->name);
         }
 
+        if ($accessRole && $result['user']->hasRole('teacher')) {
+            $result['user']->removeRole('teacher');
+        }
+
         session()->flash('status', __('crud.teachers.messages.request_approved'));
 
         $this->closeReviewModal();
@@ -458,6 +466,16 @@ new class extends Component {
 
         $teacher->user()->associate($result['user']);
         $teacher->save();
+
+        $accessRole = $teacher->accessRole;
+
+        if ($accessRole && ! $result['user']->hasRole($accessRole->name)) {
+            $result['user']->assignRole($accessRole->name);
+        }
+
+        if ($accessRole && $result['user']->hasRole('teacher')) {
+            $result['user']->removeRole('teacher');
+        }
 
         $this->account_username = $result['user']->username ?? '';
         $this->account_email = $result['user']->email ?? '';

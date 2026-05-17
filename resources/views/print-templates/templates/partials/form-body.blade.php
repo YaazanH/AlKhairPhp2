@@ -118,8 +118,11 @@
             <div class="print-template-command-bar__actions">
                 <button type="button" class="pill-link pill-link--compact" data-print-template-add="custom_text">{{ __('print_templates.templates.form.buttons.add_custom_text') }}</button>
                 <button type="button" class="pill-link pill-link--compact" data-print-template-add="dynamic_text">{{ __('print_templates.templates.form.buttons.add_dynamic_text') }}</button>
+                <button type="button" class="pill-link pill-link--compact" data-print-template-add="date_text">{{ __('print_templates.templates.form.buttons.add_date') }}</button>
+                <button type="button" class="pill-link pill-link--compact" data-print-template-add="page_number">{{ __('print_templates.templates.form.buttons.add_page_number') }}</button>
                 <button type="button" class="pill-link pill-link--compact" data-print-template-add="dynamic_image">{{ __('print_templates.templates.form.buttons.add_image') }}</button>
                 <button type="button" class="pill-link pill-link--compact" data-print-template-add="barcode">{{ __('print_templates.templates.form.buttons.add_barcode') }}</button>
+                <button type="button" class="pill-link pill-link--compact" data-print-template-add="shape">{{ __('print_templates.templates.form.buttons.add_shape') }}</button>
             </div>
         </div>
 

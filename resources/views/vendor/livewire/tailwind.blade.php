@@ -9,6 +9,15 @@ $scrollIntoViewJsSnippet = ($scrollTo !== false)
     JS
     : '';
 @endphp
+@php
+    $isRtl = config('app.supported_locales.'.app()->getLocale().'.direction', 'ltr') === 'rtl';
+    $previousPath = $isRtl
+        ? 'M7.293 5.293a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L10.586 10 7.293 6.707a1 1 0 010-1.414z'
+        : 'M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z';
+    $nextPath = $isRtl
+        ? 'M12.707 14.707a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414l4-4a1 1 0 111.414 1.414L9.414 10l3.293 3.293a1 1 0 010 1.414z'
+        : 'M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z';
+@endphp
 
 <div>
     @if ($paginator->hasPages())
@@ -51,20 +60,20 @@ $scrollIntoViewJsSnippet = ($scrollTo !== false)
 
             <div class="hidden items-center justify-between gap-4 sm:flex">
                 <p class="app-pagination__summary">
-                    <span>{!! __('Showing') !!}</span>
+                    <span>{{ __('pagination.showing') }}</span>
                     <span class="app-pagination__summary-strong">{{ $paginator->firstItem() }}</span>
-                    <span>{!! __('to') !!}</span>
+                    <span>{{ __('pagination.to') }}</span>
                     <span class="app-pagination__summary-strong">{{ $paginator->lastItem() }}</span>
-                    <span>{!! __('of') !!}</span>
+                    <span>{{ __('pagination.of') }}</span>
                     <span class="app-pagination__summary-strong">{{ $paginator->total() }}</span>
-                    <span>{!! __('results') !!}</span>
+                    <span>{{ __('pagination.results') }}</span>
                 </p>
 
                 <div class="app-pagination__nav">
                     @if ($paginator->onFirstPage())
                         <span class="app-pagination__icon app-pagination__icon--disabled" aria-disabled="true" aria-label="{{ __('pagination.previous') }}">
                             <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
-                                <path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd" />
+                                <path fill-rule="evenodd" d="{{ $previousPath }}" clip-rule="evenodd" />
                             </svg>
                         </span>
                     @else
@@ -78,7 +87,7 @@ $scrollIntoViewJsSnippet = ($scrollTo !== false)
                             aria-label="{{ __('pagination.previous') }}"
                         >
                             <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
-                                <path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd" />
+                                <path fill-rule="evenodd" d="{{ $previousPath }}" clip-rule="evenodd" />
                             </svg>
                         </button>
                     @endif
@@ -99,7 +108,7 @@ $scrollIntoViewJsSnippet = ($scrollTo !== false)
                                             wire:click="gotoPage({{ $page }}, '{{ $paginator->getPageName() }}')"
                                             x-on:click="{{ $scrollIntoViewJsSnippet }}"
                                             class="app-pagination__page"
-                                            aria-label="{{ __('Go to page :page', ['page' => $page]) }}"
+                                            aria-label="{{ __('pagination.go_to_page', ['page' => $page]) }}"
                                         >
                                             {{ $page }}
                                         </button>
@@ -120,13 +129,13 @@ $scrollIntoViewJsSnippet = ($scrollTo !== false)
                             aria-label="{{ __('pagination.next') }}"
                         >
                             <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
-                                <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" />
+                                <path fill-rule="evenodd" d="{{ $nextPath }}" clip-rule="evenodd" />
                             </svg>
                         </button>
                     @else
                         <span class="app-pagination__icon app-pagination__icon--disabled" aria-disabled="true" aria-label="{{ __('pagination.next') }}">
                             <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
-                                <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" />
+                                <path fill-rule="evenodd" d="{{ $nextPath }}" clip-rule="evenodd" />
                             </svg>
                         </span>
                     @endif

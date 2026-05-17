@@ -34,14 +34,26 @@ class FinanceReportTemplate extends Model
     ];
 
     protected $fillable = [
+        'background_image',
         'columns',
         'created_by',
+        'custom_date',
+        'custom_text',
+        'date_mode',
+        'footer_text',
+        'header_text',
         'include_closing_balance',
         'include_exported_at',
         'include_opening_balance',
         'is_default',
         'language',
+        'logo_image',
         'name',
+        'shape_color',
+        'shape_opacity',
+        'shape_type',
+        'show_issuer_name',
+        'show_page_numbers',
         'subtitle',
         'title',
     ];
@@ -50,10 +62,14 @@ class FinanceReportTemplate extends Model
     {
         return [
             'columns' => 'array',
+            'custom_date' => 'date',
             'include_closing_balance' => 'boolean',
             'include_exported_at' => 'boolean',
             'include_opening_balance' => 'boolean',
             'is_default' => 'boolean',
+            'show_issuer_name' => 'boolean',
+            'show_page_numbers' => 'boolean',
+            'shape_opacity' => 'float',
         ];
     }
 
@@ -69,5 +85,28 @@ class FinanceReportTemplate extends Model
         $columns = array_values(array_intersect($columns, $available));
 
         return $columns === [] ? self::DEFAULT_COLUMNS : $columns;
+    }
+
+    public function getBackgroundImageUrlAttribute(): ?string
+    {
+        return $this->assetUrl($this->background_image);
+    }
+
+    public function getLogoImageUrlAttribute(): ?string
+    {
+        return $this->assetUrl($this->logo_image);
+    }
+
+    protected function assetUrl(?string $path): ?string
+    {
+        if (blank($path)) {
+            return null;
+        }
+
+        if (str_starts_with($path, '/')) {
+            return $path;
+        }
+
+        return '/storage/'.ltrim($path, '/');
     }
 }

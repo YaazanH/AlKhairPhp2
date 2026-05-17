@@ -126,6 +126,7 @@ class TeacherSignupRequestTest extends TestCase
         $this->assertTrue($teacher->is_helping);
         $this->assertSame($accessRole->id, $teacher->access_role_id);
         $this->assertTrue($teacher->user->is_active);
+        $this->assertFalse($teacher->user->hasRole('teacher'));
         $this->assertTrue($teacher->user->hasRole($accessRole->name));
     }
 

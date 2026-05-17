@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\FinanceGeneratedReport;
+use App\Models\FinanceReportTemplate;
 use App\Services\AccessScopeService;
 use App\Services\FinanceReportService;
 use App\Services\FinanceService;
@@ -92,22 +94,51 @@ class ReportExportController extends Controller
         $financeService = app(FinanceService::class);
         $reportService = app(FinanceReportService::class);
         $template = isset($validated['template_id'])
-            ? \App\Models\FinanceReportTemplate::query()->findOrFail((int) $validated['template_id'])
+            ? FinanceReportTemplate::query()->findOrFail((int) $validated['template_id'])
             : $reportService->defaultLedgerTemplate();
         $cashBox = $financeService->cashBoxForUser((int) $validated['cash_box_id'], $request->user());
         $currency = $financeService->currenciesForCashBox($cashBox->id)
             ->whereKey((int) $validated['currency_id'])
             ->firstOrFail();
+        $report = $reportService->ledgerReport($template, $cashBox, $currency, $validated['date_from'], $validated['date_to'], $request->user());
+        $generatedReport = $reportService->storeGeneratedLedgerReport($report, $validated, $request->user());
 
         if ($validated['format'] === 'pdf') {
             return view('reports.finance-ledger-pdf', [
-                'report' => $reportService->ledgerReport($template, $cashBox, $currency, $validated['date_from'], $validated['date_to']),
+                'generatedReport' => $generatedReport,
+                'report' => $report,
                 'service' => $reportService,
             ]);
         }
 
-        $rows = $reportService->ledgerExportRows($template, $cashBox, $currency, $validated['date_from'], $validated['date_to']);
-        $headers = array_shift($rows) ?: [$template->title];
+        $rows = $reportService->ledgerExportRowsFromReport($report);
+        $headers = array_shift($rows) ?: [data_get($report, 'template.title', $template->title)];
+
+        return $this->xlsxDownload('finance-ledger-report', $headers, $rows);
+    }
+
+    public function generatedFinanceLedger(Request $request, FinanceGeneratedReport $generatedReport)
+    {
+        abort_unless($request->user()?->can('finance.reports.export'), 403);
+        abort_unless($generatedReport->report_type === 'ledger', 404);
+
+        $validated = $request->validate([
+            'format' => ['nullable', 'in:xlsx,pdf'],
+        ]);
+
+        $reportService = app(FinanceReportService::class);
+        $report = $reportService->generatedLedgerReport($generatedReport->loadMissing('generatedBy'));
+
+        if (($validated['format'] ?? 'pdf') === 'pdf') {
+            return view('reports.finance-ledger-pdf', [
+                'generatedReport' => $generatedReport,
+                'report' => $report,
+                'service' => $reportService,
+            ]);
+        }
+
+        $rows = $reportService->ledgerExportRowsFromReport($report);
+        $headers = array_shift($rows) ?: [data_get($report, 'template.title', __('finance.report_templates.default_title'))];
 
         return $this->xlsxDownload('finance-ledger-report', $headers, $rows);
     }

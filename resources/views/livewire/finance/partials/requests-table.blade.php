@@ -2,6 +2,8 @@
     @php
         $recordLabel = $recordLabel ?? __('finance.common.request');
         $emptyLabel = $emptyLabel ?? __('finance.empty.no_requests');
+        $amountStyle = $amountStyle ?? 'split';
+        $amountHeader = $amountStyle === 'actual_only' ? __('finance.fields.amount') : __('finance.common.amounts');
     @endphp
     <div class="admin-grid-meta">
         <div>
@@ -21,7 +23,7 @@
                     <th class="px-5 py-3 text-left">{{ $recordLabel }}</th>
                     <th class="px-5 py-3 text-left">{{ __('finance.fields.activity') }}</th>
                     <th class="px-5 py-3 text-left">{{ __('finance.fields.category') }}</th>
-                    <th class="px-5 py-3 text-left">{{ __('finance.common.amounts') }}</th>
+                    <th class="px-5 py-3 text-left">{{ $amountHeader }}</th>
                     <th class="px-5 py-3 text-left">{{ __('finance.common.status') }}</th>
                     <th class="px-5 py-3 text-right">{{ __('finance.actions.actions') }}</th>
                 </tr>
@@ -59,18 +61,26 @@
                             <div class="text-xs text-neutral-500">{{ $request->teacher ? trim($request->teacher->first_name.' '.$request->teacher->last_name) : '-' }}</div>
                         </td>
                         <td class="px-5 py-3">
-                            <div>{{ $request->category?->name ?: ($request->pullRequestKind ? __('finance.fields.pull_kind') : ($request->type === \App\Models\FinanceRequest::TYPE_PULL ? __('finance.pull_requests.title') : '-')) }}</div>
+                            <div>{{ $request->category?->name ?: ($request->pullRequestKind?->name ?: app(\App\Services\FinanceService::class)->financeRequestTypeLabel($request->type)) }}</div>
                             @if ($request->pullRequestKind)
-                                <div class="text-xs text-neutral-500">{{ $request->pullRequestKind->name }} - {{ __('finance.pull_modes.'.$request->pullRequestKind->mode) }}</div>
+                                <div class="text-xs text-neutral-500">{{ __('finance.pull_modes.'.$request->pullRequestKind->mode) }}</div>
                             @endif
                         </td>
                         <td class="px-5 py-3">
-                            @if ($request->accepted_amount !== null)
-                                <div class="text-base font-semibold text-white">{{ __('finance.fields.accepted') }}: {{ app(\App\Services\FinanceService::class)->formatCurrencyAmount($request->accepted_amount, $request->acceptedCurrency) }}</div>
-                                <div class="mt-1 text-xs text-neutral-500">{{ __('finance.fields.requested') }}: {{ app(\App\Services\FinanceService::class)->formatCurrencyAmount($request->requested_amount, $request->requestedCurrency) }}</div>
+                            @if ($amountStyle === 'actual_only')
+                                @php
+                                    $actualAmount = $request->accepted_amount ?? $request->requested_amount;
+                                    $actualCurrency = $request->accepted_amount !== null ? $request->acceptedCurrency : $request->requestedCurrency;
+                                @endphp
+                                <div class="text-base font-semibold text-white">{{ app(\App\Services\FinanceService::class)->formatCurrencyAmount($actualAmount, $actualCurrency) }}</div>
                             @else
-                                <div class="text-base font-semibold text-white">{{ __('finance.fields.requested') }}: {{ app(\App\Services\FinanceService::class)->formatCurrencyAmount($request->requested_amount, $request->requestedCurrency) }}</div>
-                                <div class="mt-1 text-xs text-neutral-500">{{ __('finance.fields.accepted') }}: -</div>
+                                @if ($request->accepted_amount !== null)
+                                    <div class="text-base font-semibold text-white">{{ __('finance.fields.accepted') }}: {{ app(\App\Services\FinanceService::class)->formatCurrencyAmount($request->accepted_amount, $request->acceptedCurrency) }}</div>
+                                    <div class="mt-1 text-xs text-neutral-500">{{ __('finance.fields.requested') }}: {{ app(\App\Services\FinanceService::class)->formatCurrencyAmount($request->requested_amount, $request->requestedCurrency) }}</div>
+                                @else
+                                    <div class="text-base font-semibold text-white">{{ __('finance.fields.requested') }}: {{ app(\App\Services\FinanceService::class)->formatCurrencyAmount($request->requested_amount, $request->requestedCurrency) }}</div>
+                                    <div class="mt-1 text-xs text-neutral-500">{{ __('finance.fields.accepted') }}: -</div>
+                                @endif
                             @endif
                         </td>
                         <td class="px-5 py-3"><span class="status-chip {{ $request->status === 'accepted' ? 'status-chip--emerald' : ($request->status === 'declined' ? 'status-chip--rose' : 'status-chip--slate') }}">{{ __('finance.statuses.'.$request->status) }}</span></td>

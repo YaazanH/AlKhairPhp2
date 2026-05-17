@@ -323,6 +323,6 @@ new class extends Component {
         </form>
     </x-admin.modal>
 
-    @include('livewire.finance.partials.requests-table', ['requests' => $requests, 'cashBoxes' => $cashBoxes, 'cashBoxesByCurrency' => $cashBoxesByCurrency, 'reviewPermission' => 'finance.revenue-requests.review', 'createPermission' => 'finance.revenue-requests.create', 'createMethod' => 'openCreateModal', 'createLabel' => __('finance.revenue_requests.new'), 'recordLabel' => __('finance.options.revenue'), 'emptyLabel' => __('finance.empty.no_revenue')])
+    @include('livewire.finance.partials.requests-table', ['requests' => $requests, 'cashBoxes' => $cashBoxes, 'cashBoxesByCurrency' => $cashBoxesByCurrency, 'reviewPermission' => 'finance.revenue-requests.review', 'createPermission' => 'finance.revenue-requests.create', 'createMethod' => 'openCreateModal', 'createLabel' => __('finance.revenue_requests.new'), 'recordLabel' => __('finance.options.revenue'), 'emptyLabel' => __('finance.empty.no_revenue'), 'amountStyle' => 'actual_only'])
     @include('livewire.finance.partials.request-maintenance-modals')
 </div>

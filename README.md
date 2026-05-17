@@ -13,10 +13,7 @@ Laravel 12 + Livewire foundation for the Alkhair management platform.
 
 ## Demo Admin
 
-Running `php artisan db:seed` now creates a local admin user so you can inspect the app immediately:
-
-- email: `admin@alkhair.test`
-- password: `P@ssw0rd`
+Running `php artisan db:seed` now creates a local admin user so you can inspect the app immediately.
 
 You can override those defaults before seeding with:
 

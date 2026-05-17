@@ -13,6 +13,7 @@ return [
         'user' => 'User',
         'activity' => 'Activity',
         'finance_request' => 'Finance request',
+        'revenue' => 'Revenue',
     ],
     'fields' => [
         'full_name' => 'Full name',
@@ -112,8 +113,11 @@ return [
             'buttons' => [
                 'add_custom_text' => 'Add custom text',
                 'add_dynamic_text' => 'Add field text',
+                'add_date' => 'Add date',
+                'add_page_number' => 'Add page number',
                 'add_image' => 'Add image',
                 'add_barcode' => 'Add barcode / QR',
+                'add_shape' => 'Add shape',
                 'move_up' => 'Up',
                 'move_down' => 'Down',
                 'remove' => 'Remove',
@@ -123,8 +127,11 @@ return [
             'element_types' => [
                 'custom_text' => 'Custom text',
                 'dynamic_text' => 'Dynamic text',
+                'date_text' => 'Date',
+                'page_number' => 'Page number',
                 'dynamic_image' => 'Image',
                 'barcode' => 'Barcode / QR',
+                'shape' => 'Shape',
             ],
             'element' => [
                 'type' => 'Type',
@@ -140,12 +147,18 @@ return [
                 'z_index' => 'Layer',
                 'font_size' => 'Font size',
                 'font_weight' => 'Font weight',
+                'line_height' => 'Line height',
+                'letter_spacing' => 'Letter spacing',
                 'color' => 'Color',
                 'text_align' => 'Alignment',
                 'object_fit' => 'Image fit',
                 'border_radius' => 'Corner radius',
                 'barcode_format' => 'Code type',
                 'show_text' => 'Show code text',
+                'date_mode' => 'Date source',
+                'custom_date' => 'Custom date',
+                'shape_type' => 'Shape',
+                'fill_opacity' => 'Fill opacity',
             ],
             'barcode_formats' => [
                 'code39' => '1D barcode',
@@ -155,6 +168,8 @@ return [
                 'text' => 'Sample value',
                 'image' => 'Image',
                 'custom_text' => 'Masjid AlKhair',
+                'date_text' => '2026-05-17',
+                'page_number' => 'Page 1',
             ],
             'font_weights' => [
                 '400' => 'Regular',
@@ -168,10 +183,19 @@ return [
                 'center' => 'Center',
                 'right' => 'Right',
             ],
+            'date_modes' => [
+                'today' => 'Today',
+                'custom' => 'Custom date',
+            ],
             'image_fit' => [
                 'cover' => 'Cover',
                 'contain' => 'Contain',
                 'fill' => 'Fill',
+            ],
+            'shape_types' => [
+                'rectangle' => 'Rectangle',
+                'circle' => 'Circle',
+                'triangle' => 'Triangle',
             ],
             'empty_layers' => 'Add an element to start designing.',
             'no_field_available' => 'Select a data source first',
@@ -180,6 +204,8 @@ return [
     'builder' => [
         'defaults' => [
             'custom_text' => 'Masjid AlKhair',
+            'date_content' => '{{ date }}',
+            'page_number_content' => 'Page {{ page_number }}',
             'title_content' => 'Masjid AlKhair',
         ],
         'sample_values' => [

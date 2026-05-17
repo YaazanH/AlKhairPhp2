@@ -52,6 +52,11 @@ class PrintTemplateFieldRegistry
                 'model' => FinanceRequest::class,
                 'relations' => ['activity', 'cashBox', 'category', 'requestedBy', 'reviewedBy', 'teacher', 'requestedCurrency', 'acceptedCurrency'],
             ],
+            'revenue' => [
+                'label' => __('print_templates.entities.revenue'),
+                'model' => FinanceRequest::class,
+                'relations' => ['activity', 'cashBox', 'category', 'requestedBy', 'reviewedBy', 'teacher', 'requestedCurrency', 'acceptedCurrency'],
+            ],
         ];
     }
 
@@ -107,7 +112,18 @@ class PrintTemplateFieldRegistry
             ],
             'finance_request' => [
                 'request_no' => $this->field('request_no', ['text', 'barcode'], fn (FinanceRequest $request) => $request->request_no),
-                'type' => $this->field('type', ['text'], fn (FinanceRequest $request) => ucfirst($request->type)),
+                'type' => $this->field('type', ['text'], fn (FinanceRequest $request) => app(FinanceService::class)->financeRequestTypeLabel($request->type)),
+                'requested_amount' => $this->field('requested_amount', ['text'], fn (FinanceRequest $request) => app(FinanceService::class)->formatCurrencyAmount($request->requested_amount, $request->requestedCurrency)),
+                'accepted_amount' => $this->field('accepted_amount', ['text'], fn (FinanceRequest $request) => $request->accepted_amount !== null ? app(FinanceService::class)->formatCurrencyAmount($request->accepted_amount, $request->acceptedCurrency) : __('print_templates.common.not_available')),
+                'cash_box' => $this->field('cash_box', ['text'], fn (FinanceRequest $request) => $request->cashBox?->name ?: __('print_templates.common.not_available')),
+                'activity' => $this->field('activity', ['text'], fn (FinanceRequest $request) => $request->activity?->title ?: __('print_templates.common.not_available')),
+                'revenue_name' => $this->field('revenue_name', ['text'], fn (FinanceRequest $request) => $request->maskedCounterpartyName() ?: __('print_templates.common.not_available')),
+                'requested_by' => $this->field('requested_by', ['text'], fn (FinanceRequest $request) => $request->requestedBy?->name ?: __('print_templates.common.not_available')),
+                'reviewed_by' => $this->field('reviewed_by', ['text'], fn (FinanceRequest $request) => $request->reviewedBy?->name ?: __('print_templates.common.not_available')),
+            ],
+            'revenue' => [
+                'request_no' => $this->field('request_no', ['text', 'barcode'], fn (FinanceRequest $request) => $request->request_no),
+                'type' => $this->field('type', ['text'], fn (FinanceRequest $request) => app(FinanceService::class)->financeRequestTypeLabel($request->type)),
                 'requested_amount' => $this->field('requested_amount', ['text'], fn (FinanceRequest $request) => app(FinanceService::class)->formatCurrencyAmount($request->requested_amount, $request->requestedCurrency)),
                 'accepted_amount' => $this->field('accepted_amount', ['text'], fn (FinanceRequest $request) => $request->accepted_amount !== null ? app(FinanceService::class)->formatCurrencyAmount($request->accepted_amount, $request->acceptedCurrency) : __('print_templates.common.not_available')),
                 'cash_box' => $this->field('cash_box', ['text'], fn (FinanceRequest $request) => $request->cashBox?->name ?: __('print_templates.common.not_available')),
@@ -176,7 +192,11 @@ class PrintTemplateFieldRegistry
         /** @var class-string<Model> $model */
         $model = $definition['model'];
 
-        return $model::query()->with($definition['relations']);
+        return $model::query()
+            ->with($definition['relations'])
+            ->when($entity === 'revenue', fn (Builder $query) => $query
+                ->whereIn('type', [FinanceRequest::TYPE_REVENUE, FinanceRequest::TYPE_RETURN])
+                ->whereIn('status', [FinanceRequest::STATUS_ACCEPTED, FinanceRequest::STATUS_SETTLED]));
     }
 
     public function optionsFor(string $entity): array
@@ -292,6 +312,7 @@ class PrintTemplateFieldRegistry
             'user' => trim($model->name.' '.($model->username ? '('.$model->username.')' : '')),
             'activity' => trim($model->title.' '.($model->activity_date ? '('.$model->activity_date->format('Y-m-d').')' : '')),
             'finance_request' => trim($model->request_no.' '.ucfirst((string) $model->type)),
+            'revenue' => trim($model->request_no.' '.($model->maskedCounterpartyName() ?: app(FinanceService::class)->financeRequestTypeLabel($model->type))),
             default => (string) $model->getKey(),
         };
     }
@@ -305,6 +326,7 @@ class PrintTemplateFieldRegistry
             'user' => trim($model->name.' '.$model->username.' '.$model->email.' '.$model->phone),
             'activity' => trim($model->title.' '.$model->description),
             'finance_request' => trim($model->request_no.' '.$model->type.' '.$model->requestedBy?->name.' '.$model->activity?->title),
+            'revenue' => trim($model->request_no.' '.$model->type.' '.$model->counterparty_name.' '.$model->requestedBy?->name.' '.$model->activity?->title),
             default => (string) $model->getKey(),
         };
     }

@@ -44,20 +44,48 @@
             <div class="print-template-render__element print-template-render__element--barcode" style="{{ $style }} color: {{ $element['styling']['color'] }};">
                 {!! $element['resolved']['svg'] ?: '<div class="print-template-render__fallback">'.e($element['resolved']['value'] ?: __('print_templates.common.not_available')).'</div>' !!}
             </div>
+        @elseif ($element['type'] === 'shape')
+            @php
+                $shapeStyle = match ($element['resolved']['shape_type']) {
+                    'circle' => 'border-radius:9999px;',
+                    'triangle' => 'clip-path:polygon(50% 0, 0 100%, 100% 100%);',
+                    default => '',
+                };
+            @endphp
+            <div
+                class="print-template-render__element print-template-render__element--shape"
+                style="
+                    {{ $style }}
+                    {{ $shapeStyle }}
+                    background: {{ $element['resolved']['fill'] }};
+                    opacity: {{ number_format($element['resolved']['opacity'], 2, '.', '') }};
+                "
+            ></div>
         @else
+            @php
+                $textValue = (string) $element['resolved']['value'];
+                $textAlign = $element['styling']['text_align'];
+                $justifyContent = $textAlign === 'center' ? 'center' : ($textAlign === 'right' ? 'flex-end' : 'flex-start');
+                $textDirection = preg_match('/[\p{Arabic}\p{Hebrew}\p{Syriac}]/u', $textValue) === 1 || $textAlign === 'right' ? 'rtl' : 'ltr';
+            @endphp
             <div
                 class="print-template-render__element print-template-render__element--text"
                 style="
                     {{ $style }}
+                    display:flex;
+                    align-items:flex-start;
+                    justify-content: {{ $justifyContent }};
                     color: {{ $element['styling']['color'] }};
+                    direction: {{ $textDirection }};
+                    unicode-bidi: plaintext;
                     font-size: {{ number_format($element['styling']['font_size'], 2, '.', '') }}mm;
                     font-weight: {{ $element['styling']['font_weight'] }};
-                    text-align: {{ $element['styling']['text_align'] }};
+                    text-align: {{ $textAlign }};
                     letter-spacing: {{ number_format($element['styling']['letter_spacing'], 2, '.', '') }}mm;
                     line-height: {{ number_format($element['styling']['line_height'], 2, '.', '') }};
                 "
             >
-                {{ $element['resolved']['value'] }}
+                {{ $textValue }}
             </div>
         @endif
     @endforeach

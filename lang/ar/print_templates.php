@@ -13,6 +13,7 @@ return [
         'user' => 'المستخدم',
         'activity' => 'النشاط',
         'finance_request' => 'طلب مالي',
+        'revenue' => 'إيراد',
     ],
     'fields' => [
         'full_name' => 'الاسم الكامل',
@@ -112,8 +113,11 @@ return [
             'buttons' => [
                 'add_custom_text' => 'إضافة نص مخصص',
                 'add_dynamic_text' => 'إضافة نص من البيانات',
+                'add_date' => 'إضافة تاريخ',
+                'add_page_number' => 'إضافة رقم الصفحة',
                 'add_image' => 'إضافة صورة',
                 'add_barcode' => 'إضافة باركود / QR',
+                'add_shape' => 'إضافة شكل',
                 'move_up' => 'أعلى',
                 'move_down' => 'أسفل',
                 'remove' => 'حذف',
@@ -123,8 +127,11 @@ return [
             'element_types' => [
                 'custom_text' => 'نص مخصص',
                 'dynamic_text' => 'نص ديناميكي',
+                'date_text' => 'تاريخ',
+                'page_number' => 'رقم الصفحة',
                 'dynamic_image' => 'صورة',
                 'barcode' => 'باركود / QR',
+                'shape' => 'شكل',
             ],
             'element' => [
                 'type' => 'النوع',
@@ -140,12 +147,18 @@ return [
                 'z_index' => 'الطبقة',
                 'font_size' => 'حجم الخط',
                 'font_weight' => 'سماكة الخط',
+                'line_height' => 'ارتفاع السطر',
+                'letter_spacing' => 'تباعد الأحرف',
                 'color' => 'اللون',
                 'text_align' => 'المحاذاة',
                 'object_fit' => 'ملاءمة الصورة',
                 'border_radius' => 'استدارة الزوايا',
                 'barcode_format' => 'نوع الرمز',
                 'show_text' => 'إظهار نص الرمز',
+                'date_mode' => 'مصدر التاريخ',
+                'custom_date' => 'تاريخ مخصص',
+                'shape_type' => 'الشكل',
+                'fill_opacity' => 'شفافية التعبئة',
             ],
             'barcode_formats' => [
                 'code39' => 'باركود خطي',
@@ -155,6 +168,8 @@ return [
                 'text' => 'قيمة تجريبية',
                 'image' => 'صورة',
                 'custom_text' => 'مسجد الخير',
+                'date_text' => '2026-05-17',
+                'page_number' => 'الصفحة 1',
             ],
             'font_weights' => [
                 '400' => 'عادي',
@@ -168,10 +183,19 @@ return [
                 'center' => 'وسط',
                 'right' => 'يمين',
             ],
+            'date_modes' => [
+                'today' => 'تاريخ اليوم',
+                'custom' => 'تاريخ مخصص',
+            ],
             'image_fit' => [
                 'cover' => 'تغطية',
                 'contain' => 'احتواء',
                 'fill' => 'تمديد',
+            ],
+            'shape_types' => [
+                'rectangle' => 'مستطيل',
+                'circle' => 'دائرة',
+                'triangle' => 'مثلث',
             ],
             'empty_layers' => 'أضف عنصراً للبدء بالتصميم.',
             'no_field_available' => 'اختر مصدر بيانات أولاً',
@@ -180,6 +204,8 @@ return [
     'builder' => [
         'defaults' => [
             'custom_text' => 'مسجد الخير',
+            'date_content' => '{{ date }}',
+            'page_number_content' => 'الصفحة {{ page_number }}',
             'title_content' => 'مسجد الخير',
         ],
         'sample_values' => [

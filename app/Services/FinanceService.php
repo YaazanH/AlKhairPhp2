@@ -29,6 +29,27 @@ use Illuminate\Validation\ValidationException;
 
 class FinanceService
 {
+    public function financeRequestTypeLabel(string $type): string
+    {
+        $label = __('finance.request_types.'.$type);
+
+        return $label === 'finance.request_types.'.$type ? Str::headline($type) : $label;
+    }
+
+    public function transactionTypeLabel(string $type, ?FinanceTransaction $transaction = null): string
+    {
+        if (
+            $transaction?->financeRequest
+            && in_array($transaction->financeRequest->type, [FinanceRequest::TYPE_PULL, FinanceRequest::TYPE_EXPENSE, FinanceRequest::TYPE_REVENUE, FinanceRequest::TYPE_RETURN], true)
+        ) {
+            return $this->financeRequestTypeLabel($transaction->financeRequest->type);
+        }
+
+        $label = __('finance.transaction_types.'.$type);
+
+        return $label === 'finance.transaction_types.'.$type ? Str::headline($type) : $label;
+    }
+
     public function accessibleCashBoxes(?User $user, bool $activeOnly = true): Builder
     {
         $query = FinanceCashBox::query();

@@ -98,7 +98,7 @@ class ManagementCrudTest extends TestCase
         $teacher = Teacher::query()->firstOrFail();
 
         $this->assertNotNull($teacher->user_id);
-        $this->assertTrue($teacher->user->hasRole('teacher'));
+        $this->assertFalse($teacher->user->hasRole('teacher'));
         $this->assertTrue($teacher->user->hasRole($teacherAccessRole->name));
         $this->assertSame($teacherAccessRole->id, $teacher->access_role_id);
         $this->assertSame($course->id, $teacher->course_id);

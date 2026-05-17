@@ -76,7 +76,7 @@ class PrintTemplatePrintController extends Controller
         $template = PrintTemplate::query()->findOrFail($validated['template_id']);
         $sources = $this->dataSourceService->normalize($template->data_sources ?? []);
 
-        if (collect($sources)->contains(fn (array $source) => $source['entity'] === 'finance_request' && $source['mode'] === 'single')) {
+        if (collect($sources)->contains(fn (array $source) => in_array($source['entity'], ['finance_request', 'revenue'], true) && $source['mode'] === 'single')) {
             $this->authorizeFinanceRequestPrint($request, $sources);
         } else {
             abort_unless($request->user()?->can('id-cards.print'), 403);
@@ -101,9 +101,9 @@ class PrintTemplatePrintController extends Controller
         );
 
         $pages = collect($layout['pages'])
-            ->map(fn ($pageContexts) => collect($pageContexts)
+            ->map(fn ($pageContexts, $pageIndex) => collect($pageContexts)
                 ->values()
-                ->map(fn (array $context, int $index) => $this->renderService->render($template, $context, $index + 1))
+                ->map(fn (array $context, int $index) => $this->renderService->render($template, $context, $index + 1, $pageIndex + 1))
                 ->all())
             ->all();
 
@@ -117,12 +117,12 @@ class PrintTemplatePrintController extends Controller
 
     protected function authorizeFinanceRequestPrint(Request $request, array $sources): void
     {
-        abort_unless(
-            collect($sources)->contains(fn (array $source) => $source['entity'] === 'finance_request' && $source['mode'] === 'single'),
-            403,
-        );
+        $financeSource = collect($sources)
+            ->first(fn (array $source) => in_array($source['entity'], ['finance_request', 'revenue'], true) && $source['mode'] === 'single');
 
-        $financeRequest = FinanceRequest::query()->findOrFail((int) $request->input('sources.finance_request.single'));
+        abort_unless($financeSource, 403);
+
+        $financeRequest = FinanceRequest::query()->findOrFail((int) $request->input('sources.'.$financeSource['entity'].'.single'));
 
         abort_unless($financeRequest->status === FinanceRequest::STATUS_ACCEPTED, 403);
 

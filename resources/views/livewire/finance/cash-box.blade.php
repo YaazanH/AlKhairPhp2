@@ -310,7 +310,7 @@ new class extends Component {
                     <select wire:model.live="filter_type" class="w-full rounded-xl px-4 py-3 text-sm">
                         <option value="all">{{ __('finance.options.all_types') }}</option>
                         @foreach ($transactionTypes as $type)
-                            <option value="{{ $type }}">{{ str_replace('_', ' ', $type) }}</option>
+                            <option value="{{ $type }}">{{ app(FinanceService::class)->transactionTypeLabel($type) }}</option>
                         @endforeach
                     </select>
                 </div>
@@ -351,7 +351,7 @@ new class extends Component {
                             </td>
                             <td class="px-5 py-3">{{ $transaction->cashBox?->name }}</td>
                             <td class="px-5 py-3">
-                                <div>{{ str_replace('_', ' ', $transaction->type) }}</div>
+                                <div>{{ app(FinanceService::class)->transactionTypeLabel($transaction->type, $transaction) }}</div>
                                 @if ($transaction->description)
                                     <div class="mt-1 max-w-xs text-xs leading-5 text-neutral-500">{{ $transaction->description }}</div>
                                 @endif

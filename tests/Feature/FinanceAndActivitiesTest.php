@@ -15,6 +15,7 @@ use App\Models\FinanceCurrency;
 use App\Models\FinanceCurrencyExchange;
 use App\Models\FinanceInvoiceKind;
 use App\Models\FinancePullRequestKind;
+use App\Models\FinanceGeneratedReport;
 use App\Models\FinanceReportTemplate;
 use App\Models\FinanceRequest;
 use App\Models\FinanceTransaction;
@@ -320,6 +321,103 @@ class FinanceAndActivitiesTest extends TestCase
             ->assertOk()
             ->assertSee(__('finance.print.title'))
             ->assertSee('Pull Request Receipt');
+
+        $localCurrency = app(FinanceService::class)->localCurrency();
+        $revenueRequest = FinanceRequest::query()->create([
+            'request_no' => app(FinanceService::class)->nextRequestNumber(FinanceRequest::TYPE_REVENUE),
+            'type' => FinanceRequest::TYPE_REVENUE,
+            'status' => FinanceRequest::STATUS_ACCEPTED,
+            'requested_currency_id' => $localCurrency->id,
+            'requested_amount' => 75,
+            'accepted_currency_id' => $localCurrency->id,
+            'accepted_amount' => 75,
+            'cash_box_id' => $cashBox->id,
+            'requested_by' => $manager->id,
+            'reviewed_by' => $manager->id,
+            'requested_reason' => 'Returned class balance',
+            'accepted_at' => now(),
+        ]);
+
+        $revenueTemplate = PrintTemplate::query()->create([
+            'name' => 'Revenue Receipt',
+            'width_mm' => 100,
+            'height_mm' => 60,
+            'data_sources' => [
+                ['entity' => 'revenue', 'mode' => 'single'],
+            ],
+            'layout_json' => [
+                [
+                    'type' => 'shape',
+                    'x' => 4,
+                    'y' => 4,
+                    'width' => 18,
+                    'height' => 18,
+                    'z_index' => 1,
+                    'styling' => [
+                        'color' => '#0f7a3d',
+                        'shape_type' => 'circle',
+                        'fill_opacity' => 0.18,
+                    ],
+                ],
+                [
+                    'type' => 'dynamic_text',
+                    'source' => 'revenue',
+                    'field' => 'request_no',
+                    'x' => 10,
+                    'y' => 8,
+                    'width' => 70,
+                    'height' => 8,
+                    'z_index' => 2,
+                    'styling' => [
+                        'font_size' => 4.2,
+                        'font_weight' => '700',
+                        'color' => '#102316',
+                        'text_align' => 'left',
+                    ],
+                ],
+                [
+                    'type' => 'date_text',
+                    'content' => 'Date {{ date }}',
+                    'x' => 10,
+                    'y' => 20,
+                    'width' => 55,
+                    'height' => 8,
+                    'z_index' => 3,
+                    'styling' => [
+                        'font_size' => 3.8,
+                        'font_weight' => '500',
+                        'color' => '#102316',
+                        'text_align' => 'left',
+                        'date_mode' => 'today',
+                    ],
+                ],
+                [
+                    'type' => 'page_number',
+                    'content' => 'Page {{ page_number }}',
+                    'x' => 10,
+                    'y' => 32,
+                    'width' => 40,
+                    'height' => 8,
+                    'z_index' => 4,
+                    'styling' => [
+                        'font_size' => 3.8,
+                        'font_weight' => '500',
+                        'color' => '#102316',
+                        'text_align' => 'left',
+                    ],
+                ],
+            ],
+            'is_active' => true,
+        ]);
+
+        AppSetting::storeValue('finance', 'default_revenue_print_template_id', $revenueTemplate->id, 'integer');
+
+        $this->get(route('finance.requests.print', $revenueRequest))
+            ->assertOk()
+            ->assertSee('Revenue Receipt')
+            ->assertSee($revenueRequest->request_no)
+            ->assertSee(now()->format('Y-m-d'))
+            ->assertSee('Page 1');
     }
 
     public function test_finance_settings_currency_and_cash_box_rules(): void
@@ -1010,12 +1108,13 @@ class FinanceAndActivitiesTest extends TestCase
         $this->assertSame(75.0, $report['income']);
         $this->assertSame(20.0, $report['expense']);
         $this->assertSame(155.0, $report['closing_balance']);
-        $this->assertSame(2, $report['rows']->count());
-        $this->assertSame(175.0, $report['rows']->first()['running_balance']);
-        $this->assertSame(155.0, $report['rows']->last()['running_balance']);
+        $this->assertCount(2, $report['rows']);
+        $this->assertSame(175.0, $report['rows'][0]['_running_balance_raw']);
+        $this->assertSame(155.0, $report['rows'][1]['_running_balance_raw']);
 
         Volt::test('finance.reports')
             ->assertSee(__('finance.reports.ledger_export_title'))
+            ->assertSee(__('finance.reports.generated_reports'))
             ->assertSee($cashBox->name)
             ->assertSee($currency->code);
 
@@ -1031,6 +1130,19 @@ class FinanceAndActivitiesTest extends TestCase
             ->assertSee($template->title)
             ->assertSee('155.00 '.$currency->code);
 
+        $this->assertSame(1, FinanceGeneratedReport::query()->count());
+
+        $generatedReport = FinanceGeneratedReport::query()->latest('id')->firstOrFail();
+
+        $this->get(route('finance.reports.generated.show', $generatedReport))
+            ->assertOk()
+            ->assertSee($template->title)
+            ->assertSee('155.00 '.$currency->code);
+
+        $this->get(route('finance.reports.generated.show', ['generatedReport' => $generatedReport, 'format' => 'xlsx']))
+            ->assertOk()
+            ->assertHeader('content-type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+
         $this->get(route('finance.reports.ledger.export', [
             'cash_box_id' => $cashBox->id,
             'currency_id' => $currency->id,
@@ -1041,6 +1153,8 @@ class FinanceAndActivitiesTest extends TestCase
         ]))
             ->assertOk()
             ->assertHeader('content-type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+
+        $this->assertSame(2, FinanceGeneratedReport::query()->count());
     }
 
     public function test_finance_report_template_page_keeps_one_default_template(): void
@@ -1053,6 +1167,15 @@ class FinanceAndActivitiesTest extends TestCase
             ->set('title', 'تقرير الصندوق')
             ->set('language', FinanceReportTemplate::LANGUAGE_AR)
             ->set('is_default', true)
+            ->set('header_text', 'رأس التقرير')
+            ->set('footer_text', 'تذييل التقرير')
+            ->set('custom_text', 'نص مخصص')
+            ->set('date_mode', 'custom')
+            ->set('custom_date', '2026-02-15')
+            ->set('show_issuer_name', false)
+            ->set('shape_type', 'circle')
+            ->set('shape_color', '#123456')
+            ->set('shape_opacity', '0.30')
             ->set('columns', ['transaction_date', 'income', 'expense', 'running_balance'])
             ->call('saveTemplate')
             ->assertHasNoErrors();
@@ -1060,10 +1183,17 @@ class FinanceAndActivitiesTest extends TestCase
         $this->assertSame(1, FinanceReportTemplate::query()->where('is_default', true)->count());
         $this->assertDatabaseHas('finance_report_templates', [
             'name' => 'Arabic ledger',
+            'custom_text' => 'نص مخصص',
+            'date_mode' => 'custom',
+            'header_text' => 'رأس التقرير',
             'is_default' => true,
+            'shape_type' => 'circle',
+            'show_issuer_name' => false,
         ]);
 
         $default = FinanceReportTemplate::query()->where('name', 'Arabic ledger')->firstOrFail();
+        $this->assertSame(['transaction_date', 'income', 'expense', 'running_balance'], $default->normalizedColumns());
+        $this->assertSame('2026-02-15', $default->custom_date?->format('Y-m-d'));
 
         Volt::test('settings.finance-report-templates')
             ->call('deleteTemplate', $default->id)

@@ -5,6 +5,7 @@ namespace App\Services\PrintTemplates;
 use App\Models\PrintTemplate;
 use App\Services\IdCards\Code39SvgRenderer;
 use App\Services\IdCards\QrCodeSvgRenderer;
+use Illuminate\Support\Carbon;
 
 class PrintTemplateRenderService
 {
@@ -16,10 +17,10 @@ class PrintTemplateRenderService
     ) {
     }
 
-    public function render(PrintTemplate $template, array $context = [], int $copyNumber = 1): array
+    public function render(PrintTemplate $template, array $context = [], int $copyNumber = 1, int $pageNumber = 1): array
     {
         $elements = collect($this->layoutService->normalize($template->layout_json ?? [], $this->fieldRegistry))
-            ->map(fn (array $element) => $this->renderElement($template, $context, $element))
+            ->map(fn (array $element) => $this->renderElement($template, $context, $element, $pageNumber))
             ->sortBy('z_index')
             ->values()
             ->all();
@@ -28,6 +29,7 @@ class PrintTemplateRenderService
             'template' => $template,
             'context' => $context,
             'copy_number' => $copyNumber,
+            'page_number' => $pageNumber,
             'elements' => $elements,
         ];
     }
@@ -54,7 +56,7 @@ class PrintTemplateRenderService
             ->all();
     }
 
-    protected function renderElement(PrintTemplate $template, array $context, array $element): array
+    protected function renderElement(PrintTemplate $template, array $context, array $element, int $pageNumber): array
     {
         if (
             $element['type'] === 'barcode'
@@ -74,7 +76,13 @@ class PrintTemplateRenderService
         $element['height'] = min($element['height'], $maxHeight);
 
         $value = match ($element['type']) {
-            'custom_text' => $this->fieldRegistry->replacePlaceholders($element['content'], $context),
+            'custom_text' => $this->normalizedTextValue($this->fieldRegistry->replacePlaceholders($element['content'], $context)),
+            'date_text' => $this->normalizedTextValue($this->replaceRuntimeTokens($element['content'], [
+                'date' => $this->resolvedDateValue($element),
+            ])),
+            'page_number' => $this->normalizedTextValue($this->replaceRuntimeTokens($element['content'], [
+                'page_number' => (string) $pageNumber,
+            ])),
             default => $this->fieldRegistry->resolve($context, $element['source'], $element['field']),
         };
 
@@ -93,12 +101,44 @@ class PrintTemplateRenderService
                     'svg' => $this->renderBarcode((string) $value, $element),
                 ],
             ],
+            'shape' => $element + [
+                'resolved' => [
+                    'fill' => $element['styling']['color'],
+                    'opacity' => $element['styling']['fill_opacity'],
+                    'shape_type' => $element['styling']['shape_type'],
+                ],
+            ],
             default => $element + [
                 'resolved' => [
                     'value' => is_scalar($value) ? (string) $value : __('print_templates.common.not_available'),
                 ],
             ],
         };
+    }
+
+    protected function resolvedDateValue(array $element): string
+    {
+        $customDate = $element['styling']['custom_date'] ?? null;
+
+        if (($element['styling']['date_mode'] ?? 'today') === 'custom' && $customDate) {
+            return Carbon::parse($customDate)->format('Y-m-d');
+        }
+
+        return now()->format('Y-m-d');
+    }
+
+    protected function replaceRuntimeTokens(string $content, array $tokens): string
+    {
+        return preg_replace_callback('/\{\{\s*([a-z_]+)\s*\}\}/i', function (array $matches) use ($tokens) {
+            $key = $matches[1];
+
+            return $tokens[$key] ?? $matches[0];
+        }, $content) ?? $content;
+    }
+
+    protected function normalizedTextValue(string $value): string
+    {
+        return preg_replace("/^\h+/mu", '', $value) ?? $value;
     }
 
     protected function renderBarcode(string $value, array $element): ?string

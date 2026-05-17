@@ -274,7 +274,7 @@ new class extends Component {
         max-width="5xl"
     >
         <form wire:submit="submitRequest" class="grid gap-4 lg:grid-cols-3">
-            <div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.pull_kind') }}</label><select wire:model="finance_pull_request_kind_id" class="w-full rounded-xl px-4 py-3 text-sm"><option value="">{{ __('finance.actions.choose_pull_kind') }}</option>@foreach ($pullKinds as $kind)<option value="{{ $kind->id }}">{{ $kind->name }} - {{ __('finance.pull_modes.'.$kind->mode) }}</option>@endforeach</select>@error('finance_pull_request_kind_id') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
+            <div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.expense_kind') }}</label><select wire:model="finance_pull_request_kind_id" class="w-full rounded-xl px-4 py-3 text-sm"><option value="">{{ __('finance.actions.choose_expense_kind') }}</option>@foreach ($pullKinds as $kind)<option value="{{ $kind->id }}">{{ $kind->name }} - {{ __('finance.pull_modes.'.$kind->mode) }}</option>@endforeach</select>@error('finance_pull_request_kind_id') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
             <div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.amount') }}</label><input wire:model="amount" type="text" inputmode="decimal" data-thousand-separator class="w-full rounded-xl px-4 py-3 text-sm">@error('amount') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
             <div><label class="mb-1 block text-sm font-medium">{{ __('finance.common.currency') }}</label><select wire:model="currency_id" class="w-full rounded-xl px-4 py-3 text-sm">@foreach ($currencies as $currency)<option value="{{ $currency->id }}">{{ $currency->code }}</option>@endforeach</select></div>
             @can('finance.entries.update')<div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.entry_date') }}</label><input wire:model="request_date" type="date" class="w-full rounded-xl px-4 py-3 text-sm">@error('request_date') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>@endcan
@@ -289,6 +289,6 @@ new class extends Component {
         </form>
     </x-admin.modal>
 
-    @include('livewire.finance.partials.requests-table', ['requests' => $requests, 'cashBoxes' => $cashBoxes, 'cashBoxesByCurrency' => $cashBoxesByCurrency, 'reviewPermission' => 'finance.expense-requests.review', 'createPermission' => 'finance.expense-requests.create', 'createMethod' => 'openCreateModal', 'createLabel' => __('finance.expense_requests.new'), 'recordLabel' => __('finance.fields.expense'), 'emptyLabel' => __('finance.empty.no_expenses')])
+    @include('livewire.finance.partials.requests-table', ['requests' => $requests, 'cashBoxes' => $cashBoxes, 'cashBoxesByCurrency' => $cashBoxesByCurrency, 'reviewPermission' => 'finance.expense-requests.review', 'createPermission' => 'finance.expense-requests.create', 'createMethod' => 'openCreateModal', 'createLabel' => __('finance.expense_requests.new'), 'recordLabel' => __('finance.fields.expense'), 'emptyLabel' => __('finance.empty.no_expenses'), 'amountStyle' => 'actual_only'])
     @include('livewire.finance.partials.request-maintenance-modals')
 </div>

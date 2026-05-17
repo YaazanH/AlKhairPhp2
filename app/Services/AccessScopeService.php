@@ -608,7 +608,7 @@ class AccessScopeService
                 }
             });
 
-        if ($user?->hasRole(RoleRegistry::TEACHER)) {
+        if ($user?->teacherProfile) {
             $query->where('visibility', '!=', 'private_management');
         } elseif ($user?->hasAnyRole(RoleRegistry::actorRoles())) {
             $query->where('visibility', 'visible_to_parent');

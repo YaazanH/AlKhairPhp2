@@ -32,6 +32,8 @@
             barcodeFormats: @json(__('print_templates.templates.form.barcode_formats')),
             fontWeights: @json(__('print_templates.templates.form.font_weights')),
             textAlignments: @json(__('print_templates.templates.form.text_alignments')),
+            dateModes: @json(__('print_templates.templates.form.date_modes')),
+            shapeTypes: @json(__('print_templates.templates.form.shape_types')),
             imageFit: @json(__('print_templates.templates.form.image_fit')),
             preview: @json(__('print_templates.templates.form.preview_fallbacks')),
             placeholderPicker: @json(__('print_templates.templates.form.element.placeholder_picker')),
@@ -62,6 +64,14 @@
 
         function id() {
             return window.crypto?.randomUUID ? crypto.randomUUID() : `element-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+        }
+
+        function isFieldElement(type) {
+            return ['dynamic_text', 'dynamic_image', 'barcode'].includes(type);
+        }
+
+        function isTextElement(type) {
+            return ['custom_text', 'dynamic_text', 'date_text', 'page_number'].includes(type);
         }
 
         function widthMm() {
@@ -113,6 +123,10 @@
         }
 
         function groupsFor(type) {
+            if (!isFieldElement(type)) {
+                return [];
+            }
+
             const enabled = enabledSources();
             return (fieldOptions[type] || []).filter((group) => enabled.includes(group.entity));
         }
@@ -122,7 +136,7 @@
         }
 
         function defaultSelection(type, preferredSource = null) {
-            if (type === 'custom_text') {
+            if (!isFieldElement(type)) {
                 return { source: null, field: null };
             }
 
@@ -139,8 +153,38 @@
             return samples?.[source]?.[field] || labels.preview.text;
         }
 
+        function replaceToken(template, key, value) {
+            return String(template || '').replace(new RegExp(`\\{\\{\\s*${key}\\s*\\}\\}`, 'ig'), value);
+        }
+
         function customPreview(content) {
             return String(content || '').replace(/\{\{\s*([a-z_]+)\.([a-z_]+)\s*\}\}/ig, (_match, source, field) => sample(source, field));
+        }
+
+        function previewDateValue(element) {
+            return element.styling?.date_mode === 'custom' && element.styling?.custom_date
+                ? element.styling.custom_date
+                : labels.preview.date_text;
+        }
+
+        function previewTextValue(element) {
+            if (element.type === 'custom_text') {
+                return customPreview(element.content || labels.preview.custom_text);
+            }
+
+            if (element.type === 'date_text') {
+                return replaceToken(element.content || labels.preview.date_text, 'date', previewDateValue(element));
+            }
+
+            if (element.type === 'page_number') {
+                return replaceToken(element.content || labels.preview.page_number, 'page_number', '1');
+            }
+
+            return sample(element.source, element.field);
+        }
+
+        function isRtlText(value, align = 'left') {
+            return /[\u0590-\u08FF]/.test(String(value || '')) || align === 'right';
         }
 
         function syncSourcesToControls() {
@@ -177,7 +221,7 @@
         }
 
         function ensureElementBinding(element) {
-            if (element.type === 'custom_text') {
+            if (!isFieldElement(element.type)) {
                 element.source = null;
                 element.field = null;
                 return;
@@ -244,6 +288,10 @@
             stage.style.setProperty('--id-card-builder-background-image', state.backgroundUrl ? `url('${state.backgroundUrl}')` : 'none');
         }
 
+        function shapeClip(shapeType) {
+            return shapeType === 'triangle' ? 'polygon(50% 0, 0 100%, 100% 100%)' : '';
+        }
+
         function renderStage() {
             const { width, height, scale } = metrics();
             dimsBadge.textContent = `${width.toFixed(1)} × ${height.toFixed(1)} mm`;
@@ -266,6 +314,9 @@
                     node.style.width = `${Number(element.width || 4) * scale}px`;
                     node.style.height = `${Number(element.height || 4) * scale}px`;
                     node.style.zIndex = element.z_index || 1;
+                    node.style.background = 'rgba(255,255,255,0.18)';
+                    node.style.borderRadius = '';
+                    node.style.clipPath = '';
                     node.dataset.elementId = element.id;
 
                     if (element.type === 'dynamic_image') {
@@ -296,18 +347,35 @@
                         node.classList.toggle('id-card-builder-stage__element--qr', barcodeFormat === 'qrcode');
                         node.style.color = element.styling?.color || '#102316';
                         node.innerHTML = `<img class="id-card-builder-stage__barcode-image" src="${barcodePreviewUrl}?${params.toString()}" alt="">`;
+                    } else if (element.type === 'shape') {
+                        node.style.borderStyle = 'solid';
+                        node.style.borderColor = 'rgba(15, 36, 20, 0.22)';
+                        node.style.background = element.styling?.color || '#102316';
+                        node.style.opacity = element.styling?.fill_opacity ?? 0.18;
+
+                        if ((element.styling?.shape_type || 'rectangle') === 'circle') {
+                            node.style.borderRadius = '9999px';
+                        }
+
+                        if ((element.styling?.shape_type || 'rectangle') === 'triangle') {
+                            node.style.clipPath = shapeClip('triangle');
+                        }
                     } else {
                         const align = element.styling?.text_align || 'left';
+                        const previewValue = previewTextValue(element);
                         node.classList.add('id-card-builder-stage__element--text');
                         node.style.color = element.styling?.color || '#102316';
                         node.style.fontSize = `${Number(element.styling?.font_size || 4.2) * scale}px`;
                         node.style.fontWeight = element.styling?.font_weight || '600';
                         node.style.textAlign = align;
                         node.style.justifyContent = align === 'center' ? 'center' : (align === 'right' ? 'flex-end' : 'flex-start');
+                        node.style.alignItems = 'flex-start';
                         node.style.whiteSpace = 'pre-wrap';
-                        node.textContent = element.type === 'custom_text'
-                            ? customPreview(element.content)
-                            : sample(element.source, element.field);
+                        node.style.lineHeight = element.styling?.line_height || 1.2;
+                        node.style.letterSpacing = `${Number(element.styling?.letter_spacing || 0) * scale}px`;
+                        node.style.direction = isRtlText(previewValue, align) ? 'rtl' : 'ltr';
+                        node.style.unicodeBidi = 'plaintext';
+                        node.textContent = previewValue;
                     }
 
                     node.addEventListener('pointerdown', (event) => {
@@ -333,9 +401,13 @@
         }
 
         function elementLabel(element) {
-            if (element.type === 'custom_text') {
-                const content = String(element.content || labels.types.custom_text).trim();
-                return `${labels.types.custom_text}: ${content.slice(0, 28)}`;
+            if (['custom_text', 'date_text', 'page_number'].includes(element.type)) {
+                const content = String(previewTextValue(element) || labels.types[element.type]).trim();
+                return `${labels.types[element.type]}: ${content.slice(0, 28)}`;
+            }
+
+            if (element.type === 'shape') {
+                return `${labels.types.shape}: ${labels.shapeTypes[element.styling?.shape_type || 'rectangle']}`;
             }
 
             return `${labels.types[element.type]}: ${sourceLabel(element.source)} / ${fieldLabel(element.type, element.source, element.field)}`;
@@ -429,21 +501,27 @@
             const textAlignments = optionList(Object.entries(labels.textAlignments), element.styling?.text_align || 'left');
             const imageFit = optionList(Object.entries(labels.imageFit), element.styling?.object_fit || 'cover');
             const barcodeFormats = optionList(Object.entries(labels.barcodeFormats), element.styling?.barcode_format || 'code39');
+            const dateModes = optionList(Object.entries(labels.dateModes), element.styling?.date_mode || 'today');
+            const shapeTypes = optionList(Object.entries(labels.shapeTypes), element.styling?.shape_type || 'rectangle');
+            const usesContent = ['custom_text', 'date_text', 'page_number'].includes(element.type);
 
             inspector.innerHTML = `
                 <div class="admin-form-field"><label>${h(labels.element.type)}</label><select class="w-full rounded-xl px-4 py-3 text-sm" data-i="type">${typeOptions}</select></div>
-                ${element.type === 'custom_text' ? `<div class="admin-form-field admin-form-field--full"><label>${h(labels.element.content)}</label><textarea rows="5" class="w-full rounded-xl px-4 py-3 text-sm" data-i="content">${h(element.content || '')}</textarea><p class="mt-1 text-xs text-neutral-400">${h(labels.element.placeholder_help)}</p></div>${placeholderButtons()}` : ''}
-                ${element.type !== 'custom_text' ? `<div class="admin-form-field"><label>${h(labels.element.source)}</label><select class="w-full rounded-xl px-4 py-3 text-sm" data-i="source">${sourceSelect(element)}</select></div><div class="admin-form-field"><label>${h(labels.element.field)}</label><select class="w-full rounded-xl px-4 py-3 text-sm" data-i="field">${fieldSelect(element)}</select></div>` : ''}
+                ${usesContent ? `<div class="admin-form-field admin-form-field--full"><label>${h(labels.element.content)}</label><textarea rows="4" class="w-full rounded-xl px-4 py-3 text-sm" data-i="content">${h(element.content || '')}</textarea>${element.type === 'custom_text' ? `<p class="mt-1 text-xs text-neutral-400">${h(labels.element.placeholder_help)}</p>` : ''}</div>${element.type === 'custom_text' ? placeholderButtons() : ''}` : ''}
+                ${isFieldElement(element.type) ? `<div class="admin-form-field"><label>${h(labels.element.source)}</label><select class="w-full rounded-xl px-4 py-3 text-sm" data-i="source">${sourceSelect(element)}</select></div><div class="admin-form-field"><label>${h(labels.element.field)}</label><select class="w-full rounded-xl px-4 py-3 text-sm" data-i="field">${fieldSelect(element)}</select></div>` : ''}
                 <div class="admin-form-field"><label>${h(labels.element.x)}</label><input class="w-full rounded-xl px-4 py-3 text-sm" type="number" step="0.1" min="0" value="${h(element.x)}" data-n="x"></div>
                 <div class="admin-form-field"><label>${h(labels.element.y)}</label><input class="w-full rounded-xl px-4 py-3 text-sm" type="number" step="0.1" min="0" value="${h(element.y)}" data-n="y"></div>
                 <div class="admin-form-field"><label>${h(labels.element.width)}</label><input class="w-full rounded-xl px-4 py-3 text-sm" type="number" step="0.1" min="4" value="${h(element.width)}" data-n="width"></div>
                 <div class="admin-form-field"><label>${h(labels.element.height)}</label><input class="w-full rounded-xl px-4 py-3 text-sm" type="number" step="0.1" min="4" value="${h(element.height)}" data-n="height"></div>
                 <div class="admin-form-field"><label>${h(labels.element.z_index)}</label><input class="w-full rounded-xl px-4 py-3 text-sm" type="number" step="1" min="1" value="${h(element.z_index)}" data-n="z_index"></div>
-                ${element.type !== 'dynamic_image' ? `<div class="admin-form-field"><label>${h(labels.element.font_size)}</label><input class="w-full rounded-xl px-4 py-3 text-sm" type="number" step="0.1" min="1.5" value="${h(element.styling?.font_size || 4.2)}" data-s-n="font_size"></div>` : ''}
-                ${element.type !== 'dynamic_image' && element.type !== 'barcode' ? `<div class="admin-form-field"><label>${h(labels.element.font_weight)}</label><select class="w-full rounded-xl px-4 py-3 text-sm" data-s="font_weight">${fontWeights}</select></div><div class="admin-form-field"><label>${h(labels.element.text_align)}</label><select class="w-full rounded-xl px-4 py-3 text-sm" data-s="text_align">${textAlignments}</select></div>` : ''}
+                ${isTextElement(element.type) || element.type === 'barcode' ? `<div class="admin-form-field"><label>${h(labels.element.font_size)}</label><input class="w-full rounded-xl px-4 py-3 text-sm" type="number" step="0.1" min="1.5" value="${h(element.styling?.font_size || 4.2)}" data-s-n="font_size"></div>` : ''}
+                ${isTextElement(element.type) ? `<div class="admin-form-field"><label>${h(labels.element.font_weight)}</label><select class="w-full rounded-xl px-4 py-3 text-sm" data-s="font_weight">${fontWeights}</select></div><div class="admin-form-field"><label>${h(labels.element.text_align)}</label><select class="w-full rounded-xl px-4 py-3 text-sm" data-s="text_align">${textAlignments}</select></div>` : ''}
                 ${element.type !== 'dynamic_image' ? `<div class="admin-form-field"><label>${h(labels.element.color)}</label><input class="w-full rounded-xl px-4 py-3 text-sm" type="color" value="${h(element.styling?.color || '#102316')}" data-s="color"></div>` : ''}
+                ${isTextElement(element.type) ? `<div class="admin-form-field"><label>${h(labels.element.line_height)}</label><input class="w-full rounded-xl px-4 py-3 text-sm" type="number" step="0.1" min="0.8" max="2.5" value="${h(element.styling?.line_height || 1.2)}" data-s-n="line_height"></div><div class="admin-form-field"><label>${h(labels.element.letter_spacing)}</label><input class="w-full rounded-xl px-4 py-3 text-sm" type="number" step="0.1" min="0" max="3" value="${h(element.styling?.letter_spacing || 0)}" data-s-n="letter_spacing"></div>` : ''}
                 ${element.type === 'dynamic_image' ? `<div class="admin-form-field"><label>${h(labels.element.object_fit)}</label><select class="w-full rounded-xl px-4 py-3 text-sm" data-s="object_fit">${imageFit}</select></div><div class="admin-form-field"><label>${h(labels.element.border_radius)}</label><input class="w-full rounded-xl px-4 py-3 text-sm" type="number" step="0.1" min="0" value="${h(element.styling?.border_radius || 0)}" data-s-n="border_radius"></div>` : ''}
                 ${element.type === 'barcode' ? `<div class="admin-form-field"><label>${h(labels.element.barcode_format)}</label><select class="w-full rounded-xl px-4 py-3 text-sm" data-s="barcode_format">${barcodeFormats}</select></div><label class="admin-checkbox admin-form-field--full"><input type="checkbox" data-s-c="show_text" ${element.styling?.show_text ? 'checked' : ''}><span>${h(labels.element.show_text)}</span></label>` : ''}
+                ${element.type === 'date_text' ? `<div class="admin-form-field"><label>${h(labels.element.date_mode)}</label><select class="w-full rounded-xl px-4 py-3 text-sm" data-s="date_mode">${dateModes}</select></div>${(element.styling?.date_mode || 'today') === 'custom' ? `<div class="admin-form-field"><label>${h(labels.element.custom_date)}</label><input class="w-full rounded-xl px-4 py-3 text-sm" type="date" value="${h(element.styling?.custom_date || '')}" data-s="custom_date"></div>` : ''}` : ''}
+                ${element.type === 'shape' ? `<div class="admin-form-field"><label>${h(labels.element.shape_type)}</label><select class="w-full rounded-xl px-4 py-3 text-sm" data-s="shape_type">${shapeTypes}</select></div><div class="admin-form-field"><label>${h(labels.element.fill_opacity)}</label><input class="w-full rounded-xl px-4 py-3 text-sm" type="number" step="0.05" min="0" max="1" value="${h(element.styling?.fill_opacity ?? 0.18)}" data-s-n="fill_opacity"></div>` : ''}
             `;
         }
 
@@ -458,19 +536,26 @@
             renderInspector();
         }
 
+        function defaultContent(type) {
+            if (type === 'date_text') return '{{ date }}';
+            if (type === 'page_number') return '{{ page_number }}';
+            return labels.preview.custom_text;
+        }
+
         function addElement(type) {
             const selected = defaultSelection(type);
             const offset = state.elements.length * 4;
+            const isShape = type === 'shape';
             const element = {
                 id: id(),
                 type,
-                source: type === 'custom_text' ? null : selected.source,
-                field: type === 'custom_text' ? null : selected.field,
-                content: type === 'custom_text' ? labels.preview.custom_text : '',
+                source: isFieldElement(type) ? selected.source : null,
+                field: isFieldElement(type) ? selected.field : null,
+                content: ['custom_text', 'date_text', 'page_number'].includes(type) ? defaultContent(type) : '',
                 x: 6 + offset,
                 y: 6 + offset,
-                width: type === 'dynamic_image' ? 22 : (type === 'barcode' ? 50 : 50),
-                height: type === 'dynamic_image' ? 28 : (type === 'barcode' ? 14 : 10),
+                width: type === 'dynamic_image' ? 22 : (type === 'barcode' ? 50 : (isShape ? 18 : 50)),
+                height: type === 'dynamic_image' ? 28 : (type === 'barcode' ? 14 : (isShape ? 18 : 10)),
                 z_index: state.elements.length + 1,
                 styling: {
                     font_size: type === 'barcode' ? 2.8 : 4.2,
@@ -481,9 +566,16 @@
                     object_fit: 'cover',
                     show_text: true,
                     barcode_format: 'code39',
+                    line_height: 1.2,
+                    letter_spacing: 0,
+                    date_mode: 'today',
+                    custom_date: '',
+                    shape_type: 'rectangle',
+                    fill_opacity: 0.18,
                 },
             };
 
+            if (type === 'barcode') applyBarcodeFormatDefaults(element);
             fitElementToStage(element);
             state.elements.push(element);
             state.selectedId = element.id;
@@ -583,9 +675,11 @@
                 const type = event.target.value;
                 const selected = defaultSelection(type, element.source);
                 element.type = type;
-                element.source = type === 'custom_text' ? null : selected.source;
-                element.field = type === 'custom_text' ? null : selected.field;
-                element.content = type === 'custom_text' ? (element.content || labels.preview.custom_text) : '';
+                element.source = isFieldElement(type) ? selected.source : null;
+                element.field = isFieldElement(type) ? selected.field : null;
+                element.content = ['custom_text', 'date_text', 'page_number'].includes(type)
+                    ? (element.content || defaultContent(type))
+                    : '';
                 if (type === 'barcode') applyBarcodeFormatDefaults(element);
                 renderAll();
                 return;
@@ -639,6 +733,7 @@
                 element.styling[event.target.dataset.sN] = value;
                 syncHidden();
                 renderStage();
+                renderInspector();
                 return;
             }
 
@@ -658,6 +753,7 @@
                 }
                 syncHidden();
                 renderStage();
+                renderInspector();
             }
         }
 
@@ -682,12 +778,11 @@
         const stopDrag = () => state.drag = null;
         window.addEventListener('pointerup', stopDrag);
         window.addEventListener('pointercancel', stopDrag);
+
         function syncLayerPanelForViewport() {
             if (!layersPanel) return;
 
-            const compact = window.matchMedia('(max-width: 1199px)').matches;
-
-            if (compact) {
+            if (window.matchMedia('(max-width: 1199px)').matches) {
                 layersPanel.removeAttribute('open');
             }
         }

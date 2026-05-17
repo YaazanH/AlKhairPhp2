@@ -1427,46 +1427,6 @@ new class extends Component {
                 </div>
             </div>
 
-            <div class="overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700">
-                <div class="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-200 px-5 py-4 dark:border-neutral-700">
-                    <div>
-                        <div class="text-sm font-medium">{{ __('settings.organization.sections.activity_expense_category.table') }}</div>
-                        <p class="mt-1 text-xs text-neutral-500">{{ __('settings.organization.sections.activity_expense_category.copy') }}</p>
-                    </div>
-                    <button type="button" wire:click="openExpenseCategoryModal" class="pill-link pill-link--accent">{{ __('settings.organization.actions.create_expense_category') }}</button>
-                </div>
-                @error('expenseCategoryDelete') <div class="px-5 pt-4 text-sm text-red-600">{{ $message }}</div> @enderror
-                @if ($expenseCategories->isEmpty())
-                    <div class="px-5 py-10 text-sm text-neutral-500">{{ __('settings.organization.sections.activity_expense_category.empty') }}</div>
-                @else
-                    <div class="overflow-x-auto">
-                        <table class="min-w-full divide-y divide-neutral-200 text-sm dark:divide-neutral-700">
-                            <thead class="bg-neutral-50 dark:bg-neutral-900/60"><tr><th class="px-5 py-3 text-left font-medium">{{ __('settings.organization.table.name') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.organization.table.code') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.organization.table.state') }}</th><th class="px-5 py-3 text-right font-medium">{{ __('settings.organization.table.actions') }}</th></tr></thead>
-                            <tbody class="divide-y divide-neutral-200 dark:divide-neutral-700">
-                                @foreach ($expenseCategories as $expenseCategory)
-                                    <tr>
-                                        <td class="px-5 py-3 font-medium">{{ $expenseCategory->name }}</td>
-                                        <td class="px-5 py-3 font-mono">{{ $expenseCategory->code }}</td>
-                                        <td class="px-5 py-3">{{ $expenseCategory->is_active ? __('settings.common.states.active') : __('settings.common.states.inactive') }}</td>
-                                        <td class="px-5 py-3">
-                                            <div class="flex justify-end gap-2">
-                                                <button type="button" wire:click="editExpenseCategory({{ $expenseCategory->id }})" class="rounded-lg border border-neutral-300 px-3 py-1.5 dark:border-neutral-700">{{ __('crud.common.actions.edit') }}</button>
-                                                <button type="button" wire:click="deleteExpenseCategory({{ $expenseCategory->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="rounded-lg border border-red-300 px-3 py-1.5 text-red-700 dark:border-red-800 dark:text-red-300">{{ __('crud.common.actions.delete') }}</button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                @endforeach
-                            </tbody>
-                        </table>
-                    </div>
-                    @if ($expenseCategories->hasPages())
-                        <div class="border-t border-neutral-200 px-5 py-4 dark:border-neutral-700">
-                            {{ $expenseCategories->links() }}
-                        </div>
-                    @endif
-                @endif
-            </div>
-
             @can('students.promote-grade-levels')
                 <div class="overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700">
                     <div class="border-b border-neutral-200 px-5 py-4 dark:border-neutral-700">
@@ -1598,6 +1558,46 @@ new class extends Component {
                     @if ($printPageSizes->hasPages())
                         <div class="border-t border-neutral-200 px-5 py-4 dark:border-neutral-700">
                             {{ $printPageSizes->links() }}
+                        </div>
+                    @endif
+                @endif
+            </div>
+
+            <div class="overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700">
+                <div class="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-200 px-5 py-4 dark:border-neutral-700">
+                    <div>
+                        <div class="text-sm font-medium">{{ __('settings.organization.sections.activity_expense_category.table') }}</div>
+                        <p class="mt-1 text-xs text-neutral-500">{{ __('settings.organization.sections.activity_expense_category.copy') }}</p>
+                    </div>
+                    <button type="button" wire:click="openExpenseCategoryModal" class="pill-link pill-link--accent">{{ __('settings.organization.actions.create_expense_category') }}</button>
+                </div>
+                @error('expenseCategoryDelete') <div class="px-5 pt-4 text-sm text-red-600">{{ $message }}</div> @enderror
+                @if ($expenseCategories->isEmpty())
+                    <div class="px-5 py-10 text-sm text-neutral-500">{{ __('settings.organization.sections.activity_expense_category.empty') }}</div>
+                @else
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-neutral-200 text-sm dark:divide-neutral-700">
+                            <thead class="bg-neutral-50 dark:bg-neutral-900/60"><tr><th class="px-5 py-3 text-left font-medium">{{ __('settings.organization.table.name') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.organization.table.code') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.organization.table.state') }}</th><th class="px-5 py-3 text-right font-medium">{{ __('settings.organization.table.actions') }}</th></tr></thead>
+                            <tbody class="divide-y divide-neutral-200 dark:divide-neutral-700">
+                                @foreach ($expenseCategories as $expenseCategory)
+                                    <tr>
+                                        <td class="px-5 py-3 font-medium">{{ $expenseCategory->name }}</td>
+                                        <td class="px-5 py-3 font-mono">{{ $expenseCategory->code }}</td>
+                                        <td class="px-5 py-3">{{ $expenseCategory->is_active ? __('settings.common.states.active') : __('settings.common.states.inactive') }}</td>
+                                        <td class="px-5 py-3">
+                                            <div class="flex justify-end gap-2">
+                                                <button type="button" wire:click="editExpenseCategory({{ $expenseCategory->id }})" class="rounded-lg border border-neutral-300 px-3 py-1.5 dark:border-neutral-700">{{ __('crud.common.actions.edit') }}</button>
+                                                <button type="button" wire:click="deleteExpenseCategory({{ $expenseCategory->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="rounded-lg border border-red-300 px-3 py-1.5 text-red-700 dark:border-red-800 dark:text-red-300">{{ __('crud.common.actions.delete') }}</button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                    @if ($expenseCategories->hasPages())
+                        <div class="border-t border-neutral-200 px-5 py-4 dark:border-neutral-700">
+                            {{ $expenseCategories->links() }}
                         </div>
                     @endif
                 @endif

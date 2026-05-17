@@ -327,7 +327,7 @@ new class extends Component {
 
     protected function isTeacherRole(): bool
     {
-        return auth()->user()?->hasRole('teacher') ?? false;
+        return auth()->user()?->teacherProfile !== null;
     }
 
     protected function visibilityOptions(): array

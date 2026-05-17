@@ -147,7 +147,7 @@ return [
                 'select_access_role' => 'Select access role',
                 'select_course' => 'Select starting course',
             ],
-            'help_access_role' => 'Choose an extra permission role for this teacher. The linked login keeps the base teacher role and also receives this role.',
+            'help_access_role' => 'Choose the permission role this teacher should use. When you select one here, the linked login uses that role instead of also keeping the base teacher role.',
             'create_submit' => 'Create teacher',
             'update_submit' => 'Update teacher',
         ],
