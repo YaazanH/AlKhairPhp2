@@ -117,9 +117,14 @@ class ReportExportController extends Controller
         return $this->xlsxDownload('finance-ledger-report', $headers, $rows);
     }
 
-    public function generatedFinanceLedger(Request $request, FinanceGeneratedReport $generatedReport)
+    public function generatedFinanceLedger(Request $request, int $generatedReport)
     {
         abort_unless($request->user()?->can('finance.reports.export'), 403);
+        abort_unless(FinanceGeneratedReport::storageIsReady(), 404);
+
+        $generatedReport = FinanceGeneratedReport::query()
+            ->with('generatedBy')
+            ->findOrFail($generatedReport);
         abort_unless($generatedReport->report_type === 'ledger', 404);
 
         $validated = $request->validate([
@@ -127,7 +132,7 @@ class ReportExportController extends Controller
         ]);
 
         $reportService = app(FinanceReportService::class);
-        $report = $reportService->generatedLedgerReport($generatedReport->loadMissing('generatedBy'));
+        $report = $reportService->generatedLedgerReport($generatedReport);
 
         if (($validated['format'] ?? 'pdf') === 'pdf') {
             return view('reports.finance-ledger-pdf', [

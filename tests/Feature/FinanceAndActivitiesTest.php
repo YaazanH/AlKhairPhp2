@@ -34,6 +34,7 @@ use App\Services\FinanceReportService;
 use App\Services\FinanceService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Livewire\Volt\Volt;
 use Tests\TestCase;
 
@@ -1156,6 +1157,36 @@ class FinanceAndActivitiesTest extends TestCase
             ->assertHeader('content-type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
 
         $this->assertSame(2, FinanceGeneratedReport::query()->count());
+    }
+
+    public function test_finance_reports_page_and_ledger_export_handle_missing_generated_report_table(): void
+    {
+        $this->signIn();
+
+        $service = app(FinanceService::class);
+        $cashBox = FinanceCashBox::query()->firstOrFail();
+        $currency = $service->localCurrency();
+        $template = FinanceReportTemplate::query()->firstOrFail();
+
+        Schema::dropIfExists('finance_generated_reports');
+
+        $this->get(route('finance.reports.index'))
+            ->assertOk()
+            ->assertSee(__('finance.reports.generated_reports_unavailable'));
+
+        $this->get(route('finance.reports.ledger.export', [
+            'cash_box_id' => $cashBox->id,
+            'currency_id' => $currency->id,
+            'date_from' => '2026-02-01',
+            'date_to' => '2026-02-28',
+            'format' => 'pdf',
+            'template_id' => $template->id,
+        ]))
+            ->assertOk()
+            ->assertSee($template->title);
+
+        $this->get(route('finance.reports.generated.show', 1))
+            ->assertNotFound();
     }
 
     public function test_finance_report_template_page_keeps_one_default_template(): void

@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Facades\Schema;
 
 class FinanceGeneratedReport extends Model
 {
@@ -28,5 +29,10 @@ class FinanceGeneratedReport extends Model
     public function generatedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'generated_by');
+    }
+
+    public static function storageIsReady(): bool
+    {
+        return Schema::hasTable((new static)->getTable());
     }
 }

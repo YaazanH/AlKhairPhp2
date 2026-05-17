@@ -301,8 +301,12 @@ class FinanceReportService
         );
     }
 
-    public function storeGeneratedLedgerReport(array $report, array $filters, ?User $user = null): FinanceGeneratedReport
+    public function storeGeneratedLedgerReport(array $report, array $filters, ?User $user = null): ?FinanceGeneratedReport
     {
+        if (! FinanceGeneratedReport::storageIsReady()) {
+            return null;
+        }
+
         return FinanceGeneratedReport::query()->create([
             'report_type' => 'ledger',
             'filters' => [

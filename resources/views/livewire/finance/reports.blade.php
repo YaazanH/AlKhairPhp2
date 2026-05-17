@@ -39,14 +39,18 @@ new class extends Component {
     public function with(): array
     {
         $financeService = app(FinanceService::class);
+        $generatedReportsEnabled = FinanceGeneratedReport::storageIsReady();
 
         return [
-            'generatedReports' => FinanceGeneratedReport::query()
-                ->where('report_type', 'ledger')
-                ->with('generatedBy')
-                ->latest()
-                ->limit(12)
-                ->get(),
+            'generatedReportsEnabled' => $generatedReportsEnabled,
+            'generatedReports' => $generatedReportsEnabled
+                ? FinanceGeneratedReport::query()
+                    ->where('report_type', 'ledger')
+                    ->with('generatedBy')
+                    ->latest()
+                    ->limit(12)
+                    ->get()
+                : collect(),
             'ledgerCashBoxes' => $financeService->accessibleCashBoxes(auth()->user())->get(),
             'ledgerCurrencies' => $this->ledgerCurrencies(),
             'ledgerTemplates' => FinanceReportTemplate::query()
@@ -155,60 +159,68 @@ new class extends Component {
     </section>
 
     @can('finance.reports.export')
-        <section class="surface-table">
-            <div class="admin-grid-meta">
-                <div>
-                    <div class="admin-grid-meta__title">{{ __('finance.reports.generated_reports') }}</div>
-                    <div class="admin-grid-meta__summary">{{ __('finance.reports.generated_reports_subtitle') }}</div>
+        @if ($generatedReportsEnabled)
+            <section class="surface-table">
+                <div class="admin-grid-meta">
+                    <div>
+                        <div class="admin-grid-meta__title">{{ __('finance.reports.generated_reports') }}</div>
+                        <div class="admin-grid-meta__summary">{{ __('finance.reports.generated_reports_subtitle') }}</div>
+                    </div>
+                    <span class="badge-soft">{{ number_format($generatedReports->count()) }}</span>
                 </div>
-                <span class="badge-soft">{{ number_format($generatedReports->count()) }}</span>
-            </div>
-            <div class="overflow-x-auto">
-                <table class="text-sm">
-                    <thead>
-                        <tr>
-                            <th class="px-5 py-3 text-left">{{ __('finance.fields.template') }}</th>
-                            <th class="px-5 py-3 text-left">{{ __('finance.fields.period') }}</th>
-                            <th class="px-5 py-3 text-left">{{ __('finance.fields.cash_box') }}</th>
-                            <th class="px-5 py-3 text-left">{{ __('finance.common.currency') }}</th>
-                            <th class="px-5 py-3 text-left">{{ __('finance.fields.user') }}</th>
-                            <th class="px-5 py-3 text-left">{{ __('finance.fields.date') }}</th>
-                            <th class="px-5 py-3 text-right">{{ __('finance.actions.actions') }}</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-white/6">
-                        @forelse ($generatedReports as $generatedReport)
-                            @php
-                                $savedTemplate = data_get($generatedReport->report_data, 'template.name', data_get($generatedReport->report_data, 'template.title', __('finance.report_templates.default_title')));
-                                $savedStart = data_get($generatedReport->filters, 'date_from', data_get($generatedReport->report_data, 'start'));
-                                $savedEnd = data_get($generatedReport->filters, 'date_to', data_get($generatedReport->report_data, 'end'));
-                            @endphp
+                <div class="overflow-x-auto">
+                    <table class="text-sm">
+                        <thead>
                             <tr>
-                                <td class="px-5 py-3">
-                                    <div class="font-medium text-white">{{ $savedTemplate }}</div>
-                                    <div class="text-xs text-neutral-500">{{ data_get($generatedReport->report_data, 'template.title') }}</div>
-                                </td>
-                                <td class="px-5 py-3">{{ $savedStart }} - {{ $savedEnd }}</td>
-                                <td class="px-5 py-3">{{ data_get($generatedReport->filters, 'cash_box_name', data_get($generatedReport->report_data, 'cash_box.name', '-')) }}</td>
-                                <td class="px-5 py-3">{{ data_get($generatedReport->filters, 'currency_code', data_get($generatedReport->report_data, 'currency.code', '-')) }}</td>
-                                <td class="px-5 py-3">{{ $generatedReport->generatedBy?->name ?: (data_get($generatedReport->report_data, 'issuer_name') ?: '-') }}</td>
-                                <td class="px-5 py-3">{{ $generatedReport->created_at?->format('Y-m-d H:i') }}</td>
-                                <td class="px-5 py-3">
-                                    <div class="admin-action-cluster admin-action-cluster--end">
-                                        <a href="{{ route('finance.reports.generated.show', $generatedReport) }}" target="_blank" rel="noopener" class="pill-link pill-link--compact">{{ __('finance.reports.review_saved_report') }}</a>
-                                        <a href="{{ route('finance.reports.generated.show', ['generatedReport' => $generatedReport, 'format' => 'xlsx']) }}" class="pill-link pill-link--compact pill-link--accent">{{ __('finance.reports.export_saved_xlsx') }}</a>
-                                    </div>
-                                </td>
+                                <th class="px-5 py-3 text-left">{{ __('finance.fields.template') }}</th>
+                                <th class="px-5 py-3 text-left">{{ __('finance.fields.period') }}</th>
+                                <th class="px-5 py-3 text-left">{{ __('finance.fields.cash_box') }}</th>
+                                <th class="px-5 py-3 text-left">{{ __('finance.common.currency') }}</th>
+                                <th class="px-5 py-3 text-left">{{ __('finance.fields.user') }}</th>
+                                <th class="px-5 py-3 text-left">{{ __('finance.fields.date') }}</th>
+                                <th class="px-5 py-3 text-right">{{ __('finance.actions.actions') }}</th>
                             </tr>
-                        @empty
-                            <tr>
-                                <td colspan="7" class="px-5 py-10 text-center text-sm text-neutral-500">{{ __('finance.empty.no_generated_reports') }}</td>
-                            </tr>
-                        @endforelse
-                    </tbody>
-                </table>
-            </div>
-        </section>
+                        </thead>
+                        <tbody class="divide-y divide-white/6">
+                            @forelse ($generatedReports as $generatedReport)
+                                @php
+                                    $savedTemplate = data_get($generatedReport->report_data, 'template.name', data_get($generatedReport->report_data, 'template.title', __('finance.report_templates.default_title')));
+                                    $savedStart = data_get($generatedReport->filters, 'date_from', data_get($generatedReport->report_data, 'start'));
+                                    $savedEnd = data_get($generatedReport->filters, 'date_to', data_get($generatedReport->report_data, 'end'));
+                                @endphp
+                                <tr>
+                                    <td class="px-5 py-3">
+                                        <div class="font-medium text-white">{{ $savedTemplate }}</div>
+                                        <div class="text-xs text-neutral-500">{{ data_get($generatedReport->report_data, 'template.title') }}</div>
+                                    </td>
+                                    <td class="px-5 py-3">{{ $savedStart }} - {{ $savedEnd }}</td>
+                                    <td class="px-5 py-3">{{ data_get($generatedReport->filters, 'cash_box_name', data_get($generatedReport->report_data, 'cash_box.name', '-')) }}</td>
+                                    <td class="px-5 py-3">{{ data_get($generatedReport->filters, 'currency_code', data_get($generatedReport->report_data, 'currency.code', '-')) }}</td>
+                                    <td class="px-5 py-3">{{ $generatedReport->generatedBy?->name ?: (data_get($generatedReport->report_data, 'issuer_name') ?: '-') }}</td>
+                                    <td class="px-5 py-3">{{ $generatedReport->created_at?->format('Y-m-d H:i') }}</td>
+                                    <td class="px-5 py-3">
+                                        <div class="admin-action-cluster admin-action-cluster--end">
+                                            <a href="{{ route('finance.reports.generated.show', $generatedReport) }}" target="_blank" rel="noopener" class="pill-link pill-link--compact">{{ __('finance.reports.review_saved_report') }}</a>
+                                            <a href="{{ route('finance.reports.generated.show', ['generatedReport' => $generatedReport, 'format' => 'xlsx']) }}" class="pill-link pill-link--compact pill-link--accent">{{ __('finance.reports.export_saved_xlsx') }}</a>
+                                        </div>
+                                    </td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td colspan="7" class="px-5 py-10 text-center text-sm text-neutral-500">{{ __('finance.empty.no_generated_reports') }}</td>
+                                </tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        @else
+            <section class="surface-panel p-5 lg:p-6">
+                <div class="rounded-3xl border border-amber-400/25 bg-amber-500/10 px-4 py-4 text-sm text-amber-100">
+                    {{ __('finance.reports.generated_reports_unavailable') }}
+                </div>
+            </section>
+        @endif
     @endcan
 
     @can('finance.reports.export')

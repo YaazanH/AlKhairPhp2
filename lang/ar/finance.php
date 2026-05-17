@@ -269,6 +269,7 @@ return [
         'template' => 'القالب',
         'generated_reports' => 'التقارير المولدة',
         'generated_reports_subtitle' => 'يحتفظ كل تقرير محفوظ بالفلاتر المختارة والبيانات الناتجة حتى تتمكن من مراجعته أو إعادة طباعته لاحقاً.',
+        'generated_reports_unavailable' => 'سجل التقارير المحفوظة غير متاح حتى يتم تثبيت آخر ترحيلات التقارير المالية. ما زال تصدير السجل يعمل.',
         'review_saved_report' => 'مراجعة التقرير',
         'export_saved_xlsx' => 'تنزيل XLSX',
         'export_ledger_xlsx' => 'تصدير السجل XLSX',
