@@ -3,6 +3,7 @@
 use App\Livewire\Concerns\AuthorizesPermissions;
 use App\Models\FinanceReportTemplate;
 use App\Services\FinanceReportService;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Livewire\Volt\Component;
@@ -102,13 +103,13 @@ new class extends Component {
         $this->custom_text = $template->custom_text ?? '';
         $this->date_mode = in_array($template->date_mode, ['exported_at', 'today', 'custom'], true) ? $template->date_mode : 'exported_at';
         $this->custom_date = $template->custom_date?->toDateString() ?? '';
-        $this->language = $template->language;
-        $this->is_default = $template->is_default;
-        $this->include_exported_at = $template->include_exported_at;
-        $this->include_opening_balance = $template->include_opening_balance;
-        $this->include_closing_balance = $template->include_closing_balance;
-        $this->show_issuer_name = $template->show_issuer_name;
-        $this->show_page_numbers = $template->show_page_numbers;
+        $this->language = in_array($template->language, FinanceReportTemplate::LANGUAGES, true) ? $template->language : FinanceReportTemplate::LANGUAGE_BOTH;
+        $this->is_default = (bool) ($template->is_default ?? false);
+        $this->include_exported_at = $template->include_exported_at ?? true;
+        $this->include_opening_balance = $template->include_opening_balance ?? true;
+        $this->include_closing_balance = $template->include_closing_balance ?? true;
+        $this->show_issuer_name = $template->show_issuer_name ?? true;
+        $this->show_page_numbers = $template->show_page_numbers ?? false;
         $this->shape_type = $template->shape_type ?? '';
         $this->shape_color = $template->shape_color ?: '#0f7a3d';
         $this->shape_opacity = (string) ($template->shape_opacity ?? '0.12');
@@ -152,6 +153,12 @@ new class extends Component {
 
     public function saveTemplate(): void
     {
+        if (! $this->templateSchemaIsCurrent()) {
+            $this->addError('saveTemplate', __('finance.report_templates.messages.schema_outdated'));
+
+            return;
+        }
+
         $availableColumns = array_keys(app(FinanceReportService::class)->ledgerColumnDefinitions());
         $this->columns = collect($this->columns)
             ->filter(fn (string $column) => in_array($column, $availableColumns, true))
@@ -358,6 +365,24 @@ new class extends Component {
         ]);
     }
 
+    protected function templateSchemaIsCurrent(): bool
+    {
+        return Schema::hasColumns('finance_report_templates', [
+            'header_text',
+            'footer_text',
+            'custom_text',
+            'date_mode',
+            'custom_date',
+            'show_issuer_name',
+            'show_page_numbers',
+            'background_image',
+            'logo_image',
+            'shape_type',
+            'shape_color',
+            'shape_opacity',
+        ]);
+    }
+
     protected function resetForm(): void
     {
         $this->editing_id = null;
@@ -454,6 +479,7 @@ new class extends Component {
 
     <x-admin.modal :show="$showTemplateModal" :title="$editing_id ? __('finance.report_templates.edit') : __('finance.report_templates.create')" :description="__('finance.report_templates.modal_subtitle')" close-method="closeTemplateModal" max-width="5xl">
         <form wire:submit="saveTemplate" class="space-y-6">
+            @error('saveTemplate') <div class="rounded-2xl border border-red-500/25 bg-red-500/10 px-3 py-2 text-sm text-red-200">{{ $message }}</div> @enderror
             <div class="grid gap-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
                 <div class="space-y-5">
                     <div class="grid gap-4 md:grid-cols-2">

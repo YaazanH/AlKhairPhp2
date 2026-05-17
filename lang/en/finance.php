@@ -338,6 +338,7 @@ return [
             'deleted' => 'Report template deleted.',
             'keep_one' => 'At least one report template must remain.',
             'saved' => 'Report template saved.',
+            'schema_outdated' => 'The finance report template database fields are not installed yet. Run the latest migrations, then save again.',
         ],
     ],
     'settings' => [

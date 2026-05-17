@@ -33,6 +33,7 @@ use App\Services\ActivityAudienceService;
 use App\Services\FinanceReportService;
 use App\Services\FinanceService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Livewire\Volt\Volt;
 use Tests\TestCase;
 
@@ -1200,6 +1201,25 @@ class FinanceAndActivitiesTest extends TestCase
             ->assertHasNoErrors();
 
         $this->assertSame(1, FinanceReportTemplate::query()->where('is_default', true)->count());
+    }
+
+    public function test_finance_report_template_editor_defaults_invalid_legacy_values(): void
+    {
+        $this->signIn();
+
+        $template = FinanceReportTemplate::query()->firstOrFail();
+
+        DB::table('finance_report_templates')
+            ->where('id', $template->id)
+            ->update([
+                'date_mode' => 'legacy',
+            ]);
+
+        Volt::test('settings.finance-report-templates')
+            ->call('editTemplate', $template->id)
+            ->assertSet('date_mode', 'exported_at')
+            ->assertSet('show_issuer_name', true)
+            ->assertSet('show_page_numbers', false);
     }
 
     public function test_print_page_sizes_are_managed_from_organization_settings(): void
