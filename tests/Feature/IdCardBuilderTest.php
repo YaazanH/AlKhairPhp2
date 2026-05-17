@@ -170,6 +170,47 @@ class IdCardBuilderTest extends TestCase
             ->assertSee('<svg', false);
     }
 
+    public function test_managers_can_open_print_template_edit_page(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $manager = User::factory()->create();
+        $manager->assignRole('manager');
+
+        $template = PrintTemplate::query()->create([
+            'name' => 'Editable Print Template',
+            'width_mm' => 85.6,
+            'height_mm' => 53.98,
+            'data_sources' => [
+                ['entity' => 'student', 'mode' => 'multiple'],
+            ],
+            'layout_json' => [
+                [
+                    'type' => 'custom_text',
+                    'content' => 'Preview text',
+                    'x' => 8,
+                    'y' => 8,
+                    'width' => 54,
+                    'height' => 8,
+                    'z_index' => 1,
+                    'styling' => [
+                        'font_size' => 4.2,
+                        'font_weight' => '700',
+                        'color' => '#102316',
+                        'text_align' => 'left',
+                    ],
+                ],
+            ],
+            'is_active' => true,
+        ]);
+
+        $this->actingAs($manager)
+            ->get(route('print-templates.templates.edit', $template))
+            ->assertOk()
+            ->assertSee('data-print-template-stage', false)
+            ->assertSee('data-print-template-layout-input', false);
+    }
+
     public function test_print_preview_warns_when_page_size_cannot_fit_the_card(): void
     {
         $this->seed(RoleSeeder::class);

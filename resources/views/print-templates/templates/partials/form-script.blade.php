@@ -537,8 +537,8 @@
         }
 
         function defaultContent(type) {
-            if (type === 'date_text') return '{{ date }}';
-            if (type === 'page_number') return '{{ page_number }}';
+            if (type === 'date_text') return '@{{ date }}';
+            if (type === 'page_number') return '@{{ page_number }}';
             return labels.preview.custom_text;
         }
 
