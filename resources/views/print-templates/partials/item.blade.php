@@ -65,16 +65,13 @@
             @php
                 $textValue = (string) $element['resolved']['value'];
                 $textAlign = $element['styling']['text_align'];
-                $justifyContent = $textAlign === 'center' ? 'center' : ($textAlign === 'right' ? 'flex-end' : 'flex-start');
-                $textDirection = preg_match('/[\p{Arabic}\p{Hebrew}\p{Syriac}]/u', $textValue) === 1 || $textAlign === 'right' ? 'rtl' : 'ltr';
+                $textDirection = preg_match('/[\p{Arabic}\p{Hebrew}\p{Syriac}]/u', $textValue) === 1 ? 'rtl' : 'ltr';
             @endphp
             <div
                 class="print-template-render__element print-template-render__element--text"
                 style="
                     {{ $style }}
-                    display:flex;
-                    align-items:flex-start;
-                    justify-content: {{ $justifyContent }};
+                    display:block;
                     color: {{ $element['styling']['color'] }};
                     direction: {{ $textDirection }};
                     unicode-bidi: plaintext;

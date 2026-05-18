@@ -211,6 +211,59 @@ class IdCardBuilderTest extends TestCase
             ->assertSee('data-print-template-layout-input', false);
     }
 
+    public function test_print_template_preview_keeps_right_alignment_on_rtl_text(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $manager = User::factory()->create();
+        $manager->assignRole('manager');
+
+        $template = PrintTemplate::query()->create([
+            'name' => 'Arabic Alignment Template',
+            'width_mm' => 85.6,
+            'height_mm' => 53.98,
+            'data_sources' => [],
+            'layout_json' => [
+                [
+                    'type' => 'custom_text',
+                    'content' => "مسجد الخير\nالخير مسجد",
+                    'x' => 8,
+                    'y' => 8,
+                    'width' => 54,
+                    'height' => 20,
+                    'z_index' => 1,
+                    'styling' => [
+                        'font_size' => 4.2,
+                        'font_weight' => '700',
+                        'color' => '#102316',
+                        'text_align' => 'right',
+                        'line_height' => 1.2,
+                        'letter_spacing' => 0,
+                    ],
+                ],
+            ],
+            'is_active' => true,
+        ]);
+
+        $this->actingAs($manager)
+            ->post(route('print-templates.print.preview'), [
+                'template_id' => $template->id,
+                'copy_count' => 1,
+                'page_width_mm' => 210,
+                'page_height_mm' => 297,
+                'margin_top_mm' => 10,
+                'margin_right_mm' => 10,
+                'margin_bottom_mm' => 10,
+                'margin_left_mm' => 10,
+                'gap_x_mm' => 6,
+                'gap_y_mm' => 6,
+            ])
+            ->assertOk()
+            ->assertSee('text-align: right;', false)
+            ->assertSee('direction: rtl;', false)
+            ->assertDontSee('justify-content: flex-end;', false);
+    }
+
     public function test_print_preview_warns_when_page_size_cannot_fit_the_card(): void
     {
         $this->seed(RoleSeeder::class);

@@ -183,8 +183,8 @@
             return sample(element.source, element.field);
         }
 
-        function isRtlText(value, align = 'left') {
-            return /[\u0590-\u08FF]/.test(String(value || '')) || align === 'right';
+        function isRtlText(value) {
+            return /[\u0590-\u08FF]/.test(String(value || ''));
         }
 
         function syncSourcesToControls() {
@@ -367,13 +367,12 @@
                         node.style.color = element.styling?.color || '#102316';
                         node.style.fontSize = `${Number(element.styling?.font_size || 4.2) * scale}px`;
                         node.style.fontWeight = element.styling?.font_weight || '600';
+                        node.style.display = 'block';
                         node.style.textAlign = align;
-                        node.style.justifyContent = align === 'center' ? 'center' : (align === 'right' ? 'flex-end' : 'flex-start');
-                        node.style.alignItems = 'flex-start';
                         node.style.whiteSpace = 'pre-wrap';
                         node.style.lineHeight = element.styling?.line_height || 1.2;
                         node.style.letterSpacing = `${Number(element.styling?.letter_spacing || 0) * scale}px`;
-                        node.style.direction = isRtlText(previewValue, align) ? 'rtl' : 'ltr';
+                        node.style.direction = isRtlText(previewValue) ? 'rtl' : 'ltr';
                         node.style.unicodeBidi = 'plaintext';
                         node.textContent = previewValue;
                     }
