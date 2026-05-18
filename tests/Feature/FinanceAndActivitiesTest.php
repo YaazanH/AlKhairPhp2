@@ -1120,6 +1120,10 @@ class FinanceAndActivitiesTest extends TestCase
             ->assertSee($cashBox->name)
             ->assertSee($currency->code);
 
+        $this->get(route('finance.reports.index'))
+            ->assertOk()
+            ->assertSee('data-searchable="false"', false);
+
         $this->get(route('finance.reports.ledger.export', [
             'cash_box_id' => $cashBox->id,
             'currency_id' => $currency->id,

@@ -113,7 +113,7 @@ new class extends Component {
                 </div>
                 <div>
                     <label class="mb-1 block text-sm font-medium">{{ __('finance.fields.quarter') }}</label>
-                    <select wire:model.live="quarter" class="w-full rounded-xl px-4 py-3 text-sm">
+                    <select wire:model.live="quarter" data-searchable="false" class="w-full rounded-xl px-4 py-3 text-sm">
                         <option value="">{{ __('finance.options.all_year') }}</option>
                         <option value="1">Q1</option>
                         <option value="2">Q2</option>
