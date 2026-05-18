@@ -9,7 +9,10 @@ use App\Models\FinanceReportTemplate;
 use App\Models\FinanceRequest;
 use App\Models\FinanceTransaction;
 use App\Models\User;
+use Dompdf\Dompdf;
+use Dompdf\Options;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 class FinanceReportService
@@ -329,13 +332,78 @@ class FinanceReportService
         $report = $generatedReport->report_data ?: [];
         $template = $report['template'] ?? $this->templateSnapshot($this->defaultLedgerTemplate());
 
-        $report['template'] = array_merge($this->templateSnapshot($this->defaultLedgerTemplate()), is_array($template) ? $template : []);
+        $report['template'] = $this->normalizeLedgerTemplateSnapshot(
+            array_merge($this->templateSnapshot($this->defaultLedgerTemplate()), is_array($template) ? $template : [])
+        );
         $report['generated_report_id'] = $generatedReport->id;
         $report['issuer_name'] = $report['issuer_name'] ?? ($generatedReport->generatedBy?->name ?: null);
         $report['page_number'] = (int) ($report['page_number'] ?? 1);
         $report['rows'] = is_array($report['rows'] ?? null) ? $report['rows'] : [];
 
         return $report;
+    }
+
+    public function ensureStoredLedgerPdf(FinanceGeneratedReport $generatedReport, array $report): ?string
+    {
+        $existingPath = is_string($generatedReport->pdf_path ?? null) ? $generatedReport->pdf_path : null;
+
+        if ($existingPath !== null && $existingPath !== '' && Storage::disk('local')->exists($existingPath)) {
+            return $existingPath;
+        }
+
+        $pdfBinary = $this->renderLedgerPdf($report, $generatedReport);
+
+        if (! FinanceGeneratedReport::pdfStorageIsReady()) {
+            return null;
+        }
+
+        $relativePath = $this->ledgerPdfStoragePath($generatedReport);
+        Storage::disk('local')->put($relativePath, $pdfBinary);
+
+        if ($generatedReport->pdf_path !== $relativePath) {
+            $generatedReport->forceFill([
+                'pdf_path' => $relativePath,
+            ])->save();
+        }
+
+        return $relativePath;
+    }
+
+    public function renderLedgerPdf(array $report, ?FinanceGeneratedReport $generatedReport = null): string
+    {
+        $options = new Options();
+        $options->set('defaultFont', 'DejaVu Sans');
+        $options->set('isHtml5ParserEnabled', true);
+        $options->set('isRemoteEnabled', true);
+
+        $dompdf = new Dompdf($options);
+        $dompdf->setPaper('A4', 'landscape');
+        $dompdf->loadHtml(view('reports.finance-ledger-pdf-export', [
+            'generatedReport' => $generatedReport,
+            'report' => $report,
+            'service' => $this,
+        ])->render(), 'UTF-8');
+        $dompdf->render();
+
+        return $dompdf->output();
+    }
+
+    public function ledgerPdfFilename(array $report, ?FinanceGeneratedReport $generatedReport = null): string
+    {
+        $cashBox = Str::slug((string) data_get($report, 'cash_box.name', 'cash-box'));
+        $currency = Str::lower(Str::slug((string) data_get($report, 'currency.code', 'currency')));
+        $start = preg_replace('/[^0-9-]+/', '', (string) ($report['start'] ?? now()->toDateString())) ?: now()->toDateString();
+        $end = preg_replace('/[^0-9-]+/', '', (string) ($report['end'] ?? $start)) ?: $start;
+        $reportId = $generatedReport?->id ? '-'.str_pad((string) $generatedReport->id, 6, '0', STR_PAD_LEFT) : '';
+
+        return sprintf(
+            'finance-ledger%s-%s-%s-%s-to-%s.pdf',
+            $reportId,
+            $cashBox !== '' ? $cashBox : 'cash-box',
+            $currency !== '' ? $currency : 'currency',
+            $start,
+            $end,
+        );
     }
 
     public function ledgerExportRows(FinanceReportTemplate $template, FinanceCashBox $cashBox, FinanceCurrency $currency, string $startDate, string $endDate, ?User $issuer = null): array
@@ -460,7 +528,7 @@ class FinanceReportService
         ?User $issuer = null,
     ): array {
         $closingBalance = round($openingBalance + $income - $expense, 2);
-        $templateSnapshot = $this->templateSnapshot($template);
+        $templateSnapshot = $this->normalizeLedgerTemplateSnapshot($this->templateSnapshot($template));
 
         return [
             'cash_box' => [
@@ -593,8 +661,12 @@ class FinanceReportService
 
     protected function templateSnapshot(FinanceReportTemplate $template): array
     {
+        $backgroundImageUrl = $template->background_image_url;
+        $logoImageUrl = $template->logo_image_url;
+
         return [
-            'background_image_url' => $template->background_image_url,
+            'background_image_pdf_src' => $this->pdfAssetSource($backgroundImageUrl),
+            'background_image_url' => $backgroundImageUrl,
             'columns' => $template->normalizedColumns(),
             'custom_date' => $template->custom_date?->toDateString(),
             'custom_text' => $template->custom_text,
@@ -607,7 +679,8 @@ class FinanceReportService
             'include_opening_balance' => (bool) $template->include_opening_balance,
             'is_default' => (bool) $template->is_default,
             'language' => $template->language,
-            'logo_image_url' => $template->logo_image_url,
+            'logo_image_pdf_src' => $this->pdfAssetSource($logoImageUrl),
+            'logo_image_url' => $logoImageUrl,
             'name' => $template->name,
             'shape_color' => $template->shape_color ?: '#0f7a3d',
             'shape_opacity' => (float) ($template->shape_opacity ?? 0.12),
@@ -617,5 +690,58 @@ class FinanceReportService
             'subtitle' => $template->subtitle,
             'title' => $template->title,
         ];
+    }
+
+    protected function ledgerPdfStoragePath(FinanceGeneratedReport $generatedReport): string
+    {
+        $timestamp = $generatedReport->created_at ?: now();
+
+        return sprintf(
+            'reports/finance/ledger/%s/%s/ledger-report-%s.pdf',
+            $timestamp->format('Y'),
+            $timestamp->format('m'),
+            str_pad((string) $generatedReport->id, 6, '0', STR_PAD_LEFT),
+        );
+    }
+
+    protected function normalizeLedgerTemplateSnapshot(array $template): array
+    {
+        $template['background_image_pdf_src'] = $template['background_image_pdf_src'] ?? $this->pdfAssetSource($template['background_image_url'] ?? null);
+        $template['logo_image_pdf_src'] = $template['logo_image_pdf_src'] ?? $this->pdfAssetSource($template['logo_image_url'] ?? null);
+
+        return $template;
+    }
+
+    protected function pdfAssetSource(?string $path): ?string
+    {
+        if (blank($path)) {
+            return null;
+        }
+
+        if (str_starts_with($path, 'data:') || str_starts_with($path, 'http://') || str_starts_with($path, 'https://')) {
+            return $path;
+        }
+
+        if (str_starts_with($path, '/storage/')) {
+            $relativePath = ltrim(Str::after($path, '/storage/'), '/');
+            $storagePath = storage_path('app/public/'.$relativePath);
+
+            return is_file($storagePath)
+                ? $this->fileUri($storagePath)
+                : $this->fileUri(public_path('storage/'.$relativePath));
+        }
+
+        return $this->fileUri(public_path(ltrim($path, '/')));
+    }
+
+    protected function fileUri(string $path): string
+    {
+        $normalized = str_replace('\\', '/', $path);
+
+        if (! str_starts_with($normalized, '/')) {
+            $normalized = '/'.$normalized;
+        }
+
+        return 'file://'.$normalized;
     }
 }

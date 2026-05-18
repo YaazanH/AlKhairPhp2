@@ -12,6 +12,7 @@
         "php": "^8.2",
         "chillerlan/php-qrcode": "^6.0",
         "dedoc/scramble": "^0.13.17",
+        "dompdf/dompdf": "^3.1",
         "laravel/framework": "^12.0",
         "laravel/sanctum": "^4.3",
         "laravel/tinker": "^2.10.1",

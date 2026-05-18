@@ -10,6 +10,8 @@ use App\Services\FinanceService;
 use App\Services\ReportingService;
 use App\Services\XlsxExportService;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
+use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ReportExportController extends Controller
@@ -104,11 +106,7 @@ class ReportExportController extends Controller
         $generatedReport = $reportService->storeGeneratedLedgerReport($report, $validated, $request->user());
 
         if ($validated['format'] === 'pdf') {
-            return view('reports.finance-ledger-pdf', [
-                'generatedReport' => $generatedReport,
-                'report' => $report,
-                'service' => $reportService,
-            ]);
+            return $this->ledgerPdfResponse($reportService, $report, $generatedReport);
         }
 
         $rows = $reportService->ledgerExportRowsFromReport($report);
@@ -135,11 +133,7 @@ class ReportExportController extends Controller
         $report = $reportService->generatedLedgerReport($generatedReport);
 
         if (($validated['format'] ?? 'pdf') === 'pdf') {
-            return view('reports.finance-ledger-pdf', [
-                'generatedReport' => $generatedReport,
-                'report' => $report,
-                'service' => $reportService,
-            ]);
+            return $this->ledgerPdfResponse($reportService, $report, $generatedReport);
         }
 
         $rows = $reportService->ledgerExportRowsFromReport($report);
@@ -151,6 +145,24 @@ class ReportExportController extends Controller
     protected function xlsxDownload(string $filenamePrefix, array $headers, array $rows): StreamedResponse
     {
         return app(XlsxExportService::class)->download($filenamePrefix, $headers, $rows);
+    }
+
+    protected function ledgerPdfResponse(FinanceReportService $reportService, array $report, ?FinanceGeneratedReport $generatedReport = null): Response
+    {
+        $filename = $reportService->ledgerPdfFilename($report, $generatedReport);
+        $storedPath = $generatedReport ? $reportService->ensureStoredLedgerPdf($generatedReport, $report) : null;
+
+        if ($storedPath !== null && Storage::disk('local')->exists($storedPath)) {
+            return response(Storage::disk('local')->get($storedPath), 200, [
+                'Content-Disposition' => 'inline; filename="'.$filename.'"',
+                'Content-Type' => 'application/pdf',
+            ]);
+        }
+
+        return response($reportService->renderLedgerPdf($report, $generatedReport), 200, [
+            'Content-Disposition' => 'inline; filename="'.$filename.'"',
+            'Content-Type' => 'application/pdf',
+        ]);
     }
 
     protected function validatedFilters(Request $request): array

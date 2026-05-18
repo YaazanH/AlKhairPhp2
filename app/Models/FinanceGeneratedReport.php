@@ -15,6 +15,7 @@ class FinanceGeneratedReport extends Model
         'report_type',
         'filters',
         'report_data',
+        'pdf_path',
         'generated_by',
     ];
 
@@ -34,5 +35,11 @@ class FinanceGeneratedReport extends Model
     public static function storageIsReady(): bool
     {
         return Schema::hasTable((new static)->getTable());
+    }
+
+    public static function pdfStorageIsReady(): bool
+    {
+        return static::storageIsReady()
+            && Schema::hasColumn((new static)->getTable(), 'pdf_path');
     }
 }

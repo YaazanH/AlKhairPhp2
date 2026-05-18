@@ -35,6 +35,7 @@ use App\Services\FinanceService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
 use Livewire\Volt\Volt;
 use Tests\TestCase;
 
@@ -1070,6 +1071,7 @@ class FinanceAndActivitiesTest extends TestCase
     public function test_finance_ledger_report_exports_opening_running_and_closing_balances(): void
     {
         $this->signIn();
+        Storage::fake('local');
 
         $service = app(FinanceService::class);
         $cashBox = FinanceCashBox::query()->firstOrFail();
@@ -1124,26 +1126,30 @@ class FinanceAndActivitiesTest extends TestCase
             ->assertOk()
             ->assertSee('data-searchable="false"', false);
 
-        $this->get(route('finance.reports.ledger.export', [
+        $pdfResponse = $this->get(route('finance.reports.ledger.export', [
             'cash_box_id' => $cashBox->id,
             'currency_id' => $currency->id,
             'date_from' => '2026-02-01',
             'date_to' => '2026-02-28',
             'format' => 'pdf',
             'template_id' => $template->id,
-        ]))
+        ]));
+        $pdfResponse
             ->assertOk()
-            ->assertSee($template->title)
-            ->assertSee('155.00 '.$currency->code);
+            ->assertHeader('content-type', 'application/pdf');
+        $this->assertStringStartsWith('%PDF', (string) $pdfResponse->getContent());
 
         $this->assertSame(1, FinanceGeneratedReport::query()->count());
 
         $generatedReport = FinanceGeneratedReport::query()->latest('id')->firstOrFail();
+        $this->assertNotNull($generatedReport->pdf_path);
+        Storage::disk('local')->assertExists($generatedReport->pdf_path);
 
-        $this->get(route('finance.reports.generated.show', $generatedReport))
+        $savedPdfResponse = $this->get(route('finance.reports.generated.show', $generatedReport));
+        $savedPdfResponse
             ->assertOk()
-            ->assertSee($template->title)
-            ->assertSee('155.00 '.$currency->code);
+            ->assertHeader('content-type', 'application/pdf');
+        $this->assertStringStartsWith('%PDF', (string) $savedPdfResponse->getContent());
 
         $this->get(route('finance.reports.generated.show', ['generatedReport' => $generatedReport, 'format' => 'xlsx']))
             ->assertOk()
@@ -1166,6 +1172,7 @@ class FinanceAndActivitiesTest extends TestCase
     public function test_finance_reports_page_and_ledger_export_handle_missing_generated_report_table(): void
     {
         $this->signIn();
+        Storage::fake('local');
 
         $service = app(FinanceService::class);
         $cashBox = FinanceCashBox::query()->firstOrFail();
@@ -1178,16 +1185,18 @@ class FinanceAndActivitiesTest extends TestCase
             ->assertOk()
             ->assertSee(__('finance.reports.generated_reports_unavailable'));
 
-        $this->get(route('finance.reports.ledger.export', [
+        $response = $this->get(route('finance.reports.ledger.export', [
             'cash_box_id' => $cashBox->id,
             'currency_id' => $currency->id,
             'date_from' => '2026-02-01',
             'date_to' => '2026-02-28',
             'format' => 'pdf',
             'template_id' => $template->id,
-        ]))
+        ]));
+        $response
             ->assertOk()
-            ->assertSee($template->title);
+            ->assertHeader('content-type', 'application/pdf');
+        $this->assertStringStartsWith('%PDF', (string) $response->getContent());
 
         $this->get(route('finance.reports.generated.show', 1))
             ->assertNotFound();
