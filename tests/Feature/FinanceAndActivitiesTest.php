@@ -430,6 +430,26 @@ class FinanceAndActivitiesTest extends TestCase
         $localCurrency = FinanceCurrency::query()->where('is_local', true)->firstOrFail();
 
         Volt::test('settings.finance')
+            ->set('invoice_prefix', 'alk')
+            ->set('transaction_prefix', 'mov')
+            ->set('pull_request_prefix', 'wdr')
+            ->set('expense_request_prefix', 'cst')
+            ->set('revenue_request_prefix', 'inc')
+            ->set('return_request_prefix', 'rfd')
+            ->set('exchange_prefix', 'fx')
+            ->call('saveFinanceSettings')
+            ->assertHasNoErrors();
+
+        $financeService = app(FinanceService::class);
+
+        $this->assertSame('ALK-000001', $financeService->nextInvoiceNumber());
+        $this->assertSame('WDR-000001', $financeService->nextRequestNumber(FinanceRequest::TYPE_PULL));
+        $this->assertSame('CST-000001', $financeService->nextRequestNumber(FinanceRequest::TYPE_EXPENSE));
+        $this->assertSame('INC-000001', $financeService->nextRequestNumber(FinanceRequest::TYPE_REVENUE));
+        $this->assertSame('RFD-000001', $financeService->nextRequestNumber(FinanceRequest::TYPE_RETURN));
+        $this->assertSame('FX-000001', $financeService->nextExchangeNumber());
+
+        Volt::test('settings.finance')
             ->call('editCurrency', $localCurrency->id)
             ->set('currency_rate_input', '12800')
             ->set('currency_decimal_places', '0')
@@ -440,9 +460,9 @@ class FinanceAndActivitiesTest extends TestCase
 
         $this->assertEqualsWithDelta(1 / 12800, (float) $localCurrency->rate_to_base, 0.000000000001);
         $this->assertSame(0, $localCurrency->decimal_places);
-        $this->assertSame('12,800', app(FinanceService::class)->currencyRateInput($localCurrency));
-        $this->assertSame('1 USD = 12,800 SYP', app(FinanceService::class)->currencyRateLabel($localCurrency));
-        $this->assertSame('1,235 SYP', app(FinanceService::class)->formatCurrencyAmount(1234.56, $localCurrency));
+        $this->assertSame('12,800', $financeService->currencyRateInput($localCurrency));
+        $this->assertSame('1 USD = 12,800 SYP', $financeService->currencyRateLabel($localCurrency));
+        $this->assertSame('1,235 SYP', $financeService->formatCurrencyAmount(1234.56, $localCurrency));
 
         Volt::test('settings.finance')
             ->call('editCurrency', $localCurrency->id)
@@ -1038,7 +1058,14 @@ class FinanceAndActivitiesTest extends TestCase
         );
 
         $this->assertInstanceOf(FinanceCurrencyExchange::class, $exchange);
+        $this->assertSame('EXC-000001', $exchange->exchange_no);
         $this->assertSame(2, FinanceTransaction::query()->where('pair_uuid', $exchange->pair_uuid)->count());
+        $exchangeTransactions = FinanceTransaction::query()
+            ->where('pair_uuid', $exchange->pair_uuid)
+            ->orderBy('id')
+            ->get();
+        $this->assertSame('EXC-000001', data_get($exchangeTransactions[0]->metadata, 'reference'));
+        $this->assertStringStartsWith('EXC-000001', (string) $exchangeTransactions[0]->description);
         $this->assertDatabaseHas('finance_transactions', [
             'cash_box_id' => $mainBox->id,
             'currency_id' => $usd->id,
@@ -1066,6 +1093,10 @@ class FinanceAndActivitiesTest extends TestCase
 
         $this->assertGreaterThan(0, $report['summary']['transactions']);
         $this->assertNotEmpty($report['quarter_totals']);
+
+        Volt::test('finance.exchange')
+            ->assertSee('EXC-000001')
+            ->assertSee('Test exchange');
     }
 
     public function test_finance_ledger_report_exports_opening_running_and_closing_balances(): void
@@ -1077,6 +1108,7 @@ class FinanceAndActivitiesTest extends TestCase
         $cashBox = FinanceCashBox::query()->firstOrFail();
         $currency = $service->localCurrency();
         $template = FinanceReportTemplate::query()->firstOrFail();
+        $template->update(['language' => FinanceReportTemplate::LANGUAGE_AR]);
 
         $service->postTransaction([
             'cash_box_id' => $cashBox->id,
@@ -1107,6 +1139,11 @@ class FinanceAndActivitiesTest extends TestCase
         ]);
 
         $report = app(FinanceReportService::class)->ledgerReport($template, $cashBox, $currency, '2026-02-01', '2026-02-28');
+        $rtlExportHtml = view('reports.finance-ledger-pdf-export', [
+            'generatedReport' => null,
+            'report' => $report,
+            'service' => app(FinanceReportService::class),
+        ])->render();
 
         $this->assertSame(100.0, $report['opening_balance']);
         $this->assertSame(75.0, $report['income']);
@@ -1115,6 +1152,8 @@ class FinanceAndActivitiesTest extends TestCase
         $this->assertCount(2, $report['rows']);
         $this->assertSame(175.0, $report['rows'][0]['_running_balance_raw']);
         $this->assertSame(155.0, $report['rows'][1]['_running_balance_raw']);
+        $this->assertStringContainsString('direction: rtl;', $rtlExportHtml);
+        $this->assertStringContainsString('unicode-bidi: embed;', $rtlExportHtml);
 
         Volt::test('finance.reports')
             ->assertSee(__('finance.reports.ledger_export_title'))

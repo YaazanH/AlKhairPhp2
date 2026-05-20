@@ -669,46 +669,38 @@ class FinanceService
 
     public function nextInvoiceNumber(): string
     {
-        $prefix = (string) (DB::table('app_settings')
-            ->where('group', 'finance')
-            ->where('key', 'invoice_prefix')
-            ->value('value') ?: 'INV');
+        $prefix = $this->numberingPrefix('invoice_prefix', 'INV');
 
         $lastInvoiceNo = Invoice::query()
             ->where('invoice_no', 'like', $prefix.'-%')
             ->latest('id')
             ->value('invoice_no');
 
-        $nextSequence = 1;
-
-        if ($lastInvoiceNo && preg_match('/(\d+)$/', $lastInvoiceNo, $matches) === 1) {
-            $nextSequence = ((int) $matches[1]) + 1;
-        }
-
-        return sprintf('%s-%06d', $prefix, $nextSequence);
+        return $this->sequencedNumber($prefix, $lastInvoiceNo, 6);
     }
 
     public function nextRequestNumber(string $type): string
     {
-        $prefix = strtoupper(match ($type) {
-            FinanceRequest::TYPE_EXPENSE => 'EXP',
-            FinanceRequest::TYPE_REVENUE => 'REV',
-            FinanceRequest::TYPE_RETURN => 'RET',
-            default => 'PUL',
-        });
+        $prefix = $this->requestNumberPrefix($type);
 
         $lastRequestNo = FinanceRequest::query()
             ->where('request_no', 'like', $prefix.'-%')
             ->latest('id')
             ->value('request_no');
 
-        $nextSequence = 1;
+        return $this->sequencedNumber($prefix, $lastRequestNo, 6);
+    }
 
-        if ($lastRequestNo && preg_match('/(\d+)$/', $lastRequestNo, $matches) === 1) {
-            $nextSequence = ((int) $matches[1]) + 1;
-        }
+    public function nextExchangeNumber(): string
+    {
+        $prefix = $this->numberingPrefix('exchange_prefix', 'EXC');
 
-        return sprintf('%s-%06d', $prefix, $nextSequence);
+        $lastExchangeNo = FinanceCurrencyExchange::query()
+            ->where('exchange_no', 'like', $prefix.'-%')
+            ->latest('id')
+            ->value('exchange_no');
+
+        return $this->sequencedNumber($prefix, $lastExchangeNo, 6);
     }
 
     public function postTransaction(array $payload): FinanceTransaction
@@ -858,9 +850,12 @@ class FinanceService
         return DB::transaction(function () use ($date, $fromAmount, $fromCashBox, $fromCurrency, $notes, $toAmount, $toCashBox, $toCurrency, $user): FinanceCurrencyExchange {
             $pairUuid = (string) Str::uuid();
             $fromSnapshot = $this->amountSnapshot($fromCurrency, $fromAmount);
+            $exchangeNo = $this->nextExchangeNumber();
+            $description = trim($exchangeNo.' '.($notes ?? ''));
 
             $exchange = FinanceCurrencyExchange::query()->create([
                 'pair_uuid' => $pairUuid,
+                'exchange_no' => $exchangeNo,
                 'from_cash_box_id' => $fromCashBox->id,
                 'to_cash_box_id' => $toCashBox->id,
                 'from_currency_id' => $fromCurrency->id,
@@ -885,9 +880,13 @@ class FinanceService
                 'direction' => 'out',
                 'amount' => $fromAmount,
                 'transaction_date' => $date,
-                'description' => $notes,
+                'description' => $description,
                 'entered_by' => $user?->id,
                 'pair_uuid' => $pairUuid,
+                'metadata' => [
+                    'exchange_no' => $exchangeNo,
+                    'reference' => $exchangeNo,
+                ],
             ]);
 
             $this->postTransaction([
@@ -899,9 +898,13 @@ class FinanceService
                 'direction' => 'in',
                 'amount' => $toAmount,
                 'transaction_date' => $date,
-                'description' => $notes,
+                'description' => $description,
                 'entered_by' => $user?->id,
                 'pair_uuid' => $pairUuid,
+                'metadata' => [
+                    'exchange_no' => $exchangeNo,
+                    'reference' => $exchangeNo,
+                ],
             ]);
 
             return $exchange;
@@ -1219,17 +1222,52 @@ class FinanceService
 
     protected function nextTransactionNumber(): string
     {
+        $prefix = $this->numberingPrefix('transaction_prefix', 'TX');
+
         $lastTransactionNo = FinanceTransaction::query()
-            ->where('transaction_no', 'like', 'TX-%')
+            ->where('transaction_no', 'like', $prefix.'-%')
             ->latest('id')
             ->value('transaction_no');
 
+        return $this->sequencedNumber($prefix, $lastTransactionNo, 8);
+    }
+
+    protected function requestNumberPrefix(string $type): string
+    {
+        return match ($type) {
+            FinanceRequest::TYPE_EXPENSE => $this->numberingPrefix('expense_request_prefix', 'EXP'),
+            FinanceRequest::TYPE_REVENUE => $this->numberingPrefix('revenue_request_prefix', 'REV'),
+            FinanceRequest::TYPE_RETURN => $this->numberingPrefix('return_request_prefix', 'RET'),
+            default => $this->numberingPrefix('pull_request_prefix', 'PUL'),
+        };
+    }
+
+    protected function numberingPrefix(string $settingKey, string $default): string
+    {
+        return $this->normalizeNumberPrefix(
+            DB::table('app_settings')
+                ->where('group', 'finance')
+                ->where('key', $settingKey)
+                ->value('value'),
+            $default,
+        );
+    }
+
+    protected function normalizeNumberPrefix(?string $value, string $default): string
+    {
+        $normalized = Str::upper(trim((string) preg_replace('/[\s-]+/u', '', (string) $value)));
+
+        return $normalized !== '' ? $normalized : $default;
+    }
+
+    protected function sequencedNumber(string $prefix, ?string $lastValue, int $padding): string
+    {
         $nextSequence = 1;
 
-        if ($lastTransactionNo && preg_match('/(\d+)$/', $lastTransactionNo, $matches) === 1) {
+        if ($lastValue && preg_match('/(\d+)$/', $lastValue, $matches) === 1) {
             $nextSequence = ((int) $matches[1]) + 1;
         }
 
-        return sprintf('TX-%08d', $nextSequence);
+        return sprintf('%s-%0'.$padding.'d', $prefix, $nextSequence);
     }
 }

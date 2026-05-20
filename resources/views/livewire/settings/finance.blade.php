@@ -24,6 +24,12 @@ new class extends Component {
     use FormatsFinanceNumbers;
 
     public string $invoice_prefix = '';
+    public string $transaction_prefix = '';
+    public string $pull_request_prefix = '';
+    public string $expense_request_prefix = '';
+    public string $revenue_request_prefix = '';
+    public string $return_request_prefix = '';
+    public string $exchange_prefix = '';
     public string $request_terms = '';
     public string $default_cash_box_id = '';
     public string $default_pull_request_kind_id = '';
@@ -533,6 +539,12 @@ new class extends Component {
 
         $validated = $this->validate([
             'invoice_prefix' => ['required', 'string', 'max:20'],
+            'transaction_prefix' => ['required', 'string', 'max:20'],
+            'pull_request_prefix' => ['required', 'string', 'max:20'],
+            'expense_request_prefix' => ['required', 'string', 'max:20'],
+            'revenue_request_prefix' => ['required', 'string', 'max:20'],
+            'return_request_prefix' => ['required', 'string', 'max:20'],
+            'exchange_prefix' => ['required', 'string', 'max:20'],
             'request_terms' => ['nullable', 'string'],
             'default_cash_box_id' => ['nullable', 'integer', Rule::exists('finance_cash_boxes', 'id')->where('is_active', true)],
             'default_pull_request_kind_id' => ['nullable', 'integer', Rule::exists('finance_pull_request_kinds', 'id')->where('is_active', true)],
@@ -551,7 +563,13 @@ new class extends Component {
             'cash_box_transfer_enabled' => ['boolean'],
         ]);
 
-        AppSetting::storeValue('finance', 'invoice_prefix', strtoupper($validated['invoice_prefix']));
+        AppSetting::storeValue('finance', 'invoice_prefix', $this->normalizedFinancePrefix($validated['invoice_prefix'], 'INV'));
+        AppSetting::storeValue('finance', 'transaction_prefix', $this->normalizedFinancePrefix($validated['transaction_prefix'], 'TX'));
+        AppSetting::storeValue('finance', 'pull_request_prefix', $this->normalizedFinancePrefix($validated['pull_request_prefix'], 'PUL'));
+        AppSetting::storeValue('finance', 'expense_request_prefix', $this->normalizedFinancePrefix($validated['expense_request_prefix'], 'EXP'));
+        AppSetting::storeValue('finance', 'revenue_request_prefix', $this->normalizedFinancePrefix($validated['revenue_request_prefix'], 'REV'));
+        AppSetting::storeValue('finance', 'return_request_prefix', $this->normalizedFinancePrefix($validated['return_request_prefix'], 'RET'));
+        AppSetting::storeValue('finance', 'exchange_prefix', $this->normalizedFinancePrefix($validated['exchange_prefix'], 'EXC'));
         AppSetting::storeValue('finance', 'request_terms', $validated['request_terms'] ?: null);
         AppSetting::storeValue('finance', 'default_cash_box_id', $validated['default_cash_box_id'] ?: null, 'integer');
         AppSetting::storeValue('finance', 'default_pull_request_kind_id', $validated['default_pull_request_kind_id'] ?: null, 'integer');
@@ -677,7 +695,13 @@ new class extends Component {
     {
         $settings = AppSetting::groupValues('finance');
 
-        $this->invoice_prefix = (string) ($settings->get('invoice_prefix') ?: 'INV');
+        $this->invoice_prefix = $this->normalizedFinancePrefix((string) ($settings->get('invoice_prefix') ?: 'INV'), 'INV');
+        $this->transaction_prefix = $this->normalizedFinancePrefix((string) ($settings->get('transaction_prefix') ?: 'TX'), 'TX');
+        $this->pull_request_prefix = $this->normalizedFinancePrefix((string) ($settings->get('pull_request_prefix') ?: 'PUL'), 'PUL');
+        $this->expense_request_prefix = $this->normalizedFinancePrefix((string) ($settings->get('expense_request_prefix') ?: 'EXP'), 'EXP');
+        $this->revenue_request_prefix = $this->normalizedFinancePrefix((string) ($settings->get('revenue_request_prefix') ?: 'REV'), 'REV');
+        $this->return_request_prefix = $this->normalizedFinancePrefix((string) ($settings->get('return_request_prefix') ?: 'RET'), 'RET');
+        $this->exchange_prefix = $this->normalizedFinancePrefix((string) ($settings->get('exchange_prefix') ?: 'EXC'), 'EXC');
         $this->request_terms = (string) ($settings->get('request_terms') ?: '');
         $this->default_cash_box_id = (string) ($settings->get('default_cash_box_id') ?: '');
         $this->default_pull_request_kind_id = (string) ($settings->get('default_pull_request_kind_id') ?: '');
@@ -688,6 +712,13 @@ new class extends Component {
         $this->default_return_print_template_id = (string) ($settings->get('default_return_print_template_id') ?: '');
         $this->cash_box_manual_adjustment_enabled = $settings->has('cash_box_manual_adjustment_enabled') ? (bool) $settings->get('cash_box_manual_adjustment_enabled') : true;
         $this->cash_box_transfer_enabled = $settings->has('cash_box_transfer_enabled') ? (bool) $settings->get('cash_box_transfer_enabled') : true;
+    }
+
+    protected function normalizedFinancePrefix(string $value, string $fallback): string
+    {
+        $normalized = strtoupper(trim((string) preg_replace('/[\s-]+/u', '', $value)));
+
+        return $normalized !== '' ? $normalized : $fallback;
     }
 
     protected function financeRequestPrintTemplates()
@@ -732,12 +763,51 @@ new class extends Component {
             </div>
         </div>
         <form wire:submit="saveFinanceSettings" class="mt-5 grid gap-5">
-            <div class="grid gap-4 lg:grid-cols-[16rem_minmax(0,1fr)]">
-                <div>
-                    <label class="mb-1 block text-sm font-medium">{{ __('settings.finance.fields.invoice_prefix') }}</label>
-                    <input wire:model="invoice_prefix" type="text" class="w-full rounded-xl px-4 py-3 text-sm uppercase">
-                    @error('invoice_prefix') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
+            <div>
+                <div class="mb-3">
+                    <div class="admin-section-card__title">{{ __('finance.settings.number_prefixes') }}</div>
+                    <p class="mt-1 text-sm text-neutral-400">{{ __('finance.settings.number_prefixes_subtitle') }}</p>
                 </div>
+                <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                    <div>
+                        <label class="mb-1 block text-sm font-medium">{{ __('settings.finance.fields.invoice_prefix') }}</label>
+                        <input wire:model="invoice_prefix" type="text" class="w-full rounded-xl px-4 py-3 text-sm uppercase">
+                        @error('invoice_prefix') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
+                    </div>
+                    <div>
+                        <label class="mb-1 block text-sm font-medium">{{ __('settings.finance.fields.transaction_prefix') }}</label>
+                        <input wire:model="transaction_prefix" type="text" class="w-full rounded-xl px-4 py-3 text-sm uppercase">
+                        @error('transaction_prefix') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
+                    </div>
+                    <div>
+                        <label class="mb-1 block text-sm font-medium">{{ __('settings.finance.fields.pull_request_prefix') }}</label>
+                        <input wire:model="pull_request_prefix" type="text" class="w-full rounded-xl px-4 py-3 text-sm uppercase">
+                        @error('pull_request_prefix') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
+                    </div>
+                    <div>
+                        <label class="mb-1 block text-sm font-medium">{{ __('settings.finance.fields.expense_request_prefix') }}</label>
+                        <input wire:model="expense_request_prefix" type="text" class="w-full rounded-xl px-4 py-3 text-sm uppercase">
+                        @error('expense_request_prefix') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
+                    </div>
+                    <div>
+                        <label class="mb-1 block text-sm font-medium">{{ __('settings.finance.fields.revenue_request_prefix') }}</label>
+                        <input wire:model="revenue_request_prefix" type="text" class="w-full rounded-xl px-4 py-3 text-sm uppercase">
+                        @error('revenue_request_prefix') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
+                    </div>
+                    <div>
+                        <label class="mb-1 block text-sm font-medium">{{ __('settings.finance.fields.return_request_prefix') }}</label>
+                        <input wire:model="return_request_prefix" type="text" class="w-full rounded-xl px-4 py-3 text-sm uppercase">
+                        @error('return_request_prefix') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
+                    </div>
+                    <div>
+                        <label class="mb-1 block text-sm font-medium">{{ __('settings.finance.fields.exchange_prefix') }}</label>
+                        <input wire:model="exchange_prefix" type="text" class="w-full rounded-xl px-4 py-3 text-sm uppercase">
+                        @error('exchange_prefix') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid gap-4">
                 <div>
                     <label class="mb-1 block text-sm font-medium">{{ __('finance.settings.teacher_pull_terms') }}</label>
                     <textarea wire:model="request_terms" rows="2" class="w-full rounded-xl px-4 py-3 text-sm"></textarea>

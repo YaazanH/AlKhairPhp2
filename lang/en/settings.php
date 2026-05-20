@@ -694,6 +694,12 @@ return [
         ],
         'fields' => [
             'invoice_prefix' => 'Invoice prefix',
+            'transaction_prefix' => 'Transaction prefix',
+            'pull_request_prefix' => 'Pull request prefix',
+            'expense_request_prefix' => 'Expense prefix',
+            'revenue_request_prefix' => 'Revenue prefix',
+            'return_request_prefix' => 'Return prefix',
+            'exchange_prefix' => 'Exchange prefix',
             'name' => 'Name',
             'code' => 'Code',
             'is_active' => 'Active',

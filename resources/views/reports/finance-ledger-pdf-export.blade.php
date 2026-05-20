@@ -91,14 +91,35 @@
 
         body {
             color: #102316;
+            direction: {{ $dir }};
             font-family: DejaVu Sans, sans-serif;
             font-size: 12px;
             line-height: 1.45;
             margin: 0;
+            text-align: {{ $textAlign }};
+            unicode-bidi: embed;
         }
 
         .ledger-report {
             position: relative;
+        }
+
+        .ledger-report,
+        .ledger-report table,
+        .ledger-report td,
+        .ledger-report th,
+        .ledger-report__copy,
+        .ledger-report__custom-text,
+        .ledger-report__eyebrow,
+        .ledger-report__footer-copy,
+        .ledger-report__meta-label,
+        .ledger-report__meta-value,
+        .ledger-report__page-number,
+        .ledger-report__subtitle,
+        .ledger-report__title {
+            direction: {{ $dir }};
+            text-align: {{ $textAlign }};
+            unicode-bidi: embed;
         }
 
         .ledger-report__background {

@@ -694,6 +694,12 @@ return [
         ],
         'fields' => [
             'invoice_prefix' => 'بادئة الفاتورة',
+            'transaction_prefix' => 'بادئة الحركة',
+            'pull_request_prefix' => 'بادئة طلب السحب',
+            'expense_request_prefix' => 'بادئة المصروف',
+            'revenue_request_prefix' => 'بادئة الإيراد',
+            'return_request_prefix' => 'بادئة الإرجاع',
+            'exchange_prefix' => 'بادئة الصرافة',
             'name' => 'الاسم',
             'code' => 'الرمز',
             'is_active' => 'نشط',

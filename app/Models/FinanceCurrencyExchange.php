@@ -12,6 +12,7 @@ class FinanceCurrencyExchange extends Model
 
     protected $fillable = [
         'pair_uuid',
+        'exchange_no',
         'from_cash_box_id',
         'to_cash_box_id',
         'from_currency_id',

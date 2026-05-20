@@ -688,6 +688,12 @@ class SystemSettingsTest extends TestCase
 
         Volt::test('settings.finance')
             ->set('invoice_prefix', 'ALK')
+            ->set('transaction_prefix', 'MOV')
+            ->set('pull_request_prefix', 'PUL')
+            ->set('expense_request_prefix', 'EXP')
+            ->set('revenue_request_prefix', 'REV')
+            ->set('return_request_prefix', 'RET')
+            ->set('exchange_prefix', 'EXC')
             ->call('saveFinanceSettings')
             ->assertHasNoErrors();
 
@@ -695,6 +701,16 @@ class SystemSettingsTest extends TestCase
             'group' => 'finance',
             'key' => 'invoice_prefix',
             'value' => 'ALK',
+        ]);
+        $this->assertDatabaseHas('app_settings', [
+            'group' => 'finance',
+            'key' => 'transaction_prefix',
+            'value' => 'MOV',
+        ]);
+        $this->assertDatabaseHas('app_settings', [
+            'group' => 'finance',
+            'key' => 'exchange_prefix',
+            'value' => 'EXC',
         ]);
 
         Volt::test('settings.finance')
