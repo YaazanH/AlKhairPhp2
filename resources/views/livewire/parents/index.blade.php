@@ -5,6 +5,7 @@ use App\Livewire\Concerns\AuthorizesTeacherAssignments;
 use App\Livewire\Concerns\SupportsCreateAndNew;
 use App\Models\FatherJob;
 use App\Models\ParentProfile;
+use App\Models\Student;
 use App\Services\ManagedUserService;
 use App\Services\ParentNumberService;
 use Illuminate\Validation\Rule;
@@ -39,6 +40,10 @@ new class extends Component {
     public int $perPage = 15;
     public bool $showFormModal = false;
     public bool $showAccountModal = false;
+    public bool $showChildrenModal = false;
+    public ?int $childrenParentId = null;
+    public string $childrenParentName = '';
+    public array $childrenRows = [];
 
     public function mount(): void
     {
@@ -140,6 +145,11 @@ new class extends Component {
                 'name' => $validated['father_name'],
                 'username' => $parent->parent_number ?: null,
                 'phone' => $validated['father_phone'] ?: ($validated['mother_phone'] ?: ($validated['home_phone'] ?: null)),
+                'phones' => [
+                    $validated['father_phone'] ?? null,
+                    $validated['mother_phone'] ?? null,
+                    $validated['home_phone'] ?? null,
+                ],
                 'is_active' => $parent->user?->is_active ?? (bool) $validated['is_active'],
             ],
             'parent',
@@ -208,6 +218,37 @@ new class extends Component {
         ]);
     }
 
+    public function openChildrenModal(int $parentId): void
+    {
+        $this->authorizePermission('students.view');
+
+        $parent = ParentProfile::query()->findOrFail($parentId);
+        $this->authorizeScopedParentAccess($parent);
+
+        $students = $this->scopeStudentsQuery(
+            Student::query()
+                ->where('parent_id', $parent->id)
+                ->with(['gradeLevel', 'enrollments.group'])
+        )
+            ->orderBy('last_name')
+            ->orderBy('first_name')
+            ->get();
+
+        $this->childrenParentId = $parent->id;
+        $this->childrenParentName = $parent->father_name;
+        $this->childrenRows = $students
+            ->map(fn (Student $student): array => [
+                'id' => $student->id,
+                'name' => $student->full_name,
+                'student_number' => $student->student_number ?: (string) $student->id,
+                'grade_level' => $student->gradeLevel?->name ?: __('crud.common.not_available'),
+                'group_name' => $student->currentGroupName() ?: __('crud.common.not_available'),
+                'status' => (string) $student->status,
+            ])
+            ->all();
+        $this->showChildrenModal = true;
+    }
+
     public function generateAccountPassword(): void
     {
         $this->authorizePermission('parents.update');
@@ -230,6 +271,11 @@ new class extends Component {
                 'username' => $parent->parent_number ?: ($validated['account_username'] ?: null),
                 'email' => $validated['account_email'] ?: null,
                 'phone' => $parent->father_phone ?: ($parent->mother_phone ?: ($parent->home_phone ?: null)),
+                'phones' => [
+                    $parent->father_phone,
+                    $parent->mother_phone,
+                    $parent->home_phone,
+                ],
                 'password' => $validated['account_password'] ?: null,
                 'is_active' => (bool) $validated['account_is_active'],
             ],
@@ -268,6 +314,14 @@ new class extends Component {
             'account_password',
             'account_is_active',
         ]);
+    }
+
+    public function closeChildrenModal(): void
+    {
+        $this->childrenParentId = null;
+        $this->childrenParentName = '';
+        $this->childrenRows = [];
+        $this->showChildrenModal = false;
     }
 
     public function cancel(): void
@@ -449,6 +503,9 @@ new class extends Component {
                                         @can('parents.update')
                                             <button type="button" wire:click="openAccountModal({{ $parent->id }})" class="pill-link pill-link--compact">{{ __('crud.common.actions.account') }}</button>
                                         @endcan
+                                        @can('students.view')
+                                            <button type="button" wire:click="openChildrenModal({{ $parent->id }})" class="pill-link pill-link--compact">{{ __('crud.parents.children.action') }}</button>
+                                        @endcan
                                         @can('parents.update')
                                             <button type="button" wire:click="edit({{ $parent->id }})" class="pill-link pill-link--compact">{{ __('crud.common.actions.edit') }}</button>
                                         @endcan
@@ -579,6 +636,61 @@ new class extends Component {
                 </button>
             </div>
         </form>
+    </x-admin.modal>
+
+    <x-admin.modal
+        :show="$showChildrenModal"
+        :title="__('crud.parents.children.title', ['name' => $childrenParentName ?: __('crud.common.not_available')])"
+        :description="__('crud.parents.children.description', ['count' => number_format(count($childrenRows))])"
+        close-method="closeChildrenModal"
+        max-width="5xl"
+    >
+        @if ($childrenRows === [])
+            <div class="rounded-3xl border border-white/10 bg-white/5 px-5 py-4 text-sm text-neutral-300">
+                {{ __('crud.parents.children.empty') }}
+            </div>
+        @else
+            <div class="overflow-x-auto rounded-3xl border border-white/10 bg-white/5">
+                <table class="text-sm">
+                    <thead>
+                        <tr>
+                            <th class="px-5 py-4 text-left">{{ __('crud.parents.children.headers.student') }}</th>
+                            <th class="px-5 py-4 text-left">{{ __('crud.parents.children.headers.student_number') }}</th>
+                            <th class="px-5 py-4 text-left">{{ __('crud.parents.children.headers.grade') }}</th>
+                            <th class="px-5 py-4 text-left">{{ __('crud.parents.children.headers.group') }}</th>
+                            <th class="px-5 py-4 text-left">{{ __('crud.parents.children.headers.status') }}</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-white/6">
+                        @foreach ($childrenRows as $child)
+                            @php
+                                $statusClass = match ($child['status']) {
+                                    'active' => 'status-chip status-chip--emerald',
+                                    'graduated' => 'status-chip status-chip--gold',
+                                    'blocked' => 'status-chip status-chip--rose',
+                                    default => 'status-chip status-chip--slate',
+                                };
+                            @endphp
+                            <tr>
+                                <td class="px-5 py-4 text-white">{{ $child['name'] }}</td>
+                                <td class="px-5 py-4 font-mono text-white">{{ $child['student_number'] }}</td>
+                                <td class="px-5 py-4 text-neutral-300">{{ $child['grade_level'] }}</td>
+                                <td class="px-5 py-4 text-neutral-300">{{ $child['group_name'] }}</td>
+                                <td class="px-5 py-4">
+                                    <span class="{{ $statusClass }}">{{ __('crud.common.status_options.'.$child['status']) }}</span>
+                                </td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+        @endif
+
+        <div class="mt-4 flex justify-end">
+            <button type="button" wire:click="closeChildrenModal" class="pill-link">
+                {{ __('crud.common.actions.close') }}
+            </button>
+        </div>
     </x-admin.modal>
 
     <x-admin.modal

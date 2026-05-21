@@ -272,6 +272,8 @@ return [
         'generated_reports_subtitle' => 'Saved ledger outputs keep the selected filters and rendered data so you can review or reprint them later.',
         'generated_reports_unavailable' => 'Saved report history is unavailable until the latest finance report migrations are installed. Ledger export still works.',
         'review_saved_report' => 'Review saved report',
+        'delete_saved_report' => 'Delete saved report',
+        'saved_report_deleted' => 'Saved report deleted.',
         'export_saved_xlsx' => 'Download XLSX',
         'export_ledger_xlsx' => 'Export ledger XLSX',
         'export_ledger_pdf' => 'Print / PDF',

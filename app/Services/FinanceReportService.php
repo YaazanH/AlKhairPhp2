@@ -9,11 +9,11 @@ use App\Models\FinanceReportTemplate;
 use App\Models\FinanceRequest;
 use App\Models\FinanceTransaction;
 use App\Models\User;
-use Dompdf\Dompdf;
-use Dompdf\Options;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Mpdf\Mpdf;
+use Mpdf\Output\Destination;
 
 class FinanceReportService
 {
@@ -346,8 +346,17 @@ class FinanceReportService
     public function ensureStoredLedgerPdf(FinanceGeneratedReport $generatedReport, array $report): ?string
     {
         $existingPath = is_string($generatedReport->pdf_path ?? null) ? $generatedReport->pdf_path : null;
+        $currentRenderer = $this->ledgerPdfRendererVersion();
+        $storedRenderer = is_array($generatedReport->report_data)
+            ? (string) ($generatedReport->report_data['pdf_renderer'] ?? '')
+            : '';
 
-        if ($existingPath !== null && $existingPath !== '' && Storage::disk('local')->exists($existingPath)) {
+        if (
+            $storedRenderer === $currentRenderer
+            && $existingPath !== null
+            && $existingPath !== ''
+            && Storage::disk('local')->exists($existingPath)
+        ) {
             return $existingPath;
         }
 
@@ -360,8 +369,12 @@ class FinanceReportService
         $relativePath = $this->ledgerPdfStoragePath($generatedReport);
         Storage::disk('local')->put($relativePath, $pdfBinary);
 
-        if ($generatedReport->pdf_path !== $relativePath) {
+        $reportData = is_array($generatedReport->report_data) ? $generatedReport->report_data : [];
+        $reportData['pdf_renderer'] = $currentRenderer;
+
+        if ($generatedReport->pdf_path !== $relativePath || ($generatedReport->report_data['pdf_renderer'] ?? null) !== $currentRenderer) {
             $generatedReport->forceFill([
+                'report_data' => $reportData,
                 'pdf_path' => $relativePath,
             ])->save();
         }
@@ -371,21 +384,42 @@ class FinanceReportService
 
     public function renderLedgerPdf(array $report, ?FinanceGeneratedReport $generatedReport = null): string
     {
-        $options = new Options();
-        $options->set('defaultFont', 'DejaVu Sans');
-        $options->set('isHtml5ParserEnabled', true);
-        $options->set('isRemoteEnabled', true);
+        $templateLanguage = (string) data_get($report, 'template.language', FinanceReportTemplate::LANGUAGE_BOTH);
+        $defaultFont = $templateLanguage === FinanceReportTemplate::LANGUAGE_EN
+            ? 'sans'
+            : 'dejavusanscondensed';
+        $tempDir = storage_path('app/mpdf');
 
-        $dompdf = new Dompdf($options);
-        $dompdf->setPaper('A4', 'landscape');
-        $dompdf->loadHtml(view('reports.finance-ledger-pdf-export', [
+        if (! is_dir($tempDir)) {
+            mkdir($tempDir, 0777, true);
+        }
+
+        $mpdf = new Mpdf([
+            'default_font' => $defaultFont,
+            'format' => 'A4-L',
+            'margin_bottom' => 14,
+            'margin_left' => 14,
+            'margin_right' => 14,
+            'margin_top' => 14,
+            'mode' => 'utf-8',
+            'tempDir' => $tempDir,
+        ]);
+        $mpdf->autoLangToFont = true;
+        $mpdf->autoScriptToLang = true;
+        $mpdf->useSubstitutions = true;
+        $mpdf->SetDirectionality(
+            $templateLanguage === FinanceReportTemplate::LANGUAGE_EN ? 'ltr' : 'rtl'
+        );
+
+        $html = view('reports.finance-ledger-pdf-export', [
             'generatedReport' => $generatedReport,
             'report' => $report,
             'service' => $this,
-        ])->render(), 'UTF-8');
-        $dompdf->render();
+        ])->render();
 
-        return $dompdf->output();
+        $mpdf->WriteHTML($html);
+
+        return $mpdf->Output('', Destination::STRING_RETURN);
     }
 
     public function ledgerPdfFilename(array $report, ?FinanceGeneratedReport $generatedReport = null): string
@@ -553,6 +587,7 @@ class FinanceReportService
             'net' => round($income - $expense, 2),
             'opening_balance' => $openingBalance,
             'page_number' => 1,
+            'pdf_renderer' => $this->ledgerPdfRendererVersion(),
             'report_date' => $this->resolveReportDate($template, $exportedAt),
             'rows' => $rows,
             'start' => $start->toDateString(),
@@ -702,6 +737,11 @@ class FinanceReportService
             $timestamp->format('m'),
             str_pad((string) $generatedReport->id, 6, '0', STR_PAD_LEFT),
         );
+    }
+
+    protected function ledgerPdfRendererVersion(): string
+    {
+        return 'mpdf-rtl-v2';
     }
 
     protected function normalizeLedgerTemplateSnapshot(array $template): array

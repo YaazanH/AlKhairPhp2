@@ -13,7 +13,13 @@ class ManagedUserService
     public function syncLinkedUser(?User $user, array $attributes, string $role): array
     {
         $name = trim((string) ($attributes['name'] ?? $user?->name ?? 'User'));
-        $phone = filled($attributes['phone'] ?? null) ? trim((string) $attributes['phone']) : $user?->phone;
+        $phones = $attributes['phones'] ?? [$attributes['phone'] ?? null];
+
+        if (! is_array($phones)) {
+            $phones = [$phones];
+        }
+
+        $phone = $this->resolveUniquePhone($phones, $user?->id, $user?->phone);
         $username = filled($attributes['username'] ?? null)
             ? $this->uniqueUsername((string) $attributes['username'], $name, $user?->id)
             : ($user?->username ?: $this->uniqueUsername('', $name, $user?->id));
@@ -53,6 +59,25 @@ class ManagedUserService
                 'role' => $role,
             ],
         ];
+    }
+
+    public function resolveUniquePhone(array $candidates, ?int $ignoreUserId = null, ?string $fallback = null): ?string
+    {
+        foreach ($candidates as $candidate) {
+            $phone = $this->normalizePhone($candidate);
+
+            if ($phone !== null && ! $this->phoneTaken($phone, $ignoreUserId)) {
+                return $phone;
+            }
+        }
+
+        $fallbackPhone = $this->normalizePhone($fallback);
+
+        if ($fallbackPhone !== null && ! $this->phoneTaken($fallbackPhone, $ignoreUserId)) {
+            return $fallbackPhone;
+        }
+
+        return null;
     }
 
     public function generatePassword(int $length = 8): string
@@ -131,5 +156,24 @@ class ManagedUserService
             ->when($ignoreUserId, fn ($query) => $query->whereKeyNot($ignoreUserId))
             ->where('email', $email)
             ->exists();
+    }
+
+    protected function phoneTaken(string $phone, ?int $ignoreUserId): bool
+    {
+        return User::query()
+            ->when($ignoreUserId, fn ($query) => $query->whereKeyNot($ignoreUserId))
+            ->where('phone', $phone)
+            ->exists();
+    }
+
+    protected function normalizePhone(mixed $value): ?string
+    {
+        if (! filled($value)) {
+            return null;
+        }
+
+        $phone = trim((string) $value);
+
+        return $phone !== '' ? $phone : null;
     }
 }

@@ -87,10 +87,16 @@ class ParentNumberService
             return;
         }
 
+        $managedUsers = app(ManagedUserService::class);
+
         $user->forceFill([
             'name' => $parent->father_name ?: $user->name,
-            'username' => app(ManagedUserService::class)->uniqueUsername($parent->parent_number, $user->name, $user->id),
-            'phone' => $parent->father_phone ?: ($parent->mother_phone ?: ($parent->home_phone ?: null)),
+            'username' => $managedUsers->uniqueUsername($parent->parent_number, $user->name, $user->id),
+            'phone' => $managedUsers->resolveUniquePhone([
+                $parent->father_phone,
+                $parent->mother_phone,
+                $parent->home_phone,
+            ], $user->id, $user->phone),
         ])->save();
     }
 }

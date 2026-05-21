@@ -1152,8 +1152,8 @@ class FinanceAndActivitiesTest extends TestCase
         $this->assertCount(2, $report['rows']);
         $this->assertSame(175.0, $report['rows'][0]['_running_balance_raw']);
         $this->assertSame(155.0, $report['rows'][1]['_running_balance_raw']);
-        $this->assertStringContainsString('direction: rtl;', $rtlExportHtml);
-        $this->assertStringContainsString('unicode-bidi: embed;', $rtlExportHtml);
+        $this->assertStringContainsString('dir="rtl"', $rtlExportHtml);
+        $this->assertStringContainsString('font-family:dejavusanscondensed;', $rtlExportHtml);
 
         Volt::test('finance.reports')
             ->assertSee(__('finance.reports.ledger_export_title'))
@@ -1177,6 +1177,8 @@ class FinanceAndActivitiesTest extends TestCase
             ->assertOk()
             ->assertHeader('content-type', 'application/pdf');
         $this->assertStringStartsWith('%PDF', (string) $pdfResponse->getContent());
+        preg_match('/\/Count\s+(\d+)/', (string) $pdfResponse->getContent(), $pdfPageMatches);
+        $this->assertLessThanOrEqual(3, (int) ($pdfPageMatches[1] ?? 0));
 
         $this->assertSame(1, FinanceGeneratedReport::query()->count());
 
@@ -1184,11 +1186,22 @@ class FinanceAndActivitiesTest extends TestCase
         $this->assertNotNull($generatedReport->pdf_path);
         Storage::disk('local')->assertExists($generatedReport->pdf_path);
 
+        $legacyReportData = $generatedReport->report_data;
+        unset($legacyReportData['pdf_renderer']);
+        $generatedReport->forceFill([
+            'report_data' => $legacyReportData,
+        ])->save();
+        Storage::disk('local')->put($generatedReport->pdf_path, 'legacy-pdf');
+
         $savedPdfResponse = $this->get(route('finance.reports.generated.show', $generatedReport));
         $savedPdfResponse
             ->assertOk()
             ->assertHeader('content-type', 'application/pdf');
         $this->assertStringStartsWith('%PDF', (string) $savedPdfResponse->getContent());
+        preg_match('/\/Count\s+(\d+)/', (string) $savedPdfResponse->getContent(), $savedPdfPageMatches);
+        $this->assertLessThanOrEqual(3, (int) ($savedPdfPageMatches[1] ?? 0));
+        $this->assertNotSame('legacy-pdf', Storage::disk('local')->get($generatedReport->pdf_path));
+        $this->assertSame('mpdf-rtl-v2', FinanceGeneratedReport::query()->findOrFail($generatedReport->id)->report_data['pdf_renderer']);
 
         $this->get(route('finance.reports.generated.show', ['generatedReport' => $generatedReport, 'format' => 'xlsx']))
             ->assertOk()
@@ -1238,6 +1251,55 @@ class FinanceAndActivitiesTest extends TestCase
         $this->assertStringStartsWith('%PDF', (string) $response->getContent());
 
         $this->get(route('finance.reports.generated.show', 1))
+            ->assertNotFound();
+    }
+
+    public function test_finance_generated_report_can_be_deleted_from_reports_page(): void
+    {
+        $this->signIn();
+        Storage::fake('local');
+
+        $service = app(FinanceService::class);
+        $cashBox = FinanceCashBox::query()->firstOrFail();
+        $currency = $service->localCurrency();
+        $template = FinanceReportTemplate::query()->firstOrFail();
+
+        $service->postTransaction([
+            'cash_box_id' => $cashBox->id,
+            'currency_id' => $currency->id,
+            'type' => 'manual_adjustment',
+            'direction' => 'in',
+            'amount' => 100,
+            'transaction_date' => '2026-03-01',
+            'description' => 'Opening balance',
+        ]);
+
+        $this->get(route('finance.reports.ledger.export', [
+            'cash_box_id' => $cashBox->id,
+            'currency_id' => $currency->id,
+            'date_from' => '2026-03-01',
+            'date_to' => '2026-03-31',
+            'format' => 'pdf',
+            'template_id' => $template->id,
+        ]))
+            ->assertOk()
+            ->assertHeader('content-type', 'application/pdf');
+
+        $generatedReport = FinanceGeneratedReport::query()->latest('id')->firstOrFail();
+        $this->assertNotNull($generatedReport->pdf_path);
+        Storage::disk('local')->assertExists($generatedReport->pdf_path);
+
+        Volt::test('finance.reports')
+            ->assertSee(__('finance.reports.delete_saved_report'))
+            ->call('deleteGeneratedReport', $generatedReport->id)
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseMissing('finance_generated_reports', [
+            'id' => $generatedReport->id,
+        ]);
+        Storage::disk('local')->assertMissing($generatedReport->pdf_path);
+
+        $this->get(route('finance.reports.generated.show', $generatedReport->id))
             ->assertNotFound();
     }
 

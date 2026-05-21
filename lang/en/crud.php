@@ -107,6 +107,19 @@ return [
                 'actions' => 'Actions',
             ],
         ],
+        'children' => [
+            'action' => 'Children',
+            'title' => ':name children',
+            'description' => 'Review the linked student records for this parent profile. :count shown.',
+            'empty' => 'No student records are linked to this parent profile yet.',
+            'headers' => [
+                'student' => 'Student',
+                'student_number' => 'Student No.',
+                'grade' => 'Grade',
+                'group' => 'Current group',
+                'status' => 'Status',
+            ],
+        ],
         'messages' => [
             'created' => 'Parent profile created successfully.',
             'updated' => 'Parent profile updated successfully.',

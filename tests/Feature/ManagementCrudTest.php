@@ -214,6 +214,81 @@ class ManagementCrudTest extends TestCase
         $this->assertTrue(Hash::check('StudentPass123!', $studentUser->password));
     }
 
+    public function test_editing_parent_with_duplicate_primary_phone_uses_another_available_phone_for_the_linked_user(): void
+    {
+        $this->signIn();
+
+        User::factory()->create([
+            'name' => 'Existing Phone Owner',
+            'username' => 'existing-phone-owner',
+            'phone' => '0944999000',
+        ]);
+
+        $parent = ParentProfile::query()->create([
+            'father_name' => 'Legacy Parent',
+            'father_work' => 'Engineer',
+            'father_phone' => '0944999000',
+            'mother_name' => 'Legacy Mother',
+            'mother_phone' => '0944999001',
+            'home_phone' => null,
+            'address' => 'Damascus',
+            'notes' => 'Needs a linked account.',
+            'is_active' => true,
+        ]);
+
+        Volt::test('parents.index')
+            ->call('edit', $parent->id)
+            ->set('father_name', 'Legacy Parent Updated')
+            ->call('save')
+            ->assertHasNoErrors();
+
+        $parent->refresh()->load('user');
+
+        $this->assertNotNull($parent->user_id);
+        $this->assertSame('Legacy Parent Updated', $parent->father_name);
+        $this->assertSame($parent->parent_number, $parent->user->username);
+        $this->assertSame('0944999001', $parent->user->phone);
+        $this->assertTrue($parent->user->hasRole('parent'));
+    }
+
+    public function test_parent_tab_can_open_a_child_list_action_for_linked_students(): void
+    {
+        $this->signIn();
+
+        $parent = ParentProfile::query()->create([
+            'father_name' => 'Family Contact',
+            'father_work' => 'Merchant',
+            'father_phone' => '0944777000',
+            'mother_name' => 'Family Mother',
+            'mother_phone' => '0944777001',
+            'address' => 'Damascus',
+            'is_active' => true,
+        ]);
+
+        Student::query()->create([
+            'parent_id' => $parent->id,
+            'first_name' => 'Ali',
+            'last_name' => 'Family',
+            'birth_date' => '2015-01-01',
+            'status' => 'active',
+        ]);
+
+        Student::query()->create([
+            'parent_id' => $parent->id,
+            'first_name' => 'Mona',
+            'last_name' => 'Family',
+            'birth_date' => '2014-01-01',
+            'status' => 'graduated',
+        ]);
+
+        Volt::test('parents.index')
+            ->call('openChildrenModal', $parent->id)
+            ->assertSet('showChildrenModal', true)
+            ->assertSee('Ali Family')
+            ->assertSee('Mona Family')
+            ->assertSee('Children');
+    }
+
     public function test_student_group_and_enrollment_components_support_crud_and_delete_guards(): void
     {
         $this->signIn();
