@@ -21,7 +21,8 @@ class ImportLegacyAccessCoreCommand extends Command
 {
     protected $signature = 'legacy:import-access-core
         {path=storage/app/legacy-access-export : Folder containing exported CSV files}
-        {--dry-run : Roll back the import after validation}';
+        {--dry-run : Roll back the import after validation}
+        {--people-only : Import only parents and students}';
 
     protected $description = 'Import core legacy Access data (teachers, students, parents, courses, groups, enrollments) from exported CSV files.';
 
@@ -74,6 +75,11 @@ class ImportLegacyAccessCoreCommand extends Command
     protected array $studentsByFullName = [];
 
     /**
+     * @var array<string, Student>
+     */
+    protected array $studentsByParentAndFullName = [];
+
+    /**
      * @var array<string, Group>
      */
     protected array $groupsByKey = [];
@@ -110,16 +116,21 @@ class ImportLegacyAccessCoreCommand extends Command
         $groupRows = $this->readCsv($files['groups']);
         $enrollmentRows = $this->readCsv($files['courses']);
 
+        $peopleOnly = (bool) $this->option('people-only');
+
         DB::beginTransaction();
 
         try {
-            $legacyAcademicYear = $this->resolveLegacyAcademicYear($courseRows);
-
-            $this->importCourses($courseRows);
-            $this->importTeachers($teacherRows);
+            $this->bootstrapExistingParentsAndStudents();
             $this->importParentsAndStudents($studentRows);
-            $this->importGroups($groupRows, $legacyAcademicYear);
-            $this->importEnrollments($enrollmentRows);
+
+            if (! $peopleOnly) {
+                $legacyAcademicYear = $this->resolveLegacyAcademicYear($courseRows);
+                $this->importCourses($courseRows);
+                $this->importTeachers($teacherRows);
+                $this->importGroups($groupRows, $legacyAcademicYear);
+                $this->importEnrollments($enrollmentRows);
+            }
 
             if ($this->option('dry-run')) {
                 DB::rollBack();
@@ -250,37 +261,45 @@ class ImportLegacyAccessCoreCommand extends Command
             $fatherPhone = $this->normalizePhone($row['father_mob'] ?? null);
             $homePhone = $this->normalizePhone($row['home_tel'] ?? null);
             $address = $this->cleanString($row['address'] ?? null);
-            $parentKey = $this->buildParentKey($fatherName, $fatherPhone, $homePhone, $address, $fullName);
             $parentNeedsReview = false;
 
-            if (! isset($this->parentsByKey[$parentKey])) {
-                if ($fatherName === null) {
-                    $fatherName = 'ولي أمر '.$fullName;
-                    $this->warnings['missing_father_name'][] = $fullName;
-                    $parentNeedsReview = true;
-                }
+            if ($fatherName === null) {
+                $fatherName = 'ولي أمر '.$fullName;
+                $this->warnings['missing_father_name'][] = $fullName;
+                $parentNeedsReview = true;
+            }
 
-                $parent = new ParentProfile([
-                    'father_name' => $fatherName,
-                    'father_work' => $this->cleanString($row['father_job'] ?? null),
-                    'father_phone' => $fatherPhone,
-                    'home_phone' => $homePhone,
-                    'address' => $address,
-                    'notes' => $this->appendLegacyNote(
-                        $this->cleanString($row['notes'] ?? null),
-                        'legacy_review_reason',
-                        $parentNeedsReview ? 'missing_required_father_name' : '',
-                    ),
-                    'is_active' => $parentNeedsReview ? false : $this->parseBool($row['active'] ?? true, true),
-                ]);
-                $parent->save();
+            $parent = $this->findParentForImport($fatherName, $fatherPhone, $homePhone, $address, $fullName);
 
-                $this->parentsByKey[$parentKey] = $parent;
+            $isNewParent = ! $parent;
+
+            if (! $parent) {
+                $parent = new ParentProfile();
                 $this->summary['parents']++;
+            }
 
-                if (! $parent->is_active) {
-                    $this->summary['inactive_parents']++;
-                }
+            $legacyParentStatus = $parentNeedsReview ? false : $this->parseBool($row['active'] ?? true, true);
+            $existingParentNotes = $parent->notes;
+
+            $parent->father_name = $parent->father_name ?: $fatherName;
+            $parent->father_work = $parent->father_work ?: $this->cleanString($row['father_job'] ?? null);
+            $parent->father_phone = $parent->father_phone ?: $fatherPhone;
+            $parent->home_phone = $parent->home_phone ?: $homePhone;
+            $parent->address = $parent->address ?: $address;
+            $parent->notes = $this->appendLegacyNote(
+                $existingParentNotes ?: $this->cleanString($row['notes'] ?? null),
+                'legacy_review_reason',
+                $parentNeedsReview ? 'missing_required_father_name' : '',
+            );
+            $parent->is_active = $parent->exists
+                ? ($parent->is_active || $legacyParentStatus)
+                : $legacyParentStatus;
+            $parent->deleted_at = null;
+            $parent->save();
+            $this->cacheParent($parent, $fullName);
+
+            if ($isNewParent && ! $parent->is_active) {
+                $this->summary['inactive_parents']++;
             }
 
             $birthDate = $this->parseBirthDate($row['birth_date'] ?? null);
@@ -298,33 +317,41 @@ class ImportLegacyAccessCoreCommand extends Command
             $juzId = $juzNumber
                 ? QuranJuz::query()->where('juz_number', $juzNumber)->value('id')
                 : null;
+            $student = $this->findStudentForImport($fullName, $parent);
+            $isNewStudent = ! $student;
 
-            $student = new Student([
-                'parent_id' => $this->parentsByKey[$parentKey]->id,
-                'first_name' => $firstName,
-                'last_name' => $lastName,
-                'birth_date' => $birthDate,
-                'gender' => $defaultGender,
-                'school_name' => $this->cleanString($row['school'] ?? null),
-                'grade_level_id' => $gradeLevelId,
-                'quran_current_juz_id' => $juzId,
-                'photo_path' => $this->cleanString($row['image_link'] ?? null),
-                'status' => $studentNeedsReview || ! $this->parentsByKey[$parentKey]->is_active
-                    ? 'inactive'
-                    : ($this->parseBool($row['active'] ?? true, true) ? 'active' : 'inactive'),
-                'joined_at' => null,
-                'notes' => $this->appendLegacyNote(
-                    $this->buildStudentNotes($row),
-                    'legacy_review_reason',
-                    $studentNeedsReview ? 'missing_required_birth_date' : (! $this->parentsByKey[$parentKey]->is_active ? 'inactive_parent_record' : ''),
-                ),
-            ]);
+            if (! $student) {
+                $student = new Student();
+                $this->summary['students']++;
+            }
+
+            $legacyStudentStatus = $studentNeedsReview || ! $parent->is_active
+                ? 'inactive'
+                : ($this->parseBool($row['active'] ?? true, true) ? 'active' : 'inactive');
+
+            $student->parent_id = $parent->id;
+            $student->first_name = $firstName;
+            $student->last_name = $lastName;
+            $student->birth_date = $birthDate;
+            $student->gender = $student->gender ?: $defaultGender;
+            $student->school_name = $this->cleanString($row['school'] ?? null) ?: $student->school_name;
+            $student->grade_level_id = $gradeLevelId ?: $student->grade_level_id;
+            $student->quran_current_juz_id = $juzId ?: $student->quran_current_juz_id;
+            $student->photo_path = $this->cleanString($row['image_link'] ?? null) ?: $student->photo_path;
+            $student->status = $student->exists && $student->status === 'active'
+                ? 'active'
+                : $legacyStudentStatus;
+            $student->joined_at = $student->joined_at;
+            $student->notes = $this->appendLegacyNote(
+                $student->notes ?: $this->buildStudentNotes($row),
+                'legacy_review_reason',
+                $studentNeedsReview ? 'missing_required_birth_date' : (! $parent->is_active ? 'inactive_parent_record' : ''),
+            );
+            $student->deleted_at = null;
             $student->save();
+            $this->cacheStudent($student);
 
-            $this->studentsByFullName[$fullName] = $student;
-            $this->summary['students']++;
-
-            if ($student->status === 'inactive') {
+            if ($isNewStudent && $student->status === 'inactive') {
                 $this->summary['inactive_students']++;
             }
         }
@@ -394,7 +421,7 @@ class ImportLegacyAccessCoreCommand extends Command
                 continue;
             }
 
-            $student = $this->studentsByFullName[$fullName] ?? null;
+            $student = $this->studentsByFullName[$this->normalizeLookupValue($fullName) ?? ''] ?? null;
 
             if (! $student) {
                 $this->warnings['missing_student_for_enrollment'][] = $fullName;
@@ -563,26 +590,9 @@ class ImportLegacyAccessCoreCommand extends Command
         return trim(($base ? $base.PHP_EOL : '').$line);
     }
 
-    protected function buildParentKey(?string $fatherName, ?string $fatherPhone, ?string $homePhone, ?string $address, string $studentFullName): string
-    {
-        if ($fatherName !== null && $fatherPhone !== null) {
-            return 'father-phone|'.$fatherName.'|'.$fatherPhone;
-        }
-
-        if ($fatherName !== null && $homePhone !== null) {
-            return 'father-home|'.$fatherName.'|'.$homePhone;
-        }
-
-        if ($fatherName !== null && $address !== null) {
-            return 'father-address|'.$fatherName.'|'.$address;
-        }
-
-        return 'student|'.$studentFullName;
-    }
-
     protected function buildGroupKey(string $courseName, string $groupName): string
     {
-        return mb_strtolower($courseName).'|'.mb_strtolower($groupName);
+        return $this->normalizeLookupValue($courseName).'|'.$this->normalizeLookupValue($groupName);
     }
 
     protected function legacyTeacherPhone(string $legacyKey): string
@@ -746,5 +756,124 @@ class ImportLegacyAccessCoreCommand extends Command
         }
 
         return $resolved;
+    }
+
+    protected function bootstrapExistingParentsAndStudents(): void
+    {
+        ParentProfile::withTrashed()
+            ->with(['students' => fn ($query) => $query->withTrashed()])
+            ->orderBy('id')
+            ->chunkById(200, function ($parents): void {
+                foreach ($parents as $parent) {
+                    $this->cacheParent($parent);
+
+                    foreach ($parent->students as $student) {
+                        $this->cacheStudent($student);
+                    }
+                }
+            });
+    }
+
+    protected function cacheParent(ParentProfile $parent, ?string $studentFullName = null): void
+    {
+        foreach ($this->parentLookupKeys($parent->father_name, $parent->father_phone, $parent->home_phone, $parent->address, $studentFullName) as $key) {
+            $this->parentsByKey[$key] ??= $parent;
+        }
+    }
+
+    protected function cacheStudent(Student $student): void
+    {
+        $fullName = trim($student->first_name.' '.$student->last_name);
+        $fullNameKey = $this->normalizeLookupValue($fullName);
+
+        if ($fullNameKey === null) {
+            return;
+        }
+
+        $this->studentsByFullName[$fullNameKey] ??= $student;
+        $this->studentsByParentAndFullName[$this->buildStudentParentKey($fullName, (int) $student->parent_id)] = $student;
+    }
+
+    protected function findParentForImport(?string $fatherName, ?string $fatherPhone, ?string $homePhone, ?string $address, string $studentFullName): ?ParentProfile
+    {
+        foreach ($this->parentLookupKeys($fatherName, $fatherPhone, $homePhone, $address, $studentFullName) as $key) {
+            if (isset($this->parentsByKey[$key])) {
+                return $this->parentsByKey[$key];
+            }
+        }
+
+        return null;
+    }
+
+    protected function findStudentForImport(string $fullName, ParentProfile $parent): ?Student
+    {
+        $parentKey = $this->buildStudentParentKey($fullName, (int) $parent->id);
+
+        if (isset($this->studentsByParentAndFullName[$parentKey])) {
+            return $this->studentsByParentAndFullName[$parentKey];
+        }
+
+        $fullNameKey = $this->normalizeLookupValue($fullName);
+
+        if ($fullNameKey === null) {
+            return null;
+        }
+
+        $student = $this->studentsByFullName[$fullNameKey] ?? null;
+
+        return $student && (int) $student->parent_id === (int) $parent->id
+            ? $student
+            : null;
+    }
+
+    /**
+     * @return list<string>
+     */
+    protected function parentLookupKeys(?string $fatherName, ?string $fatherPhone, ?string $homePhone, ?string $address, ?string $studentFullName = null): array
+    {
+        $keys = [];
+        $normalizedFatherName = $this->normalizeLookupValue($fatherName);
+        $normalizedAddress = $this->normalizeLookupValue($address);
+        $normalizedStudentName = $this->normalizeLookupValue($studentFullName);
+
+        if ($normalizedFatherName !== null && $fatherPhone !== null) {
+            $keys[] = 'father-phone|'.$normalizedFatherName.'|'.$fatherPhone;
+        }
+
+        if ($normalizedFatherName !== null && $homePhone !== null) {
+            $keys[] = 'father-home|'.$normalizedFatherName.'|'.$homePhone;
+        }
+
+        if ($normalizedFatherName !== null && $normalizedAddress !== null) {
+            $keys[] = 'father-address|'.$normalizedFatherName.'|'.$normalizedAddress;
+        }
+
+        if ($normalizedFatherName !== null) {
+            $keys[] = 'father-name|'.$normalizedFatherName;
+        }
+
+        if ($normalizedStudentName !== null) {
+            $keys[] = 'student|'.$normalizedStudentName;
+        }
+
+        return array_values(array_unique($keys));
+    }
+
+    protected function buildStudentParentKey(string $fullName, int $parentId): string
+    {
+        return $parentId.'|'.$this->normalizeLookupValue($fullName);
+    }
+
+    protected function normalizeLookupValue(?string $value): ?string
+    {
+        $value = $this->cleanString($value);
+
+        if ($value === null) {
+            return null;
+        }
+
+        $value = preg_replace('/\s+/u', ' ', $value) ?? $value;
+
+        return mb_strtolower($value);
     }
 }
