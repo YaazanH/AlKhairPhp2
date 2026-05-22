@@ -273,6 +273,7 @@ class ImportLegacyAccessCoreCommand extends Command
                 $parentNeedsReview = true;
             }
 
+            $parentDisplayName = $this->buildImportedFatherName($fatherName, $fullName) ?? $fatherName;
             $parent = $this->findParentForImport($fatherName, $fatherPhone, $homePhone, $address, $fullName);
 
             $isNewParent = ! $parent;
@@ -284,7 +285,7 @@ class ImportLegacyAccessCoreCommand extends Command
 
             $legacyParentStatus = $parentNeedsReview ? false : $this->parseBool($row['active'] ?? true, true);
 
-            $parent->father_name = $parent->father_name ?: $fatherName;
+            $parent->father_name = $parent->father_name ?: $parentDisplayName;
             $parent->father_phone = $parent->father_phone ?: $primaryPhone;
 
             if (! $minimalPeopleImport) {
@@ -874,28 +875,33 @@ class ImportLegacyAccessCoreCommand extends Command
     protected function parentLookupKeys(?string $fatherName, ?string $fatherPhone, ?string $homePhone, ?string $address, ?string $studentFullName = null): array
     {
         $keys = [];
-        $normalizedFatherName = $this->normalizeLookupValue($fatherName);
+        $normalizedFatherNames = array_map(
+            fn (string $name): string => (string) $this->normalizeLookupValue($name),
+            $this->parentLookupFatherNames($fatherName, $studentFullName),
+        );
         $normalizedAddress = $this->normalizeLookupValue($address);
         $normalizedStudentLastName = $this->normalizeLookupValue($this->extractLastName($studentFullName));
 
-        if ($normalizedFatherName !== null && $fatherPhone !== null) {
-            $keys[] = 'father-phone|'.$normalizedFatherName.'|'.$fatherPhone;
-        }
+        foreach ($normalizedFatherNames as $normalizedFatherName) {
+            if ($fatherPhone !== null) {
+                $keys[] = 'father-phone|'.$normalizedFatherName.'|'.$fatherPhone;
+            }
 
-        if ($normalizedFatherName !== null && $homePhone !== null) {
-            $keys[] = 'father-home|'.$normalizedFatherName.'|'.$homePhone;
-        }
+            if ($homePhone !== null) {
+                $keys[] = 'father-home|'.$normalizedFatherName.'|'.$homePhone;
+            }
 
-        if ($normalizedFatherName !== null && $normalizedAddress !== null) {
-            $keys[] = 'father-address|'.$normalizedFatherName.'|'.$normalizedAddress;
-        }
+            if ($normalizedAddress !== null) {
+                $keys[] = 'father-address|'.$normalizedFatherName.'|'.$normalizedAddress;
+            }
 
-        if ($normalizedFatherName !== null && $normalizedStudentLastName !== null) {
-            $keys[] = 'father-student-last|'.$normalizedFatherName.'|'.$normalizedStudentLastName;
-        }
+            if ($normalizedStudentLastName !== null) {
+                $keys[] = 'father-student-last|'.$normalizedFatherName.'|'.$normalizedStudentLastName;
+            }
 
-        if ($normalizedFatherName !== null && $normalizedStudentLastName === null) {
-            $keys[] = 'father-name|'.$normalizedFatherName;
+            if ($normalizedStudentLastName === null) {
+                $keys[] = 'father-name|'.$normalizedFatherName;
+            }
         }
 
         return array_values(array_unique($keys));
@@ -930,5 +936,101 @@ class ImportLegacyAccessCoreCommand extends Command
         [, $lastName] = $this->splitName($fullName);
 
         return $this->cleanString($lastName);
+    }
+
+    /**
+     * @return list<string>
+     */
+    protected function parentLookupFatherNames(?string $fatherName, ?string $studentFullName = null): array
+    {
+        $fatherName = $this->cleanString($fatherName);
+
+        if ($fatherName === null) {
+            return [];
+        }
+
+        $names = [$fatherName];
+        $studentLastName = $this->extractLastName($studentFullName);
+        $expandedFatherName = $this->buildImportedFatherName($fatherName, $studentFullName);
+        $baseFatherName = $this->stripTrailingFamilyName($fatherName, $studentLastName);
+
+        if ($expandedFatherName !== null) {
+            $names[] = $expandedFatherName;
+        }
+
+        if ($baseFatherName !== null) {
+            $names[] = $baseFatherName;
+        }
+
+        return array_values(array_unique(array_filter($names)));
+    }
+
+    protected function buildImportedFatherName(?string $fatherName, ?string $studentFullName): ?string
+    {
+        $fatherName = $this->cleanString($fatherName);
+
+        if ($fatherName === null) {
+            return null;
+        }
+
+        $studentLastName = $this->extractLastName($studentFullName);
+
+        if ($studentLastName === null) {
+            return $fatherName;
+        }
+
+        if ($this->nameContainsPart($fatherName, $studentLastName)) {
+            return $fatherName;
+        }
+
+        return trim($fatherName.' '.$studentLastName);
+    }
+
+    protected function stripTrailingFamilyName(?string $fatherName, ?string $familyName): ?string
+    {
+        $fatherName = $this->cleanString($fatherName);
+        $familyName = $this->cleanString($familyName);
+
+        if ($fatherName === null || $familyName === null) {
+            return $fatherName;
+        }
+
+        $fatherParts = preg_split('/\s+/u', $fatherName) ?: [];
+        $familyParts = preg_split('/\s+/u', $familyName) ?: [];
+
+        if ($fatherParts === [] || $familyParts === [] || count($fatherParts) <= count($familyParts)) {
+            return $fatherName;
+        }
+
+        $fatherSuffix = implode(' ', array_slice($fatherParts, -count($familyParts)));
+
+        if ($this->normalizeLookupValue($fatherSuffix) !== $this->normalizeLookupValue($familyName)) {
+            return $fatherName;
+        }
+
+        $baseFatherName = implode(' ', array_slice($fatherParts, 0, count($fatherParts) - count($familyParts)));
+
+        return $this->cleanString($baseFatherName);
+    }
+
+    protected function nameContainsPart(?string $name, ?string $part): bool
+    {
+        $name = $this->cleanString($name);
+        $part = $this->cleanString($part);
+
+        if ($name === null || $part === null) {
+            return false;
+        }
+
+        $nameParts = preg_split('/\s+/u', $name) ?: [];
+        $normalizedPart = $this->normalizeLookupValue($part);
+
+        foreach ($nameParts as $namePart) {
+            if ($this->normalizeLookupValue($namePart) === $normalizedPart) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

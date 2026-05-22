@@ -7,6 +7,41 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
+function Convert-LegacyPhoneValue {
+    param(
+        [AllowNull()]
+        [object]$Value
+    )
+
+    if ($null -eq $Value -or $Value -is [System.DBNull]) {
+        return $null
+    }
+
+    $text = [string]$Value
+    $text = $text.Trim()
+
+    if ($text -eq '') {
+        return $null
+    }
+
+    if ($text -match '^[+-]?\d+(\.\d+)?[eE][+-]?\d+$') {
+        try {
+            $number = [decimal]::Parse(
+                $text,
+                [System.Globalization.NumberStyles]::Float,
+                [System.Globalization.CultureInfo]::InvariantCulture
+            )
+
+            return $number.ToString('0', [System.Globalization.CultureInfo]::InvariantCulture)
+        }
+        catch {
+            return $text
+        }
+    }
+
+    return $text
+}
+
 if (-not (Test-Path -LiteralPath $DatabasePath)) {
     throw "Access database not found: $DatabasePath"
 }
@@ -40,7 +75,13 @@ try {
             $record = [ordered]@{}
 
             foreach ($column in $dataTable.Columns) {
-                $record[$column.ColumnName] = $row[$column.ColumnName]
+                $value = $row[$column.ColumnName]
+
+                if ($column.ColumnName -in @('father_mob', 'student_mob', 'home_tel')) {
+                    $value = Convert-LegacyPhoneValue -Value $value
+                }
+
+                $record[$column.ColumnName] = $value
             }
 
             [pscustomobject]$record

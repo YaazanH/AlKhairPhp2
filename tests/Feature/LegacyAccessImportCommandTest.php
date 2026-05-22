@@ -98,6 +98,40 @@ class LegacyAccessImportCommandTest extends TestCase
         $this->assertNull($student->notes);
     }
 
+    public function test_people_only_import_appends_student_last_name_to_parent_when_missing(): void
+    {
+        $importPath = $this->makeImportFolder();
+
+        $this->writeCsv($importPath.DIRECTORY_SEPARATOR.'names.csv', [
+            ['full_name', 'father_name', 'father_mob', 'home_tel', 'address', 'birth_date', 'active'],
+            ['زين شموط', 'سامر', '00963931426341', '', '', '2015', '1'],
+        ]);
+
+        $this->artisan('legacy:import-access-core', [
+            'path' => $importPath,
+            '--people-only' => true,
+        ])->assertExitCode(0);
+
+        $this->assertSame('سامر شموط', ParentProfile::query()->value('father_name'));
+    }
+
+    public function test_people_only_import_does_not_duplicate_last_name_when_father_name_already_contains_it(): void
+    {
+        $importPath = $this->makeImportFolder();
+
+        $this->writeCsv($importPath.DIRECTORY_SEPARATOR.'names.csv', [
+            ['full_name', 'father_name', 'father_mob', 'home_tel', 'address', 'birth_date', 'active'],
+            ['محمد أحمد', 'أحمد محمد', '00963945057080', '', '', '2011', '1'],
+        ]);
+
+        $this->artisan('legacy:import-access-core', [
+            'path' => $importPath,
+            '--people-only' => true,
+        ])->assertExitCode(0);
+
+        $this->assertSame('أحمد محمد', ParentProfile::query()->value('father_name'));
+    }
+
     public function test_people_only_import_keeps_different_families_separate_and_groups_siblings(): void
     {
         $importPath = $this->makeImportFolder();
@@ -131,6 +165,35 @@ class LegacyAccessImportCommandTest extends TestCase
             ->where('first_name', 'عمر علي')
             ->where('last_name', 'الصالح')
             ->value('parent_id'));
+    }
+
+    public function test_backfill_parent_family_names_updates_old_imported_parents(): void
+    {
+        $parent = ParentProfile::create([
+            'father_name' => 'سامر',
+            'is_active' => true,
+        ]);
+
+        Student::create([
+            'parent_id' => $parent->id,
+            'first_name' => 'زين',
+            'last_name' => 'شموط',
+            'birth_date' => '2015-01-01',
+            'status' => 'active',
+        ]);
+
+        Student::create([
+            'parent_id' => $parent->id,
+            'first_name' => 'محمد',
+            'last_name' => 'شموط',
+            'birth_date' => '2013-01-01',
+            'status' => 'active',
+        ]);
+
+        $this->artisan('legacy:backfill-parent-family-names')
+            ->assertExitCode(0);
+
+        $this->assertSame('سامر شموط', $parent->fresh()->father_name);
     }
 
     protected function tearDown(): void
