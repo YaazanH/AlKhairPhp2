@@ -93,14 +93,18 @@ class ImportLegacyAccessCoreCommand extends Command
     {
         $path = $this->resolveImportPath((string) $this->argument('path'));
         $this->info("Import source: {$path}");
+        $peopleOnly = (bool) $this->option('people-only');
 
         $files = [
             'names' => $path.DIRECTORY_SEPARATOR.'names.csv',
-            'teachers' => $path.DIRECTORY_SEPARATOR.'teachers.csv',
-            'courses_name' => $path.DIRECTORY_SEPARATOR.'courses_name.csv',
-            'groups' => $path.DIRECTORY_SEPARATOR.'groups.csv',
-            'courses' => $path.DIRECTORY_SEPARATOR.'courses.csv',
         ];
+
+        if (! $peopleOnly) {
+            $files['teachers'] = $path.DIRECTORY_SEPARATOR.'teachers.csv';
+            $files['courses_name'] = $path.DIRECTORY_SEPARATOR.'courses_name.csv';
+            $files['groups'] = $path.DIRECTORY_SEPARATOR.'groups.csv';
+            $files['courses'] = $path.DIRECTORY_SEPARATOR.'courses.csv';
+        }
 
         foreach ($files as $label => $file) {
             if (! is_file($file)) {
@@ -111,12 +115,10 @@ class ImportLegacyAccessCoreCommand extends Command
         }
 
         $studentRows = $this->readCsv($files['names']);
-        $teacherRows = $this->readCsv($files['teachers']);
-        $courseRows = $this->readCsv($files['courses_name']);
-        $groupRows = $this->readCsv($files['groups']);
-        $enrollmentRows = $this->readCsv($files['courses']);
-
-        $peopleOnly = (bool) $this->option('people-only');
+        $teacherRows = $peopleOnly ? [] : $this->readCsv($files['teachers']);
+        $courseRows = $peopleOnly ? [] : $this->readCsv($files['courses_name']);
+        $groupRows = $peopleOnly ? [] : $this->readCsv($files['groups']);
+        $enrollmentRows = $peopleOnly ? [] : $this->readCsv($files['courses']);
 
         DB::beginTransaction();
 
@@ -249,6 +251,7 @@ class ImportLegacyAccessCoreCommand extends Command
         $defaultGender = DB::table('student_genders')
             ->where('is_default', true)
             ->value('code') ?? 'male';
+        $minimalPeopleImport = (bool) $this->option('people-only');
 
         foreach ($rows as $row) {
             $fullName = $this->cleanString($row['full_name'] ?? null);
@@ -260,6 +263,7 @@ class ImportLegacyAccessCoreCommand extends Command
             $fatherName = $this->cleanString($row['father_name'] ?? null);
             $fatherPhone = $this->normalizePhone($row['father_mob'] ?? null);
             $homePhone = $this->normalizePhone($row['home_tel'] ?? null);
+            $primaryPhone = $fatherPhone ?: $homePhone;
             $address = $this->cleanString($row['address'] ?? null);
             $parentNeedsReview = false;
 
@@ -279,18 +283,22 @@ class ImportLegacyAccessCoreCommand extends Command
             }
 
             $legacyParentStatus = $parentNeedsReview ? false : $this->parseBool($row['active'] ?? true, true);
-            $existingParentNotes = $parent->notes;
 
             $parent->father_name = $parent->father_name ?: $fatherName;
-            $parent->father_work = $parent->father_work ?: $this->cleanString($row['father_job'] ?? null);
-            $parent->father_phone = $parent->father_phone ?: $fatherPhone;
-            $parent->home_phone = $parent->home_phone ?: $homePhone;
-            $parent->address = $parent->address ?: $address;
-            $parent->notes = $this->appendLegacyNote(
-                $existingParentNotes ?: $this->cleanString($row['notes'] ?? null),
-                'legacy_review_reason',
-                $parentNeedsReview ? 'missing_required_father_name' : '',
-            );
+            $parent->father_phone = $parent->father_phone ?: $primaryPhone;
+
+            if (! $minimalPeopleImport) {
+                $existingParentNotes = $parent->notes;
+                $parent->father_work = $parent->father_work ?: $this->cleanString($row['father_job'] ?? null);
+                $parent->home_phone = $parent->home_phone ?: $homePhone;
+                $parent->address = $parent->address ?: $address;
+                $parent->notes = $this->appendLegacyNote(
+                    $existingParentNotes ?: $this->cleanString($row['notes'] ?? null),
+                    'legacy_review_reason',
+                    $parentNeedsReview ? 'missing_required_father_name' : '',
+                );
+            }
+
             $parent->is_active = $parent->exists
                 ? ($parent->is_active || $legacyParentStatus)
                 : $legacyParentStatus;
@@ -302,7 +310,9 @@ class ImportLegacyAccessCoreCommand extends Command
                 $this->summary['inactive_parents']++;
             }
 
-            $birthDate = $this->parseBirthDate($row['birth_date'] ?? null);
+            $birthDate = $minimalPeopleImport
+                ? $this->parseBirthYearDate($row['birth_date'] ?? null)
+                : $this->parseBirthDate($row['birth_date'] ?? null);
             $studentNeedsReview = false;
 
             if ($birthDate === null) {
@@ -312,11 +322,6 @@ class ImportLegacyAccessCoreCommand extends Command
             }
 
             [$firstName, $lastName] = $this->splitName($fullName);
-            $gradeLevelId = $this->resolveGradeLevelId($this->cleanString($row['grade'] ?? null));
-            $juzNumber = $this->parseInteger($row['juz_no'] ?? null);
-            $juzId = $juzNumber
-                ? QuranJuz::query()->where('juz_number', $juzNumber)->value('id')
-                : null;
             $student = $this->findStudentForImport($fullName, $parent);
             $isNewStudent = ! $student;
 
@@ -332,21 +337,31 @@ class ImportLegacyAccessCoreCommand extends Command
             $student->parent_id = $parent->id;
             $student->first_name = $firstName;
             $student->last_name = $lastName;
-            $student->birth_date = $birthDate;
+            $student->birth_date = $student->birth_date ?: $birthDate;
             $student->gender = $student->gender ?: $defaultGender;
-            $student->school_name = $this->cleanString($row['school'] ?? null) ?: $student->school_name;
-            $student->grade_level_id = $gradeLevelId ?: $student->grade_level_id;
-            $student->quran_current_juz_id = $juzId ?: $student->quran_current_juz_id;
-            $student->photo_path = $this->cleanString($row['image_link'] ?? null) ?: $student->photo_path;
             $student->status = $student->exists && $student->status === 'active'
                 ? 'active'
                 : $legacyStudentStatus;
             $student->joined_at = $student->joined_at;
-            $student->notes = $this->appendLegacyNote(
-                $student->notes ?: $this->buildStudentNotes($row),
-                'legacy_review_reason',
-                $studentNeedsReview ? 'missing_required_birth_date' : (! $parent->is_active ? 'inactive_parent_record' : ''),
-            );
+
+            if (! $minimalPeopleImport) {
+                $gradeLevelId = $this->resolveGradeLevelId($this->cleanString($row['grade'] ?? null));
+                $juzNumber = $this->parseInteger($row['juz_no'] ?? null);
+                $juzId = $juzNumber
+                    ? QuranJuz::query()->where('juz_number', $juzNumber)->value('id')
+                    : null;
+
+                $student->school_name = $this->cleanString($row['school'] ?? null) ?: $student->school_name;
+                $student->grade_level_id = $gradeLevelId ?: $student->grade_level_id;
+                $student->quran_current_juz_id = $juzId ?: $student->quran_current_juz_id;
+                $student->photo_path = $this->cleanString($row['image_link'] ?? null) ?: $student->photo_path;
+                $student->notes = $this->appendLegacyNote(
+                    $student->notes ?: $this->buildStudentNotes($row),
+                    'legacy_review_reason',
+                    $studentNeedsReview ? 'missing_required_birth_date' : (! $parent->is_active ? 'inactive_parent_record' : ''),
+                );
+            }
+
             $student->deleted_at = null;
             $student->save();
             $this->cacheStudent($student);
@@ -629,6 +644,21 @@ class ImportLegacyAccessCoreCommand extends Command
         return $this->parseDate($value);
     }
 
+    protected function parseBirthYearDate(mixed $value): ?string
+    {
+        $parsedBirthDate = $this->parseBirthDate($value);
+
+        if ($parsedBirthDate === null) {
+            return null;
+        }
+
+        try {
+            return Carbon::parse($parsedBirthDate)->startOfYear()->toDateString();
+        } catch (Throwable) {
+            return null;
+        }
+    }
+
     protected function parseDate(mixed $value): ?string
     {
         $value = $this->cleanString($value);
@@ -682,7 +712,18 @@ class ImportLegacyAccessCoreCommand extends Command
             return null;
         }
 
-        $normalized = preg_replace('/[^\d+]/u', '', $value);
+        $normalized = preg_replace('/\D+/u', '', $value);
+
+        if ($normalized === null || $normalized === '') {
+            return null;
+        }
+
+        foreach (['00963', '963'] as $countryPrefix) {
+            if (str_starts_with($normalized, $countryPrefix) && strlen($normalized) > strlen($countryPrefix)) {
+                $normalized = '0'.substr($normalized, strlen($countryPrefix));
+                break;
+            }
+        }
 
         return $normalized === '' ? null : $normalized;
     }
@@ -768,6 +809,7 @@ class ImportLegacyAccessCoreCommand extends Command
                     $this->cacheParent($parent);
 
                     foreach ($parent->students as $student) {
+                        $this->cacheParent($parent, trim($student->first_name.' '.$student->last_name));
                         $this->cacheStudent($student);
                     }
                 }
@@ -834,7 +876,7 @@ class ImportLegacyAccessCoreCommand extends Command
         $keys = [];
         $normalizedFatherName = $this->normalizeLookupValue($fatherName);
         $normalizedAddress = $this->normalizeLookupValue($address);
-        $normalizedStudentName = $this->normalizeLookupValue($studentFullName);
+        $normalizedStudentLastName = $this->normalizeLookupValue($this->extractLastName($studentFullName));
 
         if ($normalizedFatherName !== null && $fatherPhone !== null) {
             $keys[] = 'father-phone|'.$normalizedFatherName.'|'.$fatherPhone;
@@ -848,12 +890,12 @@ class ImportLegacyAccessCoreCommand extends Command
             $keys[] = 'father-address|'.$normalizedFatherName.'|'.$normalizedAddress;
         }
 
-        if ($normalizedFatherName !== null) {
-            $keys[] = 'father-name|'.$normalizedFatherName;
+        if ($normalizedFatherName !== null && $normalizedStudentLastName !== null) {
+            $keys[] = 'father-student-last|'.$normalizedFatherName.'|'.$normalizedStudentLastName;
         }
 
-        if ($normalizedStudentName !== null) {
-            $keys[] = 'student|'.$normalizedStudentName;
+        if ($normalizedFatherName !== null && $normalizedStudentLastName === null) {
+            $keys[] = 'father-name|'.$normalizedFatherName;
         }
 
         return array_values(array_unique($keys));
@@ -875,5 +917,18 @@ class ImportLegacyAccessCoreCommand extends Command
         $value = preg_replace('/\s+/u', ' ', $value) ?? $value;
 
         return mb_strtolower($value);
+    }
+
+    protected function extractLastName(?string $fullName): ?string
+    {
+        $fullName = $this->cleanString($fullName);
+
+        if ($fullName === null) {
+            return null;
+        }
+
+        [, $lastName] = $this->splitName($fullName);
+
+        return $this->cleanString($lastName);
     }
 }
