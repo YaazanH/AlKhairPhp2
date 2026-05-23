@@ -54,7 +54,8 @@ $tables = @(
     @{ Name = 'Teachers'; File = 'teachers.csv' },
     @{ Name = 'Courses_Name'; File = 'courses_name.csv' },
     @{ Name = 'Groups'; File = 'groups.csv' },
-    @{ Name = 'Courses'; File = 'courses.csv' }
+    @{ Name = 'Courses'; File = 'courses.csv' },
+    @{ Name = 'Entre'; File = 'entre.csv' }
 )
 
 $connectionString = "Provider=Microsoft.ACE.OLEDB.12.0;Data Source=$DatabasePath;Persist Security Info=False;"

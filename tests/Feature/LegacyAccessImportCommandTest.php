@@ -2,8 +2,15 @@
 
 namespace Tests\Feature;
 
+use App\Models\AcademicYear;
+use App\Models\Course;
+use App\Models\Enrollment;
+use App\Models\Group;
+use App\Models\MemorizationSession;
 use App\Models\ParentProfile;
 use App\Models\Student;
+use App\Models\StudentPageAchievement;
+use App\Models\Teacher;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -196,6 +203,125 @@ class LegacyAccessImportCommandTest extends TestCase
         $this->assertSame('سامر شموط', $parent->fresh()->father_name);
     }
 
+    public function test_legacy_memorization_analyzer_builds_reports_without_writing_data(): void
+    {
+        $academicYear = AcademicYear::create([
+            'name' => '2026 / 2027',
+            'starts_on' => '2026-09-01',
+            'ends_on' => '2027-08-31',
+            'is_current' => true,
+            'is_active' => true,
+        ]);
+
+        $parent = ParentProfile::create([
+            'father_name' => 'ولي الأمر',
+            'is_active' => true,
+        ]);
+
+        $student = Student::create([
+            'parent_id' => $parent->id,
+            'first_name' => 'محمد',
+            'last_name' => 'أحمد',
+            'birth_date' => '2012-01-01',
+            'status' => 'active',
+        ]);
+
+        $teacher = Teacher::create([
+            'first_name' => 'معلّم',
+            'last_name' => 'أول',
+            'phone' => '0999000001',
+            'status' => 'active',
+        ]);
+
+        $course = Course::create([
+            'name' => 'دورة الربيع',
+            'is_active' => true,
+        ]);
+
+        $group = Group::create([
+            'course_id' => $course->id,
+            'academic_year_id' => $academicYear->id,
+            'teacher_id' => $teacher->id,
+            'name' => 'مجموعة الربيع',
+            'capacity' => 20,
+            'is_active' => true,
+        ]);
+
+        $enrollment = Enrollment::create([
+            'student_id' => $student->id,
+            'group_id' => $group->id,
+            'enrolled_at' => '2026-01-01',
+            'status' => 'active',
+        ]);
+
+        $existingSession = MemorizationSession::create([
+            'enrollment_id' => $enrollment->id,
+            'student_id' => $student->id,
+            'teacher_id' => $teacher->id,
+            'recorded_on' => '2026-04-01',
+            'entry_type' => 'new',
+            'from_page' => 15,
+            'to_page' => 15,
+            'pages_count' => 1,
+        ]);
+
+        StudentPageAchievement::create([
+            'student_id' => $student->id,
+            'page_no' => 15,
+            'first_enrollment_id' => $enrollment->id,
+            'first_session_id' => $existingSession->id,
+            'first_recorded_on' => '2026-04-01',
+        ]);
+
+        $importPath = $this->makeImportFolder();
+        $reportPath = $this->makeImportFolder();
+
+        $this->writeCsv($importPath.DIRECTORY_SEPARATOR.'entre.csv', [
+            ['record_no', 'full_name', 'page_no', 'listen_date', 'listener_name', 'Courses_Name'],
+            ['1', 'محمد أحمد', '10', '2026-05-01', 'معلّم أول', 'دورة الربيع'],
+            ['2', 'محمد أحمد', '11', '2026-05-01', 'معلّم أول', 'دورة الربيع'],
+            ['3', 'محمد أحمد', '13', '2026-05-01', 'معلّم أول', 'دورة الربيع'],
+            ['4', 'محمد أحمد', '13', '2026-05-01', 'معلّم أول', 'دورة الربيع'],
+            ['5', 'محمد أحمد', '15', '2026-05-01', 'معلّم أول', 'دورة الربيع'],
+            ['6', 'طالب مفقود', '16', '2026-05-01', 'معلّم أول', 'دورة الربيع'],
+            ['7', 'محمد أحمد', '17', '2026-05-01', 'مدرس مفقود', 'دورة الربيع'],
+            ['8', 'محمد أحمد', '18', 'not-a-date', 'معلّم أول', 'دورة الربيع'],
+            ['9', 'محمد أحمد', '19', '2026-05-01', 'معلّم أول', 'دورة أخرى'],
+        ]);
+
+        $this->artisan('legacy:analyze-memorization-entre', [
+            'path' => $importPath,
+            '--report-dir' => $reportPath,
+        ])
+            ->expectsOutputToContain('Analysis source:')
+            ->expectsOutputToContain('Legacy rows')
+            ->expectsOutputToContain('Importable page rows')
+            ->expectsOutputToContain('Proposed sessions')
+            ->expectsOutputToContain('Reports written to:')
+            ->assertExitCode(0);
+
+        $this->assertSame(1, StudentPageAchievement::query()->count());
+        $this->assertSame(1, MemorizationSession::query()->count());
+
+        $proposedSessions = $this->readCsvRecords($reportPath.DIRECTORY_SEPARATOR.'proposed_sessions.csv');
+        $this->assertCount(2, $proposedSessions);
+        $this->assertSame('10', $proposedSessions[0]['from_page']);
+        $this->assertSame('11', $proposedSessions[0]['to_page']);
+        $this->assertSame('2', $proposedSessions[0]['pages_count']);
+        $this->assertSame('1,2', $proposedSessions[0]['source_record_nos']);
+        $this->assertSame('13', $proposedSessions[1]['from_page']);
+        $this->assertSame('13', $proposedSessions[1]['to_page']);
+        $this->assertSame('1', $proposedSessions[1]['pages_count']);
+        $this->assertSame('3', $proposedSessions[1]['source_record_nos']);
+
+        $this->assertCount(1, $this->readCsvRecords($reportPath.DIRECTORY_SEPARATOR.'duplicate_legacy_rows.csv'));
+        $this->assertCount(1, $this->readCsvRecords($reportPath.DIRECTORY_SEPARATOR.'unmatched_students.csv'));
+        $this->assertCount(1, $this->readCsvRecords($reportPath.DIRECTORY_SEPARATOR.'unmatched_teachers.csv'));
+        $this->assertCount(1, $this->readCsvRecords($reportPath.DIRECTORY_SEPARATOR.'invalid_rows.csv'));
+        $this->assertCount(1, $this->readCsvRecords($reportPath.DIRECTORY_SEPARATOR.'unresolved_enrollments.csv'));
+        $this->assertCount(1, $this->readCsvRecords($reportPath.DIRECTORY_SEPARATOR.'overlapping_live_pages.csv'));
+    }
+
     protected function tearDown(): void
     {
         foreach ($this->tempDirectories as $directory) {
@@ -240,5 +366,27 @@ class LegacyAccessImportCommandTest extends TestCase
         }
 
         fclose($handle);
+    }
+
+    /**
+     * @return array<int, array<string, string>>
+     */
+    protected function readCsvRecords(string $path): array
+    {
+        $handle = fopen($path, 'rb');
+        $headers = fgetcsv($handle) ?: [];
+        $rows = [];
+
+        while (($data = fgetcsv($handle)) !== false) {
+            if ($data === [null] || $data === []) {
+                continue;
+            }
+
+            $rows[] = array_combine($headers, $data);
+        }
+
+        fclose($handle);
+
+        return $rows;
     }
 }
