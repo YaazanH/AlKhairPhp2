@@ -8,6 +8,7 @@ use App\Models\Enrollment;
 use App\Models\Group;
 use App\Models\MemorizationSession;
 use App\Models\ParentProfile;
+use App\Models\PointTransaction;
 use App\Models\Student;
 use App\Models\StudentPageAchievement;
 use App\Models\Teacher;
@@ -320,6 +321,173 @@ class LegacyAccessImportCommandTest extends TestCase
         $this->assertCount(1, $this->readCsvRecords($reportPath.DIRECTORY_SEPARATOR.'invalid_rows.csv'));
         $this->assertCount(1, $this->readCsvRecords($reportPath.DIRECTORY_SEPARATOR.'unresolved_enrollments.csv'));
         $this->assertCount(1, $this->readCsvRecords($reportPath.DIRECTORY_SEPARATOR.'overlapping_live_pages.csv'));
+    }
+
+    public function test_legacy_memorization_import_uses_shared_placeholder_group_without_creating_points(): void
+    {
+        $academicYear = AcademicYear::create([
+            'name' => '2026 / 2027',
+            'starts_on' => '2026-09-01',
+            'ends_on' => '2027-08-31',
+            'is_current' => true,
+            'is_active' => true,
+        ]);
+
+        $parent = ParentProfile::create([
+            'father_name' => 'ولي الأمر الأول',
+            'is_active' => true,
+        ]);
+
+        $student = Student::create([
+            'parent_id' => $parent->id,
+            'first_name' => 'محمد',
+            'last_name' => 'أحمد',
+            'birth_date' => '2012-01-01',
+            'status' => 'active',
+        ]);
+
+        $secondParent = ParentProfile::create([
+            'father_name' => 'ولي الأمر الثاني',
+            'is_active' => true,
+        ]);
+
+        $secondStudent = Student::create([
+            'parent_id' => $secondParent->id,
+            'first_name' => 'سارة',
+            'last_name' => 'علي',
+            'birth_date' => '2013-01-01',
+            'status' => 'active',
+        ]);
+
+        $teacher = Teacher::create([
+            'first_name' => 'المعلم',
+            'last_name' => 'الحالي',
+            'phone' => '0999000009',
+            'status' => 'active',
+        ]);
+
+        $course = Course::create([
+            'name' => 'الدورة الحالية',
+            'is_active' => true,
+        ]);
+
+        $group = Group::create([
+            'course_id' => $course->id,
+            'academic_year_id' => $academicYear->id,
+            'teacher_id' => $teacher->id,
+            'name' => 'المجموعة الحالية',
+            'capacity' => 20,
+            'is_active' => true,
+        ]);
+
+        $currentEnrollment = Enrollment::create([
+            'student_id' => $student->id,
+            'group_id' => $group->id,
+            'enrolled_at' => '2026-01-01',
+            'status' => 'active',
+        ]);
+
+        $existingSession = MemorizationSession::create([
+            'enrollment_id' => $currentEnrollment->id,
+            'student_id' => $student->id,
+            'teacher_id' => $teacher->id,
+            'recorded_on' => '2026-04-01',
+            'entry_type' => 'new',
+            'from_page' => 10,
+            'to_page' => 10,
+            'pages_count' => 1,
+        ]);
+
+        $existingSession->pages()->create([
+            'page_no' => 10,
+        ]);
+
+        StudentPageAchievement::create([
+            'student_id' => $student->id,
+            'page_no' => 10,
+            'first_enrollment_id' => $currentEnrollment->id,
+            'first_session_id' => $existingSession->id,
+            'first_recorded_on' => '2026-04-01',
+        ]);
+
+        $importPath = $this->makeImportFolder();
+        $reportPath = $this->makeImportFolder();
+
+        $this->writeCsv($importPath.DIRECTORY_SEPARATOR.'entre.csv', [
+            ['record_no', 'full_name', 'page_no', 'listen_date', 'listener_name', 'Courses_Name'],
+            ['1', 'محمد أحمد', '10', '2026-01-01', 'قديم', 'قديم'],
+            ['2', 'محمد أحمد', '11', '2026-01-01', 'قديم', 'قديم'],
+            ['3', 'محمد أحمد', '12', '2026-01-01', 'قديم', 'قديم'],
+            ['4', 'محمد أحمد', '12', '2026-02-01', 'قديم', 'قديم'],
+            ['5', 'سارة علي', '21', '2026-03-05', 'قديم', 'قديم'],
+            ['6', 'طالب مفقود', '31', '2026-03-05', 'قديم', 'قديم'],
+            ['7', 'محمد أحمد', '50', 'bad-date', 'قديم', 'قديم'],
+        ]);
+
+        $this->artisan('legacy:import-memorization-entre', [
+            'path' => $importPath,
+            '--report-dir' => $reportPath,
+        ])
+            ->expectsOutputToContain('Legacy rows')
+            ->expectsOutputToContain('Imported sessions')
+            ->expectsOutputToContain('Affected students')
+            ->assertExitCode(0);
+
+        $importTeacher = Teacher::query()
+            ->where('first_name', 'Import')
+            ->where('last_name', 'Teacher')
+            ->firstOrFail();
+
+        $importCourse = Course::query()->where('name', 'Import Course')->firstOrFail();
+        $importGroup = Group::query()->where('name', 'Import Group')->firstOrFail();
+        $legacyYear = AcademicYear::query()->where('name', 'Legacy Import')->firstOrFail();
+
+        $this->assertFalse($importCourse->is_active);
+        $this->assertFalse($importGroup->is_active);
+        $this->assertFalse($legacyYear->is_active);
+        $this->assertSame($importTeacher->id, $importGroup->teacher_id);
+        $this->assertSame($importCourse->id, $importGroup->course_id);
+        $this->assertSame($legacyYear->id, $importGroup->academic_year_id);
+
+        $legacyEnrollments = Enrollment::query()
+            ->where('group_id', $importGroup->id)
+            ->orderBy('student_id')
+            ->get();
+
+        $this->assertCount(2, $legacyEnrollments);
+        $this->assertSame(['inactive', 'inactive'], $legacyEnrollments->pluck('status')->all());
+
+        $this->assertTrue(MemorizationSession::query()
+            ->where('enrollment_id', $legacyEnrollments->firstWhere('student_id', $student->id)?->id)
+            ->where('student_id', $student->id)
+            ->where('teacher_id', $importTeacher->id)
+            ->whereDate('recorded_on', '2026-01-01')
+            ->where('from_page', 11)
+            ->where('to_page', 12)
+            ->where('pages_count', 2)
+            ->exists());
+
+        $this->assertTrue(MemorizationSession::query()
+            ->where('enrollment_id', $legacyEnrollments->firstWhere('student_id', $secondStudent->id)?->id)
+            ->where('student_id', $secondStudent->id)
+            ->where('teacher_id', $importTeacher->id)
+            ->whereDate('recorded_on', '2026-03-05')
+            ->where('from_page', 21)
+            ->where('to_page', 21)
+            ->where('pages_count', 1)
+            ->exists());
+
+        $this->assertSame(0, PointTransaction::query()->count());
+        $this->assertSame(3, StudentPageAchievement::query()->where('student_id', $student->id)->count());
+        $this->assertSame(1, StudentPageAchievement::query()->where('student_id', $secondStudent->id)->count());
+        $this->assertSame(1, $currentEnrollment->fresh()->memorized_pages_cached);
+        $this->assertSame(2, $legacyEnrollments->firstWhere('student_id', $student->id)?->fresh()->memorized_pages_cached);
+
+        $this->assertCount(1, $this->readCsvRecords($reportPath.DIRECTORY_SEPARATOR.'skipped_existing_pages.csv'));
+        $this->assertCount(1, $this->readCsvRecords($reportPath.DIRECTORY_SEPARATOR.'skipped_repeated_legacy_pages.csv'));
+        $this->assertCount(1, $this->readCsvRecords($reportPath.DIRECTORY_SEPARATOR.'unmatched_students.csv'));
+        $this->assertCount(1, $this->readCsvRecords($reportPath.DIRECTORY_SEPARATOR.'invalid_rows.csv'));
+        $this->assertCount(2, $this->readCsvRecords($reportPath.DIRECTORY_SEPARATOR.'imported_sessions.csv'));
     }
 
     protected function tearDown(): void
