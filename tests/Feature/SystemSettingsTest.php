@@ -479,6 +479,17 @@ class SystemSettingsTest extends TestCase
         $this->assertContains('quran_partial_tests', array_column($customGroup['items'], 'key'));
     }
 
+    public function test_sidebar_includes_student_progress_item_for_users_with_student_access(): void
+    {
+        $user = $this->signIn();
+
+        $sidebarGroups = app(SidebarNavigationService::class)->sidebarFor($user->fresh());
+        $peopleGroup = collect($sidebarGroups)->firstWhere('key', 'people');
+
+        $this->assertNotNull($peopleGroup);
+        $this->assertContains('student_progress', array_column($peopleGroup['items'], 'key'));
+    }
+
     public function test_student_promotion_action_requires_explicit_permission_to_appear(): void
     {
         $user = $this->signIn();

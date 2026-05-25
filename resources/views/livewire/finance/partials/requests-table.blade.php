@@ -4,6 +4,9 @@
         $emptyLabel = $emptyLabel ?? __('finance.empty.no_requests');
         $amountStyle = $amountStyle ?? 'split';
         $amountHeader = $amountStyle === 'actual_only' ? __('finance.fields.amount') : __('finance.common.amounts');
+        $showCounterpartyColumn = $showCounterpartyColumn ?? false;
+        $counterpartyLabel = $counterpartyLabel ?? __('finance.fields.revenue_name');
+        $columnCount = $showCounterpartyColumn ? 7 : 6;
     @endphp
     <div class="admin-grid-meta">
         <div>
@@ -21,6 +24,9 @@
             <thead>
                 <tr>
                     <th class="px-5 py-3 text-left">{{ $recordLabel }}</th>
+                    @if ($showCounterpartyColumn)
+                        <th class="px-5 py-3 text-left">{{ $counterpartyLabel }}</th>
+                    @endif
                     <th class="px-5 py-3 text-left">{{ __('finance.fields.activity') }}</th>
                     <th class="px-5 py-3 text-left">{{ __('finance.fields.category') }}</th>
                     <th class="px-5 py-3 text-left">{{ $amountHeader }}</th>
@@ -41,7 +47,7 @@
                         <td class="px-5 py-3">
                             <div class="font-medium text-white">{{ $request->request_no }}</div>
                             <div class="text-xs text-neutral-500">{{ $request->created_at?->format('Y-m-d H:i') }} | {{ $request->requestedBy?->name ?: '-' }}</div>
-                            @if ($request->counterparty_name)
+                            @if (! $showCounterpartyColumn && $request->counterparty_name)
                                 <div class="mt-1 text-xs text-emerald-200">{{ __('finance.fields.revenue_name') }}: {{ $request->maskedCounterpartyName() }}</div>
                             @endif
                             @if ($request->requested_reason)
@@ -56,6 +62,11 @@
                                 </div>
                             @endif
                         </td>
+                        @if ($showCounterpartyColumn)
+                            <td class="px-5 py-3">
+                                <div>{{ $request->counterparty_name ? $request->maskedCounterpartyName() : '-' }}</div>
+                            </td>
+                        @endif
                         <td class="px-5 py-3">
                             <div>{{ $request->activity?->title ?: '-' }}</div>
                             <div class="text-xs text-neutral-500">{{ $request->teacher ? trim($request->teacher->first_name.' '.$request->teacher->last_name) : '-' }}</div>
@@ -117,7 +128,7 @@
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="6" class="px-5 py-10 text-center text-sm text-neutral-500">{{ $emptyLabel }}</td></tr>
+                    <tr><td colspan="{{ $columnCount }}" class="px-5 py-10 text-center text-sm text-neutral-500">{{ $emptyLabel }}</td></tr>
                 @endforelse
             </tbody>
         </table>

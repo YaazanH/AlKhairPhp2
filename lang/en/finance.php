@@ -114,7 +114,7 @@ return [
         'net' => 'Net',
         'reason' => 'Reason',
         'revenue_kind' => 'Revenue kind',
-        'revenue_name' => 'Revenue name',
+        'revenue_name' => 'Donor name',
         'request_no' => 'Request no.',
         'requester' => 'Requester',
         'requested' => 'Requested',

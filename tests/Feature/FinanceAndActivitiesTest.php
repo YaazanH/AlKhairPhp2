@@ -660,6 +660,35 @@ class FinanceAndActivitiesTest extends TestCase
         ]);
     }
 
+    public function test_revenue_requests_filter_cash_boxes_and_currencies_by_supported_assignments(): void
+    {
+        $this->signIn();
+
+        $service = app(FinanceService::class);
+        $localCurrency = $service->localCurrency();
+        $baseCurrency = $service->baseCurrency();
+        $localOnlyBox = FinanceCashBox::query()->firstOrFail();
+        $localOnlyBox->currencies()->sync([$localCurrency->id]);
+
+        $baseOnlyBox = FinanceCashBox::query()->create([
+            'code' => 'base-only-revenue',
+            'is_active' => true,
+            'name' => 'Base Only Revenue Box',
+        ]);
+        $baseOnlyBox->currencies()->sync([$baseCurrency->id]);
+
+        Volt::test('finance.revenue-requests')
+            ->call('openCreateModal')
+            ->assertSee($localOnlyBox->name)
+            ->assertDontSee($baseOnlyBox->name)
+            ->set('cash_box_id', $localOnlyBox->id)
+            ->assertSee($localCurrency->code)
+            ->assertDontSee($baseCurrency->code)
+            ->set('currency_id', $baseCurrency->id)
+            ->assertSee($baseOnlyBox->name)
+            ->assertDontSee($localOnlyBox->name);
+    }
+
     public function test_expense_requests_allow_empty_reason_and_edit_posted_amount_details(): void
     {
         $this->signIn();
@@ -765,6 +794,7 @@ class FinanceAndActivitiesTest extends TestCase
 
         Volt::test('finance.revenue-requests')
             ->assertSee('Y**** A* H****')
+            ->assertSee(__('finance.fields.revenue_name'))
             ->call('openFinanceRequestEditModal', $request->id)
             ->set('edit_counterparty_name', 'Updated Donor')
             ->set('edit_request_date', '2026-02-05')

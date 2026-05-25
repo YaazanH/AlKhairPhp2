@@ -114,7 +114,7 @@ return [
         'net' => 'الصافي',
         'reason' => 'السبب',
         'revenue_kind' => 'نوع الإيراد',
-        'revenue_name' => 'اسم الإيراد',
+        'revenue_name' => 'اسم المتبرع',
         'request_no' => 'رقم الطلب',
         'requester' => 'مقدم الطلب',
         'requested' => 'المطلوب',

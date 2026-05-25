@@ -34,9 +34,10 @@
                 $buttonUrl = (string) data_get($section, 'button_url', '');
                 $embedCode = (string) data_get($section, 'embed_code', '');
                 $customHtml = (string) data_get($section, 'custom_html', '');
+                $imagePath = (string) data_get($section, 'image_path', '');
             @endphp
 
-            @continue(blank($heading) && blank($body) && blank($secondary) && blank($buttonLabel) && blank($buttonUrl) && blank($embedCode) && blank($customHtml))
+            @continue(blank($heading) && blank($body) && blank($secondary) && blank($buttonLabel) && blank($buttonUrl) && blank($embedCode) && blank($customHtml) && blank($imagePath))
 
             @switch($type)
                 @case('two_columns')
@@ -117,6 +118,28 @@
 
                         @if ($embedCode)
                             <div class="public-embed-frame mt-6">{!! $embedCode !!}</div>
+                        @endif
+                    </section>
+                @break
+
+                @case('image')
+                    <section class="public-section">
+                        @if ($heading)
+                            <div class="public-section__heading">
+                                <h2 class="public-section__title">{{ $heading }}</h2>
+                            </div>
+                        @endif
+
+                        @if ($imagePath)
+                            <figure class="mt-6 overflow-hidden rounded-[2rem] border border-[#d8dfd1] bg-white/90 shadow-[0_32px_80px_rgba(21,43,29,0.14)]">
+                                <img src="{{ asset('storage/'.ltrim($imagePath, '/')) }}" alt="{{ $heading ?: $page->localizedText('title') }}" class="h-full w-full object-cover">
+
+                                @if ($body)
+                                    <figcaption class="px-6 py-5 text-sm leading-7 text-[#355342]">{!! nl2br(e($body)) !!}</figcaption>
+                                @endif
+                            </figure>
+                        @elseif ($body)
+                            <article class="public-reading-surface">{!! nl2br(e($body)) !!}</article>
                         @endif
                     </section>
                 @break

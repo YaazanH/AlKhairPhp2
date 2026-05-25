@@ -911,6 +911,16 @@ return [
     'student_progress' => [
         'title' => 'Student Progress',
         'subtitle' => 'Review the student profile, memorization history, Quran tests, assessment marks, and point history in one place.',
+        'selection' => [
+            'title' => 'Student selector',
+            'copy' => 'Open one student progress record at a time from a simple name search and select box.',
+            'search' => 'Search student name',
+            'search_placeholder' => 'Search by first name or last name',
+            'student' => 'Student',
+            'select_student' => 'Select student',
+            'empty' => 'Choose a student above to load the full progress page.',
+            'no_students' => 'No students are available in your current scope.',
+        ],
         'filters' => [
             'title' => 'Course filter',
             'copy' => 'Limit the progress view to one course when the student has multiple enrollments.',

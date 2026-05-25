@@ -6,6 +6,7 @@ use App\Models\WebsitePage;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
 use Livewire\Volt\Component;
 use Livewire\WithFileUploads;
 
@@ -26,6 +27,7 @@ new class extends Component {
     public bool $show_in_navigation = true;
     public ?string $hero_media_path = null;
     public $hero_media_upload = null;
+    public array $section_image_uploads = [];
 
     public function mount(): void
     {
@@ -74,6 +76,7 @@ new class extends Component {
         $this->show_in_navigation = true;
         $this->hero_media_path = null;
         $this->hero_media_upload = null;
+        $this->section_image_uploads = [];
         $this->resetValidation();
     }
 
@@ -95,6 +98,7 @@ new class extends Component {
         $this->show_in_navigation = $page->show_in_navigation;
         $this->hero_media_path = $page->hero_media_path;
         $this->hero_media_upload = null;
+        $this->section_image_uploads = [];
     }
 
     public function addSection(string $type = 'rich_text'): void
@@ -109,7 +113,9 @@ new class extends Component {
         }
 
         unset($this->sections[$index]);
+        unset($this->section_image_uploads[$index]);
         $this->sections = array_values($this->sections);
+        $this->section_image_uploads = array_values($this->section_image_uploads);
 
         if ($this->sections === []) {
             $this->sections[] = $this->blankSection();
@@ -123,7 +129,12 @@ new class extends Component {
         }
 
         [$this->sections[$index - 1], $this->sections[$index]] = [$this->sections[$index], $this->sections[$index - 1]];
+        [$this->section_image_uploads[$index - 1], $this->section_image_uploads[$index]] = [
+            $this->section_image_uploads[$index] ?? null,
+            $this->section_image_uploads[$index - 1] ?? null,
+        ];
         $this->sections = array_values($this->sections);
+        $this->section_image_uploads = array_values($this->section_image_uploads);
     }
 
     public function moveSectionDown(int $index): void
@@ -133,7 +144,12 @@ new class extends Component {
         }
 
         [$this->sections[$index], $this->sections[$index + 1]] = [$this->sections[$index + 1], $this->sections[$index]];
+        [$this->section_image_uploads[$index], $this->section_image_uploads[$index + 1]] = [
+            $this->section_image_uploads[$index + 1] ?? null,
+            $this->section_image_uploads[$index] ?? null,
+        ];
         $this->sections = array_values($this->sections);
+        $this->section_image_uploads = array_values($this->section_image_uploads);
     }
 
     public function deletePage(int $pageId): void
@@ -150,6 +166,8 @@ new class extends Component {
             Storage::disk('public')->delete($page->hero_media_path);
         }
 
+        Storage::disk('public')->delete($this->sectionImagePaths($page->sections ?? []));
+
         $page->delete();
 
         if ($this->editing_page_id === $pageId) {
@@ -161,6 +179,10 @@ new class extends Component {
 
     public function savePage(): void
     {
+        $existingPage = $this->editing_page_id
+            ? WebsitePage::query()->find($this->editing_page_id)
+            : null;
+
         $validated = $this->validate([
             'slug' => ['required', 'string', 'max:120', 'regex:/^[a-z0-9]+(?:-[a-z0-9]+)*$/', Rule::unique('website_pages', 'slug')->ignore($this->editing_page_id), 'not_in:home'],
             'title_en' => ['required', 'string', 'max:255'],
@@ -182,6 +204,7 @@ new class extends Component {
             'sections.*.button_url' => ['nullable', 'string', 'max:2048'],
             'sections.*.embed_code' => ['nullable', 'string'],
             'sections.*.custom_html' => ['nullable', 'string'],
+            'section_image_uploads.*' => ['nullable', 'image', 'max:4096'],
             'navigation_order' => ['required', 'integer', 'min:0'],
             'is_published' => ['boolean'],
             'show_in_navigation' => ['boolean'],
@@ -230,6 +253,11 @@ new class extends Component {
             ],
         );
 
+        Storage::disk('public')->delete(array_values(array_diff(
+            $this->sectionImagePaths($existingPage?->sections ?? []),
+            $this->sectionImagePaths($sections),
+        )));
+
         session()->flash('status', $this->editing_page_id ? __('site.admin.pages.messages.saved_update') : __('site.admin.pages.messages.saved_create'));
         $this->editPage($page->id);
     }
@@ -270,6 +298,7 @@ new class extends Component {
             'button_url' => (string) data_get($section, 'button_url', ''),
             'embed_code' => (string) data_get($section, 'embed_code', ''),
             'custom_html' => (string) data_get($section, 'custom_html', ''),
+            'image_path' => (string) data_get($section, 'image_path', ''),
         ];
     }
 
@@ -282,14 +311,21 @@ new class extends Component {
 
     protected function availableSectionTypes(): array
     {
-        return ['rich_text', 'two_columns', 'cta', 'map', 'embed', 'custom_html'];
+        return ['rich_text', 'two_columns', 'cta', 'map', 'embed', 'image', 'custom_html'];
     }
 
     protected function prepareSectionsForStorage(array $sections): array
     {
         return collect($sections)
-            ->map(function (array $section): array {
+            ->map(function (array $section, int $index): array {
                 $normalized = $this->blankSection((string) data_get($section, 'type', 'rich_text'), $section);
+                $imagePath = $normalized['type'] === 'image'
+                    ? trim($normalized['image_path'])
+                    : '';
+
+                if ($normalized['type'] === 'image' && ($this->section_image_uploads[$index] ?? null) instanceof TemporaryUploadedFile) {
+                    $imagePath = $this->section_image_uploads[$index]->store('website/pages/sections', 'public');
+                }
 
                 return [
                     'type' => $normalized['type'],
@@ -300,6 +336,7 @@ new class extends Component {
                     'button_url' => trim($normalized['button_url']),
                     'embed_code' => trim($normalized['embed_code']),
                     'custom_html' => trim($normalized['custom_html']),
+                    'image_path' => $imagePath,
                 ];
             })
             ->filter(fn (array $section): bool => $this->storedSectionHasContent($section))
@@ -319,7 +356,18 @@ new class extends Component {
             || filled(data_get($section, 'button_label.ar'))
             || filled(data_get($section, 'button_url'))
             || filled(data_get($section, 'embed_code'))
-            || filled(data_get($section, 'custom_html'));
+            || filled(data_get($section, 'custom_html'))
+            || ((string) data_get($section, 'type', '') === 'image' && filled(data_get($section, 'image_path')));
+    }
+
+    protected function sectionImagePaths(array $sections): array
+    {
+        return collect($sections)
+            ->map(fn (mixed $section): string => is_array($section) ? (string) data_get($section, 'image_path', '') : '')
+            ->filter(fn (string $path): bool => filled($path))
+            ->unique()
+            ->values()
+            ->all();
     }
 }; ?>
 
@@ -491,10 +539,24 @@ new class extends Component {
                                         <input wire:model="sections.{{ $index }}.heading_ar" type="text" dir="rtl" class="admin-locale-field--ar rounded-xl px-4 py-3 text-sm" placeholder="{{ __('site.admin.pages.builder.fields.heading_ar') }}">
                                     </div>
 
-                                    @if (in_array($section['type'], ['rich_text', 'two_columns', 'cta', 'map'], true))
+                                    @if (in_array($section['type'], ['rich_text', 'two_columns', 'cta', 'map', 'image'], true))
                                         <div class="grid gap-4 lg:grid-cols-2">
                                             <textarea wire:model="sections.{{ $index }}.body_en" rows="5" dir="ltr" class="admin-locale-field--en rounded-xl px-4 py-3 text-sm" placeholder="{{ __('site.admin.pages.builder.fields.body_en') }}"></textarea>
                                             <textarea wire:model="sections.{{ $index }}.body_ar" rows="5" dir="rtl" class="admin-locale-field--ar rounded-xl px-4 py-3 text-sm" placeholder="{{ __('site.admin.pages.builder.fields.body_ar') }}"></textarea>
+                                        </div>
+                                    @endif
+
+                                    @if ($section['type'] === 'image')
+                                        <div class="space-y-4">
+                                            @if (filled($section['image_path']))
+                                                <img src="{{ asset('storage/'.ltrim($section['image_path'], '/')) }}" alt="{{ data_get($section, 'heading_en') ?: data_get($section, 'heading_ar') ?: __('site.admin.pages.builder.fields.image_upload') }}" class="h-48 w-full rounded-2xl object-cover">
+                                            @endif
+
+                                            <input wire:model="section_image_uploads.{{ $index }}" type="file" accept="image/*" class="block w-full text-sm">
+
+                                            @error('section_image_uploads.'.$index)
+                                                <div class="text-sm text-red-400">{{ $message }}</div>
+                                            @enderror
                                         </div>
                                     @endif
 

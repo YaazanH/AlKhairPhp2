@@ -32,6 +32,7 @@ return [
         'parents' => 'Parents',
         'teachers' => 'Teachers',
         'students' => 'Students',
+        'student_progress' => 'Student Progress',
         'bulk_student_photos' => 'Bulk Photos',
         'community_contacts' => 'Community Contacts',
         'academics' => 'Academics',

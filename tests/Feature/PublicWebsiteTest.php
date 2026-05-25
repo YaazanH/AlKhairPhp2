@@ -9,6 +9,8 @@ use App\Models\WebsitePage;
 use Database\Seeders\RoleSeeder;
 use Database\Seeders\WebsiteSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Livewire\Volt\Volt;
 use Tests\TestCase;
 
@@ -163,5 +165,44 @@ class PublicWebsiteTest extends TestCase
         $this->get(route('settings.website'))->assertForbidden();
         $this->get(route('settings.website.pages'))->assertForbidden();
         $this->get(route('settings.website.navigation'))->assertForbidden();
+    }
+
+    public function test_website_page_builder_can_store_and_render_image_sections(): void
+    {
+        Storage::fake('public');
+        $this->seed([RoleSeeder::class, WebsiteSeeder::class]);
+
+        $manager = User::factory()->create([
+            'username' => 'website-image-manager',
+            'phone' => '79995503',
+        ]);
+        $manager->assignRole('manager');
+
+        $this->actingAs($manager);
+
+        Volt::test('settings.website-pages')
+            ->set('slug', 'community-gallery')
+            ->set('title_en', 'Community Gallery')
+            ->set('title_ar', 'معرض المجتمع')
+            ->set('sections.0.type', 'image')
+            ->set('sections.0.heading_en', 'Community moments')
+            ->set('sections.0.heading_ar', 'لحظات المجتمع')
+            ->set('sections.0.body_en', 'Highlights from our public programs.')
+            ->set('sections.0.body_ar', 'لقطات من برامجنا العامة.')
+            ->set('section_image_uploads.0', UploadedFile::fake()->image('community-gallery.jpg', 1200, 800))
+            ->call('savePage')
+            ->assertHasNoErrors();
+
+        $page = WebsitePage::query()->where('slug', 'community-gallery')->firstOrFail();
+        $imagePath = (string) data_get($page->sections, '0.image_path');
+
+        $this->assertNotSame('', $imagePath);
+        Storage::disk('public')->assertExists($imagePath);
+
+        $this->get('/pages/community-gallery')
+            ->assertOk()
+            ->assertSee('Community moments')
+            ->assertSee('Highlights from our public programs.')
+            ->assertSee('storage/'.ltrim($imagePath, '/'), false);
     }
 }

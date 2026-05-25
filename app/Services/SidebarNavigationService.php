@@ -34,9 +34,10 @@ class SidebarNavigationService
             'users' => $this->item('ui.nav.users', 'users', 'users.index', ['users.*'], 'people', 10, ['users.view']),
             'parents' => $this->item('ui.nav.parents', 'user-group', 'parents.index', ['parents.*'], 'people', 20, ['parents.view']),
             'teachers' => $this->item('ui.nav.teachers', 'academic-cap', 'teachers.index', ['teachers.*'], 'people', 30, ['teachers.view']),
-            'students' => $this->item('ui.nav.students', 'identification', 'students.index', ['students.index', 'students.progress', 'students.files'], 'people', 40, ['students.view']),
-            'bulk_student_photos' => $this->item('ui.nav.bulk_student_photos', 'photo', 'students.bulk-photos', ['students.bulk-photos'], 'people', 50, ['students.update']),
-            'community_contacts' => $this->item('ui.nav.community_contacts', 'phone', 'community-contacts.index', ['community-contacts.*'], 'people', 60, ['community-contacts.view']),
+            'students' => $this->item('ui.nav.students', 'identification', 'students.index', ['students.index', 'students.files'], 'people', 40, ['students.view']),
+            'student_progress' => $this->item('ui.nav.student_progress', 'presentation-chart-line', 'students.progress', ['students.progress'], 'people', 50, ['students.view']),
+            'bulk_student_photos' => $this->item('ui.nav.bulk_student_photos', 'photo', 'students.bulk-photos', ['students.bulk-photos'], 'people', 60, ['students.update']),
+            'community_contacts' => $this->item('ui.nav.community_contacts', 'phone', 'community-contacts.index', ['community-contacts.*'], 'people', 70, ['community-contacts.view']),
 
             'courses' => $this->item('ui.nav.courses', 'book-open', 'courses.index', ['courses.*'], 'academics', 10, ['courses.view']),
             'groups' => $this->item('ui.nav.groups', 'rectangle-group', 'groups.index', ['groups.*'], 'academics', 20, ['groups.view']),

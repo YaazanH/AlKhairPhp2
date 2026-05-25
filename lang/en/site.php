@@ -245,6 +245,7 @@ return [
                     'cta' => 'Call To Action',
                     'map' => 'Map / Location',
                     'embed' => 'Embed',
+                    'image' => 'Image',
                     'custom_html' => 'Custom HTML',
                 ],
                 'fields' => [
@@ -258,6 +259,7 @@ return [
                     'button_label_ar' => 'Button label (Arabic)',
                     'button_url' => 'Button URL',
                     'embed_code' => 'Embed code',
+                    'image_upload' => 'Section image',
                     'custom_html' => 'Custom HTML',
                 ],
             ],

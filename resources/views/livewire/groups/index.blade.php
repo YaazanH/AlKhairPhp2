@@ -43,6 +43,7 @@ new class extends Component {
     public function mount(): void
     {
         $this->authorizePermission('groups.view');
+        $this->resetForm();
     }
 
     public function with(): array
@@ -146,7 +147,22 @@ new class extends Component {
     {
         $this->authorizePermission('groups.create');
 
-        $this->cancel();
+        $this->resetForm();
+        $this->showFormModal = true;
+    }
+
+    public function createAndNew(): void
+    {
+        $preservedCourseId = $this->course_id;
+        $errorCount = $this->getErrorBag()->count();
+
+        $this->save();
+
+        if ($this->getErrorBag()->count() > $errorCount) {
+            return;
+        }
+
+        $this->resetForm($preservedCourseId);
         $this->showFormModal = true;
     }
 
@@ -220,18 +236,8 @@ new class extends Component {
 
     public function cancel(): void
     {
-        $this->editingId = null;
-        $this->course_id = null;
-        $this->academic_year_id = null;
-        $this->teacher_id = null;
-        $this->assistant_teacher_id = null;
-        $this->grade_level_id = null;
-        $this->name = '';
-        $this->capacity = '0';
-        $this->is_active = true;
+        $this->resetForm();
         $this->showFormModal = false;
-
-        $this->resetValidation();
     }
 
     public function delete(int $groupId): void
@@ -349,6 +355,33 @@ new class extends Component {
             ->whereDoesntHave('enrollments', function ($enrollmentQuery) {
                 $enrollmentQuery->where('group_id', $this->rosterGroupId);
             });
+    }
+
+    protected function defaultAcademicYearId(): ?int
+    {
+        return AcademicYear::query()
+            ->where('is_current', true)
+            ->where('is_active', true)
+            ->value('id')
+            ?? AcademicYear::query()
+                ->where('is_active', true)
+                ->orderByDesc('starts_on')
+                ->value('id');
+    }
+
+    protected function resetForm(?int $courseId = null): void
+    {
+        $this->editingId = null;
+        $this->course_id = $courseId;
+        $this->academic_year_id = $this->defaultAcademicYearId();
+        $this->teacher_id = null;
+        $this->assistant_teacher_id = null;
+        $this->grade_level_id = null;
+        $this->name = '';
+        $this->capacity = '0';
+        $this->is_active = true;
+
+        $this->resetValidation();
     }
 
     protected function availableTeachersQuery()
@@ -659,7 +692,7 @@ new class extends Component {
                 <button type="submit" class="pill-link pill-link--accent">
                     {{ $editingId ? __('crud.groups.form.update_submit') : __('crud.groups.form.create_submit') }}
                 </button>
-                <x-admin.create-and-new-button :show="! $editingId" />
+                <x-admin.create-and-new-button :show="! $editingId" click="createAndNew" />
                 <button type="button" wire:click="cancel" class="pill-link">
                     {{ __('crud.common.actions.close') }}
                 </button>

@@ -82,7 +82,7 @@ Route::middleware(['auth'])->group(function () {
     Volt::route('students', 'students.index')->middleware('permission:students.view')->name('students.index');
     Route::get('students/export', [AdminExportController::class, 'students'])->middleware('permission:students.view')->name('students.export');
     Volt::route('students/photos/bulk', 'students.bulk-photos')->middleware('permission:students.update')->name('students.bulk-photos');
-    Volt::route('students/{student}/progress', 'students.progress')->middleware('permission:students.view')->name('students.progress');
+    Volt::route('students/progress/{student?}', 'students.progress')->middleware('permission:students.view')->name('students.progress');
     Volt::route('students/{student}/files', 'students.files')->middleware('permission:students.view')->name('students.files');
     Volt::route('courses', 'courses.index')->middleware('permission:courses.view')->name('courses.index');
     Route::get('courses/export', [AdminExportController::class, 'courses'])->middleware('permission:courses.view')->name('courses.export');

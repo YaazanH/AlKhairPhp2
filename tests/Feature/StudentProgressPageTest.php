@@ -194,6 +194,29 @@ class StudentProgressPageTest extends TestCase
             ->assertDontSeeText('Second Course Note');
     }
 
+    public function test_progress_page_without_route_student_shows_selector_for_manager_scope(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $this->makeScopedProgressData();
+
+        $manager = User::factory()->create([
+            'username' => 'student-progress-manager',
+            'phone' => '8111003',
+        ]);
+        $manager->assignRole('manager');
+
+        $this->actingAs($manager);
+
+        $this->get(route('students.progress', absolute: false))
+            ->assertOk()
+            ->assertSeeText('اختيار الطالب')
+            ->assertSeeText('اختر الطالب')
+            ->assertSeeText('Parent Student')
+            ->assertSeeText('Other Student')
+            ->assertSeeText('اختر طالباً من الأعلى لعرض صفحة التقدم الكاملة.');
+    }
+
     private function makeScopedProgressData(): array
     {
         $parentUser = User::factory()->create([

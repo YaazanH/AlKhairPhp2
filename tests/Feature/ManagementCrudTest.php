@@ -529,6 +529,63 @@ class ManagementCrudTest extends TestCase
         $this->assertNull($enrollment->notes);
     }
 
+    public function test_group_create_modal_defaults_to_current_year_and_create_and_new_preserves_course(): void
+    {
+        $this->signIn();
+
+        $teacher = Teacher::create([
+            'first_name' => 'Group',
+            'last_name' => 'Teacher',
+            'phone' => '0944003111',
+            'status' => 'active',
+            'is_helping' => true,
+        ]);
+
+        $course = Course::create([
+            'name' => 'Repeat Group Course',
+            'is_active' => true,
+        ]);
+
+        $olderYear = AcademicYear::create([
+            'name' => '2025/2026',
+            'starts_on' => '2025-08-01',
+            'ends_on' => '2026-07-31',
+            'is_current' => false,
+            'is_active' => true,
+        ]);
+
+        $currentYear = AcademicYear::create([
+            'name' => '2026/2027',
+            'starts_on' => '2026-08-01',
+            'ends_on' => '2027-07-31',
+            'is_current' => true,
+            'is_active' => true,
+        ]);
+
+        Volt::test('groups.index')
+            ->call('openCreateModal')
+            ->assertSet('academic_year_id', $currentYear->id)
+            ->set('course_id', $course->id)
+            ->set('academic_year_id', $olderYear->id)
+            ->set('teacher_id', $teacher->id)
+            ->set('name', 'Legacy Group A')
+            ->set('capacity', '20')
+            ->set('is_active', true)
+            ->call('createAndNew')
+            ->assertHasNoErrors()
+            ->assertSet('showFormModal', true)
+            ->assertSet('course_id', $course->id)
+            ->assertSet('academic_year_id', $currentYear->id)
+            ->assertSet('teacher_id', null)
+            ->assertSet('name', '');
+
+        $this->assertDatabaseHas('groups', [
+            'course_id' => $course->id,
+            'academic_year_id' => $olderYear->id,
+            'name' => 'Legacy Group A',
+        ]);
+    }
+
     public function test_view_only_access_cannot_create_records(): void
     {
         $this->seed(RoleSeeder::class);

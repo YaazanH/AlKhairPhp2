@@ -20,19 +20,43 @@ new class extends Component {
     use AuthorizesPermissions;
     use AuthorizesTeacherAssignments;
 
-    public Student $currentStudent;
+    public ?Student $currentStudent = null;
+    public int|string|null $selectedStudentId = null;
+    public string $studentSearch = '';
     public string $courseFilter = 'all';
     public ?int $missingJuzId = null;
 
-    public function mount(Student $student): void
+    public function mount(?Student $student = null): void
     {
         $this->authorizePermission('students.view');
 
-        $this->currentStudent = Student::query()
-            ->with(['gradeLevel', 'parentProfile', 'quranCurrentJuz'])
-            ->findOrFail($student->id);
+        if ($student) {
+            $this->setCurrentStudent($student->id);
 
-        $this->authorizeScopedStudentAccess($this->currentStudent);
+            return;
+        }
+
+        $singleAccessibleStudent = $this->studentOptionsQuery()
+            ->limit(2)
+            ->get();
+
+        if ($singleAccessibleStudent->count() === 1) {
+            $this->setCurrentStudent((int) $singleAccessibleStudent->first()->id);
+        }
+    }
+
+    public function updatedSelectedStudentId(int|string|null $value): void
+    {
+        if (blank($value)) {
+            $this->currentStudent = null;
+            $this->selectedStudentId = null;
+            $this->courseFilter = 'all';
+            $this->missingJuzId = null;
+
+            return;
+        }
+
+        $this->setCurrentStudent((int) $value);
     }
 
     public function showMissingPages(int $juzId): void
@@ -47,6 +71,20 @@ new class extends Component {
 
     public function with(): array
     {
+        $studentOptions = $this->studentOptionsQuery()
+            ->get()
+            ->map(fn (Student $student): object => (object) [
+                'full_name' => $student->full_name,
+                'id' => (int) $student->id,
+                'student_number' => $student->student_number,
+            ]);
+
+        if (! $this->currentStudent) {
+            return [
+                'studentOptions' => $studentOptions,
+            ];
+        }
+
         $studentRecord = $this->currentStudent->fresh([
             'gradeLevel',
             'parentProfile',
@@ -276,6 +314,7 @@ new class extends Component {
 
         return [
             'studentRecord' => $studentRecord,
+            'studentOptions' => $studentOptions,
             'courseOptions' => $courseOptions,
             'enrollments' => $enrollments,
             'assessmentResults' => $assessmentResults,
@@ -305,6 +344,44 @@ new class extends Component {
             ],
         ];
     }
+
+    protected function setCurrentStudent(int $studentId): void
+    {
+        $student = Student::query()
+            ->with(['gradeLevel', 'parentProfile', 'quranCurrentJuz'])
+            ->findOrFail($studentId);
+
+        $this->authorizeScopedStudentAccess($student);
+
+        $this->currentStudent = $student;
+        $this->selectedStudentId = (int) $student->id;
+        $this->courseFilter = 'all';
+        $this->missingJuzId = null;
+    }
+
+    protected function studentOptionsQuery()
+    {
+        $searchTokens = collect(preg_split('/\s+/u', trim($this->studentSearch)) ?: [])
+            ->filter(fn (mixed $token): bool => is_string($token) && filled($token))
+            ->values();
+
+        return $this->scopeStudentsQuery(
+            Student::query()
+                ->select(['id', 'first_name', 'last_name', 'student_number'])
+                ->when($searchTokens->isNotEmpty(), function ($query) use ($searchTokens) {
+                    $searchTokens->each(function (string $token) use ($query): void {
+                        $query->where(function ($studentQuery) use ($token): void {
+                            $studentQuery
+                                ->where('first_name', 'like', '%'.$token.'%')
+                                ->orWhere('last_name', 'like', '%'.$token.'%');
+                        });
+                    });
+                })
+                ->orderBy('first_name')
+                ->orderBy('last_name')
+                ->orderBy('id')
+        );
+    }
 }; ?>
 
 <div class="page-stack">
@@ -316,6 +393,7 @@ new class extends Component {
                 <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ __('workflow.student_progress.subtitle') }}</p>
             </div>
 
+            @if ($currentStudent)
             <aside class="surface-panel surface-panel--soft p-5 lg:p-6">
                 @php
                     $studentPhotoUrl = $studentRecord->photo_path ? asset('storage/'.ltrim($studentRecord->photo_path, '/')) : null;
@@ -347,9 +425,45 @@ new class extends Component {
                     </div>
                 </div>
             </aside>
+            @endif
         </div>
     </section>
 
+    <section class="surface-panel p-5 lg:p-6">
+        <div class="admin-toolbar">
+            <div>
+                <div class="admin-toolbar__title">{{ __('workflow.student_progress.selection.title') }}</div>
+                <p class="admin-toolbar__subtitle">{{ __('workflow.student_progress.selection.copy') }}</p>
+            </div>
+
+            <div class="admin-toolbar__controls">
+                <div class="admin-filter-field">
+                    <label for="student-progress-search">{{ __('workflow.student_progress.selection.search') }}</label>
+                    <input
+                        id="student-progress-search"
+                        wire:model.live.debounce.300ms="studentSearch"
+                        type="search"
+                        class="rounded-xl px-4 py-3 text-sm"
+                        placeholder="{{ __('workflow.student_progress.selection.search_placeholder') }}"
+                    >
+                </div>
+
+                <div class="admin-filter-field">
+                    <label for="student-progress-student">{{ __('workflow.student_progress.selection.student') }}</label>
+                    <select id="student-progress-student" wire:model.live="selectedStudentId">
+                        <option value="">{{ __('workflow.student_progress.selection.select_student') }}</option>
+                        @foreach ($studentOptions as $studentOption)
+                            <option value="{{ $studentOption->id }}">
+                                {{ $studentOption->full_name }}{{ $studentOption->student_number ? ' - '.$studentOption->student_number : '' }}
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    @if ($currentStudent)
     <section class="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         <article class="stat-card">
             <div class="kpi-label">{{ __('workflow.student_progress.stats.attendance_days') }}</div>
@@ -794,4 +908,11 @@ new class extends Component {
             </div>
         @endif
     </x-admin.modal>
+    @else
+    <section class="surface-panel p-6">
+        <div class="admin-empty-state">
+            {{ $studentOptions->isEmpty() ? __('workflow.student_progress.selection.no_students') : __('workflow.student_progress.selection.empty') }}
+        </div>
+    </section>
+    @endif
 </div>

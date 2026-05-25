@@ -245,6 +245,7 @@ return [
                     'cta' => 'دعوة للإجراء',
                     'map' => 'خريطة / موقع',
                     'embed' => 'تضمين',
+                    'image' => 'صورة',
                     'custom_html' => 'HTML مخصص',
                 ],
                 'fields' => [
@@ -258,6 +259,7 @@ return [
                     'button_label_ar' => 'نص الزر بالعربية',
                     'button_url' => 'رابط الزر',
                     'embed_code' => 'كود التضمين',
+                    'image_upload' => 'صورة القسم',
                     'custom_html' => 'HTML مخصص',
                 ],
             ],
