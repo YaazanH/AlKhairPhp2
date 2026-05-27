@@ -199,6 +199,11 @@ return [
                 'title' => 'Default profile images',
                 'copy' => 'Used when a user, student, teacher, or parent has no uploaded profile photo.',
             ],
+            'student_dashboard_cards' => [
+                'title' => 'Student dashboard cards',
+                'copy' => 'Choose the print template that each group should expose on the student dashboard.',
+                'empty' => 'No groups are available for dashboard card assignment yet.',
+            ],
         ],
         'fields' => [
             'school_name' => 'School name',
@@ -227,6 +232,8 @@ return [
             'is_active' => 'Active',
             'default_student_gender' => 'Default gender for new students',
             'default_print_page_size' => 'Default print page size',
+            'student_dashboard_card_template' => 'Student card template',
+            'student_dashboard_card_template_none' => 'No template assigned',
             'gap_x_mm' => 'Horizontal gap (mm)',
             'gap_y_mm' => 'Vertical gap (mm)',
             'margin_bottom_mm' => 'Bottom margin (mm)',
@@ -289,6 +296,7 @@ return [
             'update_student_gender' => 'Update gender',
             'create_print_page_size' => 'Create page size',
             'update_print_page_size' => 'Update page size',
+            'save_student_dashboard_cards' => 'Save student card templates',
         ],
         'messages' => [
             'settings_saved' => 'Dashboard settings saved successfully.',
@@ -318,6 +326,7 @@ return [
             'print_page_size_created' => 'Print page size created successfully.',
             'print_page_size_updated' => 'Print page size updated successfully.',
             'print_page_size_deleted' => 'Print page size deleted successfully.',
+            'student_dashboard_card_templates_saved' => 'Student dashboard card templates saved successfully.',
         ],
         'errors' => [
             'academic_year_delete_linked' => 'This academic year cannot be deleted while groups are linked to it.',

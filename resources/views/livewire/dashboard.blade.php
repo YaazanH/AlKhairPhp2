@@ -1,12 +1,16 @@
 <?php
 
 use App\Models\AcademicYear;
+use App\Models\AppSetting;
 use App\Models\Enrollment;
 use App\Models\Group;
 use App\Models\PointTransaction;
+use App\Models\PrintTemplate;
 use App\Models\Student;
 use App\Models\StudentPageAchievement;
 use App\Models\Teacher;
+use App\Services\PrintTemplates\PrintTemplateDataSourceService;
+use App\Services\PrintTemplates\PrintTemplateRenderService;
 use App\Services\AccessScopeService;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Volt\Component;
@@ -280,6 +284,7 @@ new class extends Component {
             ->get();
 
         $allEnrollments = (clone $enrollmentsQuery)->get();
+        $studentCardPreviews = $this->studentDashboardCardPreviews($student, $user);
 
         return [
             'dashboardRole' => 'student',
@@ -315,7 +320,82 @@ new class extends Component {
                 'subtitle' => trim(($enrollment->group?->course?->name ?: __('dashboard.common.no_course')).' | '.$enrollment->status),
                 'meta' => __('dashboard.common.points_pages', ['points' => $enrollment->final_points_cached, 'pages' => $enrollment->memorized_pages_cached]),
             ]),
+            'studentCardPreviews' => $studentCardPreviews,
         ];
+    }
+
+    protected function studentDashboardCardPreviews(Student $student, $user)
+    {
+        $templateMap = AppSetting::groupValues('general')->get('student_dashboard_card_templates');
+
+        if (! is_array($templateMap) || $templateMap === []) {
+            return collect();
+        }
+
+        $activeEnrollments = app(AccessScopeService::class)
+            ->scopeEnrollments(Enrollment::query(), $user)
+            ->with(['group.course', 'group.academicYear'])
+            ->where('student_id', $student->id)
+            ->where('status', 'active')
+            ->orderByDesc('enrolled_at')
+            ->orderByDesc('id')
+            ->get()
+            ->unique('group_id')
+            ->values();
+
+        if ($activeEnrollments->isEmpty()) {
+            return collect();
+        }
+
+        $templateIds = collect($templateMap)
+            ->only($activeEnrollments->pluck('group_id')->map(fn ($id) => (string) $id)->all())
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values();
+
+        if ($templateIds->isEmpty()) {
+            return collect();
+        }
+
+        $templates = PrintTemplate::query()
+            ->where('is_active', true)
+            ->whereIn('id', $templateIds)
+            ->get()
+            ->filter(function (PrintTemplate $template) {
+                return collect(app(PrintTemplateDataSourceService::class)->normalize($template->data_sources ?? []))
+                    ->contains(fn (array $source) => $source['entity'] === 'student');
+            })
+            ->keyBy('id');
+
+        if ($templates->isEmpty()) {
+            return collect();
+        }
+
+        $student->loadMissing(['user', 'parentProfile', 'gradeLevel', 'enrollments.group']);
+        $renderService = app(PrintTemplateRenderService::class);
+
+        return $activeEnrollments
+            ->map(function (Enrollment $enrollment) use ($templateMap, $templates, $student, $renderService) {
+                $templateId = (int) ($templateMap[(string) $enrollment->group_id] ?? 0);
+                /** @var PrintTemplate|null $template */
+                $template = $templates->get($templateId);
+
+                if (! $template) {
+                    return null;
+                }
+
+                $contextStudent = clone $student;
+                $contextStudent->setRelation('enrollments', collect([$enrollment]));
+
+                return [
+                    'group' => $enrollment->group,
+                    'template' => $template,
+                    'rendered' => $renderService->render($template, ['student' => $contextStudent]),
+                ];
+            })
+            ->filter()
+            ->values();
     }
 
     protected function unassignedData($user): array
@@ -411,6 +491,44 @@ new class extends Component {
     @endif
 
     <div>
+        @if ($dashboardRole === 'student')
+            <section class="surface-panel mb-6 p-5 lg:p-6">
+                <div class="admin-grid-meta">
+                    <div>
+                        <div class="admin-grid-meta__title">{{ __('dashboard.student.card_preview.title') }}</div>
+                        <div class="admin-grid-meta__summary">{{ __('dashboard.student.card_preview.subtitle') }}</div>
+                    </div>
+                </div>
+
+                @if ($studentCardPreviews->isEmpty())
+                    <div class="admin-empty-state">{{ __('dashboard.student.card_preview.empty') }}</div>
+                @else
+                    <div class="mt-5 grid gap-5 xl:grid-cols-2">
+                        @foreach ($studentCardPreviews as $cardPreview)
+                            <article class="dashboard-print-card">
+                                <div class="dashboard-print-card__meta">
+                                    <div>
+                                        <div class="text-base font-semibold text-white">{{ $cardPreview['group']?->name ?: __('dashboard.common.no_group') }}</div>
+                                        <div class="mt-1 text-sm text-neutral-300">
+                                            {{ $cardPreview['group']?->course?->name ?: __('dashboard.common.no_course') }}
+                                            @if ($cardPreview['group']?->academicYear?->name)
+                                                <span class="text-neutral-500">|</span> {{ $cardPreview['group']->academicYear->name }}
+                                            @endif
+                                        </div>
+                                    </div>
+                                    <span class="badge-soft badge-soft--emerald">{{ $cardPreview['template']->name }}</span>
+                                </div>
+
+                                <div class="dashboard-print-card__canvas">
+                                    @include('print-templates.partials.item', ['item' => $cardPreview['rendered']])
+                                </div>
+                            </article>
+                        @endforeach
+                    </div>
+                @endif
+            </section>
+        @endif
+
         <section class="surface-table">
             <div class="soft-keyline border-b px-5 py-5 lg:px-6">
                 <div class="flex items-center justify-between gap-4">

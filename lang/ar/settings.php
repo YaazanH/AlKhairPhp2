@@ -199,6 +199,11 @@ return [
                 'title' => 'الصور الافتراضية للملفات',
                 'copy' => 'تستخدم عند عدم وجود صورة مرفوعة للمستخدم أو الطالب أو الأستاذ أو ولي الأمر.',
             ],
+            'student_dashboard_cards' => [
+                'title' => 'بطاقات لوحة الطالب',
+                'copy' => 'اختر قالب الطباعة الذي يجب أن يظهر لكل مجموعة داخل لوحة الطالب.',
+                'empty' => 'لا توجد مجموعات متاحة لتعيين بطاقات لوحة الطالب بعد.',
+            ],
         ],
         'fields' => [
             'school_name' => 'اسم الصفحة الرئيسية',
@@ -227,6 +232,8 @@ return [
             'is_active' => 'نشط',
             'default_student_gender' => 'الجنس الافتراضي للطلاب الجدد',
             'default_print_page_size' => 'حجم صفحة الطباعة الافتراضي',
+            'student_dashboard_card_template' => 'قالب بطاقة الطالب',
+            'student_dashboard_card_template_none' => 'بدون قالب',
             'gap_x_mm' => 'المسافة الأفقية (مم)',
             'gap_y_mm' => 'المسافة العمودية (مم)',
             'margin_bottom_mm' => 'الهامش السفلي (مم)',
@@ -289,6 +296,7 @@ return [
             'update_student_gender' => 'تحديث خيار الجنس',
             'create_print_page_size' => 'إنشاء حجم صفحة',
             'update_print_page_size' => 'تحديث حجم الصفحة',
+            'save_student_dashboard_cards' => 'حفظ قوالب بطاقات الطلاب',
         ],
         'messages' => [
             'settings_saved' => 'تم حفظ إعدادات الصفحة الرئيسية بنجاح.',
@@ -318,6 +326,7 @@ return [
             'print_page_size_created' => 'تم إنشاء حجم صفحة الطباعة بنجاح.',
             'print_page_size_updated' => 'تم تحديث حجم صفحة الطباعة بنجاح.',
             'print_page_size_deleted' => 'تم حذف حجم صفحة الطباعة بنجاح.',
+            'student_dashboard_card_templates_saved' => 'تم حفظ قوالب بطاقات لوحة الطالب بنجاح.',
         ],
         'errors' => [
             'academic_year_delete_linked' => 'لا يمكن حذف هذه السنة الدراسية ما دامت هناك مجموعات مرتبطة بها.',

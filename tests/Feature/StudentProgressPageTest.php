@@ -211,7 +211,8 @@ class StudentProgressPageTest extends TestCase
         $this->get(route('students.progress', absolute: false))
             ->assertOk()
             ->assertSeeText('اختيار الطالب')
-            ->assertSeeText('اختر الطالب')
+            ->assertSeeText('ابحث باسم الطالب أو رقمه')
+            ->assertSeeText('فتح')
             ->assertSeeText('Parent Student')
             ->assertSeeText('Other Student')
             ->assertSeeText('اختر طالباً من الأعلى لعرض صفحة التقدم الكاملة.');

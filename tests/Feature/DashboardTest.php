@@ -3,10 +3,12 @@
 namespace Tests\Feature;
 
 use App\Models\AcademicYear;
+use App\Models\AppSetting;
 use App\Models\Course;
 use App\Models\Enrollment;
 use App\Models\Group;
 use App\Models\ParentProfile;
+use App\Models\PrintTemplate;
 use App\Models\Student;
 use App\Models\Teacher;
 use App\Models\User;
@@ -305,6 +307,143 @@ class DashboardTest extends TestCase
             ->assertOk()
             ->assertSee('Student Dashboard')
             ->assertSee('Your Enrollments')
+            ->assertSee('Student Group');
+    }
+
+    public function test_student_dashboard_can_show_group_card_preview_from_dashboard_settings(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $user = User::factory()->create([
+            'username' => 'student-dashboard-card',
+            'phone' => '7000104',
+        ]);
+
+        $user->assignRole('student');
+
+        $parent = ParentProfile::create([
+            'father_name' => 'Parent Name',
+        ]);
+
+        $student = Student::create([
+            'user_id' => $user->id,
+            'parent_id' => $parent->id,
+            'first_name' => 'Aya',
+            'last_name' => 'Hasan',
+            'birth_date' => '2013-03-03',
+            'status' => 'active',
+        ]);
+
+        $teacher = Teacher::create([
+            'first_name' => 'Assigned',
+            'last_name' => 'Teacher',
+            'phone' => '0944000199',
+            'status' => 'active',
+        ]);
+
+        $course = Course::create([
+            'name' => 'Revision Track',
+            'is_active' => true,
+        ]);
+
+        $academicYear = AcademicYear::create([
+            'name' => '2026/2027',
+            'starts_on' => '2026-08-01',
+            'ends_on' => '2027-07-31',
+            'is_current' => true,
+            'is_active' => true,
+        ]);
+
+        $group = Group::create([
+            'course_id' => $course->id,
+            'academic_year_id' => $academicYear->id,
+            'teacher_id' => $teacher->id,
+            'name' => 'Student Group',
+            'capacity' => 10,
+            'is_active' => true,
+        ]);
+
+        Enrollment::create([
+            'student_id' => $student->id,
+            'group_id' => $group->id,
+            'enrolled_at' => '2026-09-01',
+            'status' => 'active',
+            'final_points_cached' => 12,
+            'memorized_pages_cached' => 6,
+        ]);
+
+        $template = PrintTemplate::create([
+            'name' => 'Student Dashboard Card',
+            'width_mm' => 85.6,
+            'height_mm' => 54.0,
+            'background_image' => null,
+            'data_sources' => [
+                ['entity' => 'student', 'mode' => 'single'],
+            ],
+            'layout_json' => [
+                [
+                    'id' => 'student-name',
+                    'type' => 'dynamic_text',
+                    'source' => 'student',
+                    'field' => 'full_name',
+                    'content' => '',
+                    'x' => 8,
+                    'y' => 8,
+                    'width' => 55,
+                    'height' => 10,
+                    'z_index' => 1,
+                    'styling' => [
+                        'font_size' => 4.2,
+                        'font_weight' => '700',
+                        'color' => '#102316',
+                        'text_align' => 'left',
+                        'border_radius' => 0,
+                        'object_fit' => 'cover',
+                        'letter_spacing' => 0,
+                        'show_text' => true,
+                        'barcode_format' => 'code39',
+                        'line_height' => 1.2,
+                    ],
+                ],
+                [
+                    'id' => 'group-name',
+                    'type' => 'dynamic_text',
+                    'source' => 'student',
+                    'field' => 'group_name',
+                    'content' => '',
+                    'x' => 8,
+                    'y' => 22,
+                    'width' => 55,
+                    'height' => 8,
+                    'z_index' => 2,
+                    'styling' => [
+                        'font_size' => 3.6,
+                        'font_weight' => '600',
+                        'color' => '#102316',
+                        'text_align' => 'left',
+                        'border_radius' => 0,
+                        'object_fit' => 'cover',
+                        'letter_spacing' => 0,
+                        'show_text' => true,
+                        'barcode_format' => 'code39',
+                        'line_height' => 1.2,
+                    ],
+                ],
+            ],
+            'is_active' => true,
+        ]);
+
+        AppSetting::storeValue('general', 'student_dashboard_card_templates', [
+            (string) $group->id => $template->id,
+        ], 'array');
+
+        $this->actingAs($user);
+
+        $this->get('/dashboard')
+            ->assertOk()
+            ->assertSee('Your printed cards')
+            ->assertSee('Student Dashboard Card')
+            ->assertSee('Aya Hasan')
             ->assertSee('Student Group');
     }
 }

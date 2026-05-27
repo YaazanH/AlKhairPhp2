@@ -128,6 +128,11 @@ return [
                 'body' => 'This dashboard is limited to your own profile and enrollments.',
             ],
         ],
+        'card_preview' => [
+            'title' => 'Your printed cards',
+            'subtitle' => 'Each active group can show its own student card template here.',
+            'empty' => 'No student card template is assigned to your active groups yet.',
+        ],
         'records' => [
             'heading' => 'Your Enrollments',
             'empty' => 'No enrollments are linked to this student yet.',
