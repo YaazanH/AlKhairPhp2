@@ -11,8 +11,10 @@ return [
             'actions' => 'Actions',
             'create' => 'Create',
             'create_and_new' => 'Create and new',
+            'activate' => 'Activate',
             'cancel' => 'Cancel',
             'close' => 'Close',
+            'bulk_status' => 'Bulk status',
             'edit' => 'Edit',
             'delete' => 'Delete',
             'copy' => 'Copy',
@@ -127,6 +129,38 @@ return [
         ],
         'errors' => [
             'delete_linked' => 'This parent profile cannot be deleted while students are linked to it.',
+        ],
+        'bulk_status' => [
+            'title' => 'Bulk parent status',
+            'description' => 'Update parent profiles in one step by all records or by a parent number range.',
+            'help' => 'This tool updates parent profiles only. Use the Students page bulk status tool for group or course-based student changes.',
+            'fields' => [
+                'action' => 'Action',
+                'scope' => 'Selection scope',
+                'number_from' => 'Parent number from',
+                'number_to' => 'Parent number to',
+                'sync_accounts' => 'Also update linked login accounts',
+            ],
+            'scopes' => [
+                'all' => 'All parent profiles',
+                'parent_number_range' => 'Parent number range',
+            ],
+            'placeholders' => [
+                'number_from' => 'Example: P000120',
+                'number_to' => 'Example: P000180',
+            ],
+            'preview' => [
+                'profiles' => ':count parent profiles will be updated.',
+                'accounts' => ':count linked login accounts will be updated.',
+            ],
+            'messages' => [
+                'updated' => ':count parent profiles were set to :status.',
+            ],
+            'errors' => [
+                'no_targets' => 'No parent profiles match the selected bulk status scope.',
+                'number_range_required' => 'Enter at least one parent number for the range.',
+                'invalid_number_range' => 'Enter valid parent numbers for the selected range.',
+            ],
         ],
     ],
     'teachers' => [
@@ -392,6 +426,44 @@ return [
         'errors' => [
             'delete_linked' => 'This student cannot be deleted while enrollments still exist.',
             'delete_memorization' => 'This student cannot be deleted because memorization or Quran page progress exists.',
+        ],
+        'bulk_status' => [
+            'title' => 'Bulk student status',
+            'description' => 'Update active and inactive students in bulk by all records, student number range, current course, or current group.',
+            'help' => 'Only the active and inactive statuses are changed here. Graduated and blocked students stay as they are.',
+            'fields' => [
+                'action' => 'Action',
+                'scope' => 'Selection scope',
+                'number_from' => 'Student number from',
+                'number_to' => 'Student number to',
+                'course' => 'Course',
+                'group' => 'Group',
+                'sync_accounts' => 'Also update linked login accounts',
+            ],
+            'scopes' => [
+                'all' => 'All active or inactive students',
+                'student_number_range' => 'Student number range',
+                'course' => 'Current course',
+                'group' => 'Current group',
+            ],
+            'placeholders' => [
+                'number_from' => 'Example: S000120',
+                'number_to' => 'Example: S000180',
+            ],
+            'preview' => [
+                'profiles' => ':count student profiles will be updated.',
+                'accounts' => ':count linked login accounts will be updated.',
+            ],
+            'messages' => [
+                'updated' => ':count student profiles were set to :status.',
+            ],
+            'errors' => [
+                'no_targets' => 'No students match the selected bulk status scope.',
+                'number_range_required' => 'Enter at least one student number for the range.',
+                'invalid_number_range' => 'Enter valid student numbers for the selected range.',
+                'course_required' => 'Select a course before applying the student bulk status action.',
+                'group_required' => 'Select a group before applying the student bulk status action.',
+            ],
         ],
     ],
     'groups' => [

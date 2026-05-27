@@ -13,6 +13,8 @@ use App\Models\Student;
 use App\Models\StudentFile;
 use App\Models\Teacher;
 use App\Models\User;
+use App\Services\ParentNumberService;
+use App\Services\StudentNumberService;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -584,6 +586,185 @@ class ManagementCrudTest extends TestCase
             'academic_year_id' => $olderYear->id,
             'name' => 'Legacy Group A',
         ]);
+    }
+
+    public function test_student_bulk_status_can_deactivate_current_course_students_and_sync_accounts(): void
+    {
+        $this->signIn();
+
+        $teacher = Teacher::create([
+            'first_name' => 'Bulk',
+            'last_name' => 'Teacher',
+            'phone' => '0944011001',
+            'status' => 'active',
+            'is_helping' => true,
+        ]);
+
+        $course = Course::create([
+            'name' => 'Bulk Course',
+            'is_active' => true,
+        ]);
+
+        $otherCourse = Course::create([
+            'name' => 'Other Course',
+            'is_active' => true,
+        ]);
+
+        $academicYear = AcademicYear::create([
+            'name' => '2026/2027',
+            'starts_on' => '2026-08-01',
+            'ends_on' => '2027-07-31',
+            'is_current' => true,
+            'is_active' => true,
+        ]);
+
+        $group = Group::create([
+            'course_id' => $course->id,
+            'academic_year_id' => $academicYear->id,
+            'teacher_id' => $teacher->id,
+            'name' => 'Bulk Group',
+            'capacity' => 20,
+            'is_active' => true,
+        ]);
+
+        $otherGroup = Group::create([
+            'course_id' => $otherCourse->id,
+            'academic_year_id' => $academicYear->id,
+            'teacher_id' => $teacher->id,
+            'name' => 'Other Group',
+            'capacity' => 20,
+            'is_active' => true,
+        ]);
+
+        $parent = ParentProfile::create([
+            'father_name' => 'Bulk Parent',
+            'is_active' => true,
+        ]);
+
+        $activeUser = User::factory()->create(['is_active' => true]);
+        $inactiveUser = User::factory()->create(['is_active' => false]);
+        $blockedUser = User::factory()->create(['is_active' => true]);
+        $otherUser = User::factory()->create(['is_active' => true]);
+
+        $activeStudent = Student::create([
+            'user_id' => $activeUser->id,
+            'parent_id' => $parent->id,
+            'first_name' => 'Course',
+            'last_name' => 'Active',
+            'birth_date' => '2012-01-01',
+            'status' => 'active',
+        ]);
+
+        $inactiveStudent = Student::create([
+            'user_id' => $inactiveUser->id,
+            'parent_id' => $parent->id,
+            'first_name' => 'Course',
+            'last_name' => 'Inactive',
+            'birth_date' => '2012-01-01',
+            'status' => 'inactive',
+        ]);
+
+        $blockedStudent = Student::create([
+            'user_id' => $blockedUser->id,
+            'parent_id' => $parent->id,
+            'first_name' => 'Course',
+            'last_name' => 'Blocked',
+            'birth_date' => '2012-01-01',
+            'status' => 'blocked',
+        ]);
+
+        $otherStudent = Student::create([
+            'user_id' => $otherUser->id,
+            'parent_id' => $parent->id,
+            'first_name' => 'Other',
+            'last_name' => 'Student',
+            'birth_date' => '2012-01-01',
+            'status' => 'active',
+        ]);
+
+        Enrollment::create([
+            'student_id' => $activeStudent->id,
+            'group_id' => $group->id,
+            'enrolled_at' => '2026-09-01',
+            'status' => 'active',
+        ]);
+
+        Enrollment::create([
+            'student_id' => $inactiveStudent->id,
+            'group_id' => $group->id,
+            'enrolled_at' => '2026-09-01',
+            'status' => 'active',
+        ]);
+
+        Enrollment::create([
+            'student_id' => $blockedStudent->id,
+            'group_id' => $group->id,
+            'enrolled_at' => '2026-09-01',
+            'status' => 'active',
+        ]);
+
+        Enrollment::create([
+            'student_id' => $otherStudent->id,
+            'group_id' => $otherGroup->id,
+            'enrolled_at' => '2026-09-01',
+            'status' => 'active',
+        ]);
+
+        Volt::test('students.index')
+            ->call('openBulkStatusModal')
+            ->set('bulk_scope', 'course')
+            ->set('bulk_course_id', $course->id)
+            ->set('bulk_status_action', 'deactivate')
+            ->set('bulk_sync_accounts', true)
+            ->call('applyBulkStatus')
+            ->assertHasNoErrors();
+
+        $this->assertSame('inactive', $activeStudent->fresh()->status);
+        $this->assertFalse($activeUser->fresh()->is_active);
+        $this->assertSame('inactive', $inactiveStudent->fresh()->status);
+        $this->assertFalse($inactiveUser->fresh()->is_active);
+        $this->assertSame('blocked', $blockedStudent->fresh()->status);
+        $this->assertTrue($blockedUser->fresh()->is_active);
+        $this->assertSame('active', $otherStudent->fresh()->status);
+        $this->assertTrue($otherUser->fresh()->is_active);
+    }
+
+    public function test_parent_bulk_status_can_activate_by_parent_number_range_and_sync_accounts(): void
+    {
+        $this->signIn();
+
+        $firstUser = User::factory()->create(['is_active' => false]);
+        $secondUser = User::factory()->create(['is_active' => false]);
+
+        $firstParent = ParentProfile::create([
+            'user_id' => $firstUser->id,
+            'father_name' => 'First Parent',
+            'is_active' => false,
+        ]);
+
+        $secondParent = ParentProfile::create([
+            'user_id' => $secondUser->id,
+            'father_name' => 'Second Parent',
+            'is_active' => false,
+        ]);
+
+        $from = app(ParentNumberService::class)->formatForId($firstParent->id);
+        $to = app(ParentNumberService::class)->formatForId($firstParent->id);
+
+        Volt::test('parents.index')
+            ->call('openBulkStatusModal')
+            ->set('bulk_scope', 'parent_number_range')
+            ->set('bulk_parent_number_from', $from)
+            ->set('bulk_parent_number_to', $to)
+            ->set('bulk_status_action', 'activate')
+            ->set('bulk_sync_accounts', true)
+            ->call('applyBulkStatus')
+            ->assertHasNoErrors();
+
+        $this->assertTrue($firstParent->fresh()->is_active);
+        $this->assertTrue($firstUser->fresh()->is_active);
+        $this->assertFalse($secondParent->fresh()->is_active);
+        $this->assertFalse($secondUser->fresh()->is_active);
     }
 
     public function test_view_only_access_cannot_create_records(): void

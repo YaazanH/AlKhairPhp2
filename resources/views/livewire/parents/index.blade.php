@@ -8,6 +8,9 @@ use App\Models\ParentProfile;
 use App\Models\Student;
 use App\Services\ManagedUserService;
 use App\Services\ParentNumberService;
+use App\Models\User;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Livewire\Volt\Component;
 use Livewire\WithPagination;
@@ -41,9 +44,15 @@ new class extends Component {
     public bool $showFormModal = false;
     public bool $showAccountModal = false;
     public bool $showChildrenModal = false;
+    public bool $showBulkStatusModal = false;
     public ?int $childrenParentId = null;
     public string $childrenParentName = '';
     public array $childrenRows = [];
+    public string $bulk_status_action = 'deactivate';
+    public string $bulk_scope = 'all';
+    public string $bulk_parent_number_from = '';
+    public string $bulk_parent_number_to = '';
+    public bool $bulk_sync_accounts = true;
 
     public function mount(): void
     {
@@ -79,6 +88,7 @@ new class extends Component {
                 'active' => $this->scopeParentsQuery(ParentProfile::query()->where('is_active', true))->count(),
             ],
             'filteredCount' => $filteredCount,
+            'bulkStatusPreview' => $this->showBulkStatusModal ? $this->bulkStatusPreview() : ['profiles' => 0, 'accounts' => 0],
         ];
     }
 
@@ -90,6 +100,101 @@ new class extends Component {
     public function updatedStatusFilter(): void
     {
         $this->resetPage();
+    }
+
+    public function updatedBulkScope(): void
+    {
+        $this->bulk_parent_number_from = '';
+        $this->bulk_parent_number_to = '';
+
+        $this->resetValidation([
+            'bulk_parent_number_from',
+            'bulk_parent_number_to',
+            'bulk_status',
+        ]);
+    }
+
+    public function openBulkStatusModal(): void
+    {
+        $this->authorizePermission('parents.update');
+
+        $this->bulk_status_action = 'deactivate';
+        $this->bulk_scope = 'all';
+        $this->bulk_parent_number_from = '';
+        $this->bulk_parent_number_to = '';
+        $this->bulk_sync_accounts = true;
+        $this->showBulkStatusModal = true;
+
+        $this->resetValidation([
+            'bulk_parent_number_from',
+            'bulk_parent_number_to',
+            'bulk_status',
+        ]);
+    }
+
+    public function closeBulkStatusModal(): void
+    {
+        $this->showBulkStatusModal = false;
+        $this->bulk_status_action = 'deactivate';
+        $this->bulk_scope = 'all';
+        $this->bulk_parent_number_from = '';
+        $this->bulk_parent_number_to = '';
+        $this->bulk_sync_accounts = true;
+
+        $this->resetValidation([
+            'bulk_parent_number_from',
+            'bulk_parent_number_to',
+            'bulk_status',
+        ]);
+    }
+
+    public function applyBulkStatus(): void
+    {
+        $this->authorizePermission('parents.update');
+
+        $targets = $this->targetParentIdsForBulkStatus();
+        $parentCount = count($targets);
+
+        if ($parentCount === 0) {
+            $this->addError('bulk_status', __('crud.parents.bulk_status.errors.no_targets'));
+
+            return;
+        }
+
+        $accountIds = [];
+
+        if ($this->bulk_sync_accounts) {
+            $accountIds = ParentProfile::query()
+                ->whereIn('id', $targets)
+                ->whereNotNull('user_id')
+                ->pluck('user_id')
+                ->all();
+        }
+
+        DB::transaction(function () use ($targets, $accountIds): void {
+            ParentProfile::query()
+                ->whereIn('id', $targets)
+                ->update([
+                    'is_active' => $this->bulk_status_action === 'activate',
+                    'updated_at' => now(),
+                ]);
+
+            if ($this->bulk_sync_accounts && $accountIds !== []) {
+                User::query()
+                    ->whereIn('id', $accountIds)
+                    ->update([
+                        'is_active' => $this->bulk_status_action === 'activate',
+                        'updated_at' => now(),
+                    ]);
+            }
+        });
+
+        session()->flash('status', __('crud.parents.bulk_status.messages.updated', [
+            'count' => number_format($parentCount),
+            'status' => __('crud.common.status_options.'.($this->bulk_status_action === 'activate' ? 'active' : 'inactive')),
+        ]));
+
+        $this->closeBulkStatusModal();
     }
 
     public function rules(): array
@@ -394,6 +499,112 @@ new class extends Component {
             ? ParentProfile::query()->whereKey($profileId)->value('user_id')
             : null;
     }
+
+    protected function bulkStatusPreview(): array
+    {
+        $targets = $this->targetParentIdsForBulkStatus(false);
+
+        if ($targets === []) {
+            return ['profiles' => 0, 'accounts' => 0];
+        }
+
+        $accounts = $this->bulk_sync_accounts
+            ? User::query()
+                ->whereIn('id', ParentProfile::query()->whereIn('id', $targets)->whereNotNull('user_id')->pluck('user_id'))
+                ->where('is_active', $this->bulk_status_action !== 'activate')
+                ->count()
+            : 0;
+
+        return [
+            'profiles' => count($targets),
+            'accounts' => $accounts,
+        ];
+    }
+
+    protected function targetParentIdsForBulkStatus(bool $withValidation = true): array
+    {
+        $query = $this->bulkStatusParentQuery($withValidation);
+
+        if (! $query) {
+            return [];
+        }
+
+        return $query->pluck('id')->all();
+    }
+
+    protected function bulkStatusParentQuery(bool $withValidation = true): ?Builder
+    {
+        $query = $this->scopeParentsQuery(ParentProfile::query());
+
+        if ($this->bulk_scope === 'parent_number_range') {
+            [$from, $to] = $this->parentNumberRangeBounds($withValidation);
+
+            if ($from === null && $to === null) {
+                return null;
+            }
+
+            if ($from !== null) {
+                $query->where('id', '>=', $from);
+            }
+
+            if ($to !== null) {
+                $query->where('id', '<=', $to);
+            }
+        }
+
+        return $query->where('is_active', $this->bulk_status_action !== 'activate');
+    }
+
+    protected function parentNumberRangeBounds(bool $withValidation = true): array
+    {
+        $from = $this->parseParentNumberInput($this->bulk_parent_number_from);
+        $to = $this->parseParentNumberInput($this->bulk_parent_number_to);
+
+        if ($from === null && $to === null) {
+            if ($withValidation) {
+                $this->addError('bulk_parent_number_from', __('crud.parents.bulk_status.errors.number_range_required'));
+            }
+
+            return [null, null];
+        }
+
+        if ((filled($this->bulk_parent_number_from) && $from === null) || (filled($this->bulk_parent_number_to) && $to === null)) {
+            if ($withValidation) {
+                $this->addError('bulk_parent_number_from', __('crud.parents.bulk_status.errors.invalid_number_range'));
+            }
+
+            return [null, null];
+        }
+
+        if ($from !== null && $to !== null && $from > $to) {
+            [$from, $to] = [$to, $from];
+        }
+
+        return [$from, $to];
+    }
+
+    protected function parseParentNumberInput(string $value): ?int
+    {
+        $normalized = trim($value);
+
+        if ($normalized === '') {
+            return null;
+        }
+
+        $prefix = app(ParentNumberService::class)->prefix();
+
+        if ($prefix !== '' && strncasecmp($normalized, $prefix, strlen($prefix)) === 0) {
+            $normalized = substr($normalized, strlen($prefix));
+        }
+
+        $digits = preg_replace('/\D+/', '', $normalized);
+
+        if ($digits === '') {
+            return null;
+        }
+
+        return (int) ltrim($digits, '0') ?: 0;
+    }
 }; ?>
 
 <div class="page-stack">
@@ -448,6 +659,9 @@ new class extends Component {
                 </div>
 
                 <div class="admin-toolbar__actions">
+                    @can('parents.update')
+                        <button type="button" wire:click="openBulkStatusModal" class="pill-link">{{ __('crud.common.actions.bulk_status') }}</button>
+                    @endcan
                     @can('parents.create')
                         <button type="button" wire:click="openCreateModal" class="pill-link pill-link--accent">{{ __('crud.common.actions.create') }}</button>
                     @endcan
@@ -527,6 +741,71 @@ new class extends Component {
             @endif
         @endif
     </section>
+
+    <x-admin.modal
+        :show="$showBulkStatusModal"
+        :title="__('crud.parents.bulk_status.title')"
+        :description="__('crud.parents.bulk_status.description')"
+        close-method="closeBulkStatusModal"
+        max-width="4xl"
+    >
+        <form wire:submit="applyBulkStatus" class="space-y-5">
+            <div class="grid gap-4 md:grid-cols-2">
+                <div>
+                    <label class="mb-1 block text-sm font-medium">{{ __('crud.parents.bulk_status.fields.action') }}</label>
+                    <select wire:model.live="bulk_status_action" class="w-full rounded-xl px-4 py-3 text-sm">
+                        <option value="deactivate">{{ __('crud.common.actions.deactivate') }}</option>
+                        <option value="activate">{{ __('crud.common.actions.activate') }}</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="mb-1 block text-sm font-medium">{{ __('crud.parents.bulk_status.fields.scope') }}</label>
+                    <select wire:model.live="bulk_scope" class="w-full rounded-xl px-4 py-3 text-sm">
+                        <option value="all">{{ __('crud.parents.bulk_status.scopes.all') }}</option>
+                        <option value="parent_number_range">{{ __('crud.parents.bulk_status.scopes.parent_number_range') }}</option>
+                    </select>
+                </div>
+            </div>
+
+            @if ($bulk_scope === 'parent_number_range')
+                <div class="grid gap-4 md:grid-cols-2">
+                    <div>
+                        <label class="mb-1 block text-sm font-medium">{{ __('crud.parents.bulk_status.fields.number_from') }}</label>
+                        <input wire:model.live="bulk_parent_number_from" type="text" class="w-full rounded-xl px-4 py-3 text-sm" placeholder="{{ __('crud.parents.bulk_status.placeholders.number_from') }}">
+                    </div>
+
+                    <div>
+                        <label class="mb-1 block text-sm font-medium">{{ __('crud.parents.bulk_status.fields.number_to') }}</label>
+                        <input wire:model.live="bulk_parent_number_to" type="text" class="w-full rounded-xl px-4 py-3 text-sm" placeholder="{{ __('crud.parents.bulk_status.placeholders.number_to') }}">
+                    </div>
+                </div>
+            @endif
+
+            <label class="flex items-center gap-3 text-sm">
+                <input wire:model="bulk_sync_accounts" type="checkbox" class="rounded border-neutral-300 text-neutral-900">
+                <span>{{ __('crud.parents.bulk_status.fields.sync_accounts') }}</span>
+            </label>
+
+            <div class="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-neutral-200">
+                <div>{{ __('crud.parents.bulk_status.preview.profiles', ['count' => number_format($bulkStatusPreview['profiles'])]) }}</div>
+                <div class="mt-1 text-neutral-400">{{ __('crud.parents.bulk_status.preview.accounts', ['count' => number_format($bulkStatusPreview['accounts'])]) }}</div>
+                <div class="mt-2 text-xs text-neutral-500">{{ __('crud.parents.bulk_status.help') }}</div>
+            </div>
+
+            @error('bulk_status')
+                <div class="text-sm text-red-400">{{ $message }}</div>
+            @enderror
+            @error('bulk_parent_number_from')
+                <div class="text-sm text-red-400">{{ $message }}</div>
+            @enderror
+
+            <div class="flex flex-wrap justify-end gap-3">
+                <button type="button" wire:click="closeBulkStatusModal" class="pill-link">{{ __('crud.common.actions.cancel') }}</button>
+                <button type="submit" class="pill-link pill-link--accent">{{ __('crud.common.actions.bulk_status') }}</button>
+            </div>
+        </form>
+    </x-admin.modal>
 
     <x-admin.modal
         :show="$showFormModal"

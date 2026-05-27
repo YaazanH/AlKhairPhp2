@@ -3,14 +3,20 @@
 use App\Livewire\Concerns\AuthorizesPermissions;
 use App\Livewire\Concerns\AuthorizesTeacherAssignments;
 use App\Livewire\Concerns\SupportsCreateAndNew;
+use App\Models\Course;
 use App\Models\GradeLevel;
 use App\Models\FatherJob;
+use App\Models\Group;
 use App\Models\ParentProfile;
 use App\Models\QuranJuz;
 use App\Models\School;
 use App\Models\Student;
 use App\Models\StudentGender;
+use App\Models\User;
 use App\Services\ManagedUserService;
+use App\Services\StudentNumberService;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Livewire\Volt\Component;
 use Livewire\WithPagination;
@@ -46,6 +52,7 @@ new class extends Component {
     public int $perPage = 15;
     public bool $showFormModal = false;
     public bool $showAccountModal = false;
+    public bool $showBulkStatusModal = false;
     public bool $showQuickParentForm = false;
     public string $quick_parent_father_name = '';
     public string $quick_parent_father_work = '';
@@ -56,6 +63,13 @@ new class extends Component {
     public string $quick_parent_home_phone = '';
     public string $quick_parent_address = '';
     public string $new_school_name = '';
+    public string $bulk_status_action = 'deactivate';
+    public string $bulk_scope = 'all';
+    public string $bulk_student_number_from = '';
+    public string $bulk_student_number_to = '';
+    public ?int $bulk_course_id = null;
+    public ?int $bulk_group_id = null;
+    public bool $bulk_sync_accounts = true;
 
     public function mount(): void
     {
@@ -105,6 +119,23 @@ new class extends Component {
             'filteredCount' => $filteredCount,
             'genders' => StudentGender::query()->where('is_active', true)->orderBy('sort_order')->orderBy('name')->get(['code', 'name']),
             'statuses' => ['active', 'inactive', 'graduated', 'blocked'],
+            'bulkCourses' => Course::query()
+                ->where('is_active', true)
+                ->whereIn('id', $this->scopeGroupsQuery(
+                    Group::query()
+                        ->where('is_active', true)
+                        ->select('course_id')
+                )->pluck('course_id')->filter()->unique()->all())
+                ->orderBy('name')
+                ->get(['id', 'name']),
+            'bulkGroups' => $this->scopeGroupsQuery(
+                Group::query()
+                    ->where('is_active', true)
+                    ->when($this->bulk_course_id, fn (Builder $query) => $query->where('course_id', $this->bulk_course_id))
+            )
+                ->orderBy('name')
+                ->get(['id', 'name', 'course_id']),
+            'bulkStatusPreview' => $this->showBulkStatusModal ? $this->bulkStatusPreview() : ['profiles' => 0, 'accounts' => 0],
         ];
     }
 
@@ -116,6 +147,130 @@ new class extends Component {
     public function updatedStatusFilter(): void
     {
         $this->resetPage();
+    }
+
+    public function updatedBulkScope(): void
+    {
+        $this->bulk_student_number_from = '';
+        $this->bulk_student_number_to = '';
+        $this->bulk_course_id = null;
+        $this->bulk_group_id = null;
+        $this->resetValidation([
+            'bulk_scope',
+            'bulk_student_number_from',
+            'bulk_student_number_to',
+            'bulk_course_id',
+            'bulk_group_id',
+            'bulk_status',
+        ]);
+    }
+
+    public function updatedBulkCourseId(): void
+    {
+        if (! $this->bulk_course_id) {
+            $this->bulk_group_id = null;
+
+            return;
+        }
+
+        $groupCourseId = Group::query()->whereKey($this->bulk_group_id)->value('course_id');
+
+        if ($groupCourseId !== $this->bulk_course_id) {
+            $this->bulk_group_id = null;
+        }
+    }
+
+    public function openBulkStatusModal(): void
+    {
+        $this->authorizePermission('students.update');
+
+        $this->bulk_status_action = 'deactivate';
+        $this->bulk_scope = 'all';
+        $this->bulk_student_number_from = '';
+        $this->bulk_student_number_to = '';
+        $this->bulk_course_id = null;
+        $this->bulk_group_id = null;
+        $this->bulk_sync_accounts = true;
+        $this->showBulkStatusModal = true;
+
+        $this->resetValidation([
+            'bulk_scope',
+            'bulk_student_number_from',
+            'bulk_student_number_to',
+            'bulk_course_id',
+            'bulk_group_id',
+            'bulk_status',
+        ]);
+    }
+
+    public function closeBulkStatusModal(): void
+    {
+        $this->showBulkStatusModal = false;
+        $this->bulk_status_action = 'deactivate';
+        $this->bulk_scope = 'all';
+        $this->bulk_student_number_from = '';
+        $this->bulk_student_number_to = '';
+        $this->bulk_course_id = null;
+        $this->bulk_group_id = null;
+        $this->bulk_sync_accounts = true;
+
+        $this->resetValidation([
+            'bulk_scope',
+            'bulk_student_number_from',
+            'bulk_student_number_to',
+            'bulk_course_id',
+            'bulk_group_id',
+            'bulk_status',
+        ]);
+    }
+
+    public function applyBulkStatus(): void
+    {
+        $this->authorizePermission('students.update');
+
+        $targets = $this->targetStudentIdsForBulkStatus();
+        $studentCount = count($targets);
+
+        if ($studentCount === 0) {
+            $this->addError('bulk_status', __('crud.students.bulk_status.errors.no_targets'));
+
+            return;
+        }
+
+        $accountIds = [];
+
+        if ($this->bulk_sync_accounts) {
+            $accountIds = Student::query()
+                ->whereIn('id', $targets)
+                ->whereNotNull('user_id')
+                ->pluck('user_id')
+                ->all();
+        }
+
+        DB::transaction(function () use ($targets, $accountIds): void {
+            Student::query()
+                ->whereIn('id', $targets)
+                ->update([
+                    'status' => $this->bulk_status_action === 'activate' ? 'active' : 'inactive',
+                    'updated_at' => now(),
+                ]);
+
+            if ($this->bulk_sync_accounts && $accountIds !== []) {
+                User::query()
+                    ->whereIn('id', $accountIds)
+                    ->update([
+                        'is_active' => $this->bulk_status_action === 'activate',
+                        'updated_at' => now(),
+                    ]);
+            }
+        });
+
+        session()->flash('status', __('crud.students.bulk_status.messages.updated', [
+            'count' => number_format($studentCount),
+            'status' => __('crud.common.status_options.'.($this->bulk_status_action === 'activate' ? 'active' : 'inactive')),
+        ]));
+
+        $this->closeBulkStatusModal();
     }
 
     public function rules(): array
@@ -519,6 +674,138 @@ new class extends Component {
             ->value('code') ?? '');
     }
 
+    protected function bulkStatusPreview(): array
+    {
+        $targets = $this->targetStudentIdsForBulkStatus(false);
+
+        if ($targets === []) {
+            return ['profiles' => 0, 'accounts' => 0];
+        }
+
+        $accounts = $this->bulk_sync_accounts
+            ? User::query()
+                ->whereIn('id', Student::query()->whereIn('id', $targets)->whereNotNull('user_id')->pluck('user_id'))
+                ->where('is_active', $this->bulk_status_action !== 'activate')
+                ->count()
+            : 0;
+
+        return [
+            'profiles' => count($targets),
+            'accounts' => $accounts,
+        ];
+    }
+
+    protected function targetStudentIdsForBulkStatus(bool $withValidation = true): array
+    {
+        $query = $this->bulkStatusStudentQuery($withValidation);
+
+        if (! $query) {
+            return [];
+        }
+
+        return $query->pluck('id')->all();
+    }
+
+    protected function bulkStatusStudentQuery(bool $withValidation = true): ?Builder
+    {
+        $query = $this->scopeStudentsQuery(Student::query());
+
+        if ($this->bulk_scope === 'student_number_range') {
+            [$from, $to] = $this->studentNumberRangeBounds($withValidation);
+
+            if ($from === null && $to === null) {
+                return null;
+            }
+
+            if ($from !== null) {
+                $query->where('id', '>=', $from);
+            }
+
+            if ($to !== null) {
+                $query->where('id', '<=', $to);
+            }
+        } elseif ($this->bulk_scope === 'course') {
+            if (! $this->bulk_course_id) {
+                if ($withValidation) {
+                    $this->addError('bulk_course_id', __('crud.students.bulk_status.errors.course_required'));
+                }
+
+                return null;
+            }
+
+            $query->whereHas('enrollments', function (Builder $enrollmentQuery): void {
+                $enrollmentQuery
+                    ->where('status', 'active')
+                    ->whereHas('group', fn (Builder $groupQuery) => $groupQuery->where('course_id', $this->bulk_course_id));
+            });
+        } elseif ($this->bulk_scope === 'group') {
+            if (! $this->bulk_group_id) {
+                if ($withValidation) {
+                    $this->addError('bulk_group_id', __('crud.students.bulk_status.errors.group_required'));
+                }
+
+                return null;
+            }
+
+            $query->whereHas('enrollments', fn (Builder $enrollmentQuery) => $enrollmentQuery
+                ->where('status', 'active')
+                ->where('group_id', $this->bulk_group_id));
+        }
+
+        return $query->where('status', $this->bulk_status_action === 'activate' ? 'inactive' : 'active');
+    }
+
+    protected function studentNumberRangeBounds(bool $withValidation = true): array
+    {
+        $from = $this->parseStudentNumberInput($this->bulk_student_number_from);
+        $to = $this->parseStudentNumberInput($this->bulk_student_number_to);
+
+        if ($from === null && $to === null) {
+            if ($withValidation) {
+                $this->addError('bulk_student_number_from', __('crud.students.bulk_status.errors.number_range_required'));
+            }
+
+            return [null, null];
+        }
+
+        if ((filled($this->bulk_student_number_from) && $from === null) || (filled($this->bulk_student_number_to) && $to === null)) {
+            if ($withValidation) {
+                $this->addError('bulk_student_number_from', __('crud.students.bulk_status.errors.invalid_number_range'));
+            }
+
+            return [null, null];
+        }
+
+        if ($from !== null && $to !== null && $from > $to) {
+            [$from, $to] = [$to, $from];
+        }
+
+        return [$from, $to];
+    }
+
+    protected function parseStudentNumberInput(string $value): ?int
+    {
+        $normalized = trim($value);
+
+        if ($normalized === '') {
+            return null;
+        }
+
+        $prefix = app(StudentNumberService::class)->prefix();
+
+        if ($prefix !== '' && strncasecmp($normalized, $prefix, strlen($prefix)) === 0) {
+            $normalized = substr($normalized, strlen($prefix));
+        }
+
+        $digits = preg_replace('/\D+/', '', $normalized);
+
+        if ($digits === '') {
+            return null;
+        }
+
+        return (int) ltrim($digits, '0') ?: 0;
+    }
+
     public function delete(int $studentId): void
     {
         $this->authorizePermission('students.delete');
@@ -654,6 +941,9 @@ new class extends Component {
                 </div>
 
                 <div class="admin-toolbar__actions">
+                    @can('students.update')
+                        <button type="button" wire:click="openBulkStatusModal" class="pill-link">{{ __('crud.common.actions.bulk_status') }}</button>
+                    @endcan
                     @can('students.create')
                         <button type="button" wire:click="openCreateModal" class="pill-link pill-link--accent">{{ __('crud.common.actions.create') }}</button>
                     @endcan
@@ -765,6 +1055,111 @@ new class extends Component {
             @endif
         @endif
     </section>
+
+    <x-admin.modal
+        :show="$showBulkStatusModal"
+        :title="__('crud.students.bulk_status.title')"
+        :description="__('crud.students.bulk_status.description')"
+        close-method="closeBulkStatusModal"
+        max-width="4xl"
+    >
+        <form wire:submit="applyBulkStatus" class="space-y-5">
+            <div class="grid gap-4 md:grid-cols-2">
+                <div>
+                    <label class="mb-1 block text-sm font-medium">{{ __('crud.students.bulk_status.fields.action') }}</label>
+                    <select wire:model.live="bulk_status_action" class="w-full rounded-xl px-4 py-3 text-sm">
+                        <option value="deactivate">{{ __('crud.common.actions.deactivate') }}</option>
+                        <option value="activate">{{ __('crud.common.actions.activate') }}</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="mb-1 block text-sm font-medium">{{ __('crud.students.bulk_status.fields.scope') }}</label>
+                    <select wire:model.live="bulk_scope" class="w-full rounded-xl px-4 py-3 text-sm">
+                        <option value="all">{{ __('crud.students.bulk_status.scopes.all') }}</option>
+                        <option value="student_number_range">{{ __('crud.students.bulk_status.scopes.student_number_range') }}</option>
+                        <option value="course">{{ __('crud.students.bulk_status.scopes.course') }}</option>
+                        <option value="group">{{ __('crud.students.bulk_status.scopes.group') }}</option>
+                    </select>
+                </div>
+            </div>
+
+            @if ($bulk_scope === 'student_number_range')
+                <div class="grid gap-4 md:grid-cols-2">
+                    <div>
+                        <label class="mb-1 block text-sm font-medium">{{ __('crud.students.bulk_status.fields.number_from') }}</label>
+                        <input wire:model.live="bulk_student_number_from" type="text" class="w-full rounded-xl px-4 py-3 text-sm" placeholder="{{ __('crud.students.bulk_status.placeholders.number_from') }}">
+                    </div>
+
+                    <div>
+                        <label class="mb-1 block text-sm font-medium">{{ __('crud.students.bulk_status.fields.number_to') }}</label>
+                        <input wire:model.live="bulk_student_number_to" type="text" class="w-full rounded-xl px-4 py-3 text-sm" placeholder="{{ __('crud.students.bulk_status.placeholders.number_to') }}">
+                    </div>
+                </div>
+            @elseif ($bulk_scope === 'course')
+                <div>
+                    <label class="mb-1 block text-sm font-medium">{{ __('crud.students.bulk_status.fields.course') }}</label>
+                    <select wire:model.live="bulk_course_id" class="w-full rounded-xl px-4 py-3 text-sm">
+                        <option value="">{{ __('crud.common.filters.all_courses') }}</option>
+                        @foreach ($bulkCourses as $bulkCourse)
+                            <option value="{{ $bulkCourse->id }}">{{ $bulkCourse->name }}</option>
+                        @endforeach
+                    </select>
+                </div>
+            @elseif ($bulk_scope === 'group')
+                <div class="grid gap-4 md:grid-cols-2">
+                    <div>
+                        <label class="mb-1 block text-sm font-medium">{{ __('crud.students.bulk_status.fields.course') }}</label>
+                        <select wire:model.live="bulk_course_id" class="w-full rounded-xl px-4 py-3 text-sm">
+                            <option value="">{{ __('crud.common.filters.all_courses') }}</option>
+                            @foreach ($bulkCourses as $bulkCourse)
+                                <option value="{{ $bulkCourse->id }}">{{ $bulkCourse->name }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="mb-1 block text-sm font-medium">{{ __('crud.students.bulk_status.fields.group') }}</label>
+                        <select wire:model.live="bulk_group_id" class="w-full rounded-xl px-4 py-3 text-sm">
+                            <option value="">{{ __('crud.common.filters.all_groups') }}</option>
+                            @foreach ($bulkGroups as $bulkGroup)
+                                <option value="{{ $bulkGroup->id }}">{{ $bulkGroup->name }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                </div>
+            @endif
+
+            <label class="flex items-center gap-3 text-sm">
+                <input wire:model="bulk_sync_accounts" type="checkbox" class="rounded border-neutral-300 text-neutral-900">
+                <span>{{ __('crud.students.bulk_status.fields.sync_accounts') }}</span>
+            </label>
+
+            <div class="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-neutral-200">
+                <div>{{ __('crud.students.bulk_status.preview.profiles', ['count' => number_format($bulkStatusPreview['profiles'])]) }}</div>
+                <div class="mt-1 text-neutral-400">{{ __('crud.students.bulk_status.preview.accounts', ['count' => number_format($bulkStatusPreview['accounts'])]) }}</div>
+                <div class="mt-2 text-xs text-neutral-500">{{ __('crud.students.bulk_status.help') }}</div>
+            </div>
+
+            @error('bulk_status')
+                <div class="text-sm text-red-400">{{ $message }}</div>
+            @enderror
+            @error('bulk_student_number_from')
+                <div class="text-sm text-red-400">{{ $message }}</div>
+            @enderror
+            @error('bulk_course_id')
+                <div class="text-sm text-red-400">{{ $message }}</div>
+            @enderror
+            @error('bulk_group_id')
+                <div class="text-sm text-red-400">{{ $message }}</div>
+            @enderror
+
+            <div class="flex flex-wrap justify-end gap-3">
+                <button type="button" wire:click="closeBulkStatusModal" class="pill-link">{{ __('crud.common.actions.cancel') }}</button>
+                <button type="submit" class="pill-link pill-link--accent">{{ __('crud.common.actions.bulk_status') }}</button>
+            </div>
+        </form>
+    </x-admin.modal>
 
     <x-admin.modal
         :show="$showFormModal"
