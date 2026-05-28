@@ -979,6 +979,52 @@ html:not(.dark) .page-hero::after {
     background: radial-gradient(circle, rgba(18, 109, 59, 0.08), transparent 68%);
 }
 
+.student-progress-hero__content {
+    display: grid;
+    gap: 1.5rem;
+}
+
+.student-progress-hero__summary {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 0.75rem;
+}
+
+.student-progress-top {
+    position: relative;
+    z-index: 6;
+}
+
+.student-progress-selection-card,
+.student-progress-profile {
+    align-self: start;
+}
+
+.student-progress-selection-card .admin-toolbar__title {
+    font-size: 1.45rem;
+}
+
+.student-progress-selection-card .admin-toolbar__subtitle {
+    max-width: 40rem;
+}
+
+.student-progress-top:has(.searchable-select--open),
+.student-progress-selection-card:has(.searchable-select--open) {
+    z-index: 90;
+}
+
+@media (min-width: 1024px) {
+    .student-progress-hero__content {
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: end;
+    }
+
+    html[dir='rtl'] .student-progress-hero__summary {
+        justify-content: flex-start;
+    }
+}
+
 .surface-panel {
     position: relative;
     z-index: 2;

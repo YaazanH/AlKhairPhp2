@@ -10,6 +10,7 @@ use App\Models\Course;
 use App\Models\Enrollment;
 use App\Models\Group;
 use App\Models\MemorizationSession;
+use App\Models\MemorizationSessionPage;
 use App\Models\ParentProfile;
 use App\Models\PointTransaction;
 use App\Models\PointType;
@@ -43,7 +44,11 @@ class StudentProgressPageTest extends TestCase
             ->assertSeeText('Parent Group')
             ->assertSeeText('Weekly Quiz')
             ->assertSeeText('88.00')
+            ->assertSeeText('581')
+            ->assertSeeText('582')
+            ->assertSeeText('583')
             ->assertSeeText('Teacher Shared Note')
+            ->assertDontSeeText('581, 582, 583')
             ->assertDontSeeText('Other Student')
             ->assertDontSeeText('Other Group')
             ->assertDontSeeText('Hidden Quiz')
@@ -211,8 +216,7 @@ class StudentProgressPageTest extends TestCase
         $this->get(route('students.progress', absolute: false))
             ->assertOk()
             ->assertSeeText('اختيار الطالب')
-            ->assertSeeText('ابحث باسم الطالب أو رقمه')
-            ->assertSeeText('فتح')
+            ->assertSeeText('اختر الطالب')
             ->assertSeeText('Parent Student')
             ->assertSeeText('Other Student')
             ->assertSeeText('اختر طالباً من الأعلى لعرض صفحة التقدم الكاملة.');
@@ -379,26 +383,37 @@ class StudentProgressPageTest extends TestCase
             'attempt_no' => 1,
         ]);
 
-        MemorizationSession::create([
+        $ownMemorizationSession = MemorizationSession::create([
             'enrollment_id' => $ownEnrollment->id,
             'student_id' => $ownStudent->id,
             'teacher_id' => $teacher->id,
             'recorded_on' => '2026-09-10',
             'entry_type' => 'new',
-            'from_page' => 1,
-            'to_page' => 3,
+            'from_page' => 581,
+            'to_page' => 583,
             'pages_count' => 3,
         ]);
 
-        MemorizationSession::create([
+        MemorizationSessionPage::insert([
+            ['memorization_session_id' => $ownMemorizationSession->id, 'page_no' => 581],
+            ['memorization_session_id' => $ownMemorizationSession->id, 'page_no' => 582],
+            ['memorization_session_id' => $ownMemorizationSession->id, 'page_no' => 583],
+        ]);
+
+        $otherMemorizationSession = MemorizationSession::create([
             'enrollment_id' => $otherEnrollment->id,
             'student_id' => $otherStudent->id,
             'teacher_id' => $teacher->id,
             'recorded_on' => '2026-09-11',
             'entry_type' => 'new',
-            'from_page' => 4,
-            'to_page' => 5,
+            'from_page' => 584,
+            'to_page' => 585,
             'pages_count' => 2,
+        ]);
+
+        MemorizationSessionPage::insert([
+            ['memorization_session_id' => $otherMemorizationSession->id, 'page_no' => 584],
+            ['memorization_session_id' => $otherMemorizationSession->id, 'page_no' => 585],
         ]);
 
         QuranTest::create([

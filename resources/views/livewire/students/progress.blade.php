@@ -87,11 +87,16 @@ new class extends Component {
     public function with(): array
     {
         $studentOptions = $this->studentOptionsQuery()
-            ->limit(filled(trim($this->studentSearch)) ? 12 : 8)
             ->get()
             ->map(fn (Student $student): object => (object) [
                 'full_name' => $student->full_name,
                 'id' => (int) $student->id,
+                'parent_name' => $student->parentProfile?->father_name,
+                'search' => collect([
+                    $student->full_name,
+                    $student->student_number,
+                    $student->parentProfile?->father_name,
+                ])->filter()->implode(' '),
                 'student_number' => $student->student_number,
             ]);
 
@@ -181,6 +186,44 @@ new class extends Component {
                 ->latest('id')
                 ->get()
             : collect();
+
+        $memorizationRows = $memorizationSessions
+            ->flatMap(function (MemorizationSession $session) {
+                $sessionPages = $session->pages
+                    ->pluck('page_no')
+                    ->map(fn ($page) => (int) $page)
+                    ->filter(fn ($page) => $page > 0)
+                    ->values();
+
+                if ($sessionPages->isEmpty() && filled($session->from_page) && filled($session->to_page)) {
+                    $fromPage = (int) min($session->from_page, $session->to_page);
+                    $toPage = (int) max($session->from_page, $session->to_page);
+                    $sessionPages = collect(range($fromPage, $toPage));
+                }
+
+                if ($sessionPages->isEmpty()) {
+                    return collect([(object) [
+                        'entry_type' => $session->entry_type,
+                        'group_name' => $session->enrollment?->group?->name,
+                        'page_no' => null,
+                        'recorded_on' => $session->recorded_on,
+                        'teacher_name' => $session->teacher
+                            ? trim($session->teacher->first_name.' '.$session->teacher->last_name)
+                            : null,
+                    ]]);
+                }
+
+                return $sessionPages->map(fn (int $pageNumber): object => (object) [
+                    'entry_type' => $session->entry_type,
+                    'group_name' => $session->enrollment?->group?->name,
+                    'page_no' => $pageNumber,
+                    'recorded_on' => $session->recorded_on,
+                    'teacher_name' => $session->teacher
+                        ? trim($session->teacher->first_name.' '.$session->teacher->last_name)
+                        : null,
+                ]);
+            })
+            ->values();
 
         $awqafTests = auth()->user()->can('quran-awqaf-tests.view') || auth()->user()->can('quran-tests.view')
             ? $this->scopeQuranTestsQuery(
@@ -341,6 +384,7 @@ new class extends Component {
             'enrollments' => $enrollments,
             'assessmentResults' => $assessmentResults,
             'memorizationSessions' => $memorizationSessions,
+            'memorizationRows' => $memorizationRows,
             'activeEnrollment' => $activeEnrollment,
             'awqafTests' => $awqafTests,
             'quranFinalTests' => $quranFinalTests,
@@ -378,23 +422,10 @@ new class extends Component {
 
     protected function studentOptionsQuery()
     {
-        $searchTokens = collect(preg_split('/\s+/u', trim($this->studentSearch)) ?: [])
-            ->filter(fn (mixed $token): bool => is_string($token) && filled($token))
-            ->values();
-
         return $this->scopeStudentsQuery(
             Student::query()
-                ->select(['id', 'first_name', 'last_name', 'student_number'])
-                ->when($searchTokens->isNotEmpty(), function ($query) use ($searchTokens) {
-                    $searchTokens->each(function (string $token) use ($query): void {
-                        $query->where(function ($studentQuery) use ($token): void {
-                            $studentQuery
-                                ->where('first_name', 'like', '%'.$token.'%')
-                                ->orWhere('last_name', 'like', '%'.$token.'%')
-                                ->orWhere('student_number', 'like', '%'.$token.'%');
-                        });
-                    });
-                })
+                ->with('parentProfile:id,father_name')
+                ->select(['id', 'parent_id', 'first_name', 'last_name', 'student_number'])
                 ->orderBy('first_name')
                 ->orderBy('last_name')
                 ->orderBy('id')
@@ -403,67 +434,71 @@ new class extends Component {
 }; ?>
 
 <div class="page-stack">
-    <section class="page-hero p-6 lg:p-8">
-        <div class="dashboard-split grid gap-6 xl:grid-cols-[minmax(0,1.15fr)_24rem] xl:items-start">
+    <section class="page-hero student-progress-hero p-6 lg:p-8">
+        <div class="student-progress-hero__content">
             <div>
                 <a href="{{ route('students.index') }}" wire:navigate class="text-sm font-medium text-neutral-200/80 hover:text-white">{{ __('ui.nav.students') }}</a>
                 <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('workflow.student_progress.title') }}</h1>
                 <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ __('workflow.student_progress.subtitle') }}</p>
-
-                <div class="surface-panel surface-panel--soft mt-6 max-w-4xl p-5 lg:p-6">
-                    <div class="admin-toolbar">
-                        <div>
-                            <div class="admin-toolbar__title">{{ __('workflow.student_progress.selection.title') }}</div>
-                            <p class="admin-toolbar__subtitle">{{ __('workflow.student_progress.selection.copy') }}</p>
-                        </div>
-
-                        @if ($currentStudent)
-                            <div class="admin-toolbar__actions">
-                                <button type="button" wire:click="clearStudentSelection" class="pill-link">
-                                    {{ __('workflow.student_progress.selection.change_student') }}
-                                </button>
-                            </div>
-                        @endif
-                    </div>
-
-                    <div class="mt-4 grid gap-3">
-                        <label for="student-progress-search" class="text-sm font-medium text-white">{{ __('workflow.student_progress.selection.search') }}</label>
-                        <input
-                            id="student-progress-search"
-                            wire:model.live.debounce.300ms="studentSearch"
-                            type="search"
-                            class="rounded-xl px-4 py-3 text-sm"
-                            placeholder="{{ __('workflow.student_progress.selection.search_placeholder') }}"
-                            autocomplete="off"
-                        >
-                    </div>
-
-                    <div class="mt-4 overflow-hidden rounded-3xl border border-white/10 bg-white/4">
-                        @forelse ($studentOptions as $studentOption)
-                            <button
-                                type="button"
-                                wire:click="selectStudent({{ $studentOption->id }})"
-                                class="flex w-full items-center justify-between gap-4 px-4 py-3 text-left transition hover:bg-white/8 {{ (int) $selectedStudentId === $studentOption->id ? 'bg-white/10' : '' }}"
-                            >
-                                <div>
-                                    <div class="text-sm font-semibold text-white">{{ $studentOption->full_name }}</div>
-                                    <div class="mt-1 text-xs text-neutral-300">{{ $studentOption->student_number ?: __('crud.common.not_available') }}</div>
-                                </div>
-                                <span class="badge-soft {{ (int) $selectedStudentId === $studentOption->id ? 'badge-soft--emerald' : '' }}">
-                                    {{ (int) $selectedStudentId === $studentOption->id ? __('workflow.student_progress.selection.selected') : __('workflow.student_progress.selection.open') }}
-                                </span>
-                            </button>
-                        @empty
-                            <div class="px-4 py-5 text-sm text-neutral-300">
-                                {{ __('workflow.student_progress.selection.no_students') }}
-                            </div>
-                        @endforelse
-                    </div>
-                </div>
             </div>
 
             @if ($currentStudent)
-            <aside class="surface-panel surface-panel--soft p-5 lg:p-6">
+                <div class="student-progress-hero__summary">
+                    <span class="badge-soft badge-soft--emerald">{{ $studentRecord->full_name }}</span>
+                    @if ($studentRecord->student_number)
+                        <span class="badge-soft">{{ $studentRecord->student_number }}</span>
+                    @endif
+                    @if ($activeEnrollment?->group?->name)
+                        <span class="badge-soft">{{ $activeEnrollment->group->name }}</span>
+                    @endif
+                </div>
+            @endif
+        </div>
+    </section>
+
+    <section class="student-progress-top grid gap-6">
+        <div class="surface-panel surface-panel--soft student-progress-selection-card p-5 lg:p-6">
+            <div class="admin-toolbar">
+                <div>
+                    <div class="admin-toolbar__title">{{ __('workflow.student_progress.selection.title') }}</div>
+                    <p class="admin-toolbar__subtitle">{{ __('workflow.student_progress.selection.copy') }}</p>
+                </div>
+
+                @if ($currentStudent)
+                    <div class="admin-toolbar__actions">
+                        <button type="button" wire:click="clearStudentSelection" class="pill-link">
+                            {{ __('workflow.student_progress.selection.change_student') }}
+                        </button>
+                    </div>
+                @endif
+            </div>
+
+            @if ($studentOptions->isEmpty())
+                <div class="mt-4 rounded-3xl border border-white/10 bg-white/4 px-4 py-5 text-sm text-neutral-300">
+                    {{ __('workflow.student_progress.selection.no_students') }}
+                </div>
+            @else
+                <div class="mt-4 admin-filter-field">
+                    <label for="student-progress-student">{{ __('workflow.student_progress.selection.student') }}</label>
+                    <select
+                        id="student-progress-student"
+                        wire:model.live="selectedStudentId"
+                        data-search-placeholder="{{ __('workflow.student_progress.selection.search_placeholder') }}"
+                        class="w-full rounded-xl px-4 py-3 text-sm"
+                    >
+                        <option value="">{{ __('workflow.student_progress.selection.select_student') }}</option>
+                        @foreach ($studentOptions as $studentOption)
+                            <option value="{{ $studentOption->id }}" data-search="{{ $studentOption->search }}">
+                                {{ $studentOption->full_name }}{{ $studentOption->student_number ? ' - '.$studentOption->student_number : '' }}
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
+            @endif
+        </div>
+
+        @if ($currentStudent)
+            <aside class="surface-panel surface-panel--soft student-progress-profile p-5 lg:p-6">
                 @php
                     $studentPhotoUrl = $studentRecord->photo_path ? asset('storage/'.ltrim($studentRecord->photo_path, '/')) : null;
                     $profileRows = [
@@ -484,7 +519,7 @@ new class extends Component {
                             <div class="flex h-full w-full items-center justify-center text-4xl font-semibold text-white">{{ \Illuminate\Support\Str::upper(\Illuminate\Support\Str::substr($studentRecord->first_name ?: 'S', 0, 1)) }}</div>
                         @endif
                     </div>
-                    <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                    <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                         @foreach ($profileRows as $row)
                             <div class="rounded-2xl border border-white/8 bg-white/4 p-3">
                                 <div class="kpi-label">{{ $row['label'] }}</div>
@@ -494,8 +529,7 @@ new class extends Component {
                     </div>
                 </div>
             </aside>
-            @endif
-        </div>
+        @endif
     </section>
 
     @if ($currentStudent)
@@ -592,11 +626,11 @@ new class extends Component {
             <div class="admin-grid-meta">
                 <div>
                     <div class="admin-grid-meta__title">{{ __('workflow.student_progress.memorization.title') }}</div>
-                    <div class="admin-grid-meta__summary">{{ __('crud.common.badges.in_view', ['count' => number_format($memorizationSessions->count())]) }}</div>
+                    <div class="admin-grid-meta__summary">{{ __('crud.common.badges.in_view', ['count' => number_format($memorizationRows->count())]) }}</div>
                 </div>
             </div>
 
-            @if ($memorizationSessions->isEmpty())
+            @if ($memorizationRows->isEmpty())
                 <div class="admin-empty-state">{{ __('workflow.student_progress.memorization.empty') }}</div>
             @else
                 <div class="overflow-x-auto">
@@ -611,23 +645,13 @@ new class extends Component {
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-white/6">
-                            @foreach ($memorizationSessions as $session)
-                                @php
-                                    $sessionPages = $session->pages
-                                        ->pluck('page_no')
-                                        ->map(fn ($page) => (int) $page)
-                                        ->values();
-                                @endphp
+                            @foreach ($memorizationRows as $row)
                                 <tr>
-                                    <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $session->recorded_on?->format('Y-m-d') ?: __('crud.common.not_available') }}</td>
-                                    <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $session->enrollment?->group?->name ?: __('crud.common.not_available') }}</td>
-                                    <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ __('workflow.common.entry_type.'.$session->entry_type) }}</td>
-                                    <td class="px-5 py-4 text-neutral-300 lg:px-6">
-                                        {{ $sessionPages->isNotEmpty()
-                                            ? $sessionPages->implode(', ')
-                                            : __('workflow.memorization.table.page_range', ['from' => $session->from_page, 'to' => $session->to_page, 'count' => $session->pages_count]) }}
-                                    </td>
-                                    <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $session->teacher ? trim($session->teacher->first_name.' '.$session->teacher->last_name) : __('crud.common.not_available') }}</td>
+                                    <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $row->recorded_on?->format('Y-m-d') ?: __('crud.common.not_available') }}</td>
+                                    <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $row->group_name ?: __('crud.common.not_available') }}</td>
+                                    <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ __('workflow.common.entry_type.'.$row->entry_type) }}</td>
+                                    <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $row->page_no ?: __('crud.common.not_available') }}</td>
+                                    <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $row->teacher_name ?: __('crud.common.not_available') }}</td>
                                 </tr>
                             @endforeach
                         </tbody>
