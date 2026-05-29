@@ -9,6 +9,9 @@ use App\Models\Group;
 use App\Models\MemorizationSession;
 use App\Models\ParentProfile;
 use App\Models\PointTransaction;
+use App\Models\QuranFinalTest;
+use App\Models\QuranJuz;
+use App\Models\QuranPartialTest;
 use App\Models\Student;
 use App\Models\StudentPageAchievement;
 use App\Models\Teacher;
@@ -488,6 +491,103 @@ class LegacyAccessImportCommandTest extends TestCase
         $this->assertCount(1, $this->readCsvRecords($reportPath.DIRECTORY_SEPARATOR.'unmatched_students.csv'));
         $this->assertCount(1, $this->readCsvRecords($reportPath.DIRECTORY_SEPARATOR.'invalid_rows.csv'));
         $this->assertCount(2, $this->readCsvRecords($reportPath.DIRECTORY_SEPARATOR.'imported_sessions.csv'));
+    }
+
+    public function test_legacy_quran_ajza_import_creates_passed_partial_and_final_tests_without_points(): void
+    {
+        $parent = ParentProfile::create([
+            'father_name' => 'وليد عمران',
+            'is_active' => true,
+        ]);
+
+        $student = Student::create([
+            'parent_id' => $parent->id,
+            'first_name' => 'رامي',
+            'last_name' => 'عمران',
+            'birth_date' => '2012-01-01',
+            'status' => 'active',
+        ]);
+
+        $juz = QuranJuz::create([
+            'juz_number' => 27,
+            'from_page' => 522,
+            'to_page' => 541,
+        ]);
+
+        $importPath = $this->makeImportFolder();
+        $reportPath = $this->makeImportFolder();
+
+        $this->writeCsv($importPath.DIRECTORY_SEPARATOR.'ajza.csv', [
+            ['record_no', 'student_name', 'juz_number', 'listener_name', 'tested_on', 'evaluation', 'course_name', 'score', 'awqaf_exam_name', 'awqaf_exam_result'],
+            ['2014', 'رامي عمران', '27', 'مروان مراد', '2025-09-01', 'جيد جداً', 'دورة صيف 2025 س', '90', '', ''],
+        ]);
+
+        $this->artisan('legacy:import-quran-ajza', [
+            'path' => $importPath,
+            '--report-dir' => $reportPath,
+        ])
+            ->expectsOutputToContain('Imported partial tests')
+            ->expectsOutputToContain('Imported final tests')
+            ->expectsOutputToContain('Affected students')
+            ->assertExitCode(0);
+
+        $importTeacher = Teacher::query()
+            ->where('first_name', 'Import')
+            ->where('last_name', 'Teacher')
+            ->firstOrFail();
+
+        $importCourse = Course::query()->where('name', 'Import Course')->firstOrFail();
+        $importGroup = Group::query()->where('name', 'Import Group')->firstOrFail();
+        $legacyYear = AcademicYear::query()->where('name', 'Legacy Import')->firstOrFail();
+
+        $this->assertFalse($importCourse->is_active);
+        $this->assertFalse($importGroup->is_active);
+        $this->assertFalse($legacyYear->is_active);
+        $this->assertSame($importTeacher->id, $importGroup->teacher_id);
+
+        $legacyEnrollment = Enrollment::query()
+            ->where('student_id', $student->id)
+            ->where('group_id', $importGroup->id)
+            ->firstOrFail();
+
+        $this->assertSame('inactive', $legacyEnrollment->status);
+
+        $partialTest = QuranPartialTest::query()
+            ->with('parts.attempts')
+            ->where('student_id', $student->id)
+            ->where('juz_id', $juz->id)
+            ->sole();
+
+        $this->assertSame($legacyEnrollment->id, $partialTest->enrollment_id);
+        $this->assertSame('passed', $partialTest->status);
+        $this->assertSame('2025-09-01', $partialTest->passed_on?->toDateString());
+        $this->assertCount(4, $partialTest->parts);
+
+        foreach ($partialTest->parts as $part) {
+            $this->assertSame('passed', $part->status);
+            $this->assertSame('2025-09-01', $part->passed_on?->toDateString());
+            $this->assertCount(1, $part->attempts);
+            $this->assertSame(0, $part->attempts->first()->mistake_count);
+            $this->assertSame('passed', $part->attempts->first()->status);
+            $this->assertSame($importTeacher->id, $part->attempts->first()->teacher_id);
+        }
+
+        $finalTest = QuranFinalTest::query()
+            ->with('attempts')
+            ->where('student_id', $student->id)
+            ->where('juz_id', $juz->id)
+            ->sole();
+
+        $this->assertSame($legacyEnrollment->id, $finalTest->enrollment_id);
+        $this->assertSame('passed', $finalTest->status);
+        $this->assertSame('2025-09-01', $finalTest->passed_on?->toDateString());
+        $this->assertCount(1, $finalTest->attempts);
+        $this->assertSame('passed', $finalTest->attempts->first()->status);
+        $this->assertSame('90.00', number_format((float) $finalTest->attempts->first()->score, 2, '.', ''));
+        $this->assertSame($importTeacher->id, $finalTest->attempts->first()->teacher_id);
+
+        $this->assertSame(0, PointTransaction::query()->count());
+        $this->assertCount(1, $this->readCsvRecords($reportPath.DIRECTORY_SEPARATOR.'imported_tests.csv'));
     }
 
     protected function tearDown(): void
