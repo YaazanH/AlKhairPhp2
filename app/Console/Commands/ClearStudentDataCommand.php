@@ -13,6 +13,7 @@ use App\Services\StudentNumberService;
 use Illuminate\Console\Command;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class ClearStudentDataCommand extends Command
 {
@@ -39,6 +40,12 @@ class ClearStudentDataCommand extends Command
 
         if ($this->option('delete-parents') && ! $this->option('clear-parents')) {
             $this->error('Use --delete-parents together with --clear-parents so the selected students are unlinked first.');
+
+            return self::FAILURE;
+        }
+
+        if ($this->option('clear-parents') && ! $this->canNullStudentParentLinks()) {
+            $this->error('The students.parent_id column is still required in this database. Run `php artisan migrate` first, then rerun this command.');
 
             return self::FAILURE;
         }
@@ -353,5 +360,13 @@ class ClearStudentDataCommand extends Command
             ->unique()
             ->values()
             ->all();
+    }
+
+    protected function canNullStudentParentLinks(): bool
+    {
+        $column = collect(Schema::getColumns('students'))
+            ->first(fn (array $definition) => strtolower((string) ($definition['name'] ?? '')) === 'parent_id');
+
+        return (bool) ($column['nullable'] ?? false);
     }
 }
