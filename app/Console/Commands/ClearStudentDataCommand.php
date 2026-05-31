@@ -51,15 +51,7 @@ class ClearStudentDataCommand extends Command
 
         $query = $this->targetStudentsQuery($scope);
         $studentIds = (clone $query)->pluck('id')->all();
-        $targetParentIds = $this->option('clear-parents')
-            ? Student::query()
-                ->whereIn('id', $studentIds)
-                ->whereNotNull('parent_id')
-                ->pluck('parent_id')
-                ->unique()
-                ->values()
-                ->all()
-            : [];
+        $targetParentIds = $this->targetParentIdsForDeletion($scope, $studentIds);
 
         $parentLinksToClear = $this->option('clear-parents')
             ? Student::query()->whereIn('id', $studentIds)->whereNotNull('parent_id')->count()
@@ -88,7 +80,7 @@ class ClearStudentDataCommand extends Command
             (bool) $this->option('dry-run'),
         );
 
-        if ($studentIds === []) {
+        if ($studentIds === [] && (! $this->option('delete-parents') || $targetParentIds === [])) {
             $this->warn('No students matched the selected scope.');
 
             return self::SUCCESS;
@@ -102,21 +94,23 @@ class ClearStudentDataCommand extends Command
 
         DB::transaction(function () use ($studentIds, $targetParentIds): void {
             if ($this->option('clear-parents')) {
-                Student::query()
-                    ->whereIn('id', $studentIds)
-                    ->where('status', 'active')
-                    ->update([
-                        'status' => 'inactive',
-                        'updated_at' => now(),
-                    ]);
+                if ($studentIds !== []) {
+                    Student::query()
+                        ->whereIn('id', $studentIds)
+                        ->where('status', 'active')
+                        ->update([
+                            'status' => 'inactive',
+                            'updated_at' => now(),
+                        ]);
 
-                Student::query()
-                    ->whereIn('id', $studentIds)
-                    ->whereNotNull('parent_id')
-                    ->update([
-                        'parent_id' => null,
-                        'updated_at' => now(),
-                    ]);
+                    Student::query()
+                        ->whereIn('id', $studentIds)
+                        ->whereNotNull('parent_id')
+                        ->update([
+                            'parent_id' => null,
+                            'updated_at' => now(),
+                        ]);
+                }
 
                 if ($this->option('delete-parents') && $targetParentIds !== []) {
                     $parents = ParentProfile::query()
@@ -338,5 +332,26 @@ class ClearStudentDataCommand extends Command
             $deletableParents->whereNotNull('user_id')->count(),
             $keptParents,
         ];
+    }
+
+    protected function targetParentIdsForDeletion(array $scope, array $studentIds): array
+    {
+        if (! $this->option('clear-parents')) {
+            return [];
+        }
+
+        if ($this->option('delete-parents') && $scope['type'] === 'all') {
+            return ParentProfile::query()
+                ->pluck('id')
+                ->all();
+        }
+
+        return Student::query()
+            ->whereIn('id', $studentIds)
+            ->whereNotNull('parent_id')
+            ->pluck('parent_id')
+            ->unique()
+            ->values()
+            ->all();
     }
 }

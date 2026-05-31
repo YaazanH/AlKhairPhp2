@@ -55,10 +55,17 @@ class ClearStudentDataCommandTest extends TestCase
     public function test_command_can_delete_detached_parents_and_their_accounts(): void
     {
         $parentUser = User::factory()->create();
+        $orphanParentUser = User::factory()->create();
 
         $parent = ParentProfile::create([
             'user_id' => $parentUser->id,
             'father_name' => 'Detached Parent',
+            'is_active' => true,
+        ]);
+
+        $orphanParent = ParentProfile::create([
+            'user_id' => $orphanParentUser->id,
+            'father_name' => 'Already Orphaned Parent',
             'is_active' => true,
         ]);
 
@@ -75,7 +82,9 @@ class ClearStudentDataCommandTest extends TestCase
 
         $this->assertNull($student->fresh()->parent_id);
         $this->assertSoftDeleted('parents', ['id' => $parent->id]);
+        $this->assertSoftDeleted('parents', ['id' => $orphanParent->id]);
         $this->assertDatabaseMissing('users', ['id' => $parentUser->id]);
+        $this->assertDatabaseMissing('users', ['id' => $orphanParentUser->id]);
     }
 
     public function test_command_keeps_parents_that_still_have_other_students(): void
