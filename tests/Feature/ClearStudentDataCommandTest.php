@@ -52,6 +52,70 @@ class ClearStudentDataCommandTest extends TestCase
         $this->assertSame('inactive', $inactiveStudent->fresh()->status);
     }
 
+    public function test_command_can_delete_detached_parents_and_their_accounts(): void
+    {
+        $parentUser = User::factory()->create();
+
+        $parent = ParentProfile::create([
+            'user_id' => $parentUser->id,
+            'father_name' => 'Detached Parent',
+            'is_active' => true,
+        ]);
+
+        $student = Student::create([
+            'parent_id' => $parent->id,
+            'first_name' => 'Detached',
+            'last_name' => 'Student',
+            'birth_date' => '2012-01-01',
+            'status' => 'active',
+        ]);
+
+        $this->artisan('students:clear-data --all --clear-parents --delete-parents')
+            ->assertExitCode(0);
+
+        $this->assertNull($student->fresh()->parent_id);
+        $this->assertSoftDeleted('parents', ['id' => $parent->id]);
+        $this->assertDatabaseMissing('users', ['id' => $parentUser->id]);
+    }
+
+    public function test_command_keeps_parents_that_still_have_other_students(): void
+    {
+        $parentUser = User::factory()->create();
+
+        $parent = ParentProfile::create([
+            'user_id' => $parentUser->id,
+            'father_name' => 'Shared Parent',
+            'is_active' => true,
+        ]);
+
+        $targetStudent = Student::create([
+            'parent_id' => $parent->id,
+            'first_name' => 'Target',
+            'last_name' => 'Keep Parent',
+            'birth_date' => '2012-01-01',
+            'status' => 'active',
+        ]);
+
+        $otherStudent = Student::create([
+            'parent_id' => $parent->id,
+            'first_name' => 'Other',
+            'last_name' => 'Keep Parent',
+            'birth_date' => '2011-01-01',
+            'status' => 'active',
+        ]);
+
+        $this->artisan(sprintf(
+            'students:clear-data --student-number-from=%s --student-number-to=%s --clear-parents --delete-parents',
+            $targetStudent->student_number,
+            $targetStudent->student_number,
+        ))->assertExitCode(0);
+
+        $this->assertNull($targetStudent->fresh()->parent_id);
+        $this->assertSame($parent->id, $otherStudent->fresh()->parent_id);
+        $this->assertDatabaseHas('parents', ['id' => $parent->id, 'deleted_at' => null]);
+        $this->assertDatabaseHas('users', ['id' => $parentUser->id]);
+    }
+
     public function test_command_can_clear_points_for_a_student_number_range_and_refresh_caches(): void
     {
         $parent = ParentProfile::create([

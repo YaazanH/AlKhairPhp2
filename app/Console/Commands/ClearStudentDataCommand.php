@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use App\Models\Course;
 use App\Models\Enrollment;
 use App\Models\Group;
+use App\Models\ParentProfile;
 use App\Models\PointTransaction;
 use App\Models\Student;
 use App\Services\PointLedgerService;
@@ -22,6 +23,7 @@ class ClearStudentDataCommand extends Command
         {--course-id= : Target students with an active enrollment in this course}
         {--group-id= : Target students with an active enrollment in this group}
         {--clear-parents : Remove parent links from the selected students}
+        {--delete-parents : Soft delete parent profiles that become detached, and delete their linked user accounts}
         {--clear-points : Delete point transactions for the selected students}
         {--dry-run : Preview the affected records without changing anything}';
 
@@ -29,8 +31,14 @@ class ClearStudentDataCommand extends Command
 
     public function handle(StudentNumberService $studentNumbers, PointLedgerService $ledger): int
     {
-        if (! $this->option('clear-parents') && ! $this->option('clear-points')) {
-            $this->error('Choose at least one action: --clear-parents and/or --clear-points.');
+        if (! $this->option('clear-parents') && ! $this->option('clear-points') && ! $this->option('delete-parents')) {
+            $this->error('Choose at least one action: --clear-parents, --delete-parents, and/or --clear-points.');
+
+            return self::FAILURE;
+        }
+
+        if ($this->option('delete-parents') && ! $this->option('clear-parents')) {
+            $this->error('Use --delete-parents together with --clear-parents so the selected students are unlinked first.');
 
             return self::FAILURE;
         }
@@ -43,6 +51,15 @@ class ClearStudentDataCommand extends Command
 
         $query = $this->targetStudentsQuery($scope);
         $studentIds = (clone $query)->pluck('id')->all();
+        $targetParentIds = $this->option('clear-parents')
+            ? Student::query()
+                ->whereIn('id', $studentIds)
+                ->whereNotNull('parent_id')
+                ->pluck('parent_id')
+                ->unique()
+                ->values()
+                ->all()
+            : [];
 
         $parentLinksToClear = $this->option('clear-parents')
             ? Student::query()->whereIn('id', $studentIds)->whereNotNull('parent_id')->count()
@@ -50,6 +67,7 @@ class ClearStudentDataCommand extends Command
         $studentsToDeactivate = $this->option('clear-parents')
             ? Student::query()->whereIn('id', $studentIds)->where('status', 'active')->count()
             : 0;
+        [$detachedParentsToDelete, $parentAccountsToDelete, $parentsKept] = $this->deletableParentSummary($targetParentIds, $studentIds);
         $pointTransactionsToDelete = $this->option('clear-points')
             ? PointTransaction::query()->whereIn('student_id', $studentIds)->count()
             : 0;
@@ -62,6 +80,9 @@ class ClearStudentDataCommand extends Command
             count($studentIds),
             $parentLinksToClear,
             $studentsToDeactivate,
+            $detachedParentsToDelete,
+            $parentAccountsToDelete,
+            $parentsKept,
             $pointTransactionsToDelete,
             count($enrollmentIds),
             (bool) $this->option('dry-run'),
@@ -79,7 +100,7 @@ class ClearStudentDataCommand extends Command
             return self::SUCCESS;
         }
 
-        DB::transaction(function () use ($studentIds): void {
+        DB::transaction(function () use ($studentIds, $targetParentIds): void {
             if ($this->option('clear-parents')) {
                 Student::query()
                     ->whereIn('id', $studentIds)
@@ -96,6 +117,25 @@ class ClearStudentDataCommand extends Command
                         'parent_id' => null,
                         'updated_at' => now(),
                     ]);
+
+                if ($this->option('delete-parents') && $targetParentIds !== []) {
+                    $parents = ParentProfile::query()
+                        ->with('user')
+                        ->withCount('students')
+                        ->whereIn('id', $targetParentIds)
+                        ->get();
+
+                    foreach ($parents as $parent) {
+                        if ($parent->students_count > 0) {
+                            continue;
+                        }
+
+                        $user = $parent->user;
+
+                        $parent->delete();
+                        $user?->delete();
+                    }
+                }
             }
 
             if ($this->option('clear-points')) {
@@ -250,6 +290,9 @@ class ClearStudentDataCommand extends Command
         int $targetStudents,
         int $parentLinksToClear,
         int $studentsToDeactivate,
+        int $detachedParentsToDelete,
+        int $parentAccountsToDelete,
+        int $parentsKept,
         int $pointTransactionsToDelete,
         int $enrollmentsToResync,
         bool $dryRun,
@@ -259,11 +302,41 @@ class ClearStudentDataCommand extends Command
             ['Target students', $targetStudents],
             ['Parent links to clear', $this->option('clear-parents') ? $parentLinksToClear : 'Skipped'],
             ['Students forced inactive', $this->option('clear-parents') ? $studentsToDeactivate : 'Skipped'],
+            ['Detached parents to delete', $this->option('delete-parents') ? $detachedParentsToDelete : 'Skipped'],
+            ['Parent accounts to delete', $this->option('delete-parents') ? $parentAccountsToDelete : 'Skipped'],
+            ['Parents kept with other students', $this->option('delete-parents') ? $parentsKept : 'Skipped'],
             ['Point transactions to delete', $this->option('clear-points') ? $pointTransactionsToDelete : 'Skipped'],
             ['Enrollments to refresh', $this->option('clear-points') ? $enrollmentsToResync : 'Skipped'],
             ['Mode', $dryRun ? 'Dry run' : 'Apply changes'],
         ];
 
         $this->table(['Target', 'Count'], $rows);
+    }
+
+    protected function deletableParentSummary(array $targetParentIds, array $studentIds): array
+    {
+        if (! $this->option('delete-parents') || $targetParentIds === []) {
+            return [0, 0, 0];
+        }
+
+        $remainingCounts = Student::query()
+            ->whereIn('parent_id', $targetParentIds)
+            ->whereNotIn('id', $studentIds)
+            ->selectRaw('parent_id, count(*) as remaining_count')
+            ->groupBy('parent_id')
+            ->pluck('remaining_count', 'parent_id');
+
+        $parents = ParentProfile::query()
+            ->whereIn('id', $targetParentIds)
+            ->get(['id', 'user_id']);
+
+        $deletableParents = $parents->filter(fn (ParentProfile $parent) => (int) ($remainingCounts[$parent->id] ?? 0) === 0);
+        $keptParents = $parents->count() - $deletableParents->count();
+
+        return [
+            $deletableParents->count(),
+            $deletableParents->whereNotNull('user_id')->count(),
+            $keptParents,
+        ];
     }
 }
