@@ -91,7 +91,7 @@ new class extends Component {
             'helpingOptions' => ['all', 'helping', 'not_helping'],
             'availableRoles' => RoleRegistry::sortCollection(
                 Role::query()
-                    ->whereNotIn('name', RoleRegistry::systemRoles())
+                    ->whereNotIn('name', RoleRegistry::actorRoles())
                     ->get()
             ),
             'courses' => Course::query()->orderByDesc('is_active')->orderBy('name')->get(),

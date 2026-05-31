@@ -588,6 +588,17 @@ class ManagementCrudTest extends TestCase
         ]);
     }
 
+    public function test_teacher_role_options_include_basic_management_roles(): void
+    {
+        $this->signIn();
+
+        Volt::test('teachers.index')
+            ->call('openCreateModal')
+            ->assertSee(__('ui.roles.super_admin'))
+            ->assertSee(__('ui.roles.admin'))
+            ->assertSee(__('ui.roles.manager'));
+    }
+
     public function test_student_bulk_status_can_deactivate_current_course_students_and_sync_accounts(): void
     {
         $this->signIn();
@@ -727,6 +738,45 @@ class ManagementCrudTest extends TestCase
         $this->assertTrue($blockedUser->fresh()->is_active);
         $this->assertSame('active', $otherStudent->fresh()->status);
         $this->assertTrue($otherUser->fresh()->is_active);
+    }
+
+    public function test_student_bulk_activation_skips_students_without_parents(): void
+    {
+        $this->signIn();
+
+        $student = Student::create([
+            'first_name' => 'No Parent',
+            'last_name' => 'Student',
+            'birth_date' => '2012-01-01',
+            'status' => 'inactive',
+        ]);
+
+        Volt::test('students.index')
+            ->call('openBulkStatusModal')
+            ->set('bulk_scope', 'all')
+            ->set('bulk_status_action', 'activate')
+            ->set('bulk_sync_accounts', false)
+            ->call('applyBulkStatus')
+            ->assertHasErrors(['bulk_status']);
+
+        $this->assertSame('inactive', $student->fresh()->status);
+    }
+
+    public function test_student_is_forced_inactive_when_saved_without_a_parent(): void
+    {
+        $student = Student::create([
+            'first_name' => 'Rule',
+            'last_name' => 'Check',
+            'birth_date' => '2012-01-01',
+            'status' => 'active',
+        ]);
+
+        $this->assertSame('inactive', $student->fresh()->status);
+
+        $student->status = 'active';
+        $student->save();
+
+        $this->assertSame('inactive', $student->fresh()->status);
     }
 
     public function test_parent_bulk_status_can_activate_by_parent_number_range_and_sync_accounts(): void

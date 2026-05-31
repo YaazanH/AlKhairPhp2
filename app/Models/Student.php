@@ -41,6 +41,16 @@ class Student extends Model
 
     protected static function booted(): void
     {
+        static::saving(function (self $student): void {
+            if (
+                blank($student->parent_id)
+                && $student->status === 'active'
+                && (! $student->exists || $student->isDirty('parent_id') || $student->isDirty('status'))
+            ) {
+                $student->status = 'inactive';
+            }
+        });
+
         static::saved(function (self $student): void {
             if ($student->wasChanged('photo_path') && $student->user_id) {
                 $student->user()->update([

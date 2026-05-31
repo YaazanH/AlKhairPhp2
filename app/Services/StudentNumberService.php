@@ -40,6 +40,29 @@ class StudentNumberService
         return $this->prefix().$number;
     }
 
+    public function parseInputToId(?string $value): ?int
+    {
+        $normalized = trim((string) $value);
+
+        if ($normalized === '') {
+            return null;
+        }
+
+        $prefix = $this->prefix();
+
+        if ($prefix !== '' && strncasecmp($normalized, $prefix, strlen($prefix)) === 0) {
+            $normalized = substr($normalized, strlen($prefix));
+        }
+
+        $digits = preg_replace('/\D+/', '', $normalized);
+
+        if ($digits === '') {
+            return null;
+        }
+
+        return (int) ltrim($digits, '0') ?: 0;
+    }
+
     public function syncStudent(Student $student): void
     {
         $expectedStudentNumber = $this->formatForId((int) $student->id);

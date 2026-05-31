@@ -752,6 +752,10 @@ new class extends Component {
                 ->where('group_id', $this->bulk_group_id));
         }
 
+        if ($this->bulk_status_action === 'activate') {
+            $query->whereNotNull('parent_id');
+        }
+
         return $query->where('status', $this->bulk_status_action === 'activate' ? 'inactive' : 'active');
     }
 
@@ -785,25 +789,7 @@ new class extends Component {
 
     protected function parseStudentNumberInput(string $value): ?int
     {
-        $normalized = trim($value);
-
-        if ($normalized === '') {
-            return null;
-        }
-
-        $prefix = app(StudentNumberService::class)->prefix();
-
-        if ($prefix !== '' && strncasecmp($normalized, $prefix, strlen($prefix)) === 0) {
-            $normalized = substr($normalized, strlen($prefix));
-        }
-
-        $digits = preg_replace('/\D+/', '', $normalized);
-
-        if ($digits === '') {
-            return null;
-        }
-
-        return (int) ltrim($digits, '0') ?: 0;
+        return app(StudentNumberService::class)->parseInputToId($value);
     }
 
     public function delete(int $studentId): void
