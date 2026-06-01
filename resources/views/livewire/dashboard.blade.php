@@ -4,7 +4,6 @@ use App\Models\AcademicYear;
 use App\Models\AppSetting;
 use App\Models\Enrollment;
 use App\Models\Group;
-use App\Models\PointTransaction;
 use App\Models\PrintTemplate;
 use App\Models\Student;
 use App\Models\StudentPageAchievement;
@@ -81,6 +80,9 @@ new class extends Component {
             ->latest()
             ->take(5)
             ->get();
+        $activeEnrollmentPoints = (int) Enrollment::query()
+            ->where('status', 'active')
+            ->sum('final_points_cached');
 
         return [
             'dashboardRole' => 'manager',
@@ -96,7 +98,7 @@ new class extends Component {
             'stats' => [
                 ['label' => __('dashboard.manager.stats.enrolled_students.label'), 'value' => Enrollment::where('status', 'active')->distinct('student_id')->count('student_id'), 'hint' => __('dashboard.manager.stats.enrolled_students.hint')],
                 ['label' => __('dashboard.manager.stats.active_groups.label'), 'value' => Group::where('is_active', true)->count(), 'hint' => __('dashboard.manager.stats.active_groups.hint')],
-                ['label' => __('dashboard.manager.stats.total_points.label'), 'value' => (int) PointTransaction::whereNull('voided_at')->sum('points'), 'hint' => __('dashboard.manager.stats.total_points.hint')],
+                ['label' => __('dashboard.manager.stats.total_points.label'), 'value' => $activeEnrollmentPoints, 'hint' => __('dashboard.manager.stats.total_points.hint')],
                 ['label' => __('dashboard.manager.stats.current_year_memorized_pages.label'), 'value' => $currentYearMemorizedPages, 'hint' => __('dashboard.manager.stats.current_year_memorized_pages.hint')],
             ],
             'cards' => [
@@ -222,6 +224,15 @@ new class extends Component {
             ->get();
 
         $studentIds = $students->pluck('id');
+        $activeEnrollmentsQuery = $studentIds->isEmpty()
+            ? Enrollment::query()->whereRaw('1 = 0')
+            : app(AccessScopeService::class)
+                ->scopeEnrollments(Enrollment::query(), $user)
+                ->whereIn('student_id', $studentIds)
+                ->where('status', 'active');
+        $activeEnrollmentCount = $studentIds->isEmpty() ? 0 : (clone $activeEnrollmentsQuery)->count();
+        $activeEnrollmentPoints = $studentIds->isEmpty() ? 0 : (int) (clone $activeEnrollmentsQuery)->sum('final_points_cached');
+        $activeEnrollmentPages = $studentIds->isEmpty() ? 0 : (int) (clone $activeEnrollmentsQuery)->sum('memorized_pages_cached');
 
         return [
             'dashboardRole' => 'parent',
@@ -234,9 +245,9 @@ new class extends Component {
             'profileMeta' => $parent->father_phone ?: ($parent->mother_phone ?: __('dashboard.parent.profile_meta_no_phone')),
             'stats' => [
                 ['label' => __('dashboard.parent.stats.students.label'), 'value' => $students->count(), 'hint' => __('dashboard.parent.stats.students.hint')],
-                ['label' => __('dashboard.parent.stats.active_enrollments.label'), 'value' => $studentIds->isEmpty() ? 0 : Enrollment::whereIn('student_id', $studentIds)->where('status', 'active')->count(), 'hint' => __('dashboard.parent.stats.active_enrollments.hint')],
-                ['label' => __('dashboard.parent.stats.cached_points.label'), 'value' => $studentIds->isEmpty() ? 0 : (int) Enrollment::whereIn('student_id', $studentIds)->sum('final_points_cached'), 'hint' => __('dashboard.parent.stats.cached_points.hint')],
-                ['label' => __('dashboard.parent.stats.memorized_pages.label'), 'value' => $studentIds->isEmpty() ? 0 : (int) Enrollment::whereIn('student_id', $studentIds)->sum('memorized_pages_cached'), 'hint' => __('dashboard.parent.stats.memorized_pages.hint')],
+                ['label' => __('dashboard.parent.stats.active_enrollments.label'), 'value' => $activeEnrollmentCount, 'hint' => __('dashboard.parent.stats.active_enrollments.hint')],
+                ['label' => __('dashboard.parent.stats.cached_points.label'), 'value' => $activeEnrollmentPoints, 'hint' => __('dashboard.parent.stats.cached_points.hint')],
+                ['label' => __('dashboard.parent.stats.memorized_pages.label'), 'value' => $activeEnrollmentPages, 'hint' => __('dashboard.parent.stats.memorized_pages.hint')],
             ],
             'cards' => [
                 [
@@ -284,6 +295,7 @@ new class extends Component {
             ->get();
 
         $allEnrollments = (clone $enrollmentsQuery)->get();
+        $activeEnrollments = $allEnrollments->where('status', 'active')->values();
         $studentCardPreviews = $this->studentDashboardCardPreviews($student, $user);
 
         return [
@@ -297,9 +309,9 @@ new class extends Component {
             'profileMeta' => $student->gradeLevel?->name ?: ($student->school_name ?: __('dashboard.student.profile_meta_no_grade')),
             'stats' => [
                 ['label' => __('dashboard.student.stats.enrollments.label'), 'value' => $allEnrollments->count(), 'hint' => __('dashboard.student.stats.enrollments.hint')],
-                ['label' => __('dashboard.student.stats.active_enrollments.label'), 'value' => $allEnrollments->where('status', 'active')->count(), 'hint' => __('dashboard.student.stats.active_enrollments.hint')],
-                ['label' => __('dashboard.student.stats.cached_points.label'), 'value' => (int) $allEnrollments->sum('final_points_cached'), 'hint' => __('dashboard.student.stats.cached_points.hint')],
-                ['label' => __('dashboard.student.stats.memorized_pages.label'), 'value' => (int) $allEnrollments->sum('memorized_pages_cached'), 'hint' => __('dashboard.student.stats.memorized_pages.hint')],
+                ['label' => __('dashboard.student.stats.active_enrollments.label'), 'value' => $activeEnrollments->count(), 'hint' => __('dashboard.student.stats.active_enrollments.hint')],
+                ['label' => __('dashboard.student.stats.cached_points.label'), 'value' => (int) $activeEnrollments->sum('final_points_cached'), 'hint' => __('dashboard.student.stats.cached_points.hint')],
+                ['label' => __('dashboard.student.stats.memorized_pages.label'), 'value' => (int) $activeEnrollments->sum('memorized_pages_cached'), 'hint' => __('dashboard.student.stats.memorized_pages.hint')],
                 ['label' => __('dashboard.student.stats.current_juz.label'), 'value' => $student->quranCurrentJuz?->juz_number ?: '-', 'hint' => __('dashboard.student.stats.current_juz.hint')],
             ],
             'cards' => [

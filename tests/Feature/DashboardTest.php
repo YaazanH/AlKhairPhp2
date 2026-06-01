@@ -446,4 +446,97 @@ class DashboardTest extends TestCase
             ->assertSee('Aya Hasan')
             ->assertSee('Student Group');
     }
+
+    public function test_student_dashboard_cached_points_only_count_active_enrollments(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $user = User::factory()->create([
+            'username' => 'student-dashboard-active-points',
+            'phone' => '7000204',
+        ]);
+
+        $user->assignRole('student');
+
+        $parent = ParentProfile::create([
+            'father_name' => 'Parent Name',
+        ]);
+
+        $student = Student::create([
+            'user_id' => $user->id,
+            'parent_id' => $parent->id,
+            'first_name' => 'Aya',
+            'last_name' => 'Hasan',
+            'birth_date' => '2013-03-03',
+            'status' => 'active',
+        ]);
+
+        $teacher = Teacher::create([
+            'first_name' => 'Assigned',
+            'last_name' => 'Teacher',
+            'phone' => '0944000299',
+            'status' => 'active',
+        ]);
+
+        $course = Course::create([
+            'name' => 'Revision Track',
+            'is_active' => true,
+        ]);
+
+        $academicYear = AcademicYear::create([
+            'name' => '2026/2027',
+            'starts_on' => '2026-08-01',
+            'ends_on' => '2027-07-31',
+            'is_current' => true,
+            'is_active' => true,
+        ]);
+
+        $activeGroup = Group::create([
+            'course_id' => $course->id,
+            'academic_year_id' => $academicYear->id,
+            'teacher_id' => $teacher->id,
+            'name' => 'Active Group',
+            'capacity' => 10,
+            'is_active' => true,
+        ]);
+
+        $inactiveGroup = Group::create([
+            'course_id' => $course->id,
+            'academic_year_id' => $academicYear->id,
+            'teacher_id' => $teacher->id,
+            'name' => 'Inactive Group',
+            'capacity' => 10,
+            'is_active' => false,
+        ]);
+
+        Enrollment::create([
+            'student_id' => $student->id,
+            'group_id' => $activeGroup->id,
+            'enrolled_at' => '2026-09-01',
+            'status' => 'active',
+            'final_points_cached' => 12,
+            'memorized_pages_cached' => 6,
+        ]);
+
+        Enrollment::create([
+            'student_id' => $student->id,
+            'group_id' => $inactiveGroup->id,
+            'enrolled_at' => '2026-08-01',
+            'status' => 'cancelled',
+            'final_points_cached' => 99,
+            'memorized_pages_cached' => 40,
+        ]);
+
+        $this->actingAs($user);
+
+        $this->get('/dashboard')
+            ->assertOk()
+            ->assertSee('Student Dashboard')
+            ->assertSee('Active Group')
+            ->assertSee('Inactive Group')
+            ->assertSee('>12<', false)
+            ->assertSee('>6<', false)
+            ->assertDontSee('>111<', false)
+            ->assertDontSee('>46<', false);
+    }
 }
