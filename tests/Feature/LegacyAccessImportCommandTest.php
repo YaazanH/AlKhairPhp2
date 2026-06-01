@@ -8,13 +8,16 @@ use App\Models\Enrollment;
 use App\Models\Group;
 use App\Models\MemorizationSession;
 use App\Models\ParentProfile;
+use App\Models\PointPolicy;
 use App\Models\PointTransaction;
+use App\Models\PointType;
 use App\Models\QuranFinalTest;
 use App\Models\QuranJuz;
 use App\Models\QuranPartialTest;
 use App\Models\Student;
 use App\Models\StudentPageAchievement;
 use App\Models\Teacher;
+use App\Services\MemorizationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -491,6 +494,107 @@ class LegacyAccessImportCommandTest extends TestCase
         $this->assertCount(1, $this->readCsvRecords($reportPath.DIRECTORY_SEPARATOR.'unmatched_students.csv'));
         $this->assertCount(1, $this->readCsvRecords($reportPath.DIRECTORY_SEPARATOR.'invalid_rows.csv'));
         $this->assertCount(2, $this->readCsvRecords($reportPath.DIRECTORY_SEPARATOR.'imported_sessions.csv'));
+    }
+
+    public function test_adding_new_memorization_after_legacy_import_does_not_recreate_points_for_legacy_pages(): void
+    {
+        $academicYear = AcademicYear::create([
+            'name' => '2026 / 2027',
+            'starts_on' => '2026-09-01',
+            'ends_on' => '2027-08-31',
+            'is_current' => true,
+            'is_active' => true,
+        ]);
+
+        $parent = ParentProfile::create([
+            'father_name' => 'ولي الأمر',
+            'is_active' => true,
+        ]);
+
+        $student = Student::create([
+            'parent_id' => $parent->id,
+            'first_name' => 'محمد',
+            'last_name' => 'أحمد',
+            'birth_date' => '2012-01-01',
+            'status' => 'active',
+        ]);
+
+        $teacher = Teacher::create([
+            'first_name' => 'المعلم',
+            'last_name' => 'الحالي',
+            'phone' => '0999000010',
+            'status' => 'active',
+        ]);
+
+        $course = Course::create([
+            'name' => 'الدورة الحالية',
+            'is_active' => true,
+        ]);
+
+        $group = Group::create([
+            'course_id' => $course->id,
+            'academic_year_id' => $academicYear->id,
+            'teacher_id' => $teacher->id,
+            'name' => 'المجموعة الحالية',
+            'capacity' => 20,
+            'is_active' => true,
+        ]);
+
+        $currentEnrollment = Enrollment::create([
+            'student_id' => $student->id,
+            'group_id' => $group->id,
+            'enrolled_at' => '2026-01-01',
+            'status' => 'active',
+        ]);
+
+        $importPath = $this->makeImportFolder();
+
+        $this->writeCsv($importPath.DIRECTORY_SEPARATOR.'entre.csv', [
+            ['record_no', 'full_name', 'page_no', 'listen_date', 'listener_name', 'Courses_Name'],
+            ['1', 'محمد أحمد', '11', '2026-01-01', 'قديم', 'قديم'],
+            ['2', 'محمد أحمد', '12', '2026-01-01', 'قديم', 'قديم'],
+        ]);
+
+        $this->artisan('legacy:import-memorization-entre', [
+            'path' => $importPath,
+        ])->assertExitCode(0);
+
+        $pointType = PointType::create([
+            'name' => 'Memorization Reward',
+            'code' => 'legacy-regression-memorization',
+            'category' => 'memorization',
+            'default_points' => 0,
+            'allow_manual_entry' => false,
+            'allow_negative' => false,
+            'is_active' => true,
+        ]);
+
+        PointPolicy::create([
+            'point_type_id' => $pointType->id,
+            'name' => 'Per Page Reward',
+            'source_type' => 'memorization',
+            'trigger_key' => 'page',
+            'points' => 2,
+            'priority' => 10,
+            'is_active' => true,
+        ]);
+
+        app(MemorizationService::class)->saveSession($currentEnrollment->fresh(['student', 'group']), [
+            'teacher_id' => $teacher->id,
+            'recorded_on' => '2026-05-01',
+            'entry_type' => 'new',
+            'from_page' => 13,
+            'to_page' => 13,
+            'notes' => null,
+        ]);
+
+        $this->assertSame(1, PointTransaction::query()->count());
+        $this->assertDatabaseHas('point_transactions', [
+            'enrollment_id' => $currentEnrollment->id,
+            'source_type' => 'memorization_session',
+            'points' => 2,
+        ]);
+        $this->assertSame(2, PointTransaction::query()->sum('points'));
     }
 
     public function test_legacy_quran_ajza_import_creates_passed_partial_and_final_tests_without_points(): void

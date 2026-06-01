@@ -9,6 +9,7 @@ use App\Models\PointTransaction;
 use App\Models\Student;
 use App\Models\StudentPageAchievement;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class MemorizationService
@@ -177,10 +178,15 @@ class MemorizationService
                     continue;
                 }
 
+                if ($this->isLegacyImportSession($session)) {
+                    continue;
+                }
+
                 $rewardKey = $session->recorded_on->toDateString().'|'.$enrollment->id;
                 $dailyRewards[$rewardKey] ??= [
                     'enrollment' => $enrollment,
                     'new_page_count' => 0,
+                    'recorded_on' => $session->recorded_on?->toDateString() ?? now()->toDateString(),
                     'source_id' => $session->id,
                 ];
                 $dailyRewards[$rewardKey]['new_page_count'] += $newPageCount;
@@ -196,7 +202,7 @@ class MemorizationService
                     'page',
                     $enrollment?->student?->grade_level_id,
                     $newPageCount,
-                    $session->recorded_on?->toDateString() ?? now()->toDateString(),
+                    $reward['recorded_on'],
                 );
 
                 if ($policy?->pointType) {
@@ -228,5 +234,11 @@ class MemorizationService
                 ->get()
                 ->each(fn (Enrollment $enrollment) => $this->ledger->syncEnrollmentCaches($enrollment));
         });
+    }
+
+    protected function isLegacyImportSession(MemorizationSession $session): bool
+    {
+        return Str::contains((string) $session->notes, 'Legacy import from Entre records:')
+            || Str::contains((string) $session->enrollment?->notes, '[legacy_import] memorization_entre');
     }
 }
