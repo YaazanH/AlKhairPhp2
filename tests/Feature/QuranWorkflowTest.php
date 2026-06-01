@@ -350,6 +350,48 @@ class QuranWorkflowTest extends TestCase
         $this->assertSame(0, $enrollment->fresh()->final_points_cached);
     }
 
+    public function test_points_follow_course_activation_state(): void
+    {
+        [, $enrollment] = $this->workflowContext();
+
+        $transaction = PointTransaction::query()->create([
+            'student_id' => $enrollment->student_id,
+            'enrollment_id' => $enrollment->id,
+            'point_type_id' => PointType::query()->create([
+                'name' => 'Course Toggle Reward',
+                'code' => 'course-toggle-reward',
+                'category' => 'manual',
+                'default_points' => 5,
+                'allow_manual_entry' => true,
+                'allow_negative' => false,
+                'is_active' => true,
+            ])->id,
+            'policy_id' => null,
+            'source_type' => 'manual',
+            'source_id' => null,
+            'points' => 5,
+            'entered_by' => auth()->id(),
+            'entered_at' => now(),
+            'notes' => 'Course activation test',
+        ]);
+
+        app(\App\Services\PointLedgerService::class)->syncEnrollmentCaches($enrollment->fresh(['student']));
+
+        $this->assertSame(5, $enrollment->fresh()->final_points_cached);
+        $this->assertTrue($transaction->fresh()->isEffectivelyActive());
+
+        $course = $enrollment->group->course;
+        $course->update(['is_active' => false]);
+
+        $this->assertSame(0, $enrollment->fresh()->final_points_cached);
+        $this->assertFalse($transaction->fresh()->isEffectivelyActive());
+
+        $course->update(['is_active' => true]);
+
+        $this->assertSame(5, $enrollment->fresh()->final_points_cached);
+        $this->assertTrue($transaction->fresh()->isEffectivelyActive());
+    }
+
     public function test_teacher_workflow_access_is_restricted_to_assigned_groups(): void
     {
         $this->seed();

@@ -29,6 +29,7 @@ return [
         ],
         'ledger_state' => [
             'active' => 'Active',
+            'inactive_source' => 'Inactive source',
             'voided' => 'Voided',
         ],
         'flags' => [

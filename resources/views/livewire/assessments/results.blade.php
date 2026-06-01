@@ -272,7 +272,7 @@ new class extends Component {
         $pointTotals = PointTransaction::query()
             ->where('source_type', 'assessment_result')
             ->whereIn('source_id', $resultIdsByEnrollment->values())
-            ->whereNull('voided_at')
+            ->effectiveActive()
             ->selectRaw('source_id, sum(points) as points')
             ->groupBy('source_id')
             ->pluck('points', 'source_id');

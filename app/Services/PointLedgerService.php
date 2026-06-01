@@ -3,7 +3,9 @@
 namespace App\Services;
 
 use App\Models\AttendanceStatus;
+use App\Models\Course;
 use App\Models\Enrollment;
+use App\Models\Group;
 use App\Models\PointPolicy;
 use App\Models\PointTransaction;
 use App\Models\PointType;
@@ -110,7 +112,7 @@ class PointLedgerService
     {
         $points = PointTransaction::query()
             ->where('enrollment_id', $enrollment->id)
-            ->whereNull('voided_at')
+            ->effectiveActive()
             ->sum('points');
 
         $memorizedPages = DB::table('memorization_session_pages')
@@ -125,6 +127,26 @@ class PointLedgerService
         ]);
 
         $this->syncStudentCurrentJuz($enrollment->student);
+    }
+
+    public function syncCourseEnrollmentCaches(Course $course): void
+    {
+        Enrollment::query()
+            ->with('student')
+            ->whereHas('group', fn ($query) => $query->where('course_id', $course->id))
+            ->chunkById(100, fn ($enrollments) => $enrollments->each(
+                fn (Enrollment $enrollment) => $this->syncEnrollmentCaches($enrollment)
+            ));
+    }
+
+    public function syncGroupEnrollmentCaches(Group $group): void
+    {
+        Enrollment::query()
+            ->with('student')
+            ->where('group_id', $group->id)
+            ->chunkById(100, fn ($enrollments) => $enrollments->each(
+                fn (Enrollment $enrollment) => $this->syncEnrollmentCaches($enrollment)
+            ));
     }
 
     protected function attendancePointType(): PointType

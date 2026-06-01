@@ -63,7 +63,7 @@ new class extends Component {
                         ->orWhere('notes', 'like', $search);
                 });
             })
-            ->when($this->stateFilter === 'active', fn (Builder $query) => $query->whereNull('voided_at'))
+            ->when($this->stateFilter === 'active', fn (Builder $query) => $query->effectiveActive())
             ->when($this->stateFilter === 'voided', fn (Builder $query) => $query->whereNotNull('voided_at'))
             ->latest('entered_at')
             ->latest('id');
@@ -98,7 +98,7 @@ new class extends Component {
             'stats' => [
                 'students' => $studentOptions->count(),
                 'active_total' => (int) $this->scopePointTransactionsQuery(
-                    PointTransaction::query()->whereNull('voided_at')
+                    PointTransaction::query()->effectiveActive()
                 )->sum('points'),
                 'transactions' => $this->scopePointTransactionsQuery(PointTransaction::query())->count(),
             ],
@@ -452,8 +452,9 @@ new class extends Component {
                                 $sourceLabel = trans()->has($sourceTranslationKey)
                                     ? __($sourceTranslationKey)
                                     : str($transaction->source_type)->headline();
+                                $state = $transaction->effectiveState();
                             @endphp
-                            <tr class="{{ $transaction->voided_at ? 'opacity-60' : '' }}">
+                            <tr class="{{ $state !== 'active' ? 'opacity-60' : '' }}">
                                 <td class="px-5 py-4 lg:px-6">
                                     @if ($transaction->student)
                                         <div class="student-inline">
@@ -478,8 +479,8 @@ new class extends Component {
                                     <span class="{{ $transaction->points >= 0 ? 'status-chip status-chip--emerald' : 'status-chip status-chip--rose' }}">{{ $transaction->points }}</span>
                                 </td>
                                 <td class="px-5 py-4 lg:px-6">
-                                    <span class="{{ $transaction->voided_at ? 'status-chip status-chip--slate' : 'status-chip status-chip--emerald' }}">
-                                        {{ $transaction->voided_at ? __('workflow.common.ledger_state.voided') : __('workflow.common.ledger_state.active') }}
+                                    <span class="{{ $state === 'active' ? 'status-chip status-chip--emerald' : 'status-chip status-chip--slate' }}">
+                                        {{ __('workflow.common.ledger_state.'.$state) }}
                                     </span>
                                 </td>
                                 <td class="max-w-xs px-5 py-4 text-neutral-300 lg:px-6">

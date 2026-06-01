@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\PointLedgerService;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -12,6 +13,15 @@ class Group extends Model
 {
     use HasFactory;
     use SoftDeletes;
+
+    protected static function booted(): void
+    {
+        static::saved(function (Group $group): void {
+            if ($group->wasChanged('course_id')) {
+                app(PointLedgerService::class)->syncGroupEnrollmentCaches($group);
+            }
+        });
+    }
 
     protected $fillable = [
         'course_id',

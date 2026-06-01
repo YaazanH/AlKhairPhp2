@@ -103,7 +103,7 @@ class CourseCompletionRuleService
 
             $basePoints = (int) PointTransaction::query()
                 ->where('enrollment_id', $enrollment->id)
-                ->whereNull('voided_at')
+                ->effectiveActive()
                 ->where('source_type', '!=', self::ADJUSTMENT_SOURCE_TYPE)
                 ->sum('points');
 

@@ -29,6 +29,7 @@ return [
         ],
         'ledger_state' => [
             'active' => 'نشط',
+            'inactive_source' => 'مصدر غير نشط',
             'voided' => 'ملغى',
         ],
         'flags' => [

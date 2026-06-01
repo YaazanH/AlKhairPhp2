@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -63,5 +64,58 @@ class PointTransaction extends Model
     public function voidedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'voided_by');
+    }
+
+    public function scopeNotVoided(Builder $query): Builder
+    {
+        return $query->whereNull('voided_at');
+    }
+
+    public function scopeEffectiveActive(Builder $query): Builder
+    {
+        return $query
+            ->notVoided()
+            ->whereHas('enrollment.group.course', fn (Builder $builder) => $builder->where('is_active', true));
+    }
+
+    public function scopeInactiveSource(Builder $query): Builder
+    {
+        return $query
+            ->notVoided()
+            ->where(function (Builder $builder) {
+                $builder
+                    ->whereHas('enrollment.group.course', fn (Builder $courseQuery) => $courseQuery->where('is_active', false))
+                    ->orWhereDoesntHave('enrollment.group.course');
+            });
+    }
+
+    public function effectiveState(): string
+    {
+        if ($this->voided_at) {
+            return 'voided';
+        }
+
+        return $this->isEffectivelyActive() ? 'active' : 'inactive_source';
+    }
+
+    public function isEffectivelyActive(): bool
+    {
+        if ($this->voided_at) {
+            return false;
+        }
+
+        if (
+            $this->relationLoaded('enrollment')
+            && $this->enrollment
+            && $this->enrollment->relationLoaded('group')
+            && $this->enrollment->group
+            && $this->enrollment->group->relationLoaded('course')
+        ) {
+            return (bool) $this->enrollment->group->course?->is_active;
+        }
+
+        return $this->enrollment()
+            ->whereHas('group.course', fn (Builder $builder) => $builder->where('is_active', true))
+            ->exists();
     }
 }

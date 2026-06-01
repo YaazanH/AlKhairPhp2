@@ -48,7 +48,7 @@ new class extends Component {
             'transactions' => $transactions,
             'activeTotal' => PointTransaction::query()
                 ->where('enrollment_id', $this->currentEnrollment->id)
-                ->whereNull('voided_at')
+                ->effectiveActive()
                 ->sum('points'),
             'manualTransactionCount' => $transactions->where('source_type', 'manual')->count(),
             'transactionCount' => $transactions->count(),
@@ -327,8 +327,9 @@ new class extends Component {
                                 $sourceLabel = trans()->has($sourceTranslationKey)
                                     ? __($sourceTranslationKey)
                                     : str($transaction->source_type)->headline();
+                                $state = $transaction->effectiveState();
                             @endphp
-                            <tr class="{{ $transaction->voided_at ? 'opacity-60' : '' }}">
+                            <tr class="{{ $state !== 'active' ? 'opacity-60' : '' }}">
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $transaction->entered_at?->format('Y-m-d H:i') }}</td>
                                 <td class="px-5 py-4 text-white lg:px-6">{{ $transaction->pointType?->name ?: __('workflow.common.not_available') }}</td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $sourceLabel }}</td>
@@ -337,8 +338,8 @@ new class extends Component {
                                 </td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $transaction->notes ?: __('workflow.common.not_available') }}</td>
                                 <td class="px-5 py-4 lg:px-6">
-                                    <span class="{{ $transaction->voided_at ? 'status-chip status-chip--slate' : 'status-chip status-chip--emerald' }}">
-                                        {{ $transaction->voided_at ? __('workflow.common.ledger_state.voided') : __('workflow.common.ledger_state.active') }}
+                                    <span class="{{ $state === 'active' ? 'status-chip status-chip--emerald' : 'status-chip status-chip--slate' }}">
+                                        {{ __('workflow.common.ledger_state.'.$state) }}
                                     </span>
                                 </td>
                                 <td class="px-5 py-4 lg:px-6">

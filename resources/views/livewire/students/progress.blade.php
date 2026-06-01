@@ -307,6 +307,7 @@ new class extends Component {
                 ->get()
             : collect()
         ;
+        $activePointTransactions = $pointTransactions->filter(fn (PointTransaction $transaction) => $transaction->isEffectivelyActive())->values();
 
         $parentVisibleNotes = $this->scopeStudentNotesQuery(
             StudentNote::query()
@@ -362,8 +363,7 @@ new class extends Component {
             ? $quranJuzProgress->first(fn ($row) => (int) $row->juz->id === (int) $this->missingJuzId)
             : null;
 
-        $pointTypeSummary = $pointTransactions
-            ->whereNull('voided_at')
+        $pointTypeSummary = $activePointTransactions
             ->groupBy(fn (PointTransaction $transaction) => $transaction->pointType?->id ?: 'none')
             ->map(function ($transactions) {
                 $first = $transactions->first();
@@ -400,7 +400,7 @@ new class extends Component {
                 'memorized_pages' => $memorizedPages->count(),
                 'quran_partial_tests' => $quranPartialTests->count(),
                 'quran_final_tests' => $quranFinalTests->count(),
-                'points' => (int) $pointTransactions->whereNull('voided_at')->sum('points'),
+                'points' => (int) $activePointTransactions->sum('points'),
             ],
         ];
     }
@@ -945,7 +945,7 @@ new class extends Component {
                         <tbody class="divide-y divide-white/6">
                             @foreach ($latestPointTransactions as $transaction)
                                 @php
-                                    $state = $transaction->voided_at ? 'voided' : 'active';
+                                    $state = $transaction->effectiveState();
                                 @endphp
                                 <tr>
                                     <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $transaction->entered_at?->format('Y-m-d H:i') ?: __('crud.common.not_available') }}</td>

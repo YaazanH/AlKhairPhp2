@@ -437,7 +437,7 @@ class ReportingService
     {
         $query = app(AccessScopeService::class)
             ->scopePointTransactions(PointTransaction::query(), auth()->user())
-            ->whereNull('voided_at');
+            ->effectiveActive();
 
         $this->applyDateRange($query, 'entered_at', $filters);
         $this->applyEnrollmentRelationshipScope($query, $filters);
