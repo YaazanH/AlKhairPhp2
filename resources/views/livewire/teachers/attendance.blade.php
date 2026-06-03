@@ -3,9 +3,11 @@
 use App\Livewire\Concerns\AuthorizesPermissions;
 use App\Livewire\Concerns\AuthorizesTeacherAssignments;
 use App\Models\AttendanceStatus;
+use App\Models\Group;
 use App\Models\Teacher;
 use App\Models\TeacherAttendanceDay;
 use App\Models\TeacherAttendanceRecord;
+use Illuminate\Support\Carbon;
 use Livewire\Volt\Component;
 
 new class extends Component {
@@ -15,6 +17,8 @@ new class extends Component {
     public ?int $attendanceDayId = null;
     public string $attendance_date = '';
     public string $day_status = 'open';
+    public ?int $manual_teacher_id = null;
+    public array $manual_teacher_ids = [];
     public string $notes = '';
     public array $selected_statuses = [];
 
@@ -28,26 +32,44 @@ new class extends Component {
 
     public function with(): array
     {
+        $scheduledTeacherIds = $this->scheduledTeacherIdsForDate();
+
         return [
             'statuses' => AttendanceStatus::query()
                 ->where('is_active', true)
                 ->whereIn('scope', ['teacher', 'both'])
                 ->orderBy('name')
                 ->get(),
-            'teachers' => $this->scopeTeachersQuery(
-                Teacher::query()
-                    ->with('accessRole')
-                    ->where('is_helping', true)
-                    ->whereIn('status', ['active', 'inactive'])
-                    ->orderBy('first_name')
-                    ->orderBy('last_name')
-            )->get(),
+            'teachers' => $this->teachersForDayQuery()->get(),
+            'manualTeacherOptions' => $this->availableManualTeachersQuery()->get(),
+            'scheduledTeacherCount' => count($scheduledTeacherIds),
         ];
     }
 
     public function updatedAttendanceDate(): void
     {
         $this->loadDay();
+    }
+
+    public function addManualTeacher(): void
+    {
+        $this->authorizePermission('attendance.teacher.take');
+
+        $validated = $this->validate([
+            'manual_teacher_id' => ['required', 'exists:teachers,id'],
+        ], [], [
+            'manual_teacher_id' => __('workflow.teacher_attendance.form.extra_teacher'),
+        ]);
+
+        $teacher = $this->availableTeachersScopeQuery()->findOrFail((int) $validated['manual_teacher_id']);
+
+        if (! in_array($teacher->id, $this->teacherIdsForDay(), true)) {
+            $this->manual_teacher_ids[] = (int) $teacher->id;
+            $this->manual_teacher_ids = array_values(array_unique(array_map('intval', $this->manual_teacher_ids)));
+        }
+
+        $this->manual_teacher_id = null;
+        $this->resetValidation('manual_teacher_id');
     }
 
     public function saveAttendance(): void
@@ -69,11 +91,7 @@ new class extends Component {
         $selectedTeacherIds = collect(array_keys(array_filter($validated['selected_statuses'])))
             ->map(fn ($teacherId) => (int) $teacherId)
             ->values();
-        $allowedTeacherIds = $this->scopeTeachersQuery(
-            Teacher::query()
-                ->where('is_helping', true)
-                ->whereIn('status', ['active', 'inactive'])
-        )->pluck('id');
+        $allowedTeacherIds = $this->availableTeachersScopeQuery()->pluck('id');
 
         if ($selectedTeacherIds->diff($allowedTeacherIds)->isNotEmpty()) {
             $this->addError('selected_statuses', __('workflow.teacher_attendance.errors.teacher_not_helping'));
@@ -153,9 +171,7 @@ new class extends Component {
         }
 
         $teacher = $this->scopeTeachersQuery(
-            Teacher::query()
-                ->where('is_helping', true)
-                ->whereIn('status', ['active', 'inactive'])
+            Teacher::query()->whereIn('status', ['active', 'inactive'])
         )->findOrFail($teacherId);
         $this->authorizeScopedTeacherAccess($teacher);
 
@@ -203,18 +219,98 @@ new class extends Component {
 
         $this->attendanceDayId = $day?->id;
         $this->day_status = $day?->status ?? 'open';
+        $scheduledTeacherIds = $this->scheduledTeacherIdsForDate();
         $this->notes = $day?->notes ?? '';
-        $allowedTeacherIds = $this->scopeTeachersQuery(
-            Teacher::query()
-                ->where('is_helping', true)
-                ->whereIn('status', ['active', 'inactive'])
-        )->pluck('id')->all();
+        $allowedTeacherIds = $this->availableTeachersScopeQuery()->pluck('id')->all();
+        $recordTeacherIds = $day
+            ? $day->records
+                ->pluck('teacher_id')
+                ->map(fn ($teacherId) => (int) $teacherId)
+                ->filter(fn (int $teacherId) => in_array($teacherId, $allowedTeacherIds, true))
+                ->all()
+            : [];
+
+        $this->manual_teacher_ids = array_values(array_diff($recordTeacherIds, $scheduledTeacherIds));
+        $this->manual_teacher_id = null;
         $this->selected_statuses = $day
             ? $day->records
                 ->whereIn('teacher_id', $allowedTeacherIds)
                 ->mapWithKeys(fn (TeacherAttendanceRecord $record) => [$record->teacher_id => $record->attendance_status_id])
                 ->toArray()
             : [];
+    }
+
+    protected function teachersForDayQuery()
+    {
+        $teacherIds = $this->teacherIdsForDay();
+
+        return $this->availableTeachersScopeQuery()
+            ->with('accessRole')
+            ->when(
+                $teacherIds === [],
+                fn ($query) => $query->whereRaw('1 = 0'),
+                fn ($query) => $query->whereIn('id', $teacherIds)
+            )
+            ->orderBy('first_name')
+            ->orderBy('last_name');
+    }
+
+    protected function availableManualTeachersQuery()
+    {
+        $teacherIds = $this->teacherIdsForDay();
+
+        return $this->availableTeachersScopeQuery()
+            ->with('accessRole')
+            ->when($teacherIds !== [], fn ($query) => $query->whereNotIn('id', $teacherIds))
+            ->orderBy('first_name')
+            ->orderBy('last_name');
+    }
+
+    protected function availableTeachersScopeQuery()
+    {
+        return $this->scopeTeachersQuery(
+            Teacher::query()
+                ->whereIn('status', ['active', 'inactive'])
+        );
+    }
+
+    protected function teacherIdsForDay(): array
+    {
+        return collect(array_merge(
+            $this->scheduledTeacherIdsForDate(),
+            $this->manual_teacher_ids,
+            array_map('intval', array_keys($this->selected_statuses))
+        ))
+            ->filter()
+            ->map(fn ($teacherId) => (int) $teacherId)
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    protected function scheduledTeacherIdsForDate(): array
+    {
+        if (blank($this->attendance_date)) {
+            return [];
+        }
+
+        $dayOfWeek = Carbon::parse($this->attendance_date)->dayOfWeek;
+
+        return $this->scopeGroupsQuery(
+            Group::query()
+                ->select(['id', 'teacher_id', 'assistant_teacher_id'])
+                ->where('is_active', true)
+                ->whereHas('schedules', fn ($query) => $query
+                    ->where('is_active', true)
+                    ->where('day_of_week', $dayOfWeek))
+        )
+            ->get()
+            ->flatMap(fn (Group $group) => [$group->teacher_id, $group->assistant_teacher_id])
+            ->filter()
+            ->map(fn ($teacherId) => (int) $teacherId)
+            ->unique()
+            ->values()
+            ->all();
     }
 }; ?>
 
@@ -225,7 +321,8 @@ new class extends Component {
         <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ __('workflow.teacher_attendance.subtitle') }}</p>
         <div class="mt-6 flex flex-wrap gap-3">
             <span class="badge-soft">{{ __('workflow.teacher_attendance.table.title') }}</span>
-            <span class="badge-soft badge-soft--emerald">{{ __('workflow.teacher_attendance.stats.helping_teachers', ['count' => number_format($teachers->count())]) }}</span>
+            <span class="badge-soft badge-soft--emerald">{{ __('workflow.teacher_attendance.stats.scheduled_teachers', ['count' => number_format($scheduledTeacherCount)]) }}</span>
+            <span class="badge-soft">{{ __('workflow.teacher_attendance.stats.available_teachers', ['count' => number_format($teachers->count())]) }}</span>
         </div>
     </section>
 
@@ -262,8 +359,24 @@ new class extends Component {
                     <input id="teacher-attendance-notes" wire:model.live.debounce.800ms="notes" wire:change="saveDaySummary" type="text">
                 </div>
 
+                <div class="admin-filter-field">
+                    <label for="teacher-attendance-extra-teacher" class="mb-1 block text-sm font-medium">{{ __('workflow.teacher_attendance.form.extra_teacher') }}</label>
+                    <select id="teacher-attendance-extra-teacher" wire:model="manual_teacher_id" class="w-full rounded-xl px-4 py-3 text-sm">
+                        <option value="">{{ __('workflow.teacher_attendance.form.select_extra_teacher') }}</option>
+                        @foreach ($manualTeacherOptions as $teacherOption)
+                            <option value="{{ $teacherOption->id }}">{{ $teacherOption->first_name }} {{ $teacherOption->last_name }}</option>
+                        @endforeach
+                    </select>
+                    @error('manual_teacher_id')
+                        <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
+                    @enderror
+                </div>
+
                 <div class="admin-toolbar__actions">
                     @can('attendance.teacher.take')
+                        <button wire:click="addManualTeacher" type="button" class="pill-link">
+                            {{ __('workflow.teacher_attendance.form.add_teacher') }}
+                        </button>
                         <button wire:click="saveAttendance" type="button" class="pill-link pill-link--accent">
                             {{ __('workflow.common.actions.save_teacher_attendance') }}
                         </button>

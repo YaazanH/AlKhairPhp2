@@ -202,23 +202,27 @@ return [
     ],
     'teacher_attendance' => [
         'title' => 'Teacher Attendance',
-        'subtitle' => 'Create or reopen one attendance day for teachers currently marked as helping, then mark each teacher under that date.',
+        'subtitle' => 'Create or reopen one teacher attendance day, preload teachers who have scheduled groups on that date, then add extra teachers manually when needed.',
          'messages' => [
              'saved' => 'Teacher attendance saved successfully.',
              'deleted' => 'Teacher attendance day deleted successfully.',
          ],
         'errors' => [
-            'teacher_not_helping' => 'Only teachers marked as helping can be added to teacher attendance.',
+            'teacher_not_helping' => 'Only teachers available in your current scope can be added to teacher attendance.',
         ],
          'form' => [
              'title' => 'Teacher attendance setup',
-             'help' => 'Pick the day and mark only teachers currently flagged as helping.',
+             'help' => 'Pick the day, review the teachers scheduled through active groups, and add any extra teachers manually if required.',
              'attendance_date' => 'Attendance date',
              'day_status' => 'Day status',
+             'extra_teacher' => 'Extra teacher',
+             'select_extra_teacher' => 'Select extra teacher',
+             'add_teacher' => 'Add teacher',
              'notes' => 'Notes',
          ],
          'stats' => [
-             'helping_teachers' => ':count helping teachers',
+             'scheduled_teachers' => ':count scheduled teachers',
+             'available_teachers' => ':count teachers in this day list',
          ],
          'table' => [
              'title' => 'Teacher day records',

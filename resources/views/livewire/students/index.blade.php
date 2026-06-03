@@ -82,18 +82,7 @@ new class extends Component {
         $filteredQuery = $this->scopeStudentsQuery(Student::query())
             ->with(['parentProfile', 'gradeLevel', 'quranCurrentJuz'])
             ->withCount('enrollments')
-            ->when(filled($this->search), function ($query) {
-                $query->where(function ($builder) {
-                    $builder
-                        ->where('first_name', 'like', '%'.$this->search.'%')
-                        ->orWhere('last_name', 'like', '%'.$this->search.'%')
-                        ->orWhere('student_number', 'like', '%'.$this->search.'%')
-                        ->orWhere('school_name', 'like', '%'.$this->search.'%')
-                        ->orWhereHas('parentProfile', fn ($parentQuery) => $parentQuery
-                            ->where('father_name', 'like', '%'.$this->search.'%')
-                            ->orWhere('mother_name', 'like', '%'.$this->search.'%'));
-                });
-            })
+            ->when(filled($this->search), fn (Builder $query) => $this->applyStudentSearch($query, $this->search))
             ->when(in_array($this->statusFilter, ['active', 'inactive', 'graduated', 'blocked'], true), fn ($query) => $query->where('status', $this->statusFilter))
             ->orderBy('last_name')
             ->orderBy('first_name');
@@ -672,6 +661,103 @@ new class extends Component {
             ->orderBy('sort_order')
             ->orderBy('name')
             ->value('code') ?? '');
+    }
+
+    protected function applyStudentSearch(Builder $query, string $search): void
+    {
+        $normalizedSearch = '%'.$this->normalizeArabicSearch($search).'%';
+        $rawSearch = '%'.trim($search).'%';
+        $normalizedFullName = $this->normalizedSqlExpression($this->sqlConcatWithSpaces(['first_name', 'last_name']));
+        $normalizedFirstName = $this->normalizedSqlExpression('coalesce(first_name, \'\')');
+        $normalizedLastName = $this->normalizedSqlExpression('coalesce(last_name, \'\')');
+        $normalizedSchoolName = $this->normalizedSqlExpression('coalesce(school_name, \'\')');
+
+        $query->where(function (Builder $builder) use (
+            $normalizedFirstName,
+            $normalizedFullName,
+            $normalizedLastName,
+            $normalizedSchoolName,
+            $normalizedSearch,
+            $rawSearch
+        ): void {
+            $builder
+                ->whereRaw($normalizedFirstName.' like ?', [$normalizedSearch])
+                ->orWhereRaw($normalizedLastName.' like ?', [$normalizedSearch])
+                ->orWhereRaw($normalizedFullName.' like ?', [$normalizedSearch])
+                ->orWhere('student_number', 'like', $rawSearch)
+                ->orWhereRaw($normalizedSchoolName.' like ?', [$normalizedSearch])
+                ->orWhereHas('parentProfile', function (Builder $parentQuery) use ($normalizedSearch): void {
+                    $normalizedFatherName = $this->normalizedSqlExpression('coalesce(father_name, \'\')');
+                    $normalizedMotherName = $this->normalizedSqlExpression('coalesce(mother_name, \'\')');
+
+                    $parentQuery
+                        ->whereRaw($normalizedFatherName.' like ?', [$normalizedSearch])
+                        ->orWhereRaw($normalizedMotherName.' like ?', [$normalizedSearch]);
+                });
+        });
+    }
+
+    protected function normalizeArabicSearch(string $value): string
+    {
+        $normalized = trim(preg_replace('/\s+/u', ' ', $value) ?? '');
+
+        return strtr($normalized, [
+            'أ' => 'ا',
+            'إ' => 'ا',
+            'آ' => 'ا',
+            'ٱ' => 'ا',
+            'ؤ' => 'و',
+            'ئ' => 'ي',
+            'ى' => 'ي',
+            'ة' => 'ه',
+            'ء' => '',
+            'ـ' => '',
+            'ً' => '',
+            'ٌ' => '',
+            'ٍ' => '',
+            'َ' => '',
+            'ُ' => '',
+            'ِ' => '',
+            'ّ' => '',
+            'ْ' => '',
+        ]);
+    }
+
+    protected function normalizedSqlExpression(string $expression): string
+    {
+        foreach ([
+            'أ' => 'ا',
+            'إ' => 'ا',
+            'آ' => 'ا',
+            'ٱ' => 'ا',
+            'ؤ' => 'و',
+            'ئ' => 'ي',
+            'ى' => 'ي',
+            'ة' => 'ه',
+            'ء' => '',
+            'ـ' => '',
+            'ً' => '',
+            'ٌ' => '',
+            'ٍ' => '',
+            'َ' => '',
+            'ُ' => '',
+            'ِ' => '',
+            'ّ' => '',
+            'ْ' => '',
+        ] as $from => $to) {
+            $expression = "replace($expression, '$from', '$to')";
+        }
+
+        return "trim(replace(replace(replace($expression, '  ', ' '), '  ', ' '), '  ', ' '))";
+    }
+
+    protected function sqlConcatWithSpaces(array $columns): string
+    {
+        $wrappedColumns = array_map(fn (string $column) => "coalesce($column, '')", $columns);
+
+        return DB::connection()->getDriverName() === 'sqlite'
+            ? implode(" || ' ' || ", $wrappedColumns)
+            : 'concat_ws(\' \', '.implode(', ', $wrappedColumns).')';
     }
 
     protected function bulkStatusPreview(): array

@@ -599,6 +599,87 @@ class ManagementCrudTest extends TestCase
             ->assertSee(__('ui.roles.manager'));
     }
 
+    public function test_student_search_matches_full_name_across_first_and_last_name(): void
+    {
+        $this->signIn();
+
+        $firstParent = ParentProfile::create([
+            'father_name' => 'Family One',
+            'is_active' => true,
+        ]);
+
+        $secondParent = ParentProfile::create([
+            'father_name' => 'Family Two',
+            'is_active' => true,
+        ]);
+
+        Student::create([
+            'parent_id' => $firstParent->id,
+            'first_name' => 'Hasan',
+            'last_name' => 'Hamdan',
+            'birth_date' => '2013-01-01',
+            'status' => 'active',
+        ]);
+
+        Student::create([
+            'parent_id' => $secondParent->id,
+            'first_name' => 'Hasan',
+            'last_name' => 'Darwish',
+            'birth_date' => '2013-01-01',
+            'status' => 'active',
+        ]);
+
+        Student::create([
+            'parent_id' => $secondParent->id,
+            'first_name' => 'Omar',
+            'last_name' => 'Hamdan',
+            'birth_date' => '2013-01-01',
+            'status' => 'active',
+        ]);
+
+        Volt::test('students.index')
+            ->set('search', 'Hasan Hamdan')
+            ->assertSee('Hasan Hamdan')
+            ->assertDontSee('Hasan Darwish')
+            ->assertDontSee('Omar Hamdan');
+    }
+
+    public function test_student_search_normalizes_arabic_name_variants(): void
+    {
+        $this->signIn();
+
+        $targetParent = ParentProfile::create([
+            'father_name' => 'أسرة الهدف',
+            'is_active' => true,
+        ]);
+
+        $otherParent = ParentProfile::create([
+            'father_name' => 'أسرة أخرى',
+            'is_active' => true,
+        ]);
+
+        Student::create([
+            'parent_id' => $targetParent->id,
+            'first_name' => 'إياد',
+            'last_name' => 'أحمد',
+            'birth_date' => '2013-01-01',
+            'status' => 'active',
+        ]);
+
+        Student::create([
+            'parent_id' => $otherParent->id,
+            'first_name' => 'إياد',
+            'last_name' => 'سليم',
+            'birth_date' => '2013-01-01',
+            'status' => 'active',
+        ]);
+
+        Volt::test('students.index')
+            ->set('search', 'اياد احمد')
+            ->assertSee('إياد أحمد')
+            ->assertDontSee('إياد سليم');
+    }
+
     public function test_student_bulk_status_can_deactivate_current_course_students_and_sync_accounts(): void
     {
         $this->signIn();

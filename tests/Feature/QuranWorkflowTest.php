@@ -24,6 +24,7 @@ use App\Models\TeacherAttendanceDay;
 use App\Models\User;
 use App\Services\QuranProgressionService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Livewire\Volt\Volt;
 use Tests\TestCase;
 
@@ -76,6 +77,85 @@ class QuranWorkflowTest extends TestCase
         $this->assertDatabaseHas('teacher_attendance_records', [
             'teacher_attendance_day_id' => $day->id,
             'teacher_id' => $teacher->id,
+            'attendance_status_id' => $present->id,
+        ]);
+    }
+
+    public function test_teacher_attendance_preloads_scheduled_teachers_and_allows_manual_additions(): void
+    {
+        $this->seed();
+
+        $manager = User::factory()->create([
+            'username' => 'teacher-attendance-manager',
+            'phone' => '0666000100',
+        ]);
+        $manager->assignRole('manager');
+        $this->actingAs($manager);
+
+        $scheduledTeacher = Teacher::create([
+            'first_name' => 'Scheduled',
+            'last_name' => 'Teacher',
+            'phone' => '0944000100',
+            'status' => 'active',
+            'is_helping' => false,
+        ]);
+
+        $extraTeacher = Teacher::create([
+            'first_name' => 'Manual',
+            'last_name' => 'Teacher',
+            'phone' => '0944000101',
+            'status' => 'active',
+            'is_helping' => false,
+        ]);
+
+        $course = Course::create([
+            'name' => 'Teacher Attendance Course',
+            'is_active' => true,
+        ]);
+
+        $group = Group::create([
+            'course_id' => $course->id,
+            'academic_year_id' => \App\Models\AcademicYear::query()->where('is_current', true)->value('id'),
+            'teacher_id' => $scheduledTeacher->id,
+            'name' => 'Teacher Attendance Group',
+            'capacity' => 12,
+            'is_active' => true,
+        ]);
+
+        $attendanceDate = '2026-09-03';
+
+        $group->schedules()->create([
+            'day_of_week' => Carbon::parse($attendanceDate)->dayOfWeek,
+            'starts_at' => '16:00',
+            'ends_at' => '17:00',
+            'is_active' => true,
+        ]);
+
+        $present = AttendanceStatus::query()->where('code', 'present')->firstOrFail();
+
+        Volt::test('teachers.attendance')
+            ->set('attendance_date', $attendanceDate)
+            ->assertSee($scheduledTeacher->first_name.' '.$scheduledTeacher->last_name)
+            ->assertSee(__('workflow.teacher_attendance.stats.scheduled_teachers', ['count' => number_format(1)]))
+            ->set('manual_teacher_id', (string) $extraTeacher->id)
+            ->call('addManualTeacher')
+            ->assertHasNoErrors()
+            ->set('selected_statuses.'.$scheduledTeacher->id, (string) $present->id)
+            ->set('selected_statuses.'.$extraTeacher->id, (string) $present->id)
+            ->call('saveAttendance')
+            ->assertHasNoErrors();
+
+        $day = TeacherAttendanceDay::query()->whereDate('attendance_date', $attendanceDate)->firstOrFail();
+
+        $this->assertDatabaseHas('teacher_attendance_records', [
+            'teacher_attendance_day_id' => $day->id,
+            'teacher_id' => $scheduledTeacher->id,
+            'attendance_status_id' => $present->id,
+        ]);
+
+        $this->assertDatabaseHas('teacher_attendance_records', [
+            'teacher_attendance_day_id' => $day->id,
+            'teacher_id' => $extraTeacher->id,
             'attendance_status_id' => $present->id,
         ]);
     }
