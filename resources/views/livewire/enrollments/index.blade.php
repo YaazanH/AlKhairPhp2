@@ -62,9 +62,10 @@ new class extends Component {
         return [
             'enrollments' => $filteredQuery->paginate($this->perPage),
             'students' => $this->availableStudentsQuery()
+                ->with('parentProfile')
                 ->orderBy('first_name')
                 ->orderBy('last_name')
-                ->get(['id', 'first_name', 'last_name']),
+                ->get(['id', 'parent_id', 'first_name', 'last_name', 'student_number']),
             'groups' => $this->scopeGroupsQuery(Group::query()->with('course'))->orderBy('name')->get(['id', 'course_id', 'name']),
             'filterCourses' => Course::query()->where('is_active', true)->orderBy('name')->get(['id', 'name']),
             'filterGroups' => $this->scopeGroupsQuery(
@@ -483,7 +484,10 @@ new class extends Component {
                 <select id="enrollment-student" wire:model="student_id" class="w-full rounded-xl px-4 py-3 text-sm">
                     <option value="">{{ __('crud.enrollments.form.placeholders.select_student') }}</option>
                     @foreach ($students as $student)
-                        <option value="{{ $student->id }}">{{ $student->first_name }} {{ $student->last_name }}</option>
+                        <option
+                            value="{{ $student->id }}"
+                            data-search="{{ trim(implode(' ', array_filter([$student->student_number, $student->parentProfile?->father_name, $student->first_name, $student->last_name]))) }}"
+                        >{{ $student->first_name }} {{ $student->last_name }}</option>
                     @endforeach
                 </select>
                 @if ($group_id && $students->isEmpty())

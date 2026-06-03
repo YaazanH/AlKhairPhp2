@@ -54,7 +54,7 @@ new class extends Component {
 
         return [
             'activityRecord' => $activityRecord,
-            'students' => Student::query()->where('status', 'active')
+            'students' => Student::query()->with('parentProfile')->where('status', 'active')
                 ->when($eligibleStudentIds !== [], fn ($query) => $query->whereIn('id', $eligibleStudentIds), fn ($query) => $query->whereRaw('1 = 0'))
                 ->orderBy('first_name')->orderBy('last_name')->get(),
             'enrollments' => $audience->eligibleEnrollmentQuery($activityRecord)
@@ -323,7 +323,10 @@ new class extends Component {
                         <select wire:model.live="registration_student_id" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
                             <option value="">{{ __('activities.finance.registrations.placeholders.student') }}</option>
                             @foreach ($students as $student)
-                                <option value="{{ $student->id }}">{{ $student->first_name }} {{ $student->last_name }}</option>
+                                <option
+                                    value="{{ $student->id }}"
+                                    data-search="{{ trim(implode(' ', array_filter([$student->student_number, $student->parentProfile?->father_name, $student->first_name, $student->last_name]))) }}"
+                                >{{ $student->first_name }} {{ $student->last_name }}</option>
                             @endforeach
                         </select>
                         @error('registration_student_id') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror

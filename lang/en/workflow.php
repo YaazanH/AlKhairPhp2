@@ -203,9 +203,70 @@ return [
     'teacher_attendance' => [
         'title' => 'Teacher Attendance',
         'subtitle' => 'Create or reopen one teacher attendance day, preload teachers who have scheduled groups on that date, then add extra teachers manually when needed.',
+        'days' => [
+            'title' => 'Teacher Attendance Days',
+            'subtitle' => 'Create one attendance day for a date, preload scheduled teachers, then open the day to review and adjust the teacher list.',
+            'create' => 'New teacher attendance day',
+            'messages' => [
+                'created' => 'Teacher attendance day created successfully.',
+            ],
+            'stats' => [
+                'days' => 'Attendance days',
+                'teachers' => 'Teacher records',
+                'open' => 'Open days',
+            ],
+            'form' => [
+                'title' => 'Teacher attendance day setup',
+                'help' => 'The system preloads teachers assigned to active groups scheduled on the selected date. Extra teachers can be added manually after opening the day.',
+                'attendance_date' => 'Attendance date',
+                'status' => 'Day status',
+                'default_status' => 'Default teacher status',
+                'default_status_help' => 'Applied to scheduled teachers when the attendance day is created. Existing records are not overwritten.',
+                'scheduled_teachers_help' => ':count scheduled teachers will be added for the selected date. You can add extra teachers manually after opening the day.',
+                'no_default_status' => 'Create an active teacher attendance status before creating teacher attendance days.',
+                'notes' => 'Notes',
+            ],
+            'table' => [
+                'title' => 'Teacher attendance day records',
+                'empty' => 'No teacher attendance days have been created yet.',
+                'headers' => [
+                    'date' => 'Date',
+                    'teachers' => 'Teachers',
+                    'marked' => 'Marked teachers',
+                    'status' => 'Status',
+                    'actions' => 'Actions',
+                ],
+                'view' => 'View day',
+            ],
+        ],
+        'day_details' => [
+            'title' => 'Teacher Attendance Day',
+            'subtitle' => 'Review scheduled teachers for this day, add any extra teachers if needed, and mark attendance from one screen.',
+            'back' => 'Back to teacher attendance days',
+            'stats' => [
+                'scheduled' => 'Scheduled teachers',
+                'teachers' => 'Teachers in day',
+                'marked' => 'Marked teachers',
+            ],
+            'manual_add' => [
+                'title' => 'Add extra teacher',
+                'help' => 'Use this when a teacher attends outside the normal group schedule or needs a make-up attendance record.',
+                'teacher' => 'Extra teacher',
+                'select_teacher' => 'Select teacher',
+                'action' => 'Add teacher to day',
+                'empty' => 'All available teachers in your scope are already included in this day.',
+                'messages' => [
+                    'added' => 'Teacher added to attendance day successfully.',
+                ],
+                'errors' => [
+                    'unavailable' => 'This teacher is not available in your current scope.',
+                ],
+            ],
+        ],
          'messages' => [
              'saved' => 'Teacher attendance saved successfully.',
              'deleted' => 'Teacher attendance day deleted successfully.',
+             'default_status_note' => 'Default teacher attendance status applied during day creation: :status',
          ],
         'errors' => [
             'teacher_not_helping' => 'Only teachers available in your current scope can be added to teacher attendance.',

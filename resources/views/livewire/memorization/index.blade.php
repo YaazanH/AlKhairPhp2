@@ -566,7 +566,10 @@ new class extends Component {
                     <select id="memorization-student" wire:model.live="selectedStudentId" class="w-full rounded-xl px-4 py-3 text-sm">
                         <option value="">{{ __('workflow.memorization.workbench.form.select_student') }}</option>
                         @foreach ($studentOptions as $student)
-                            <option value="{{ $student->id }}">
+                            <option
+                                value="{{ $student->id }}"
+                                data-search="{{ trim(implode(' ', array_filter([$student->student_number, $student->parentProfile?->father_name, $student->first_name, $student->last_name]))) }}"
+                            >
                                 {{ $student->first_name }} {{ $student->last_name }}
                                 @if ($student->parentProfile?->father_name)
                                     - {{ $student->parentProfile->father_name }}

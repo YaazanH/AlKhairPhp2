@@ -7,298 +7,179 @@ use App\Models\Group;
 use App\Models\Teacher;
 use App\Models\TeacherAttendanceDay;
 use App\Models\TeacherAttendanceRecord;
+use App\Services\TeacherAttendanceDayService;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use Livewire\Volt\Component;
+use Livewire\WithPagination;
 
 new class extends Component {
     use AuthorizesPermissions;
     use AuthorizesTeacherAssignments;
+    use WithPagination;
 
-    public ?int $attendanceDayId = null;
     public string $attendance_date = '';
     public string $day_status = 'open';
-    public ?int $manual_teacher_id = null;
-    public array $manual_teacher_ids = [];
+    public string $default_attendance_status_id = '';
     public string $notes = '';
-    public array $selected_statuses = [];
+    public string $search = '';
+    public string $statusFilter = 'all';
+    public int $perPage = 15;
+    public bool $showFormModal = false;
 
     public function mount(): void
     {
         $this->authorizePermission('attendance.teacher.view');
-
         $this->attendance_date = now()->toDateString();
-        $this->loadDay();
     }
 
     public function with(): array
     {
-        $scheduledTeacherIds = $this->scheduledTeacherIdsForDate();
+        $daysQuery = $this->scopeTeacherAttendanceDaysQuery(
+            TeacherAttendanceDay::query()->withCount([
+                'records',
+                'records as marked_records_count' => fn (Builder $query) => $query->whereNotNull('attendance_status_id'),
+            ])
+        )
+            ->when(filled($this->search), fn (Builder $query) => $query->whereDate('attendance_date', $this->search))
+            ->when(
+                in_array($this->statusFilter, ['open', 'closed'], true),
+                fn (Builder $query) => $query->where('status', $this->statusFilter)
+            )
+            ->latest('attendance_date')
+            ->latest('id');
+
+        $scheduledTeacherCount = filled($this->attendance_date)
+            ? $this->scheduledTeachersForDate($this->attendance_date)->count()
+            : 0;
 
         return [
-            'statuses' => AttendanceStatus::query()
+            'days' => $daysQuery->paginate($this->perPage),
+            'filteredCount' => (clone $daysQuery)->count(),
+            'stats' => [
+                'days' => $this->scopeTeacherAttendanceDaysQuery(TeacherAttendanceDay::query())->count(),
+                'teachers' => $this->scopeTeacherAttendanceRecordsQuery(TeacherAttendanceRecord::query())->count(),
+                'open' => $this->scopeTeacherAttendanceDaysQuery(TeacherAttendanceDay::query()->where('status', 'open'))->count(),
+            ],
+            'scheduledTeacherCount' => $scheduledTeacherCount,
+            'defaultStatusOptions' => AttendanceStatus::query()
                 ->where('is_active', true)
                 ->whereIn('scope', ['teacher', 'both'])
+                ->orderByDesc('is_default')
+                ->orderByDesc('is_present')
                 ->orderBy('name')
                 ->get(),
-            'teachers' => $this->teachersForDayQuery()->get(),
-            'manualTeacherOptions' => $this->availableManualTeachersQuery()->get(),
-            'scheduledTeacherCount' => count($scheduledTeacherIds),
         ];
     }
 
-    public function updatedAttendanceDate(): void
+    public function updatedSearch(): void
     {
-        $this->loadDay();
+        $this->resetPage();
     }
 
-    public function addManualTeacher(): void
+    public function updatedStatusFilter(): void
+    {
+        $this->resetPage();
+    }
+
+    public function openCreateModal(): void
     {
         $this->authorizePermission('attendance.teacher.take');
 
-        $validated = $this->validate([
-            'manual_teacher_id' => ['required', 'exists:teachers,id'],
-        ], [], [
-            'manual_teacher_id' => __('workflow.teacher_attendance.form.extra_teacher'),
-        ]);
-
-        $teacher = $this->availableTeachersScopeQuery()->findOrFail((int) $validated['manual_teacher_id']);
-
-        if (! in_array($teacher->id, $this->teacherIdsForDay(), true)) {
-            $this->manual_teacher_ids[] = (int) $teacher->id;
-            $this->manual_teacher_ids = array_values(array_unique(array_map('intval', $this->manual_teacher_ids)));
-        }
-
-        $this->manual_teacher_id = null;
-        $this->resetValidation('manual_teacher_id');
+        $this->attendance_date = now()->toDateString();
+        $this->day_status = 'open';
+        $this->default_attendance_status_id = (string) ($this->defaultTeacherAttendanceStatusId() ?? '');
+        $this->notes = '';
+        $this->showFormModal = true;
+        $this->resetValidation();
     }
 
-    public function saveAttendance(): void
+    public function closeCreateModal(): void
+    {
+        $this->showFormModal = false;
+        $this->resetValidation();
+    }
+
+    public function saveDay()
     {
         $this->authorizePermission('attendance.teacher.take');
 
-        $validated = $this->validate([
-            'attendance_date' => ['required', 'date'],
-            'day_status' => ['required', 'in:open,closed'],
-            'notes' => ['nullable', 'string'],
-            'selected_statuses' => ['array'],
-            'selected_statuses.*' => ['nullable', 'exists:attendance_statuses,id'],
-        ]);
+        if (! AttendanceStatus::query()->where('is_active', true)->whereIn('scope', ['teacher', 'both'])->exists()) {
+            $this->addError('default_attendance_status_id', __('workflow.teacher_attendance.days.form.no_default_status'));
 
-        foreach (array_keys(array_filter($validated['selected_statuses'])) as $teacherId) {
-            $this->authorizeScopedTeacherAccess(Teacher::query()->findOrFail((int) $teacherId));
+            return null;
         }
-
-        $selectedTeacherIds = collect(array_keys(array_filter($validated['selected_statuses'])))
-            ->map(fn ($teacherId) => (int) $teacherId)
-            ->values();
-        $allowedTeacherIds = $this->availableTeachersScopeQuery()->pluck('id');
-
-        if ($selectedTeacherIds->diff($allowedTeacherIds)->isNotEmpty()) {
-            $this->addError('selected_statuses', __('workflow.teacher_attendance.errors.teacher_not_helping'));
-
-            return;
-        }
-
-        $day = TeacherAttendanceDay::query()
-            ->whereDate('attendance_date', $validated['attendance_date'])
-            ->first();
-
-        if (! $day) {
-            $day = TeacherAttendanceDay::query()->create([
-                'attendance_date' => $validated['attendance_date'],
-                'created_by' => auth()->id(),
-            ]);
-        }
-
-        $day->update([
-            'status' => $validated['day_status'],
-            'notes' => $validated['notes'] ?: null,
-        ]);
-
-        foreach (array_filter($validated['selected_statuses']) as $teacherId => $statusId) {
-            TeacherAttendanceRecord::query()->updateOrCreate(
-                [
-                    'teacher_attendance_day_id' => $day->id,
-                    'teacher_id' => (int) $teacherId,
-                ],
-                [
-                    'attendance_status_id' => $statusId,
-                ],
-            );
-        }
-
-        $this->attendanceDayId = $day->id;
-
-        session()->flash('status', __('workflow.teacher_attendance.messages.saved'));
-    }
-
-    public function saveDaySummary(): void
-    {
-        $this->authorizePermission('attendance.teacher.take');
 
         $validated = $this->validate([
             'attendance_date' => ['required', 'date'],
             'day_status' => ['required', 'in:open,closed'],
+            'default_attendance_status_id' => [
+                'required',
+                'integer',
+                Rule::exists('attendance_statuses', 'id')->where(fn ($query) => $query->where('is_active', true)->whereIn('scope', ['teacher', 'both'])),
+            ],
             'notes' => ['nullable', 'string'],
         ]);
 
-        $day = TeacherAttendanceDay::query()->firstOrCreate(
-            ['attendance_date' => $validated['attendance_date']],
-            ['created_by' => auth()->id()],
+        $day = app(TeacherAttendanceDayService::class)->createOrSyncDay(
+            $validated['attendance_date'],
+            $this->scheduledTeachersForDate($validated['attendance_date']),
+            auth()->user(),
+            $validated['notes'] ?: null,
+            $validated['day_status'],
+            (int) $validated['default_attendance_status_id'],
         );
 
-        $day->update([
-            'status' => $validated['day_status'],
-            'notes' => $validated['notes'] ?: null,
-        ]);
+        session()->flash('status', __('workflow.teacher_attendance.days.messages.created'));
 
-        $this->attendanceDayId = $day->id;
+        $this->closeCreateModal();
+
+        return redirect()->route('teachers.attendance.show', $day);
     }
 
-    public function saveTeacherStatus(int $teacherId): void
+    public function deleteDay(int $dayId): void
     {
         $this->authorizePermission('attendance.teacher.take');
 
-        $this->validate([
-            'attendance_date' => ['required', 'date'],
-            'selected_statuses.'.$teacherId => ['nullable', 'exists:attendance_statuses,id'],
-        ]);
+        $day = $this->scopeTeacherAttendanceDaysQuery(
+            TeacherAttendanceDay::query()->with('records')
+        )->findOrFail($dayId);
 
-        $statusId = $this->selected_statuses[$teacherId] ?? null;
-
-        if (! $statusId) {
-            return;
-        }
-
-        $teacher = $this->scopeTeachersQuery(
-            Teacher::query()->whereIn('status', ['active', 'inactive'])
-        )->findOrFail($teacherId);
-        $this->authorizeScopedTeacherAccess($teacher);
-
-        $day = TeacherAttendanceDay::query()->firstOrCreate(
-            ['attendance_date' => $this->attendance_date],
-            ['created_by' => auth()->id()],
-        );
-
-        TeacherAttendanceRecord::query()->updateOrCreate(
-            [
-                'teacher_attendance_day_id' => $day->id,
-                'teacher_id' => $teacher->id,
-            ],
-            [
-                'attendance_status_id' => $statusId,
-            ],
-        );
-
-        $this->attendanceDayId = $day->id;
-    }
-
-    public function deleteDay(): void
-    {
-        $this->authorizePermission('attendance.teacher.take');
-
-        if (! $this->attendanceDayId) {
-            return;
-        }
-
-        $day = TeacherAttendanceDay::query()->findOrFail($this->attendanceDayId);
-        $day->records()->delete();
-        $day->delete();
-
-        $this->loadDay();
+        DB::transaction(function () use ($day): void {
+            $day->records()->delete();
+            $day->delete();
+        });
 
         session()->flash('status', __('workflow.teacher_attendance.messages.deleted'));
     }
 
-    protected function loadDay(): void
+    protected function defaultTeacherAttendanceStatusId(): ?int
     {
-        $day = TeacherAttendanceDay::query()
-            ->with('records')
-            ->whereDate('attendance_date', $this->attendance_date)
-            ->first();
-
-        $this->attendanceDayId = $day?->id;
-        $this->day_status = $day?->status ?? 'open';
-        $scheduledTeacherIds = $this->scheduledTeacherIdsForDate();
-        $this->notes = $day?->notes ?? '';
-        $allowedTeacherIds = $this->availableTeachersScopeQuery()->pluck('id')->all();
-        $recordTeacherIds = $day
-            ? $day->records
-                ->pluck('teacher_id')
-                ->map(fn ($teacherId) => (int) $teacherId)
-                ->filter(fn (int $teacherId) => in_array($teacherId, $allowedTeacherIds, true))
-                ->all()
-            : [];
-
-        $this->manual_teacher_ids = array_values(array_diff($recordTeacherIds, $scheduledTeacherIds));
-        $this->manual_teacher_id = null;
-        $this->selected_statuses = $day
-            ? $day->records
-                ->whereIn('teacher_id', $allowedTeacherIds)
-                ->mapWithKeys(fn (TeacherAttendanceRecord $record) => [$record->teacher_id => $record->attendance_status_id])
-                ->toArray()
-            : [];
+        return AttendanceStatus::query()
+            ->where('is_default', true)
+            ->where('is_active', true)
+            ->whereIn('scope', ['teacher', 'both'])
+            ->value('id') ?? AttendanceStatus::query()
+                ->where('is_active', true)
+                ->whereIn('scope', ['teacher', 'both'])
+                ->orderByDesc('is_present')
+                ->orderBy('name')
+                ->value('id');
     }
 
-    protected function teachersForDayQuery()
+    protected function scheduledTeachersForDate(string $attendanceDate)
     {
-        $teacherIds = $this->teacherIdsForDay();
-
-        return $this->availableTeachersScopeQuery()
-            ->with('accessRole')
-            ->when(
-                $teacherIds === [],
-                fn ($query) => $query->whereRaw('1 = 0'),
-                fn ($query) => $query->whereIn('id', $teacherIds)
-            )
-            ->orderBy('first_name')
-            ->orderBy('last_name');
-    }
-
-    protected function availableManualTeachersQuery()
-    {
-        $teacherIds = $this->teacherIdsForDay();
-
-        return $this->availableTeachersScopeQuery()
-            ->with('accessRole')
-            ->when($teacherIds !== [], fn ($query) => $query->whereNotIn('id', $teacherIds))
-            ->orderBy('first_name')
-            ->orderBy('last_name');
-    }
-
-    protected function availableTeachersScopeQuery()
-    {
-        return $this->scopeTeachersQuery(
-            Teacher::query()
-                ->whereIn('status', ['active', 'inactive'])
-        );
-    }
-
-    protected function teacherIdsForDay(): array
-    {
-        return collect(array_merge(
-            $this->scheduledTeacherIdsForDate(),
-            $this->manual_teacher_ids,
-            array_map('intval', array_keys($this->selected_statuses))
-        ))
-            ->filter()
-            ->map(fn ($teacherId) => (int) $teacherId)
-            ->unique()
-            ->values()
-            ->all();
-    }
-
-    protected function scheduledTeacherIdsForDate(): array
-    {
-        if (blank($this->attendance_date)) {
-            return [];
+        try {
+            $dayOfWeek = Carbon::parse($attendanceDate)->dayOfWeek;
+        } catch (\Throwable) {
+            return collect();
         }
 
-        $dayOfWeek = Carbon::parse($this->attendance_date)->dayOfWeek;
-
-        return $this->scopeGroupsQuery(
+        $teacherIds = $this->scopeGroupsQuery(
             Group::query()
-                ->select(['id', 'teacher_id', 'assistant_teacher_id'])
+                ->select(['teacher_id', 'assistant_teacher_id'])
                 ->where('is_active', true)
                 ->whereHas('schedules', fn ($query) => $query
                     ->where('is_active', true)
@@ -311,18 +192,30 @@ new class extends Component {
             ->unique()
             ->values()
             ->all();
+
+        if ($teacherIds === []) {
+            return collect();
+        }
+
+        return $this->scopeTeachersQuery(
+            Teacher::query()
+                ->whereIn('status', ['active', 'inactive'])
+                ->whereIn('id', $teacherIds)
+                ->orderBy('first_name')
+                ->orderBy('last_name')
+        )->get();
     }
 }; ?>
 
 <div class="page-stack">
     <section class="page-hero p-6 lg:p-8">
         <div class="eyebrow">{{ __('ui.nav.tracking') }}</div>
-        <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('workflow.teacher_attendance.title') }}</h1>
-        <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ __('workflow.teacher_attendance.subtitle') }}</p>
+        <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('workflow.teacher_attendance.days.title') }}</h1>
+        <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ __('workflow.teacher_attendance.days.subtitle') }}</p>
         <div class="mt-6 flex flex-wrap gap-3">
-            <span class="badge-soft">{{ __('workflow.teacher_attendance.table.title') }}</span>
-            <span class="badge-soft badge-soft--emerald">{{ __('workflow.teacher_attendance.stats.scheduled_teachers', ['count' => number_format($scheduledTeacherCount)]) }}</span>
-            <span class="badge-soft">{{ __('workflow.teacher_attendance.stats.available_teachers', ['count' => number_format($teachers->count())]) }}</span>
+            <span class="badge-soft">{{ __('workflow.teacher_attendance.days.stats.days') }}: {{ number_format($stats['days']) }}</span>
+            <span class="badge-soft badge-soft--emerald">{{ __('workflow.teacher_attendance.days.stats.teachers') }}: {{ number_format($stats['teachers']) }}</span>
+            <span class="badge-soft">{{ __('workflow.teacher_attendance.days.stats.open') }}: {{ number_format($stats['open']) }}</span>
         </div>
     </section>
 
@@ -333,136 +226,155 @@ new class extends Component {
     <section class="surface-panel p-5 lg:p-6">
         <div class="admin-toolbar">
             <div>
-                <div class="admin-toolbar__title">{{ __('workflow.teacher_attendance.form.title') }}</div>
-                <p class="admin-toolbar__subtitle">{{ __('workflow.teacher_attendance.form.help') }}</p>
+                <div class="admin-toolbar__title">{{ __('workflow.teacher_attendance.days.table.title') }}</div>
+                <p class="admin-toolbar__subtitle">{{ __('workflow.teacher_attendance.days.form.help') }}</p>
             </div>
 
             <div class="admin-toolbar__controls">
                 <div class="admin-filter-field">
-                <label for="teacher-attendance-date" class="mb-1 block text-sm font-medium">{{ __('workflow.teacher_attendance.form.attendance_date') }}</label>
-                    <input id="teacher-attendance-date" wire:model.live="attendance_date" type="date">
-                @error('attendance_date')
-                        <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
-                @enderror
-            </div>
-
-                <div class="admin-filter-field">
-                <label for="teacher-attendance-status" class="mb-1 block text-sm font-medium">{{ __('workflow.teacher_attendance.form.day_status') }}</label>
-                    <select id="teacher-attendance-status" wire:model.live="day_status" wire:change="saveDaySummary" data-searchable="false">
-                    <option value="open">{{ __('workflow.common.day_status.open') }}</option>
-                    <option value="closed">{{ __('workflow.common.day_status.closed') }}</option>
-                </select>
-            </div>
-
-                <div class="admin-filter-field">
-                <label for="teacher-attendance-notes" class="mb-1 block text-sm font-medium">{{ __('workflow.teacher_attendance.form.notes') }}</label>
-                    <input id="teacher-attendance-notes" wire:model.live.debounce.800ms="notes" wire:change="saveDaySummary" type="text">
+                    <label for="teacher-attendance-search">{{ __('crud.common.filters.search') }}</label>
+                    <input id="teacher-attendance-search" wire:model.live.debounce.300ms="search" type="text" placeholder="YYYY-MM-DD">
                 </div>
 
                 <div class="admin-filter-field">
-                    <label for="teacher-attendance-extra-teacher" class="mb-1 block text-sm font-medium">{{ __('workflow.teacher_attendance.form.extra_teacher') }}</label>
-                    <select id="teacher-attendance-extra-teacher" wire:model="manual_teacher_id" class="w-full rounded-xl px-4 py-3 text-sm">
-                        <option value="">{{ __('workflow.teacher_attendance.form.select_extra_teacher') }}</option>
-                        @foreach ($manualTeacherOptions as $teacherOption)
-                            <option value="{{ $teacherOption->id }}">{{ $teacherOption->first_name }} {{ $teacherOption->last_name }}</option>
-                        @endforeach
+                    <label for="teacher-attendance-status-filter">{{ __('workflow.teacher_attendance.days.form.status') }}</label>
+                    <select id="teacher-attendance-status-filter" wire:model.live="statusFilter">
+                        <option value="all">{{ __('crud.common.filters.all_statuses') }}</option>
+                        <option value="open">{{ __('workflow.common.day_status.open') }}</option>
+                        <option value="closed">{{ __('workflow.common.day_status.closed') }}</option>
                     </select>
-                    @error('manual_teacher_id')
-                        <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
-                    @enderror
                 </div>
 
                 <div class="admin-toolbar__actions">
                     @can('attendance.teacher.take')
-                        <button wire:click="addManualTeacher" type="button" class="pill-link">
-                            {{ __('workflow.teacher_attendance.form.add_teacher') }}
-                        </button>
-                        <button wire:click="saveAttendance" type="button" class="pill-link pill-link--accent">
-                            {{ __('workflow.common.actions.save_teacher_attendance') }}
-                        </button>
-                        @if ($attendanceDayId)
-                            <button wire:click="deleteDay" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" type="button" class="pill-link border-red-400/25 text-red-200 hover:border-red-300/35 hover:bg-red-500/12">
-                                {{ __('crud.common.actions.delete') }}
-                            </button>
-                        @endif
+                        <button type="button" wire:click="openCreateModal" class="pill-link pill-link--accent">{{ __('workflow.teacher_attendance.days.create') }}</button>
                     @endcan
                 </div>
             </div>
         </div>
     </section>
 
-    @can('attendance.teacher.take')
-        @error('selected_statuses')
-            <div class="rounded-xl border border-red-500/25 bg-red-500/10 px-4 py-3 text-sm text-red-200">{{ $message }}</div>
-        @enderror
-    @endcan
-
     <section class="surface-table">
         <div class="admin-grid-meta">
             <div>
-                <div class="admin-grid-meta__title">{{ __('workflow.teacher_attendance.table.title') }}</div>
-                <div class="admin-grid-meta__summary">{{ __('workflow.teacher_attendance.table.summary', ['count' => number_format($teachers->count())]) }}</div>
+                <div class="admin-grid-meta__title">{{ __('workflow.teacher_attendance.days.table.title') }}</div>
+                <div class="admin-grid-meta__summary">{{ __('crud.common.badges.in_view', ['count' => number_format($filteredCount)]) }}</div>
             </div>
         </div>
 
-        <div class="overflow-x-auto overflow-y-visible pb-24">
-            <table class="text-sm">
-                <thead>
-                    <tr>
-                        <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.teacher_attendance.table.headers.teacher') }}</th>
-                        <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.teachers.table.headers.access_role') }}</th>
-                        <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.teacher_attendance.table.headers.status') }}</th>
-                        <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.teacher_attendance.table.headers.attendance') }}</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-white/6">
-                    @forelse ($teachers as $teacher)
-                        @php
-                            $accessRoleName = $teacher->accessRole?->name;
-                            $accessRoleLabel = $accessRoleName
-                                ? ((__('ui.roles.'.$accessRoleName) === 'ui.roles.'.$accessRoleName)
-                                    ? \Illuminate\Support\Str::of($accessRoleName)->replace('_', ' ')->headline()->toString()
-                                    : __('ui.roles.'.$accessRoleName))
-                                : __('workflow.common.not_available');
-                        @endphp
+        @if ($days->isEmpty())
+            <div class="admin-empty-state">{{ __('workflow.teacher_attendance.days.table.empty') }}</div>
+        @else
+            <div class="overflow-x-auto">
+                <table class="text-sm">
+                    <thead>
                         <tr>
-                            <td class="px-5 py-4 lg:px-6">
-                                <div class="student-inline student-inline--teacher-attendance">
-                                    <x-teacher-avatar :teacher="$teacher" size="sm" />
-                                    <div class="student-inline__body">
-                                        <div class="student-inline__name">{{ $teacher->first_name }} {{ $teacher->last_name }}</div>
-                                        <div class="student-inline__meta">{{ $teacher->phone }}</div>
+                            <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.teacher_attendance.days.table.headers.date') }}</th>
+                            <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.teacher_attendance.days.table.headers.teachers') }}</th>
+                            <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.teacher_attendance.days.table.headers.marked') }}</th>
+                            <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.teacher_attendance.days.table.headers.status') }}</th>
+                            <th class="px-5 py-4 text-right lg:px-6">{{ __('workflow.teacher_attendance.days.table.headers.actions') }}</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-white/6">
+                        @foreach ($days as $day)
+                            <tr>
+                                <td class="px-5 py-4 text-white lg:px-6">
+                                    <div class="font-semibold">{{ $day->attendance_date?->format('Y-m-d') }}</div>
+                                    <div class="mt-1 text-xs text-neutral-500">{{ $day->notes ?: __('workflow.common.not_available') }}</div>
+                                </td>
+                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ number_format((int) $day->records_count) }}</td>
+                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ number_format((int) $day->marked_records_count) }}</td>
+                                <td class="px-5 py-4 lg:px-6">
+                                    <span class="{{ $day->status === 'closed' ? 'status-chip status-chip--emerald' : 'status-chip status-chip--slate' }}">
+                                        {{ __('workflow.common.day_status.'.$day->status) }}
+                                    </span>
+                                </td>
+                                <td class="px-5 py-4 lg:px-6">
+                                    <div class="flex flex-wrap justify-end gap-2">
+                                        <a href="{{ route('teachers.attendance.show', $day) }}" wire:navigate class="pill-link pill-link--compact">
+                                            {{ __('workflow.teacher_attendance.days.table.view') }}
+                                        </a>
+                                        @can('attendance.teacher.take')
+                                            <button type="button" wire:click="deleteDay({{ $day->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link pill-link--compact border-red-400/25 text-red-200 hover:border-red-300/35 hover:bg-red-500/12">
+                                                {{ __('crud.common.actions.delete') }}
+                                            </button>
+                                        @endcan
                                     </div>
-                                </div>
-                            </td>
-                            <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $accessRoleLabel }}</td>
-                            <td class="px-5 py-4 lg:px-6">
-                                <span class="{{ $teacher->status === 'active' ? 'status-chip status-chip--emerald' : 'status-chip status-chip--slate' }}">
-                                    {{ __('crud.common.status_options.' . $teacher->status) }}
-                                </span>
-                            </td>
-                            <td class="px-5 py-4 lg:px-6">
-                                <select
-                                    wire:model="selected_statuses.{{ $teacher->id }}"
-                                    wire:change="saveTeacherStatus({{ $teacher->id }})"
-                                    @disabled(! auth()->user()->can('attendance.teacher.take'))
-                                    data-searchable="false"
-                                    class="w-full rounded-xl px-4 py-3 text-sm"
-                                >
-                                    <option value="">{{ __('workflow.teacher_attendance.table.not_marked') }}</option>
-                                    @foreach ($statuses as $status)
-                                        <option value="{{ $status->id }}">{{ $status->name }}</option>
-                                    @endforeach
-                                </select>
-                            </td>
-                        </tr>
-                    @empty
-                        <tr>
-                            <td colspan="4" class="admin-empty-state">{{ __('workflow.teacher_attendance.table.empty') }}</td>
-                        </tr>
-                    @endforelse
-                </tbody>
-            </table>
-        </div>
+                                </td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+
+            @if ($days->hasPages())
+                <div class="border-t border-white/8 px-5 py-4 lg:px-6">
+                    {{ $days->links() }}
+                </div>
+            @endif
+        @endif
     </section>
+
+    <x-admin.modal
+        :show="$showFormModal"
+        :title="__('workflow.teacher_attendance.days.form.title')"
+        :description="__('workflow.teacher_attendance.days.form.help')"
+        close-method="closeCreateModal"
+        max-width="4xl"
+    >
+        <form wire:submit="saveDay" class="space-y-4">
+            <div class="grid gap-4 md:grid-cols-2">
+                <div>
+                    <label for="teacher-attendance-day-date" class="mb-1 block text-sm font-medium">{{ __('workflow.teacher_attendance.days.form.attendance_date') }}</label>
+                    <input id="teacher-attendance-day-date" wire:model.live="attendance_date" type="date" class="w-full rounded-xl px-4 py-3 text-sm">
+                    @error('attendance_date')
+                        <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
+                    @enderror
+                </div>
+
+                <div>
+                    <label for="teacher-attendance-day-status" class="mb-1 block text-sm font-medium">{{ __('workflow.teacher_attendance.days.form.status') }}</label>
+                    <select id="teacher-attendance-day-status" wire:model="day_status" class="w-full rounded-xl px-4 py-3 text-sm">
+                        <option value="open">{{ __('workflow.common.day_status.open') }}</option>
+                        <option value="closed">{{ __('workflow.common.day_status.closed') }}</option>
+                    </select>
+                    @error('day_status')
+                        <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
+                    @enderror
+                </div>
+            </div>
+
+            <div>
+                <label for="teacher-attendance-day-default-status" class="mb-1 block text-sm font-medium">{{ __('workflow.teacher_attendance.days.form.default_status') }}</label>
+                <select id="teacher-attendance-day-default-status" wire:model="default_attendance_status_id" class="w-full rounded-xl px-4 py-3 text-sm">
+                    <option value="">{{ __('workflow.teacher_attendance.days.form.no_default_status') }}</option>
+                    @foreach ($defaultStatusOptions as $status)
+                        <option value="{{ $status->id }}">{{ $status->name }}{{ $status->is_default ? ' - '.__('settings.tracking.labels.default_attendance_status') : '' }}</option>
+                    @endforeach
+                </select>
+                <div class="mt-1 text-xs text-neutral-400">{{ __('workflow.teacher_attendance.days.form.default_status_help') }}</div>
+                @error('default_attendance_status_id')
+                    <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
+                @enderror
+            </div>
+
+            <div class="soft-callout p-4 text-sm">
+                {{ __('workflow.teacher_attendance.days.form.scheduled_teachers_help', ['count' => number_format($scheduledTeacherCount)]) }}
+            </div>
+
+            <div>
+                <label for="teacher-attendance-day-notes" class="mb-1 block text-sm font-medium">{{ __('workflow.teacher_attendance.days.form.notes') }}</label>
+                <textarea id="teacher-attendance-day-notes" wire:model="notes" rows="4" class="w-full rounded-xl px-4 py-3 text-sm"></textarea>
+                @error('notes')
+                    <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
+                @enderror
+            </div>
+
+            <div class="flex flex-wrap items-center gap-3">
+                <button type="submit" class="pill-link pill-link--accent">{{ __('workflow.teacher_attendance.days.create') }}</button>
+                <button type="button" wire:click="closeCreateModal" class="pill-link">{{ __('crud.common.actions.close') }}</button>
+            </div>
+        </form>
+    </x-admin.modal>
 </div>

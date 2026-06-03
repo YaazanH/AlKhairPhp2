@@ -97,7 +97,7 @@ new class extends Component {
                     ->with('parentProfile')
                     ->orderBy('first_name')
                     ->orderBy('last_name')
-                    ->get(['id', 'parent_id', 'first_name', 'last_name'])
+                    ->get(['id', 'parent_id', 'first_name', 'last_name', 'student_number'])
                 : collect(),
             'totals' => [
                 'all' => $baseQuery->count(),
@@ -742,7 +742,10 @@ new class extends Component {
                                 <select id="group-roster-student" wire:model="roster_student_id" class="w-full rounded-xl px-4 py-3 text-sm">
                                     <option value="">{{ __('crud.groups.roster.placeholders.select_student') }}</option>
                                     @foreach ($availableRosterStudents as $student)
-                                        <option value="{{ $student->id }}">
+                                        <option
+                                            value="{{ $student->id }}"
+                                            data-search="{{ trim(implode(' ', array_filter([$student->student_number, $student->parentProfile?->father_name, $student->first_name, $student->last_name]))) }}"
+                                        >
                                             {{ $student->first_name }} {{ $student->last_name }}
                                             @if ($student->parentProfile?->father_name)
                                                 - {{ $student->parentProfile->father_name }}

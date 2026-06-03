@@ -11,6 +11,7 @@ use App\Models\Student;
 use App\Models\StudentAttendanceDay;
 use App\Models\StudentNote;
 use App\Models\Teacher;
+use App\Models\TeacherAttendanceDay;
 use App\Services\AccessScopeService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\Relation;
@@ -66,6 +67,11 @@ trait AuthorizesTeacherAssignments
     protected function authorizeScopedTeacherAccess(Teacher $teacher): void
     {
         abort_unless($this->accessScopes()->canAccessTeacher(Auth::user(), $teacher), 403);
+    }
+
+    protected function authorizeScopedTeacherAttendanceDayAccess(TeacherAttendanceDay $teacherAttendanceDay): void
+    {
+        abort_unless($this->accessScopes()->canAccessTeacherAttendanceDay(Auth::user(), $teacherAttendanceDay), 403);
     }
 
     protected function linkedTeacherForPermission(string $permission): ?Teacher
@@ -191,9 +197,14 @@ trait AuthorizesTeacherAssignments
         return $this->accessScopes()->scopeStudents($query, Auth::user());
     }
 
-    protected function scopeTeacherAttendanceRecordsQuery(Builder $query): Builder
+    protected function scopeTeacherAttendanceRecordsQuery(Builder|Relation $query): Builder|Relation
     {
         return $this->accessScopes()->scopeTeacherAttendanceRecords($query, Auth::user());
+    }
+
+    protected function scopeTeacherAttendanceDaysQuery(Builder $query): Builder
+    {
+        return $this->accessScopes()->scopeTeacherAttendanceDays($query, Auth::user());
     }
 
     protected function scopeTeachersQuery(Builder $query): Builder

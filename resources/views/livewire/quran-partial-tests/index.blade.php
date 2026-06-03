@@ -475,7 +475,10 @@ new class extends Component {
                     >
                         <option value="">{{ __('workflow.quran_partial_tests.form.select_student') }}</option>
                         @foreach ($studentOptions as $student)
-                            <option value="{{ $student->id }}">
+                            <option
+                                value="{{ $student->id }}"
+                                data-search="{{ trim(implode(' ', array_filter([$student->student_number, $student->parentProfile?->father_name, $student->first_name, $student->last_name]))) }}"
+                            >
                                 {{ $student->first_name }} {{ $student->last_name }}
                                 @if ($student->parentProfile?->father_name)
                                     - {{ $student->parentProfile->father_name }}

@@ -22,6 +22,7 @@ use App\Models\StudentAttendanceRecord;
 use App\Models\StudentAttendanceDay;
 use App\Models\StudentNote;
 use App\Models\Teacher;
+use App\Models\TeacherAttendanceDay;
 use App\Models\TeacherAttendanceRecord;
 use App\Models\User;
 use App\Models\UserScopeOverride;
@@ -170,6 +171,23 @@ class AccessScopeService
 
         return $studentAttendanceDay->groupAttendanceDays()
             ->whereIn('group_id', $groupIds)
+            ->exists();
+    }
+
+    public function canAccessTeacherAttendanceDay(?User $user, TeacherAttendanceDay $teacherAttendanceDay): bool
+    {
+        if ($this->isUnrestricted($user)) {
+            return true;
+        }
+
+        $teacherIds = $this->accessibleTeacherIds($user);
+
+        if ($teacherIds === []) {
+            return false;
+        }
+
+        return $teacherAttendanceDay->records()
+            ->whereIn('teacher_id', $teacherIds)
             ->exists();
     }
 
@@ -626,13 +644,28 @@ class AccessScopeService
         return $this->applyScopedIds($query, 'id', $this->accessibleStudentIds($user));
     }
 
-    public function scopeTeacherAttendanceRecords(Builder $query, ?User $user): Builder
+    public function scopeTeacherAttendanceRecords(Builder|Relation $query, ?User $user): Builder|Relation
     {
         if ($this->isUnrestricted($user)) {
             return $query;
         }
 
         return $this->applyScopedIds($query, 'teacher_id', $this->accessibleTeacherIds($user));
+    }
+
+    public function scopeTeacherAttendanceDays(Builder $query, ?User $user): Builder
+    {
+        if ($this->isUnrestricted($user)) {
+            return $query;
+        }
+
+        $teacherIds = $this->accessibleTeacherIds($user);
+
+        if ($teacherIds === []) {
+            return $query->whereRaw('1 = 0');
+        }
+
+        return $query->whereHas('records', fn (Builder $builder) => $builder->whereIn('teacher_id', $teacherIds));
     }
 
     public function scopeTeachers(Builder $query, ?User $user): Builder

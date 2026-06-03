@@ -77,6 +77,7 @@ Route::middleware(['auth'])->group(function () {
     Volt::route('parents', 'parents.index')->middleware('permission:parents.view')->name('parents.index');
     Route::get('parents/export', [AdminExportController::class, 'parents'])->middleware('permission:parents.view')->name('parents.export');
     Volt::route('teachers/attendance', 'teachers.attendance')->middleware('permission:attendance.teacher.view')->name('teachers.attendance');
+    Volt::route('teachers/attendance/days/{teacherAttendanceDay}', 'teachers.attendance-show')->middleware('permission:attendance.teacher.view')->name('teachers.attendance.show');
     Volt::route('teachers', 'teachers.index')->middleware('permission:teachers.view')->name('teachers.index');
     Route::get('teachers/export', [AdminExportController::class, 'teachers'])->middleware('permission:teachers.view')->name('teachers.export');
     Volt::route('students', 'students.index')->middleware('permission:students.view')->name('students.index');

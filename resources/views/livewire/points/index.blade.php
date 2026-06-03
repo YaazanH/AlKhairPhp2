@@ -528,7 +528,10 @@ new class extends Component {
                     <select id="points-workbench-student" wire:model.live="selectedStudentId" class="w-full rounded-xl px-4 py-3 text-sm" @disabled($editingTransactionId !== null)>
                         <option value="">{{ __('workflow.points.workbench.form.select_student') }}</option>
                         @foreach ($studentOptions as $student)
-                            <option value="{{ $student->id }}">
+                            <option
+                                value="{{ $student->id }}"
+                                data-search="{{ trim(implode(' ', array_filter([$student->student_number, $student->parentProfile?->father_name, $student->first_name, $student->last_name]))) }}"
+                            >
                                 {{ $student->first_name }} {{ $student->last_name }}
                                 @if ($student->parentProfile?->father_name)
                                     - {{ $student->parentProfile->father_name }}

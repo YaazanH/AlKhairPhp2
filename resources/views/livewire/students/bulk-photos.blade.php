@@ -23,8 +23,8 @@ new class extends Component {
     {
         return [
             'studentOptions' => $this->scopeStudentsQuery(
-                Student::query()->orderBy('first_name')->orderBy('last_name')
-            )->get(['id', 'first_name', 'last_name', 'student_number']),
+                Student::query()->with('parentProfile')->orderBy('first_name')->orderBy('last_name')
+            )->get(['id', 'first_name', 'last_name', 'student_number', 'parent_id']),
         ];
     }
 
@@ -161,7 +161,10 @@ new class extends Component {
                                     <select wire:model="matches.{{ $loop->index }}.student_id" class="min-w-72 rounded-2xl px-4 py-3 text-sm">
                                         <option value="">{{ __('crud.students.bulk_photos.no_match') }}</option>
                                         @foreach ($studentOptions as $student)
-                                            <option value="{{ $student->id }}">{{ $student->student_number }} - {{ $student->full_name }}</option>
+                                            <option
+                                                value="{{ $student->id }}"
+                                                data-search="{{ trim(implode(' ', array_filter([$student->student_number, $student->parentProfile?->father_name, $student->first_name, $student->last_name]))) }}"
+                                            >{{ $student->student_number }} - {{ $student->full_name }}</option>
                                         @endforeach
                                     </select>
                                 </td>

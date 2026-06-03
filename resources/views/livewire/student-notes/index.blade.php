@@ -411,7 +411,10 @@ new class extends Component {
                         <select wire:model="student_id" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
                             <option value="">{{ __('notes.form.placeholders.student') }}</option>
                             @foreach ($students as $student)
-                                <option value="{{ $student->id }}">{{ $student->first_name }} {{ $student->last_name }}{{ $student->parentProfile?->father_name ? ' | '.$student->parentProfile->father_name : '' }}</option>
+                                <option
+                                    value="{{ $student->id }}"
+                                    data-search="{{ trim(implode(' ', array_filter([$student->student_number, $student->parentProfile?->father_name, $student->first_name, $student->last_name]))) }}"
+                                >{{ $student->first_name }} {{ $student->last_name }}{{ $student->parentProfile?->father_name ? ' | '.$student->parentProfile->father_name : '' }}</option>
                             @endforeach
                         </select>
                         @error('student_id') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
@@ -495,7 +498,10 @@ new class extends Component {
                     <select wire:model.live="filter_student_id" class="rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
                         <option value="">{{ __('notes.log.filters.all_students') }}</option>
                         @foreach ($students as $student)
-                            <option value="{{ $student->id }}">{{ $student->first_name }} {{ $student->last_name }}</option>
+                            <option
+                                value="{{ $student->id }}"
+                                data-search="{{ trim(implode(' ', array_filter([$student->student_number, $student->parentProfile?->father_name, $student->first_name, $student->last_name]))) }}"
+                            >{{ $student->first_name }} {{ $student->last_name }}</option>
                         @endforeach
                     </select>
 

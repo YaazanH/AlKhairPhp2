@@ -260,8 +260,22 @@ function closeOtherSearchableSelects(currentWrapper) {
     });
 }
 
+function normalizeSearchableText(value) {
+    return String(value ?? '')
+        .trim()
+        .replace(/\s+/gu, ' ')
+        .replace(/[أإآٱ]/gu, 'ا')
+        .replace(/ؤ/gu, 'و')
+        .replace(/[ئى]/gu, 'ي')
+        .replace(/ة/gu, 'ه')
+        .replace(/ء/gu, '')
+        .replace(/ـ/gu, '')
+        .replace(/[\u064B-\u0652]/gu, '')
+        .toLowerCase();
+}
+
 function buildSearchableSelectOptions(select, list, query = '') {
-    const normalizedQuery = query.trim().toLowerCase();
+    const normalizedQuery = normalizeSearchableText(query);
     const options = Array.from(select.options);
     let visibleCount = 0;
 
@@ -273,7 +287,7 @@ function buildSearchableSelectOptions(select, list, query = '') {
         }
 
         const label = option.textContent.trim();
-        const searchableText = `${label} ${option.dataset.search || ''}`.toLowerCase();
+        const searchableText = normalizeSearchableText(`${label} ${option.dataset.search || ''}`);
 
         if (normalizedQuery && !searchableText.includes(normalizedQuery)) {
             return;

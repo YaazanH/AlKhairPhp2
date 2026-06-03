@@ -65,14 +65,24 @@ class QuranWorkflowTest extends TestCase
         [$group] = $this->workflowContext();
         $teacher = $group->teacher;
         $present = AttendanceStatus::query()->where('code', 'present')->firstOrFail();
+        $attendanceDate = '2026-09-02';
+
+        $group->schedules()->create([
+            'day_of_week' => Carbon::parse($attendanceDate)->dayOfWeek,
+            'starts_at' => '15:00',
+            'ends_at' => '16:00',
+            'is_active' => true,
+        ]);
 
         Volt::test('teachers.attendance')
-            ->set('attendance_date', '2026-09-02')
-            ->set('selected_statuses.'.$teacher->id, (string) $present->id)
-            ->call('saveAttendance')
+            ->call('openCreateModal')
+            ->set('attendance_date', $attendanceDate)
+            ->set('day_status', 'open')
+            ->set('default_attendance_status_id', (string) $present->id)
+            ->call('saveDay')
             ->assertHasNoErrors();
 
-        $day = TeacherAttendanceDay::query()->whereDate('attendance_date', '2026-09-02')->firstOrFail();
+        $day = TeacherAttendanceDay::query()->whereDate('attendance_date', $attendanceDate)->firstOrFail();
 
         $this->assertDatabaseHas('teacher_attendance_records', [
             'teacher_attendance_day_id' => $day->id,
@@ -134,18 +144,22 @@ class QuranWorkflowTest extends TestCase
         $present = AttendanceStatus::query()->where('code', 'present')->firstOrFail();
 
         Volt::test('teachers.attendance')
+            ->call('openCreateModal')
             ->set('attendance_date', $attendanceDate)
-            ->assertSee($scheduledTeacher->first_name.' '.$scheduledTeacher->last_name)
-            ->assertSee(__('workflow.teacher_attendance.stats.scheduled_teachers', ['count' => number_format(1)]))
-            ->set('manual_teacher_id', (string) $extraTeacher->id)
-            ->call('addManualTeacher')
-            ->assertHasNoErrors()
-            ->set('selected_statuses.'.$scheduledTeacher->id, (string) $present->id)
-            ->set('selected_statuses.'.$extraTeacher->id, (string) $present->id)
-            ->call('saveAttendance')
+            ->set('day_status', 'open')
+            ->set('default_attendance_status_id', (string) $present->id)
+            ->call('saveDay')
             ->assertHasNoErrors();
 
         $day = TeacherAttendanceDay::query()->whereDate('attendance_date', $attendanceDate)->firstOrFail();
+
+        Volt::test('teachers.attendance-show', ['teacherAttendanceDay' => $day])
+            ->assertSee($scheduledTeacher->first_name.' '.$scheduledTeacher->last_name)
+            ->assertSee(__('workflow.teacher_attendance.day_details.stats.scheduled'))
+            ->call('openManualTeacherModal')
+            ->set('manual_teacher_id', (string) $extraTeacher->id)
+            ->call('addManualTeacher')
+            ->assertHasNoErrors();
 
         $this->assertDatabaseHas('teacher_attendance_records', [
             'teacher_attendance_day_id' => $day->id,
