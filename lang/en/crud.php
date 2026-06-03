@@ -562,6 +562,7 @@ return [
             'add_title' => 'Add student to this group',
             'add_help' => 'Only students not already enrolled in this group appear here.',
             'add_submit' => 'Add student',
+            'download_action' => 'Download roster',
             'remove_action' => 'Remove',
             'fields' => [
                 'student' => 'Student',
@@ -577,7 +578,12 @@ return [
                 'empty' => 'No students are enrolled in this group yet.',
                 'headers' => [
                     'student' => 'Student',
+                    'student_number' => 'Student no.',
+                    'student_phone' => 'Student phone',
+                    'grade' => 'Grade',
+                    'parent_number' => 'Parent no.',
                     'parent' => 'Parent',
+                    'parent_phone' => 'Parent phone',
                     'enrolled_at' => 'Enrolled',
                     'status' => 'Status',
                     'actions' => 'Actions',

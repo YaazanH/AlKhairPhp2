@@ -562,6 +562,7 @@ return [
             'add_title' => 'إضافة طالب إلى هذه المجموعة',
             'add_help' => 'يظهر هنا فقط الطلاب غير المسجلين بالفعل في هذه المجموعة.',
             'add_submit' => 'إضافة الطالب',
+            'download_action' => 'تنزيل القائمة',
             'remove_action' => 'إزالة',
             'fields' => [
                 'student' => 'الطالب',
@@ -577,7 +578,12 @@ return [
                 'empty' => 'لا يوجد طلاب مسجلون في هذه المجموعة بعد.',
                 'headers' => [
                     'student' => 'الطالب',
+                    'student_number' => 'رقم الطالب',
+                    'student_phone' => 'هاتف الطالب',
+                    'grade' => 'الصف',
+                    'parent_number' => 'رقم ولي الأمر',
                     'parent' => 'ولي الأمر',
+                    'parent_phone' => 'هاتف ولي الأمر',
                     'enrolled_at' => 'تاريخ التسجيل',
                     'status' => 'الحالة',
                     'actions' => 'الإجراءات',

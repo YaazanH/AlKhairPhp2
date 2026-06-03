@@ -92,6 +92,25 @@ class ManagementPagesTest extends TestCase
         }
     }
 
+    public function test_authenticated_users_can_download_group_roster_export(): void
+    {
+        $this->seed(RoleSeeder::class);
+        [$group] = $this->makeRouteModels();
+
+        $user = User::factory()->create([
+            'username' => 'manager-roster-export',
+            'phone' => '9000001',
+        ]);
+
+        $user->assignRole('manager');
+
+        $this->actingAs($user);
+
+        $this->get(route('groups.roster.export', $group, absolute: false))
+            ->assertOk()
+            ->assertHeader('content-type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    }
+
     public function test_authenticated_users_without_management_permissions_are_forbidden(): void
     {
         $this->seed(RoleSeeder::class);

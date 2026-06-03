@@ -85,7 +85,7 @@ new class extends Component {
             'rosterEnrollments' => $this->rosterGroupId
                 ? $this->scopeEnrollmentsQuery(
                     Enrollment::query()
-                        ->with(['student.parentProfile'])
+                        ->with(['student.parentProfile', 'student.gradeLevel', 'student.user'])
                         ->where('group_id', $this->rosterGroupId)
                 )
                     ->orderBy('status')
@@ -778,6 +778,11 @@ new class extends Component {
                             <div class="admin-grid-meta__title">{{ __('crud.groups.roster.table.title') }}</div>
                             <div class="admin-grid-meta__summary">{{ __('crud.groups.roster.table.summary', ['count' => number_format($rosterEnrollments->count())]) }}</div>
                         </div>
+                        @if ($rosterGroup && $rosterEnrollments->isNotEmpty())
+                            <a href="{{ route('groups.roster.export', $rosterGroup) }}" class="pill-link pill-link--accent">
+                                {{ __('crud.groups.roster.download_action') }}
+                            </a>
+                        @endif
                     </div>
 
                     @if ($rosterEnrollments->isEmpty())
@@ -788,7 +793,12 @@ new class extends Component {
                                 <thead>
                                     <tr>
                                         <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.groups.roster.table.headers.student') }}</th>
+                                        <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.groups.roster.table.headers.student_number') }}</th>
+                                        <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.groups.roster.table.headers.student_phone') }}</th>
+                                        <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.groups.roster.table.headers.grade') }}</th>
+                                        <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.groups.roster.table.headers.parent_number') }}</th>
                                         <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.groups.roster.table.headers.parent') }}</th>
+                                        <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.groups.roster.table.headers.parent_phone') }}</th>
                                         <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.groups.roster.table.headers.enrolled_at') }}</th>
                                         <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.groups.roster.table.headers.status') }}</th>
                                         @can('enrollments.delete')
@@ -818,7 +828,19 @@ new class extends Component {
                                                     <span class="text-white">{{ __('crud.common.not_available') }}</span>
                                                 @endif
                                             </td>
-                                            <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $enrollment->student?->parentProfile?->father_name ?: __('crud.common.not_available') }}</td>
+                                            <td class="px-5 py-4 font-mono text-neutral-300 lg:px-6">{{ $enrollment->student?->student_number ?: __('crud.common.not_available') }}</td>
+                                            <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $enrollment->student?->user?->phone ?: __('crud.common.not_available') }}</td>
+                                            <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $enrollment->student?->gradeLevel?->name ?: __('crud.common.not_available') }}</td>
+                                            <td class="px-5 py-4 font-mono text-neutral-300 lg:px-6">{{ $enrollment->student?->parentProfile?->parent_number ?: __('crud.common.not_available') }}</td>
+                                            <td class="px-5 py-4 text-neutral-300 lg:px-6">
+                                                <div>{{ $enrollment->student?->parentProfile?->father_name ?: __('crud.common.not_available') }}</div>
+                                                @if ($enrollment->student?->parentProfile?->mother_name)
+                                                    <div class="mt-1 text-xs text-neutral-400">{{ $enrollment->student->parentProfile->mother_name }}</div>
+                                                @endif
+                                            </td>
+                                            <td class="px-5 py-4 text-neutral-300 lg:px-6">
+                                                {{ $enrollment->student?->parentProfile?->father_phone ?: ($enrollment->student?->parentProfile?->mother_phone ?: ($enrollment->student?->parentProfile?->home_phone ?: __('crud.common.not_available'))) }}
+                                            </td>
                                             <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $enrollment->enrolled_at?->format('Y-m-d') ?: __('crud.common.not_available') }}</td>
                                             <td class="px-5 py-4 lg:px-6"><span class="{{ $rosterStatusClass }}">{{ __('crud.common.status_options.'.$enrollment->status) }}</span></td>
                                             @can('enrollments.delete')

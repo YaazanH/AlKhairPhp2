@@ -588,6 +588,93 @@ class ManagementCrudTest extends TestCase
         ]);
     }
 
+    public function test_group_roster_shows_extended_student_and_parent_details(): void
+    {
+        $this->signIn();
+
+        $gradeLevel = GradeLevel::create([
+            'name' => 'Grade 7',
+            'sort_order' => 7,
+            'is_active' => true,
+        ]);
+
+        $academicYear = AcademicYear::create([
+            'name' => '2026 / 2027',
+            'starts_on' => '2026-09-01',
+            'ends_on' => '2027-06-30',
+            'is_active' => true,
+        ]);
+
+        $course = Course::create([
+            'name' => 'Roster Course',
+            'is_active' => true,
+        ]);
+
+        $teacher = Teacher::create([
+            'first_name' => 'Roster',
+            'last_name' => 'Teacher',
+            'phone' => '0944003112',
+            'status' => 'active',
+            'is_helping' => true,
+        ]);
+
+        $parent = ParentProfile::create([
+            'father_name' => 'Fares Hamdan',
+            'mother_name' => 'Mona Hamdan',
+            'father_phone' => '0999000001',
+            'mother_phone' => '0999000002',
+            'home_phone' => '0111234567',
+            'is_active' => true,
+        ]);
+
+        $studentUser = User::factory()->create([
+            'name' => 'Hasan Hamdan',
+            'username' => 'student-roster',
+            'phone' => '0999000003',
+        ]);
+
+        $student = Student::create([
+            'user_id' => $studentUser->id,
+            'parent_id' => $parent->id,
+            'first_name' => 'Hasan',
+            'last_name' => 'Hamdan',
+            'student_number' => 'S000777',
+            'birth_date' => '2013-01-01',
+            'grade_level_id' => $gradeLevel->id,
+            'status' => 'active',
+        ]);
+
+        $group = Group::create([
+            'course_id' => $course->id,
+            'academic_year_id' => $academicYear->id,
+            'teacher_id' => $teacher->id,
+            'grade_level_id' => $gradeLevel->id,
+            'name' => 'Roster Group',
+            'capacity' => 20,
+            'is_active' => true,
+        ]);
+
+        Enrollment::create([
+            'student_id' => $student->id,
+            'group_id' => $group->id,
+            'enrolled_at' => '2026-09-01',
+            'status' => 'active',
+        ]);
+
+        $student->refresh();
+        $parent->refresh();
+
+        Volt::test('groups.index')
+            ->call('openRosterModal', $group->id)
+            ->assertSee($student->student_number)
+            ->assertSee('0999000003')
+            ->assertSee('Grade 7')
+            ->assertSee($parent->parent_number)
+            ->assertSee('Fares Hamdan')
+            ->assertSee('Mona Hamdan')
+            ->assertSee('0999000001');
+    }
+
     public function test_teacher_role_options_include_basic_management_roles(): void
     {
         $this->signIn();

@@ -215,6 +215,60 @@ class AdminExportController extends Controller
         ])->all());
     }
 
+    public function groupRoster(Request $request, Group $group, AccessScopeService $scopes): StreamedResponse
+    {
+        abort_unless($request->user()?->can('groups.view'), 403);
+
+        $group = $scopes->scopeGroups(
+            Group::query()->with(['course', 'teacher', 'academicYear']),
+            $request->user()
+        )->findOrFail($group->id);
+
+        $rows = $scopes->scopeEnrollments(
+            Enrollment::query()
+                ->with(['student.parentProfile', 'student.gradeLevel', 'student.user'])
+                ->where('group_id', $group->id),
+            $request->user()
+        )
+            ->orderBy('status')
+            ->orderBy('enrolled_at')
+            ->get()
+            ->map(fn (Enrollment $enrollment) => [
+                $group->name,
+                $group->course?->name,
+                trim(($enrollment->student?->first_name ?? '').' '.($enrollment->student?->last_name ?? '')),
+                $enrollment->student?->student_number,
+                $enrollment->student?->user?->phone,
+                $enrollment->student?->gradeLevel?->name,
+                $enrollment->student?->parentProfile?->parent_number,
+                $enrollment->student?->parentProfile?->father_name,
+                $enrollment->student?->parentProfile?->mother_name,
+                $enrollment->student?->parentProfile?->father_phone,
+                $enrollment->student?->parentProfile?->mother_phone,
+                $enrollment->student?->parentProfile?->home_phone,
+                $enrollment->enrolled_at?->format('Y-m-d'),
+                ucfirst($enrollment->status),
+            ])
+            ->all();
+
+        return $this->streamXlsx('group-roster-'.$group->id, [
+            'Group',
+            'Course',
+            'Student',
+            'Student Number',
+            'Student Phone',
+            'Grade',
+            'Parent Number',
+            'Father Name',
+            'Mother Name',
+            'Father Phone',
+            'Mother Phone',
+            'Home Phone',
+            'Enrolled At',
+            'Status',
+        ], $rows);
+    }
+
     public function enrollments(Request $request, AccessScopeService $scopes): StreamedResponse
     {
         abort_unless($request->user()?->can('enrollments.view'), 403);
