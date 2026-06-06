@@ -785,8 +785,9 @@ class ManagementCrudTest extends TestCase
             ->set('quickSummaryDate', '2026-09-10')
             ->assertSee('Hasan Hamdan')
             ->assertSee('Present')
+            ->assertSee(__('crud.groups.quick_summary.copy_group_action'))
             ->assertSee(__('crud.groups.quick_summary.memorized_pages', ['pages' => '11-13']))
-            ->call('copyQuickSummary', $enrollment->id)
+            ->call('copyQuickSummary')
             ->assertDispatched('admin-copy-text');
     }
 

@@ -329,17 +329,24 @@ new class extends Component {
         $this->resetValidation();
     }
 
-    public function copyQuickSummary(int $enrollmentId): void
+    public function copyQuickSummary(): void
     {
         abort_unless($this->canPermission('attendance.student.view') || $this->canPermission('memorization.view'), 403);
 
-        $row = $this->buildQuickSummaryRows()->firstWhere('enrollment_id', $enrollmentId);
-
-        if (! $row) {
+        if (! $this->quickSummaryGroupId) {
             return;
         }
 
-        $this->dispatch('admin-copy-text', text: $row->copy_text);
+        $group = Group::query()->findOrFail($this->quickSummaryGroupId);
+        $this->authorizeScopedGroupAccess($group);
+
+        $rows = $this->buildQuickSummaryRows();
+
+        if ($rows->isEmpty()) {
+            return;
+        }
+
+        $this->dispatch('admin-copy-text', text: $this->buildQuickSummaryCopyText($group, $rows));
     }
 
     public function addStudentToRoster(): void
@@ -608,6 +615,29 @@ new class extends Component {
         $ranges[] = $rangeStart === $rangeEnd ? (string) $rangeStart : $rangeStart.'-'.$rangeEnd;
 
         return implode(', ', $ranges);
+    }
+
+    protected function buildQuickSummaryCopyText(Group $group, \Illuminate\Support\Collection $rows): string
+    {
+        $summaryDate = $this->quickSummaryDate ?: now()->toDateString();
+
+        $header = array_filter([
+            __('crud.groups.quick_summary.copy_lines.group', ['value' => $group->name]),
+            __('crud.groups.quick_summary.copy_lines.date', ['value' => $summaryDate]),
+            $group->course?->name
+                ? __('crud.groups.quick_summary.copy_lines.course', ['value' => $group->course->name])
+                : null,
+            $group->teacher
+                ? __('crud.groups.quick_summary.copy_lines.teacher', ['value' => trim($group->teacher->first_name.' '.$group->teacher->last_name)])
+                : null,
+        ]);
+
+        $studentBlocks = $rows->map(fn (object $row) => $row->copy_text)->all();
+
+        return implode(PHP_EOL.PHP_EOL, [
+            implode(PHP_EOL, $header),
+            implode(PHP_EOL.PHP_EOL, $studentBlocks),
+        ]);
     }
 }; ?>
 
@@ -918,9 +948,14 @@ new class extends Component {
                             <p class="text-sm leading-6 text-neutral-400">{{ __('crud.groups.quick_summary.copy_help') }}</p>
                         </div>
 
-                        <div>
+                        <div class="space-y-3">
                             <label for="group-quick-summary-date" class="mb-1 block text-sm font-medium">{{ __('crud.groups.quick_summary.fields.date') }}</label>
                             <input id="group-quick-summary-date" wire:model.live="quickSummaryDate" type="date" class="w-full rounded-xl px-4 py-3 text-sm">
+                            @if ($quickSummaryRows->isNotEmpty())
+                                <button type="button" wire:click="copyQuickSummary" class="pill-link pill-link--accent w-full justify-center">
+                                    {{ __('crud.groups.quick_summary.copy_group_action') }}
+                                </button>
+                            @endif
                         </div>
                     </div>
                 </section>
@@ -941,10 +976,6 @@ new class extends Component {
                                             <span class="badge-soft">{{ $row->parent_name ?: __('crud.common.not_available') }}</span>
                                         </div>
                                     </div>
-
-                                    <button type="button" wire:click="copyQuickSummary({{ $row->enrollment_id }})" class="pill-link pill-link--compact pill-link--accent">
-                                        {{ __('crud.groups.quick_summary.copy_action') }}
-                                    </button>
                                 </div>
 
                                 <dl class="mt-5 space-y-4">
