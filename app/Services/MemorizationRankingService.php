@@ -50,6 +50,7 @@ class MemorizationRankingService
                 [$movementState, $movementSteps] = $this->movementFor($first, $second);
 
                 return [
+                    'display_rank' => $second['rank'] ?? $first['rank'] ?? null,
                     'entity_id' => (int) $entityId,
                     'entity_name' => $second['entity_name'] ?? $first['entity_name'] ?? '',
                     'first_pages' => $first['pages'] ?? 0,
@@ -62,11 +63,23 @@ class MemorizationRankingService
                     'second_sessions' => $second['sessions'] ?? 0,
                 ];
             })
-            ->sortBy([
-                fn (array $row) => $row['second_rank'] ?? PHP_INT_MAX,
-                fn (array $row) => $row['first_rank'] ?? PHP_INT_MAX,
-                fn (array $row) => mb_strtolower($row['entity_name']),
-            ])
+            ->sort(function (array $left, array $right) {
+                $leftCurrentRank = $left['second_rank'] ?? PHP_INT_MAX;
+                $rightCurrentRank = $right['second_rank'] ?? PHP_INT_MAX;
+
+                if ($leftCurrentRank !== $rightCurrentRank) {
+                    return $leftCurrentRank <=> $rightCurrentRank;
+                }
+
+                $leftFallbackRank = $left['first_rank'] ?? PHP_INT_MAX;
+                $rightFallbackRank = $right['first_rank'] ?? PHP_INT_MAX;
+
+                if ($leftFallbackRank !== $rightFallbackRank) {
+                    return $leftFallbackRank <=> $rightFallbackRank;
+                }
+
+                return mb_strtolower($left['entity_name']) <=> mb_strtolower($right['entity_name']);
+            })
             ->values();
 
         return [

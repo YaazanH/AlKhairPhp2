@@ -149,6 +149,10 @@ class ReportsAndApiTest extends TestCase
 
         $this->assertSame($groupA->name, $comparison['first_range']['leader']['entity_name']);
         $this->assertSame($groupB->name, $comparison['second_range']['leader']['entity_name']);
+        $this->assertSame($groupB->name, $comparison['rows'][0]['entity_name']);
+        $this->assertSame(1, $comparison['rows'][0]['second_rank']);
+        $this->assertSame($groupA->name, $comparison['rows'][1]['entity_name']);
+        $this->assertSame(2, $comparison['rows'][1]['second_rank']);
 
         $rows = collect($comparison['rows'])->keyBy('entity_name');
 
@@ -190,6 +194,10 @@ class ReportsAndApiTest extends TestCase
         $this->assertSame('up', $rows[$studentB->full_name]['movement_state']);
         $this->assertSame($studentA->full_name, $comparison['first_range']['leader']['entity_name']);
         $this->assertSame($studentB->full_name, $comparison['second_range']['leader']['entity_name']);
+        $this->assertSame($studentB->full_name, $comparison['rows'][0]['entity_name']);
+        $this->assertSame(1, $comparison['rows'][0]['second_rank']);
+        $this->assertSame($studentA->full_name, $comparison['rows'][1]['entity_name']);
+        $this->assertSame(2, $comparison['rows'][1]['second_rank']);
 
         Volt::test('reports.students-ranking')
             ->set('academic_year_id', $academicYear->id)
