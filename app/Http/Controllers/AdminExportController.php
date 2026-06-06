@@ -6,10 +6,13 @@ use App\Models\Course;
 use App\Models\Enrollment;
 use App\Models\Group;
 use App\Models\ParentProfile;
+use App\Models\QuranFinalTest;
+use App\Models\QuranTest;
 use App\Models\Student;
 use App\Models\Teacher;
 use App\Models\User;
 use App\Services\AccessScopeService;
+use App\Services\QuranProgressionService;
 use App\Services\XlsxExportService;
 use Illuminate\Http\Request;
 use Spatie\Permission\Models\Role;
@@ -309,6 +312,70 @@ class AdminExportController extends Controller
             $enrollment->enrolled_at?->format('Y-m-d'),
             $enrollment->left_at?->format('Y-m-d'),
             ucfirst($enrollment->status),
+        ])->all());
+    }
+
+    public function eligibleAwqafStudents(Request $request, AccessScopeService $scopes, QuranProgressionService $progression): StreamedResponse
+    {
+        abort_unless($request->user()?->can('quran-awqaf-tests.view') || $request->user()?->can('quran-tests.view'), 403);
+
+        $studentIds = $scopes->scopeStudents(
+            Student::query()
+                ->whereHas('enrollments', function ($query) use ($scopes, $request) {
+                    $scopes->scopeEnrollments($query, $request->user())->where('status', 'active');
+                }),
+            $request->user()
+        )
+            ->orderBy('last_name')
+            ->orderBy('first_name')
+            ->pluck('id');
+
+        $passedFinalStudentIds = $scopes->scopeQuranFinalTests(
+            QuranFinalTest::query()->where('status', 'passed'),
+            $request->user()
+        )
+            ->pluck('student_id')
+            ->merge(
+                $scopes->scopeQuranTests(
+                    QuranTest::query()
+                        ->where('status', 'passed')
+                        ->whereHas('type', fn ($query) => $query->where('code', 'final')),
+                    $request->user()
+                )->pluck('student_id')
+            )
+            ->unique()
+            ->intersect($studentIds)
+            ->values();
+
+        $rows = Student::query()
+            ->with('parentProfile')
+            ->whereIn('id', $passedFinalStudentIds)
+            ->orderBy('last_name')
+            ->orderBy('first_name')
+            ->get()
+            ->map(function (Student $student) use ($progression) {
+                $eligibleJuzCount = $progression->eligibleAwqafJuzIdsForStudent($student->id)->count();
+
+                return [
+                    'student' => trim($student->first_name.' '.$student->last_name),
+                    'father_name' => $student->parentProfile?->father_name,
+                    'birth_year' => $student->birth_date?->format('Y'),
+                    'eligible_juz_count' => $eligibleJuzCount,
+                ];
+            })
+            ->filter(fn (array $row) => $row['eligible_juz_count'] > 0)
+            ->values();
+
+        return $this->streamXlsx('eligible-awqaf-students', [
+            'Full Name',
+            'Father Name',
+            'Year Of Birth',
+            'Number Of Ajza',
+        ], $rows->map(fn (array $row) => [
+            $row['student'],
+            $row['father_name'],
+            $row['birth_year'],
+            $row['eligible_juz_count'],
         ])->all());
     }
 

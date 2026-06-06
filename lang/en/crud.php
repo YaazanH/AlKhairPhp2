@@ -590,6 +590,37 @@ return [
                 ],
             ],
         ],
+        'quick_summary' => [
+            'action' => 'Quick summary',
+            'title' => 'Quick summary: :group',
+            'help' => 'Choose a date, review each student attendance and memorization for that day, then copy the text as a parent-ready message.',
+            'copy_help' => 'Use copy on any student card to simulate sending that daily summary to the parent.',
+            'copy_action' => 'Copy summary',
+            'empty' => 'No active students are available for this group on the selected date.',
+            'fields' => [
+                'date' => 'Summary date',
+            ],
+            'summary' => [
+                'group' => 'Group',
+                'course' => 'Course',
+                'teacher' => 'Teacher',
+            ],
+            'labels' => [
+                'attendance' => 'Attendance',
+                'memorized' => 'Memorized',
+            ],
+            'attendance_missing' => 'No attendance recorded',
+            'attendance_unavailable' => 'Attendance data unavailable',
+            'memorization_missing' => 'No memorization recorded',
+            'memorization_unavailable' => 'Memorization data unavailable',
+            'memorized_pages' => 'Pages :pages',
+            'copy_lines' => [
+                'student' => 'Student: :value',
+                'date' => 'Date: :value',
+                'attendance' => 'Attendance: :value',
+                'memorized' => 'Memorized: :value',
+            ],
+        ],
     ],
     'enrollments' => [
         'hero' => [

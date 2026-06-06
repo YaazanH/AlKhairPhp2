@@ -10,6 +10,8 @@ use App\Models\Group;
 use App\Models\Invoice;
 use App\Models\MemorizationSession;
 use App\Models\ParentProfile;
+use App\Models\QuranFinalTest;
+use App\Models\QuranJuz;
 use App\Models\Student;
 use App\Models\Teacher;
 use App\Models\User;
@@ -27,6 +29,8 @@ class ManagementPagesTest extends TestCase
 
         foreach ([
             route('reports.index', absolute: false),
+            route('reports.rankings.groups', absolute: false),
+            route('reports.rankings.students', absolute: false),
             route('parents.index', absolute: false),
             route('teachers.index', absolute: false),
             route('students.index', absolute: false),
@@ -68,6 +72,8 @@ class ManagementPagesTest extends TestCase
 
         foreach ([
             route('reports.index', absolute: false),
+            route('reports.rankings.groups', absolute: false),
+            route('reports.rankings.students', absolute: false),
             route('parents.index', absolute: false),
             route('teachers.index', absolute: false),
             route('students.index', absolute: false),
@@ -111,6 +117,89 @@ class ManagementPagesTest extends TestCase
             ->assertHeader('content-type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     }
 
+    public function test_authenticated_users_can_download_eligible_awqaf_students_export(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $user = User::factory()->create([
+            'username' => 'manager-awqaf-export',
+            'phone' => '9000002',
+        ]);
+        $user->assignRole('manager');
+        $this->actingAs($user);
+
+        $teacher = Teacher::create([
+            'first_name' => 'Awqaf',
+            'last_name' => 'Export Teacher',
+            'phone' => '0944005100',
+            'status' => 'active',
+        ]);
+
+        $course = Course::create([
+            'name' => 'Awqaf Export Course',
+            'is_active' => true,
+        ]);
+
+        $academicYear = AcademicYear::query()->where('is_current', true)->first()
+            ?? AcademicYear::create([
+                'name' => '2026 / 2027',
+                'starts_on' => '2026-09-01',
+                'ends_on' => '2027-06-30',
+                'is_current' => true,
+                'is_active' => true,
+            ]);
+
+        $group = Group::create([
+            'course_id' => $course->id,
+            'academic_year_id' => $academicYear->id,
+            'teacher_id' => $teacher->id,
+            'name' => 'Awqaf Export Group',
+            'capacity' => 12,
+            'is_active' => true,
+        ]);
+
+        $parent = ParentProfile::create([
+            'father_name' => 'Export Father',
+            'is_active' => true,
+        ]);
+
+        $student = Student::create([
+            'parent_id' => $parent->id,
+            'first_name' => 'Eligible',
+            'last_name' => 'Student',
+            'birth_date' => '2012-01-01',
+            'status' => 'active',
+        ]);
+
+        $enrollment = Enrollment::create([
+            'student_id' => $student->id,
+            'group_id' => $group->id,
+            'enrolled_at' => '2026-09-01',
+            'status' => 'active',
+        ]);
+
+        $juz = QuranJuz::query()->first()
+            ?? QuranJuz::create([
+                'juz_number' => 1,
+                'name' => 'Juz 1',
+                'from_page' => 1,
+                'to_page' => 20,
+            ]);
+
+        QuranFinalTest::create([
+            'created_by' => $user->id,
+            'enrollment_id' => $enrollment->id,
+            'student_id' => $student->id,
+            'juz_id' => $juz->id,
+            'status' => 'passed',
+            'passed_on' => '2026-09-10',
+        ]);
+
+        $this->get(route('quran-tests.eligible-awqaf.export', absolute: false))
+            ->assertOk()
+            ->assertHeader('content-type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    }
+
     public function test_authenticated_users_without_management_permissions_are_forbidden(): void
     {
         $this->seed(RoleSeeder::class);
@@ -140,6 +229,8 @@ class ManagementPagesTest extends TestCase
 
         foreach ([
             route('reports.index', absolute: false),
+            route('reports.rankings.groups', absolute: false),
+            route('reports.rankings.students', absolute: false),
             route('parents.index', absolute: false),
             route('teachers.index', absolute: false),
             route('courses.index', absolute: false),

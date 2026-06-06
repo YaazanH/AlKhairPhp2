@@ -437,6 +437,7 @@ return [
             'title' => 'Awqaf Test Workbench',
             'subtitle' => 'Review awqaf test history across accessible students and record new results from one standalone page.',
             'create' => 'New awqaf test',
+            'eligible_awqaf_action' => 'Eligible for awqaf test',
             'teacher_badge' => 'Recorded teacher: :name',
             'stats' => [
                 'students' => 'Accessible students',
@@ -474,6 +475,19 @@ return [
                     'status' => 'Status',
                     'teacher' => 'Teacher',
                 ],
+            ],
+        ],
+        'eligible_modal' => [
+            'title' => 'Students eligible for awqaf test',
+            'description' => 'Review students who currently have one or more eligible juzs for awqaf testing, then download the list.',
+            'summary' => ':count students currently eligible',
+            'download' => 'Download list',
+            'empty' => 'No students are currently eligible for awqaf tests.',
+            'headers' => [
+                'full_name' => 'Full name',
+                'father_name' => 'Father name',
+                'birth_year' => 'Year of birth',
+                'ajza_count' => 'Number of ajza',
             ],
         ],
         'messages' => [

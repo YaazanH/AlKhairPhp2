@@ -676,3 +676,47 @@ function initializePublicGallerySliders() {
 
 document.addEventListener('DOMContentLoaded', initializePublicGallerySliders);
 document.addEventListener('livewire:navigated', initializePublicGallerySliders);
+
+async function writeAdminCopyText(text) {
+    if (!text) {
+        return;
+    }
+
+    if (navigator.clipboard?.writeText) {
+        try {
+            await navigator.clipboard.writeText(text);
+
+            return;
+        } catch (_error) {
+            // Fall through to the textarea fallback.
+        }
+    }
+
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.setAttribute('readonly', 'readonly');
+    textarea.style.position = 'fixed';
+    textarea.style.top = '-9999px';
+    textarea.style.opacity = '0';
+    document.body.appendChild(textarea);
+    textarea.focus();
+    textarea.select();
+
+    try {
+        document.execCommand('copy');
+    } finally {
+        textarea.remove();
+    }
+}
+
+document.addEventListener('admin-copy-text', (event) => {
+    const text = typeof event.detail?.text === 'string'
+        ? event.detail.text.trim()
+        : '';
+
+    if (!text) {
+        return;
+    }
+
+    void writeAdminCopyText(text);
+});

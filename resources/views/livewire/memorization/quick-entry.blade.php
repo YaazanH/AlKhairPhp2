@@ -32,13 +32,7 @@ new class extends Component {
 
     public function with(): array
     {
-        $studentOptions = $this->scopeStudentsQuery(
-            Student::query()
-                ->with(['parentProfile'])
-                ->whereHas('enrollments', function (Builder $query) {
-                    $this->scopeEnrollmentsQuery($query)->where('status', 'active');
-                })
-        )
+        $studentOptions = $this->quickEntryStudentsQuery()
             ->orderBy('first_name')
             ->orderBy('last_name')
             ->get();
@@ -71,25 +65,14 @@ new class extends Component {
             'to_page' => __('workflow.memorization.form.to_page'),
         ]);
 
-        $student = $this->scopeStudentsQuery(Student::query())->findOrFail((int) $validated['selectedStudentId']);
-        $this->authorizeScopedStudentAccess($student);
-
-        $enrollment = $this->scopeEnrollmentsQuery(
-            Enrollment::query()
-                ->with(['student', 'group.teacher'])
-                ->where('student_id', $student->id)
-                ->where('status', 'active')
-                ->latest('enrolled_at')
-                ->latest('id')
-        )->first();
+        $student = $this->findQuickEntryStudent((int) $validated['selectedStudentId']);
+        $enrollment = $this->findQuickEntryEnrollmentForStudent($student);
 
         if (! $enrollment) {
             $this->addError('selectedStudentId', __('workflow.memorization.errors.no_active_enrollment'));
 
             return;
         }
-
-        $this->authorizeScopedEnrollmentAccess($enrollment);
 
         $payload = [
             'teacher_id' => $teacher->id,
@@ -135,13 +118,9 @@ new class extends Component {
             return;
         }
 
-        $enrollment = $this->scopeEnrollmentsQuery(
-            Enrollment::query()
-                ->with(['student', 'group.teacher'])
-                ->where('status', 'active')
-        )->findOrFail($this->pendingEnrollmentId);
-
-        $this->authorizeScopedEnrollmentAccess($enrollment);
+        $enrollment = $this->quickEntryEnrollmentsQuery()
+            ->with(['student', 'group.teacher'])
+            ->findOrFail($this->pendingEnrollmentId);
 
         app(MemorizationService::class)->saveSession(
             $enrollment,
@@ -163,6 +142,55 @@ new class extends Component {
     protected function currentTeacher(): ?\App\Models\Teacher
     {
         return auth()->user()?->teacherProfile;
+    }
+
+    protected function quickEntryStudentsQuery(): Builder
+    {
+        $query = Student::query()
+            ->with(['parentProfile'])
+            ->whereHas('enrollments', fn (Builder $builder) => $this->quickEntryEnrollmentsQuery($builder)->where('status', 'active'));
+
+        return $this->currentTeacher()
+            ? $query
+            : $this->scopeStudentsQuery($query);
+    }
+
+    protected function quickEntryEnrollmentsQuery(?Builder $query = null): Builder
+    {
+        $query ??= Enrollment::query();
+
+        return $this->currentTeacher()
+            ? $query
+            : $this->scopeEnrollmentsQuery($query);
+    }
+
+    protected function findQuickEntryStudent(int $studentId): Student
+    {
+        $student = $this->quickEntryStudentsQuery()->findOrFail($studentId);
+
+        if (! $this->currentTeacher()) {
+            $this->authorizeScopedStudentAccess($student);
+        }
+
+        return $student;
+    }
+
+    protected function findQuickEntryEnrollmentForStudent(Student $student): ?Enrollment
+    {
+        $enrollment = $this->quickEntryEnrollmentsQuery(
+            Enrollment::query()
+                ->with(['student', 'group.teacher'])
+                ->where('student_id', $student->id)
+                ->where('status', 'active')
+                ->latest('enrolled_at')
+                ->latest('id')
+        )->first();
+
+        if ($enrollment && ! $this->currentTeacher()) {
+            $this->authorizeScopedEnrollmentAccess($enrollment);
+        }
+
+        return $enrollment;
     }
 
     public function closeDuplicateModal(): void

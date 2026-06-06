@@ -33,6 +33,7 @@ use App\Models\Student;
 use App\Models\StudentAttendanceRecord;
 use App\Models\Teacher;
 use App\Models\User;
+use App\Services\MemorizationRankingService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
 use Livewire\Volt\Volt;
@@ -130,6 +131,77 @@ class ReportsAndApiTest extends TestCase
             ->set('group_id', [(string) $group->id])
             ->set('assessment_type_id', [(string) $assessmentTypeId])
             ->assertHasNoErrors();
+    }
+
+    public function test_group_memorization_ranking_page_compares_two_ranges(): void
+    {
+        [$manager, $academicYear, $groupA, $groupB, $studentA, $studentB] = $this->memorizationRankingContext();
+
+        $this->actingAs($manager);
+
+        $comparison = app(MemorizationRankingService::class)->compareGroups([
+            'academic_year_id' => $academicYear->id,
+            'first_date_from' => '2026-09-01',
+            'first_date_to' => '2026-09-30',
+            'second_date_from' => '2026-10-01',
+            'second_date_to' => '2026-10-31',
+        ]);
+
+        $this->assertSame($groupA->name, $comparison['first_range']['leader']['entity_name']);
+        $this->assertSame($groupB->name, $comparison['second_range']['leader']['entity_name']);
+
+        $rows = collect($comparison['rows'])->keyBy('entity_name');
+
+        $this->assertSame('down', $rows[$groupA->name]['movement_state']);
+        $this->assertSame(1, $rows[$groupA->name]['movement_steps']);
+        $this->assertSame('up', $rows[$groupB->name]['movement_state']);
+        $this->assertSame(1, $rows[$groupB->name]['movement_steps']);
+
+        Volt::test('reports.groups-ranking')
+            ->set('academic_year_id', $academicYear->id)
+            ->set('first_date_from', '2026-09-01')
+            ->set('first_date_to', '2026-09-30')
+            ->set('second_date_from', '2026-10-01')
+            ->set('second_date_to', '2026-10-31')
+            ->assertSee('Group memorization ranking')
+            ->assertSee($groupA->name)
+            ->assertSee($groupB->name)
+            ->assertSee('Up 1')
+            ->assertSee('Down 1');
+    }
+
+    public function test_student_memorization_ranking_page_compares_two_ranges(): void
+    {
+        [$manager, $academicYear, $groupA, $groupB, $studentA, $studentB] = $this->memorizationRankingContext();
+
+        $this->actingAs($manager);
+
+        $comparison = app(MemorizationRankingService::class)->compareStudents([
+            'academic_year_id' => $academicYear->id,
+            'first_date_from' => '2026-09-01',
+            'first_date_to' => '2026-09-30',
+            'second_date_from' => '2026-10-01',
+            'second_date_to' => '2026-10-31',
+        ]);
+
+        $rows = collect($comparison['rows'])->keyBy('entity_name');
+
+        $this->assertSame('down', $rows[$studentA->full_name]['movement_state']);
+        $this->assertSame('up', $rows[$studentB->full_name]['movement_state']);
+        $this->assertSame($studentA->full_name, $comparison['first_range']['leader']['entity_name']);
+        $this->assertSame($studentB->full_name, $comparison['second_range']['leader']['entity_name']);
+
+        Volt::test('reports.students-ranking')
+            ->set('academic_year_id', $academicYear->id)
+            ->set('first_date_from', '2026-09-01')
+            ->set('first_date_to', '2026-09-30')
+            ->set('second_date_from', '2026-10-01')
+            ->set('second_date_to', '2026-10-31')
+            ->assertSee('Student memorization ranking')
+            ->assertSee($studentA->full_name)
+            ->assertSee($studentB->full_name)
+            ->assertSee('Up 1')
+            ->assertSee('Down 1');
     }
 
     public function test_teacher_api_read_endpoints_are_scoped(): void
@@ -544,5 +616,135 @@ class ReportsAndApiTest extends TestCase
         ]);
 
         return [$manager, $group];
+    }
+
+    private function memorizationRankingContext(): array
+    {
+        $this->seed();
+
+        $manager = User::factory()->create([
+            'name' => 'Ranking Manager',
+            'username' => 'ranking-manager',
+            'phone' => '0666000499',
+        ]);
+        $manager->assignRole('manager');
+
+        $teacher = Teacher::create([
+            'first_name' => 'Ranking',
+            'last_name' => 'Teacher',
+            'phone' => '0944000491',
+            'status' => 'active',
+        ]);
+
+        $course = Course::create([
+            'name' => 'Ranking Course',
+            'is_active' => true,
+        ]);
+
+        $academicYear = AcademicYear::query()->where('is_current', true)->firstOrFail();
+
+        $groupA = Group::create([
+            'course_id' => $course->id,
+            'academic_year_id' => $academicYear->id,
+            'teacher_id' => $teacher->id,
+            'name' => 'Al Ansar Group',
+            'capacity' => 12,
+            'is_active' => true,
+        ]);
+
+        $groupB = Group::create([
+            'course_id' => $course->id,
+            'academic_year_id' => $academicYear->id,
+            'teacher_id' => $teacher->id,
+            'name' => 'Al Ihsan Group',
+            'capacity' => 12,
+            'is_active' => true,
+        ]);
+
+        $parentA = ParentProfile::create([
+            'father_name' => 'Ansar Parent',
+            'father_phone' => '0944000492',
+        ]);
+
+        $parentB = ParentProfile::create([
+            'father_name' => 'Ihsan Parent',
+            'father_phone' => '0944000493',
+        ]);
+
+        $studentA = Student::create([
+            'parent_id' => $parentA->id,
+            'first_name' => 'Hasan',
+            'last_name' => 'Ansar',
+            'birth_date' => '2014-05-12',
+            'status' => 'active',
+        ]);
+
+        $studentB = Student::create([
+            'parent_id' => $parentB->id,
+            'first_name' => 'Yousef',
+            'last_name' => 'Ihsan',
+            'birth_date' => '2014-05-12',
+            'status' => 'active',
+        ]);
+
+        $enrollmentA = Enrollment::create([
+            'student_id' => $studentA->id,
+            'group_id' => $groupA->id,
+            'enrolled_at' => '2026-09-01',
+            'status' => 'active',
+        ]);
+
+        $enrollmentB = Enrollment::create([
+            'student_id' => $studentB->id,
+            'group_id' => $groupB->id,
+            'enrolled_at' => '2026-09-01',
+            'status' => 'active',
+        ]);
+
+        \App\Models\MemorizationSession::create([
+            'enrollment_id' => $enrollmentA->id,
+            'student_id' => $studentA->id,
+            'teacher_id' => $teacher->id,
+            'recorded_on' => '2026-09-05',
+            'entry_type' => 'new',
+            'from_page' => 1,
+            'to_page' => 12,
+            'pages_count' => 12,
+        ]);
+
+        \App\Models\MemorizationSession::create([
+            'enrollment_id' => $enrollmentB->id,
+            'student_id' => $studentB->id,
+            'teacher_id' => $teacher->id,
+            'recorded_on' => '2026-09-07',
+            'entry_type' => 'new',
+            'from_page' => 20,
+            'to_page' => 24,
+            'pages_count' => 5,
+        ]);
+
+        \App\Models\MemorizationSession::create([
+            'enrollment_id' => $enrollmentA->id,
+            'student_id' => $studentA->id,
+            'teacher_id' => $teacher->id,
+            'recorded_on' => '2026-10-05',
+            'entry_type' => 'new',
+            'from_page' => 30,
+            'to_page' => 33,
+            'pages_count' => 4,
+        ]);
+
+        \App\Models\MemorizationSession::create([
+            'enrollment_id' => $enrollmentB->id,
+            'student_id' => $studentB->id,
+            'teacher_id' => $teacher->id,
+            'recorded_on' => '2026-10-08',
+            'entry_type' => 'new',
+            'from_page' => 40,
+            'to_page' => 53,
+            'pages_count' => 14,
+        ]);
+
+        return [$manager, $academicYear, $groupA, $groupB, $studentA, $studentB];
     }
 }

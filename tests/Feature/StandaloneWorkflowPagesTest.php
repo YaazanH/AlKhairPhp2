@@ -432,6 +432,77 @@ class StandaloneWorkflowPagesTest extends TestCase
             ->assertDontSee('Awqaf Filter Beta');
     }
 
+    public function test_awqaf_workbench_lists_students_eligible_for_awqaf_test(): void
+    {
+        $firstEnrollment = $this->managerContext();
+        $managerUser = auth()->user();
+
+        $teacher = Teacher::create([
+            'first_name' => 'Eligible',
+            'last_name' => 'Teacher',
+            'phone' => '0998444010',
+            'status' => 'active',
+        ]);
+
+        $secondEnrollment = $this->makeEnrollment($teacher->id, 'Eligible Beta');
+        $this->actingAs($managerUser);
+
+        $juzs = QuranJuz::query()
+            ->whereIn('juz_number', [1, 2])
+            ->orderBy('juz_number')
+            ->get();
+
+        QuranFinalTest::query()->create([
+            'created_by' => auth()->id(),
+            'enrollment_id' => $firstEnrollment->id,
+            'juz_id' => $juzs->first()->id,
+            'passed_on' => '2026-09-15',
+            'status' => 'passed',
+            'student_id' => $firstEnrollment->student_id,
+        ]);
+
+        QuranFinalTest::query()->create([
+            'created_by' => auth()->id(),
+            'enrollment_id' => $firstEnrollment->id,
+            'juz_id' => $juzs->last()->id,
+            'passed_on' => '2026-09-16',
+            'status' => 'passed',
+            'student_id' => $firstEnrollment->student_id,
+        ]);
+
+        QuranFinalTest::query()->create([
+            'created_by' => auth()->id(),
+            'enrollment_id' => $secondEnrollment->id,
+            'juz_id' => $juzs->first()->id,
+            'passed_on' => '2026-09-15',
+            'status' => 'passed',
+            'student_id' => $secondEnrollment->student_id,
+        ]);
+
+        $awqafType = \App\Models\QuranTestType::query()->where('code', 'awqaf')->firstOrFail();
+
+        QuranTest::query()->create([
+            'enrollment_id' => $secondEnrollment->id,
+            'student_id' => $secondEnrollment->student_id,
+            'teacher_id' => $secondEnrollment->group->teacher_id,
+            'juz_id' => $juzs->first()->id,
+            'quran_test_type_id' => $awqafType->id,
+            'tested_on' => '2026-09-20',
+            'score' => 90,
+            'status' => 'passed',
+            'attempt_no' => 1,
+        ]);
+
+        Volt::test('quran-tests.index')
+            ->call('openEligibleAwqafModal')
+            ->assertSet('showEligibleAwqafModal', true)
+            ->assertSee(trim($firstEnrollment->student->first_name.' '.$firstEnrollment->student->last_name))
+            ->assertSee($firstEnrollment->student->parentProfile->father_name)
+            ->assertSee($firstEnrollment->student->birth_date?->format('Y'))
+            ->assertSee('2')
+            ->assertSee(__('workflow.quran_tests.eligible_modal.summary', ['count' => 1]));
+    }
+
     private function teacherContext(): array
     {
         $this->seed();

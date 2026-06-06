@@ -36,6 +36,8 @@ Volt::route('dashboard', 'dashboard')
 
 Route::middleware(['auth'])->group(function () {
     Volt::route('reports', 'reports.index')->middleware('permission:reports.view')->name('reports.index');
+    Volt::route('reports/rankings/groups', 'reports.groups-ranking')->middleware('permission:reports.view')->name('reports.rankings.groups');
+    Volt::route('reports/rankings/students', 'reports.students-ranking')->middleware('permission:reports.view')->name('reports.rankings.students');
     Volt::route('users', 'users.index')->middleware('permission:users.view')->name('users.index');
     Volt::route('community-contacts', 'community-contacts.index')->middleware('permission:community-contacts.view')->name('community-contacts.index');
     Route::get('users/export', [AdminExportController::class, 'users'])->middleware('permission:users.view')->name('users.export');
@@ -108,6 +110,7 @@ Route::middleware(['auth'])->group(function () {
     Volt::route('quran-final-tests', 'quran-final-tests.index')->middleware('permission:quran-final-tests.view')->name('quran-final-tests.index');
     Volt::route('quran-final-tests/{finalTest}', 'quran-final-tests.show')->middleware('permission:quran-final-tests.view')->name('quran-final-tests.show');
     Volt::route('quran-tests', 'quran-tests.index')->middleware('permission:quran-awqaf-tests.view|quran-tests.view')->name('quran-tests.index');
+    Route::get('quran-tests/eligible-awqaf/export', [AdminExportController::class, 'eligibleAwqafStudents'])->middleware('permission:quran-awqaf-tests.view|quran-tests.view')->name('quran-tests.eligible-awqaf.export');
     Volt::route('points', 'points.index')->middleware('permission:points.view')->name('points.index');
     Volt::route('enrollments/{enrollment}/memorization', 'enrollments.memorization')->middleware('permission:memorization.view')->name('enrollments.memorization');
     Volt::route('enrollments/{enrollment}/quran-tests', 'enrollments.quran-tests')->middleware('permission:quran-awqaf-tests.view|quran-tests.view')->name('enrollments.quran-tests');

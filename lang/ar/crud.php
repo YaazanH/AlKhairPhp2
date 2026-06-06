@@ -590,6 +590,37 @@ return [
                 ],
             ],
         ],
+        'quick_summary' => [
+            'action' => 'ملخص سريع',
+            'title' => 'ملخص سريع: :group',
+            'help' => 'اختر التاريخ ثم راجع حضور كل طالب وما حفظه في ذلك اليوم، وبعدها انسخ النص كرسالة جاهزة لولي الأمر.',
+            'copy_help' => 'استخدم زر النسخ في بطاقة الطالب لنسخ ملخصه اليومي وتجهيزه للإرسال إلى ولي الأمر.',
+            'copy_action' => 'نسخ الملخص',
+            'empty' => 'لا يوجد طلاب نشطون متاحون لهذه المجموعة في التاريخ المحدد.',
+            'fields' => [
+                'date' => 'تاريخ الملخص',
+            ],
+            'summary' => [
+                'group' => 'المجموعة',
+                'course' => 'الدورة',
+                'teacher' => 'المعلم',
+            ],
+            'labels' => [
+                'attendance' => 'الحضور',
+                'memorized' => 'المحفوظ',
+            ],
+            'attendance_missing' => 'لا يوجد حضور مسجل',
+            'attendance_unavailable' => 'بيانات الحضور غير متاحة',
+            'memorization_missing' => 'لا يوجد حفظ مسجل',
+            'memorization_unavailable' => 'بيانات الحفظ غير متاحة',
+            'memorized_pages' => 'الصفحات :pages',
+            'copy_lines' => [
+                'student' => 'الطالب: :value',
+                'date' => 'التاريخ: :value',
+                'attendance' => 'الحضور: :value',
+                'memorized' => 'المحفوظ: :value',
+            ],
+        ],
     ],
     'enrollments' => [
         'hero' => [

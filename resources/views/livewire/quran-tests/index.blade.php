@@ -5,6 +5,7 @@ use App\Livewire\Concerns\AuthorizesTeacherAssignments;
 use App\Livewire\Concerns\SupportsCreateAndNew;
 use App\Models\Enrollment;
 use App\Models\QuranJuz;
+use App\Models\QuranFinalTest;
 use App\Models\QuranTest;
 use App\Models\QuranTestType;
 use App\Models\Student;
@@ -34,6 +35,7 @@ new class extends Component {
     public string $juzFilter = 'all';
     public int $perPage = 15;
     public bool $showFormModal = false;
+    public bool $showEligibleAwqafModal = false;
 
     public function mount(): void
     {
@@ -115,6 +117,7 @@ new class extends Component {
                     ->whereHas('type', fn (Builder $query) => $query->where('code', 'awqaf'))
                     ->count(),
             ],
+            'eligibleAwqafStudents' => $this->showEligibleAwqafModal ? $this->eligibleAwqafStudents() : collect(),
         ];
     }
 
@@ -165,6 +168,17 @@ new class extends Component {
 
         $this->resetForm();
         $this->showFormModal = true;
+    }
+
+    public function openEligibleAwqafModal(): void
+    {
+        $this->authorizeAnyPermission(['quran-awqaf-tests.view', 'quran-tests.view']);
+        $this->showEligibleAwqafModal = true;
+    }
+
+    public function closeEligibleAwqafModal(): void
+    {
+        $this->showEligibleAwqafModal = false;
     }
 
     public function closeFormModal(): void
@@ -348,6 +362,56 @@ new class extends Component {
             ?: $this->linkedTeacherForPermission('quran-tests.record-linked-teacher');
     }
 
+    protected function eligibleAwqafStudents()
+    {
+        $studentIds = $this->scopeStudentsQuery(
+            Student::query()
+                ->whereHas('enrollments', function (Builder $query) {
+                    $this->scopeEnrollmentsQuery($query)->where('status', 'active');
+                })
+        )
+            ->orderBy('last_name')
+            ->orderBy('first_name')
+            ->pluck('id');
+
+        $passedFinalStudentIds = $this->scopeQuranFinalTestsQuery(
+            QuranFinalTest::query()->where('status', 'passed')
+        )
+            ->pluck('student_id')
+            ->merge(
+                $this->scopeQuranTestsQuery(
+                    QuranTest::query()
+                        ->where('status', 'passed')
+                        ->whereHas('type', fn (Builder $query) => $query->where('code', 'final'))
+                )->pluck('student_id')
+            )
+            ->unique()
+            ->intersect($studentIds)
+            ->values();
+
+        return Student::query()
+            ->with('parentProfile')
+            ->whereIn('id', $passedFinalStudentIds)
+            ->orderBy('last_name')
+            ->orderBy('first_name')
+            ->get()
+            ->map(function (Student $student): object {
+                $eligibleJuzCount = app(QuranProgressionService::class)
+                    ->eligibleAwqafJuzIdsForStudent($student->id)
+                    ->count();
+
+                return (object) [
+                    'id' => $student->id,
+                    'full_name' => trim($student->first_name.' '.$student->last_name),
+                    'father_name' => $student->parentProfile?->father_name ?: __('crud.common.not_available'),
+                    'birth_year' => $student->birth_date?->format('Y') ?: __('crud.common.not_available'),
+                    'eligible_juz_count' => $eligibleJuzCount,
+                ];
+            })
+            ->filter(fn (object $row) => $row->eligible_juz_count > 0)
+            ->values();
+    }
+
     protected function authorizeAnyPermission(array $permissions): void
     {
         abort_unless($this->canAnyPermission($permissions), 403);
@@ -418,6 +482,9 @@ new class extends Component {
                     @canany(['quran-awqaf-tests.record', 'quran-tests.record'])
                         <button type="button" wire:click="openCreateModal" class="pill-link pill-link--accent">{{ __('workflow.quran_tests.workbench.create') }}</button>
                     @endcanany
+                    <button type="button" wire:click="openEligibleAwqafModal" class="pill-link">
+                        {{ __('workflow.quran_tests.workbench.eligible_awqaf_action') }}
+                    </button>
                 </div>
             </div>
         </div>
@@ -493,6 +560,50 @@ new class extends Component {
             @endif
         @endif
     </section>
+
+    <x-admin.modal
+        :show="$showEligibleAwqafModal"
+        :title="__('workflow.quran_tests.eligible_modal.title')"
+        :description="__('workflow.quran_tests.eligible_modal.description')"
+        close-method="closeEligibleAwqafModal"
+        max-width="5xl"
+    >
+        <div class="space-y-5">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+                <div class="text-sm text-neutral-400">{{ __('workflow.quran_tests.eligible_modal.summary', ['count' => number_format($eligibleAwqafStudents->count())]) }}</div>
+                <a href="{{ route('quran-tests.eligible-awqaf.export') }}" class="pill-link pill-link--accent">
+                    {{ __('workflow.quran_tests.eligible_modal.download') }}
+                </a>
+            </div>
+
+            @if ($eligibleAwqafStudents->isEmpty())
+                <div class="admin-empty-state">{{ __('workflow.quran_tests.eligible_modal.empty') }}</div>
+            @else
+                <div class="overflow-x-auto">
+                    <table class="text-sm">
+                        <thead>
+                            <tr>
+                                <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.quran_tests.eligible_modal.headers.full_name') }}</th>
+                                <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.quran_tests.eligible_modal.headers.father_name') }}</th>
+                                <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.quran_tests.eligible_modal.headers.birth_year') }}</th>
+                                <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.quran_tests.eligible_modal.headers.ajza_count') }}</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-white/6">
+                            @foreach ($eligibleAwqafStudents as $eligibleStudent)
+                                <tr>
+                                    <td class="px-5 py-4 lg:px-6 text-white">{{ $eligibleStudent->full_name }}</td>
+                                    <td class="px-5 py-4 lg:px-6 text-neutral-300">{{ $eligibleStudent->father_name }}</td>
+                                    <td class="px-5 py-4 lg:px-6 text-neutral-300">{{ $eligibleStudent->birth_year }}</td>
+                                    <td class="px-5 py-4 lg:px-6 text-white">{{ $eligibleStudent->eligible_juz_count }}</td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            @endif
+        </div>
+    </x-admin.modal>
 
     <x-admin.modal
         :show="$showFormModal"

@@ -2020,6 +2020,81 @@ html:not(.dark) .stat-card .kpi-label {
     color: #ffffff !important;
 }
 
+.report-nav-card {
+    position: relative;
+    overflow: hidden;
+    transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+}
+
+.report-nav-card::after {
+    content: "";
+    position: absolute;
+    inset-inline-end: -4rem;
+    inset-block-start: -4rem;
+    width: 11rem;
+    height: 11rem;
+    border-radius: 999px;
+    background: radial-gradient(circle, rgba(121, 214, 149, 0.2), transparent 68%);
+    pointer-events: none;
+}
+
+.report-nav-card:hover {
+    transform: translateY(-2px);
+    border-color: rgba(151, 219, 174, 0.34) !important;
+    box-shadow: 0 24px 54px rgba(7, 22, 12, 0.24);
+}
+
+.report-nav-card__cta {
+    width: fit-content;
+}
+
+.ranking-legend-pill {
+    max-width: 100%;
+}
+
+.ranking-movement-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    border: 1px solid transparent;
+    border-radius: 999px;
+    font-size: 0.82rem;
+    font-weight: 700;
+    line-height: 1;
+    padding: 0.55rem 0.8rem;
+    white-space: nowrap;
+}
+
+.ranking-movement-badge--up {
+    background: rgba(16, 110, 54, 0.24);
+    border-color: rgba(104, 214, 151, 0.3);
+    color: #d8fbe5;
+}
+
+.ranking-movement-badge--down {
+    background: rgba(142, 42, 42, 0.2);
+    border-color: rgba(239, 126, 126, 0.28);
+    color: #ffd9d9;
+}
+
+.ranking-movement-badge--same {
+    background: rgba(142, 118, 34, 0.22);
+    border-color: rgba(241, 204, 94, 0.3);
+    color: #ffe9b0;
+}
+
+.ranking-movement-badge--new {
+    background: rgba(31, 87, 138, 0.24);
+    border-color: rgba(116, 187, 252, 0.28);
+    color: #d6ecff;
+}
+
+.ranking-movement-badge--dropped {
+    background: rgba(92, 99, 105, 0.22);
+    border-color: rgba(187, 194, 202, 0.26);
+    color: #ebeff4;
+}
+
 html:not(.dark) .report-panel,
 html:not(.dark) .report-kpi-card {
     border-color: rgba(24, 92, 53, 0.16) !important;
@@ -2064,6 +2139,41 @@ html:not(.dark) .report-control {
     background: rgba(255, 255, 250, 0.94) !important;
     color: #143226 !important;
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.84), 0 10px 28px rgba(61, 83, 52, 0.08) !important;
+}
+
+html:not(.dark) .report-nav-card:hover {
+    border-color: rgba(24, 92, 53, 0.24) !important;
+    box-shadow: 0 18px 40px rgba(54, 74, 45, 0.14);
+}
+
+html:not(.dark) .ranking-movement-badge--up {
+    background: rgba(64, 176, 107, 0.14);
+    border-color: rgba(43, 126, 76, 0.2);
+    color: #186139;
+}
+
+html:not(.dark) .ranking-movement-badge--down {
+    background: rgba(207, 91, 91, 0.14);
+    border-color: rgba(180, 78, 78, 0.18);
+    color: #8b2f2f;
+}
+
+html:not(.dark) .ranking-movement-badge--same {
+    background: rgba(222, 189, 87, 0.16);
+    border-color: rgba(165, 129, 22, 0.18);
+    color: #8b6713;
+}
+
+html:not(.dark) .ranking-movement-badge--new {
+    background: rgba(88, 157, 228, 0.15);
+    border-color: rgba(45, 110, 173, 0.18);
+    color: #1f5f96;
+}
+
+html:not(.dark) .ranking-movement-badge--dropped {
+    background: rgba(149, 156, 163, 0.15);
+    border-color: rgba(93, 102, 110, 0.16);
+    color: #4c5b64;
 }
 
 html:not(.dark) .report-control:focus {

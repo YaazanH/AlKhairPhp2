@@ -2,12 +2,16 @@
 
 namespace Tests\Feature;
 
+use App\Models\AttendanceStatus;
 use App\Models\AcademicYear;
 use App\Models\Course;
 use App\Models\Enrollment;
 use App\Models\GradeLevel;
 use App\Models\Group;
 use App\Models\GroupSchedule;
+use App\Models\GroupAttendanceDay;
+use App\Models\MemorizationSession;
+use App\Models\MemorizationSessionPage;
 use App\Models\ParentProfile;
 use App\Models\Student;
 use App\Models\StudentFile;
@@ -673,6 +677,117 @@ class ManagementCrudTest extends TestCase
             ->assertSee('Fares Hamdan')
             ->assertSee('Mona Hamdan')
             ->assertSee('0999000001');
+    }
+
+    public function test_group_quick_summary_shows_attendance_and_memorized_pages_for_the_selected_date(): void
+    {
+        $this->signIn();
+
+        $present = AttendanceStatus::create([
+            'name' => 'Present',
+            'code' => 'present',
+            'scope' => 'student',
+            'default_points' => 0,
+            'color' => '#22c55e',
+            'is_present' => true,
+            'is_default' => true,
+            'is_active' => true,
+        ]);
+
+        $gradeLevel = GradeLevel::create([
+            'name' => 'Grade 6',
+            'sort_order' => 6,
+            'is_active' => true,
+        ]);
+
+        $academicYear = AcademicYear::create([
+            'name' => '2026 / 2027',
+            'starts_on' => '2026-09-01',
+            'ends_on' => '2027-06-30',
+            'is_active' => true,
+        ]);
+
+        $course = Course::create([
+            'name' => 'Summary Course',
+            'is_active' => true,
+        ]);
+
+        $teacher = Teacher::create([
+            'first_name' => 'Summary',
+            'last_name' => 'Teacher',
+            'phone' => '0944004012',
+            'status' => 'active',
+            'is_helping' => true,
+        ]);
+
+        $parent = ParentProfile::create([
+            'father_name' => 'Samer Hamdan',
+            'is_active' => true,
+        ]);
+
+        $student = Student::create([
+            'parent_id' => $parent->id,
+            'first_name' => 'Hasan',
+            'last_name' => 'Hamdan',
+            'student_number' => 'S000601',
+            'birth_date' => '2013-01-01',
+            'grade_level_id' => $gradeLevel->id,
+            'status' => 'active',
+        ]);
+
+        $group = Group::create([
+            'course_id' => $course->id,
+            'academic_year_id' => $academicYear->id,
+            'teacher_id' => $teacher->id,
+            'grade_level_id' => $gradeLevel->id,
+            'name' => 'Summary Group',
+            'capacity' => 15,
+            'is_active' => true,
+        ]);
+
+        $enrollment = Enrollment::create([
+            'student_id' => $student->id,
+            'group_id' => $group->id,
+            'enrolled_at' => '2026-09-01',
+            'status' => 'active',
+        ]);
+
+        $attendanceDay = GroupAttendanceDay::create([
+            'group_id' => $group->id,
+            'student_attendance_day_id' => null,
+            'attendance_date' => '2026-09-10',
+            'status' => 'open',
+        ]);
+
+        $attendanceDay->records()->create([
+            'enrollment_id' => $enrollment->id,
+            'attendance_status_id' => $present->id,
+        ]);
+
+        $session = MemorizationSession::create([
+            'student_id' => $student->id,
+            'enrollment_id' => $enrollment->id,
+            'teacher_id' => $teacher->id,
+            'recorded_on' => '2026-09-10',
+            'entry_type' => 'new',
+            'pages_count' => 3,
+        ]);
+
+        MemorizationSessionPage::insert([
+            ['memorization_session_id' => $session->id, 'page_no' => 11],
+            ['memorization_session_id' => $session->id, 'page_no' => 12],
+            ['memorization_session_id' => $session->id, 'page_no' => 13],
+        ]);
+
+        Volt::test('groups.index')
+            ->call('openQuickSummaryModal', $group->id)
+            ->assertSet('showQuickSummaryModal', true)
+            ->set('quickSummaryDate', '2026-09-10')
+            ->assertSee('Hasan Hamdan')
+            ->assertSee('Present')
+            ->assertSee(__('crud.groups.quick_summary.memorized_pages', ['pages' => '11-13']))
+            ->call('copyQuickSummary', $enrollment->id)
+            ->assertDispatched('admin-copy-text');
     }
 
     public function test_teacher_role_options_include_basic_management_roles(): void

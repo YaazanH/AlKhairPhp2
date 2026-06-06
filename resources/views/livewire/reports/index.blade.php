@@ -145,7 +145,23 @@ new class extends Component {
             </div>
 
         </div>
-    </section>
+</section>
+
+    <div class="grid gap-4 md:grid-cols-2">
+        <a href="{{ route('reports.rankings.groups') }}" class="surface-panel report-panel report-nav-card min-w-0 p-5 lg:p-6">
+            <div class="eyebrow">{{ __('reports.navigation.eyebrow') }}</div>
+            <h2 class="font-display mt-3 text-2xl text-white">{{ __('reports.navigation.groups_title') }}</h2>
+            <p class="mt-3 text-sm leading-7 text-neutral-300">{{ __('reports.navigation.groups_subtitle') }}</p>
+            <span class="pill-link report-nav-card__cta mt-5 inline-flex">{{ __('reports.navigation.open') }}</span>
+        </a>
+
+        <a href="{{ route('reports.rankings.students') }}" class="surface-panel report-panel report-nav-card min-w-0 p-5 lg:p-6">
+            <div class="eyebrow">{{ __('reports.navigation.eyebrow') }}</div>
+            <h2 class="font-display mt-3 text-2xl text-white">{{ __('reports.navigation.students_title') }}</h2>
+            <p class="mt-3 text-sm leading-7 text-neutral-300">{{ __('reports.navigation.students_subtitle') }}</p>
+            <span class="pill-link report-nav-card__cta mt-5 inline-flex">{{ __('reports.navigation.open') }}</span>
+        </a>
+    </div>
 
     <div class="reports-overview-grid grid items-stretch gap-6 xl:grid-cols-3">
         <section class="surface-panel report-panel report-panel--filters min-w-0 p-5 lg:p-6">

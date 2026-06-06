@@ -8,6 +8,8 @@ use App\Models\Course;
 use App\Models\Enrollment;
 use App\Models\GradeLevel;
 use App\Models\Group;
+use App\Models\GroupAttendanceDay;
+use App\Models\MemorizationSession;
 use App\Models\Student;
 use App\Models\Teacher;
 use Illuminate\Support\Facades\DB;
@@ -39,11 +41,15 @@ new class extends Component {
     public ?int $roster_student_id = null;
     public string $roster_enrolled_at = '';
     public bool $showRosterModal = false;
+    public ?int $quickSummaryGroupId = null;
+    public string $quickSummaryDate = '';
+    public bool $showQuickSummaryModal = false;
 
     public function mount(): void
     {
         $this->authorizePermission('groups.view');
         $this->resetForm();
+        $this->quickSummaryDate = now()->toDateString();
     }
 
     public function with(): array
@@ -99,6 +105,10 @@ new class extends Component {
                     ->orderBy('last_name')
                     ->get(['id', 'parent_id', 'first_name', 'last_name', 'student_number'])
                 : collect(),
+            'quickSummaryGroup' => $this->quickSummaryGroupId
+                ? $this->scopeGroupsQuery(Group::query()->with(['course', 'teacher']))->find($this->quickSummaryGroupId)
+                : null,
+            'quickSummaryRows' => $this->showQuickSummaryModal ? $this->buildQuickSummaryRows() : collect(),
             'totals' => [
                 'all' => $baseQuery->count(),
                 'active' => $this->scopeGroupsQuery(Group::query()->where('is_active', true))->count(),
@@ -296,6 +306,42 @@ new class extends Component {
         $this->resetValidation();
     }
 
+    public function openQuickSummaryModal(int $groupId): void
+    {
+        abort_unless($this->canPermission('attendance.student.view') || $this->canPermission('memorization.view'), 403);
+
+        $group = Group::query()->findOrFail($groupId);
+        $this->authorizeScopedGroupAccess($group);
+
+        $this->quickSummaryGroupId = $group->id;
+        $this->quickSummaryDate = $this->quickSummaryDate ?: now()->toDateString();
+        $this->showQuickSummaryModal = true;
+
+        $this->resetValidation();
+    }
+
+    public function closeQuickSummaryModal(): void
+    {
+        $this->quickSummaryGroupId = null;
+        $this->quickSummaryDate = now()->toDateString();
+        $this->showQuickSummaryModal = false;
+
+        $this->resetValidation();
+    }
+
+    public function copyQuickSummary(int $enrollmentId): void
+    {
+        abort_unless($this->canPermission('attendance.student.view') || $this->canPermission('memorization.view'), 403);
+
+        $row = $this->buildQuickSummaryRows()->firstWhere('enrollment_id', $enrollmentId);
+
+        if (! $row) {
+            return;
+        }
+
+        $this->dispatch('admin-copy-text', text: $row->copy_text);
+    }
+
     public function addStudentToRoster(): void
     {
         $this->authorizePermission('enrollments.create');
@@ -419,6 +465,149 @@ new class extends Component {
                 ->where('group_id', $group->id)
                 ->update(['status' => 'cancelled']);
         });
+    }
+
+    protected function buildQuickSummaryRows()
+    {
+        if (! $this->quickSummaryGroupId) {
+            return collect();
+        }
+
+        $group = Group::query()->findOrFail($this->quickSummaryGroupId);
+        $this->authorizeScopedGroupAccess($group);
+
+        $summaryDate = $this->quickSummaryDate ?: now()->toDateString();
+        $canViewAttendance = $this->canPermission('attendance.student.view');
+        $canViewMemorization = $this->canPermission('memorization.view');
+
+        $enrollments = $this->scopeEnrollmentsQuery(
+            Enrollment::query()
+                ->with(['student.parentProfile'])
+                ->where('group_id', $group->id)
+                ->where('status', 'active')
+        )
+            ->orderBy('enrolled_at')
+            ->orderBy('id')
+            ->get();
+
+        if ($enrollments->isEmpty()) {
+            return collect();
+        }
+
+        $attendanceRecords = $canViewAttendance
+            ? $this->scopeGroupAttendanceDaysQuery(
+                GroupAttendanceDay::query()
+                    ->where('group_id', $group->id)
+                    ->whereDate('attendance_date', $summaryDate)
+                    ->with(['records.status'])
+            )
+                ->get()
+                ->flatMap(fn (GroupAttendanceDay $day) => $day->records)
+                ->keyBy('enrollment_id')
+            : collect();
+
+        $memorizationSessionsByEnrollment = $canViewMemorization
+            ? $this->scopeMemorizationSessionsQuery(
+                MemorizationSession::query()
+                    ->with(['pages' => fn ($query) => $query->orderBy('page_no')])
+                    ->whereIn('enrollment_id', $enrollments->pluck('id'))
+                    ->whereDate('recorded_on', $summaryDate)
+                    ->where('entry_type', 'new')
+            )
+                ->get()
+                ->groupBy('enrollment_id')
+            : collect();
+
+        return $enrollments
+            ->map(function (Enrollment $enrollment) use ($attendanceRecords, $memorizationSessionsByEnrollment, $canViewAttendance, $canViewMemorization, $summaryDate): object {
+                $student = $enrollment->student;
+                $studentName = $student
+                    ? trim($student->first_name.' '.$student->last_name)
+                    : __('crud.common.not_available');
+                $attendanceLabel = $canViewAttendance
+                    ? ($attendanceRecords->get($enrollment->id)?->status?->name ?: __('crud.groups.quick_summary.attendance_missing'))
+                    : __('crud.groups.quick_summary.attendance_unavailable');
+
+                $memorizedPages = $canViewMemorization
+                    ? $memorizationSessionsByEnrollment
+                        ->get($enrollment->id, collect())
+                        ->flatMap(function (MemorizationSession $session) {
+                            $sessionPages = $session->pages
+                                ->pluck('page_no')
+                                ->map(fn ($page) => (int) $page)
+                                ->filter(fn ($page) => $page > 0)
+                                ->values();
+
+                            if ($sessionPages->isEmpty() && filled($session->from_page) && filled($session->to_page)) {
+                                $fromPage = (int) min($session->from_page, $session->to_page);
+                                $toPage = (int) max($session->from_page, $session->to_page);
+
+                                return collect(range($fromPage, $toPage));
+                            }
+
+                            return $sessionPages;
+                        })
+                        ->unique()
+                        ->sort()
+                        ->values()
+                    : collect();
+
+                $memorizedLabel = $canViewMemorization
+                    ? ($memorizedPages->isNotEmpty()
+                        ? __('crud.groups.quick_summary.memorized_pages', ['pages' => $this->formatQuickSummaryPages($memorizedPages->all())])
+                        : __('crud.groups.quick_summary.memorization_missing'))
+                    : __('crud.groups.quick_summary.memorization_unavailable');
+
+                return (object) [
+                    'enrollment_id' => $enrollment->id,
+                    'student_name' => $studentName,
+                    'student_number' => $student?->student_number,
+                    'parent_name' => $student?->parentProfile?->father_name,
+                    'attendance_label' => $attendanceLabel,
+                    'memorized_label' => $memorizedLabel,
+                    'copy_text' => implode(PHP_EOL, [
+                        __('crud.groups.quick_summary.copy_lines.student', ['value' => $studentName]),
+                        __('crud.groups.quick_summary.copy_lines.date', ['value' => $summaryDate]),
+                        __('crud.groups.quick_summary.copy_lines.attendance', ['value' => $attendanceLabel]),
+                        __('crud.groups.quick_summary.copy_lines.memorized', ['value' => $memorizedLabel]),
+                    ]),
+                ];
+            })
+            ->values();
+    }
+
+    protected function formatQuickSummaryPages(array $pages): string
+    {
+        $pages = collect($pages)
+            ->map(fn ($page) => (int) $page)
+            ->filter(fn ($page) => $page > 0)
+            ->unique()
+            ->sort()
+            ->values();
+
+        if ($pages->isEmpty()) {
+            return '';
+        }
+
+        $ranges = [];
+        $rangeStart = $pages->first();
+        $rangeEnd = $rangeStart;
+
+        foreach ($pages->slice(1) as $page) {
+            if ($page === $rangeEnd + 1) {
+                $rangeEnd = $page;
+
+                continue;
+            }
+
+            $ranges[] = $rangeStart === $rangeEnd ? (string) $rangeStart : $rangeStart.'-'.$rangeEnd;
+            $rangeStart = $page;
+            $rangeEnd = $page;
+        }
+
+        $ranges[] = $rangeStart === $rangeEnd ? (string) $rangeStart : $rangeStart.'-'.$rangeEnd;
+
+        return implode(', ', $ranges);
     }
 }; ?>
 
@@ -544,11 +733,11 @@ new class extends Component {
                                 @if (auth()->user()->can('groups.view') || auth()->user()->can('groups.update') || auth()->user()->can('groups.delete'))
                                     <td class="px-5 py-4 lg:px-6">
                                         <div class="flex flex-wrap justify-end gap-2">
-                                            @can('attendance.student.view')
-                                                <a href="{{ route('groups.attendance', $group) }}" wire:navigate class="pill-link pill-link--compact">
-                                                    {{ __('crud.common.actions.attendance') }}
-                                                </a>
-                                            @endcan
+                                            @if (auth()->user()->can('attendance.student.view') || auth()->user()->can('memorization.view'))
+                                                <button type="button" wire:click="openQuickSummaryModal({{ $group->id }})" class="pill-link pill-link--compact">
+                                                    {{ __('crud.groups.quick_summary.action') }}
+                                                </button>
+                                            @endif
                                             <button type="button" wire:click="openRosterModal({{ $group->id }})" class="pill-link pill-link--compact">
                                                 {{ __('crud.common.actions.students') }}
                                             </button>
@@ -698,6 +887,82 @@ new class extends Component {
                 </button>
             </div>
         </form>
+    </x-admin.modal>
+
+    <x-admin.modal
+        :show="$showQuickSummaryModal"
+        :title="__('crud.groups.quick_summary.title', ['group' => $quickSummaryGroup?->name ?? ''])"
+        :description="__('crud.groups.quick_summary.help')"
+        close-method="closeQuickSummaryModal"
+        max-width="6xl"
+    >
+        <div class="space-y-6">
+            @if ($quickSummaryGroup)
+                <section class="rounded-3xl border border-white/10 bg-white/[0.03] p-5">
+                    <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_220px]">
+                        <div class="space-y-4">
+                            <div class="grid gap-4 md:grid-cols-3">
+                                <div>
+                                    <div class="text-xs uppercase tracking-[0.22em] text-neutral-500">{{ __('crud.groups.quick_summary.summary.group') }}</div>
+                                    <div class="mt-2 text-lg font-semibold text-white">{{ $quickSummaryGroup->name }}</div>
+                                </div>
+                                <div>
+                                    <div class="text-xs uppercase tracking-[0.22em] text-neutral-500">{{ __('crud.groups.quick_summary.summary.course') }}</div>
+                                    <div class="mt-2 text-lg font-semibold text-white">{{ $quickSummaryGroup->course?->name ?: __('crud.common.not_available') }}</div>
+                                </div>
+                                <div>
+                                    <div class="text-xs uppercase tracking-[0.22em] text-neutral-500">{{ __('crud.groups.quick_summary.summary.teacher') }}</div>
+                                    <div class="mt-2 text-lg font-semibold text-white">{{ $quickSummaryGroup->teacher ? $quickSummaryGroup->teacher->first_name.' '.$quickSummaryGroup->teacher->last_name : __('crud.common.not_available') }}</div>
+                                </div>
+                            </div>
+                            <p class="text-sm leading-6 text-neutral-400">{{ __('crud.groups.quick_summary.copy_help') }}</p>
+                        </div>
+
+                        <div>
+                            <label for="group-quick-summary-date" class="mb-1 block text-sm font-medium">{{ __('crud.groups.quick_summary.fields.date') }}</label>
+                            <input id="group-quick-summary-date" wire:model.live="quickSummaryDate" type="date" class="w-full rounded-xl px-4 py-3 text-sm">
+                        </div>
+                    </div>
+                </section>
+
+                @if ($quickSummaryRows->isEmpty())
+                    <div class="admin-empty-state">{{ __('crud.groups.quick_summary.empty') }}</div>
+                @else
+                    <div class="grid gap-4 xl:grid-cols-2">
+                        @foreach ($quickSummaryRows as $row)
+                            <article class="rounded-3xl border border-white/10 bg-white/[0.03] p-5">
+                                <div class="flex flex-wrap items-start justify-between gap-4">
+                                    <div>
+                                        <div class="text-lg font-semibold text-white">{{ $row->student_name }}</div>
+                                        <div class="mt-1 flex flex-wrap gap-2 text-xs text-neutral-400">
+                                            @if ($row->student_number)
+                                                <span class="badge-soft">{{ $row->student_number }}</span>
+                                            @endif
+                                            <span class="badge-soft">{{ $row->parent_name ?: __('crud.common.not_available') }}</span>
+                                        </div>
+                                    </div>
+
+                                    <button type="button" wire:click="copyQuickSummary({{ $row->enrollment_id }})" class="pill-link pill-link--compact pill-link--accent">
+                                        {{ __('crud.groups.quick_summary.copy_action') }}
+                                    </button>
+                                </div>
+
+                                <dl class="mt-5 space-y-4">
+                                    <div>
+                                        <dt class="text-xs uppercase tracking-[0.22em] text-neutral-500">{{ __('crud.groups.quick_summary.labels.attendance') }}</dt>
+                                        <dd class="mt-2 text-base font-medium text-white">{{ $row->attendance_label }}</dd>
+                                    </div>
+                                    <div>
+                                        <dt class="text-xs uppercase tracking-[0.22em] text-neutral-500">{{ __('crud.groups.quick_summary.labels.memorized') }}</dt>
+                                        <dd class="mt-2 text-base font-medium text-white">{{ $row->memorized_label }}</dd>
+                                    </div>
+                                </dl>
+                            </article>
+                        @endforeach
+                    </div>
+                @endif
+            @endif
+        </div>
     </x-admin.modal>
 
     <x-admin.modal

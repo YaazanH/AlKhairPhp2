@@ -142,6 +142,70 @@ class StandaloneMemorizationPageTest extends TestCase
         ]);
     }
 
+    public function test_teacher_quick_entry_can_record_for_active_students_outside_their_own_group_scope(): void
+    {
+        [, $teacher] = $this->teacherMemorizationContext();
+
+        $otherTeacher = Teacher::create([
+            'first_name' => 'Other',
+            'last_name' => 'Teacher',
+            'phone' => '0998111998',
+            'status' => 'active',
+        ]);
+
+        $otherParent = ParentProfile::create([
+            'father_name' => 'Older Student Parent',
+        ]);
+
+        $olderStudent = Student::create([
+            'parent_id' => $otherParent->id,
+            'first_name' => 'Older',
+            'last_name' => 'Student',
+            'birth_date' => '2010-02-02',
+            'status' => 'active',
+        ]);
+
+        $otherCourse = Course::create([
+            'name' => 'Older Student Course',
+            'is_active' => true,
+        ]);
+
+        $yearId = \App\Models\AcademicYear::query()->where('is_current', true)->value('id');
+
+        $otherGroup = Group::create([
+            'course_id' => $otherCourse->id,
+            'academic_year_id' => $yearId,
+            'teacher_id' => $otherTeacher->id,
+            'name' => 'Older Student Group',
+            'capacity' => 12,
+            'is_active' => true,
+        ]);
+
+        $otherEnrollment = Enrollment::create([
+            'student_id' => $olderStudent->id,
+            'group_id' => $otherGroup->id,
+            'enrolled_at' => '2026-09-02',
+            'status' => 'active',
+        ]);
+
+        Volt::test('memorization.quick-entry')
+            ->assertSee('Older Student')
+            ->set('selectedStudentId', $olderStudent->id)
+            ->set('from_page', '31')
+            ->set('to_page', '32')
+            ->call('save')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('memorization_sessions', [
+            'enrollment_id' => $otherEnrollment->id,
+            'student_id' => $olderStudent->id,
+            'teacher_id' => $teacher->id,
+            'from_page' => 31,
+            'to_page' => 32,
+            'pages_count' => 2,
+        ]);
+    }
+
     private function teacherMemorizationContext(): array
     {
         $this->seed();
