@@ -15,6 +15,7 @@ class MemorizationSession extends Model
         'enrollment_id',
         'student_id',
         'teacher_id',
+        'recorded_by_user_id',
         'recorded_on',
         'entry_type',
         'from_page',
@@ -51,5 +52,10 @@ class MemorizationSession extends Model
     public function teacher(): BelongsTo
     {
         return $this->belongsTo(Teacher::class);
+    }
+
+    public function recordedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'recorded_by_user_id');
     }
 }

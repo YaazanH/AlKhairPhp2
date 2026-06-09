@@ -4,6 +4,7 @@ use App\Livewire\Concerns\AuthorizesPermissions;
 use App\Livewire\Concerns\AuthorizesTeacherAssignments;
 use App\Models\Enrollment;
 use App\Models\Student;
+use App\Models\Teacher;
 use App\Services\MemorizationService;
 use Illuminate\Database\Eloquent\Builder;
 use Livewire\Volt\Component;
@@ -13,6 +14,7 @@ new class extends Component {
     use AuthorizesTeacherAssignments;
 
     public ?int $selectedStudentId = null;
+    public ?int $selectedEnrollmentId = null;
     public string $from_page = '';
     public string $to_page = '';
     public bool $showDuplicateModal = false;
@@ -24,10 +26,6 @@ new class extends Component {
     public function mount(): void
     {
         $this->authorizePermission('memorization.record');
-
-        if (! $this->currentTeacher()) {
-            session()->flash('error', __('workflow.memorization.quick_entry.errors.no_teacher'));
-        }
     }
 
     public function with(): array
@@ -36,40 +34,71 @@ new class extends Component {
             ->orderBy('first_name')
             ->orderBy('last_name')
             ->get();
+        $availableEnrollments = $this->selectedStudentId
+            ? $this->availableQuickEntryEnrollmentsForStudent((int) $this->selectedStudentId)
+            : collect();
+        $selectedEnrollment = $this->selectedQuickEntryEnrollment($availableEnrollments);
 
         return [
             'studentOptions' => $studentOptions,
+            'availableEnrollments' => $availableEnrollments,
             'currentTeacher' => $this->currentTeacher(),
+            'currentUser' => auth()->user(),
+            'selectedEnrollment' => $selectedEnrollment,
+            'selectedTeacher' => $selectedEnrollment ? $this->resolveQuickEntryTeacher($selectedEnrollment) : null,
         ];
+    }
+
+    public function updatedSelectedStudentId($value): void
+    {
+        $this->selectedEnrollmentId = null;
+        $this->resetValidation('selectedEnrollmentId');
+
+        if (! filled($value)) {
+            return;
+        }
+
+        $availableEnrollments = $this->availableQuickEntryEnrollmentsForStudent((int) $value);
+
+        if ($availableEnrollments->count() === 1) {
+            $this->selectedEnrollmentId = $availableEnrollments->first()->id;
+        }
     }
 
     public function save(): void
     {
         $this->authorizePermission('memorization.record');
 
-        $teacher = $this->currentTeacher();
-
-        if (! $teacher) {
-            $this->addError('selectedStudentId', __('workflow.memorization.quick_entry.errors.no_teacher'));
-
-            return;
-        }
-
         $validated = $this->validate([
             'selectedStudentId' => ['required', 'exists:students,id'],
+            'selectedEnrollmentId' => ['nullable', 'exists:enrollments,id'],
             'from_page' => ['required', 'integer', 'between:1,604'],
             'to_page' => ['required', 'integer', 'between:1,604', 'gte:from_page'],
         ], [], [
             'selectedStudentId' => __('workflow.memorization.quick_entry.form.student'),
+            'selectedEnrollmentId' => __('workflow.memorization.workbench.form.group'),
             'from_page' => __('workflow.memorization.form.from_page'),
             'to_page' => __('workflow.memorization.form.to_page'),
         ]);
 
         $student = $this->findQuickEntryStudent((int) $validated['selectedStudentId']);
-        $enrollment = $this->findQuickEntryEnrollmentForStudent($student);
+        $enrollment = $this->findQuickEntryEnrollmentForStudent(
+            $student,
+            filled($validated['selectedEnrollmentId'] ?? null) ? (int) $validated['selectedEnrollmentId'] : null,
+        );
 
         if (! $enrollment) {
-            $this->addError('selectedStudentId', __('workflow.memorization.errors.no_active_enrollment'));
+            if (! $this->getErrorBag()->has('selectedEnrollmentId')) {
+                $this->addError('selectedStudentId', __('workflow.memorization.errors.no_active_enrollment'));
+            }
+
+            return;
+        }
+
+        $teacher = $this->resolveQuickEntryTeacher($enrollment);
+
+        if (! $teacher) {
+            $this->addError('selectedEnrollmentId', __('workflow.memorization.quick_entry.errors.no_assigned_teacher'));
 
             return;
         }
@@ -100,7 +129,7 @@ new class extends Component {
 
         session()->flash('status', __('workflow.memorization.quick_entry.messages.saved'));
 
-        $this->reset(['selectedStudentId', 'from_page', 'to_page']);
+        $this->reset(['selectedStudentId', 'selectedEnrollmentId', 'from_page', 'to_page']);
         $this->resetValidation();
     }
 
@@ -135,7 +164,7 @@ new class extends Component {
         );
 
         $this->closeDuplicateModal();
-        $this->reset(['selectedStudentId', 'from_page', 'to_page']);
+        $this->reset(['selectedStudentId', 'selectedEnrollmentId', 'from_page', 'to_page']);
         $this->resetValidation();
     }
 
@@ -146,51 +175,78 @@ new class extends Component {
 
     protected function quickEntryStudentsQuery(): Builder
     {
-        $query = Student::query()
+        return Student::query()
             ->with(['parentProfile'])
             ->whereHas('enrollments', fn (Builder $builder) => $this->quickEntryEnrollmentsQuery($builder)->where('status', 'active'));
-
-        return $this->currentTeacher()
-            ? $query
-            : $this->scopeStudentsQuery($query);
     }
 
     protected function quickEntryEnrollmentsQuery(?Builder $query = null): Builder
     {
         $query ??= Enrollment::query();
 
-        return $this->currentTeacher()
-            ? $query
-            : $this->scopeEnrollmentsQuery($query);
+        return $query;
     }
 
     protected function findQuickEntryStudent(int $studentId): Student
     {
-        $student = $this->quickEntryStudentsQuery()->findOrFail($studentId);
-
-        if (! $this->currentTeacher()) {
-            $this->authorizeScopedStudentAccess($student);
-        }
-
-        return $student;
+        return $this->quickEntryStudentsQuery()->findOrFail($studentId);
     }
 
-    protected function findQuickEntryEnrollmentForStudent(Student $student): ?Enrollment
+    protected function findQuickEntryEnrollmentForStudent(Student $student, ?int $selectedEnrollmentId = null): ?Enrollment
     {
-        $enrollment = $this->quickEntryEnrollmentsQuery(
+        $enrollments = $this->availableQuickEntryEnrollmentsForStudent($student->id);
+
+        if ($enrollments->isEmpty()) {
+            return null;
+        }
+
+        if ($selectedEnrollmentId !== null) {
+            abort_unless($enrollments->contains('id', $selectedEnrollmentId), 403);
+
+            return $enrollments->firstWhere('id', $selectedEnrollmentId);
+        }
+
+        if ($enrollments->count() > 1) {
+            $this->addError('selectedEnrollmentId', __('workflow.memorization.errors.select_group'));
+
+            return null;
+        }
+
+        return $enrollments->first();
+    }
+
+    protected function availableQuickEntryEnrollmentsForStudent(int $studentId)
+    {
+        return $this->quickEntryEnrollmentsQuery(
             Enrollment::query()
-                ->with(['student', 'group.teacher'])
-                ->where('student_id', $student->id)
+                ->with(['student', 'group.course', 'group.teacher', 'group.assistantTeacher'])
+                ->where('student_id', $studentId)
                 ->where('status', 'active')
                 ->latest('enrolled_at')
                 ->latest('id')
-        )->first();
+        )->get();
+    }
 
-        if ($enrollment && ! $this->currentTeacher()) {
-            $this->authorizeScopedEnrollmentAccess($enrollment);
+    protected function selectedQuickEntryEnrollment($availableEnrollments): ?Enrollment
+    {
+        if ($availableEnrollments->isEmpty()) {
+            return null;
         }
 
-        return $enrollment;
+        if ($this->selectedEnrollmentId) {
+            return $availableEnrollments->firstWhere('id', $this->selectedEnrollmentId);
+        }
+
+        return $availableEnrollments->count() === 1
+            ? $availableEnrollments->first()
+            : null;
+    }
+
+    protected function resolveQuickEntryTeacher(Enrollment $enrollment): ?Teacher
+    {
+        return $this->currentTeacher()
+            ?: $enrollment->group?->teacher
+            ?: $enrollment->group?->assistantTeacher;
     }
 
     public function closeDuplicateModal(): void
@@ -243,7 +299,12 @@ new class extends Component {
                 <p class="mt-3 text-sm leading-7 text-neutral-300">
                     {{ __('workflow.memorization.quick_entry.teacher_context', ['name' => trim($currentTeacher->first_name.' '.$currentTeacher->last_name)]) }}
                 </p>
+            @else
+                <p class="mt-3 text-sm leading-7 text-neutral-300">
+                    {{ __('workflow.memorization.quick_entry.operator_context', ['name' => $currentUser?->name ?? $currentUser?->username ?? __('crud.common.not_available')]) }}
+                </p>
             @endif
+            <p class="mt-2 text-sm leading-7 text-neutral-400">{{ __('workflow.memorization.quick_entry.auto_context') }}</p>
         </div>
 
         <form wire:submit="save" class="space-y-5">
@@ -270,6 +331,41 @@ new class extends Component {
                     <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                 @enderror
             </div>
+
+            @if ($selectedStudentId && $availableEnrollments->count() > 1)
+                <div class="admin-form-field">
+                    <label for="quick-memorization-enrollment">{{ __('workflow.memorization.workbench.form.group') }}</label>
+                    <select id="quick-memorization-enrollment" wire:model="selectedEnrollmentId">
+                        <option value="">{{ __('workflow.memorization.workbench.form.select_group') }}</option>
+                        @foreach ($availableEnrollments as $enrollment)
+                            <option value="{{ $enrollment->id }}">
+                                {{ $enrollment->group?->name ?: __('crud.common.not_available') }}
+                                @if ($enrollment->group?->course?->name)
+                                    - {{ $enrollment->group->course->name }}
+                                @endif
+                            </option>
+                        @endforeach
+                    </select>
+                    @error('selectedEnrollmentId')
+                        <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
+                    @enderror
+                </div>
+            @elseif ($selectedEnrollment)
+                <div class="rounded-3xl border border-white/10 bg-white/5 px-5 py-4 text-sm text-neutral-300">
+                    <div>{{ __('workflow.memorization.workbench.form.group_auto') }}</div>
+                    <div class="mt-2 font-medium text-white">
+                        {{ $selectedEnrollment->group?->name ?: __('crud.common.not_available') }}
+                    </div>
+                    @if ($selectedEnrollment->group?->course?->name)
+                        <div class="mt-1 text-xs text-neutral-400">{{ $selectedEnrollment->group->course->name }}</div>
+                    @endif
+                    @if ($selectedTeacher)
+                        <div class="mt-2 text-xs text-neutral-400">
+                            {{ __('workflow.memorization.quick_entry.group_teacher_context', ['name' => trim($selectedTeacher->first_name.' '.$selectedTeacher->last_name)]) }}
+                        </div>
+                    @endif
+                </div>
+            @endif
 
             <div class="grid gap-4 md:grid-cols-2">
                 <div class="admin-form-field">

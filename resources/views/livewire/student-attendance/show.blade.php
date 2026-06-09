@@ -22,15 +22,7 @@ new class extends Component {
 
         $this->currentDay = StudentAttendanceDay::query()
             ->with([
-                'groupAttendanceDays' => fn ($query) => $this->scopeGroupAttendanceDaysQuery(
-                    $query->withCount('records')->with([
-                        'group' => fn ($groupQuery) => $groupQuery
-                            ->with(['course', 'teacher'])
-                            ->withCount([
-                                'enrollments as active_enrollments_count' => fn ($enrollmentQuery) => $enrollmentQuery->where('status', 'active'),
-                            ]),
-                    ])
-                )->orderBy('group_id'),
+                'groupAttendanceDays' => fn ($query) => $this->dayGroupAttendanceDaysQuery($query),
             ])
             ->findOrFail($studentAttendanceDay->id);
 
@@ -40,15 +32,7 @@ new class extends Component {
     public function with(): array
     {
         $day = $this->currentDay->fresh([
-            'groupAttendanceDays' => fn ($query) => $this->scopeGroupAttendanceDaysQuery(
-                $query->withCount('records')->with([
-                    'group' => fn ($groupQuery) => $groupQuery
-                        ->with(['course', 'teacher'])
-                        ->withCount([
-                            'enrollments as active_enrollments_count' => fn ($enrollmentQuery) => $enrollmentQuery->where('status', 'active'),
-                        ]),
-                ])
-            )->orderBy('group_id'),
+            'groupAttendanceDays' => fn ($query) => $this->dayGroupAttendanceDaysQuery($query),
         ]);
         $existingGroupIds = $day->groupAttendanceDays
             ->pluck('group_id')
@@ -71,6 +55,23 @@ new class extends Component {
                 'marked' => $day->groupAttendanceDays->sum('records_count'),
             ],
         ];
+    }
+
+    protected function dayGroupAttendanceDaysQuery($query)
+    {
+        return $this->scopeGroupAttendanceDaysQuery(
+            $query->withCount([
+                'records',
+                'records as present_records_count' => fn ($recordQuery) => $recordQuery
+                    ->whereHas('status', fn ($statusQuery) => $statusQuery->where('is_present', true)),
+            ])->with([
+                'group' => fn ($groupQuery) => $groupQuery
+                    ->with(['course', 'teacher'])
+                    ->withCount([
+                        'enrollments as active_enrollments_count' => fn ($enrollmentQuery) => $enrollmentQuery->where('status', 'active'),
+                    ]),
+            ])
+        )->orderBy('group_id');
     }
 
     public function addManualGroup(): void
@@ -243,7 +244,7 @@ new class extends Component {
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.day_details.table.headers.group') }}</th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.day_details.table.headers.teacher') }}</th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.day_details.table.headers.students') }}</th>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.day_details.table.headers.marked') }}</th>
+                            <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.day_details.table.headers.present') }}</th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.day_details.table.headers.status') }}</th>
                             <th class="px-5 py-4 text-right lg:px-6">{{ __('workflow.student_attendance.day_details.table.headers.actions') }}</th>
                         </tr>
@@ -259,7 +260,7 @@ new class extends Component {
                                     {{ $groupDay->group?->teacher ? $groupDay->group->teacher->first_name.' '.$groupDay->group->teacher->last_name : __('workflow.common.no_teacher_assigned') }}
                                 </td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ number_format((int) ($groupDay->group?->active_enrollments_count ?? 0)) }}</td>
-                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ number_format($groupDay->records_count) }}</td>
+                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ number_format((int) $groupDay->present_records_count) }}</td>
                                 <td class="px-5 py-4 lg:px-6">
                                     <span class="{{ $groupDay->status === 'closed' ? 'status-chip status-chip--emerald' : 'status-chip status-chip--slate' }}">
                                         {{ __('workflow.common.day_status.'.$groupDay->status) }}

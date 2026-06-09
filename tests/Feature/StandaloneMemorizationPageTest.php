@@ -136,6 +136,7 @@ class StandaloneMemorizationPageTest extends TestCase
             'enrollment_id' => $enrollment->id,
             'student_id' => $enrollment->student_id,
             'teacher_id' => $teacher->id,
+            'recorded_by_user_id' => auth()->id(),
             'from_page' => 24,
             'to_page' => 24,
             'pages_count' => 1,
@@ -200,8 +201,96 @@ class StandaloneMemorizationPageTest extends TestCase
             'enrollment_id' => $otherEnrollment->id,
             'student_id' => $olderStudent->id,
             'teacher_id' => $teacher->id,
+            'recorded_by_user_id' => auth()->id(),
             'from_page' => 31,
             'to_page' => 32,
+            'pages_count' => 2,
+        ]);
+    }
+
+    public function test_non_teacher_user_with_memorization_permission_can_use_quick_entry_for_any_active_student(): void
+    {
+        [, , $enrollment] = $this->teacherMemorizationContext();
+
+        $operator = User::factory()->create([
+            'username' => 'memorization-operator',
+            'phone' => '0998111002',
+        ]);
+        $operator->givePermissionTo('memorization.record');
+
+        $this->actingAs($operator);
+
+        Volt::test('memorization.quick-entry')
+            ->assertSee('Memorization Student')
+            ->set('selectedStudentId', $enrollment->student_id)
+            ->set('from_page', '41')
+            ->set('to_page', '42')
+            ->call('save')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('memorization_sessions', [
+            'enrollment_id' => $enrollment->id,
+            'student_id' => $enrollment->student_id,
+            'teacher_id' => $enrollment->group->teacher_id,
+            'recorded_by_user_id' => $operator->id,
+            'from_page' => 41,
+            'to_page' => 42,
+            'pages_count' => 2,
+        ]);
+    }
+
+    public function test_non_teacher_quick_entry_requires_group_selection_when_student_has_multiple_active_enrollments(): void
+    {
+        [, , $enrollment] = $this->teacherMemorizationContext();
+
+        Group::create([
+            'course_id' => $enrollment->group->course_id,
+            'academic_year_id' => $enrollment->group->academic_year_id,
+            'teacher_id' => $enrollment->group->teacher_id,
+            'name' => 'Second Quick Entry Group',
+            'capacity' => 12,
+            'is_active' => true,
+        ]);
+
+        $secondGroup = Group::query()->where('name', 'Second Quick Entry Group')->firstOrFail();
+
+        $secondEnrollment = Enrollment::create([
+            'student_id' => $enrollment->student_id,
+            'group_id' => $secondGroup->id,
+            'enrolled_at' => '2026-09-06',
+            'status' => 'active',
+        ]);
+
+        $operator = User::factory()->create([
+            'username' => 'memorization-operator-groups',
+            'phone' => '0998111003',
+        ]);
+        $operator->givePermissionTo('memorization.record');
+
+        $this->actingAs($operator);
+
+        Volt::test('memorization.quick-entry')
+            ->set('selectedStudentId', $enrollment->student_id)
+            ->set('from_page', '43')
+            ->set('to_page', '44')
+            ->call('save')
+            ->assertHasErrors(['selectedEnrollmentId']);
+
+        Volt::test('memorization.quick-entry')
+            ->set('selectedStudentId', $enrollment->student_id)
+            ->set('selectedEnrollmentId', $secondEnrollment->id)
+            ->set('from_page', '43')
+            ->set('to_page', '44')
+            ->call('save')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('memorization_sessions', [
+            'enrollment_id' => $secondEnrollment->id,
+            'student_id' => $enrollment->student_id,
+            'teacher_id' => $secondGroup->teacher_id,
+            'recorded_by_user_id' => $operator->id,
+            'from_page' => 43,
+            'to_page' => 44,
             'pages_count' => 2,
         ]);
     }

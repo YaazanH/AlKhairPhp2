@@ -151,6 +151,80 @@ class StudentAttendanceDayModuleTest extends TestCase
         ]);
     }
 
+    public function test_day_details_show_total_group_students_separately_from_present_students(): void
+    {
+        $this->seed();
+
+        $manager = User::factory()->create([
+            'username' => 'attendance-counts-manager',
+            'phone' => '0998111777',
+        ]);
+        $manager->assignRole('manager');
+
+        $teacher = Teacher::create([
+            'first_name' => 'Counts',
+            'last_name' => 'Teacher',
+            'phone' => '0998111778',
+            'status' => 'active',
+        ]);
+
+        $firstEnrollment = $this->makeEnrollment($teacher->id, 'Separate Counts Group');
+
+        $secondParent = ParentProfile::create([
+            'father_name' => 'Separate Counts Parent 2',
+        ]);
+
+        $secondStudent = Student::create([
+            'parent_id' => $secondParent->id,
+            'first_name' => 'Separate Counts',
+            'last_name' => 'Student 2',
+            'birth_date' => '2013-04-10',
+            'status' => 'active',
+        ]);
+
+        $secondEnrollment = Enrollment::create([
+            'student_id' => $secondStudent->id,
+            'group_id' => $firstEnrollment->group_id,
+            'enrolled_at' => '2026-09-02',
+            'status' => 'active',
+        ]);
+
+        $present = AttendanceStatus::query()->where('code', 'present')->firstOrFail();
+        $absent = AttendanceStatus::query()
+            ->where('is_active', true)
+            ->whereIn('scope', ['student', 'both'])
+            ->where('is_present', false)
+            ->firstOrFail();
+
+        $day = app(StudentAttendanceDayService::class)->createOrSyncDay(
+            '2026-10-07',
+            collect([$firstEnrollment->group]),
+            $manager,
+            null,
+            'open',
+            $present->id,
+        );
+
+        $groupDay = GroupAttendanceDay::query()
+            ->where('student_attendance_day_id', $day->id)
+            ->where('group_id', $firstEnrollment->group_id)
+            ->firstOrFail();
+
+        StudentAttendanceRecord::query()
+            ->where('group_attendance_day_id', $groupDay->id)
+            ->where('enrollment_id', $secondEnrollment->id)
+            ->update(['attendance_status_id' => $absent->id]);
+
+        $this->actingAs($manager)
+            ->get(route('student-attendance.show', $day, absolute: false))
+            ->assertOk()
+            ->assertSeeTextInOrder([
+                'Separate Counts Group',
+                '2',
+                '1',
+            ]);
+    }
+
     public function test_group_shortcut_links_to_parent_day_and_marking_updates_records_and_points(): void
     {
         $this->seed();

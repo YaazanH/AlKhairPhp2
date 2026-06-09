@@ -132,6 +132,7 @@ return [
                     'teacher' => 'Teacher',
                     'students' => 'Students',
                     'marked' => 'Marked',
+                    'present' => 'Present',
                     'status' => 'Status',
                     'actions' => 'Actions',
                 ],
@@ -343,11 +344,13 @@ return [
         ],
         'quick_entry' => [
             'title' => 'Enter Memorize',
-            'subtitle' => 'A fast teacher entry screen for today\'s new memorized pages.',
-            'card_eyebrow' => 'Teacher entry',
+            'subtitle' => 'A fast entry screen for today\'s new memorized pages.',
+            'card_eyebrow' => 'Fast entry',
             'card_title' => 'Record today\'s pages',
             'teacher_context' => 'Saved automatically under teacher: :name.',
-            'auto_context' => 'The system saves today\'s date, entry type as new, the linked teacher, and the student\'s active group automatically.',
+            'operator_context' => 'This user can record pages here without a teacher profile. The system will use the selected active group teacher and keep :name as the audit user.',
+            'group_teacher_context' => 'This entry will be attached to teacher: :name.',
+            'auto_context' => 'The system saves today\'s date and entry type as new automatically.',
             'form' => [
                 'search' => 'Search student',
                 'search_placeholder' => 'Search by student name, number, or father name',
@@ -359,7 +362,7 @@ return [
                 'saved_partial' => 'Memorization entry saved. Duplicate pages were skipped: :pages.',
             ],
             'errors' => [
-                'no_teacher' => 'Your user is not linked to a teacher profile, so quick memorization entry is not available.',
+                'no_assigned_teacher' => 'The selected active group does not have an assigned teacher to attach to this memorization entry.',
             ],
         ],
         'stats' => [

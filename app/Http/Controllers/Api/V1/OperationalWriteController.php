@@ -243,7 +243,7 @@ class OperationalWriteController extends Controller
             ], 422);
         }
 
-        $session = DB::transaction(function () use ($validated, $enrollment, $pages, $existingPages) {
+        $session = DB::transaction(function () use ($request, $validated, $enrollment, $pages, $existingPages) {
             $session = MemorizationSession::query()->create([
                 'enrollment_id' => $enrollment->id,
                 'entry_type' => $validated['entry_type'],
@@ -251,6 +251,7 @@ class OperationalWriteController extends Controller
                 'notes' => blank($validated['notes'] ?? null) ? null : $validated['notes'],
                 'pages_count' => count($pages),
                 'recorded_on' => $validated['recorded_on'],
+                'recorded_by_user_id' => $request->user()?->id,
                 'student_id' => $enrollment->student_id,
                 'teacher_id' => $validated['teacher_id'],
                 'to_page' => $validated['to_page'],

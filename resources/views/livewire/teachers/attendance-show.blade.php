@@ -446,7 +446,7 @@ new class extends Component {
                                         : __('ui.roles.'.$accessRoleName))
                                     : __('workflow.common.not_available');
                             @endphp
-                            <tr>
+                            <tr wire:key="teacher-attendance-row-{{ $record->id }}-{{ $record->teacher_id }}">
                                 <td class="px-5 py-4 lg:px-6">
                                     <div class="student-inline student-inline--teacher-attendance">
                                         <x-teacher-avatar :teacher="$teacher" size="sm" />
@@ -464,6 +464,8 @@ new class extends Component {
                                 </td>
                                 <td class="px-5 py-4 lg:px-6">
                                     <select
+                                        id="teacher-attendance-record-{{ $record->teacher_id }}"
+                                        wire:key="teacher-attendance-select-{{ $record->id }}-{{ $record->teacher_id }}"
                                         wire:model="selected_statuses.{{ $record->teacher_id }}"
                                         wire:change="saveTeacherStatus({{ $record->teacher_id }})"
                                         class="w-full rounded-xl px-4 py-3 text-sm"

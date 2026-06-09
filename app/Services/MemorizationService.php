@@ -27,6 +27,7 @@ class MemorizationService
     ): MemorizationSession
     {
         return DB::transaction(function () use ($enrollment, $validated, $session, $skipDuplicatePages): MemorizationSession {
+            $recordedByUserId = $validated['recorded_by_user_id'] ?? $session?->recorded_by_user_id ?? auth()->id();
             $pageNumbers = range((int) $validated['from_page'], (int) $validated['to_page']);
             $duplicatePages = $this->findDuplicatePages($enrollment, $pageNumbers, $validated['entry_type'], $session);
 
@@ -46,6 +47,7 @@ class MemorizationService
                 'enrollment_id' => $enrollment->id,
                 'student_id' => $enrollment->student_id,
                 'teacher_id' => $validated['teacher_id'],
+                'recorded_by_user_id' => $recordedByUserId,
                 'recorded_on' => $validated['recorded_on'],
                 'entry_type' => $validated['entry_type'],
                 'from_page' => min($pageNumbers),
