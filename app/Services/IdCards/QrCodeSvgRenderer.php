@@ -100,7 +100,7 @@ class QrCodeSvgRenderer
         }
 
         return sprintf(
-            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 %1$s %2$s" width="100%%" height="100%%" preserveAspectRatio="xMidYMid meet" role="img" data-code-type="qrcode" aria-label="%3$s"><rect width="100%%" height="100%%" fill="#fff" /><g transform="translate(%4$s %5$s) scale(%6$s)" shape-rendering="crispEdges">%7$s</g>%8$s</svg>',
+            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 %1$s %2$s" width="100%%" height="100%%" preserveAspectRatio="xMidYMid meet" role="img" data-code-type="qrcode" aria-label="%3$s"><g transform="translate(%4$s %5$s) scale(%6$s)" shape-rendering="crispEdges">%7$s</g>%8$s</svg>',
             $this->format($width),
             $this->format($height),
             e('QR code '.$value),

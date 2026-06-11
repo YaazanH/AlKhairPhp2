@@ -807,6 +807,7 @@ class IdCardBuilderTest extends TestCase
             ->assertOk()
             ->assertHeader('Content-Type', 'image/svg+xml; charset=UTF-8')
             ->assertSee('viewBox="0 0 12.000 12.000"', false)
-            ->assertSee('data-code-type="qrcode"', false);
+            ->assertSee('data-code-type="qrcode"', false)
+            ->assertDontSee('fill="#fff"', false);
     }
 }
