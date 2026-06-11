@@ -3,7 +3,9 @@
 namespace App\Http\Controllers\PrintTemplates;
 
 use App\Http\Controllers\Controller;
+use App\Models\Activity;
 use App\Models\FinanceRequest;
+use App\Models\Group;
 use App\Models\PrintPageSize;
 use App\Models\PrintTemplate;
 use App\Services\IdCards\IdCardPrintLayoutService;
@@ -54,6 +56,17 @@ class PrintTemplatePrintController extends Controller
             'entities' => $entities,
             'defaults' => $this->defaultPageSize()?->layoutConfig() ?? $this->printLayoutService->defaults(),
             'pageSizes' => PrintPageSize::query()->orderByDesc('is_default')->orderBy('name')->get(),
+            'studentFilters' => [
+                'groups' => Group::query()
+                    ->where('is_active', true)
+                    ->orderBy('name')
+                    ->get(['id', 'name']),
+                'activities' => Activity::query()
+                    ->where('is_active', true)
+                    ->orderByDesc('activity_date')
+                    ->orderBy('title')
+                    ->get(['id', 'title', 'activity_date']),
+            ],
         ]);
     }
 

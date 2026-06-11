@@ -25,7 +25,7 @@
             );
         @endphp
 
-        @if ($element['type'] === 'dynamic_image')
+        @if (in_array($element['type'], ['dynamic_image', 'static_image'], true))
             <div class="print-template-render__element print-template-render__element--image" style="{{ $style }} border-radius: {{ number_format($element['styling']['border_radius'], 2, '.', '') }}mm;">
                 @if ($element['resolved']['src'])
                     <img
@@ -74,16 +74,15 @@
                     display:block;
                     color: {{ $element['styling']['color'] }};
                     direction: {{ $textDirection }};
-                    unicode-bidi: plaintext;
+                    unicode-bidi: isolate;
                     font-size: {{ number_format($element['styling']['font_size'], 2, '.', '') }}mm;
                     font-weight: {{ $element['styling']['font_weight'] }};
                     text-align: {{ $textAlign }};
+                    text-indent: 0;
                     letter-spacing: {{ number_format($element['styling']['letter_spacing'], 2, '.', '') }}mm;
                     line-height: {{ number_format($element['styling']['line_height'], 2, '.', '') }};
                 "
-            >
-                {{ $textValue }}
-            </div>
+            >{{ $textValue }}</div>
         @endif
     @endforeach
 </article>

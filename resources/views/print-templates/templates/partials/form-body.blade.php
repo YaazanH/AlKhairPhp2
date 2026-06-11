@@ -121,6 +121,7 @@
                 <button type="button" class="pill-link pill-link--compact" data-print-template-add="date_text">{{ __('print_templates.templates.form.buttons.add_date') }}</button>
                 <button type="button" class="pill-link pill-link--compact" data-print-template-add="page_number">{{ __('print_templates.templates.form.buttons.add_page_number') }}</button>
                 <button type="button" class="pill-link pill-link--compact" data-print-template-add="dynamic_image">{{ __('print_templates.templates.form.buttons.add_image') }}</button>
+                <button type="button" class="pill-link pill-link--compact" data-print-template-add="static_image">{{ __('print_templates.templates.form.buttons.add_static_image') }}</button>
                 <button type="button" class="pill-link pill-link--compact" data-print-template-add="barcode">{{ __('print_templates.templates.form.buttons.add_barcode') }}</button>
                 <button type="button" class="pill-link pill-link--compact" data-print-template-add="shape">{{ __('print_templates.templates.form.buttons.add_shape') }}</button>
             </div>
@@ -176,6 +177,7 @@
         </div>
 
         <textarea name="layout_json" class="hidden" data-print-template-layout-input>{{ $initialLayoutJson }}</textarea>
+        <div class="hidden" data-static-image-inputs></div>
     </section>
 
     <div class="admin-action-cluster">

@@ -58,18 +58,6 @@ class PrintTemplateRenderService
 
     protected function renderElement(PrintTemplate $template, array $context, array $element, int $pageNumber): array
     {
-        if (
-            $element['type'] === 'barcode'
-            && ($element['styling']['barcode_format'] ?? 'code39') === 'qrcode'
-            && ($element['width'] > $element['height'] * 1.4 || $element['height'] < 18)
-        ) {
-            $size = min(28.0, max(18.0, min($template->width_mm, $template->height_mm) * 0.45));
-            $element['width'] = $size;
-            $element['height'] = ($element['styling']['show_text'] ?? true) ? $size + 4 : $size;
-            $element['x'] = min($element['x'], max($template->width_mm - $element['width'], 0));
-            $element['y'] = min($element['y'], max($template->height_mm - $element['height'], 0));
-        }
-
         $maxWidth = max($template->width_mm - $element['x'], 4);
         $maxHeight = max($template->height_mm - $element['y'], 4);
         $element['width'] = min($element['width'], $maxWidth);
@@ -90,6 +78,13 @@ class PrintTemplateRenderService
             'dynamic_image' => $element + [
                 'resolved' => [
                     'src' => is_string($value) ? $value : null,
+                    'fallback' => __('print_templates.renderer.missing_image'),
+                    'alt' => __('print_templates.renderer.image_alt'),
+                ],
+            ],
+            'static_image' => $element + [
+                'resolved' => [
+                    'src' => $this->staticImageUrl($element['content'] ?? null),
                     'fallback' => __('print_templates.renderer.missing_image'),
                     'alt' => __('print_templates.renderer.image_alt'),
                 ],
@@ -138,6 +133,8 @@ class PrintTemplateRenderService
 
     protected function normalizedTextValue(string $value): string
     {
+        $value = preg_replace("/^\R+/u", '', $value) ?? $value;
+
         return preg_replace("/^\h+/mu", '', $value) ?? $value;
     }
 
@@ -153,5 +150,18 @@ class PrintTemplateRenderService
         return ($element['styling']['barcode_format'] ?? 'code39') === 'qrcode'
             ? $this->qrCodeRenderer->render($value, $options)
             : $this->barcodeRenderer->render($value, $options);
+    }
+
+    protected function staticImageUrl(?string $value): ?string
+    {
+        if (blank($value)) {
+            return null;
+        }
+
+        if (str_starts_with($value, '/') || str_starts_with($value, 'http://') || str_starts_with($value, 'https://')) {
+            return $value;
+        }
+
+        return '/storage/'.ltrim($value, '/');
     }
 }

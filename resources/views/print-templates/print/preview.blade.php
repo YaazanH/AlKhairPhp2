@@ -11,7 +11,7 @@
             .print-template-grid { display: grid; grid-template-columns: repeat({{ $layout['grid']['columns'] }}, {{ number_format($template->width_mm, 2, '.', '') }}mm); gap: {{ $layout['config']['gap_y_mm'] }}mm {{ $layout['config']['gap_x_mm'] }}mm; align-content: start; }
             .print-template-render { position: relative; overflow: hidden; border: .2mm solid rgba(15,36,20,.12); border-radius: 2.2mm; background-color: #f7fbf8; background-position: center; background-repeat: no-repeat; background-size: cover; box-sizing: border-box; break-inside: avoid; }
             .print-template-render__element { position: absolute; overflow: hidden; box-sizing: border-box; }
-            .print-template-render__element--text { display: block; white-space: pre-wrap; overflow-wrap: break-word; }
+            .print-template-render__element--text { display: block; margin: 0; padding: 0; text-indent: 0; white-space: pre-wrap; overflow-wrap: break-word; }
             .print-template-render__element--image { border: .2mm solid rgba(15,36,20,.12); background: #f0f5f2; }
             .print-template-render__image { width: 100%; height: 100%; display: block; }
             .print-template-render__fallback { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; text-align: center; font-size: 2.4mm; color: #38503e; background: rgba(11,143,67,.08); }

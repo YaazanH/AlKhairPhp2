@@ -32,6 +32,7 @@ class QrCodeSvgRenderer
         try {
             $svg = (new QRCode(new QROptions([
                 'eccLevel' => EccLevel::M,
+                'addQuietzone' => false,
                 'outputBase64' => false,
                 'svgAddXmlHeader' => false,
                 'drawLightModules' => false,
@@ -76,13 +77,13 @@ class QrCodeSvgRenderer
 
     private function svg(array $qr, string $value, array $options): string
     {
-        $width = max((float) ($options['width'] ?? 20), 10);
-        $height = max((float) ($options['height'] ?? 20), 10);
+        $width = max((float) ($options['width'] ?? 20), 4);
+        $height = max((float) ($options['height'] ?? 20), 4);
         $showText = (bool) ($options['show_text'] ?? true);
-        $fontSize = max((float) ($options['font_size'] ?? 2.8), 2.2);
-        $textHeight = $showText ? max($fontSize * 1.35, 3.2) : 0;
-        $codeHeight = max($height - $textHeight, 6);
-        $boxSize = min($width, $codeHeight);
+        $fontSize = max((float) ($options['font_size'] ?? 2.8), 1.2);
+        $textHeight = $showText ? min(max($fontSize * 1.35, 2.2), max($height * 0.42, 0)) : 0;
+        $codeHeight = max($height - $textHeight, 1);
+        $boxSize = max(min($width, $codeHeight), 1);
         $originX = ($width - $boxSize) / 2;
         $originY = $showText ? 0 : (($height - $boxSize) / 2);
         $scale = $boxSize / max((float) $qr['width'], (float) $qr['height'], 1);

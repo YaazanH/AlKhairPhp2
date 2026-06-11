@@ -16,6 +16,8 @@ use App\Models\User;
 use App\Services\ActivityAudienceService;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class IdCardBuilderTest extends TestCase
@@ -211,6 +213,50 @@ class IdCardBuilderTest extends TestCase
             ->assertSee('data-print-template-layout-input', false);
     }
 
+    public function test_managers_can_store_static_image_elements_in_print_templates(): void
+    {
+        Storage::fake('public');
+        $this->seed(RoleSeeder::class);
+
+        $manager = User::factory()->create();
+        $manager->assignRole('manager');
+
+        $response = $this->actingAs($manager)->post(route('print-templates.templates.store'), [
+            'name' => 'Static Logo Template',
+            'width_mm' => 85.6,
+            'height_mm' => 53.98,
+            'data_sources_json' => json_encode([]),
+            'layout_json' => json_encode([
+                [
+                    'id' => 'logo-element',
+                    'type' => 'static_image',
+                    'content' => '',
+                    'x' => 8,
+                    'y' => 8,
+                    'width' => 18,
+                    'height' => 18,
+                    'z_index' => 1,
+                    'styling' => [
+                        'object_fit' => 'contain',
+                        'border_radius' => 0,
+                    ],
+                ],
+            ]),
+            'static_images' => [
+                'logo-element' => UploadedFile::fake()->image('logo.png', 120, 120),
+            ],
+            'is_active' => '1',
+        ]);
+
+        $template = PrintTemplate::query()->firstOrFail();
+        $storedPath = $template->layout_json[0]['content'] ?? null;
+
+        $response->assertRedirect(route('print-templates.templates.edit', $template));
+        $this->assertSame('static_image', $template->layout_json[0]['type']);
+        $this->assertNotEmpty($storedPath);
+        Storage::disk('public')->assertExists($storedPath);
+    }
+
     public function test_print_template_preview_keeps_right_alignment_on_rtl_text(): void
     {
         $this->seed(RoleSeeder::class);
@@ -262,6 +308,56 @@ class IdCardBuilderTest extends TestCase
             ->assertSee('text-align: right;', false)
             ->assertSee('direction: rtl;', false)
             ->assertDontSee('justify-content: flex-end;', false);
+    }
+
+    public function test_print_template_preview_does_not_inject_leading_whitespace_into_text_nodes(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $manager = User::factory()->create();
+        $manager->assignRole('manager');
+
+        $template = PrintTemplate::query()->create([
+            'name' => 'Whitespace Template',
+            'width_mm' => 85.6,
+            'height_mm' => 53.98,
+            'data_sources' => [],
+            'layout_json' => [
+                [
+                    'type' => 'custom_text',
+                    'content' => 'مسجد الخير',
+                    'x' => 8,
+                    'y' => 8,
+                    'width' => 54,
+                    'height' => 12,
+                    'z_index' => 1,
+                    'styling' => [
+                        'font_size' => 4.2,
+                        'font_weight' => '700',
+                        'color' => '#102316',
+                        'text_align' => 'right',
+                    ],
+                ],
+            ],
+            'is_active' => true,
+        ]);
+
+        $this->actingAs($manager)
+            ->post(route('print-templates.print.preview'), [
+                'template_id' => $template->id,
+                'copy_count' => 1,
+                'page_width_mm' => 210,
+                'page_height_mm' => 297,
+                'margin_top_mm' => 10,
+                'margin_right_mm' => 10,
+                'margin_bottom_mm' => 10,
+                'margin_left_mm' => 10,
+                'gap_x_mm' => 6,
+                'gap_y_mm' => 6,
+            ])
+            ->assertOk()
+            ->assertSee('>مسجد الخير</div>', false)
+            ->assertDontSee(">\n                مسجد الخير", false);
     }
 
     public function test_print_preview_warns_when_page_size_cannot_fit_the_card(): void
@@ -587,5 +683,130 @@ class IdCardBuilderTest extends TestCase
             ->assertOk()
             ->assertSee('Eligible Student')
             ->assertDontSee('Unrelated Student');
+    }
+
+    public function test_print_template_setup_shows_student_group_and_activity_filters(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $manager = User::factory()->create();
+        $manager->assignRole('manager');
+
+        $academicYear = AcademicYear::query()->create([
+            'name' => '2026/2027',
+            'starts_on' => '2026-09-01',
+            'ends_on' => '2027-06-30',
+            'is_current' => true,
+            'is_active' => true,
+        ]);
+
+        $course = Course::query()->create([
+            'name' => 'Quran Program',
+            'is_active' => true,
+        ]);
+
+        $teacher = Teacher::query()->create([
+            'first_name' => 'Filter',
+            'last_name' => 'Teacher',
+            'phone' => '0991000003',
+            'status' => 'active',
+        ]);
+
+        $group = Group::query()->create([
+            'academic_year_id' => $academicYear->id,
+            'capacity' => 12,
+            'course_id' => $course->id,
+            'is_active' => true,
+            'monthly_fee' => 20,
+            'name' => 'Printable Group',
+            'starts_on' => '2026-09-01',
+            'teacher_id' => $teacher->id,
+        ]);
+
+        $parent = ParentProfile::query()->create([
+            'father_name' => 'Printable Parent',
+            'is_active' => true,
+        ]);
+
+        $student = Student::query()->create([
+            'parent_id' => $parent->id,
+            'first_name' => 'Printable',
+            'last_name' => 'Student',
+            'birth_date' => '2014-05-12',
+            'status' => 'active',
+        ]);
+
+        Enrollment::query()->create([
+            'student_id' => $student->id,
+            'group_id' => $group->id,
+            'enrolled_at' => '2026-09-02',
+            'status' => 'active',
+        ]);
+
+        $activity = Activity::query()->create([
+            'title' => 'Printable Activity',
+            'activity_date' => '2026-11-01',
+            'audience_scope' => ActivityAudienceService::SCOPE_SINGLE_GROUP,
+            'group_id' => $group->id,
+            'fee_amount' => 10,
+            'is_active' => true,
+        ]);
+
+        $template = PrintTemplate::query()->create([
+            'name' => 'Student Filter Template',
+            'width_mm' => 85.6,
+            'height_mm' => 53.98,
+            'data_sources' => [
+                ['entity' => 'student', 'mode' => 'multiple'],
+            ],
+            'layout_json' => [
+                [
+                    'type' => 'dynamic_text',
+                    'source' => 'student',
+                    'field' => 'full_name',
+                    'x' => 8,
+                    'y' => 8,
+                    'width' => 54,
+                    'height' => 8,
+                    'z_index' => 1,
+                    'styling' => [
+                        'font_size' => 4.2,
+                        'font_weight' => '700',
+                        'color' => '#102316',
+                        'text_align' => 'left',
+                    ],
+                ],
+            ],
+            'is_active' => true,
+        ]);
+
+        $this->actingAs($manager)
+            ->get(route('print-templates.print.create', ['template' => $template->id]))
+            ->assertOk()
+            ->assertSee('data-source-group-filter="student"', false)
+            ->assertSee('data-source-activity-filter="student"', false)
+            ->assertSee('Printable Group')
+            ->assertSee('Printable Activity');
+    }
+
+    public function test_qr_barcode_preview_accepts_small_square_sizes(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $manager = User::factory()->create();
+        $manager->assignRole('manager');
+
+        $this->actingAs($manager)
+            ->get(route('id-cards.barcode-preview', [
+                'format' => 'qrcode',
+                'value' => 'STU-1001',
+                'width' => 12,
+                'height' => 12,
+                'show_text' => 0,
+            ]))
+            ->assertOk()
+            ->assertHeader('Content-Type', 'image/svg+xml; charset=UTF-8')
+            ->assertSee('viewBox="0 0 12.000 12.000"', false)
+            ->assertSee('data-code-type="qrcode"', false);
     }
 }

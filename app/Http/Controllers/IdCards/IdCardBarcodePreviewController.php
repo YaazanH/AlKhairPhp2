@@ -22,8 +22,8 @@ class IdCardBarcodePreviewController extends Controller
         $validated = $request->validate([
             'format' => ['nullable', Rule::in(['code39', 'qrcode'])],
             'value' => ['nullable', 'string', 'max:64'],
-            'width' => ['nullable', 'numeric', 'min:8', 'max:160'],
-            'height' => ['nullable', 'numeric', 'min:8', 'max:120'],
+            'width' => ['nullable', 'numeric', 'min:4', 'max:160'],
+            'height' => ['nullable', 'numeric', 'min:4', 'max:120'],
             'show_text' => ['nullable', 'boolean'],
         ]);
 

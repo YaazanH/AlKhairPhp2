@@ -4106,6 +4106,7 @@ html:not(.dark) .public-gallery-slider {
     display: block;
     overflow-wrap: anywhere;
     padding: 0;
+    text-indent: 0;
     text-overflow: clip;
     white-space: pre-wrap;
 }
@@ -4124,7 +4125,7 @@ html:not(.dark) .public-gallery-slider {
 .id-card-builder-stage__element--barcode {
     flex-direction: column;
     gap: 0.2rem;
-    padding: 0.2rem 0.35rem;
+    padding: 0;
 }
 
 .id-card-builder-stage__barcode-bars {

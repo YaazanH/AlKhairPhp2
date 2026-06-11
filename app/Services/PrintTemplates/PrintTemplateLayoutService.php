@@ -30,7 +30,7 @@ class PrintTemplateLayoutService
 
     protected function normalizeElement(array $element, int $index, PrintTemplateFieldRegistry $fieldRegistry): ?array
     {
-        $type = in_array(($element['type'] ?? null), ['custom_text', 'dynamic_text', 'dynamic_image', 'barcode', 'shape', 'date_text', 'page_number'], true)
+        $type = in_array(($element['type'] ?? null), ['custom_text', 'dynamic_text', 'dynamic_image', 'static_image', 'barcode', 'shape', 'date_text', 'page_number'], true)
             ? $element['type']
             : 'custom_text';
 
@@ -74,12 +74,14 @@ class PrintTemplateLayoutService
         };
         $defaultWidth = match ($type) {
             'dynamic_image' => 22,
+            'static_image' => 22,
             'barcode' => 50,
             'shape' => 18,
             default => 45,
         };
         $defaultHeight = match ($type) {
             'dynamic_image' => 28,
+            'static_image' => 22,
             'barcode' => 14,
             'shape' => 18,
             default => 10,

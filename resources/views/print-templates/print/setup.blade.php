@@ -112,6 +112,26 @@
                                                 <label>{{ __('crud.common.filters.search') }}</label>
                                                 <input type="search" data-source-search="{{ $entity }}" placeholder="{{ __('crud.common.filters.search_placeholder') }}">
                                             </div>
+                                            @if ($entity === 'student')
+                                                <div class="admin-filter-field">
+                                                    <label>{{ __('print_templates.print.setup.fields.filter_group') }}</label>
+                                                    <select data-source-group-filter="{{ $entity }}">
+                                                        <option value="">{{ __('print_templates.print.setup.fields.all_groups') }}</option>
+                                                        @foreach ($studentFilters['groups'] as $group)
+                                                            <option value="{{ $group->id }}">{{ $group->name }}</option>
+                                                        @endforeach
+                                                    </select>
+                                                </div>
+                                                <div class="admin-filter-field">
+                                                    <label>{{ __('print_templates.print.setup.fields.filter_activity') }}</label>
+                                                    <select data-source-activity-filter="{{ $entity }}">
+                                                        <option value="">{{ __('print_templates.print.setup.fields.all_activities') }}</option>
+                                                        @foreach ($studentFilters['activities'] as $activity)
+                                                            <option value="{{ $activity->id }}">{{ $activity->title }} @if($activity->activity_date) ({{ $activity->activity_date->format('Y-m-d') }}) @endif</option>
+                                                        @endforeach
+                                                    </select>
+                                                </div>
+                                            @endif
                                         </div>
                                         <div class="admin-toolbar__actions">
                                             <button type="button" class="pill-link pill-link--compact" data-source-select-visible="{{ $entity }}">{{ __('print_templates.print.setup.buttons.select_visible') }}</button>
@@ -254,12 +274,18 @@
 
             function applySourceFilter(entity) {
                 const searchInput = document.querySelector(`[data-source-search="${entity}"]`);
+                const groupFilter = document.querySelector(`[data-source-group-filter="${entity}"]`);
+                const activityFilter = document.querySelector(`[data-source-activity-filter="${entity}"]`);
                 const term = (searchInput?.value || '').trim().toLowerCase();
+                const selectedGroupId = groupFilter?.value || '';
+                const selectedActivityId = activityFilter?.value || '';
 
                 document.querySelectorAll(`[data-source-card="${entity}"]`).forEach((card) => {
                     const searchMiss = term !== '' && !card.dataset.search.includes(term);
                     const relationMiss = !recordMatchesSelectedSources(entity, card.dataset.recordId, card);
-                    card.hidden = searchMiss || relationMiss;
+                    const groupMiss = selectedGroupId !== '' && !(relatedIds(card, 'group') || []).includes(selectedGroupId);
+                    const activityMiss = selectedActivityId !== '' && !(relatedIds(card, 'activity') || []).includes(selectedActivityId);
+                    card.hidden = searchMiss || relationMiss || groupMiss || activityMiss;
 
                     if (card.hidden) {
                         setSourceCardChecked(card, false);
@@ -308,6 +334,10 @@
 
             document.querySelectorAll('[data-source-search]').forEach((input) => {
                 input.addEventListener('input', () => applySourceFilter(input.dataset.sourceSearch));
+            });
+
+            document.querySelectorAll('[data-source-group-filter], [data-source-activity-filter]').forEach((select) => {
+                select.addEventListener('change', () => applySourceFilter(select.dataset.sourceGroupFilter || select.dataset.sourceActivityFilter));
             });
 
             document.querySelectorAll('[data-source-single-select]').forEach((select) => {

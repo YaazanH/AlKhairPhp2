@@ -11,6 +11,7 @@ use App\Services\PrintTemplates\PrintTemplateRenderService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Collection;
 use Illuminate\View\View;
 
 class PrintTemplateController extends Controller
@@ -78,6 +79,9 @@ class PrintTemplateController extends Controller
             Storage::disk('public')->delete($template->background_image);
         }
 
+        $this->staticImagePaths($template->layout_json ?? [])
+            ->each(fn (string $path) => Storage::disk('public')->delete($path));
+
         $template->delete();
 
         return redirect()
@@ -106,6 +110,8 @@ class PrintTemplateController extends Controller
             'layout_json' => ['nullable', 'string'],
             'data_sources_json' => ['nullable', 'string'],
             'background_image' => ['nullable', 'image', 'max:4096'],
+            'static_images' => ['nullable', 'array'],
+            'static_images.*' => ['nullable', 'image', 'max:4096'],
             'remove_background_image' => ['nullable', 'boolean'],
             'is_active' => ['nullable', 'boolean'],
         ]);
@@ -114,10 +120,16 @@ class PrintTemplateController extends Controller
             $this->layoutService->decode($validated['data_sources_json'] ?? '[]')
         );
 
-        $layout = $this->layoutService->normalize(
+        $decodedLayout = $this->applyStaticImageUploads(
+            $request,
             $this->layoutService->decode($validated['layout_json'] ?? '[]'),
-            $this->fieldRegistry,
         );
+
+        $layout = $this->layoutService->normalize($decodedLayout, $this->fieldRegistry);
+
+        $this->staticImagePaths($template->layout_json ?? [])
+            ->diff($this->staticImagePaths($layout))
+            ->each(fn (string $path) => Storage::disk('public')->delete($path));
 
         if (($validated['remove_background_image'] ?? false) && $template->background_image) {
             Storage::disk('public')->delete($template->background_image);
@@ -141,6 +153,35 @@ class PrintTemplateController extends Controller
             'layout_json' => $layout,
             'is_active' => (bool) ($validated['is_active'] ?? false),
         ];
+    }
+
+    protected function applyStaticImageUploads(Request $request, array $layout): array
+    {
+        return collect($layout)
+            ->map(function (mixed $element) use ($request) {
+                if (! is_array($element) || ($element['type'] ?? null) !== 'static_image') {
+                    return $element;
+                }
+
+                $elementId = (string) ($element['id'] ?? '');
+
+                if ($elementId !== '' && $request->hasFile("static_images.{$elementId}")) {
+                    $element['content'] = $request->file("static_images.{$elementId}")
+                        ->store('print-templates/elements', 'public');
+                }
+
+                return $element;
+            })
+            ->all();
+    }
+
+    protected function staticImagePaths(array $layout): Collection
+    {
+        return collect($layout)
+            ->filter(fn (mixed $element) => is_array($element) && ($element['type'] ?? null) === 'static_image' && filled($element['content'] ?? null))
+            ->map(fn (array $element) => (string) $element['content'])
+            ->unique()
+            ->values();
     }
 
     protected function defaultLayout(): array
