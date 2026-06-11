@@ -8,14 +8,11 @@ use App\Models\AppSetting;
 use App\Models\ExpenseCategory;
 use App\Models\FatherJob;
 use App\Models\GradeLevel;
-use App\Models\Group;
 use App\Models\ParentProfile;
 use App\Models\PrintPageSize;
-use App\Models\PrintTemplate;
 use App\Models\School;
 use App\Models\Student;
 use App\Models\StudentGender;
-use App\Services\PrintTemplates\PrintTemplateDataSourceService;
 use App\Services\ParentNumberService;
 use App\Services\StudentGradePromotionService;
 use App\Services\StudentNumberService;
@@ -48,7 +45,6 @@ new class extends Component {
     public string $default_student_avatar_path = '';
     public string $default_teacher_avatar_path = '';
     public string $default_parent_avatar_path = '';
-    public array $student_dashboard_card_templates = [];
     public $default_user_avatar_upload = null;
     public $default_student_avatar_upload = null;
     public $default_teacher_avatar_upload = null;
@@ -136,12 +132,6 @@ new class extends Component {
                 ->orderByDesc('is_default')
                 ->orderBy('name')
                 ->paginate(10, ['*'], 'print_page_sizes_page'),
-            'dashboardCardGroups' => Group::query()
-                ->with(['course', 'academicYear'])
-                ->orderByDesc('is_active')
-                ->orderBy('name')
-                ->paginate(10, ['*'], 'dashboard_group_templates_page'),
-            'studentCardTemplates' => $this->availableStudentCardTemplates(),
             'totals' => [
                 'academic_years' => AcademicYear::count(),
                 'active_grade_levels' => GradeLevel::query()->where('is_active', true)->count(),
@@ -781,37 +771,6 @@ new class extends Component {
         $this->showOrganizationModal = false;
     }
 
-    public function saveStudentDashboardCardTemplates(): void
-    {
-        $this->authorizePermission('settings.manage');
-
-        $availableTemplateIds = $this->availableStudentCardTemplates()
-            ->pluck('id')
-            ->map(fn ($id) => (int) $id)
-            ->all();
-
-        $validated = $this->validate([
-            'student_dashboard_card_templates' => ['array'],
-            'student_dashboard_card_templates.*' => ['nullable', 'integer', Rule::in($availableTemplateIds)],
-        ]);
-
-        $validGroupIds = Group::query()
-            ->whereIn('id', array_map('intval', array_keys($validated['student_dashboard_card_templates'] ?? [])))
-            ->pluck('id')
-            ->map(fn ($id) => (string) $id)
-            ->all();
-
-        $sanitized = collect($validated['student_dashboard_card_templates'] ?? [])
-            ->filter(fn ($templateId, $groupId) => filled($templateId) && in_array((string) $groupId, $validGroupIds, true))
-            ->map(fn ($templateId) => (int) $templateId)
-            ->all();
-
-        AppSetting::storeValue('general', 'student_dashboard_card_templates', $sanitized, 'array');
-        $this->student_dashboard_card_templates = $sanitized;
-
-        session()->flash('status', __('settings.organization.messages.student_dashboard_card_templates_saved'));
-    }
-
     public function removeDefaultAvatar(string $type): void
     {
         $this->authorizePermission('settings.manage');
@@ -1033,26 +992,10 @@ new class extends Component {
         $this->school_address = (string) ($settings['school_address'] ?? '');
         $this->school_timezone = (string) ($settings['school_timezone'] ?? config('app.timezone', 'UTC'));
         $this->school_currency = (string) ($settings['school_currency'] ?? 'USD');
-        $this->student_dashboard_card_templates = is_array($settings['student_dashboard_card_templates'] ?? null)
-            ? array_map(fn ($templateId) => (int) $templateId, $settings['student_dashboard_card_templates'])
-            : [];
         $this->default_user_avatar_path = (string) ($media->get('default_user_avatar_path') ?? '');
         $this->default_student_avatar_path = (string) ($media->get('default_student_avatar_path') ?? '');
         $this->default_teacher_avatar_path = (string) ($media->get('default_teacher_avatar_path') ?? '');
         $this->default_parent_avatar_path = (string) ($media->get('default_parent_avatar_path') ?? '');
-    }
-
-    protected function availableStudentCardTemplates()
-    {
-        return PrintTemplate::query()
-            ->where('is_active', true)
-            ->orderBy('name')
-            ->get()
-            ->filter(function (PrintTemplate $template) {
-                return collect(app(PrintTemplateDataSourceService::class)->normalize($template->data_sources ?? []))
-                    ->contains(fn (array $source) => $source['entity'] === 'student');
-            })
-            ->values();
     }
 }; ?>
 
@@ -1162,61 +1105,6 @@ new class extends Component {
                 </div>
             @endforeach
         </div>
-    </section>
-
-    <section class="surface-panel p-5 lg:p-6">
-        <div class="admin-toolbar">
-            <div>
-                <div class="admin-toolbar__title">{{ __('settings.organization.sections.student_dashboard_cards.title') }}</div>
-                <p class="admin-toolbar__subtitle">{{ __('settings.organization.sections.student_dashboard_cards.copy') }}</p>
-            </div>
-            <div class="admin-toolbar__actions">
-                <button type="button" wire:click="saveStudentDashboardCardTemplates" class="pill-link pill-link--accent">{{ __('settings.organization.actions.save_student_dashboard_cards') }}</button>
-            </div>
-        </div>
-
-        @if ($dashboardCardGroups->isEmpty())
-            <div class="admin-empty-state mt-5">{{ __('settings.organization.sections.student_dashboard_cards.empty') }}</div>
-        @else
-            <div class="mt-5 overflow-x-auto">
-                <table class="min-w-full divide-y divide-neutral-200 text-sm dark:divide-neutral-700">
-                    <thead class="bg-neutral-50 dark:bg-neutral-900/60">
-                        <tr>
-                            <th class="px-5 py-3 text-left font-medium">{{ __('settings.organization.table.name') }}</th>
-                            <th class="px-5 py-3 text-left font-medium">{{ __('workflow.student_progress.enrollments.headers.course') }}</th>
-                            <th class="px-5 py-3 text-left font-medium">{{ __('workflow.student_attendance.context.academic_year') }}</th>
-                            <th class="px-5 py-3 text-left font-medium">{{ __('settings.organization.fields.student_dashboard_card_template') }}</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-neutral-200 dark:divide-neutral-700">
-                        @foreach ($dashboardCardGroups as $group)
-                            <tr>
-                                <td class="px-5 py-3 font-medium">
-                                    <div>{{ $group->name }}</div>
-                                    <div class="mt-1 text-xs text-neutral-500">{{ $group->is_active ? __('settings.common.states.active') : __('settings.common.states.inactive') }}</div>
-                                </td>
-                                <td class="px-5 py-3">{{ $group->course?->name ?: __('crud.common.not_available') }}</td>
-                                <td class="px-5 py-3">{{ $group->academicYear?->name ?: __('crud.common.not_available') }}</td>
-                                <td class="px-5 py-3">
-                                    <select wire:model.live="student_dashboard_card_templates.{{ $group->id }}" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
-                                        <option value="">{{ __('settings.organization.fields.student_dashboard_card_template_none') }}</option>
-                                        @foreach ($studentCardTemplates as $template)
-                                            <option value="{{ $template->id }}">{{ $template->name }}</option>
-                                        @endforeach
-                                    </select>
-                                </td>
-                            </tr>
-                        @endforeach
-                    </tbody>
-                </table>
-            </div>
-
-            @if ($dashboardCardGroups->hasPages())
-                <div class="border-t border-neutral-200 px-5 py-4 dark:border-neutral-700">
-                    {{ $dashboardCardGroups->links() }}
-                </div>
-            @endif
-        @endif
     </section>
 
     <div class="space-y-6">

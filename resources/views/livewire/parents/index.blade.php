@@ -694,7 +694,8 @@ new class extends Component {
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.parents.table.headers.parent_number') }}</th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.parents.table.headers.mother') }}</th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.parents.table.headers.students') }}</th>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.parents.table.headers.phone') }}</th>
+                            <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.parents.table.headers.father_phone') }}</th>
+                            <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.parents.table.headers.mother_phone') }}</th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.parents.table.headers.status') }}</th>
                             <th class="px-5 py-4 text-right lg:px-6">{{ __('crud.parents.table.headers.actions') }}</th>
                         </tr>
@@ -706,7 +707,8 @@ new class extends Component {
                                 <td class="px-5 py-4 font-mono text-white lg:px-6">{{ $parent->parent_number ?: $parent->id }}</td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $parent->mother_name ?: __('crud.common.not_available') }}</td>
                                 <td class="px-5 py-4 text-white lg:px-6">{{ number_format($parent->students_count) }}</td>
-                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $parent->father_phone ?: ($parent->mother_phone ?: $parent->home_phone ?: __('crud.common.not_available')) }}</td>
+                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $parent->father_phone ?: __('crud.common.not_available') }}</td>
+                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $parent->mother_phone ?: __('crud.common.not_available') }}</td>
                                 <td class="px-5 py-4 lg:px-6">
                                     <span class="{{ $parent->is_active ? 'status-chip status-chip--emerald' : 'status-chip status-chip--slate' }}">
                                         {{ $parent->is_active ? __('crud.common.status_options.active') : __('crud.common.status_options.inactive') }}

@@ -8,7 +8,6 @@ use App\Models\PrintTemplate;
 use App\Models\Student;
 use App\Models\StudentPageAchievement;
 use App\Models\Teacher;
-use App\Services\PrintTemplates\PrintTemplateDataSourceService;
 use App\Services\PrintTemplates\PrintTemplateRenderService;
 use App\Services\AccessScopeService;
 use Illuminate\Support\Facades\Auth;
@@ -346,7 +345,7 @@ new class extends Component {
 
         $activeEnrollments = app(AccessScopeService::class)
             ->scopeEnrollments(Enrollment::query(), $user)
-            ->with(['group.course', 'group.academicYear'])
+            ->with(['group.course', 'group.academicYear', 'group.teacher'])
             ->where('student_id', $student->id)
             ->where('status', 'active')
             ->orderByDesc('enrolled_at')
@@ -374,10 +373,6 @@ new class extends Component {
             ->where('is_active', true)
             ->whereIn('id', $templateIds)
             ->get()
-            ->filter(function (PrintTemplate $template) {
-                return collect(app(PrintTemplateDataSourceService::class)->normalize($template->data_sources ?? []))
-                    ->contains(fn (array $source) => $source['entity'] === 'student');
-            })
             ->keyBy('id');
 
         if ($templates->isEmpty()) {
@@ -399,11 +394,17 @@ new class extends Component {
 
                 $contextStudent = clone $student;
                 $contextStudent->setRelation('enrollments', collect([$enrollment]));
+                $renderContext = array_filter([
+                    'student' => $contextStudent,
+                    'parent' => $contextStudent->parentProfile,
+                    'teacher' => $enrollment->group?->teacher,
+                    'user' => $contextStudent->user,
+                ]);
 
                 return [
                     'group' => $enrollment->group,
                     'template' => $template,
-                    'rendered' => $renderService->render($template, ['student' => $contextStudent]),
+                    'rendered' => $renderService->render($template, $renderContext),
                 ];
             })
             ->filter()

@@ -447,6 +447,107 @@ class DashboardTest extends TestCase
             ->assertSee('Student Group');
     }
 
+    public function test_student_dashboard_can_show_group_card_preview_from_any_active_print_template(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $user = User::factory()->create([
+            'username' => 'student-dashboard-generic-card',
+            'phone' => '7000105',
+        ]);
+
+        $user->assignRole('student');
+
+        $parent = ParentProfile::create([
+            'father_name' => 'Parent Name',
+        ]);
+
+        $student = Student::create([
+            'user_id' => $user->id,
+            'parent_id' => $parent->id,
+            'first_name' => 'Hasan',
+            'last_name' => 'Hamdan',
+            'birth_date' => '2013-03-03',
+            'status' => 'active',
+        ]);
+
+        $teacher = Teacher::create([
+            'first_name' => 'Assigned',
+            'last_name' => 'Teacher',
+            'phone' => '0944000298',
+            'status' => 'active',
+        ]);
+
+        $course = Course::create([
+            'name' => 'Generic Card Track',
+            'is_active' => true,
+        ]);
+
+        $academicYear = AcademicYear::create([
+            'name' => '2026/2027',
+            'starts_on' => '2026-08-01',
+            'ends_on' => '2027-07-31',
+            'is_current' => true,
+            'is_active' => true,
+        ]);
+
+        $group = Group::create([
+            'course_id' => $course->id,
+            'academic_year_id' => $academicYear->id,
+            'teacher_id' => $teacher->id,
+            'name' => 'Generic Card Group',
+            'capacity' => 10,
+            'is_active' => true,
+        ]);
+
+        Enrollment::create([
+            'student_id' => $student->id,
+            'group_id' => $group->id,
+            'enrolled_at' => '2026-09-01',
+            'status' => 'active',
+        ]);
+
+        $template = PrintTemplate::create([
+            'name' => 'Generic Dashboard Card',
+            'width_mm' => 85.6,
+            'height_mm' => 54.0,
+            'background_image' => null,
+            'data_sources' => [],
+            'layout_json' => [
+                [
+                    'id' => 'title',
+                    'type' => 'custom_text',
+                    'content' => 'Generic preview card',
+                    'x' => 8,
+                    'y' => 8,
+                    'width' => 55,
+                    'height' => 10,
+                    'z_index' => 1,
+                    'styling' => [
+                        'font_size' => 4.2,
+                        'font_weight' => '700',
+                        'color' => '#102316',
+                        'text_align' => 'left',
+                    ],
+                ],
+            ],
+            'is_active' => true,
+        ]);
+
+        AppSetting::storeValue('general', 'student_dashboard_card_templates', [
+            (string) $group->id => $template->id,
+        ], 'array');
+
+        $this->actingAs($user);
+
+        $this->get('/dashboard')
+            ->assertOk()
+            ->assertSee('Your printed cards')
+            ->assertSee('Generic Dashboard Card')
+            ->assertSee('Generic Card Group')
+            ->assertSee('Generic preview card');
+    }
+
     public function test_student_dashboard_cached_points_only_count_active_enrollments(): void
     {
         $this->seed(RoleSeeder::class);

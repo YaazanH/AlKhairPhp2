@@ -4,12 +4,14 @@ use App\Livewire\Concerns\AuthorizesPermissions;
 use App\Livewire\Concerns\AuthorizesTeacherAssignments;
 use App\Livewire\Concerns\SupportsCreateAndNew;
 use App\Models\AcademicYear;
+use App\Models\AppSetting;
 use App\Models\Course;
 use App\Models\Enrollment;
 use App\Models\GradeLevel;
 use App\Models\Group;
 use App\Models\GroupAttendanceDay;
 use App\Models\MemorizationSession;
+use App\Models\PrintTemplate;
 use App\Models\Student;
 use App\Models\Teacher;
 use Illuminate\Support\Facades\DB;
@@ -44,6 +46,9 @@ new class extends Component {
     public ?int $quickSummaryGroupId = null;
     public string $quickSummaryDate = '';
     public bool $showQuickSummaryModal = false;
+    public ?int $dashboardCardGroupId = null;
+    public string $dashboard_card_template_id = '';
+    public bool $showDashboardCardTemplateModal = false;
 
     public function mount(): void
     {
@@ -109,6 +114,15 @@ new class extends Component {
                 ? $this->scopeGroupsQuery(Group::query()->with(['course', 'teacher']))->find($this->quickSummaryGroupId)
                 : null,
             'quickSummaryRows' => $this->showQuickSummaryModal ? $this->buildQuickSummaryRows() : collect(),
+            'dashboardCardGroup' => $this->dashboardCardGroupId
+                ? $this->scopeGroupsQuery(Group::query()->with(['course', 'academicYear', 'teacher']))->find($this->dashboardCardGroupId)
+                : null,
+            'dashboardCardTemplates' => $this->showDashboardCardTemplateModal
+                ? PrintTemplate::query()
+                    ->where('is_active', true)
+                    ->orderBy('name')
+                    ->get(['id', 'name'])
+                : collect(),
             'totals' => [
                 'all' => $baseQuery->count(),
                 'active' => $this->scopeGroupsQuery(Group::query()->where('is_active', true))->count(),
@@ -329,6 +343,80 @@ new class extends Component {
         $this->resetValidation();
     }
 
+    public function openDashboardCardTemplateModal(int $groupId): void
+    {
+        $this->authorizePermission('groups.update');
+
+        $group = Group::query()->findOrFail($groupId);
+        $this->authorizeScopedGroupAccess($group);
+
+        $templateMap = $this->dashboardCardTemplateMap();
+
+        $this->dashboardCardGroupId = $group->id;
+        $this->dashboard_card_template_id = isset($templateMap[(string) $group->id])
+            ? (string) $templateMap[(string) $group->id]
+            : '';
+        $this->showDashboardCardTemplateModal = true;
+
+        $this->resetValidation();
+    }
+
+    public function closeDashboardCardTemplateModal(): void
+    {
+        $this->dashboardCardGroupId = null;
+        $this->dashboard_card_template_id = '';
+        $this->showDashboardCardTemplateModal = false;
+
+        $this->resetValidation();
+    }
+
+    public function saveDashboardCardTemplate(): void
+    {
+        $this->authorizePermission('groups.update');
+
+        abort_unless($this->dashboardCardGroupId, 404);
+
+        $group = Group::query()->findOrFail($this->dashboardCardGroupId);
+        $this->authorizeScopedGroupAccess($group);
+
+        $validated = validator(
+            [
+                'dashboard_card_template_id' => filled($this->dashboard_card_template_id)
+                    ? (int) $this->dashboard_card_template_id
+                    : null,
+            ],
+            [
+                'dashboard_card_template_id' => [
+                    'nullable',
+                    'integer',
+                    Rule::exists('print_templates', 'id')->where(fn ($query) => $query->where('is_active', true)),
+                ],
+            ]
+        )->validate();
+
+        $templateMap = $this->dashboardCardTemplateMap();
+        $selectedTemplateId = $validated['dashboard_card_template_id'] ?? null;
+
+        if ($selectedTemplateId) {
+            $templateMap[(string) $group->id] = $selectedTemplateId;
+        } else {
+            unset($templateMap[(string) $group->id]);
+        }
+
+        AppSetting::storeValue('general', 'student_dashboard_card_templates', $templateMap, 'array');
+
+        session()->flash('status', __('crud.groups.messages.dashboard_card_template_saved'));
+
+        $this->closeDashboardCardTemplateModal();
+    }
+
+    public function clearDashboardCardTemplate(): void
+    {
+        $this->dashboard_card_template_id = '';
+
+        $this->saveDashboardCardTemplate();
+    }
+
     public function copyQuickSummary(): void
     {
         abort_unless($this->canPermission('attendance.student.view') || $this->canPermission('memorization.view'), 403);
@@ -408,6 +496,20 @@ new class extends Component {
             ->whereDoesntHave('enrollments', function ($enrollmentQuery) {
                 $enrollmentQuery->where('group_id', $this->rosterGroupId);
             });
+    }
+
+    protected function dashboardCardTemplateMap(): array
+    {
+        $templateMap = AppSetting::groupValues('general')->get('student_dashboard_card_templates');
+
+        if (! is_array($templateMap)) {
+            return [];
+        }
+
+        return collect($templateMap)
+            ->filter(fn ($templateId, $groupId) => filled($templateId) && filled($groupId))
+            ->mapWithKeys(fn ($templateId, $groupId) => [(string) $groupId => (int) $templateId])
+            ->all();
     }
 
     protected function defaultAcademicYearId(): ?int
@@ -775,6 +877,9 @@ new class extends Component {
                                                 {{ __('crud.common.actions.schedules') }}
                                             </a>
                                             @can('groups.update')
+                                                <button type="button" wire:click="openDashboardCardTemplateModal({{ $group->id }})" class="pill-link pill-link--compact">
+                                                    {{ __('crud.groups.dashboard_card.action') }}
+                                                </button>
                                                 <button type="button" wire:click="edit({{ $group->id }})" class="pill-link pill-link--compact">
                                                     {{ __('crud.common.actions.edit') }}
                                                 </button>
@@ -917,6 +1022,67 @@ new class extends Component {
                 </button>
             </div>
         </form>
+    </x-admin.modal>
+
+    <x-admin.modal
+        :show="$showDashboardCardTemplateModal"
+        :title="__('crud.groups.dashboard_card.title', ['group' => $dashboardCardGroup?->name ?? ''])"
+        :description="__('crud.groups.dashboard_card.help')"
+        close-method="closeDashboardCardTemplateModal"
+        max-width="4xl"
+    >
+        <div class="space-y-6">
+            @if ($dashboardCardGroup)
+                <section class="rounded-3xl border border-white/10 bg-white/[0.03] p-5">
+                    <div class="grid gap-4 md:grid-cols-3">
+                        <div>
+                            <div class="text-xs uppercase tracking-[0.22em] text-neutral-500">{{ __('crud.groups.dashboard_card.summary.group') }}</div>
+                            <div class="mt-2 text-lg font-semibold text-white">{{ $dashboardCardGroup->name }}</div>
+                        </div>
+                        <div>
+                            <div class="text-xs uppercase tracking-[0.22em] text-neutral-500">{{ __('crud.groups.dashboard_card.summary.course') }}</div>
+                            <div class="mt-2 text-lg font-semibold text-white">{{ $dashboardCardGroup->course?->name ?: __('crud.common.not_available') }}</div>
+                        </div>
+                        <div>
+                            <div class="text-xs uppercase tracking-[0.22em] text-neutral-500">{{ __('crud.groups.dashboard_card.summary.year') }}</div>
+                            <div class="mt-2 text-lg font-semibold text-white">{{ $dashboardCardGroup->academicYear?->name ?: __('crud.common.not_available') }}</div>
+                        </div>
+                    </div>
+                </section>
+
+                <form wire:submit="saveDashboardCardTemplate" class="rounded-3xl border border-white/10 bg-white/[0.03] p-5">
+                    <div>
+                        <label for="group-dashboard-card-template" class="mb-1 block text-sm font-medium">{{ __('crud.groups.dashboard_card.fields.template') }}</label>
+                        <select id="group-dashboard-card-template" wire:model="dashboard_card_template_id" class="w-full rounded-xl px-4 py-3 text-sm">
+                            <option value="">{{ __('crud.groups.dashboard_card.placeholders.none') }}</option>
+                            @foreach ($dashboardCardTemplates as $template)
+                                <option value="{{ $template->id }}">{{ $template->name }}</option>
+                            @endforeach
+                        </select>
+                        @error('dashboard_card_template_id')
+                            <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
+                        @enderror
+                        @if ($dashboardCardTemplates->isEmpty())
+                            <div class="mt-3 text-sm text-neutral-400">{{ __('crud.groups.dashboard_card.empty_templates') }}</div>
+                        @endif
+                    </div>
+
+                    <div class="mt-5 flex flex-wrap items-center gap-3">
+                        <button type="submit" class="pill-link pill-link--accent">
+                            {{ __('crud.groups.dashboard_card.save_action') }}
+                        </button>
+                        @if (filled($dashboard_card_template_id))
+                            <button type="button" wire:click="clearDashboardCardTemplate" class="pill-link">
+                                {{ __('crud.groups.dashboard_card.clear_action') }}
+                            </button>
+                        @endif
+                        <button type="button" wire:click="closeDashboardCardTemplateModal" class="pill-link">
+                            {{ __('crud.common.actions.close') }}
+                        </button>
+                    </div>
+                </form>
+            @endif
+        </div>
     </x-admin.modal>
 
     <x-admin.modal

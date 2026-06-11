@@ -100,11 +100,12 @@ return [
             'title' => 'Parent records',
             'empty' => 'No parent records yet.',
             'headers' => [
-                'parent_number' => 'Parent No.',
+                'parent_number' => 'Parent ID',
                 'father' => 'Father full name',
                 'mother' => 'Mother',
                 'students' => 'Students',
-                'phone' => 'Phone',
+                'father_phone' => 'Father phone',
+                'mother_phone' => 'Mother phone',
                 'status' => 'Status',
                 'actions' => 'Actions',
             ],
@@ -544,12 +545,32 @@ return [
             'student_added' => 'Student added to the group successfully.',
             'student_removed' => 'Student removed from the group successfully.',
             'deactivated' => 'Group and enrollments were deactivated successfully.',
+            'dashboard_card_template_saved' => 'Student dashboard card template saved successfully.',
         ],
         'confirm_deactivate' => 'Deactivate this group and its enrollments?',
         'errors' => [
             'delete_linked' => 'This group cannot be deleted while enrollments or schedules still exist.',
             'teacher_unavailable' => 'Select an active helping teacher who is not assigned to another group.',
             'assistant_teacher_unavailable' => 'Select an active helping assistant teacher who is not assigned to another group.',
+        ],
+        'dashboard_card' => [
+            'action' => 'Student card',
+            'title' => 'Student dashboard card: :group',
+            'help' => 'Choose which active print template should appear on the student dashboard for this group.',
+            'summary' => [
+                'group' => 'Group',
+                'course' => 'Course',
+                'year' => 'Academic year',
+            ],
+            'fields' => [
+                'template' => 'Print template',
+            ],
+            'placeholders' => [
+                'none' => 'No template assigned',
+            ],
+            'save_action' => 'Save template',
+            'clear_action' => 'Remove template',
+            'empty_templates' => 'No active print templates are available yet.',
         ],
         'roster' => [
             'title' => 'Group students: :group',

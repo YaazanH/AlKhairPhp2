@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\AttendanceStatus;
 use App\Models\AcademicYear;
+use App\Models\AppSetting;
 use App\Models\Course;
 use App\Models\Enrollment;
 use App\Models\GradeLevel;
@@ -13,6 +14,7 @@ use App\Models\GroupAttendanceDay;
 use App\Models\MemorizationSession;
 use App\Models\MemorizationSessionPage;
 use App\Models\ParentProfile;
+use App\Models\PrintTemplate;
 use App\Models\Student;
 use App\Models\StudentFile;
 use App\Models\Teacher;
@@ -590,6 +592,65 @@ class ManagementCrudTest extends TestCase
             'academic_year_id' => $olderYear->id,
             'name' => 'Legacy Group A',
         ]);
+    }
+
+    public function test_group_dashboard_card_template_can_be_selected_from_group_actions(): void
+    {
+        $this->signIn();
+
+        $teacher = Teacher::create([
+            'first_name' => 'Card',
+            'last_name' => 'Teacher',
+            'phone' => '0944003114',
+            'status' => 'active',
+            'is_helping' => true,
+        ]);
+
+        $course = Course::create([
+            'name' => 'Card Course',
+            'is_active' => true,
+        ]);
+
+        $academicYear = AcademicYear::create([
+            'name' => '2026/2027',
+            'starts_on' => '2026-08-01',
+            'ends_on' => '2027-07-31',
+            'is_current' => true,
+            'is_active' => true,
+        ]);
+
+        $group = Group::create([
+            'course_id' => $course->id,
+            'academic_year_id' => $academicYear->id,
+            'teacher_id' => $teacher->id,
+            'name' => 'Card Group',
+            'capacity' => 20,
+            'is_active' => true,
+        ]);
+
+        $template = PrintTemplate::create([
+            'name' => 'Generic Group Card',
+            'width_mm' => 85.6,
+            'height_mm' => 54.0,
+            'background_image' => null,
+            'data_sources' => [],
+            'layout_json' => [],
+            'is_active' => true,
+        ]);
+
+        Volt::test('groups.index')
+            ->call('openDashboardCardTemplateModal', $group->id)
+            ->assertSet('showDashboardCardTemplateModal', true)
+            ->assertSee('Generic Group Card')
+            ->set('dashboard_card_template_id', (string) $template->id)
+            ->call('saveDashboardCardTemplate')
+            ->assertHasNoErrors()
+            ->assertSet('showDashboardCardTemplateModal', false);
+
+        $templateMap = AppSetting::groupValues('general')->get('student_dashboard_card_templates');
+
+        $this->assertIsArray($templateMap);
+        $this->assertSame($template->id, $templateMap[(string) $group->id] ?? null);
     }
 
     public function test_group_roster_shows_extended_student_and_parent_details(): void
