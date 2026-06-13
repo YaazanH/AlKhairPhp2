@@ -222,6 +222,130 @@ class ManagementCrudTest extends TestCase
         $this->assertTrue(Hash::check('StudentPass123!', $studentUser->password));
     }
 
+    public function test_creating_a_student_can_default_and_override_the_initial_group_assignment(): void
+    {
+        $this->signIn();
+
+        $parent = ParentProfile::create([
+            'father_name' => 'Samer Hasan',
+            'is_active' => true,
+        ]);
+
+        $targetGrade = GradeLevel::create([
+            'name' => 'Grade 4',
+            'sort_order' => 4,
+            'is_active' => true,
+        ]);
+
+        $otherGrade = GradeLevel::create([
+            'name' => 'Grade 5',
+            'sort_order' => 5,
+            'is_active' => true,
+        ]);
+
+        $unmatchedGrade = GradeLevel::create([
+            'name' => 'Grade 6',
+            'sort_order' => 6,
+            'is_active' => true,
+        ]);
+
+        $currentAcademicYear = AcademicYear::create([
+            'name' => '2026 / 2027',
+            'starts_on' => '2026-09-01',
+            'ends_on' => '2027-06-30',
+            'is_current' => true,
+            'is_active' => true,
+        ]);
+
+        $previousAcademicYear = AcademicYear::create([
+            'name' => '2025 / 2026',
+            'starts_on' => '2025-09-01',
+            'ends_on' => '2026-06-30',
+            'is_current' => false,
+            'is_active' => true,
+        ]);
+
+        $course = Course::create([
+            'name' => 'Immediate Enrollment Course',
+            'is_active' => true,
+        ]);
+
+        $teacher = Teacher::create([
+            'first_name' => 'Default',
+            'last_name' => 'Teacher',
+            'phone' => '0944003311',
+            'status' => 'active',
+            'is_helping' => true,
+        ]);
+
+        $olderMatchingGroup = Group::create([
+            'course_id' => $course->id,
+            'academic_year_id' => $previousAcademicYear->id,
+            'teacher_id' => $teacher->id,
+            'grade_level_id' => $targetGrade->id,
+            'name' => 'Older Grade 4 Group',
+            'capacity' => 18,
+            'is_active' => true,
+        ]);
+
+        $currentMatchingGroup = Group::create([
+            'course_id' => $course->id,
+            'academic_year_id' => $currentAcademicYear->id,
+            'teacher_id' => $teacher->id,
+            'grade_level_id' => $targetGrade->id,
+            'name' => 'Current Grade 4 Group',
+            'capacity' => 18,
+            'is_active' => true,
+        ]);
+
+        $otherGradeGroup = Group::create([
+            'course_id' => $course->id,
+            'academic_year_id' => $currentAcademicYear->id,
+            'teacher_id' => $teacher->id,
+            'grade_level_id' => $otherGrade->id,
+            'name' => 'Current Grade 5 Group',
+            'capacity' => 18,
+            'is_active' => true,
+        ]);
+
+        Volt::test('students.index')
+            ->call('openCreateModal')
+            ->set('grade_level_id', $targetGrade->id)
+            ->assertSet('enrollment_group_id', $currentMatchingGroup->id);
+
+        Volt::test('students.index')
+            ->call('openCreateModal')
+            ->set('grade_level_id', $unmatchedGrade->id)
+            ->assertSet('enrollment_group_id', null);
+
+        Volt::test('students.index')
+            ->call('openCreateModal')
+            ->set('parent_id', $parent->id)
+            ->set('first_name', 'Ahmad')
+            ->set('last_name', 'Hasan')
+            ->set('birth_date', '2014')
+            ->set('grade_level_id', $targetGrade->id)
+            ->assertSet('enrollment_group_id', $currentMatchingGroup->id)
+            ->set('enrollment_group_id', $otherGradeGroup->id)
+            ->set('joined_at', '2026-09-01')
+            ->call('save')
+            ->assertHasNoErrors();
+
+        $student = Student::query()->firstOrFail();
+
+        $this->assertDatabaseHas('enrollments', [
+            'student_id' => $student->id,
+            'group_id' => $otherGradeGroup->id,
+            'enrolled_at' => '2026-09-01 00:00:00',
+            'status' => 'active',
+        ]);
+
+        $this->assertDatabaseMissing('enrollments', [
+            'student_id' => $student->id,
+            'group_id' => $olderMatchingGroup->id,
+        ]);
+    }
+
     public function test_editing_parent_with_duplicate_primary_phone_uses_another_available_phone_for_the_linked_user(): void
     {
         $this->signIn();

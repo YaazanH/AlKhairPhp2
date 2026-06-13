@@ -3,7 +3,9 @@
 use App\Livewire\Concerns\AuthorizesPermissions;
 use App\Livewire\Concerns\AuthorizesTeacherAssignments;
 use App\Livewire\Concerns\SupportsCreateAndNew;
+use App\Models\AcademicYear;
 use App\Models\Course;
+use App\Models\Enrollment;
 use App\Models\GradeLevel;
 use App\Models\FatherJob;
 use App\Models\Group;
@@ -36,6 +38,7 @@ new class extends Component {
     public string $gender = '';
     public string $school_name = '';
     public ?int $grade_level_id = null;
+    public ?int $enrollment_group_id = null;
     public ?int $quran_current_juz_id = null;
     public string $photo_path = '';
     public string $status = 'active';
@@ -70,6 +73,8 @@ new class extends Component {
     public ?int $bulk_course_id = null;
     public ?int $bulk_group_id = null;
     public bool $bulk_sync_accounts = true;
+    public bool $enrollment_group_auto = true;
+    public bool $syncing_enrollment_group_id = false;
 
     public function mount(): void
     {
@@ -78,6 +83,10 @@ new class extends Component {
 
     public function with(): array
     {
+        $currentAcademicYearId = AcademicYear::query()
+            ->where('is_current', true)
+            ->value('id');
+
         $baseQuery = $this->scopeStudentsQuery(Student::query());
         $filteredQuery = $this->scopeStudentsQuery(Student::query())
             ->with(['parentProfile', 'gradeLevel', 'quranCurrentJuz'])
@@ -97,6 +106,18 @@ new class extends Component {
                     ->where('is_active', true)
             )->orderBy('father_name')->get(['id', 'father_name', 'mother_name', 'father_phone', 'mother_phone', 'home_phone']),
             'gradeLevels' => GradeLevel::query()->where('is_active', true)->orderBy('sort_order')->get(['id', 'name']),
+            'enrollmentGroups' => $this->scopeGroupsQuery(
+                Group::query()
+                    ->with([
+                        'academicYear:id,name',
+                        'course:id,name',
+                        'gradeLevel:id,name',
+                    ])
+                    ->where('is_active', true)
+            )
+                ->when($currentAcademicYearId, fn (Builder $query) => $query->orderByRaw('case when academic_year_id = ? then 0 else 1 end', [$currentAcademicYearId]))
+                ->orderBy('name')
+                ->get(['id', 'name', 'academic_year_id', 'course_id', 'grade_level_id']),
             'fatherJobs' => FatherJob::query()->where('is_active', true)->orderBy('name')->get(['name']),
             'juzs' => QuranJuz::query()->orderBy('juz_number')->get(['id', 'juz_number']),
             'schools' => School::query()->where('is_active', true)->orderBy('name')->get(['name']),
@@ -136,6 +157,30 @@ new class extends Component {
     public function updatedStatusFilter(): void
     {
         $this->resetPage();
+    }
+
+    public function updatedGradeLevelId(): void
+    {
+        if (! $this->showFormModal || $this->editingId || ! $this->enrollment_group_auto) {
+            return;
+        }
+
+        $this->syncDefaultEnrollmentGroup();
+    }
+
+    public function updatedEnrollmentGroupId(): void
+    {
+        if ($this->syncing_enrollment_group_id) {
+            $this->syncing_enrollment_group_id = false;
+
+            return;
+        }
+
+        if ($this->editingId) {
+            return;
+        }
+
+        $this->enrollment_group_auto = false;
     }
 
     public function updatedBulkScope(): void
@@ -277,6 +322,7 @@ new class extends Component {
             'gender' => ['nullable', Rule::exists('student_genders', 'code')],
             'school_name' => ['nullable', 'string', 'max:255'],
             'grade_level_id' => ['nullable', 'exists:grade_levels,id'],
+            'enrollment_group_id' => ['nullable', 'exists:groups,id'],
             'quran_current_juz_id' => ['nullable', 'exists:quran_juzs,id'],
             'photo_path' => ['nullable', 'string', 'max:255'],
             'status' => ['required', 'in:active,inactive,graduated,blocked'],
@@ -300,56 +346,92 @@ new class extends Component {
         $this->authorizePermission('students.create');
 
         $this->cancel();
+        $this->syncDefaultEnrollmentGroup();
         $this->showFormModal = true;
     }
 
     public function save(): void
     {
-        $this->authorizePermission($this->editingId ? 'students.update' : 'students.create');
+        $isEditing = $this->editingId !== null;
 
-        if ($this->editingId) {
+        $this->authorizePermission($isEditing ? 'students.update' : 'students.create');
+
+        if ($isEditing) {
             $this->authorizeScopedStudentAccess(Student::query()->findOrFail($this->editingId));
         }
 
         $validated = $this->validate();
         $this->authorizeScopedParentAccess(ParentProfile::query()->findOrFail($validated['parent_id']));
+
+        $selectedGroupId = ! $isEditing && filled($validated['enrollment_group_id'] ?? null)
+            ? (int) $validated['enrollment_group_id']
+            : null;
+
+        $selectedGroup = null;
+
+        if ($selectedGroupId) {
+            $selectedGroup = Group::query()->findOrFail($selectedGroupId);
+            $this->authorizeScopedGroupAccess($selectedGroup);
+        }
+
         $studentPhone = filled($validated['student_phone'] ?? null) ? trim((string) $validated['student_phone']) : null;
         unset($validated['student_phone']);
+        unset($validated['enrollment_group_id']);
         $validated['birth_date'] = $this->normalizeBirthYearValue((string) $validated['birth_date']);
         $validated['gender'] = $validated['gender'] ?: null;
         $validated['grade_level_id'] = $validated['grade_level_id'] ?: null;
         $validated['quran_current_juz_id'] = $validated['quran_current_juz_id'] ?: null;
         $validated['photo_path'] = $validated['photo_path'] ?: null;
-        $validated['joined_at'] = $this->editingId
+        $validated['joined_at'] = $isEditing
             ? ($validated['joined_at'] ?: null)
             : ($validated['joined_at'] ?: now()->toDateString());
-        $student = Student::query()->updateOrCreate(
-            ['id' => $this->editingId],
-            $validated,
-        );
-        $student->refresh();
+        $payload = DB::transaction(function () use ($isEditing, $selectedGroup, $studentPhone, $validated): array {
+            $student = Student::query()->updateOrCreate(
+                ['id' => $this->editingId],
+                $validated,
+            );
+            $student->refresh();
 
-        $result = app(ManagedUserService::class)->syncLinkedUser(
-            $student->user,
-            [
-                'name' => trim($validated['first_name'].' '.$validated['last_name']),
-                'username' => $student->student_number ?: null,
-                'phone' => $studentPhone,
-                'is_active' => $student->user?->is_active ?? ! in_array($validated['status'], ['inactive', 'blocked'], true),
-            ],
-            'student',
-        );
+            $result = app(ManagedUserService::class)->syncLinkedUser(
+                $student->user,
+                [
+                    'name' => trim($validated['first_name'].' '.$validated['last_name']),
+                    'username' => $student->student_number ?: null,
+                    'phone' => $studentPhone,
+                    'is_active' => $student->user?->is_active ?? ! in_array($validated['status'], ['inactive', 'blocked'], true),
+                ],
+                'student',
+            );
 
-        $student->user()->associate($result['user']);
-        $student->save();
+            $student->user()->associate($result['user']);
+            $student->save();
 
-        if ($result['credentials']['password']) {
-            session()->flash('generated_credentials', $result['credentials']);
+            if (! $isEditing && $selectedGroup && ! Enrollment::query()
+                ->where('student_id', $student->id)
+                ->where('group_id', $selectedGroup->id)
+                ->exists()) {
+                Enrollment::query()->create([
+                    'student_id' => $student->id,
+                    'group_id' => $selectedGroup->id,
+                    'enrolled_at' => $validated['joined_at'],
+                    'status' => 'active',
+                    'left_at' => null,
+                    'notes' => null,
+                ]);
+            }
+
+            return [
+                'credentials' => $result['credentials'],
+            ];
+        });
+
+        if ($payload['credentials']['password']) {
+            session()->flash('generated_credentials', $payload['credentials']);
         }
 
         session()->flash(
             'status',
-            $this->editingId ? __('crud.students.messages.updated') : __('crud.students.messages.created'),
+            $isEditing ? __('crud.students.messages.updated') : __('crud.students.messages.created'),
         );
 
         $this->cancel();
@@ -477,11 +559,14 @@ new class extends Component {
         $this->gender = $student->gender ?? '';
         $this->school_name = $student->school_name ?? '';
         $this->grade_level_id = $student->grade_level_id;
+        $this->enrollment_group_id = null;
         $this->quran_current_juz_id = $student->quran_current_juz_id;
         $this->photo_path = $student->photo_path ?? '';
         $this->status = $student->status;
         $this->joined_at = $student->joined_at?->format('Y-m-d') ?? '';
         $this->notes = $student->notes ?? '';
+        $this->enrollment_group_auto = false;
+        $this->syncing_enrollment_group_id = false;
         $this->showFormModal = true;
 
         $this->resetValidation();
@@ -583,6 +668,7 @@ new class extends Component {
         $this->gender = $this->defaultGenderCode();
         $this->school_name = '';
         $this->grade_level_id = null;
+        $this->enrollment_group_id = null;
         $this->quran_current_juz_id = null;
         $this->photo_path = '';
         $this->status = 'active';
@@ -599,8 +685,59 @@ new class extends Component {
         $this->quick_parent_home_phone = '';
         $this->quick_parent_address = '';
         $this->new_school_name = '';
+        $this->enrollment_group_auto = true;
+        $this->syncing_enrollment_group_id = false;
 
         $this->resetValidation();
+    }
+
+    protected function syncDefaultEnrollmentGroup(): void
+    {
+        $defaultGroupId = $this->defaultEnrollmentGroupIdForGrade($this->grade_level_id);
+
+        if ($this->enrollment_group_id === $defaultGroupId) {
+            $this->syncing_enrollment_group_id = false;
+
+            return;
+        }
+
+        $this->syncing_enrollment_group_id = true;
+        $this->enrollment_group_id = $defaultGroupId;
+    }
+
+    protected function defaultEnrollmentGroupIdForGrade(?int $gradeLevelId): ?int
+    {
+        if (! $gradeLevelId) {
+            return null;
+        }
+
+        $baseQuery = $this->scopeGroupsQuery(
+            Group::query()
+                ->where('is_active', true)
+                ->where('grade_level_id', $gradeLevelId)
+        );
+
+        $currentAcademicYearId = AcademicYear::query()
+            ->where('is_current', true)
+            ->value('id');
+
+        if ($currentAcademicYearId) {
+            $currentGroupId = (clone $baseQuery)
+                ->where('academic_year_id', $currentAcademicYearId)
+                ->orderBy('name')
+                ->value('id');
+
+            if ($currentGroupId) {
+                return (int) $currentGroupId;
+            }
+        }
+
+        $groupId = (clone $baseQuery)
+            ->orderByDesc('academic_year_id')
+            ->orderBy('name')
+            ->value('id');
+
+        return $groupId ? (int) $groupId : null;
     }
 
     public function createSchoolShortcut(): void
@@ -1457,6 +1594,33 @@ new class extends Component {
                     @enderror
                 </div>
             </div>
+
+            @if (! $editingId)
+                <div>
+                    <label for="student-enrollment-group" class="mb-1 block text-sm font-medium">{{ __('crud.students.form.fields.group') }}</label>
+                    <select id="student-enrollment-group" wire:model="enrollment_group_id" class="w-full rounded-xl px-4 py-3 text-sm">
+                        <option value="">{{ __('crud.students.form.placeholders.select_group') }}</option>
+                        @foreach ($enrollmentGroups as $group)
+                            <option value="{{ $group->id }}">
+                                {{ $group->name }}
+                                @if ($group->course)
+                                    - {{ $group->course->name }}
+                                @endif
+                                @if ($group->gradeLevel)
+                                    - {{ $group->gradeLevel->name }}
+                                @endif
+                                @if ($group->academicYear)
+                                    - {{ $group->academicYear->name }}
+                                @endif
+                            </option>
+                        @endforeach
+                    </select>
+                    <p class="mt-2 text-xs text-neutral-400">{{ __('crud.students.form.group_help') }}</p>
+                    @error('enrollment_group_id')
+                        <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
+                    @enderror
+                </div>
+            @endif
 
             <div class="grid gap-4 md:grid-cols-2">
                 <div>
