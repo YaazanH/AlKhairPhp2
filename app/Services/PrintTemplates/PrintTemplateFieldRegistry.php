@@ -113,6 +113,7 @@ class PrintTemplateFieldRegistry
             'finance_request' => [
                 'request_no' => $this->field('request_no', ['text', 'barcode'], fn (FinanceRequest $request) => $request->request_no),
                 'type' => $this->field('type', ['text'], fn (FinanceRequest $request) => app(FinanceService::class)->financeRequestTypeLabel($request->type)),
+                'description' => $this->field('description', ['text'], fn (FinanceRequest $request) => $request->requested_reason ?: __('print_templates.common.not_available')),
                 'requested_amount' => $this->field('requested_amount', ['text'], fn (FinanceRequest $request) => app(FinanceService::class)->formatCurrencyAmount($request->requested_amount, $request->requestedCurrency)),
                 'accepted_amount' => $this->field('accepted_amount', ['text'], fn (FinanceRequest $request) => $request->accepted_amount !== null ? app(FinanceService::class)->formatCurrencyAmount($request->accepted_amount, $request->acceptedCurrency) : __('print_templates.common.not_available')),
                 'cash_box' => $this->field('cash_box', ['text'], fn (FinanceRequest $request) => $request->cashBox?->name ?: __('print_templates.common.not_available')),
@@ -124,6 +125,7 @@ class PrintTemplateFieldRegistry
             'revenue' => [
                 'request_no' => $this->field('request_no', ['text', 'barcode'], fn (FinanceRequest $request) => $request->request_no),
                 'type' => $this->field('type', ['text'], fn (FinanceRequest $request) => app(FinanceService::class)->financeRequestTypeLabel($request->type)),
+                'description' => $this->field('description', ['text'], fn (FinanceRequest $request) => $request->requested_reason ?: __('print_templates.common.not_available')),
                 'requested_amount' => $this->field('requested_amount', ['text'], fn (FinanceRequest $request) => app(FinanceService::class)->formatCurrencyAmount($request->requested_amount, $request->requestedCurrency)),
                 'accepted_amount' => $this->field('accepted_amount', ['text'], fn (FinanceRequest $request) => $request->accepted_amount !== null ? app(FinanceService::class)->formatCurrencyAmount($request->accepted_amount, $request->acceptedCurrency) : __('print_templates.common.not_available')),
                 'cash_box' => $this->field('cash_box', ['text'], fn (FinanceRequest $request) => $request->cashBox?->name ?: __('print_templates.common.not_available')),
@@ -338,6 +340,7 @@ class PrintTemplateFieldRegistry
                 'activity_ids' => $this->studentActivityIds($model),
                 'group_ids' => $this->studentGroupIds($model),
                 'parent_ids' => [(int) $model->parent_id],
+                'status' => (string) $model->status,
                 'teacher_ids' => $this->studentTeacherIds($model),
             ],
             'teacher' => [

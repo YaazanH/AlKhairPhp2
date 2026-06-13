@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls \"C:\\\\Users\\\\yazon\\\\source\\\\repos\")",
+      "Read(//c/Users/yazon/source/repos/**)"
+    ]
+  }
+}

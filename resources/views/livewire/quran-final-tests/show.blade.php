@@ -32,8 +32,6 @@ new class extends Component {
             ])
             ->findOrFail($finalTest->id);
 
-        $this->authorizeTeacherEnrollmentAccess($this->finalTest->enrollment);
-
         $this->teacher_id = $this->currentTeacher()?->id;
         $this->tested_on = now()->toDateString();
     }
@@ -51,12 +49,11 @@ new class extends Component {
             'scoreRules' => app(QuranFinalTestRuleService::class)->ranges(),
             'teachers' => $this->currentTeacher()
                 ? collect()
-                : $this->scopeTeachersQuery(
-                    Teacher::query()
-                        ->whereIn('status', ['active', 'inactive'])
-                        ->orderBy('first_name')
-                        ->orderBy('last_name')
-                )->get(),
+                : Teacher::query()
+                    ->whereIn('status', ['active', 'inactive'])
+                    ->orderBy('first_name')
+                    ->orderBy('last_name')
+                    ->get(),
         ];
     }
 
@@ -101,7 +98,6 @@ new class extends Component {
 
         $teacherId = $this->currentTeacher()?->id ?: (int) $validated['teacher_id'];
         $teacher = Teacher::query()->findOrFail($teacherId);
-        $this->authorizeScopedTeacherAccess($teacher);
 
         try {
             app(QuranFinalTestService::class)->recordAttempt($this->finalTest, $teacher, [

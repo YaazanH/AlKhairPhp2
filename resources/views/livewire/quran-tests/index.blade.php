@@ -45,7 +45,7 @@ new class extends Component {
 
     public function with(): array
     {
-        $testsQuery = $this->scopeQuranTestsQuery(
+        $testsQuery = $this->quranTestsQuery(
             QuranTest::query()->with([
                 'student.parentProfile',
                 'enrollment.group.course',
@@ -86,11 +86,11 @@ new class extends Component {
             ->latest('tested_on')
             ->latest('id');
 
-        $studentOptions = $this->scopeStudentsQuery(
+        $studentOptions = $this->quranStudentsQuery(
             Student::query()
                 ->with(['parentProfile', 'quranCurrentJuz'])
                 ->whereHas('enrollments', function (Builder $query) {
-                    $this->scopeEnrollmentsQuery($query)->where('status', 'active');
+                    $this->quranEnrollmentsQuery($query)->where('status', 'active');
                 })
         )
             ->orderBy('first_name')
@@ -110,10 +110,10 @@ new class extends Component {
             'eligibleJuzs' => $this->eligibleJuzsForStudentId($this->selectedStudentId),
             'stats' => [
                 'students' => $studentOptions->count(),
-                'tests' => $this->scopeQuranTestsQuery(QuranTest::query())
+                'tests' => $this->quranTestsQuery(QuranTest::query())
                     ->whereHas('type', fn (Builder $query) => $query->where('code', 'awqaf'))
                     ->count(),
-                'passed' => $this->scopeQuranTestsQuery(QuranTest::query()->where('status', 'passed'))
+                'passed' => $this->quranTestsQuery(QuranTest::query()->where('status', 'passed'))
                     ->whereHas('type', fn (Builder $query) => $query->where('code', 'awqaf'))
                     ->count(),
             ],
@@ -148,7 +148,7 @@ new class extends Component {
             : null;
 
         $student = $this->selectedStudentId
-            ? $this->scopeStudentsQuery(Student::query())->find($this->selectedStudentId)
+            ? $this->quranStudentsQuery(Student::query())->find($this->selectedStudentId)
             : null;
 
         $this->juz_id = $student
@@ -204,8 +204,7 @@ new class extends Component {
             'selectedEnrollmentId' => __('workflow.quran_tests.workbench.form.group'),
         ]);
 
-        $student = $this->scopeStudentsQuery(Student::query())->findOrFail($validated['selectedStudentId']);
-        $this->authorizeScopedStudentAccess($student);
+        $student = $this->quranStudentsQuery(Student::query())->findOrFail($validated['selectedStudentId']);
 
         $availableEnrollmentIds = $this->availableEnrollmentsQuery()
             ->pluck('id')
@@ -231,7 +230,7 @@ new class extends Component {
 
         abort_unless(in_array((int) $validated['selectedEnrollmentId'], $availableEnrollmentIds, true), 403);
 
-        $enrollment = $this->scopeEnrollmentsQuery(
+        $enrollment = $this->quranEnrollmentsQuery(
             Enrollment::query()->with(['student', 'group.teacher'])
         )->findOrFail((int) $validated['selectedEnrollmentId']);
 
@@ -242,9 +241,6 @@ new class extends Component {
 
             return;
         }
-
-        $teacher = Teacher::query()->findOrFail($teacherId);
-        $this->authorizeScopedTeacherAccess($teacher);
 
         $testType = QuranTestType::query()->where('code', 'awqaf')->where('is_active', true)->firstOrFail();
         $progression = app(QuranProgressionService::class)->validate($enrollment, (int) $validated['juz_id'], $testType);
@@ -282,13 +278,11 @@ new class extends Component {
     {
         $this->authorizePermission('quran-awqaf-tests.delete');
 
-        $test = $this->scopeQuranTestsQuery(
+        $test = $this->quranTestsQuery(
             QuranTest::query()->with(['enrollment.student', 'type'])
         )
             ->whereHas('type', fn (Builder $query) => $query->where('code', 'awqaf'))
             ->findOrFail($testId);
-
-        $this->authorizeScopedStudentAccess($test->student);
 
         DB::transaction(function () use ($test): void {
             $ledger = app(PointLedgerService::class);
@@ -320,7 +314,7 @@ new class extends Component {
 
     protected function availableEnrollmentsQuery(): Builder
     {
-        return $this->scopeEnrollmentsQuery(
+        return $this->quranEnrollmentsQuery(
             Enrollment::query()
                 ->where('status', 'active')
                 ->when($this->selectedStudentId, fn (Builder $query) => $query->where('student_id', $this->selectedStudentId))
@@ -364,22 +358,22 @@ new class extends Component {
 
     protected function eligibleAwqafStudents()
     {
-        $studentIds = $this->scopeStudentsQuery(
+        $studentIds = $this->quranStudentsQuery(
             Student::query()
                 ->whereHas('enrollments', function (Builder $query) {
-                    $this->scopeEnrollmentsQuery($query)->where('status', 'active');
+                    $this->quranEnrollmentsQuery($query)->where('status', 'active');
                 })
         )
             ->orderBy('last_name')
             ->orderBy('first_name')
             ->pluck('id');
 
-        $passedFinalStudentIds = $this->scopeQuranFinalTestsQuery(
+        $passedFinalStudentIds = $this->quranFinalTestsQuery(
             QuranFinalTest::query()->where('status', 'passed')
         )
             ->pluck('student_id')
             ->merge(
-                $this->scopeQuranTestsQuery(
+                $this->quranTestsQuery(
                     QuranTest::query()
                         ->where('status', 'passed')
                         ->whereHas('type', fn (Builder $query) => $query->where('code', 'final'))
@@ -410,6 +404,26 @@ new class extends Component {
             })
             ->filter(fn (object $row) => $row->eligible_juz_count > 0)
             ->values();
+    }
+
+    protected function quranStudentsQuery(Builder $query): Builder
+    {
+        return $query;
+    }
+
+    protected function quranEnrollmentsQuery(Builder $query): Builder
+    {
+        return $query;
+    }
+
+    protected function quranFinalTestsQuery(Builder $query): Builder
+    {
+        return $query;
+    }
+
+    protected function quranTestsQuery(Builder $query): Builder
+    {
+        return $query;
     }
 
     protected function authorizeAnyPermission(array $permissions): void

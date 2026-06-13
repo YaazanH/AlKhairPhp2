@@ -59,6 +59,12 @@ php artisan db:seed
 npm run dev
 ```
 
+## Docker Deployment
+
+For a Windows-hosted production Docker setup using Apache, see:
+
+- `docs/docker-windows-production.md`
+
 ## Next Build Step
 
 The next implementation phase is the people and learning structure module:

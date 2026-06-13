@@ -319,29 +319,20 @@ class AdminExportController extends Controller
     {
         abort_unless($request->user()?->can('quran-awqaf-tests.view') || $request->user()?->can('quran-tests.view'), 403);
 
-        $studentIds = $scopes->scopeStudents(
-            Student::query()
-                ->whereHas('enrollments', function ($query) use ($scopes, $request) {
-                    $scopes->scopeEnrollments($query, $request->user())->where('status', 'active');
-                }),
-            $request->user()
-        )
+        $studentIds = Student::query()
+            ->whereHas('enrollments', fn ($query) => $query->where('status', 'active'))
             ->orderBy('last_name')
             ->orderBy('first_name')
             ->pluck('id');
 
-        $passedFinalStudentIds = $scopes->scopeQuranFinalTests(
-            QuranFinalTest::query()->where('status', 'passed'),
-            $request->user()
-        )
+        $passedFinalStudentIds = QuranFinalTest::query()
+            ->where('status', 'passed')
             ->pluck('student_id')
             ->merge(
-                $scopes->scopeQuranTests(
-                    QuranTest::query()
-                        ->where('status', 'passed')
-                        ->whereHas('type', fn ($query) => $query->where('code', 'final')),
-                    $request->user()
-                )->pluck('student_id')
+                QuranTest::query()
+                    ->where('status', 'passed')
+                    ->whereHas('type', fn ($query) => $query->where('code', 'final'))
+                    ->pluck('student_id')
             )
             ->unique()
             ->intersect($studentIds)

@@ -42,7 +42,7 @@ new class extends Component {
 
     public function with(): array
     {
-        $testsQuery = $this->scopeQuranPartialTestsQuery(
+        $testsQuery = $this->quranPartialTestsQuery(
             QuranPartialTest::query()->with([
                 'student.parentProfile',
                 'enrollment.group.course',
@@ -75,11 +75,11 @@ new class extends Component {
             )
             ->latest('id');
 
-        $studentOptions = $this->scopeStudentsQuery(
+        $studentOptions = $this->quranStudentsQuery(
             Student::query()
                 ->with('parentProfile')
                 ->whereHas('enrollments', function (Builder $query) {
-                    $this->scopeEnrollmentsQuery($query)->where('status', 'active');
+                    $this->quranEnrollmentsQuery($query)->where('status', 'active');
                 })
         )
             ->orderBy('first_name')
@@ -87,7 +87,7 @@ new class extends Component {
             ->get();
 
         $selectedStudent = $this->selectedStudentId
-            ? $this->scopeStudentsQuery(Student::query()->with('pageAchievements'))->find($this->selectedStudentId)
+            ? $this->quranStudentsQuery(Student::query()->with('pageAchievements'))->find($this->selectedStudentId)
             : null;
 
         $eligibleJuzIds = $selectedStudent
@@ -108,9 +108,9 @@ new class extends Component {
                 ? collect()
                 : QuranJuz::query()->whereIn('id', $eligibleJuzIds)->orderBy('juz_number')->get(),
             'stats' => [
-                'tests' => $this->scopeQuranPartialTestsQuery(QuranPartialTest::query())->count(),
-                'in_progress' => $this->scopeQuranPartialTestsQuery(QuranPartialTest::query()->where('status', 'in_progress'))->count(),
-                'passed' => $this->scopeQuranPartialTestsQuery(QuranPartialTest::query()->where('status', 'passed'))->count(),
+                'tests' => $this->quranPartialTestsQuery(QuranPartialTest::query())->count(),
+                'in_progress' => $this->quranPartialTestsQuery(QuranPartialTest::query()->where('status', 'in_progress'))->count(),
+                'passed' => $this->quranPartialTestsQuery(QuranPartialTest::query()->where('status', 'passed'))->count(),
             ],
         ];
     }
@@ -179,10 +179,9 @@ new class extends Component {
             return;
         }
 
-        $student = $this->scopeStudentsQuery(Student::query()->with('pageAchievements'))->findOrFail($this->pendingCreateStudentId);
-        $this->authorizeScopedStudentAccess($student);
+        $student = $this->quranStudentsQuery(Student::query()->with('pageAchievements'))->findOrFail($this->pendingCreateStudentId);
 
-        $enrollment = $this->scopeEnrollmentsQuery(
+        $enrollment = $this->quranEnrollmentsQuery(
             Enrollment::query()->with(['student.pageAchievements', 'group.course'])
         )->findOrFail($this->pendingCreateEnrollmentId);
 
@@ -202,8 +201,7 @@ new class extends Component {
             'selectedEnrollmentId' => __('workflow.quran_partial_tests.form.group'),
         ]);
 
-        $student = $this->scopeStudentsQuery(Student::query()->with('pageAchievements'))->findOrFail($validated['selectedStudentId']);
-        $this->authorizeScopedStudentAccess($student);
+        $student = $this->quranStudentsQuery(Student::query()->with('pageAchievements'))->findOrFail($validated['selectedStudentId']);
 
         $availableEnrollmentIds = $this->availableEnrollmentsQuery()
             ->pluck('id')
@@ -229,7 +227,7 @@ new class extends Component {
 
         abort_unless(in_array((int) $validated['selectedEnrollmentId'], $availableEnrollmentIds, true), 403);
 
-        $enrollment = $this->scopeEnrollmentsQuery(
+        $enrollment = $this->quranEnrollmentsQuery(
             Enrollment::query()->with(['student.pageAchievements', 'group.course'])
         )->findOrFail((int) $validated['selectedEnrollmentId']);
 
@@ -240,11 +238,9 @@ new class extends Component {
     {
         $this->authorizePermission('quran-partial-tests.delete');
 
-        $partialTest = $this->scopeQuranPartialTestsQuery(
+        $partialTest = $this->quranPartialTestsQuery(
             QuranPartialTest::query()->with(['enrollment.student', 'parts'])
         )->findOrFail($partialTestId);
-
-        $this->authorizeScopedStudentAccess($partialTest->student);
 
         DB::transaction(function () use ($partialTest): void {
             $ledger = app(PointLedgerService::class);
@@ -331,12 +327,27 @@ new class extends Component {
 
     protected function availableEnrollmentsQuery(): Builder
     {
-        return $this->scopeEnrollmentsQuery(
+        return $this->quranEnrollmentsQuery(
             Enrollment::query()
                 ->where('status', 'active')
                 ->when($this->selectedStudentId, fn (Builder $query) => $query->where('student_id', $this->selectedStudentId))
                 ->when(! $this->selectedStudentId, fn (Builder $query) => $query->whereRaw('1 = 0'))
         );
+    }
+
+    protected function quranStudentsQuery(Builder $query): Builder
+    {
+        return $query;
+    }
+
+    protected function quranEnrollmentsQuery(Builder $query): Builder
+    {
+        return $query;
+    }
+
+    protected function quranPartialTestsQuery(Builder $query): Builder
+    {
+        return $query;
     }
 }; ?>
 

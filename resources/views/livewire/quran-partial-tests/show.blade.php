@@ -33,8 +33,6 @@ new class extends Component {
             ])
             ->findOrFail($partialTest->id);
 
-        $this->authorizeTeacherEnrollmentAccess($this->partialTest->enrollment);
-
         $this->teacher_id = $this->currentTeacher()?->id;
         $this->tested_on = now()->toDateString();
     }
@@ -52,12 +50,11 @@ new class extends Component {
             'failThreshold' => app(QuranPartialTestRuleService::class)->failThreshold(),
             'teachers' => $this->currentTeacher()
                 ? collect()
-                : $this->scopeTeachersQuery(
-                    Teacher::query()
-                        ->whereIn('status', ['active', 'inactive'])
-                        ->orderBy('first_name')
-                        ->orderBy('last_name')
-                )->get(),
+                : Teacher::query()
+                    ->whereIn('status', ['active', 'inactive'])
+                    ->orderBy('first_name')
+                    ->orderBy('last_name')
+                    ->get(),
         ];
     }
 
@@ -110,7 +107,6 @@ new class extends Component {
         $part = $this->partialTest->parts()->findOrFail((int) $validated['selectedPartId']);
         $teacherId = $this->currentTeacher()?->id ?: (int) $validated['teacher_id'];
         $teacher = Teacher::query()->findOrFail($teacherId);
-        $this->authorizeScopedTeacherAccess($teacher);
 
         try {
             app(QuranPartialTestService::class)->recordAttempt($part, $teacher, [

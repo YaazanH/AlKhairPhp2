@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\PrintTemplates;
 
 use App\Http\Controllers\Controller;
-use App\Models\Activity;
 use App\Models\FinanceRequest;
 use App\Models\Group;
 use App\Models\PrintPageSize;
@@ -61,11 +60,6 @@ class PrintTemplatePrintController extends Controller
                     ->where('is_active', true)
                     ->orderBy('name')
                     ->get(['id', 'name']),
-                'activities' => Activity::query()
-                    ->where('is_active', true)
-                    ->orderByDesc('activity_date')
-                    ->orderBy('title')
-                    ->get(['id', 'title', 'activity_date']),
             ],
         ]);
     }

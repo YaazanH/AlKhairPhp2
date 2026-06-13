@@ -685,7 +685,7 @@ class IdCardBuilderTest extends TestCase
             ->assertDontSee('Unrelated Student');
     }
 
-    public function test_print_template_setup_shows_student_group_and_activity_filters(): void
+    public function test_print_template_setup_shows_student_group_and_status_filters(): void
     {
         $this->seed(RoleSeeder::class);
 
@@ -784,9 +784,10 @@ class IdCardBuilderTest extends TestCase
             ->get(route('print-templates.print.create', ['template' => $template->id]))
             ->assertOk()
             ->assertSee('data-source-group-filter="student"', false)
-            ->assertSee('data-source-activity-filter="student"', false)
+            ->assertSee('data-source-status-filter="student"', false)
             ->assertSee('Printable Group')
-            ->assertSee('Printable Activity');
+            ->assertSee('الطلاب النشطون')
+            ->assertSee('الطلاب غير النشطين');
     }
 
     public function test_qr_barcode_preview_accepts_small_square_sizes(): void

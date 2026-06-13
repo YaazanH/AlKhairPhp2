@@ -268,9 +268,11 @@ return [
                 'copy_count' => 'عدد النسخ',
                 'select_one' => 'اختر :entity واحد',
                 'filter_group' => 'تصفية حسب المجموعة',
-                'filter_activity' => 'تصفية حسب النشاط',
+                'filter_status' => 'حالة الطالب',
                 'all_groups' => 'كل المجموعات',
-                'all_activities' => 'كل الأنشطة',
+                'all_students' => 'كل الطلاب',
+                'active_students' => 'الطلاب النشطون',
+                'non_active_students' => 'الطلاب غير النشطين',
             ],
             'sources_help' => 'القالب المحدد هو الذي يحدد الحقول التي تظهر هنا.',
             'buttons' => [

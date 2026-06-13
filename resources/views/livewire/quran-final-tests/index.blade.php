@@ -40,7 +40,7 @@ new class extends Component {
 
     public function with(): array
     {
-        $testsQuery = $this->scopeQuranFinalTestsQuery(
+        $testsQuery = $this->quranFinalTestsQuery(
             QuranFinalTest::query()->with([
                 'student.parentProfile',
                 'enrollment.group.course',
@@ -74,11 +74,11 @@ new class extends Component {
             ->latest('passed_on')
             ->latest('id');
 
-        $studentOptions = $this->scopeStudentsQuery(
+        $studentOptions = $this->quranStudentsQuery(
             Student::query()
                 ->with('parentProfile')
                 ->whereHas('enrollments', function (Builder $query) {
-                    $this->scopeEnrollmentsQuery($query)->where('status', 'active');
+                    $this->quranEnrollmentsQuery($query)->where('status', 'active');
                 })
         )
             ->orderBy('first_name')
@@ -86,7 +86,7 @@ new class extends Component {
             ->get();
 
         $selectedStudent = $this->selectedStudentId
-            ? $this->scopeStudentsQuery(Student::query())->find($this->selectedStudentId)
+            ? $this->quranStudentsQuery(Student::query())->find($this->selectedStudentId)
             : null;
 
         $eligibleJuzIds = $selectedStudent
@@ -107,9 +107,9 @@ new class extends Component {
                 ? collect()
                 : QuranJuz::query()->whereIn('id', $eligibleJuzIds)->orderBy('juz_number')->get(),
             'stats' => [
-                'tests' => $this->scopeQuranFinalTestsQuery(QuranFinalTest::query())->count(),
-                'in_progress' => $this->scopeQuranFinalTestsQuery(QuranFinalTest::query()->where('status', 'in_progress'))->count(),
-                'passed' => $this->scopeQuranFinalTestsQuery(QuranFinalTest::query()->where('status', 'passed'))->count(),
+                'tests' => $this->quranFinalTestsQuery(QuranFinalTest::query())->count(),
+                'in_progress' => $this->quranFinalTestsQuery(QuranFinalTest::query()->where('status', 'in_progress'))->count(),
+                'passed' => $this->quranFinalTestsQuery(QuranFinalTest::query()->where('status', 'passed'))->count(),
             ],
         ];
     }
@@ -180,7 +180,7 @@ new class extends Component {
             return;
         }
 
-        $finalTest = $this->scopeQuranFinalTestsQuery(
+        $finalTest = $this->quranFinalTestsQuery(
             QuranFinalTest::query()->with('enrollment')
         )->findOrFail($this->existingFinalTestId);
 
@@ -203,8 +203,7 @@ new class extends Component {
             'selectedEnrollmentId' => __('workflow.quran_final_tests.form.group'),
         ]);
 
-        $student = $this->scopeStudentsQuery(Student::query())->findOrFail($validated['selectedStudentId']);
-        $this->authorizeScopedStudentAccess($student);
+        $student = $this->quranStudentsQuery(Student::query())->findOrFail($validated['selectedStudentId']);
 
         $availableEnrollmentIds = $this->availableEnrollmentsQuery()
             ->pluck('id')
@@ -248,7 +247,7 @@ new class extends Component {
             return;
         }
 
-        $enrollment = $this->scopeEnrollmentsQuery(
+        $enrollment = $this->quranEnrollmentsQuery(
             Enrollment::query()->with(['student', 'group.course'])
         )->findOrFail((int) $validated['selectedEnrollmentId']);
 
@@ -273,11 +272,9 @@ new class extends Component {
     {
         $this->authorizePermission('quran-final-tests.delete');
 
-        $finalTest = $this->scopeQuranFinalTestsQuery(
+        $finalTest = $this->quranFinalTestsQuery(
             QuranFinalTest::query()->with(['enrollment.student'])
         )->findOrFail($finalTestId);
-
-        $this->authorizeScopedStudentAccess($finalTest->student);
 
         DB::transaction(function () use ($finalTest): void {
             $ledger = app(PointLedgerService::class);
@@ -304,12 +301,27 @@ new class extends Component {
 
     protected function availableEnrollmentsQuery(): Builder
     {
-        return $this->scopeEnrollmentsQuery(
+        return $this->quranEnrollmentsQuery(
             Enrollment::query()
                 ->where('status', 'active')
                 ->when($this->selectedStudentId, fn (Builder $query) => $query->where('student_id', $this->selectedStudentId))
                 ->when(! $this->selectedStudentId, fn (Builder $query) => $query->whereRaw('1 = 0'))
         );
+    }
+
+    protected function quranStudentsQuery(Builder $query): Builder
+    {
+        return $query;
+    }
+
+    protected function quranEnrollmentsQuery(Builder $query): Builder
+    {
+        return $query;
+    }
+
+    protected function quranFinalTestsQuery(Builder $query): Builder
+    {
+        return $query;
     }
 }; ?>
 

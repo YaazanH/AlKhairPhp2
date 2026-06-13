@@ -268,9 +268,11 @@ return [
                 'copy_count' => 'Copy count',
                 'select_one' => 'Select one :entity',
                 'filter_group' => 'Group filter',
-                'filter_activity' => 'Activity filter',
+                'filter_status' => 'Student status',
                 'all_groups' => 'All groups',
-                'all_activities' => 'All activities',
+                'all_students' => 'All students',
+                'active_students' => 'Active students',
+                'non_active_students' => 'Non-active students',
             ],
             'sources_help' => 'The selected template decides which selectors appear here.',
             'buttons' => [

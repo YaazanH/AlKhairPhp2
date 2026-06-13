@@ -308,6 +308,22 @@ class FinanceAndActivitiesTest extends TestCase
                         'text_align' => 'left',
                     ],
                 ],
+                [
+                    'type' => 'dynamic_text',
+                    'source' => 'finance_request',
+                    'field' => 'description',
+                    'x' => 5,
+                    'y' => 14,
+                    'width' => 70,
+                    'height' => 10,
+                    'z_index' => 2,
+                    'styling' => [
+                        'font_size' => 3.2,
+                        'font_weight' => '500',
+                        'color' => '#102316',
+                        'text_align' => 'left',
+                    ],
+                ],
             ],
             'is_active' => true,
         ]);
@@ -318,6 +334,7 @@ class FinanceAndActivitiesTest extends TestCase
             ->assertOk()
             ->assertSee(__('print_templates.print.preview.title'))
             ->assertSee('PUL-000001')
+            ->assertSee('Class materials')
             ->assertSee('Pull Request Receipt');
 
         $this->get(route('finance.requests.print', ['financeRequest' => $request, 'choose' => 1]))
