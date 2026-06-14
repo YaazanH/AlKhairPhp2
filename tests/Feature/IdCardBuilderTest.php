@@ -11,6 +11,7 @@ use App\Models\Group;
 use App\Models\ParentProfile;
 use App\Models\PrintTemplate;
 use App\Models\Student;
+use App\Models\StudentCardPrint;
 use App\Models\Teacher;
 use App\Models\User;
 use App\Services\ActivityAudienceService;
@@ -85,13 +86,17 @@ class IdCardBuilderTest extends TestCase
         $manager = User::factory()->create();
         $manager->assignRole('manager');
 
-        $template = IdCardTemplate::query()->create([
+        $template = PrintTemplate::query()->create([
             'name' => 'Preview Card',
             'width_mm' => 85.6,
             'height_mm' => 53.98,
+            'data_sources' => [
+                ['entity' => 'student', 'mode' => 'multiple'],
+            ],
             'layout_json' => [
                 [
-                    'type' => 'text',
+                    'type' => 'dynamic_text',
+                    'source' => 'student',
                     'field' => 'full_name',
                     'x' => 8,
                     'y' => 8,
@@ -107,6 +112,7 @@ class IdCardBuilderTest extends TestCase
                 ],
                 [
                     'type' => 'barcode',
+                    'source' => 'student',
                     'field' => 'student_number',
                     'x' => 8,
                     'y' => 30,
@@ -122,6 +128,7 @@ class IdCardBuilderTest extends TestCase
                 ],
             ],
             'is_active' => true,
+            'is_student_card' => true,
         ]);
 
         $parent = ParentProfile::query()->create([
@@ -150,7 +157,9 @@ class IdCardBuilderTest extends TestCase
 
         $response = $this->actingAs($manager)->post(route('id-cards.print.preview'), [
             'template_id' => $template->id,
-            'student_ids' => [$studentA->id, $studentB->id],
+            'sources' => [
+                'student' => ['multiple' => [$studentA->id, $studentB->id]],
+            ],
             'page_width_mm' => 210,
             'page_height_mm' => 297,
             'margin_top_mm' => 10,
@@ -159,6 +168,7 @@ class IdCardBuilderTest extends TestCase
             'margin_left_mm' => 10,
             'gap_x_mm' => 6,
             'gap_y_mm' => 6,
+            'copy_count' => 1,
         ]);
 
         $response
@@ -166,8 +176,8 @@ class IdCardBuilderTest extends TestCase
             ->assertSee(__('id_cards.print.preview.title'))
             ->assertSee('Omar Hasan')
             ->assertSee('Aya Hasan')
-            ->assertSee((string) $studentA->id)
-            ->assertSee((string) $studentB->id)
+            ->assertSee((string) ($studentA->student_number ?: $studentA->id))
+            ->assertSee((string) ($studentB->student_number ?: $studentB->id))
             ->assertSee('data-code-type="qrcode"', false)
             ->assertSee('<svg', false);
     }
@@ -255,6 +265,190 @@ class IdCardBuilderTest extends TestCase
         $this->assertSame('static_image', $template->layout_json[0]['type']);
         $this->assertNotEmpty($storedPath);
         Storage::disk('public')->assertExists($storedPath);
+    }
+
+    public function test_managers_can_copy_print_templates_with_their_uploaded_assets(): void
+    {
+        Storage::fake('public');
+        $this->seed(RoleSeeder::class);
+
+        $manager = User::factory()->create();
+        $manager->assignRole('manager');
+
+        $backgroundPath = UploadedFile::fake()->image('background.png', 300, 200)->store('print-templates/backgrounds', 'public');
+        $logoPath = UploadedFile::fake()->image('logo.png', 120, 120)->store('print-templates/elements', 'public');
+
+        $template = PrintTemplate::query()->create([
+            'name' => 'Copy Me',
+            'width_mm' => 85.6,
+            'height_mm' => 53.98,
+            'background_image' => $backgroundPath,
+            'data_sources' => [
+                ['entity' => 'student', 'mode' => 'multiple'],
+            ],
+            'layout_json' => [
+                [
+                    'id' => 'logo',
+                    'type' => 'static_image',
+                    'content' => $logoPath,
+                    'x' => 8,
+                    'y' => 8,
+                    'width' => 12,
+                    'height' => 12,
+                    'z_index' => 1,
+                    'styling' => [
+                        'object_fit' => 'contain',
+                        'border_radius' => 0,
+                    ],
+                ],
+            ],
+            'is_active' => true,
+        ]);
+
+        $response = $this->actingAs($manager)->post(route('print-templates.templates.copy', $template));
+
+        $duplicate = PrintTemplate::query()
+            ->whereKeyNot($template->id)
+            ->firstOrFail();
+
+        $response->assertRedirect(route('print-templates.templates.edit', $duplicate));
+        $this->assertNotSame($template->background_image, $duplicate->background_image);
+        $this->assertNotSame($template->layout_json[0]['content'], $duplicate->layout_json[0]['content']);
+        Storage::disk('public')->assertExists($duplicate->background_image);
+        Storage::disk('public')->assertExists($duplicate->layout_json[0]['content']);
+    }
+
+    public function test_student_card_print_setup_shows_printed_filter_and_status(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $manager = User::factory()->create();
+        $manager->assignRole('manager');
+
+        $academicYear = AcademicYear::query()->create([
+            'name' => '2026/2027',
+            'starts_on' => '2026-09-01',
+            'ends_on' => '2027-06-30',
+            'is_current' => true,
+            'is_active' => true,
+        ]);
+
+        $course = Course::query()->create([
+            'name' => 'Quran Program',
+            'is_active' => true,
+        ]);
+
+        $teacher = Teacher::query()->create([
+            'first_name' => 'Card',
+            'last_name' => 'Teacher',
+            'phone' => '0991000008',
+            'status' => 'active',
+        ]);
+
+        $group = Group::query()->create([
+            'academic_year_id' => $academicYear->id,
+            'capacity' => 12,
+            'course_id' => $course->id,
+            'is_active' => true,
+            'monthly_fee' => 20,
+            'name' => 'Card Group',
+            'starts_on' => '2026-09-01',
+            'teacher_id' => $teacher->id,
+        ]);
+
+        $parent = ParentProfile::query()->create([
+            'father_name' => 'Card Parent',
+            'is_active' => true,
+        ]);
+
+        $student = Student::query()->create([
+            'parent_id' => $parent->id,
+            'first_name' => 'Printed',
+            'last_name' => 'Student',
+            'birth_date' => '2014-05-12',
+            'status' => 'active',
+        ]);
+
+        Enrollment::query()->create([
+            'student_id' => $student->id,
+            'group_id' => $group->id,
+            'enrolled_at' => '2026-09-02',
+            'status' => 'active',
+        ]);
+
+        $template = PrintTemplate::query()->create([
+            'name' => 'Student Card Template',
+            'width_mm' => 85.6,
+            'height_mm' => 53.98,
+            'data_sources' => [
+                ['entity' => 'student', 'mode' => 'multiple'],
+            ],
+            'layout_json' => [],
+            'is_active' => true,
+            'is_student_card' => true,
+        ]);
+
+        StudentCardPrint::query()->create([
+            'student_id' => $student->id,
+            'print_template_id' => $template->id,
+            'printed_by' => $manager->id,
+            'printed_at' => now(),
+        ]);
+
+        $this->actingAs($manager)
+            ->get(route('id-cards.print.create', ['template' => $template->id]))
+            ->assertOk()
+            ->assertSee('data-source-printed-filter="student"', false)
+            ->assertSee('data-card-printed="1"', false)
+            ->assertSee('Card Group')
+            ->assertSee(__('print_templates.print.setup.fields.printed_flag'));
+    }
+
+    public function test_student_card_print_record_endpoint_creates_history_rows(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $manager = User::factory()->create();
+        $manager->assignRole('manager');
+
+        $parent = ParentProfile::query()->create([
+            'father_name' => 'Record Parent',
+            'is_active' => true,
+        ]);
+
+        $student = Student::query()->create([
+            'parent_id' => $parent->id,
+            'first_name' => 'Record',
+            'last_name' => 'Student',
+            'birth_date' => '2014-05-12',
+            'status' => 'active',
+        ]);
+
+        $template = PrintTemplate::query()->create([
+            'name' => 'Track Cards',
+            'width_mm' => 85.6,
+            'height_mm' => 53.98,
+            'data_sources' => [
+                ['entity' => 'student', 'mode' => 'multiple'],
+            ],
+            'layout_json' => [],
+            'is_active' => true,
+            'is_student_card' => true,
+        ]);
+
+        $this->actingAs($manager)
+            ->postJson(route('id-cards.print.record'), [
+                'template_id' => $template->id,
+                'student_ids' => [$student->id],
+            ])
+            ->assertOk()
+            ->assertJson(['recorded' => true]);
+
+        $this->assertDatabaseHas('student_card_prints', [
+            'student_id' => $student->id,
+            'print_template_id' => $template->id,
+            'printed_by' => $manager->id,
+        ]);
     }
 
     public function test_print_template_preview_keeps_right_alignment_on_rtl_text(): void
@@ -367,12 +561,16 @@ class IdCardBuilderTest extends TestCase
         $manager = User::factory()->create();
         $manager->assignRole('manager');
 
-        $template = IdCardTemplate::query()->create([
+        $template = PrintTemplate::query()->create([
             'name' => 'Large Card',
             'width_mm' => 85.6,
             'height_mm' => 53.98,
+            'data_sources' => [
+                ['entity' => 'student', 'mode' => 'multiple'],
+            ],
             'layout_json' => [],
             'is_active' => true,
+            'is_student_card' => true,
         ]);
 
         $parent = ParentProfile::query()->create([
@@ -390,7 +588,9 @@ class IdCardBuilderTest extends TestCase
 
         $response = $this->actingAs($manager)->post(route('id-cards.print.preview'), [
             'template_id' => $template->id,
-            'student_ids' => [$student->id],
+            'sources' => [
+                'student' => ['multiple' => [$student->id]],
+            ],
             'page_width_mm' => 80,
             'page_height_mm' => 80,
             'margin_top_mm' => 20,
@@ -399,6 +599,7 @@ class IdCardBuilderTest extends TestCase
             'margin_left_mm' => 20,
             'gap_x_mm' => 6,
             'gap_y_mm' => 6,
+            'copy_count' => 1,
         ]);
 
         $response
@@ -413,13 +614,17 @@ class IdCardBuilderTest extends TestCase
         $manager = User::factory()->create();
         $manager->assignRole('manager');
 
-        $template = IdCardTemplate::query()->create([
+        $template = PrintTemplate::query()->create([
             'name' => 'Group Name Card',
             'width_mm' => 85.6,
             'height_mm' => 53.98,
+            'data_sources' => [
+                ['entity' => 'student', 'mode' => 'multiple'],
+            ],
             'layout_json' => [
                 [
-                    'type' => 'text',
+                    'type' => 'dynamic_text',
+                    'source' => 'student',
                     'field' => 'group_name',
                     'x' => 8,
                     'y' => 8,
@@ -435,6 +640,7 @@ class IdCardBuilderTest extends TestCase
                 ],
             ],
             'is_active' => true,
+            'is_student_card' => true,
         ]);
 
         $parent = ParentProfile::query()->create([
@@ -509,7 +715,9 @@ class IdCardBuilderTest extends TestCase
 
         $response = $this->actingAs($manager)->post(route('id-cards.print.preview'), [
             'template_id' => $template->id,
-            'student_ids' => [$student->id],
+            'sources' => [
+                'student' => ['multiple' => [$student->id]],
+            ],
             'page_width_mm' => 210,
             'page_height_mm' => 297,
             'margin_top_mm' => 10,
@@ -518,6 +726,7 @@ class IdCardBuilderTest extends TestCase
             'margin_left_mm' => 10,
             'gap_x_mm' => 6,
             'gap_y_mm' => 6,
+            'copy_count' => 1,
         ]);
 
         $response

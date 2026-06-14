@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class PrintTemplate extends Model
 {
@@ -17,6 +18,7 @@ class PrintTemplate extends Model
         'data_sources',
         'layout_json',
         'is_active',
+        'is_student_card',
     ];
 
     protected function casts(): array
@@ -27,7 +29,13 @@ class PrintTemplate extends Model
             'data_sources' => 'array',
             'layout_json' => 'array',
             'is_active' => 'boolean',
+            'is_student_card' => 'boolean',
         ];
+    }
+
+    public function studentCardPrints(): HasMany
+    {
+        return $this->hasMany(StudentCardPrint::class, 'print_template_id');
     }
 
     public function getBackgroundImageUrlAttribute(): ?string

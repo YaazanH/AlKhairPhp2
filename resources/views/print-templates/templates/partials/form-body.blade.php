@@ -30,10 +30,16 @@
                 <h2 class="font-display mt-3 text-2xl text-white">{{ __('print_templates.templates.form.sections.details') }}</h2>
                 <p class="mt-3 max-w-3xl text-sm leading-7 text-neutral-300">{{ __('print_templates.templates.form.data_sources_help') }}</p>
             </div>
-            <label class="admin-checkbox">
-                <input type="checkbox" name="is_active" value="1" @checked(old('is_active', $template->is_active))>
-                <span>{{ __('print_templates.templates.form.fields.is_active') }}</span>
-            </label>
+            <div class="flex flex-col items-end gap-3">
+                <label class="admin-checkbox">
+                    <input type="checkbox" name="is_active" value="1" @checked(old('is_active', $template->is_active))>
+                    <span>{{ __('print_templates.templates.form.fields.is_active') }}</span>
+                </label>
+                <label class="admin-checkbox">
+                    <input type="checkbox" name="is_student_card" value="1" @checked(old('is_student_card', $template->is_student_card))>
+                    <span>{{ __('print_templates.templates.form.fields.is_student_card') }}</span>
+                </label>
+            </div>
         </div>
 
         <div class="mt-6 print-template-setup-panel__grid">
@@ -80,6 +86,7 @@
 
             <div class="print-template-source-card">
                 <div class="eyebrow">{{ __('print_templates.templates.form.sections.data_sources') }}</div>
+                <p class="mt-3 text-sm leading-7 text-neutral-300">{{ __('print_templates.templates.form.student_card_help') }}</p>
                 <div class="mt-3 print-template-source-grid">
                     @foreach ($entityOptions as $entity)
                         <div class="print-template-source-pill" data-print-template-source-row="{{ $entity['key'] }}">

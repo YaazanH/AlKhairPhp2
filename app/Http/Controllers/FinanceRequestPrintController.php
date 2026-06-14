@@ -31,6 +31,7 @@ class FinanceRequestPrintController extends Controller
 
         $templates = PrintTemplate::query()
             ->where('is_active', true)
+            ->where('is_student_card', false)
             ->orderBy('name')
             ->get()
             ->filter(fn (PrintTemplate $template) => collect(app(PrintTemplateDataSourceService::class)->normalize($template->data_sources ?? []))

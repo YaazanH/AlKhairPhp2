@@ -74,8 +74,7 @@ class SidebarNavigationService
             'public_website_settings' => $this->item('ui.nav.public_website_settings', 'globe-alt', 'settings.website', ['settings.website', 'settings.website.pages', 'settings.website.navigation'], 'configuration', 20, ['website.manage']),
 
             'print_templates' => $this->item('ui.nav.print_templates', 'document-duplicate', 'print-templates.templates.index', ['print-templates.*'], 'identity_tools', 10, ['id-cards.view']),
-            'id_card_templates' => $this->item('ui.nav.id_card_templates', 'identification', 'id-cards.templates.index', ['id-cards.templates.*'], 'identity_tools', 20, ['id-cards.view']),
-            'id_card_print' => $this->item('ui.nav.id_card_print', 'printer', 'id-cards.print.create', ['id-cards.print.*'], 'identity_tools', 30, ['id-cards.print']),
+            'id_card_print' => $this->item('ui.nav.id_card_print', 'printer', 'id-cards.print.create', ['id-cards.print.*'], 'identity_tools', 20, ['id-cards.print']),
             'action_barcodes' => $this->item('ui.nav.action_barcodes', 'qr-code', 'barcode-actions.index', ['barcode-actions.index', 'barcode-actions.print.*'], 'identity_tools', 40, ['barcode-actions.view']),
         ];
     }

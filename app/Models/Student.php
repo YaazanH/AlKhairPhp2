@@ -6,6 +6,7 @@ use App\Services\StudentNumberService;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
@@ -130,6 +131,16 @@ class Student extends Model
     public function studentNotes(): HasMany
     {
         return $this->hasMany(StudentNote::class);
+    }
+
+    public function studentCardPrints(): HasMany
+    {
+        return $this->hasMany(StudentCardPrint::class);
+    }
+
+    public function latestStudentCardPrint(): HasOne
+    {
+        return $this->hasOne(StudentCardPrint::class)->latestOfMany('printed_at');
     }
 
     public function pointTransactions(): HasMany

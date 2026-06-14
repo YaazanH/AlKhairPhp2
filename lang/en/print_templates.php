@@ -55,20 +55,26 @@ return [
         'subtitle' => 'Create flexible printable cards, letters, coupons, labels, and login sheets from any supported data source.',
         'create_title' => 'Create print template',
         'edit_title' => 'Edit print template',
-        'form_subtitle' => 'This is separate from the old ID card builder. If this workflow is approved, the old feature can be removed later.',
+        'form_subtitle' => 'Build reusable layouts for student cards and any other supported printable output.',
         'defaults' => [
             'name' => 'New print template',
         ],
         'actions' => [
             'create' => 'Create template',
             'print' => 'Print / Generate',
+            'copy' => 'Copy',
+        ],
+        'copy_suffix' => '(Copy)',
+        'labels' => [
+            'student_card' => 'Student card',
         ],
         'messages' => [
             'created' => 'Print template created.',
             'updated' => 'Print template updated.',
             'deleted' => 'Print template deleted.',
+            'copied' => 'Print template copied.',
         ],
-        'confirm_delete' => 'Delete this print template? Existing old ID card templates are not affected.',
+        'confirm_delete' => 'Delete this print template?',
         'status' => [
             'active' => 'Active',
             'inactive' => 'Inactive',
@@ -103,8 +109,10 @@ return [
                 'choose_background' => 'Click to choose an image or leave empty',
                 'remove_background_image' => 'Remove current background',
                 'is_active' => 'Active',
+                'is_student_card' => 'Use this as a student card template',
             ],
             'data_sources_help' => 'Choose the records this template needs. Use “multiple” for the source that creates one printed item per selected record.',
+            'student_card_help' => 'Student card templates appear on the student-card printing page and must use students as the repeating source.',
             'workspace_hint' => 'Add elements, select a layer, adjust its properties, then use the large live preview below to position it precisely.',
             'source_modes' => [
                 'single' => 'One shared record',
@@ -207,6 +215,9 @@ return [
             'empty_layers' => 'Add an element to start designing.',
             'no_field_available' => 'Select a data source first',
         ],
+        'validation' => [
+            'student_card_requires_students' => 'Student card templates must use students as the repeating data source.',
+        ],
     ],
     'builder' => [
         'defaults' => [
@@ -269,10 +280,16 @@ return [
                 'select_one' => 'Select one :entity',
                 'filter_group' => 'Group filter',
                 'filter_status' => 'Student status',
+                'filter_printed' => 'Card print status',
                 'all_groups' => 'All groups',
                 'all_students' => 'All students',
                 'active_students' => 'Active students',
                 'non_active_students' => 'Non-active students',
+                'all_print_states' => 'All print states',
+                'printed_students' => 'Already printed',
+                'not_printed_students' => 'Not printed yet',
+                'printed_flag' => 'Printed',
+                'not_printed_flag' => 'Not printed',
             ],
             'sources_help' => 'The selected template decides which selectors appear here.',
             'buttons' => [
@@ -280,6 +297,12 @@ return [
                 'select_visible' => 'Select visible',
                 'clear' => 'Clear',
             ],
+        ],
+        'empty' => [
+            'templates_title' => 'No printable templates are ready yet.',
+            'templates_description' => 'Create a print template first, then come back here to generate output from it.',
+            'student_cards_title' => 'No student card templates are ready yet.',
+            'student_cards_description' => 'Create or edit a print template and mark it as a student card template so it appears on this page.',
         ],
         'preview' => [
             'title' => 'Print preview',
@@ -301,6 +324,7 @@ return [
             'select_related_records' => 'The selected records are not related to each other.',
             'select_related_repeating' => 'Select :entity records that match the selected filters.',
             'select_related_students' => 'Select students that belong to the selected parent.',
+            'student_card_requires_students' => 'This student card template is missing a repeating student source.',
         ],
         'warnings' => [
             'page_too_small' => 'The selected page size is too small for this template.',

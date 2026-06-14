@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}" dir="{{ config('app.supported_locales.'.app()->getLocale().'.direction', 'ltr') }}" class="dark">
     <head>
-        @include('partials.head', ['title' => __('print_templates.print.preview.title')])
+        @include('partials.head', ['title' => $pageTitle ?? __('print_templates.print.preview.title')])
         <style>
             @page { size: {{ $layout['config']['page_width_mm'] }}mm {{ $layout['config']['page_height_mm'] }}mm; margin: 0; }
             body { background: #061109; color: white; padding: 16px; }
@@ -23,12 +23,12 @@
         <div class="print-template-toolbar">
             <div>
                 <div class="eyebrow">{{ __('ui.nav.identity_tools') }}</div>
-                <h1 class="font-display mt-3 text-4xl text-white">{{ __('print_templates.print.preview.title') }}</h1>
-                <p class="mt-3 max-w-3xl text-sm leading-7 text-neutral-300">{{ __('print_templates.print.preview.subtitle') }}</p>
+                <h1 class="font-display mt-3 text-4xl text-white">{{ $pageTitle ?? __('print_templates.print.preview.title') }}</h1>
+                <p class="mt-3 max-w-3xl text-sm leading-7 text-neutral-300">{{ $pageSubtitle ?? __('print_templates.print.preview.subtitle') }}</p>
             </div>
             <div class="admin-action-cluster">
-                <button type="button" class="pill-link pill-link--accent" onclick="window.print()">{{ __('print_templates.print.preview.buttons.print') }}</button>
-                <a href="{{ $backUrl ?? route('print-templates.print.create') }}" class="pill-link">{{ __('print_templates.print.preview.buttons.back') }}</a>
+                <button type="button" class="pill-link pill-link--accent" data-print-trigger>{{ $printButtonLabel ?? __('print_templates.print.preview.buttons.print') }}</button>
+                <a href="{{ $backUrl ?? route('print-templates.print.create') }}" class="pill-link">{{ $backButtonLabel ?? __('print_templates.print.preview.buttons.back') }}</a>
             </div>
         </div>
 
@@ -44,10 +44,10 @@
             @endif
 
             <div class="print-template-summary__grid">
-                <article class="stat-card"><div class="kpi-label">{{ __('print_templates.print.preview.summary.template') }}</div><div class="mt-4 text-xl font-semibold text-white">{{ $template->name }}</div></article>
-                <article class="stat-card"><div class="kpi-label">{{ __('print_templates.print.preview.summary.items') }}</div><div class="metric-value mt-6">{{ number_format($totalItems) }}</div></article>
-                <article class="stat-card"><div class="kpi-label">{{ __('print_templates.print.preview.summary.grid') }}</div><div class="mt-4 text-xl font-semibold text-white">{{ $layout['grid']['columns'] }} × {{ $layout['grid']['rows'] }}</div></article>
-                <article class="stat-card"><div class="kpi-label">{{ __('print_templates.print.preview.summary.page_size') }}</div><div class="mt-4 text-xl font-semibold text-white">{{ $layout['config']['page_width_mm'] }} × {{ $layout['config']['page_height_mm'] }} mm</div></article>
+                <article class="stat-card"><div class="kpi-label">{{ $summaryLabels['template'] ?? __('print_templates.print.preview.summary.template') }}</div><div class="mt-4 text-xl font-semibold text-white">{{ $template->name }}</div></article>
+                <article class="stat-card"><div class="kpi-label">{{ $summaryLabels['items'] ?? __('print_templates.print.preview.summary.items') }}</div><div class="metric-value mt-6">{{ number_format($totalItems) }}</div></article>
+                <article class="stat-card"><div class="kpi-label">{{ $summaryLabels['grid'] ?? __('print_templates.print.preview.summary.grid') }}</div><div class="mt-4 text-xl font-semibold text-white">{{ $layout['grid']['columns'] }} × {{ $layout['grid']['rows'] }}</div></article>
+                <article class="stat-card"><div class="kpi-label">{{ $summaryLabels['page_size'] ?? __('print_templates.print.preview.summary.page_size') }}</div><div class="mt-4 text-xl font-semibold text-white">{{ $layout['config']['page_width_mm'] }} × {{ $layout['config']['page_height_mm'] }} mm</div></article>
             </div>
         </div>
 
@@ -60,5 +60,56 @@
                 </div>
             </section>
         @endforeach
+
+        @if (! empty($studentCardPrintTracking))
+            <script type="application/json" id="student-card-print-tracking">@json($studentCardPrintTracking)</script>
+        @endif
+        <script>
+            (() => {
+                const printButton = document.querySelector('[data-print-trigger]');
+                const trackingNode = document.getElementById('student-card-print-tracking');
+                const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+                let didRecord = false;
+
+                function recordStudentCardPrint() {
+                    if (!trackingNode || didRecord || !csrfToken) {
+                        return;
+                    }
+
+                    didRecord = true;
+
+                    const payload = JSON.parse(trackingNode.textContent);
+
+                    fetch(payload.route, {
+                        method: 'POST',
+                        credentials: 'same-origin',
+                        keepalive: true,
+                        headers: {
+                            'Accept': 'application/json',
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': csrfToken,
+                        },
+                        body: JSON.stringify({
+                            template_id: payload.template_id,
+                            student_ids: payload.student_ids,
+                        }),
+                    }).catch(() => {
+                        didRecord = false;
+                    });
+                }
+
+                printButton?.addEventListener('click', () => {
+                    recordStudentCardPrint();
+                    window.print();
+                });
+
+                if (!trackingNode) {
+                    printButton?.addEventListener('click', () => window.print());
+                    return;
+                }
+
+                window.addEventListener('beforeprint', recordStudentCardPrint);
+            })();
+        </script>
     </body>
 </html>

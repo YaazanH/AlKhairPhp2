@@ -25,7 +25,7 @@ class PrintTemplateFieldRegistry
             'student' => [
                 'label' => __('print_templates.entities.student'),
                 'model' => Student::class,
-                'relations' => ['user', 'parentProfile', 'gradeLevel', 'enrollments.group'],
+                'relations' => ['user', 'parentProfile', 'gradeLevel', 'enrollments.group', 'latestStudentCardPrint'],
             ],
             'teacher' => [
                 'label' => __('print_templates.entities.teacher'),
@@ -339,9 +339,12 @@ class PrintTemplateFieldRegistry
             'student' => [
                 'activity_ids' => $this->studentActivityIds($model),
                 'group_ids' => $this->studentGroupIds($model),
+                'group_name' => $model->currentGroupName() ?: __('print_templates.common.not_available'),
                 'parent_ids' => [(int) $model->parent_id],
                 'status' => (string) $model->status,
                 'teacher_ids' => $this->studentTeacherIds($model),
+                'card_printed' => $this->studentCardPrinted($model),
+                'card_last_printed_at' => $this->studentCardLastPrintedAt($model),
             ],
             'teacher' => [
                 'activity_ids' => $this->teacherActivityIds($model),
@@ -447,6 +450,20 @@ class PrintTemplateFieldRegistry
     protected function studentTeacherIds(Student $student): array
     {
         return $this->teacherIdsForGroups($this->studentGroupIds($student));
+    }
+
+    protected function studentCardPrinted(Student $student): bool
+    {
+        return $this->studentCardLastPrintedAt($student) !== null;
+    }
+
+    protected function studentCardLastPrintedAt(Student $student): ?string
+    {
+        $latestPrint = $student->relationLoaded('latestStudentCardPrint')
+            ? $student->latestStudentCardPrint
+            : $student->latestStudentCardPrint()->first();
+
+        return $latestPrint?->printed_at?->format('Y-m-d H:i');
     }
 
     protected function teacherActivityIds(Teacher $teacher): array

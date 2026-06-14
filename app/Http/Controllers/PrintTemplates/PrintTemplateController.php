@@ -12,6 +12,8 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class PrintTemplateController extends Controller
@@ -42,6 +44,7 @@ class PrintTemplateController extends Controller
             ],
             'layout_json' => $this->defaultLayout(),
             'is_active' => true,
+            'is_student_card' => request()->boolean('student_card'),
         ]);
 
         return view('print-templates.templates.form', $this->formPayload($template));
@@ -89,6 +92,19 @@ class PrintTemplateController extends Controller
             ->with('status', __('print_templates.templates.messages.deleted'));
     }
 
+    public function copy(PrintTemplate $template): RedirectResponse
+    {
+        $duplicate = $template->replicate();
+        $duplicate->name = $template->name.' '.__('print_templates.templates.copy_suffix');
+        $duplicate->background_image = $this->duplicateStorageFile($template->background_image, 'print-templates/backgrounds');
+        $duplicate->layout_json = $this->duplicateStaticImageLayout($template->layout_json ?? []);
+        $duplicate->push();
+
+        return redirect()
+            ->route('print-templates.templates.edit', $duplicate)
+            ->with('status', __('print_templates.templates.messages.copied'));
+    }
+
     protected function formPayload(PrintTemplate $template): array
     {
         return [
@@ -114,11 +130,20 @@ class PrintTemplateController extends Controller
             'static_images.*' => ['nullable', 'image', 'max:4096'],
             'remove_background_image' => ['nullable', 'boolean'],
             'is_active' => ['nullable', 'boolean'],
+            'is_student_card' => ['nullable', 'boolean'],
         ]);
 
         $dataSources = $this->dataSourceService->normalize(
             $this->layoutService->decode($validated['data_sources_json'] ?? '[]')
         );
+
+        $isStudentCard = (bool) ($validated['is_student_card'] ?? false);
+
+        if ($isStudentCard && ! collect($dataSources)->contains(fn (array $source) => $source['entity'] === 'student' && $source['mode'] === 'multiple')) {
+            throw ValidationException::withMessages([
+                'is_student_card' => __('print_templates.templates.validation.student_card_requires_students'),
+            ]);
+        }
 
         $decodedLayout = $this->applyStaticImageUploads(
             $request,
@@ -152,6 +177,7 @@ class PrintTemplateController extends Controller
             'data_sources' => $dataSources,
             'layout_json' => $layout,
             'is_active' => (bool) ($validated['is_active'] ?? false),
+            'is_student_card' => $isStudentCard,
         ];
     }
 
@@ -182,6 +208,43 @@ class PrintTemplateController extends Controller
             ->map(fn (array $element) => (string) $element['content'])
             ->unique()
             ->values();
+    }
+
+    protected function duplicateStaticImageLayout(array $layout): array
+    {
+        $pathMap = [];
+
+        return collect($layout)
+            ->map(function (mixed $element) use (&$pathMap) {
+                if (! is_array($element) || ($element['type'] ?? null) !== 'static_image' || blank($element['content'] ?? null)) {
+                    return $element;
+                }
+
+                $currentPath = (string) $element['content'];
+
+                if (! array_key_exists($currentPath, $pathMap)) {
+                    $pathMap[$currentPath] = $this->duplicateStorageFile($currentPath, 'print-templates/elements');
+                }
+
+                $element['content'] = $pathMap[$currentPath];
+
+                return $element;
+            })
+            ->all();
+    }
+
+    protected function duplicateStorageFile(?string $path, string $directory): ?string
+    {
+        if (blank($path) || ! Storage::disk('public')->exists($path)) {
+            return $path;
+        }
+
+        $extension = pathinfo($path, PATHINFO_EXTENSION);
+        $duplicatePath = trim($directory, '/').'/'.Str::uuid().($extension !== '' ? '.'.$extension : '');
+
+        Storage::disk('public')->copy($path, $duplicatePath);
+
+        return $duplicatePath;
     }
 
     protected function defaultLayout(): array
