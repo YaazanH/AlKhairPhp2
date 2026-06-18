@@ -191,7 +191,7 @@ class BarcodeScannerWorkflowTest extends TestCase
         ]);
     }
 
-    public function test_scanner_attendance_reuses_day_when_second_course_is_imported_for_same_date(): void
+    public function test_scanner_attendance_creates_separate_days_per_course_for_same_date(): void
     {
         $this->seed();
 
@@ -217,10 +217,24 @@ class BarcodeScannerWorkflowTest extends TestCase
 
         $service->apply($secondEnrollment->group->course_id, $attendanceDate, "ACT-ATT-PRESENT\n{$secondEnrollment->student_id}", $manager);
 
-        $this->assertSame(1, StudentAttendanceDay::query()->whereDate('attendance_date', $attendanceDate)->count());
+        $this->assertSame(2, StudentAttendanceDay::query()->whereDate('attendance_date', $attendanceDate)->count());
         $this->assertSame(2, GroupAttendanceDay::query()->whereDate('attendance_date', $attendanceDate)->count());
         $this->assertSame(1, StudentAttendanceRecord::query()->where('enrollment_id', $firstEnrollment->id)->count());
         $this->assertSame(1, StudentAttendanceRecord::query()->where('enrollment_id', $secondEnrollment->id)->count());
+        $this->assertSame(
+            1,
+            StudentAttendanceDay::query()
+                ->whereDate('attendance_date', $attendanceDate)
+                ->where('course_id', $firstEnrollment->group->course_id)
+                ->count()
+        );
+        $this->assertSame(
+            1,
+            StudentAttendanceDay::query()
+                ->whereDate('attendance_date', $attendanceDate)
+                ->where('course_id', $secondEnrollment->group->course_id)
+                ->count()
+        );
     }
 
     protected function makeEnrollment(): Enrollment

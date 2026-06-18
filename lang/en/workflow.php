@@ -93,7 +93,11 @@ return [
             ],
             'form' => [
                 'title' => 'Attendance day setup',
-                'help' => 'The system creates sessions only for active groups scheduled on the selected date. Extra groups can be added manually from the day details page.',
+                'help' => 'Choose the course first, then the system creates sessions only for active groups in that course that are scheduled on the selected date. Extra groups from the same course can be added manually from the day details page.',
+                'course' => 'Course',
+                'select_course' => 'Select course',
+                'course_required' => 'Select the course before creating the attendance day.',
+                'course_unavailable' => 'The selected course is not available in your current scope.',
                 'attendance_date' => 'Attendance date',
                 'status' => 'Day status',
                 'default_status' => 'Default student status',
@@ -107,8 +111,9 @@ return [
                 'empty' => 'No attendance days have been created yet.',
                 'headers' => [
                     'date' => 'Date',
-                    'groups' => 'Groups',
-                    'marked' => 'Marked students',
+                    'course' => 'Course',
+                    'students' => 'Students',
+                    'attended' => 'Attended students',
                     'status' => 'Status',
                     'actions' => 'Actions',
                 ],
@@ -119,6 +124,10 @@ return [
             'title' => 'Attendance Day Details',
             'subtitle' => 'Review all active groups created for this attendance day, then open a group roster to mark students.',
             'back' => 'Back to attendance days',
+            'messages' => [
+                'closed' => 'Attendance day closed successfully.',
+                'reopened' => 'Attendance day reopened successfully.',
+            ],
             'stats' => [
                 'groups' => 'Groups in day',
                 'students' => 'Active students',
@@ -137,6 +146,12 @@ return [
                     'actions' => 'Actions',
                 ],
                 'open' => 'Open attendance',
+            ],
+            'controls' => [
+                'title' => 'Attendance day controls',
+                'help' => 'Add extra groups for this course when needed, or close and reopen the whole attendance day with one action.',
+                'close_day' => 'Close day',
+                'reopen_day' => 'Reopen day',
             ],
             'manual_add' => [
                 'title' => 'Add extra group',

@@ -9,6 +9,7 @@ use App\Models\GroupAttendanceDay;
 use App\Models\StudentAttendanceDay;
 use App\Models\StudentAttendanceRecord;
 use App\Models\User;
+use InvalidArgumentException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -18,17 +19,21 @@ class StudentAttendanceDayService
     /**
      * @param  Collection<int, Group>  $groups
      */
-    public function createOrSyncDay(string $attendanceDate, Collection $groups, ?User $actor = null, ?string $notes = null, string $status = 'open', ?int $defaultAttendanceStatusId = null): StudentAttendanceDay
+    public function createOrSyncDay(string $attendanceDate, Collection $groups, ?User $actor = null, ?string $notes = null, string $status = 'open', ?int $defaultAttendanceStatusId = null, ?int $courseId = null): StudentAttendanceDay
     {
-        return DB::transaction(function () use ($attendanceDate, $groups, $actor, $notes, $status, $defaultAttendanceStatusId): StudentAttendanceDay {
+        return DB::transaction(function () use ($attendanceDate, $groups, $actor, $notes, $status, $defaultAttendanceStatusId, $courseId): StudentAttendanceDay {
             $attendanceDate = Carbon::parse($attendanceDate)->toDateString();
+            $courseId = $this->resolveCourseId($groups, $courseId);
+
             $day = StudentAttendanceDay::query()
                 ->whereDate('attendance_date', $attendanceDate)
+                ->where('course_id', $courseId)
                 ->first();
 
             if ($day) {
                 $day->fill([
                     'attendance_date' => $attendanceDate,
+                    'course_id' => $courseId,
                     'status' => $status,
                     'notes' => $notes ?: null,
                     'created_by' => $day->created_by ?? $actor?->id,
@@ -36,6 +41,7 @@ class StudentAttendanceDayService
             } else {
                 $day = StudentAttendanceDay::query()->create([
                     'attendance_date' => $attendanceDate,
+                    'course_id' => $courseId,
                     'status' => $status,
                     'notes' => $notes ?: null,
                     'created_by' => $actor?->id,
@@ -64,6 +70,11 @@ class StudentAttendanceDayService
             GroupAttendanceDay::query()
                 ->whereDate('attendance_date', $attendanceDate)
                 ->whereNull('student_attendance_day_id')
+                ->whereIn('group_id', function ($query) use ($courseId) {
+                    $query->select('id')
+                        ->from('groups')
+                        ->where('course_id', $courseId);
+                })
                 ->update([
                     'student_attendance_day_id' => $day->id,
                 ]);
@@ -74,6 +85,37 @@ class StudentAttendanceDayService
 
             return $this->syncAggregateStatus($day);
         });
+    }
+
+    /**
+     * @param  Collection<int, Group>  $groups
+     */
+    protected function resolveCourseId(Collection $groups, ?int $explicitCourseId): int
+    {
+        $derivedCourseIds = $groups
+            ->pluck('course_id')
+            ->filter()
+            ->map(fn ($courseId) => (int) $courseId)
+            ->unique()
+            ->values();
+
+        if ($derivedCourseIds->count() > 1) {
+            throw new InvalidArgumentException('Student attendance days must be created for a single course.');
+        }
+
+        $derivedCourseId = $derivedCourseIds->first();
+
+        if ($explicitCourseId && $derivedCourseId && $explicitCourseId !== $derivedCourseId) {
+            throw new InvalidArgumentException('The selected course does not match the supplied groups.');
+        }
+
+        $courseId = $explicitCourseId ?: $derivedCourseId;
+
+        if (! $courseId) {
+            throw new InvalidArgumentException('Student attendance days require a course context.');
+        }
+
+        return (int) $courseId;
     }
 
     public function syncAggregateStatus(StudentAttendanceDay $day): StudentAttendanceDay
@@ -91,6 +133,25 @@ class StudentAttendanceDayService
         ]);
 
         return $day->fresh(['groupAttendanceDays']);
+    }
+
+    public function setDayStatus(StudentAttendanceDay $day, string $status): StudentAttendanceDay
+    {
+        if (! in_array($status, ['open', 'closed'], true)) {
+            throw new InvalidArgumentException('Student attendance day status must be open or closed.');
+        }
+
+        return DB::transaction(function () use ($day, $status): StudentAttendanceDay {
+            $day->groupAttendanceDays()->update([
+                'status' => $status,
+            ]);
+
+            $day->update([
+                'status' => $status,
+            ]);
+
+            return $day->fresh(['groupAttendanceDays']);
+        });
     }
 
     /**

@@ -249,8 +249,8 @@ class ScannerDumpImportService
         );
 
         $groupDay = GroupAttendanceDay::query()
+            ->where('student_attendance_day_id', $studentDay->id)
             ->where('group_id', $enrollment->group_id)
-            ->whereDate('attendance_date', $studentDay->attendance_date->toDateString())
             ->firstOrFail();
 
         $record = StudentAttendanceRecord::query()->updateOrCreate(

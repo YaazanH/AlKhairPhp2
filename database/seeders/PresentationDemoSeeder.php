@@ -386,10 +386,19 @@ class PresentationDemoSeeder extends Seeder
         ];
 
         foreach ($maps as $date => $statusMap) {
-            $day = $dayService->createOrSyncDay($date, collect($groups)->values(), $admin, 'Demo attendance day', 'open');
+            $daysByCourseId = collect($groups)
+                ->groupBy('course_id')
+                ->map(fn ($courseGroups) => $dayService->createOrSyncDay($date, $courseGroups->values(), $admin, 'Demo attendance day', 'open'));
 
             foreach ($statusMap as $studentKey => $statusId) {
                 $enrollment = $enrollments[$studentKey];
+                $group = collect($groups)->firstWhere('id', $enrollment->group_id);
+                $day = $daysByCourseId->get($group?->course_id);
+
+                if (! $day) {
+                    continue;
+                }
+
                 $groupDay = GroupAttendanceDay::query()
                     ->where('student_attendance_day_id', $day->id)
                     ->where('group_id', $enrollment->group_id)

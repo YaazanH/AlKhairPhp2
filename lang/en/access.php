@@ -199,6 +199,7 @@ return [
         'community-contacts.delete' => 'Delete community contacts',
         'teachers.review-signups' => 'Review, approve, and decline teacher signup requests',
         'students.promote-grade-levels' => 'Promote all students to the next active grade level',
+        'attendance.student.toggle-day-status' => 'Close and reopen student attendance days',
         'quran-partial-tests.view' => 'View Quran partial tests',
         'quran-partial-tests.record' => 'Record Quran partial test attempts',
         'quran-partial-tests.record-linked-teacher' => 'Auto-fill the linked teacher on Quran partial test attempts',

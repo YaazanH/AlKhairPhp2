@@ -41,18 +41,26 @@ class StudentAttendanceDayModuleTest extends TestCase
             'status' => 'active',
         ]);
 
-        $firstEnrollment = $this->makeEnrollment($teacher->id, 'Morning Group');
-        $secondEnrollment = $this->makeEnrollment($teacher->id, 'Evening Group');
-        $inactiveEnrollment = $this->makeEnrollment($teacher->id, 'Inactive Group', false);
+        $selectedCourse = Course::create([
+            'name' => 'Selected Attendance Course',
+            'is_active' => true,
+        ]);
+
+        $firstEnrollment = $this->makeEnrollment($teacher->id, 'Morning Group', true, $selectedCourse);
+        $secondEnrollment = $this->makeEnrollment($teacher->id, 'Evening Group', true, $selectedCourse);
+        $inactiveEnrollment = $this->makeEnrollment($teacher->id, 'Inactive Group', false, $selectedCourse);
+        $otherCourseEnrollment = $this->makeEnrollment($teacher->id, 'Other Course Group');
         $this->scheduleGroupForDate($firstEnrollment->group, '2026-10-01');
         $this->scheduleGroupForDate($secondEnrollment->group, '2026-10-01');
         $this->scheduleGroupForDate($inactiveEnrollment->group, '2026-10-01');
+        $this->scheduleGroupForDate($otherCourseEnrollment->group, '2026-10-01');
         $present = AttendanceStatus::query()->where('code', 'present')->firstOrFail();
 
         $this->actingAs($manager);
 
         Volt::test('student-attendance.index')
             ->call('openCreateModal')
+            ->set('course_id', (string) $selectedCourse->id)
             ->set('attendance_date', '2026-10-01')
             ->set('day_status', 'open')
             ->set('notes', 'Day-first attendance')
@@ -61,7 +69,10 @@ class StudentAttendanceDayModuleTest extends TestCase
 
         $day = StudentAttendanceDay::query()
             ->whereDate('attendance_date', '2026-10-01')
+            ->where('course_id', $selectedCourse->id)
             ->firstOrFail();
+
+        $this->assertSame($selectedCourse->id, $day->course_id);
 
         $this->assertDatabaseHas('group_attendance_days', [
             'student_attendance_day_id' => $day->id,
@@ -76,6 +87,11 @@ class StudentAttendanceDayModuleTest extends TestCase
         $this->assertDatabaseMissing('group_attendance_days', [
             'student_attendance_day_id' => $day->id,
             'group_id' => $inactiveEnrollment->group_id,
+        ]);
+
+        $this->assertDatabaseMissing('group_attendance_days', [
+            'student_attendance_day_id' => $day->id,
+            'group_id' => $otherCourseEnrollment->group_id,
         ]);
 
         $this->assertDatabaseHas('student_attendance_records', [
@@ -113,14 +129,20 @@ class StudentAttendanceDayModuleTest extends TestCase
             'status' => 'active',
         ]);
 
-        $scheduledEnrollment = $this->makeEnrollment($teacher->id, 'Scheduled Group');
-        $extraEnrollment = $this->makeEnrollment($teacher->id, 'Extra Group');
+        $course = Course::create([
+            'name' => 'Manual Attendance Course',
+            'is_active' => true,
+        ]);
+
+        $scheduledEnrollment = $this->makeEnrollment($teacher->id, 'Scheduled Group', true, $course);
+        $extraEnrollment = $this->makeEnrollment($teacher->id, 'Extra Group', true, $course);
         $this->scheduleGroupForDate($scheduledEnrollment->group, '2026-10-06');
 
         $this->actingAs($manager);
 
         Volt::test('student-attendance.index')
             ->call('openCreateModal')
+            ->set('course_id', (string) $course->id)
             ->set('attendance_date', '2026-10-06')
             ->set('day_status', 'open')
             ->call('saveDay')
@@ -128,6 +150,7 @@ class StudentAttendanceDayModuleTest extends TestCase
 
         $day = StudentAttendanceDay::query()
             ->whereDate('attendance_date', '2026-10-06')
+            ->where('course_id', $course->id)
             ->firstOrFail();
 
         $this->assertDatabaseHas('group_attendance_days', [
@@ -225,6 +248,57 @@ class StudentAttendanceDayModuleTest extends TestCase
             ]);
     }
 
+    public function test_manager_can_toggle_student_attendance_day_status_for_all_groups(): void
+    {
+        $this->seed();
+
+        $manager = User::factory()->create([
+            'username' => 'attendance-toggle-manager',
+            'phone' => '0998111666',
+        ]);
+        $manager->assignRole('manager');
+
+        $teacher = Teacher::create([
+            'first_name' => 'Toggle',
+            'last_name' => 'Teacher',
+            'phone' => '0998111667',
+            'status' => 'active',
+        ]);
+
+        $enrollment = $this->makeEnrollment($teacher->id, 'Toggle Group');
+        $day = app(StudentAttendanceDayService::class)->createOrSyncDay(
+            '2026-10-08',
+            collect([$enrollment->group]),
+            $manager,
+            null,
+            'open',
+        );
+
+        $groupDay = GroupAttendanceDay::query()
+            ->where('student_attendance_day_id', $day->id)
+            ->where('group_id', $enrollment->group_id)
+            ->firstOrFail();
+
+        $this->assertSame('open', $day->status);
+        $this->assertSame('open', $groupDay->status);
+
+        $this->actingAs($manager);
+
+        Volt::test('student-attendance.show', ['studentAttendanceDay' => $day])
+            ->call('toggleDayStatus')
+            ->assertHasNoErrors();
+
+        $this->assertSame('closed', $day->fresh()->status);
+        $this->assertSame('closed', $groupDay->fresh()->status);
+
+        Volt::test('student-attendance.show', ['studentAttendanceDay' => $day->fresh()])
+            ->call('toggleDayStatus')
+            ->assertHasNoErrors();
+
+        $this->assertSame('open', $day->fresh()->status);
+        $this->assertSame('open', $groupDay->fresh()->status);
+    }
+
     public function test_group_shortcut_links_to_parent_day_and_marking_updates_records_and_points(): void
     {
         $this->seed();
@@ -301,6 +375,27 @@ class StudentAttendanceDayModuleTest extends TestCase
             ->assertForbidden();
     }
 
+    public function test_teacher_day_details_page_hides_status_toggle_without_the_separate_permission(): void
+    {
+        $this->seed();
+
+        [$teacherUser, , $assignedEnrollment] = $this->teacherContext('attendance-toggle-hidden');
+
+        $day = app(StudentAttendanceDayService::class)->createOrSyncDay(
+            '2026-10-09',
+            collect([$assignedEnrollment->group]),
+            $teacherUser,
+            null,
+            'open',
+        );
+
+        $this->actingAs($teacherUser)
+            ->get(route('student-attendance.show', $day, absolute: false))
+            ->assertOk()
+            ->assertDontSeeText('Close day')
+            ->assertDontSeeText('Reopen day');
+    }
+
     public function test_attendance_index_still_loads_after_days_exist(): void
     {
         $this->seed();
@@ -353,7 +448,7 @@ class StudentAttendanceDayModuleTest extends TestCase
         return [$teacherUser, $teacher, $enrollment];
     }
 
-    private function makeEnrollment(int $teacherId, string $groupName, bool $isActive = true): Enrollment
+    private function makeEnrollment(int $teacherId, string $groupName, bool $isActive = true, ?Course $course = null): Enrollment
     {
         $parent = ParentProfile::create([
             'father_name' => $groupName.' Parent',
@@ -367,7 +462,7 @@ class StudentAttendanceDayModuleTest extends TestCase
             'status' => 'active',
         ]);
 
-        $course = Course::create([
+        $course ??= Course::create([
             'name' => $groupName.' Course',
             'is_active' => true,
         ]);

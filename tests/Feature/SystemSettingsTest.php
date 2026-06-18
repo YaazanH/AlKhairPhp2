@@ -318,6 +318,7 @@ class SystemSettingsTest extends TestCase
 
         $attendanceDay = StudentAttendanceDay::query()->create([
             'attendance_date' => '2028-09-10',
+            'course_id' => $group->course_id,
             'status' => 'closed',
             'created_by' => $user->id,
         ]);

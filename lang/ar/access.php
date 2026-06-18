@@ -270,6 +270,7 @@ return [
         'enrollments.delete' => 'حذف التسجيلات',
         'attendance.student.view' => 'عرض حضور الطلاب',
         'attendance.student.take' => 'تسجيل حضور الطلاب',
+        'attendance.student.toggle-day-status' => 'إغلاق أيام حضور الطلاب وإعادة فتحها',
         'attendance.teacher.view' => 'عرض دوام الاساتذة',
         'attendance.teacher.take' => 'تسجيل دوام الاساتذة',
         'memorization.view' => 'عرض الحفظ',
