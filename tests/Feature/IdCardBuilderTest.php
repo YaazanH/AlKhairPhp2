@@ -399,9 +399,11 @@ class IdCardBuilderTest extends TestCase
             ->get(route('id-cards.print.create', ['template' => $template->id]))
             ->assertOk()
             ->assertSee('data-source-printed-filter="student"', false)
+            ->assertSee('data-mark-selected-printed', false)
             ->assertSee('data-card-printed="1"', false)
             ->assertSee('Card Group')
-            ->assertSee(__('print_templates.print.setup.fields.printed_flag'));
+            ->assertSee(__('print_templates.print.setup.fields.printed_flag'))
+            ->assertSee(__('print_templates.print.setup.buttons.mark_printed'));
     }
 
     public function test_student_card_print_record_endpoint_creates_history_rows(): void

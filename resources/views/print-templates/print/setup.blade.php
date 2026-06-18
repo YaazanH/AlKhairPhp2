@@ -80,8 +80,21 @@
 
                         <div class="mt-6 admin-action-cluster">
                             <button type="submit" class="pill-link pill-link--accent">{{ __('print_templates.print.setup.buttons.preview') }}</button>
+                            @if ($studentCardMode ?? false)
+                                <button
+                                    type="button"
+                                    class="pill-link"
+                                    data-mark-selected-printed
+                                    data-record-url="{{ route('id-cards.print.record') }}"
+                                >
+                                    {{ __('print_templates.print.setup.buttons.mark_printed') }}
+                                </button>
+                            @endif
                             <a href="{{ $cancelUrl }}" class="pill-link">{{ __('crud.common.actions.cancel') }}</a>
                         </div>
+                        @if ($studentCardMode ?? false)
+                            <p class="mt-3 text-sm text-neutral-300" data-print-status-notice hidden></p>
+                        @endif
                     </section>
 
                     <section class="surface-panel p-5 lg:p-6">
@@ -124,7 +137,7 @@
                                     </div>
 
                                     <div data-source-multiple="{{ $entity }}" hidden>
-                                        <div class="admin-toolbar mt-4">
+                                        <div class="admin-toolbar print-template-source-toolbar mt-4">
                                             <div class="admin-toolbar__controls">
                                                 <div class="admin-filter-field">
                                                     <label>{{ __('crud.common.filters.search') }}</label>
@@ -160,7 +173,7 @@
                                                     @endif
                                                 @endif
                                             </div>
-                                            <div class="admin-toolbar__actions">
+                                            <div class="admin-toolbar__actions print-template-source-toolbar__actions">
                                                 <button type="button" class="pill-link pill-link--compact" data-source-select-visible="{{ $entity }}">{{ __('print_templates.print.setup.buttons.select_visible') }}</button>
                                                 <button type="button" class="pill-link pill-link--compact" data-source-clear="{{ $entity }}">{{ __('print_templates.print.setup.buttons.clear') }}</button>
                                             </div>
@@ -169,7 +182,7 @@
                                         <div class="mt-4 id-card-student-grid">
                                             @foreach ($payload['options'] as $option)
                                                 <div
-                                                    class="id-card-student-card"
+                                                    class="id-card-student-card print-template-student-card"
                                                     data-source-card="{{ $entity }}"
                                                     data-search="{{ $option['search'] }}"
                                                     data-record-id="{{ $option['id'] }}"
@@ -189,18 +202,20 @@
                                                     aria-checked="false"
                                                 >
                                                     <input type="checkbox" name="sources[{{ $entity }}][multiple][]" value="{{ $option['id'] }}" class="sr-only" data-source-checkbox="{{ $entity }}">
-                                                    <div class="student-inline__body">
-                                                        <div class="student-inline__name">{{ $option['label'] }}</div>
-                                                        <div class="student-inline__meta">#{{ $option['id'] }}</div>
-                                                        @if ($entity === 'student')
-                                                            <div class="student-inline__meta">{{ $option['meta']['group_name'] ?? __('print_templates.common.not_available') }}</div>
-                                                            <div class="student-inline__meta">
-                                                                {{ ($option['meta']['card_printed'] ?? false) ? __('print_templates.print.setup.fields.printed_flag') : __('print_templates.print.setup.fields.not_printed_flag') }}
-                                                                @if (filled($option['meta']['card_last_printed_at'] ?? null))
-                                                                    | {{ $option['meta']['card_last_printed_at'] }}
-                                                                @endif
-                                                            </div>
-                                                        @endif
+                                                    <div class="student-inline print-template-student-card__content">
+                                                        <div class="student-inline__body">
+                                                            <div class="student-inline__name">{{ $option['label'] }}</div>
+                                                            <div class="student-inline__meta">#{{ $option['id'] }}</div>
+                                                            @if ($entity === 'student')
+                                                                <div class="student-inline__meta">{{ $option['meta']['group_name'] ?? __('print_templates.common.not_available') }}</div>
+                                                                <div class="student-inline__meta" data-student-print-state>
+                                                                    {{ ($option['meta']['card_printed'] ?? false) ? __('print_templates.print.setup.fields.printed_flag') : __('print_templates.print.setup.fields.not_printed_flag') }}
+                                                                    @if (filled($option['meta']['card_last_printed_at'] ?? null))
+                                                                        | {{ $option['meta']['card_last_printed_at'] }}
+                                                                    @endif
+                                                                </div>
+                                                            @endif
+                                                        </div>
                                                     </div>
                                                 </div>
                                             @endforeach
@@ -222,10 +237,20 @@
             const templateSelect = document.querySelector('[data-print-template-select]');
             const pageSizeSelect = document.querySelector('[data-print-page-size-select]');
             const copyPanel = document.querySelector('[data-copy-count-panel]');
+            const markPrintedButton = document.querySelector('[data-mark-selected-printed]');
+            const printStatusNotice = document.querySelector('[data-print-status-notice]');
 
             if (!templateSelect) {
                 return;
             }
+
+            const printedFlagLabel = @json(__('print_templates.print.setup.fields.printed_flag'));
+            const markPrintedDefaultLabel = @json(__('print_templates.print.setup.buttons.mark_printed'));
+            const markPrintedBusyLabel = @json(__('print_templates.print.setup.buttons.mark_printed_busy'));
+            const markPrintedSuccessMessage = @json(__('print_templates.print.setup.messages.marked_printed'));
+            const markPrintedEmptyMessage = @json(__('print_templates.print.setup.errors.no_students_selected'));
+            const markPrintedFailedMessage = @json(__('print_templates.print.setup.errors.mark_printed_failed'));
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
 
             function applyPageSize() {
                 const layout = JSON.parse(pageSizeSelect?.selectedOptions?.[0]?.dataset.layout || '{}');
@@ -335,10 +360,6 @@
                             ? card.dataset.cardPrinted === '1'
                             : false;
                     card.hidden = searchMiss || relationMiss || groupMiss || statusMiss || printedMiss;
-
-                    if (card.hidden) {
-                        setSourceCardChecked(card, false);
-                    }
                 });
             }
 
@@ -347,6 +368,52 @@
                     applySingleSelectFilter(select.dataset.sourceSingleSelect);
                 });
                 document.querySelectorAll('[data-source-panel]').forEach((panel) => applySourceFilter(panel.dataset.sourcePanel));
+            }
+
+            function setPrintStatusNotice(message = '', tone = 'neutral') {
+                if (!printStatusNotice) {
+                    return;
+                }
+
+                if (message === '') {
+                    printStatusNotice.hidden = true;
+                    printStatusNotice.textContent = '';
+                    printStatusNotice.classList.remove('text-emerald-300', 'text-red-300', 'text-neutral-300');
+                    return;
+                }
+
+                printStatusNotice.hidden = false;
+                printStatusNotice.textContent = message;
+                printStatusNotice.classList.remove('text-emerald-300', 'text-red-300', 'text-neutral-300');
+                printStatusNotice.classList.add(
+                    tone === 'success' ? 'text-emerald-300' : tone === 'error' ? 'text-red-300' : 'text-neutral-300',
+                );
+            }
+
+            function selectedStudentIds() {
+                return [...document.querySelectorAll('input[data-source-checkbox="student"]:checked')]
+                    .map((checkbox) => Number(checkbox.value))
+                    .filter((value) => Number.isInteger(value) && value > 0);
+            }
+
+            function updateStudentPrintedState(studentIds, printedAtLabel = '') {
+                const selectedIds = new Set(studentIds.map((id) => String(id)));
+
+                document.querySelectorAll('[data-source-card="student"]').forEach((card) => {
+                    if (!selectedIds.has(card.dataset.recordId)) {
+                        return;
+                    }
+
+                    card.dataset.cardPrinted = '1';
+
+                    const stateLabel = card.querySelector('[data-student-print-state]');
+
+                    if (stateLabel) {
+                        stateLabel.textContent = printedAtLabel === ''
+                            ? printedFlagLabel
+                            : `${printedFlagLabel} | ${printedAtLabel}`;
+                    }
+                });
             }
 
             function updatePanels() {
@@ -423,6 +490,54 @@
                         setSourceCardChecked(card, false);
                     });
                 });
+            });
+
+            markPrintedButton?.addEventListener('click', async () => {
+                const studentIds = selectedStudentIds();
+
+                if (studentIds.length === 0) {
+                    setPrintStatusNotice(markPrintedEmptyMessage, 'error');
+                    return;
+                }
+
+                setPrintStatusNotice('', 'neutral');
+                markPrintedButton.disabled = true;
+                markPrintedButton.textContent = markPrintedBusyLabel;
+
+                try {
+                    const response = await fetch(markPrintedButton.dataset.recordUrl, {
+                        method: 'POST',
+                        headers: {
+                            'Accept': 'application/json',
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': csrfToken,
+                            'X-Requested-With': 'XMLHttpRequest',
+                        },
+                        body: JSON.stringify({
+                            template_id: templateSelect.value,
+                            student_ids: studentIds,
+                        }),
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`Request failed with status ${response.status}`);
+                    }
+
+                    const payload = await response.json();
+                    const printedAtLabel = payload.printed_at
+                        ? new Date(payload.printed_at).toLocaleString()
+                        : '';
+
+                    updateStudentPrintedState(studentIds, printedAtLabel);
+                    applySourceFilter('student');
+                    setPrintStatusNotice(markPrintedSuccessMessage, 'success');
+                } catch (error) {
+                    console.error(error);
+                    setPrintStatusNotice(markPrintedFailedMessage, 'error');
+                } finally {
+                    markPrintedButton.disabled = false;
+                    markPrintedButton.textContent = markPrintedDefaultLabel;
+                }
             });
 
             templateSelect.addEventListener('change', updatePanels);

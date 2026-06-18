@@ -174,6 +174,96 @@ class QuranWorkflowTest extends TestCase
         ]);
     }
 
+    public function test_teacher_attendance_preloads_unassigned_helping_teachers(): void
+    {
+        $this->seed();
+
+        $manager = User::factory()->create([
+            'username' => 'teacher-attendance-helping-manager',
+            'phone' => '0666000102',
+        ]);
+        $manager->assignRole('manager');
+        $this->actingAs($manager);
+
+        $scheduledTeacher = Teacher::create([
+            'first_name' => 'Scheduled',
+            'last_name' => 'Primary',
+            'phone' => '0944000102',
+            'status' => 'active',
+            'is_helping' => false,
+        ]);
+
+        $unassignedHelpingTeacher = Teacher::create([
+            'first_name' => 'Helping',
+            'last_name' => 'Free',
+            'phone' => '0944000103',
+            'status' => 'active',
+            'is_helping' => true,
+        ]);
+
+        $assignedHelpingTeacher = Teacher::create([
+            'first_name' => 'Helping',
+            'last_name' => 'Assigned',
+            'phone' => '0944000104',
+            'status' => 'active',
+            'is_helping' => true,
+        ]);
+
+        $course = Course::create([
+            'name' => 'Teacher Attendance Helper Course',
+            'is_active' => true,
+        ]);
+
+        $group = Group::create([
+            'course_id' => $course->id,
+            'academic_year_id' => \App\Models\AcademicYear::query()->where('is_current', true)->value('id'),
+            'teacher_id' => $scheduledTeacher->id,
+            'assistant_teacher_id' => $assignedHelpingTeacher->id,
+            'name' => 'Teacher Attendance Helper Group',
+            'capacity' => 12,
+            'is_active' => true,
+        ]);
+
+        $attendanceDate = '2026-09-04';
+
+        $group->schedules()->create([
+            'day_of_week' => Carbon::parse($attendanceDate)->dayOfWeek,
+            'starts_at' => '16:00',
+            'ends_at' => '17:00',
+            'is_active' => true,
+        ]);
+
+        $present = AttendanceStatus::query()->where('code', 'present')->firstOrFail();
+
+        Volt::test('teachers.attendance')
+            ->call('openCreateModal')
+            ->set('attendance_date', $attendanceDate)
+            ->set('day_status', 'open')
+            ->set('default_attendance_status_id', (string) $present->id)
+            ->call('saveDay')
+            ->assertHasNoErrors();
+
+        $day = TeacherAttendanceDay::query()->whereDate('attendance_date', $attendanceDate)->firstOrFail();
+
+        $this->assertDatabaseHas('teacher_attendance_records', [
+            'teacher_attendance_day_id' => $day->id,
+            'teacher_id' => $scheduledTeacher->id,
+            'attendance_status_id' => $present->id,
+        ]);
+
+        $this->assertDatabaseHas('teacher_attendance_records', [
+            'teacher_attendance_day_id' => $day->id,
+            'teacher_id' => $unassignedHelpingTeacher->id,
+            'attendance_status_id' => $present->id,
+        ]);
+
+        $this->assertDatabaseHas('teacher_attendance_records', [
+            'teacher_attendance_day_id' => $day->id,
+            'teacher_id' => $assignedHelpingTeacher->id,
+            'attendance_status_id' => $present->id,
+        ]);
+    }
+
     public function test_memorization_creates_lifetime_page_achievements_and_can_save_only_unique_pages_when_duplicates_exist(): void
     {
         [, $enrollment] = $this->workflowContext('teacher');

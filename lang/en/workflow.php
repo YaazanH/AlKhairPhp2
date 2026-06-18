@@ -203,10 +203,10 @@ return [
     ],
     'teacher_attendance' => [
         'title' => 'Teacher Attendance',
-        'subtitle' => 'Create or reopen one teacher attendance day, preload teachers who have scheduled groups on that date, then add extra teachers manually when needed.',
+        'subtitle' => 'Create or reopen one teacher attendance day, preload teachers who have scheduled groups on that date, auto-include helping teachers who are not assigned to active groups, then add extra teachers manually when needed.',
         'days' => [
             'title' => 'Teacher Attendance Days',
-            'subtitle' => 'Create one attendance day for a date, preload scheduled teachers, then open the day to review and adjust the teacher list.',
+            'subtitle' => 'Create one attendance day for a date, preload scheduled teachers, include unassigned helping teachers, then open the day to review and adjust the teacher list.',
             'create' => 'New teacher attendance day',
             'messages' => [
                 'created' => 'Teacher attendance day created successfully.',
@@ -218,12 +218,12 @@ return [
             ],
             'form' => [
                 'title' => 'Teacher attendance day setup',
-                'help' => 'The system preloads teachers assigned to active groups scheduled on the selected date. Extra teachers can be added manually after opening the day.',
+                'help' => 'The system preloads teachers assigned to active groups scheduled on the selected date and also adds helping teachers who are not assigned to any active group. Extra teachers can be added manually after opening the day.',
                 'attendance_date' => 'Attendance date',
                 'status' => 'Day status',
                 'default_status' => 'Default teacher status',
                 'default_status_help' => 'Applied to scheduled teachers when the attendance day is created. Existing records are not overwritten.',
-                'scheduled_teachers_help' => ':count scheduled teachers will be added for the selected date. You can add extra teachers manually after opening the day.',
+                'scheduled_teachers_help' => ':count teachers will be added for the selected date from scheduled groups and unassigned helping teachers. You can add extra teachers manually after opening the day.',
                 'no_default_status' => 'Create an active teacher attendance status before creating teacher attendance days.',
                 'notes' => 'Notes',
             ],

@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\AcademicYear;
+use App\Models\AppSetting;
 use App\Models\BarcodeAction;
 use App\Models\BarcodeScanImport;
 use App\Models\Course;
@@ -127,6 +128,45 @@ class BarcodeScannerWorkflowTest extends TestCase
         $this->assertSame(2, BarcodeScanImport::query()->firstOrFail()->processed_count);
         $this->assertSame(1, StudentAttendanceRecord::query()->where('enrollment_id', $enrollment->id)->count());
         $this->assertSame(1, PointTransaction::query()->where('source_type', 'barcode_scan')->where('enrollment_id', $enrollment->id)->count());
+    }
+
+    public function test_scanner_dump_accepts_student_barcodes_with_the_configured_prefix_or_plain_number(): void
+    {
+        $this->seed();
+
+        AppSetting::storeValue('general', 'student_number_prefix', 'STU-', 'string');
+        AppSetting::storeValue('general', 'student_number_length', 6, 'integer');
+
+        $manager = User::factory()->create(['username' => 'barcode-manager-prefixed']);
+        $manager->assignRole('manager');
+        $this->actingAs($manager);
+
+        $enrollment = $this->makeEnrollment();
+        $student = $enrollment->student->fresh();
+
+        $this->assertSame('STU-000001', $student->student_number);
+
+        app(BarcodeActionCatalogService::class)->syncReferenceActions();
+        $service = app(ScannerDumpImportService::class);
+
+        $prefixedPreview = $service->preview(
+            $enrollment->group->course_id,
+            '2026-04-12',
+            "ACT-ATT-PRESENT\n{$student->student_number}",
+            $manager,
+        );
+
+        $plainNumberPreview = $service->preview(
+            $enrollment->group->course_id,
+            '2026-04-12',
+            "ACT-ATT-PRESENT\n{$student->id}",
+            $manager,
+        );
+
+        $this->assertSame(1, $prefixedPreview['ready_count']);
+        $this->assertSame(0, $prefixedPreview['error_count']);
+        $this->assertSame(1, $plainNumberPreview['ready_count']);
+        $this->assertSame(0, $plainNumberPreview['error_count']);
     }
 
     public function test_student_scan_before_action_is_rejected_without_writes(): void

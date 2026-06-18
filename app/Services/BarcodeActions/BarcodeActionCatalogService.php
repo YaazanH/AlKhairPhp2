@@ -6,6 +6,7 @@ use App\Models\AttendanceStatus;
 use App\Models\BarcodeAction;
 use App\Models\PointType;
 use App\Services\IdCards\Code39SvgRenderer;
+use App\Services\StudentNumberService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Str;
 
@@ -13,6 +14,7 @@ class BarcodeActionCatalogService
 {
     public function __construct(
         protected Code39SvgRenderer $barcodeRenderer,
+        protected StudentNumberService $studentNumbers,
     ) {
     }
 
@@ -165,6 +167,20 @@ class BarcodeActionCatalogService
 
         if (preg_match('/^\d+$/', $normalized)) {
             return $normalized;
+        }
+
+        $prefix = Str::upper($this->studentNumbers->prefix());
+
+        if ($prefix !== '') {
+            $pattern = '/^'.preg_quote($prefix, '/').'[\s\-_:.]*\d+$/';
+
+            if (preg_match($pattern, $normalized)) {
+                $studentId = $this->studentNumbers->parseInputToId($normalized);
+
+                return $studentId !== null && $studentId > 0
+                    ? (string) $studentId
+                    : null;
+            }
         }
 
         return null;

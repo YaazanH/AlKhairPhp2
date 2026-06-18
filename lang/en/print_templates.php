@@ -294,8 +294,17 @@ return [
             'sources_help' => 'The selected template decides which selectors appear here.',
             'buttons' => [
                 'preview' => 'Preview print',
+                'mark_printed' => 'Change to printed',
+                'mark_printed_busy' => 'Updating...',
                 'select_visible' => 'Select visible',
                 'clear' => 'Clear',
+            ],
+            'messages' => [
+                'marked_printed' => 'The selected students were marked as printed.',
+            ],
+            'errors' => [
+                'no_students_selected' => 'Select at least one student first.',
+                'mark_printed_failed' => 'The print status could not be updated right now.',
             ],
         ],
         'empty' => [

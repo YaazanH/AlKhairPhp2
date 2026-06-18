@@ -294,8 +294,17 @@ return [
             'sources_help' => 'القالب المحدد هو الذي يحدد الحقول التي تظهر هنا.',
             'buttons' => [
                 'preview' => 'معاينة الطباعة',
+                'mark_printed' => 'تغيير إلى مطبوع',
+                'mark_printed_busy' => 'جارٍ التحديث...',
                 'select_visible' => 'تحديد الظاهر',
                 'clear' => 'مسح',
+            ],
+            'messages' => [
+                'marked_printed' => 'تم تحديث الطلاب المحددين إلى بطاقات مطبوعة.',
+            ],
+            'errors' => [
+                'no_students_selected' => 'حدد طالباً واحداً على الأقل أولاً.',
+                'mark_printed_failed' => 'تعذر تحديث حالة الطباعة الآن.',
             ],
         ],
         'empty' => [

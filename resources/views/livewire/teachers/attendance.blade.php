@@ -177,7 +177,7 @@ new class extends Component {
             return collect();
         }
 
-        $teacherIds = $this->scopeGroupsQuery(
+        $scheduledTeacherIds = $this->scopeGroupsQuery(
             Group::query()
                 ->select(['teacher_id', 'assistant_teacher_id'])
                 ->where('is_active', true)
@@ -189,6 +189,23 @@ new class extends Component {
             ->flatMap(fn (Group $group) => [$group->teacher_id, $group->assistant_teacher_id])
             ->filter()
             ->map(fn ($teacherId) => (int) $teacherId)
+            ->unique()
+            ->values()
+            ->all();
+
+        $unassignedHelpingTeacherIds = $this->scopeTeachersQuery(
+            Teacher::query()
+                ->where('is_helping', true)
+                ->whereIn('status', ['active', 'inactive'])
+                ->whereDoesntHave('assignedGroups', fn ($query) => $query->where('is_active', true))
+                ->whereDoesntHave('assistedGroups', fn ($query) => $query->where('is_active', true))
+        )
+            ->pluck('id')
+            ->map(fn ($teacherId) => (int) $teacherId)
+            ->all();
+
+        $teacherIds = collect($scheduledTeacherIds)
+            ->merge($unassignedHelpingTeacherIds)
             ->unique()
             ->values()
             ->all();
