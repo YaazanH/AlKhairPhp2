@@ -9,7 +9,6 @@ use App\Models\BarcodeScanImport;
 use App\Models\Course;
 use App\Models\Enrollment;
 use App\Models\Group;
-use App\Models\GroupAttendanceDay;
 use App\Models\PointTransaction;
 use App\Models\PointType;
 use App\Models\Student;
@@ -28,8 +27,7 @@ class ScannerDumpImportService
         protected BarcodeActionCatalogService $catalog,
         protected PointLedgerService $ledger,
         protected StudentAttendanceDayService $attendanceDayService,
-    ) {
-    }
+    ) {}
 
     public function preview(int $courseId, string $attendanceDate, string $rawDump, User $actor): array
     {
@@ -246,37 +244,15 @@ class ScannerDumpImportService
             $actor,
             null,
             'open',
+            $this->defaultStudentAttendanceStatusId(),
         );
 
-        $groupDay = GroupAttendanceDay::query()
-            ->where('student_attendance_day_id', $studentDay->id)
-            ->where('group_id', $enrollment->group_id)
-            ->firstOrFail();
-
-        $record = StudentAttendanceRecord::query()->updateOrCreate(
-            [
-                'group_attendance_day_id' => $groupDay->id,
-                'enrollment_id' => $enrollment->id,
-            ],
-            [
-                'attendance_status_id' => $status->id,
-                'notes' => __('barcodes.import.notes.attendance'),
-            ],
-        );
-
-        $this->ledger->voidSourceTransactions('student_attendance_record', $record->id, __('workflow.student_attendance.messages.void_reason'));
-        $this->ledger->recordAttendanceStatusPoints(
+        return $this->attendanceDayService->recordEnrollmentStatus(
+            $studentDay,
             $enrollment,
-            'student_attendance_record',
-            $record->id,
             $status,
-            __('workflow.student_attendance.messages.automatic_points', ['status' => $status->name]),
+            __('barcodes.import.notes.attendance'),
         );
-
-        $this->ledger->syncEnrollmentCaches($enrollment->fresh(['student']));
-        $this->attendanceDayService->syncAggregateStatus($studentDay);
-
-        return $record;
     }
 
     protected function applyPointAction(BarcodeAction $action, Enrollment $enrollment, User $actor, BarcodeScanEvent $event): PointTransaction
@@ -300,6 +276,15 @@ class ScannerDumpImportService
         $this->ledger->syncEnrollmentCaches($enrollment->fresh(['student']));
 
         return $transaction;
+    }
+
+    protected function defaultStudentAttendanceStatusId(): ?int
+    {
+        return AttendanceStatus::query()
+            ->where('is_active', true)
+            ->where('is_default', true)
+            ->whereIn('scope', ['student', 'both'])
+            ->value('id');
     }
 
     protected function courseIsAccessible(int $courseId, User $actor): bool

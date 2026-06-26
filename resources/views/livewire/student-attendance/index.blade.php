@@ -6,29 +6,39 @@ use App\Models\AttendanceStatus;
 use App\Models\Course;
 use App\Models\Enrollment;
 use App\Models\Group;
+use App\Models\GroupAttendanceDay;
 use App\Models\StudentAttendanceDay;
 use App\Services\PointLedgerService;
 use App\Services\StudentAttendanceDayService;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Livewire\Volt\Component;
 use Livewire\WithPagination;
 
-new class extends Component {
+new class extends Component
+{
     use AuthorizesPermissions;
     use AuthorizesTeacherAssignments;
     use WithPagination;
 
     public string $attendance_date = '';
+
     public string $course_id = '';
+
     public string $day_status = 'open';
+
     public string $default_attendance_status_id = '';
+
     public string $notes = '';
+
     public string $search = '';
+
     public string $statusFilter = 'all';
+
     public int $perPage = 15;
+
     public bool $showFormModal = false;
 
     public function mount(): void
@@ -72,7 +82,7 @@ new class extends Component {
             'filteredCount' => (clone $daysQuery)->count(),
             'stats' => [
                 'days' => $this->scopeStudentAttendanceDaysQuery(StudentAttendanceDay::query())->count(),
-                'groups' => $this->scopeGroupAttendanceDaysQuery(\App\Models\GroupAttendanceDay::query())->count(),
+                'groups' => $this->scopeGroupAttendanceDaysQuery(GroupAttendanceDay::query())->count(),
                 'open' => $this->scopeStudentAttendanceDaysQuery(StudentAttendanceDay::query()->where('status', 'open'))->count(),
             ],
             'courseOptions' => $this->availableCoursesQuery()
@@ -131,7 +141,6 @@ new class extends Component {
         $validated = $this->validate([
             'attendance_date' => ['required', 'date'],
             'course_id' => ['required', 'integer', Rule::exists('courses', 'id')],
-            'day_status' => ['required', 'in:open,closed'],
             'default_attendance_status_id' => [
                 'required',
                 'integer',
@@ -157,7 +166,7 @@ new class extends Component {
             $groups,
             auth()->user(),
             $validated['notes'] ?: null,
-            $validated['day_status'],
+            'open',
             (int) $validated['default_attendance_status_id'],
             (int) $validated['course_id'],
         );
@@ -213,11 +222,11 @@ new class extends Component {
             ->where('is_active', true)
             ->whereIn('scope', ['student', 'both'])
             ->value('id') ?? AttendanceStatus::query()
-                ->where('is_active', true)
-                ->whereIn('scope', ['student', 'both'])
-                ->orderByDesc('is_present')
-                ->orderBy('name')
-                ->value('id');
+            ->where('is_active', true)
+            ->whereIn('scope', ['student', 'both'])
+            ->orderByDesc('is_present')
+            ->orderBy('name')
+            ->value('id');
     }
 
     protected function scheduledGroupsForDate(string $attendanceDate, ?int $courseId = null)
@@ -228,7 +237,7 @@ new class extends Component {
 
         try {
             $dayOfWeek = Carbon::parse($attendanceDate)->dayOfWeek;
-        } catch (\Throwable) {
+        } catch (Throwable) {
             return collect();
         }
 
@@ -386,7 +395,7 @@ new class extends Component {
         max-width="4xl"
     >
         <form wire:submit="saveDay" class="space-y-4">
-            <div class="grid gap-4 md:grid-cols-3">
+            <div class="grid gap-4 md:grid-cols-2">
                 <div>
                     <label for="attendance-day-course" class="mb-1 block text-sm font-medium">{{ __('workflow.student_attendance.days.form.course') }}</label>
                     <select id="attendance-day-course" wire:model.live="course_id" class="w-full rounded-xl px-4 py-3 text-sm">
@@ -404,17 +413,6 @@ new class extends Component {
                     <label for="attendance-day-date" class="mb-1 block text-sm font-medium">{{ __('workflow.student_attendance.days.form.attendance_date') }}</label>
                     <input id="attendance-day-date" wire:model.live="attendance_date" type="date" class="w-full rounded-xl px-4 py-3 text-sm">
                     @error('attendance_date')
-                        <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
-                    @enderror
-                </div>
-
-                <div>
-                    <label for="attendance-day-status" class="mb-1 block text-sm font-medium">{{ __('workflow.student_attendance.days.form.status') }}</label>
-                    <select id="attendance-day-status" wire:model="day_status" class="w-full rounded-xl px-4 py-3 text-sm">
-                        <option value="open">{{ __('workflow.common.day_status.open') }}</option>
-                        <option value="closed">{{ __('workflow.common.day_status.closed') }}</option>
-                    </select>
-                    @error('day_status')
                         <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                     @enderror
                 </div>

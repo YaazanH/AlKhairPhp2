@@ -8,12 +8,15 @@ use App\Models\StudentAttendanceDay;
 use App\Services\StudentAttendanceDayService;
 use Livewire\Volt\Component;
 
-new class extends Component {
+new class extends Component
+{
     use AuthorizesPermissions;
     use AuthorizesTeacherAssignments;
 
     public StudentAttendanceDay $currentDay;
+
     public string $manual_group_id = '';
+
     public bool $showManualGroupModal = false;
 
     public function mount(StudentAttendanceDay $studentAttendanceDay): void
@@ -44,7 +47,8 @@ new class extends Component {
 
         return [
             'dayRecord' => $day,
-            'canAddManualGroup' => $this->canPermission('attendance.student.take'),
+            'canAddManualGroup' => $this->canPermission('attendance.student.take') && $day->status !== 'closed',
+            'canQuickAttend' => $this->canPermission('attendance.student.take'),
             'canToggleDayStatus' => $this->canPermission('attendance.student.toggle-day-status'),
             'availableExtraGroups' => $this->scopeGroupsQuery(
                 Group::query()
@@ -128,6 +132,12 @@ new class extends Component {
             return;
         }
 
+        if ($this->currentDay->fresh()->status === 'closed') {
+            $this->addError('manual_group_id', __('workflow.student_attendance.messages.closed_day_locked'));
+
+            return;
+        }
+
         $day = app(StudentAttendanceDayService::class)->createOrSyncDay(
             $this->currentDay->attendance_date->format('Y-m-d'),
             collect([$group]),
@@ -168,11 +178,11 @@ new class extends Component {
             ->where('is_active', true)
             ->whereIn('scope', ['student', 'both'])
             ->value('id') ?? AttendanceStatus::query()
-                ->where('is_active', true)
-                ->whereIn('scope', ['student', 'both'])
-                ->orderByDesc('is_present')
-                ->orderBy('name')
-                ->value('id');
+            ->where('is_active', true)
+            ->whereIn('scope', ['student', 'both'])
+            ->orderByDesc('is_present')
+            ->orderBy('name')
+            ->value('id');
     }
 }; ?>
 
@@ -198,7 +208,7 @@ new class extends Component {
         <div class="flash-success px-4 py-3 text-sm">{{ session('status') }}</div>
     @endif
 
-    @if ($canAddManualGroup || $canToggleDayStatus)
+    @if ($canAddManualGroup || $canQuickAttend || $canToggleDayStatus)
         <section class="surface-panel p-5 lg:p-6">
             <div class="admin-toolbar">
                 <div>
@@ -207,8 +217,14 @@ new class extends Component {
                 </div>
 
                 <div class="admin-toolbar__actions">
+                    @if ($canQuickAttend)
+                        <a href="{{ route('student-attendance.quick', $dayRecord) }}" wire:navigate class="pill-link pill-link--accent">
+                            {{ __('workflow.student_attendance.day_details.controls.quick_attend') }}
+                        </a>
+                    @endif
+
                     @if ($canAddManualGroup)
-                        <button type="button" wire:click="openManualGroupModal" class="pill-link pill-link--accent" @disabled($availableExtraGroups->isEmpty())>
+                        <button type="button" wire:click="openManualGroupModal" class="pill-link" @disabled($availableExtraGroups->isEmpty())>
                             {{ __('workflow.student_attendance.day_details.manual_add.action') }}
                         </button>
                     @endif
@@ -278,7 +294,6 @@ new class extends Component {
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.day_details.table.headers.teacher') }}</th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.day_details.table.headers.students') }}</th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.day_details.table.headers.present') }}</th>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.day_details.table.headers.status') }}</th>
                             <th class="px-5 py-4 text-right lg:px-6">{{ __('workflow.student_attendance.day_details.table.headers.actions') }}</th>
                         </tr>
                     </thead>
@@ -294,11 +309,6 @@ new class extends Component {
                                 </td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ number_format((int) ($groupDay->group?->active_enrollments_count ?? 0)) }}</td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ number_format((int) $groupDay->present_records_count) }}</td>
-                                <td class="px-5 py-4 lg:px-6">
-                                    <span class="{{ $groupDay->status === 'closed' ? 'status-chip status-chip--emerald' : 'status-chip status-chip--slate' }}">
-                                        {{ __('workflow.common.day_status.'.$groupDay->status) }}
-                                    </span>
-                                </td>
                                 <td class="px-5 py-4 lg:px-6">
                                     <div class="flex justify-end">
                                         <a href="{{ route('student-attendance.mark', $groupDay) }}" wire:navigate class="pill-link pill-link--compact">

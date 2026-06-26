@@ -1,0 +1,436 @@
+<?php
+
+use App\Livewire\Concerns\AuthorizesPermissions;
+use App\Livewire\Concerns\AuthorizesTeacherAssignments;
+use App\Models\AttendanceStatus;
+use App\Models\Enrollment;
+use App\Models\Student;
+use App\Models\StudentAttendanceDay;
+use App\Models\StudentAttendanceRecord;
+use App\Services\BarcodeActions\BarcodeActionCatalogService;
+use App\Services\StudentAttendanceDayService;
+use Illuminate\Database\Eloquent\Builder;
+use Livewire\Volt\Component;
+
+new class extends Component
+{
+    use AuthorizesPermissions;
+    use AuthorizesTeacherAssignments;
+
+    public StudentAttendanceDay $currentDay;
+
+    public string $selected_status_id = '';
+
+    public string $scan_value = '';
+
+    public string $search = '';
+
+    public function mount(StudentAttendanceDay $studentAttendanceDay): void
+    {
+        $this->authorizePermission('attendance.student.view');
+
+        $this->currentDay = StudentAttendanceDay::query()
+            ->with(['course', 'groupAttendanceDays.group'])
+            ->findOrFail($studentAttendanceDay->id);
+
+        $this->authorizeScopedStudentAttendanceDayAccess($this->currentDay);
+        $this->selected_status_id = (string) ($this->defaultStudentAttendanceStatusId() ?? '');
+    }
+
+    public function with(): array
+    {
+        $day = $this->currentDay->fresh(['course', 'groupAttendanceDays.group']);
+        $groupIds = $day->groupAttendanceDays->pluck('group_id')->filter()->values();
+        $records = StudentAttendanceRecord::query()
+            ->with('status')
+            ->whereIn('group_attendance_day_id', $day->groupAttendanceDays->pluck('id'))
+            ->get()
+            ->keyBy('enrollment_id');
+
+        $enrollments = Enrollment::query()
+            ->with(['group.course', 'student.parentProfile'])
+            ->whereIn('group_id', $groupIds)
+            ->where('status', 'active')
+            ->when(filled($this->search), function (Builder $query): void {
+                $search = '%'.trim($this->search).'%';
+
+                $query->whereHas('student', fn (Builder $studentQuery) => $studentQuery
+                    ->where('first_name', 'like', $search)
+                    ->orWhere('last_name', 'like', $search)
+                    ->orWhere('student_number', 'like', $search)
+                    ->orWhereHas('parentProfile', fn (Builder $parentQuery) => $parentQuery->where('father_name', 'like', $search)));
+            })
+            ->orderBy(
+                Student::query()
+                    ->select('first_name')
+                    ->whereColumn('students.id', 'enrollments.student_id')
+                    ->limit(1),
+            )
+            ->orderBy(
+                Student::query()
+                    ->select('last_name')
+                    ->whereColumn('students.id', 'enrollments.student_id')
+                    ->limit(1),
+            )
+            ->get();
+
+        return [
+            'dayRecord' => $day,
+            'enrollments' => $enrollments,
+            'isDayClosed' => $day->status === 'closed',
+            'markedCount' => $records->count(),
+            'recordsByEnrollment' => $records,
+            'statuses' => AttendanceStatus::query()
+                ->where('is_active', true)
+                ->whereIn('scope', ['student', 'both'])
+                ->orderByDesc('is_default')
+                ->orderByDesc('is_present')
+                ->orderBy('name')
+                ->get(),
+        ];
+    }
+
+    public function markEnrollment(int $enrollmentId): void
+    {
+        $this->authorizePermission('attendance.student.take');
+
+        if ($this->currentDay->fresh()->status === 'closed') {
+            $this->addError('scan_value', __('workflow.student_attendance.messages.closed_day_locked'));
+
+            return;
+        }
+
+        $validated = $this->validate([
+            'selected_status_id' => ['required', 'integer', 'exists:attendance_statuses,id'],
+        ]);
+
+        $groupIds = $this->currentDay->groupAttendanceDays()->pluck('group_id');
+        $enrollment = Enrollment::query()
+            ->with(['student', 'group'])
+            ->whereKey($enrollmentId)
+            ->whereIn('group_id', $groupIds)
+            ->where('status', 'active')
+            ->firstOrFail();
+
+        $this->authorizeScopedEnrollmentAccess($enrollment);
+
+        $status = AttendanceStatus::query()
+            ->whereKey((int) $validated['selected_status_id'])
+            ->where('is_active', true)
+            ->whereIn('scope', ['student', 'both'])
+            ->firstOrFail();
+
+        try {
+            app(StudentAttendanceDayService::class)->recordEnrollmentStatus($this->currentDay, $enrollment, $status);
+        } catch (InvalidArgumentException $exception) {
+            $this->addError('scan_value', $exception->getMessage());
+
+            return;
+        }
+
+        $this->resetErrorBag('scan_value');
+        session()->flash('status', __('workflow.student_attendance.quick.messages.marked', [
+            'student' => $enrollment->student?->full_name,
+            'status' => $status->name,
+        ]));
+    }
+
+    public function scanStudent(): void
+    {
+        $this->authorizePermission('attendance.student.take');
+
+        $value = trim($this->scan_value);
+
+        if ($value === '') {
+            $this->addError('scan_value', __('workflow.student_attendance.quick.errors.empty_scan'));
+
+            return;
+        }
+
+        $studentNumber = app(BarcodeActionCatalogService::class)->studentNumberFromBarcode($value);
+
+        if (! $studentNumber) {
+            $this->addError('scan_value', __('workflow.student_attendance.quick.errors.unknown_scan'));
+
+            return;
+        }
+
+        $groupIds = $this->currentDay->groupAttendanceDays()->pluck('group_id');
+        $enrollments = Enrollment::query()
+            ->with(['student', 'group'])
+            ->whereIn('group_id', $groupIds)
+            ->where('status', 'active')
+            ->whereHas('student', fn (Builder $query) => $query
+                ->where('student_number', $studentNumber)
+                ->orWhere('id', (int) $studentNumber))
+            ->get();
+
+        if ($enrollments->isEmpty()) {
+            $this->addError('scan_value', __('workflow.student_attendance.quick.errors.student_not_in_day'));
+
+            return;
+        }
+
+        if ($enrollments->count() > 1) {
+            $this->addError('scan_value', __('workflow.student_attendance.quick.errors.multiple_enrollments'));
+
+            return;
+        }
+
+        $this->markEnrollment($enrollments->first()->id);
+        $this->scan_value = '';
+    }
+
+    protected function defaultStudentAttendanceStatusId(): ?int
+    {
+        return AttendanceStatus::query()
+            ->where('is_default', true)
+            ->where('is_active', true)
+            ->whereIn('scope', ['student', 'both'])
+            ->value('id') ?? AttendanceStatus::query()
+            ->where('is_active', true)
+            ->whereIn('scope', ['student', 'both'])
+            ->orderByDesc('is_present')
+            ->orderBy('name')
+            ->value('id');
+    }
+}; ?>
+
+<div class="page-stack">
+    <section class="page-hero p-6 lg:p-8">
+        <div class="eyebrow">{{ __('ui.nav.student_attendance') }}</div>
+        <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('workflow.student_attendance.quick.title') }}</h1>
+        <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ __('workflow.student_attendance.quick.subtitle') }}</p>
+        <div class="mt-6 flex flex-wrap gap-3">
+            <span class="badge-soft">{{ $dayRecord->attendance_date?->format('Y-m-d') }}</span>
+            <span class="badge-soft badge-soft--emerald">{{ $dayRecord->course?->name ?: __('workflow.common.no_course') }}</span>
+            <span class="badge-soft">{{ __('workflow.student_attendance.day_details.stats.groups') }}: {{ number_format($dayRecord->groupAttendanceDays->count()) }}</span>
+            <span class="badge-soft">{{ __('workflow.student_attendance.day_details.stats.marked') }}: {{ number_format($markedCount) }}</span>
+        </div>
+    </section>
+
+    <div>
+        <a href="{{ route('student-attendance.show', $dayRecord) }}" wire:navigate class="pill-link pill-link--compact">{{ __('workflow.student_attendance.marking.back') }}</a>
+    </div>
+
+    @if (session('status'))
+        <div class="flash-success px-4 py-3 text-sm">{{ session('status') }}</div>
+    @endif
+
+    @if ($isDayClosed)
+        <div class="soft-callout p-4 text-sm text-amber-100">
+            {{ __('workflow.student_attendance.messages.closed_day_locked') }}
+        </div>
+    @endif
+
+    <section class="surface-panel p-5 lg:p-6">
+        <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_16rem] lg:items-end">
+            <div>
+                <label for="quick-attendance-search" class="mb-1 block text-sm font-medium">{{ __('crud.common.filters.search') }}</label>
+                <input id="quick-attendance-search" wire:model.live.debounce.250ms="search" type="text" class="w-full rounded-xl px-4 py-3 text-sm" placeholder="{{ __('workflow.student_attendance.quick.search_placeholder') }}">
+            </div>
+            <div>
+                <label for="quick-attendance-status" class="mb-1 block text-sm font-medium">{{ __('workflow.student_attendance.quick.status') }}</label>
+                <select id="quick-attendance-status" wire:model="selected_status_id" class="w-full rounded-xl px-4 py-3 text-sm" data-searchable="false" @disabled($isDayClosed)>
+                    <option value="">{{ __('workflow.student_attendance.quick.select_status') }}</option>
+                    @foreach ($statuses as $status)
+                        <option value="{{ $status->id }}">{{ $status->name }}{{ $status->is_default ? ' - '.__('settings.tracking.labels.default_attendance_status') : '' }}</option>
+                    @endforeach
+                </select>
+                @error('selected_status_id')
+                    <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
+                @enderror
+            </div>
+        </div>
+    </section>
+
+    <section class="surface-table">
+        <div class="admin-grid-meta">
+            <div>
+                <div class="admin-grid-meta__title">{{ __('workflow.student_attendance.quick.list_title') }}</div>
+                <div class="admin-grid-meta__summary">{{ __('crud.common.badges.in_view', ['count' => number_format($enrollments->count())]) }}</div>
+            </div>
+        </div>
+
+        @if ($enrollments->isEmpty())
+            <div class="admin-empty-state">{{ __('workflow.student_attendance.quick.empty') }}</div>
+        @else
+            <div class="overflow-x-auto">
+                <table class="text-sm">
+                    <thead>
+                        <tr>
+                            <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.table.headers.student') }}</th>
+                            <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.day_details.table.headers.group') }}</th>
+                            <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.table.headers.attendance') }}</th>
+                            <th class="px-5 py-4 text-right lg:px-6">{{ __('workflow.student_attendance.day_details.table.headers.actions') }}</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-white/6">
+                        @foreach ($enrollments as $enrollment)
+                            @php($record = $recordsByEnrollment->get($enrollment->id))
+                            <tr>
+                                <td class="px-5 py-4 lg:px-6">
+                                    <div class="student-inline">
+                                        <x-student-avatar :student="$enrollment->student" size="sm" />
+                                        <div class="student-inline__body">
+                                            <div class="student-inline__name">{{ $enrollment->student?->full_name }}</div>
+                                            <div class="text-xs text-neutral-500">{{ $enrollment->student?->student_number ?: $enrollment->student_id }}</div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $enrollment->group?->name }}</td>
+                                <td class="px-5 py-4 lg:px-6">
+                                    @if ($record?->status)
+                                        <span class="status-chip status-chip--emerald">{{ $record->status->name }}</span>
+                                    @else
+                                        <span class="status-chip status-chip--slate">{{ __('workflow.student_attendance.table.not_marked') }}</span>
+                                    @endif
+                                </td>
+                                <td class="px-5 py-4 lg:px-6">
+                                    <div class="flex justify-end">
+                                        <button type="button" wire:click="markEnrollment({{ $enrollment->id }})" class="pill-link pill-link--compact" @disabled($isDayClosed || ! auth()->user()->can('attendance.student.take'))>
+                                            {{ __('workflow.student_attendance.quick.mark_action') }}
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+        @endif
+    </section>
+
+    <section class="surface-panel p-5 lg:p-6" id="quick-attendance-scanner">
+        <div class="admin-toolbar">
+            <div>
+                <div class="admin-toolbar__title">{{ __('workflow.student_attendance.quick.scanner_title') }}</div>
+                <p class="admin-toolbar__subtitle">{{ __('workflow.student_attendance.quick.scanner_help') }}</p>
+            </div>
+            <div class="admin-toolbar__actions">
+                <button type="button" class="pill-link pill-link--accent" data-quick-attendance-start @disabled($isDayClosed)>
+                    {{ __('workflow.student_attendance.quick.start_camera') }}
+                </button>
+                <button type="button" class="pill-link" data-quick-attendance-stop>
+                    {{ __('workflow.student_attendance.quick.stop_camera') }}
+                </button>
+            </div>
+        </div>
+
+        <div class="mt-5 grid gap-4 lg:grid-cols-[minmax(0,1fr)_18rem]">
+            <div class="overflow-hidden rounded-2xl border border-white/10 bg-black/40">
+                <video data-quick-attendance-video class="aspect-video w-full object-cover" muted playsinline></video>
+            </div>
+            <div class="space-y-4">
+                <div class="soft-callout p-4 text-sm" data-quick-attendance-message>
+                    {{ __('workflow.student_attendance.quick.camera_idle') }}
+                </div>
+                <div>
+                    <label for="quick-attendance-scan" class="mb-1 block text-sm font-medium">{{ __('workflow.student_attendance.quick.scan_input') }}</label>
+                    <input id="quick-attendance-scan" wire:model="scan_value" wire:keydown.enter="scanStudent" type="text" class="w-full rounded-xl px-4 py-3 text-sm" placeholder="{{ __('workflow.student_attendance.quick.scan_placeholder') }}" @disabled($isDayClosed)>
+                    @error('scan_value')
+                        <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
+                    @enderror
+                </div>
+                <button type="button" id="quick-attendance-submit-scan" wire:click="scanStudent" class="pill-link pill-link--accent w-full justify-center" @disabled($isDayClosed)>
+                    {{ __('workflow.student_attendance.quick.apply_scan') }}
+                </button>
+            </div>
+        </div>
+    </section>
+
+    <script>
+        (() => {
+            const root = document.getElementById('quick-attendance-scanner');
+            if (!root || root.dataset.bound === 'true') {
+                return;
+            }
+
+            root.dataset.bound = 'true';
+            const video = root.querySelector('[data-quick-attendance-video]');
+            const message = root.querySelector('[data-quick-attendance-message]');
+            const input = document.getElementById('quick-attendance-scan');
+            const submit = document.getElementById('quick-attendance-submit-scan');
+            let stream = null;
+            let detector = null;
+            let scanning = false;
+            let lastValue = '';
+            let lastSeenAt = 0;
+
+            const setMessage = (text) => {
+                if (message) {
+                    message.textContent = text;
+                }
+            };
+
+            const stop = () => {
+                scanning = false;
+                if (stream) {
+                    stream.getTracks().forEach((track) => track.stop());
+                    stream = null;
+                }
+                if (video) {
+                    video.srcObject = null;
+                }
+                setMessage(@js(__('workflow.student_attendance.quick.camera_idle')));
+            };
+
+            const submitValue = (value) => {
+                const now = Date.now();
+                if (!value || (value === lastValue && now - lastSeenAt < 2000)) {
+                    return;
+                }
+                lastValue = value;
+                lastSeenAt = now;
+                input.value = value;
+                input.dispatchEvent(new Event('input', { bubbles: true }));
+                submit.click();
+            };
+
+            const scanLoop = async () => {
+                if (!scanning || !detector || !video || video.readyState < 2) {
+                    if (scanning) {
+                        requestAnimationFrame(scanLoop);
+                    }
+                    return;
+                }
+
+                try {
+                    const codes = await detector.detect(video);
+                    if (codes.length > 0) {
+                        submitValue(codes[0].rawValue || '');
+                    }
+                } catch (error) {
+                    setMessage(@js(__('workflow.student_attendance.quick.camera_error')));
+                }
+
+                if (scanning) {
+                    requestAnimationFrame(scanLoop);
+                }
+            };
+
+            root.querySelector('[data-quick-attendance-start]')?.addEventListener('click', async () => {
+                if (!('BarcodeDetector' in window)) {
+                    setMessage(@js(__('workflow.student_attendance.quick.camera_not_supported')));
+                    input?.focus();
+                    return;
+                }
+
+                try {
+                    detector = new BarcodeDetector({ formats: ['qr_code', 'code_39', 'code_128', 'ean_13', 'ean_8'] });
+                    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+                    video.srcObject = stream;
+                    await video.play();
+                    scanning = true;
+                    setMessage(@js(__('workflow.student_attendance.quick.camera_running')));
+                    requestAnimationFrame(scanLoop);
+                } catch (error) {
+                    setMessage(@js(__('workflow.student_attendance.quick.camera_error')));
+                }
+            });
+
+            root.querySelector('[data-quick-attendance-stop]')?.addEventListener('click', stop);
+            document.addEventListener('livewire:navigating', stop);
+        })();
+    </script>
+</div>

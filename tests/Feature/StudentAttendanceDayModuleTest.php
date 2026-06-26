@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\AcademicYear;
 use App\Models\AttendanceStatus;
 use App\Models\Course;
 use App\Models\Enrollment;
@@ -17,6 +18,7 @@ use App\Models\Teacher;
 use App\Models\User;
 use App\Services\StudentAttendanceDayService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Livewire\Volt\Volt;
 use Tests\TestCase;
 
@@ -309,7 +311,7 @@ class StudentAttendanceDayModuleTest extends TestCase
         Volt::test('groups.attendance', ['group' => $enrollment->group])
             ->set('attendance_date', '2026-10-02')
             ->set('selected_statuses.'.$enrollment->id, (string) $present->id)
-            ->call('saveAttendance')
+            ->call('saveEnrollmentStatus', $enrollment->id)
             ->assertHasNoErrors();
 
         $groupDay = GroupAttendanceDay::query()
@@ -322,9 +324,8 @@ class StudentAttendanceDayModuleTest extends TestCase
         $this->actingAs($teacherUser);
 
         Volt::test('student-attendance.mark', ['groupAttendanceDay' => $groupDay])
-            ->set('day_status', 'closed')
             ->set('selected_statuses.'.$enrollment->id, (string) $present->id)
-            ->call('saveAttendance')
+            ->call('saveEnrollmentStatus', $enrollment->id)
             ->assertHasNoErrors();
 
         $this->assertDatabaseHas('student_attendance_records', [
@@ -341,8 +342,111 @@ class StudentAttendanceDayModuleTest extends TestCase
             'voided_at' => null,
         ]);
 
-        $this->assertSame('closed', $groupDay->fresh()->studentAttendanceDay->status);
+        $this->assertSame('open', $groupDay->fresh()->studentAttendanceDay->status);
         $this->assertSame(2, PointTransaction::query()->where('enrollment_id', $enrollment->id)->where('source_type', 'student_attendance_record')->whereNull('voided_at')->sum('points'));
+    }
+
+    public function test_closed_student_attendance_day_blocks_group_and_quick_attendance_updates(): void
+    {
+        $this->seed();
+
+        $manager = User::factory()->create([
+            'username' => 'attendance-closed-manager',
+            'phone' => '0998111555',
+        ]);
+        $manager->assignRole('manager');
+
+        $teacher = Teacher::create([
+            'first_name' => 'Closed',
+            'last_name' => 'Teacher',
+            'phone' => '0998111556',
+            'status' => 'active',
+        ]);
+
+        $enrollment = $this->makeEnrollment($teacher->id, 'Closed Lock Group');
+        $present = AttendanceStatus::query()->where('code', 'present')->firstOrFail();
+
+        $day = app(StudentAttendanceDayService::class)->createOrSyncDay(
+            '2026-10-10',
+            collect([$enrollment->group]),
+            $manager,
+            null,
+            'open',
+        );
+
+        app(StudentAttendanceDayService::class)->setDayStatus($day, 'closed');
+
+        $groupDay = GroupAttendanceDay::query()
+            ->where('student_attendance_day_id', $day->id)
+            ->where('group_id', $enrollment->group_id)
+            ->firstOrFail();
+
+        $this->actingAs($manager);
+
+        Volt::test('student-attendance.mark', ['groupAttendanceDay' => $groupDay])
+            ->set('selected_statuses.'.$enrollment->id, (string) $present->id)
+            ->call('saveEnrollmentStatus', $enrollment->id)
+            ->assertHasErrors(['selected_statuses.'.$enrollment->id]);
+
+        Volt::test('student-attendance.quick', ['studentAttendanceDay' => $day->fresh()])
+            ->set('selected_status_id', (string) $present->id)
+            ->call('markEnrollment', $enrollment->id)
+            ->assertHasErrors(['scan_value']);
+
+        $this->assertDatabaseMissing('student_attendance_records', [
+            'enrollment_id' => $enrollment->id,
+        ]);
+    }
+
+    public function test_quick_attendance_marks_student_from_day_level_list_and_scan(): void
+    {
+        $this->seed();
+
+        $manager = User::factory()->create([
+            'username' => 'attendance-quick-manager',
+            'phone' => '0998111444',
+        ]);
+        $manager->assignRole('manager');
+
+        $teacher = Teacher::create([
+            'first_name' => 'Quick',
+            'last_name' => 'Teacher',
+            'phone' => '0998111445',
+            'status' => 'active',
+        ]);
+
+        $firstEnrollment = $this->makeEnrollment($teacher->id, 'Quick First Group');
+        $secondEnrollment = $this->makeEnrollment($teacher->id, 'Quick Second Group', course: $firstEnrollment->group->course);
+        $present = AttendanceStatus::query()->where('code', 'present')->firstOrFail();
+
+        $day = app(StudentAttendanceDayService::class)->createOrSyncDay(
+            '2026-10-11',
+            collect([$firstEnrollment->group, $secondEnrollment->group]),
+            $manager,
+            null,
+            'open',
+        );
+
+        $this->actingAs($manager);
+
+        Volt::test('student-attendance.quick', ['studentAttendanceDay' => $day])
+            ->assertSee('Quick First Group Student')
+            ->assertSee('Quick Second Group Student')
+            ->set('selected_status_id', (string) $present->id)
+            ->call('markEnrollment', $firstEnrollment->id)
+            ->assertHasNoErrors()
+            ->set('scan_value', (string) $secondEnrollment->student->fresh()->student_number)
+            ->call('scanStudent')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('student_attendance_records', [
+            'enrollment_id' => $firstEnrollment->id,
+            'attendance_status_id' => $present->id,
+        ]);
+        $this->assertDatabaseHas('student_attendance_records', [
+            'enrollment_id' => $secondEnrollment->id,
+            'attendance_status_id' => $present->id,
+        ]);
     }
 
     public function test_teacher_can_only_open_attendance_days_for_accessible_groups(): void
@@ -394,6 +498,12 @@ class StudentAttendanceDayModuleTest extends TestCase
             ->assertOk()
             ->assertDontSeeText('Close day')
             ->assertDontSeeText('Reopen day');
+
+        Volt::test('student-attendance.show', ['studentAttendanceDay' => $day])
+            ->call('toggleDayStatus')
+            ->assertForbidden();
+
+        $this->assertSame('open', $day->fresh()->status);
     }
 
     public function test_attendance_index_still_loads_after_days_exist(): void
@@ -467,7 +577,7 @@ class StudentAttendanceDayModuleTest extends TestCase
             'is_active' => true,
         ]);
 
-        $yearId = \App\Models\AcademicYear::query()->where('is_current', true)->value('id');
+        $yearId = AcademicYear::query()->where('is_current', true)->value('id');
 
         $group = Group::create([
             'course_id' => $course->id,
@@ -490,7 +600,7 @@ class StudentAttendanceDayModuleTest extends TestCase
     {
         GroupSchedule::create([
             'group_id' => $group->id,
-            'day_of_week' => \Illuminate\Support\Carbon::parse($date)->dayOfWeek,
+            'day_of_week' => Carbon::parse($date)->dayOfWeek,
             'starts_at' => '09:00',
             'ends_at' => '10:00',
             'is_active' => true,

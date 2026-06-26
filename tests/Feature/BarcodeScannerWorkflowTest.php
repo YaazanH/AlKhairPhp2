@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\AcademicYear;
 use App\Models\AppSetting;
+use App\Models\AttendanceStatus;
 use App\Models\BarcodeAction;
 use App\Models\BarcodeScanImport;
 use App\Models\Course;
@@ -169,6 +170,41 @@ class BarcodeScannerWorkflowTest extends TestCase
         $this->assertSame(0, $plainNumberPreview['error_count']);
     }
 
+    public function test_scanner_attendance_applies_default_status_when_creating_new_day(): void
+    {
+        $this->seed();
+
+        $manager = User::factory()->create(['username' => 'barcode-manager-default-status']);
+        $manager->assignRole('manager');
+        $this->actingAs($manager);
+
+        $present = AttendanceStatus::query()->where('code', 'present')->firstOrFail();
+        $absent = AttendanceStatus::query()->where('code', 'absent')->firstOrFail();
+
+        AttendanceStatus::query()->update(['is_default' => false]);
+        $absent->update(['is_default' => true]);
+
+        $scannedEnrollment = $this->makeEnrollment();
+        $defaultedEnrollment = $this->makeEnrollmentInGroup($scannedEnrollment->group);
+        app(BarcodeActionCatalogService::class)->syncReferenceActions();
+
+        app(ScannerDumpImportService::class)->apply(
+            $scannedEnrollment->group->course_id,
+            '2026-04-14',
+            "ACT-ATT-PRESENT\n{$scannedEnrollment->student_id}",
+            $manager,
+        );
+
+        $this->assertDatabaseHas('student_attendance_records', [
+            'attendance_status_id' => $present->id,
+            'enrollment_id' => $scannedEnrollment->id,
+        ]);
+        $this->assertDatabaseHas('student_attendance_records', [
+            'attendance_status_id' => $absent->id,
+            'enrollment_id' => $defaultedEnrollment->id,
+        ]);
+    }
+
     public function test_student_scan_before_action_is_rejected_without_writes(): void
     {
         $this->seed();
@@ -287,6 +323,29 @@ class BarcodeScannerWorkflowTest extends TestCase
             'monthly_fee' => 0,
             'is_active' => true,
         ]);
+
+        return Enrollment::query()->create([
+            'student_id' => $student->id,
+            'group_id' => $group->id,
+            'enrolled_at' => '2026-01-01',
+            'status' => 'active',
+        ])->fresh(['student', 'group.course']);
+    }
+
+    protected function makeEnrollmentInGroup(Group $group): Enrollment
+    {
+        $parent = ParentProfile::query()->create([
+            'father_name' => 'Barcode Parent Same Group',
+            'is_active' => true,
+        ]);
+
+        $student = Student::query()->create([
+            'parent_id' => $parent->id,
+            'first_name' => 'Defaulted',
+            'last_name' => 'Student',
+            'birth_date' => '2015-01-01',
+            'status' => 'active',
+        ])->fresh();
 
         return Enrollment::query()->create([
             'student_id' => $student->id,

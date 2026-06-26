@@ -17,9 +17,9 @@ use App\Models\QuranTest;
 use App\Models\QuranTestType;
 use App\Models\StudentAttendanceRecord;
 use App\Models\StudentPageAchievement;
+use App\Models\Teacher;
 use App\Models\TeacherAttendanceDay;
 use App\Models\TeacherAttendanceRecord;
-use App\Models\Teacher;
 use App\Services\AccessScopeService;
 use App\Services\AssessmentService;
 use App\Services\PointLedgerService;
@@ -46,7 +46,6 @@ class OperationalWriteController extends Controller
             'records.*.attendance_status_id' => ['required', 'integer', Rule::exists('attendance_statuses', 'id')->where(fn ($query) => $query->where('is_active', true)->whereIn('scope', ['student', 'both']))],
             'records.*.enrollment_id' => ['required', 'integer', Rule::exists('enrollments', 'id')->whereNull('deleted_at')],
             'records.*.notes' => ['nullable', 'string'],
-            'status' => ['nullable', 'string', 'max:50'],
         ]);
 
         $enrollmentIds = collect($validated['records'])->pluck('enrollment_id')->unique()->values();
@@ -71,14 +70,20 @@ class OperationalWriteController extends Controller
 
         $day = DB::transaction(function () use ($request, $group, $validated, $enrollments, $attendanceStatuses) {
             $notes = blank($validated['notes'] ?? null) ? null : $validated['notes'];
-            $status = $validated['status'] ?? 'completed';
             $studentAttendanceDay = app(StudentAttendanceDayService::class)->createOrSyncDay(
                 $validated['attendance_date'],
                 collect([$group]),
                 $request->user(),
                 $notes,
-                $status,
+                'open',
             );
+
+            if ($studentAttendanceDay->status === 'closed') {
+                abort(response()->json([
+                    'message' => __('workflow.student_attendance.messages.closed_day_locked'),
+                ], 422));
+            }
+
             $day = GroupAttendanceDay::query()
                 ->where('student_attendance_day_id', $studentAttendanceDay->id)
                 ->where('group_id', $group->id)
@@ -87,40 +92,16 @@ class OperationalWriteController extends Controller
             $day->update([
                 'created_by' => $day->created_by ?? $request->user()->id,
                 'notes' => $notes,
-                'status' => $status,
             ]);
 
-            $ledger = app(PointLedgerService::class);
-
             foreach ($validated['records'] as $recordInput) {
-                $record = StudentAttendanceRecord::query()->updateOrCreate(
-                    [
-                        'group_attendance_day_id' => $day->id,
-                        'enrollment_id' => $recordInput['enrollment_id'],
-                    ],
-                    [
-                        'attendance_status_id' => $recordInput['attendance_status_id'],
-                        'notes' => blank($recordInput['notes'] ?? null) ? null : $recordInput['notes'],
-                    ],
+                app(StudentAttendanceDayService::class)->recordEnrollmentStatus(
+                    $studentAttendanceDay,
+                    $enrollments[$recordInput['enrollment_id']],
+                    $attendanceStatuses[$recordInput['attendance_status_id']],
+                    blank($recordInput['notes'] ?? null) ? null : $recordInput['notes'],
                 );
-
-                $enrollment = $enrollments[$record->enrollment_id];
-                $attendanceStatus = $attendanceStatuses[$record->attendance_status_id];
-
-                $ledger->voidSourceTransactions('student_attendance_record', $record->id, 'Superseded by an integration API attendance update.');
-
-                $ledger->recordAttendanceStatusPoints(
-                    $enrollment,
-                    'student_attendance_record',
-                    $record->id,
-                    $attendanceStatus,
-                    'Automatic attendance points from the integration API.',
-                );
-
-                $ledger->syncEnrollmentCaches($enrollment->fresh(['student']));
             }
-
-            app(StudentAttendanceDayService::class)->syncAggregateStatus($studentAttendanceDay);
 
             return $day->fresh(['records.status', 'records.enrollment.student']);
         });
@@ -136,9 +117,9 @@ class OperationalWriteController extends Controller
                 'enrollment_id' => $record->enrollment_id,
                 'notes' => $record->notes,
                 'student_id' => $record->enrollment?->student_id,
-                'student_name' => trim(($record->enrollment?->student?->first_name ?? '').' '.($record->enrollment?->student?->last_name ?? '')),
+                'student_name' => $record->enrollment?->student?->full_name,
             ])->values()->all(),
-            'status' => $day->status,
+            'status' => $day->studentAttendanceDay?->status ?? $day->status,
         ]);
     }
 

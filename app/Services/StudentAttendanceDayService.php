@@ -9,10 +9,10 @@ use App\Models\GroupAttendanceDay;
 use App\Models\StudentAttendanceDay;
 use App\Models\StudentAttendanceRecord;
 use App\Models\User;
-use InvalidArgumentException;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use InvalidArgumentException;
 
 class StudentAttendanceDayService
 {
@@ -34,7 +34,6 @@ class StudentAttendanceDayService
                 $day->fill([
                     'attendance_date' => $attendanceDate,
                     'course_id' => $courseId,
-                    'status' => $status,
                     'notes' => $notes ?: null,
                     'created_by' => $day->created_by ?? $actor?->id,
                 ])->save();
@@ -50,7 +49,7 @@ class StudentAttendanceDayService
 
             $groups
                 ->unique('id')
-                ->each(function (Group $group) use ($attendanceDate, $day, $actor, $status): void {
+                ->each(function (Group $group) use ($attendanceDate, $day, $actor): void {
                     $groupDay = GroupAttendanceDay::query()
                         ->where('group_id', $group->id)
                         ->whereDate('attendance_date', $attendanceDate)
@@ -60,9 +59,7 @@ class StudentAttendanceDayService
                     $groupDay->attendance_date = $attendanceDate;
                     $groupDay->created_by ??= $actor?->id;
 
-                    if (! $groupDay->exists) {
-                        $groupDay->status = $status;
-                    }
+                    $groupDay->status = $day->status;
 
                     $groupDay->save();
                 });
@@ -120,16 +117,8 @@ class StudentAttendanceDayService
 
     public function syncAggregateStatus(StudentAttendanceDay $day): StudentAttendanceDay
     {
-        if (! $day->groupAttendanceDays()->exists()) {
-            return $day->fresh(['groupAttendanceDays']);
-        }
-
-        $hasOpenSessions = $day->groupAttendanceDays()
-            ->where('status', '!=', 'closed')
-            ->exists();
-
-        $day->update([
-            'status' => $hasOpenSessions ? 'open' : 'closed',
+        $day->groupAttendanceDays()->update([
+            'status' => $day->status,
         ]);
 
         return $day->fresh(['groupAttendanceDays']);
@@ -151,6 +140,49 @@ class StudentAttendanceDayService
             ]);
 
             return $day->fresh(['groupAttendanceDays']);
+        });
+    }
+
+    public function recordEnrollmentStatus(StudentAttendanceDay $day, Enrollment $enrollment, AttendanceStatus $status, ?string $notes = null): StudentAttendanceRecord
+    {
+        if ($day->fresh()->status === 'closed') {
+            throw new InvalidArgumentException(__('workflow.student_attendance.messages.closed_day_locked'));
+        }
+
+        $groupDay = GroupAttendanceDay::query()
+            ->where('student_attendance_day_id', $day->id)
+            ->where('group_id', $enrollment->group_id)
+            ->first();
+
+        if (! $groupDay) {
+            throw new InvalidArgumentException(__('workflow.student_attendance.messages.enrollment_not_in_day'));
+        }
+
+        return DB::transaction(function () use ($day, $enrollment, $groupDay, $notes, $status): StudentAttendanceRecord {
+            $record = StudentAttendanceRecord::query()->updateOrCreate(
+                [
+                    'group_attendance_day_id' => $groupDay->id,
+                    'enrollment_id' => $enrollment->id,
+                ],
+                [
+                    'attendance_status_id' => $status->id,
+                    'notes' => $notes,
+                ],
+            );
+
+            $ledger = app(PointLedgerService::class);
+            $ledger->voidSourceTransactions('student_attendance_record', $record->id, __('workflow.student_attendance.messages.void_reason'));
+            $ledger->recordAttendanceStatusPoints(
+                $enrollment,
+                'student_attendance_record',
+                $record->id,
+                $status,
+                __('workflow.student_attendance.messages.automatic_points', ['status' => $status->name]),
+            );
+            $ledger->syncEnrollmentCaches($enrollment->fresh(['student']));
+            $this->syncAggregateStatus($day);
+
+            return $record->fresh(['status']);
         });
     }
 

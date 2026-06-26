@@ -96,6 +96,7 @@ Route::middleware(['auth'])->group(function () {
     Volt::route('student-attendance', 'student-attendance.index')->middleware('permission:attendance.student.view')->name('student-attendance.index');
     Volt::route('student-attendance/groups/{groupAttendanceDay}', 'student-attendance.mark')->middleware('permission:attendance.student.view')->name('student-attendance.mark');
     Volt::route('student-attendance/days/{studentAttendanceDay}', 'student-attendance.show')->middleware('permission:attendance.student.view')->name('student-attendance.show');
+    Volt::route('student-attendance/days/{studentAttendanceDay}/quick', 'student-attendance.quick')->middleware('permission:attendance.student.view')->name('student-attendance.quick');
     Volt::route('groups', 'groups.index')->middleware('permission:groups.view')->name('groups.index');
     Volt::route('groups/{group}/schedules', 'groups.schedules')->middleware('permission:groups.view')->name('groups.schedules');
     Route::get('groups/export', [AdminExportController::class, 'groups'])->middleware('permission:groups.view')->name('groups.export');
