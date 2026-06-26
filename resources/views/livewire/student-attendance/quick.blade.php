@@ -206,6 +206,7 @@ new class extends Component
         }
 
         if ($this->markEnrollment($enrollments->first()->id)) {
+            $this->dispatch('quick-attendance-scan-succeeded', message: $this->scan_feedback);
             $this->scan_value = '';
         }
     }

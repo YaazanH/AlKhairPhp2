@@ -679,6 +679,70 @@ function initializePublicGallerySliders() {
 document.addEventListener('DOMContentLoaded', initializePublicGallerySliders);
 document.addEventListener('livewire:navigated', initializePublicGallerySliders);
 
+function adminToastRegion() {
+    let region = document.getElementById('admin-toast-region');
+
+    if (region) {
+        return region;
+    }
+
+    region = document.createElement('div');
+    region.id = 'admin-toast-region';
+    region.className = 'admin-toast-region';
+    region.setAttribute('aria-live', 'polite');
+    region.setAttribute('aria-atomic', 'true');
+    document.body.appendChild(region);
+
+    return region;
+}
+
+let lastAdminToastText = '';
+let lastAdminToastAt = 0;
+
+function showAdminToast(message, type = 'success') {
+    const text = String(message || '').trim();
+    const now = Date.now();
+
+    if (!text) {
+        return;
+    }
+
+    if (text === lastAdminToastText && now - lastAdminToastAt < 700) {
+        return;
+    }
+
+    lastAdminToastText = text;
+    lastAdminToastAt = now;
+
+    const toast = document.createElement('div');
+    toast.className = `admin-toast admin-toast--${type}`;
+    toast.setAttribute('role', 'status');
+    toast.textContent = text;
+
+    adminToastRegion().appendChild(toast);
+
+    requestAnimationFrame(() => {
+        toast.classList.add('is-visible');
+    });
+
+    window.setTimeout(() => {
+        toast.classList.remove('is-visible');
+        window.setTimeout(() => toast.remove(), 220);
+    }, 3600);
+}
+
+function handleQuickAttendanceScanSucceeded(event) {
+    const detail = Array.isArray(event) ? event[0] : event?.detail ?? event;
+
+    showAdminToast(detail?.message, 'success');
+}
+
+document.addEventListener('quick-attendance-scan-succeeded', handleQuickAttendanceScanSucceeded);
+
+document.addEventListener('livewire:init', () => {
+    window.Livewire?.on?.('quick-attendance-scan-succeeded', handleQuickAttendanceScanSucceeded);
+});
+
 function initializeQuickAttendanceScanners() {
     document.querySelectorAll('[data-quick-attendance-scanner]').forEach((root) => {
         if (!(root instanceof HTMLElement) || root.dataset.bound === 'true') {
