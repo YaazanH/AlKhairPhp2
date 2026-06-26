@@ -68,7 +68,8 @@
             (() => {
                 const printButton = document.querySelector('[data-print-trigger]');
                 const trackingNode = document.getElementById('student-card-print-tracking');
-                const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+                const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
+                    || document.querySelector('input[name="_token"]')?.value;
                 let didRecord = false;
 
                 function recordStudentCardPrint() {

@@ -250,7 +250,9 @@
             const markPrintedSuccessMessage = @json(__('print_templates.print.setup.messages.marked_printed'));
             const markPrintedEmptyMessage = @json(__('print_templates.print.setup.errors.no_students_selected'));
             const markPrintedFailedMessage = @json(__('print_templates.print.setup.errors.mark_printed_failed'));
-            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
+                || document.querySelector('input[name="_token"]')?.value
+                || '';
 
             function applyPageSize() {
                 const layout = JSON.parse(pageSizeSelect?.selectedOptions?.[0]?.dataset.layout || '{}');

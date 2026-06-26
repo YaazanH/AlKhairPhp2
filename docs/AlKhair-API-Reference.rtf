@@ -1,0 +1,1212 @@
+{\\rtf1\\ansi\\deff0
+{\\fonttbl{\\f0 Segoe UI;}{\\f1 Consolas;}}
+{\\colortbl;\\red28\\green48\\blue40;\\red80\\green80\\blue80;\\red245\\green247\\blue245;}
+\\viewkind4\\uc1\\pard\\sa120\\sl276\\slmult1\\lang1033\\f0\\fs22
+\\pard\\sa180\\sl300\\slmult1\\b\\cf1\\fs34 AlKhair API Reference\\b0\\cf0\\fs22\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 This document reflects the API routes currently defined in the codebase as of 2026-06-23.\\par
+\\par
+\\pard\\sa140\\sl280\\slmult1\\b\\cf1\\fs28 Base URL\\b0\\cf0\\fs22\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 Use your application base URL, then add `/api`.\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 Example:\\par
+\\par
+\\pard\\sa60\\sl240\\slmult1\\cbpat3\\f1\\fs18
+https://your-domain.com/api\\line
+\\pard\\sa120\\sl276\\slmult1\\f0\\fs22\\cbpat0
+\\par
+\\pard\\sa100\\sl276\\slmult1 Versioned endpoints currently use:\\par
+\\par
+\\pard\\sa60\\sl240\\slmult1\\cbpat3\\f1\\fs18
+/api/v1/...\\line
+\\pard\\sa120\\sl276\\slmult1\\f0\\fs22\\cbpat0
+\\par
+\\pard\\sa140\\sl280\\slmult1\\b\\cf1\\fs28 Authentication\\b0\\cf0\\fs22\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 The API uses Laravel Sanctum bearer tokens.\\par
+\\par
+\\pard\\sa120\\sl276\\slmult1\\b\\fs24 Login and get token\\b0\\fs22\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 `POST /api/v1/auth/token`\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 Request:\\par
+\\par
+\\pard\\sa60\\sl240\\slmult1\\cbpat3\\f1\\fs18
+\\{\\line
+  "device_name": "android-phone",\\line
+  "login": "username-or-email-or-phone",\\line
+  "password": "your-password"\\line
+\\}\\line
+\\pard\\sa120\\sl276\\slmult1\\f0\\fs22\\cbpat0
+\\par
+\\pard\\sa100\\sl276\\slmult1 Successful response `201`:\\par
+\\par
+\\pard\\sa60\\sl240\\slmult1\\cbpat3\\f1\\fs18
+\\{\\line
+  "token": "plain-text-token",\\line
+  "token_type": "Bearer",\\line
+  "abilities": [\\line
+    "students.view",\\line
+    "groups.view"\\line
+  ],\\line
+  "user": \\{\\line
+    "id": 1,\\line
+    "name": "Alkhair Admin",\\line
+    "username": "admin",\\line
+    "roles": [\\line
+      "manager"\\line
+    ],\\line
+    "permissions": [\\line
+      "students.view",\\line
+      "groups.view"\\line
+    ]\\line
+  \\}\\line
+\\}\\line
+\\pard\\sa120\\sl276\\slmult1\\f0\\fs22\\cbpat0
+\\par
+\\pard\\sa100\\sl276\\slmult1 Use the token in the `Authorization` header:\\par
+\\par
+\\pard\\sa60\\sl240\\slmult1\\cbpat3\\f1\\fs18
+Authorization: Bearer plain-text-token\\line
+\\pard\\sa120\\sl276\\slmult1\\f0\\fs22\\cbpat0
+\\par
+\\pard\\sa120\\sl276\\slmult1\\b\\fs24 Logout and revoke current token\\b0\\fs22\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 `DELETE /api/v1/auth/token`\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 Response: `204 No Content`\\par
+\\par
+\\pard\\sa120\\sl276\\slmult1\\b\\fs24 Authenticated user\\b0\\fs22\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 `GET /api/user`\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 Response: the authenticated Laravel user object.\\par
+\\par
+\\pard\\sa140\\sl280\\slmult1\\b\\cf1\\fs28 Important Auth Note\\b0\\cf0\\fs22\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 Current API controllers authorize requests using the logged-in user's application permissions such as `students.view`, `memorization.record`, and `attendance.student.take`.\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 The token `abilities` returned by the login endpoint are currently informational and are not directly checked inside these controllers with `tokenCan()`.\\par
+\\par
+\\pard\\sa140\\sl280\\slmult1\\b\\cf1\\fs28 Common Behavior\\b0\\cf0\\fs22\\par
+\\par
+\\pard\\li360\\fi-180\\sa60 \\bullet\tab Most list endpoints return Laravel paginator JSON.\\par
+\\pard\\li360\\fi-180\\sa60 \\bullet\tab Common errors:\\par
+\\pard\\sa100\\sl276\\slmult1   - `401` unauthenticated\\par
+\\pard\\sa100\\sl276\\slmult1   - `403` forbidden or inactive account\\par
+\\pard\\sa100\\sl276\\slmult1   - `422` validation or business-rule error\\par
+\\pard\\li360\\fi-180\\sa60 \\bullet\tab Most protected endpoints are also scope-aware, so a user may have permission but still be blocked from records outside their scope.\\par
+\\par
+\\pard\\sa140\\sl280\\slmult1\\b\\cf1\\fs28 Standard Paginated Response Shape\\b0\\cf0\\fs22\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 List endpoints return a paginator like this:\\par
+\\par
+\\pard\\sa60\\sl240\\slmult1\\cbpat3\\f1\\fs18
+\\{\\line
+  "current_page": 1,\\line
+  "data": [],\\line
+  "first_page_url": "https://example.com/api/v1/students?page=1",\\line
+  "from": 1,\\line
+  "last_page": 3,\\line
+  "last_page_url": "https://example.com/api/v1/students?page=3",\\line
+  "links": [],\\line
+  "next_page_url": "https://example.com/api/v1/students?page=2",\\line
+  "path": "https://example.com/api/v1/students",\\line
+  "per_page": 15,\\line
+  "prev_page_url": null,\\line
+  "to": 15,\\line
+  "total": 38\\line
+\\}\\line
+\\pard\\sa120\\sl276\\slmult1\\f0\\fs22\\cbpat0
+\\par
+\\pard\\sa140\\sl280\\slmult1\\b\\cf1\\fs28 Read Endpoints\\b0\\cf0\\fs22\\par
+\\par
+\\pard\\sa120\\sl276\\slmult1\\b\\fs24 `GET /api/v1/students`\\b0\\fs22\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 Permission: `students.view`\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 Query parameters:\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 | Name | Type | Notes |\\par
+\\pard\\sa100\\sl276\\slmult1 | --- | --- | --- |\\par
+\\pard\\sa100\\sl276\\slmult1 | `group_id` | integer | Optional |\\par
+\\pard\\sa100\\sl276\\slmult1 | `parent_id` | integer | Optional |\\par
+\\pard\\sa100\\sl276\\slmult1 | `status` | string | Optional |\\par
+\\pard\\sa100\\sl276\\slmult1 | `per_page` | integer | Optional, min 1, max 100 |\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 Each item in `data`:\\par
+\\par
+\\pard\\sa60\\sl240\\slmult1\\cbpat3\\f1\\fs18
+\\{\\line
+  "id": 1,\\line
+  "student_number": "STU-000001",\\line
+  "first_name": "Ahmad",\\line
+  "last_name": "Ali",\\line
+  "birth_date": "2014-04-10",\\line
+  "status": "active",\\line
+  "parent": "Samer Ali",\\line
+  "grade_level": "Grade 4",\\line
+  "current_juz": 3,\\line
+  "school_name": "Al Amal School",\\line
+  "enrollments_count": 2\\line
+\\}\\line
+\\pard\\sa120\\sl276\\slmult1\\f0\\fs22\\cbpat0
+\\par
+\\pard\\sa120\\sl276\\slmult1\\b\\fs24 `GET /api/v1/groups`\\b0\\fs22\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 Permission: `groups.view`\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 Query parameters:\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 | Name | Type | Notes |\\par
+\\pard\\sa100\\sl276\\slmult1 | --- | --- | --- |\\par
+\\pard\\sa100\\sl276\\slmult1 | `academic_year_id` | integer | Optional |\\par
+\\pard\\sa100\\sl276\\slmult1 | `teacher_id` | integer | Optional |\\par
+\\pard\\sa100\\sl276\\slmult1 | `is_active` | boolean | Optional |\\par
+\\pard\\sa100\\sl276\\slmult1 | `per_page` | integer | Optional, min 1, max 100 |\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 Each item in `data`:\\par
+\\par
+\\pard\\sa60\\sl240\\slmult1\\cbpat3\\f1\\fs18
+\\{\\line
+  "id": 1,\\line
+  "name": "Boys Hifz Circle",\\line
+  "course": "Quran Course",\\line
+  "academic_year": "2026",\\line
+  "teacher": "Yaman Al-Faisal",\\line
+  "assistant_teacher": "Khaled Ali",\\line
+  "capacity": 20,\\line
+  "starts_on": "2026-01-01",\\line
+  "ends_on": "2026-12-31",\\line
+  "is_active": true,\\line
+  "enrollments_count": 17\\line
+\\}\\line
+\\pard\\sa120\\sl276\\slmult1\\f0\\fs22\\cbpat0
+\\par
+\\pard\\sa120\\sl276\\slmult1\\b\\fs24 `GET /api/v1/enrollments`\\b0\\fs22\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 Permission: `enrollments.view`\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 Query parameters:\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 | Name | Type | Notes |\\par
+\\pard\\sa100\\sl276\\slmult1 | --- | --- | --- |\\par
+\\pard\\sa100\\sl276\\slmult1 | `group_id` | integer | Optional |\\par
+\\pard\\sa100\\sl276\\slmult1 | `student_id` | integer | Optional |\\par
+\\pard\\sa100\\sl276\\slmult1 | `status` | string | Optional |\\par
+\\pard\\sa100\\sl276\\slmult1 | `per_page` | integer | Optional, min 1, max 100 |\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 Each item in `data`:\\par
+\\par
+\\pard\\sa60\\sl240\\slmult1\\cbpat3\\f1\\fs18
+\\{\\line
+  "id": 1,\\line
+  "status": "active",\\line
+  "enrolled_at": "2026-09-01",\\line
+  "left_at": null,\\line
+  "final_points": 125,\\line
+  "memorized_pages": 44,\\line
+  "group": \\{\\line
+    "id": 4,\\line
+    "name": "Boys Hifz Circle",\\line
+    "course_name": "Quran Course"\\line
+  \\},\\line
+  "student": \\{\\line
+    "id": 9,\\line
+    "full_name": "Ahmad Ali",\\line
+    "parent_name": "Samer Ali"\\line
+  \\}\\line
+\\}\\line
+\\pard\\sa120\\sl276\\slmult1\\f0\\fs22\\cbpat0
+\\par
+\\pard\\sa120\\sl276\\slmult1\\b\\fs24 `GET /api/v1/assessments`\\b0\\fs22\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 Permission: `assessments.view`\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 Query parameters:\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 | Name | Type | Notes |\\par
+\\pard\\sa100\\sl276\\slmult1 | --- | --- | --- |\\par
+\\pard\\sa100\\sl276\\slmult1 | `assessment_type_id` | integer | Optional |\\par
+\\pard\\sa100\\sl276\\slmult1 | `group_id` | integer | Optional |\\par
+\\pard\\sa100\\sl276\\slmult1 | `is_active` | boolean | Optional |\\par
+\\pard\\sa100\\sl276\\slmult1 | `per_page` | integer | Optional, min 1, max 100 |\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 Each item in `data`:\\par
+\\par
+\\pard\\sa60\\sl240\\slmult1\\cbpat3\\f1\\fs18
+\\{\\line
+  "id": 1,\\line
+  "title": "Weekly Quiz",\\line
+  "description": "Revision quiz",\\line
+  "scheduled_at": "2026-10-05T10:00:00+03:00",\\line
+  "due_at": "2026-10-07T18:00:00+03:00",\\line
+  "total_mark": 100.0,\\line
+  "pass_mark": 60.0,\\line
+  "is_active": true,\\line
+  "results_count": 15,\\line
+  "type": "Quiz",\\line
+  "group": \\{\\line
+    "id": 4,\\line
+    "name": "Boys Hifz Circle",\\line
+    "course_name": "Quran Course"\\line
+  \\}\\line
+\\}\\line
+\\pard\\sa120\\sl276\\slmult1\\f0\\fs22\\cbpat0
+\\par
+\\pard\\sa120\\sl276\\slmult1\\b\\fs24 `GET /api/v1/activities`\\b0\\fs22\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 Permission: `activities.view`\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 Query parameters:\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 | Name | Type | Notes |\\par
+\\pard\\sa100\\sl276\\slmult1 | --- | --- | --- |\\par
+\\pard\\sa100\\sl276\\slmult1 | `group_id` | integer | Optional |\\par
+\\pard\\sa100\\sl276\\slmult1 | `is_active` | boolean | Optional |\\par
+\\pard\\sa100\\sl276\\slmult1 | `per_page` | integer | Optional, min 1, max 100 |\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 Each item in `data`:\\par
+\\par
+\\pard\\sa60\\sl240\\slmult1\\cbpat3\\f1\\fs18
+\\{\\line
+  "id": 1,\\line
+  "title": "Family Trip",\\line
+  "description": "Monthly activity",\\line
+  "activity_date": "2026-10-10",\\line
+  "fee_amount": 20.0,\\line
+  "expected_revenue": 340.0,\\line
+  "collected_revenue": 280.0,\\line
+  "expense_total": 95.0,\\line
+  "is_active": true,\\line
+  "group": \\{\\line
+    "id": 4,\\line
+    "name": "Boys Hifz Circle",\\line
+    "course_name": "Quran Course"\\line
+  \\}\\line
+\\}\\line
+\\pard\\sa120\\sl276\\slmult1\\f0\\fs22\\cbpat0
+\\par
+\\pard\\sa120\\sl276\\slmult1\\b\\fs24 `GET /api/v1/invoices`\\b0\\fs22\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 Permission: `invoices.view`\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 Query parameters:\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 | Name | Type | Notes |\\par
+\\pard\\sa100\\sl276\\slmult1 | --- | --- | --- |\\par
+\\pard\\sa100\\sl276\\slmult1 | `invoice_type` | string | Optional |\\par
+\\pard\\sa100\\sl276\\slmult1 | `parent_id` | integer | Optional |\\par
+\\pard\\sa100\\sl276\\slmult1 | `status` | string | Optional |\\par
+\\pard\\sa100\\sl276\\slmult1 | `per_page` | integer | Optional, min 1, max 100 |\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 Each item in `data`:\\par
+\\par
+\\pard\\sa60\\sl240\\slmult1\\cbpat3\\f1\\fs18
+\\{\\line
+  "id": 1,\\line
+  "invoice_no": "INV-000001",\\line
+  "invoice_type": "student_fee",\\line
+  "issue_date": "2026-10-01",\\line
+  "due_date": "2026-10-15",\\line
+  "status": "unpaid",\\line
+  "total": 50.0,\\line
+  "discount": 0.0,\\line
+  "paid_total": 20.0,\\line
+  "balance": 30.0,\\line
+  "items_count": 2,\\line
+  "parent": "Samer Ali"\\line
+\\}\\line
+\\pard\\sa120\\sl276\\slmult1\\f0\\fs22\\cbpat0
+\\par
+\\pard\\sa120\\sl276\\slmult1\\b\\fs24 `GET /api/v1/reports/overview`\\b0\\fs22\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 Permission: `reports.view`\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 Query parameters:\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 | Name | Type | Notes |\\par
+\\pard\\sa100\\sl276\\slmult1 | --- | --- | --- |\\par
+\\pard\\sa100\\sl276\\slmult1 | `academic_year_id` | integer | Optional |\\par
+\\pard\\sa100\\sl276\\slmult1 | `group_id` | integer | Optional |\\par
+\\pard\\sa100\\sl276\\slmult1 | `date_from` | date | Optional |\\par
+\\pard\\sa100\\sl276\\slmult1 | `date_to` | date | Optional, must be after or equal to `date_from` |\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 Response:\\par
+\\par
+\\pard\\sa60\\sl240\\slmult1\\cbpat3\\f1\\fs18
+\\{\\line
+  "filters": \\{\\line
+    "academic_year_id": 1,\\line
+    "assessment_type_id": null,\\line
+    "date_from": "2026-09-01",\\line
+    "date_to": "2026-09-30",\\line
+    "group_id": 4\\line
+  \\},\\line
+  "headline": \\{\\line
+    "active_enrollments": 17,\\line
+    "cash_collected": 420.0,\\line
+    "invoiced_amount": 510.0,\\line
+    "memorized_pages": 88,\\line
+    "net_points": 950,\\line
+    "students_in_scope": 17\\line
+  \\},\\line
+  "attendance": \\{\\line
+    "days_recorded": 8,\\line
+    "breakdown": [\\line
+      \\{\\line
+        "code": "present",\\line
+        "count": 90,\\line
+        "name": "Present"\\line
+      \\}\\line
+    ]\\line
+  \\},\\line
+  "assessments": \\{\\line
+    "results_recorded": 24,\\line
+    "passed": 18,\\line
+    "failed": 6,\\line
+    "average_score": 72.5\\line
+  \\},\\line
+  "memorization_leaderboard": [],\\line
+  "points_leaderboard": [],\\line
+  "finance": \\{\\line
+    "activity_collected": 150.0,\\line
+    "activity_expenses": 40.0,\\line
+    "activity_expected": 200.0,\\line
+    "activity_net": 110.0,\\line
+    "invoice_billed": 510.0,\\line
+    "invoice_collected": 270.0\\line
+  \\},\\line
+  "outstanding_invoices": []\\line
+\\}\\line
+\\pard\\sa120\\sl276\\slmult1\\f0\\fs22\\cbpat0
+\\par
+\\pard\\sa120\\sl276\\slmult1\\b\\fs24 `GET /api/v1/reports/teachers/daily-summary`\\b0\\fs22\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 Permission: `reports.view`\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 Query parameters:\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 | Name | Type | Notes |\\par
+\\pard\\sa100\\sl276\\slmult1 | --- | --- | --- |\\par
+\\pard\\sa100\\sl276\\slmult1 | `date` | date | Optional, defaults to today |\\par
+\\pard\\sa100\\sl276\\slmult1 | `include_empty` | boolean | Optional |\\par
+\\pard\\sa100\\sl276\\slmult1 | `teacher_id` | integer | Optional |\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 Response:\\par
+\\par
+\\pard\\sa60\\sl240\\slmult1\\cbpat3\\f1\\fs18
+\\{\\line
+  "date": "2026-09-10",\\line
+  "teachers_in_scope": 3,\\line
+  "teachers_with_activity": 2,\\line
+  "totals": \\{\\line
+    "absences_count": 4,\\line
+    "failed_final_attempts_count": 1,\\line
+    "failed_partial_attempts_count": 2,\\line
+    "memorization_sessions_count": 6,\\line
+    "memorized_pages": 18\\line
+  \\},\\line
+  "teachers": [\\line
+    \\{\\line
+      "teacher": \\{\\line
+        "id": 7,\\line
+        "name": "Yaman Al-Faisal"\\line
+      \\},\\line
+      "absences_count": 1,\\line
+      "failed_final_attempts_count": 0,\\line
+      "failed_partial_attempts_count": 1,\\line
+      "memorization_sessions_count": 3,\\line
+      "memorized_pages": 9,\\line
+      "absences": [],\\line
+      "memorization_entries": [],\\line
+      "failed_partial_attempts": [],\\line
+      "failed_final_attempts": []\\line
+    \\}\\line
+  ]\\line
+\\}\\line
+\\pard\\sa120\\sl276\\slmult1\\f0\\fs22\\cbpat0
+\\par
+\\pard\\sa140\\sl280\\slmult1\\b\\cf1\\fs28 Master Data Write Endpoints\\b0\\cf0\\fs22\\par
+\\par
+\\pard\\sa120\\sl276\\slmult1\\b\\fs24 `POST /api/v1/students`\\b0\\fs22\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 Permission: `students.create`\\par
+\\par
+\\pard\\sa120\\sl276\\slmult1\\b\\fs24 `PUT|PATCH /api/v1/students/\\{student\\}`\\b0\\fs22\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 Permission: `students.update`\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 Request body:\\par
+\\par
+\\pard\\sa60\\sl240\\slmult1\\cbpat3\\f1\\fs18
+\\{\\line
+  "first_name": "Ahmad",\\line
+  "last_name": "Ali",\\line
+  "birth_date": "2014-04-10",\\line
+  "parent_id": 3,\\line
+  "status": "active",\\line
+  "gender": "male",\\line
+  "grade_level_id": 2,\\line
+  "joined_at": "2026-09-01",\\line
+  "notes": "New student",\\line
+  "photo_path": "students/photos/ahmad.jpg",\\line
+  "quran_current_juz_id": 3,\\line
+  "school_name": "Al Amal School"\\line
+\\}\\line
+\\pard\\sa120\\sl276\\slmult1\\f0\\fs22\\cbpat0
+\\par
+\\pard\\sa100\\sl276\\slmult1 Allowed values:\\par
+\\par
+\\pard\\li360\\fi-180\\sa60 \\bullet\tab `status`: `active`, `inactive`, `graduated`, `blocked`\\par
+\\pard\\li360\\fi-180\\sa60 \\bullet\tab `gender`: `male`, `female`\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 Response:\\par
+\\par
+\\pard\\sa60\\sl240\\slmult1\\cbpat3\\f1\\fs18
+\\{\\line
+  "id": 1,\\line
+  "first_name": "Ahmad",\\line
+  "last_name": "Ali",\\line
+  "student_number": "STU-000001",\\line
+  "birth_date": "2014-04-10",\\line
+  "gender": "male",\\line
+  "status": "active",\\line
+  "parent_id": 3,\\line
+  "parent": "Samer Ali",\\line
+  "grade_level_id": 2,\\line
+  "grade_level": "Grade 4",\\line
+  "joined_at": "2026-09-01",\\line
+  "notes": "New student",\\line
+  "photo_path": "students/photos/ahmad.jpg",\\line
+  "quran_current_juz_id": 3,\\line
+  "quran_current_juz": 3,\\line
+  "school_name": "Al Amal School"\\line
+\\}\\line
+\\pard\\sa120\\sl276\\slmult1\\f0\\fs22\\cbpat0
+\\par
+\\pard\\sa120\\sl276\\slmult1\\b\\fs24 `DELETE /api/v1/students/\\{student\\}`\\b0\\fs22\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 Permission: `students.delete`\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 Response: `204 No Content`\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 Business rule:\\par
+\\par
+\\pard\\li360\\fi-180\\sa60 \\bullet\tab Returns `422` if the student still has enrollments.\\par
+\\par
+\\pard\\sa120\\sl276\\slmult1\\b\\fs24 `POST /api/v1/groups`\\b0\\fs22\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 Permission: `groups.create`\\par
+\\par
+\\pard\\sa120\\sl276\\slmult1\\b\\fs24 `PUT|PATCH /api/v1/groups/\\{group\\}`\\b0\\fs22\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 Permission: `groups.update`\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 Request body:\\par
+\\par
+\\pard\\sa60\\sl240\\slmult1\\cbpat3\\f1\\fs18
+\\{\\line
+  "name": "Boys Hifz Circle",\\line
+  "academic_year_id": 1,\\line
+  "course_id": 2,\\line
+  "teacher_id": 7,\\line
+  "assistant_teacher_id": 9,\\line
+  "capacity": 20,\\line
+  "starts_on": "2026-01-01",\\line
+  "ends_on": "2026-12-31",\\line
+  "grade_level_id": 2,\\line
+  "monthly_fee": 15,\\line
+  "is_active": true\\line
+\\}\\line
+\\pard\\sa120\\sl276\\slmult1\\f0\\fs22\\cbpat0
+\\par
+\\pard\\sa100\\sl276\\slmult1 Response:\\par
+\\par
+\\pard\\sa60\\sl240\\slmult1\\cbpat3\\f1\\fs18
+\\{\\line
+  "id": 4,\\line
+  "name": "Boys Hifz Circle",\\line
+  "academic_year_id": 1,\\line
+  "academic_year": "2026",\\line
+  "course_id": 2,\\line
+  "course": "Quran Course",\\line
+  "teacher_id": 7,\\line
+  "teacher": "Yaman Al-Faisal",\\line
+  "assistant_teacher_id": 9,\\line
+  "assistant_teacher": "Khaled Ali",\\line
+  "grade_level_id": 2,\\line
+  "grade_level": "Grade 4",\\line
+  "capacity": 20,\\line
+  "monthly_fee": 15.0,\\line
+  "starts_on": "2026-01-01",\\line
+  "ends_on": "2026-12-31",\\line
+  "is_active": true\\line
+\\}\\line
+\\pard\\sa120\\sl276\\slmult1\\f0\\fs22\\cbpat0
+\\par
+\\pard\\sa120\\sl276\\slmult1\\b\\fs24 `DELETE /api/v1/groups/\\{group\\}`\\b0\\fs22\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 Permission: `groups.delete`\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 Response: `204 No Content`\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 Business rule:\\par
+\\par
+\\pard\\li360\\fi-180\\sa60 \\bullet\tab Returns `422` if the group still has enrollments or schedules.\\par
+\\par
+\\pard\\sa120\\sl276\\slmult1\\b\\fs24 `POST /api/v1/enrollments`\\b0\\fs22\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 Permission: `enrollments.create`\\par
+\\par
+\\pard\\sa120\\sl276\\slmult1\\b\\fs24 `PUT|PATCH /api/v1/enrollments/\\{enrollment\\}`\\b0\\fs22\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 Permission: `enrollments.update`\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 Request body:\\par
+\\par
+\\pard\\sa60\\sl240\\slmult1\\cbpat3\\f1\\fs18
+\\{\\line
+  "student_id": 1,\\line
+  "group_id": 4,\\line
+  "enrolled_at": "2026-09-01",\\line
+  "status": "active",\\line
+  "left_at": null,\\line
+  "notes": "Late join"\\line
+\\}\\line
+\\pard\\sa120\\sl276\\slmult1\\f0\\fs22\\cbpat0
+\\par
+\\pard\\sa100\\sl276\\slmult1 Allowed values:\\par
+\\par
+\\pard\\li360\\fi-180\\sa60 \\bullet\tab `status`: `active`, `completed`, `cancelled`\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 Response:\\par
+\\par
+\\pard\\sa60\\sl240\\slmult1\\cbpat3\\f1\\fs18
+\\{\\line
+  "id": 8,\\line
+  "status": "active",\\line
+  "enrolled_at": "2026-09-01",\\line
+  "left_at": null,\\line
+  "notes": "Late join",\\line
+  "final_points": 0,\\line
+  "memorized_pages": 0,\\line
+  "group": \\{\\line
+    "id": 4,\\line
+    "name": "Boys Hifz Circle",\\line
+    "course_name": "Quran Course"\\line
+  \\},\\line
+  "student": \\{\\line
+    "id": 1,\\line
+    "full_name": "Ahmad Ali",\\line
+    "parent_name": "Samer Ali"\\line
+  \\}\\line
+\\}\\line
+\\pard\\sa120\\sl276\\slmult1\\f0\\fs22\\cbpat0
+\\par
+\\pard\\sa120\\sl276\\slmult1\\b\\fs24 `DELETE /api/v1/enrollments/\\{enrollment\\}`\\b0\\fs22\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 Permission: `enrollments.delete`\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 Response: `204 No Content`\\par
+\\par
+\\pard\\sa140\\sl280\\slmult1\\b\\cf1\\fs28 Operational Endpoints\\b0\\cf0\\fs22\\par
+\\par
+\\pard\\sa120\\sl276\\slmult1\\b\\fs24 `POST /api/v1/groups/\\{group\\}/attendance`\\b0\\fs22\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 Permission: `attendance.student.take`\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 Request body:\\par
+\\par
+\\pard\\sa60\\sl240\\slmult1\\cbpat3\\f1\\fs18
+\\{\\line
+  "attendance_date": "2026-10-05",\\line
+  "status": "completed",\\line
+  "notes": "Morning session",\\line
+  "records": [\\line
+    \\{\\line
+      "enrollment_id": 8,\\line
+      "attendance_status_id": 1,\\line
+      "notes": "On time"\\line
+    \\}\\line
+  ]\\line
+\\}\\line
+\\pard\\sa120\\sl276\\slmult1\\f0\\fs22\\cbpat0
+\\par
+\\pard\\sa100\\sl276\\slmult1 Response:\\par
+\\par
+\\pard\\sa60\\sl240\\slmult1\\cbpat3\\f1\\fs18
+\\{\\line
+  "id": 12,\\line
+  "group_id": 4,\\line
+  "attendance_date": "2026-10-05",\\line
+  "status": "completed",\\line
+  "records": [\\line
+    \\{\\line
+      "enrollment_id": 8,\\line
+      "student_id": 1,\\line
+      "student_name": "Ahmad Ali",\\line
+      "attendance_status_id": 1,\\line
+      "attendance_status_name": "Present",\\line
+      "attendance_status_code": "present",\\line
+      "notes": "On time"\\line
+    \\}\\line
+  ]\\line
+\\}\\line
+\\pard\\sa120\\sl276\\slmult1\\f0\\fs22\\cbpat0
+\\par
+\\pard\\sa120\\sl276\\slmult1\\b\\fs24 `POST /api/v1/teacher-attendance`\\b0\\fs22\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 Permission: `attendance.teacher.take`\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 Request body:\\par
+\\par
+\\pard\\sa60\\sl240\\slmult1\\cbpat3\\f1\\fs18
+\\{\\line
+  "attendance_date": "2026-10-05",\\line
+  "status": "completed",\\line
+  "notes": "Daily attendance",\\line
+  "records": [\\line
+    \\{\\line
+      "teacher_id": 7,\\line
+      "attendance_status_id": 5,\\line
+      "notes": "Arrived early"\\line
+    \\}\\line
+  ]\\line
+\\}\\line
+\\pard\\sa120\\sl276\\slmult1\\f0\\fs22\\cbpat0
+\\par
+\\pard\\sa100\\sl276\\slmult1 Response:\\par
+\\par
+\\pard\\sa60\\sl240\\slmult1\\cbpat3\\f1\\fs18
+\\{\\line
+  "id": 3,\\line
+  "attendance_date": "2026-10-05",\\line
+  "status": "completed",\\line
+  "records": [\\line
+    \\{\\line
+      "teacher_id": 7,\\line
+      "teacher_name": "Yaman Al-Faisal",\\line
+      "attendance_status_id": 5,\\line
+      "attendance_status_name": "Present",\\line
+      "attendance_status_code": "present",\\line
+      "notes": "Arrived early"\\line
+    \\}\\line
+  ]\\line
+\\}\\line
+\\pard\\sa120\\sl276\\slmult1\\f0\\fs22\\cbpat0
+\\par
+\\pard\\sa120\\sl276\\slmult1\\b\\fs24 `POST /api/v1/enrollments/\\{enrollment\\}/memorization`\\b0\\fs22\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 Permission: `memorization.record`\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 Request body:\\par
+\\par
+\\pard\\sa60\\sl240\\slmult1\\cbpat3\\f1\\fs18
+\\{\\line
+  "entry_type": "new",\\line
+  "from_page": 1,\\line
+  "to_page": 3,\\line
+  "recorded_on": "2026-10-06",\\line
+  "teacher_id": 7,\\line
+  "notes": "Strong recitation"\\line
+\\}\\line
+\\pard\\sa120\\sl276\\slmult1\\f0\\fs22\\cbpat0
+\\par
+\\pard\\sa100\\sl276\\slmult1 Allowed values:\\par
+\\par
+\\pard\\li360\\fi-180\\sa60 \\bullet\tab `entry_type`: `new`, `review`\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 Response `201`:\\par
+\\par
+\\pard\\sa60\\sl240\\slmult1\\cbpat3\\f1\\fs18
+\\{\\line
+  "id": 15,\\line
+  "entry_type": "new",\\line
+  "from_page": 1,\\line
+  "to_page": 3,\\line
+  "pages_count": 3,\\line
+  "new_pages_count": 3,\\line
+  "recorded_on": "2026-10-06",\\line
+  "teacher_id": 7,\\line
+  "teacher_name": "Yaman Al-Faisal",\\line
+  "notes": "Strong recitation"\\line
+\\}\\line
+\\pard\\sa120\\sl276\\slmult1\\f0\\fs22\\cbpat0
+\\par
+\\pard\\sa100\\sl276\\slmult1 Business rule:\\par
+\\par
+\\pard\\li360\\fi-180\\sa60 \\bullet\tab For `entry_type = "new"`, already-achieved pages return `422` with:\\par
+\\par
+\\pard\\sa60\\sl240\\slmult1\\cbpat3\\f1\\fs18
+\\{\\line
+  "message": "One or more pages were already achieved by this student.",\\line
+  "duplicates": [1, 2]\\line
+\\}\\line
+\\pard\\sa120\\sl276\\slmult1\\f0\\fs22\\cbpat0
+\\par
+\\pard\\sa120\\sl276\\slmult1\\b\\fs24 `POST /api/v1/enrollments/\\{enrollment\\}/quran-tests`\\b0\\fs22\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 Permission: one of:\\par
+\\par
+\\pard\\li360\\fi-180\\sa60 \\bullet\tab `quran-awqaf-tests.record`\\par
+\\pard\\li360\\fi-180\\sa60 \\bullet\tab `quran-tests.record`\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 Request body:\\par
+\\par
+\\pard\\sa60\\sl240\\slmult1\\cbpat3\\f1\\fs18
+\\{\\line
+  "juz_id": 3,\\line
+  "quran_test_type_id": 4,\\line
+  "tested_on": "2026-10-07",\\line
+  "teacher_id": 7,\\line
+  "status": "passed",\\line
+  "score": 95,\\line
+  "notes": "Excellent"\\line
+\\}\\line
+\\pard\\sa120\\sl276\\slmult1\\f0\\fs22\\cbpat0
+\\par
+\\pard\\sa100\\sl276\\slmult1 Allowed values:\\par
+\\par
+\\pard\\li360\\fi-180\\sa60 \\bullet\tab `status`: `passed`, `failed`, `cancelled`\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 Response `201`:\\par
+\\par
+\\pard\\sa60\\sl240\\slmult1\\cbpat3\\f1\\fs18
+\\{\\line
+  "id": 22,\\line
+  "attempt_no": 1,\\line
+  "juz_id": 3,\\line
+  "juz_number": 3,\\line
+  "quran_test_type_id": 4,\\line
+  "quran_test_type_name": "Awqaf",\\line
+  "score": 95.0,\\line
+  "status": "passed",\\line
+  "teacher_id": 7,\\line
+  "teacher_name": "Yaman Al-Faisal",\\line
+  "tested_on": "2026-10-07"\\line
+\\}\\line
+\\pard\\sa120\\sl276\\slmult1\\f0\\fs22\\cbpat0
+\\par
+\\pard\\sa100\\sl276\\slmult1 Current business rules:\\par
+\\par
+\\pard\\li360\\fi-180\\sa60 \\bullet\tab This endpoint currently only accepts the `awqaf` test type.\\par
+\\pard\\li360\\fi-180\\sa60 \\bullet\tab If the selected type is `partial` or `final`, it returns `422`.\\par
+\\pard\\li360\\fi-180\\sa60 \\bullet\tab Progression rules may also return `422` unless the user has override permissions.\\par
+\\par
+\\pard\\sa120\\sl276\\slmult1\\b\\fs24 `POST /api/v1/enrollments/\\{enrollment\\}/points/manual`\\b0\\fs22\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 Permission: `points.create-manual`\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 Request body:\\par
+\\par
+\\pard\\sa60\\sl240\\slmult1\\cbpat3\\f1\\fs18
+\\{\\line
+  "point_type_id": 2,\\line
+  "points": -3,\\line
+  "notes": "Penalty correction"\\line
+\\}\\line
+\\pard\\sa120\\sl276\\slmult1\\f0\\fs22\\cbpat0
+\\par
+\\pard\\sa100\\sl276\\slmult1 Response `201`:\\par
+\\par
+\\pard\\sa60\\sl240\\slmult1\\cbpat3\\f1\\fs18
+\\{\\line
+  "id": 90,\\line
+  "student_id": 1,\\line
+  "enrollment_id": 8,\\line
+  "point_type_id": 2,\\line
+  "point_type_name": "Discipline",\\line
+  "points": -3,\\line
+  "notes": "Penalty correction",\\line
+  "source_type": "manual",\\line
+  "entered_at": "2026-10-07T12:30:00+03:00",\\line
+  "voided_at": null,\\line
+  "voided_by": null\\line
+\\}\\line
+\\pard\\sa120\\sl276\\slmult1\\f0\\fs22\\cbpat0
+\\par
+\\pard\\sa120\\sl276\\slmult1\\b\\fs24 `POST /api/v1/points/\\{pointTransaction\\}/void`\\b0\\fs22\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 Permission: `points.void`\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 Request body: none\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 Response:\\par
+\\par
+\\pard\\sa60\\sl240\\slmult1\\cbpat3\\f1\\fs18
+\\{\\line
+  "id": 90,\\line
+  "student_id": 1,\\line
+  "enrollment_id": 8,\\line
+  "point_type_id": 2,\\line
+  "point_type_name": "Discipline",\\line
+  "points": -3,\\line
+  "notes": "Penalty correction",\\line
+  "source_type": "manual",\\line
+  "entered_at": "2026-10-07T12:30:00+03:00",\\line
+  "voided_at": "2026-10-07T13:00:00+03:00",\\line
+  "voided_by": 1\\line
+\\}\\line
+\\pard\\sa120\\sl276\\slmult1\\f0\\fs22\\cbpat0
+\\par
+\\pard\\sa120\\sl276\\slmult1\\b\\fs24 `POST /api/v1/assessments/\\{assessment\\}/results`\\b0\\fs22\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 Permission: `assessment-results.record`\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 Request body:\\par
+\\par
+\\pard\\sa60\\sl240\\slmult1\\cbpat3\\f1\\fs18
+\\{\\line
+  "results": [\\line
+    \\{\\line
+      "enrollment_id": 8,\\line
+      "attempt_no": 1,\\line
+      "score": 88,\\line
+      "status": "passed",\\line
+      "notes": "Good work"\\line
+    \\}\\line
+  ]\\line
+\\}\\line
+\\pard\\sa120\\sl276\\slmult1\\f0\\fs22\\cbpat0
+\\par
+\\pard\\sa100\\sl276\\slmult1 Allowed values:\\par
+\\par
+\\pard\\li360\\fi-180\\sa60 \\bullet\tab `status`: `passed`, `failed`, `absent`, `pending`\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 Response:\\par
+\\par
+\\pard\\sa60\\sl240\\slmult1\\cbpat3\\f1\\fs18
+\\{\\line
+  "assessment_id": 6,\\line
+  "results": [\\line
+    \\{\\line
+      "id": 11,\\line
+      "enrollment_id": 8,\\line
+      "student_id": 1,\\line
+      "student_name": "Ahmad Ali",\\line
+      "attempt_no": 1,\\line
+      "score": 88.0,\\line
+      "status": "passed",\\line
+      "notes": "Good work"\\line
+    \\}\\line
+  ]\\line
+\\}\\line
+\\pard\\sa120\\sl276\\slmult1\\f0\\fs22\\cbpat0
+\\par
+\\pard\\sa140\\sl280\\slmult1\\b\\cf1\\fs28 Finance Endpoints\\b0\\cf0\\fs22\\par
+\\par
+\\pard\\sa120\\sl276\\slmult1\\b\\fs24 `POST /api/v1/activities/\\{activity\\}/registrations`\\b0\\fs22\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 Permission: `activities.registrations.manage`\\par
+\\par
+\\pard\\sa120\\sl276\\slmult1\\b\\fs24 `PUT|PATCH /api/v1/activities/\\{activity\\}/registrations/\\{registration\\}`\\b0\\fs22\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 Permission: `activities.registrations.manage`\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 Request body:\\par
+\\par
+\\pard\\sa60\\sl240\\slmult1\\cbpat3\\f1\\fs18
+\\{\\line
+  "student_id": 1,\\line
+  "enrollment_id": 8,\\line
+  "fee_amount": 20,\\line
+  "status": "registered",\\line
+  "notes": "Family confirmed"\\line
+\\}\\line
+\\pard\\sa120\\sl276\\slmult1\\f0\\fs22\\cbpat0
+\\par
+\\pard\\sa100\\sl276\\slmult1 Allowed values:\\par
+\\par
+\\pard\\li360\\fi-180\\sa60 \\bullet\tab `status`: `registered`, `declined`, `cancelled`, `attended`\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 Response:\\par
+\\par
+\\pard\\sa60\\sl240\\slmult1\\cbpat3\\f1\\fs18
+\\{\\line
+  "id": 5,\\line
+  "activity_id": 3,\\line
+  "student_id": 1,\\line
+  "student_name": "Ahmad Ali",\\line
+  "enrollment_id": 8,\\line
+  "fee_amount": 20.0,\\line
+  "status": "registered",\\line
+  "notes": "Family confirmed"\\line
+\\}\\line
+\\pard\\sa120\\sl276\\slmult1\\f0\\fs22\\cbpat0
+\\par
+\\pard\\sa120\\sl276\\slmult1\\b\\fs24 `DELETE /api/v1/activities/\\{activity\\}/registrations/\\{registration\\}`\\b0\\fs22\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 Permission: `activities.registrations.manage`\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 Response: `204 No Content`\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 Business rule:\\par
+\\par
+\\pard\\li360\\fi-180\\sa60 \\bullet\tab Returns `422` if active payments still exist.\\par
+\\par
+\\pard\\sa120\\sl276\\slmult1\\b\\fs24 `POST /api/v1/activities/\\{activity\\}/payments`\\b0\\fs22\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 Permission: `activities.payments.manage`\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 Request body:\\par
+\\par
+\\pard\\sa60\\sl240\\slmult1\\cbpat3\\f1\\fs18
+\\{\\line
+  "activity_registration_id": 5,\\line
+  "amount": 20,\\line
+  "paid_at": "2026-10-08",\\line
+  "payment_method_id": 1,\\line
+  "reference_no": "REF-100",\\line
+  "notes": "Cash"\\line
+\\}\\line
+\\pard\\sa120\\sl276\\slmult1\\f0\\fs22\\cbpat0
+\\par
+\\pard\\sa100\\sl276\\slmult1 Response `201`:\\par
+\\par
+\\pard\\sa60\\sl240\\slmult1\\cbpat3\\f1\\fs18
+\\{\\line
+  "id": 14,\\line
+  "activity_registration_id": 5,\\line
+  "student_id": 1,\\line
+  "amount": 20.0,\\line
+  "paid_at": "2026-10-08",\\line
+  "payment_method_id": 1,\\line
+  "payment_method_name": "Cash",\\line
+  "reference_no": "REF-100",\\line
+  "voided_at": null,\\line
+  "voided_by": null\\line
+\\}\\line
+\\pard\\sa120\\sl276\\slmult1\\f0\\fs22\\cbpat0
+\\par
+\\pard\\sa120\\sl276\\slmult1\\b\\fs24 `POST /api/v1/activities/\\{activity\\}/payments/\\{activityPayment\\}/void`\\b0\\fs22\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 Permission: `activities.payments.manage`\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 Request body: none\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 Response:\\par
+\\par
+\\pard\\sa60\\sl240\\slmult1\\cbpat3\\f1\\fs18
+\\{\\line
+  "id": 14,\\line
+  "activity_registration_id": 5,\\line
+  "student_id": 1,\\line
+  "amount": 20.0,\\line
+  "paid_at": "2026-10-08",\\line
+  "payment_method_id": 1,\\line
+  "payment_method_name": "Cash",\\line
+  "reference_no": "REF-100",\\line
+  "voided_at": "2026-10-08T15:00:00+03:00",\\line
+  "voided_by": 1\\line
+\\}\\line
+\\pard\\sa120\\sl276\\slmult1\\f0\\fs22\\cbpat0
+\\par
+\\pard\\sa120\\sl276\\slmult1\\b\\fs24 `POST /api/v1/activities/\\{activity\\}/expenses`\\b0\\fs22\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 Permission: `activities.expenses.manage`\\par
+\\par
+\\pard\\sa120\\sl276\\slmult1\\b\\fs24 `PUT|PATCH /api/v1/activities/\\{activity\\}/expenses/\\{activityExpense\\}`\\b0\\fs22\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 Permission: `activities.expenses.manage`\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 Request body:\\par
+\\par
+\\pard\\sa60\\sl240\\slmult1\\cbpat3\\f1\\fs18
+\\{\\line
+  "amount": 45,\\line
+  "description": "Bus rental",\\line
+  "expense_category_id": 2,\\line
+  "spent_on": "2026-10-08"\\line
+\\}\\line
+\\pard\\sa120\\sl276\\slmult1\\f0\\fs22\\cbpat0
+\\par
+\\pard\\sa100\\sl276\\slmult1 Response:\\par
+\\par
+\\pard\\sa60\\sl240\\slmult1\\cbpat3\\f1\\fs18
+\\{\\line
+  "id": 6,\\line
+  "activity_id": 3,\\line
+  "amount": 45.0,\\line
+  "description": "Bus rental",\\line
+  "expense_category_id": 2,\\line
+  "expense_category_name": "Transport",\\line
+  "spent_on": "2026-10-08"\\line
+\\}\\line
+\\pard\\sa120\\sl276\\slmult1\\f0\\fs22\\cbpat0
+\\par
+\\pard\\sa120\\sl276\\slmult1\\b\\fs24 `DELETE /api/v1/activities/\\{activity\\}/expenses/\\{activityExpense\\}`\\b0\\fs22\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 Permission: `activities.expenses.manage`\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 Response: `204 No Content`\\par
+\\par
+\\pard\\sa120\\sl276\\slmult1\\b\\fs24 `POST /api/v1/invoices/\\{invoice\\}/items`\\b0\\fs22\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 Permission: `invoices.update`\\par
+\\par
+\\pard\\sa120\\sl276\\slmult1\\b\\fs24 `PUT|PATCH /api/v1/invoices/\\{invoice\\}/items/\\{invoiceItem\\}`\\b0\\fs22\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 Permission: `invoices.update`\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 Request body:\\par
+\\par
+\\pard\\sa60\\sl240\\slmult1\\cbpat3\\f1\\fs18
+\\{\\line
+  "description": "Tuition fee",\\line
+  "quantity": 1,\\line
+  "unit_price": 50,\\line
+  "student_id": 1,\\line
+  "enrollment_id": 8,\\line
+  "activity_id": null\\line
+\\}\\line
+\\pard\\sa120\\sl276\\slmult1\\f0\\fs22\\cbpat0
+\\par
+\\pard\\sa100\\sl276\\slmult1 Response:\\par
+\\par
+\\pard\\sa60\\sl240\\slmult1\\cbpat3\\f1\\fs18
+\\{\\line
+  "id": 18,\\line
+  "invoice_id": 4,\\line
+  "student_id": 1,\\line
+  "student_name": "Ahmad Ali",\\line
+  "enrollment_id": 8,\\line
+  "activity_id": null,\\line
+  "description": "Tuition fee",\\line
+  "quantity": 1.0,\\line
+  "unit_price": 50.0,\\line
+  "amount": 50.0\\line
+\\}\\line
+\\pard\\sa120\\sl276\\slmult1\\f0\\fs22\\cbpat0
+\\par
+\\pard\\sa100\\sl276\\slmult1 Business rules:\\par
+\\par
+\\pard\\li360\\fi-180\\sa60 \\bullet\tab If `student_id` is supplied, the student must belong to the invoice parent.\\par
+\\pard\\li360\\fi-180\\sa60 \\bullet\tab If `enrollment_id` is supplied, the enrollment must belong to the selected student and invoice parent.\\par
+\\par
+\\pard\\sa120\\sl276\\slmult1\\b\\fs24 `DELETE /api/v1/invoices/\\{invoice\\}/items/\\{invoiceItem\\}`\\b0\\fs22\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 Permission: `invoices.update`\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 Response: `204 No Content`\\par
+\\par
+\\pard\\sa120\\sl276\\slmult1\\b\\fs24 `POST /api/v1/invoices/\\{invoice\\}/payments`\\b0\\fs22\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 Permission: `payments.create`\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 Request body:\\par
+\\par
+\\pard\\sa60\\sl240\\slmult1\\cbpat3\\f1\\fs18
+\\{\\line
+  "amount": 30,\\line
+  "paid_at": "2026-10-08",\\line
+  "payment_method_id": 1,\\line
+  "reference_no": "PAY-300",\\line
+  "notes": "Partial payment"\\line
+\\}\\line
+\\pard\\sa120\\sl276\\slmult1\\f0\\fs22\\cbpat0
+\\par
+\\pard\\sa100\\sl276\\slmult1 Response `201`:\\par
+\\par
+\\pard\\sa60\\sl240\\slmult1\\cbpat3\\f1\\fs18
+\\{\\line
+  "id": 21,\\line
+  "invoice_id": 4,\\line
+  "amount": 30.0,\\line
+  "paid_at": "2026-10-08",\\line
+  "payment_method_id": 1,\\line
+  "payment_method_name": "Cash",\\line
+  "reference_no": "PAY-300",\\line
+  "voided_at": null,\\line
+  "voided_by": null\\line
+\\}\\line
+\\pard\\sa120\\sl276\\slmult1\\f0\\fs22\\cbpat0
+\\par
+\\pard\\sa120\\sl276\\slmult1\\b\\fs24 `POST /api/v1/invoices/\\{invoice\\}/payments/\\{payment\\}/void`\\b0\\fs22\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 Permission: `payments.void`\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 Request body: none\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 Response:\\par
+\\par
+\\pard\\sa60\\sl240\\slmult1\\cbpat3\\f1\\fs18
+\\{\\line
+  "id": 21,\\line
+  "invoice_id": 4,\\line
+  "amount": 30.0,\\line
+  "paid_at": "2026-10-08",\\line
+  "payment_method_id": 1,\\line
+  "payment_method_name": "Cash",\\line
+  "reference_no": "PAY-300",\\line
+  "voided_at": "2026-10-08T16:00:00+03:00",\\line
+  "voided_by": 1\\line
+\\}\\line
+\\pard\\sa120\\sl276\\slmult1\\f0\\fs22\\cbpat0
+\\par
+\\pard\\sa140\\sl280\\slmult1\\b\\cf1\\fs28 Route Summary\\b0\\cf0\\fs22\\par
+\\par
+\\pard\\sa100\\sl276\\slmult1 Current API routes defined in `routes/api.php`:\\par
+\\par
+\\pard\\sa60\\sl240\\slmult1\\cbpat3\\f1\\fs18
+GET     /api/user\\line
+POST    /api/v1/auth/token\\line
+DELETE  /api/v1/auth/token\\line
+\\line
+GET     /api/v1/reports/overview\\line
+GET     /api/v1/reports/teachers/daily-summary\\line
+\\line
+GET     /api/v1/students\\line
+GET     /api/v1/groups\\line
+GET     /api/v1/enrollments\\line
+GET     /api/v1/assessments\\line
+GET     /api/v1/activities\\line
+GET     /api/v1/invoices\\line
+\\line
+POST    /api/v1/students\\line
+PUT     /api/v1/students/\\{student\\}\\line
+PATCH   /api/v1/students/\\{student\\}\\line
+DELETE  /api/v1/students/\\{student\\}\\line
+\\line
+POST    /api/v1/groups\\line
+PUT     /api/v1/groups/\\{group\\}\\line
+PATCH   /api/v1/groups/\\{group\\}\\line
+DELETE  /api/v1/groups/\\{group\\}\\line
+\\line
+POST    /api/v1/enrollments\\line
+PUT     /api/v1/enrollments/\\{enrollment\\}\\line
+PATCH   /api/v1/enrollments/\\{enrollment\\}\\line
+DELETE  /api/v1/enrollments/\\{enrollment\\}\\line
+\\line
+POST    /api/v1/groups/\\{group\\}/attendance\\line
+POST    /api/v1/teacher-attendance\\line
+POST    /api/v1/enrollments/\\{enrollment\\}/memorization\\line
+POST    /api/v1/enrollments/\\{enrollment\\}/quran-tests\\line
+POST    /api/v1/enrollments/\\{enrollment\\}/points/manual\\line
+POST    /api/v1/points/\\{pointTransaction\\}/void\\line
+POST    /api/v1/assessments/\\{assessment\\}/results\\line
+\\line
+POST    /api/v1/activities/\\{activity\\}/registrations\\line
+PUT     /api/v1/activities/\\{activity\\}/registrations/\\{registration\\}\\line
+PATCH   /api/v1/activities/\\{activity\\}/registrations/\\{registration\\}\\line
+DELETE  /api/v1/activities/\\{activity\\}/registrations/\\{registration\\}\\line
+\\line
+POST    /api/v1/activities/\\{activity\\}/payments\\line
+POST    /api/v1/activities/\\{activity\\}/payments/\\{activityPayment\\}/void\\line
+\\line
+POST    /api/v1/activities/\\{activity\\}/expenses\\line
+PUT     /api/v1/activities/\\{activity\\}/expenses/\\{activityExpense\\}\\line
+PATCH   /api/v1/activities/\\{activity\\}/expenses/\\{activityExpense\\}\\line
+DELETE  /api/v1/activities/\\{activity\\}/expenses/\\{activityExpense\\}\\line
+\\line
+POST    /api/v1/invoices/\\{invoice\\}/items\\line
+PUT     /api/v1/invoices/\\{invoice\\}/items/\\{invoiceItem\\}\\line
+PATCH   /api/v1/invoices/\\{invoice\\}/items/\\{invoiceItem\\}\\line
+DELETE  /api/v1/invoices/\\{invoice\\}/items/\\{invoiceItem\\}\\line
+\\line
+POST    /api/v1/invoices/\\{invoice\\}/payments\\line
+POST    /api/v1/invoices/\\{invoice\\}/payments/\\{payment\\}/void\\line
+\\pard\\sa120\\sl276\\slmult1\\f0\\fs22\\cbpat0
+}
+
