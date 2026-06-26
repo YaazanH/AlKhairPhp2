@@ -142,6 +142,74 @@ class ReportingService
             ->all();
     }
 
+    public function studentActivitySummary(array $filters = []): array
+    {
+        $filters = $this->normalizeFilters($filters);
+        $enrollments = $this->scopedEnrollmentsQuery($filters)
+            ->with(['group.academicYear', 'group.course', 'student'])
+            ->orderBy(
+                Group::query()
+                    ->select('name')
+                    ->whereColumn('groups.id', 'enrollments.group_id')
+                    ->limit(1),
+            )
+            ->orderBy(
+                Student::query()
+                    ->select('first_name')
+                    ->whereColumn('students.id', 'enrollments.student_id')
+                    ->limit(1),
+            )
+            ->orderBy(
+                Student::query()
+                    ->select('last_name')
+                    ->whereColumn('students.id', 'enrollments.student_id')
+                    ->limit(1),
+            )
+            ->get();
+
+        $enrollmentIds = $enrollments->pluck('id');
+
+        $memorizedPages = $this->scopedMemorizationSessionsQuery($filters)
+            ->whereIn('enrollment_id', $enrollmentIds)
+            ->selectRaw('enrollment_id, SUM(pages_count) as total_pages')
+            ->groupBy('enrollment_id')
+            ->pluck('total_pages', 'enrollment_id');
+
+        $points = $this->scopedPointTransactionsQuery($filters)
+            ->whereIn('enrollment_id', $enrollmentIds)
+            ->selectRaw('enrollment_id, SUM(points) as total_points')
+            ->groupBy('enrollment_id')
+            ->pluck('total_points', 'enrollment_id');
+
+        return $enrollments
+            ->map(fn (Enrollment $enrollment) => [
+                'academic_year' => $enrollment->group?->academicYear?->name,
+                'course' => $enrollment->group?->course?->name,
+                'enrollment_id' => $enrollment->id,
+                'group' => $enrollment->group?->name,
+                'memorized_pages' => (int) ($memorizedPages[$enrollment->id] ?? 0),
+                'points' => (int) ($points[$enrollment->id] ?? 0),
+                'student_id' => $enrollment->student_id,
+                'student_name' => trim(($enrollment->student?->first_name ?? '').' '.($enrollment->student?->last_name ?? '')),
+            ])
+            ->values()
+            ->all();
+    }
+
+    public function studentActivitySummaryRows(array $filters = []): array
+    {
+        return collect($this->studentActivitySummary($filters))
+            ->map(fn (array $row) => [
+                $row['student_name'],
+                $row['memorized_pages'],
+                $row['points'],
+                $row['group'],
+                $row['course'],
+                $row['academic_year'],
+            ])
+            ->all();
+    }
+
     protected function assessments(array $filters): array
     {
         $resultsQuery = $this->scopedAssessmentResultsQuery($filters);

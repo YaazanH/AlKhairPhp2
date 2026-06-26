@@ -15,6 +15,9 @@ use App\Services\AccessScopeService;
 use App\Services\QuranProgressionService;
 use App\Services\XlsxExportService;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
+use Mpdf\Mpdf;
+use Mpdf\Output\Destination;
 use Spatie\Permission\Models\Role;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -222,20 +225,9 @@ class AdminExportController extends Controller
     {
         abort_unless($request->user()?->can('groups.view'), 403);
 
-        $group = $scopes->scopeGroups(
-            Group::query()->with(['course', 'teacher', 'academicYear']),
-            $request->user()
-        )->findOrFail($group->id);
+        ['group' => $group, 'enrollments' => $enrollments] = $this->groupRosterPayload($request, $group, $scopes);
 
-        $rows = $scopes->scopeEnrollments(
-            Enrollment::query()
-                ->with(['student.parentProfile', 'student.gradeLevel', 'student.user'])
-                ->where('group_id', $group->id),
-            $request->user()
-        )
-            ->orderBy('status')
-            ->orderBy('enrolled_at')
-            ->get()
+        $rows = $enrollments
             ->map(fn (Enrollment $enrollment) => [
                 $group->name,
                 $group->course?->name,
@@ -270,6 +262,43 @@ class AdminExportController extends Controller
             'Enrolled At',
             'Status',
         ], $rows);
+    }
+
+    public function groupRosterPdf(Request $request, Group $group, AccessScopeService $scopes): Response
+    {
+        abort_unless($request->user()?->can('groups.view'), 403);
+
+        ['group' => $group, 'enrollments' => $enrollments] = $this->groupRosterPayload($request, $group, $scopes);
+
+        $tempDir = storage_path('app/mpdf');
+        if (! is_dir($tempDir)) {
+            mkdir($tempDir, 0775, true);
+        }
+
+        $mpdf = new Mpdf([
+            'autoLangToFont' => true,
+            'autoScriptToLang' => true,
+            'default_font' => 'dejavusanscondensed',
+            'format' => 'A4',
+            'margin_bottom' => 10,
+            'margin_left' => 8,
+            'margin_right' => 8,
+            'margin_top' => 8,
+            'tempDir' => $tempDir,
+        ]);
+        $mpdf->autoLangToFont = true;
+        $mpdf->autoScriptToLang = true;
+        $mpdf->useSubstitutions = true;
+        $mpdf->SetDirectionality('rtl');
+        $mpdf->WriteHTML(view('exports.group-roster-pdf', [
+            'enrollments' => $enrollments,
+            'group' => $group,
+        ])->render());
+
+        return response($mpdf->Output('', Destination::STRING_RETURN), 200, [
+            'Content-Disposition' => 'inline; filename="group-roster-'.$group->id.'.pdf"',
+            'Content-Type' => 'application/pdf',
+        ]);
     }
 
     public function enrollments(Request $request, AccessScopeService $scopes): StreamedResponse
@@ -413,6 +442,29 @@ class AdminExportController extends Controller
     protected function streamXlsx(string $filename, array $headers, array $rows): StreamedResponse
     {
         return app(XlsxExportService::class)->download($filename, $headers, $rows);
+    }
+
+    protected function groupRosterPayload(Request $request, Group $group, AccessScopeService $scopes): array
+    {
+        $group = $scopes->scopeGroups(
+            Group::query()->with(['course', 'teacher', 'academicYear']),
+            $request->user()
+        )->findOrFail($group->id);
+
+        $enrollments = $scopes->scopeEnrollments(
+            Enrollment::query()
+                ->with(['student.parentProfile', 'student.gradeLevel', 'student.quranCurrentJuz', 'student.user'])
+                ->where('group_id', $group->id),
+            $request->user()
+        )
+            ->orderBy('status')
+            ->orderBy('enrolled_at')
+            ->get();
+
+        return [
+            'enrollments' => $enrollments,
+            'group' => $group,
+        ];
     }
 
     protected function userProfileLabel(User $user): ?string

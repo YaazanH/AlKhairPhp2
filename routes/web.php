@@ -35,6 +35,7 @@ Volt::route('dashboard', 'dashboard')
 
 Route::middleware(['auth'])->group(function () {
     Volt::route('reports', 'reports.index')->middleware('permission:reports.view')->name('reports.index');
+    Volt::route('reports/student-activity-summary', 'reports.student-activity-summary')->middleware('permission:reports.view')->name('reports.student-activity-summary');
     Volt::route('reports/rankings/groups', 'reports.groups-ranking')->middleware('permission:reports.view')->name('reports.rankings.groups');
     Volt::route('reports/rankings/students', 'reports.students-ranking')->middleware('permission:reports.view')->name('reports.rankings.students');
     Volt::route('users', 'users.index')->middleware('permission:users.view')->name('users.index');
@@ -65,6 +66,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('reports/export/attendance', [ReportExportController::class, 'attendance'])->middleware('permission:reports.view')->name('reports.exports.attendance');
     Route::get('reports/export/memorization', [ReportExportController::class, 'memorization'])->middleware('permission:reports.view')->name('reports.exports.memorization');
     Route::get('reports/export/points', [ReportExportController::class, 'points'])->middleware('permission:reports.view')->name('reports.exports.points');
+    Route::get('reports/export/student-activity-summary', [ReportExportController::class, 'studentActivitySummary'])->middleware('permission:reports.view')->name('reports.exports.student-activity-summary');
     Route::get('reports/export/assessments', [ReportExportController::class, 'assessments'])->middleware('permission:reports.view')->name('reports.exports.assessments');
     Volt::route('settings/organization', 'settings.organization')->middleware('permission:settings.manage')->name('settings.organization');
     Volt::route('settings/tracking', 'settings.tracking')->middleware('permission:settings.manage')->name('settings.tracking');
@@ -98,6 +100,7 @@ Route::middleware(['auth'])->group(function () {
     Volt::route('groups/{group}/schedules', 'groups.schedules')->middleware('permission:groups.view')->name('groups.schedules');
     Route::get('groups/export', [AdminExportController::class, 'groups'])->middleware('permission:groups.view')->name('groups.export');
     Route::get('groups/{group}/roster/export', [AdminExportController::class, 'groupRoster'])->middleware('permission:groups.view')->name('groups.roster.export');
+    Route::get('groups/{group}/roster/pdf', [AdminExportController::class, 'groupRosterPdf'])->middleware('permission:groups.view')->name('groups.roster.pdf');
     Volt::route('enrollments', 'enrollments.index')->middleware('permission:enrollments.view')->name('enrollments.index');
     Route::get('enrollments/export', [AdminExportController::class, 'enrollments'])->middleware('permission:enrollments.view')->name('enrollments.export');
     Volt::route('assessments', 'assessments.index')->middleware('permission:assessments.view')->name('assessments.index');

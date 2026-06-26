@@ -64,6 +64,15 @@ class ReportExportController extends Controller
         );
     }
 
+    public function studentActivitySummary(Request $request): StreamedResponse
+    {
+        return $this->xlsxDownload(
+            'student-activity-summary-report',
+            ['Student', 'Memorized Pages', 'Points', 'Group', 'Course', 'Academic Year'],
+            app(ReportingService::class)->studentActivitySummaryRows($this->validatedFilters($request)),
+        );
+    }
+
     public function finance(Request $request): StreamedResponse
     {
         abort_unless($request->user()?->can('finance.reports.export'), 403);

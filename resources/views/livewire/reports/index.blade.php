@@ -147,7 +147,14 @@ new class extends Component {
         </div>
 </section>
 
-    <div class="grid gap-4 md:grid-cols-2">
+    <div class="grid gap-4 md:grid-cols-3">
+        <a href="{{ route('reports.student-activity-summary') }}" class="surface-panel report-panel report-nav-card min-w-0 p-5 lg:p-6">
+            <div class="eyebrow">{{ __('reports.navigation.eyebrow') }}</div>
+            <h2 class="font-display mt-3 text-2xl text-white">{{ __('reports.navigation.student_activity_title') }}</h2>
+            <p class="mt-3 text-sm leading-7 text-neutral-300">{{ __('reports.navigation.student_activity_subtitle') }}</p>
+            <span class="pill-link report-nav-card__cta mt-5 inline-flex">{{ __('reports.navigation.open') }}</span>
+        </a>
+
         <a href="{{ route('reports.rankings.groups') }}" class="surface-panel report-panel report-nav-card min-w-0 p-5 lg:p-6">
             <div class="eyebrow">{{ __('reports.navigation.eyebrow') }}</div>
             <h2 class="font-display mt-3 text-2xl text-white">{{ __('reports.navigation.groups_title') }}</h2>
@@ -241,6 +248,9 @@ new class extends Component {
                 </a>
                 <a href="{{ route('reports.exports.points', ['academic_year_id' => $academic_year_id, 'group_id' => $group_id, 'assessment_type_id' => $assessment_type_id, 'date_from' => $date_from, 'date_to' => $date_to]) }}" class="pill-link report-export-link">
                     {{ __('reports.exports.points') }}
+                </a>
+                <a href="{{ route('reports.exports.student-activity-summary', ['academic_year_id' => $academic_year_id, 'group_id' => $group_id, 'date_from' => $date_from, 'date_to' => $date_to]) }}" class="pill-link report-export-link">
+                    {{ __('reports.student_activity.export') }}
                 </a>
                 <a href="{{ route('reports.exports.assessments', ['academic_year_id' => $academic_year_id, 'group_id' => $group_id, 'assessment_type_id' => $assessment_type_id, 'date_from' => $date_from, 'date_to' => $date_to]) }}" class="pill-link report-export-link">
                     {{ __('reports.exports.assessments') }}

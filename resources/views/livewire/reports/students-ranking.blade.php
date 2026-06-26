@@ -249,11 +249,11 @@ new class extends Component {
                     <div class="mt-3 grid gap-3">
                         <div>
                             <label class="report-field-label mb-2 block text-sm font-medium">{{ __('reports.filters.date_from') }}</label>
-                            <input wire:model.blur="first_date_from" type="date" class="report-control w-full rounded-xl px-3 py-2.5 text-sm">
+                            <input wire:model.live="first_date_from" type="date" class="report-control w-full rounded-xl px-3 py-2.5 text-sm">
                         </div>
                         <div>
                             <label class="report-field-label mb-2 block text-sm font-medium">{{ __('reports.filters.date_to') }}</label>
-                            <input wire:model.blur="first_date_to" type="date" class="report-control w-full rounded-xl px-3 py-2.5 text-sm">
+                            <input wire:model.live="first_date_to" type="date" class="report-control w-full rounded-xl px-3 py-2.5 text-sm">
                         </div>
                     </div>
                 </div>
@@ -263,11 +263,11 @@ new class extends Component {
                     <div class="mt-3 grid gap-3">
                         <div>
                             <label class="report-field-label mb-2 block text-sm font-medium">{{ __('reports.filters.date_from') }}</label>
-                            <input wire:model.blur="second_date_from" type="date" class="report-control w-full rounded-xl px-3 py-2.5 text-sm">
+                            <input wire:model.live="second_date_from" type="date" class="report-control w-full rounded-xl px-3 py-2.5 text-sm">
                         </div>
                         <div>
                             <label class="report-field-label mb-2 block text-sm font-medium">{{ __('reports.filters.date_to') }}</label>
-                            <input wire:model.blur="second_date_to" type="date" class="report-control w-full rounded-xl px-3 py-2.5 text-sm">
+                            <input wire:model.live="second_date_to" type="date" class="report-control w-full rounded-xl px-3 py-2.5 text-sm">
                         </div>
                     </div>
                 </div>
@@ -347,8 +347,8 @@ new class extends Component {
                                     @php($movement = $movementMeta[$row['movement_state']])
                                     <tr>
                                         <td class="px-5 py-4 lg:px-6">
-                                            <div class="font-semibold text-white">{{ $row['second_rank'] ? '#'.$row['second_rank'] : '—' }}</div>
-                                            @if ($row['first_rank'])
+                                            <div class="font-semibold text-white">{{ $row['display_rank'] ? '#'.$row['display_rank'] : '—' }}</div>
+                                            @if ($row['second_rank'] && $row['first_rank'])
                                                 <div class="text-xs text-neutral-400">{{ __('reports.rankings.table.was_ranked', ['rank' => $row['first_rank']]) }}</div>
                                             @endif
                                         </td>

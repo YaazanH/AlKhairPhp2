@@ -29,6 +29,7 @@ class ManagementPagesTest extends TestCase
 
         foreach ([
             route('reports.index', absolute: false),
+            route('reports.student-activity-summary', absolute: false),
             route('reports.rankings.groups', absolute: false),
             route('reports.rankings.students', absolute: false),
             route('parents.index', absolute: false),
@@ -72,6 +73,7 @@ class ManagementPagesTest extends TestCase
 
         foreach ([
             route('reports.index', absolute: false),
+            route('reports.student-activity-summary', absolute: false),
             route('reports.rankings.groups', absolute: false),
             route('reports.rankings.students', absolute: false),
             route('parents.index', absolute: false),
@@ -115,6 +117,12 @@ class ManagementPagesTest extends TestCase
         $this->get(route('groups.roster.export', $group, absolute: false))
             ->assertOk()
             ->assertHeader('content-type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+
+        $pdfResponse = $this->get(route('groups.roster.pdf', $group, absolute: false));
+        $pdfResponse
+            ->assertOk()
+            ->assertHeader('content-type', 'application/pdf');
+        $this->assertStringStartsWith('%PDF', (string) $pdfResponse->getContent());
     }
 
     public function test_authenticated_users_can_download_eligible_awqaf_students_export(): void
@@ -229,6 +237,7 @@ class ManagementPagesTest extends TestCase
 
         foreach ([
             route('reports.index', absolute: false),
+            route('reports.student-activity-summary', absolute: false),
             route('reports.rankings.groups', absolute: false),
             route('reports.rankings.students', absolute: false),
             route('parents.index', absolute: false),

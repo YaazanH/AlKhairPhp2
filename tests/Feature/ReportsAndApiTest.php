@@ -34,6 +34,7 @@ use App\Models\StudentAttendanceRecord;
 use App\Models\Teacher;
 use App\Models\User;
 use App\Services\MemorizationRankingService;
+use App\Services\ReportingService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
 use Livewire\Volt\Volt;
@@ -131,6 +132,35 @@ class ReportsAndApiTest extends TestCase
             ->set('group_id', [(string) $group->id])
             ->set('assessment_type_id', [(string) $assessmentTypeId])
             ->assertHasNoErrors();
+    }
+
+    public function test_student_activity_summary_report_combines_pages_and_points_by_group_and_date(): void
+    {
+        [$manager, $group] = $this->reportingContext();
+
+        $this->actingAs($manager);
+
+        $rows = app(ReportingService::class)->studentActivitySummary([
+            'academic_year_id' => $group->academic_year_id,
+            'date_from' => '2026-09-01',
+            'date_to' => '2026-09-30',
+            'group_id' => $group->id,
+        ]);
+
+        $this->assertCount(1, $rows);
+        $this->assertSame('Report Student', $rows[0]['student_name']);
+        $this->assertSame(5, $rows[0]['memorized_pages']);
+        $this->assertSame(4, $rows[0]['points']);
+
+        Volt::test('reports.student-activity-summary')
+            ->set('academic_year_id', $group->academic_year_id)
+            ->set('group_id', $group->id)
+            ->set('date_from', '2026-09-01')
+            ->set('date_to', '2026-09-30')
+            ->assertSee('Student pages and points')
+            ->assertSee('Report Student')
+            ->assertSee('5')
+            ->assertSee('4');
     }
 
     public function test_group_memorization_ranking_page_compares_two_ranges(): void

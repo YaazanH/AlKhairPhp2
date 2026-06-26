@@ -588,6 +588,7 @@ return [
             'add_help' => 'يظهر هنا فقط الطلاب غير المسجلين بالفعل في هذه المجموعة.',
             'add_submit' => 'إضافة الطالب',
             'download_action' => 'تنزيل القائمة',
+            'download_pdf_action' => 'نسخة PDF',
             'remove_action' => 'إزالة',
             'fields' => [
                 'student' => 'الطالب',

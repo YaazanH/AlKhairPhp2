@@ -45,11 +45,13 @@ class ExportPrintLayerTest extends TestCase
         $teacherUser->assignRole('teacher');
 
         $this->get(route('reports.exports.attendance'))->assertRedirect(route('login'));
+        $this->get(route('reports.exports.student-activity-summary'))->assertRedirect(route('login'));
         $this->get(route('invoices.print', $context['invoice']))->assertRedirect(route('login'));
         $this->get(route('payments.receipt', $context['payment']))->assertRedirect(route('login'));
 
         $this->actingAs($teacherUser);
         $this->get(route('reports.exports.attendance'))->assertForbidden();
+        $this->get(route('reports.exports.student-activity-summary'))->assertForbidden();
         $this->get(route('invoices.print', $context['invoice']))->assertForbidden();
         $this->get(route('payments.receipt', $context['payment']))->assertForbidden();
     }
@@ -81,6 +83,12 @@ class ExportPrintLayerTest extends TestCase
         ]));
         $pointsResponse->assertOk();
         $this->assertXlsxContains($pointsResponse->streamedContent(), ['Invoice Student', 'Behavior Bonus']);
+
+        $studentSummaryResponse = $this->get(route('reports.exports.student-activity-summary', [
+            'group_id' => $context['group']->id,
+        ]));
+        $studentSummaryResponse->assertOk();
+        $this->assertXlsxContains($studentSummaryResponse->streamedContent(), ['Invoice Student', 'Memorized Pages', 'Points']);
 
         $assessmentResponse = $this->get(route('reports.exports.assessments', [
             'group_id' => $context['group']->id,

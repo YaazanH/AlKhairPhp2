@@ -588,6 +588,7 @@ return [
             'add_help' => 'Only students not already enrolled in this group appear here.',
             'add_submit' => 'Add student',
             'download_action' => 'Download roster',
+            'download_pdf_action' => 'PDF version',
             'remove_action' => 'Remove',
             'fields' => [
                 'student' => 'Student',

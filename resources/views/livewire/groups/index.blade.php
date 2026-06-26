@@ -1243,9 +1243,14 @@ new class extends Component {
                             <div class="admin-grid-meta__summary">{{ __('crud.groups.roster.table.summary', ['count' => number_format($rosterEnrollments->count())]) }}</div>
                         </div>
                         @if ($rosterGroup && $rosterEnrollments->isNotEmpty())
-                            <a href="{{ route('groups.roster.export', $rosterGroup) }}" class="pill-link pill-link--accent">
-                                {{ __('crud.groups.roster.download_action') }}
-                            </a>
+                            <div class="flex flex-wrap gap-2">
+                                <a href="{{ route('groups.roster.export', $rosterGroup) }}" class="pill-link pill-link--accent">
+                                    {{ __('crud.groups.roster.download_action') }}
+                                </a>
+                                <a href="{{ route('groups.roster.pdf', $rosterGroup) }}" target="_blank" rel="noopener" class="pill-link">
+                                    {{ __('crud.groups.roster.download_pdf_action') }}
+                                </a>
+                            </div>
                         @endif
                     </div>
 
