@@ -18,6 +18,7 @@ use App\Models\Group;
 use App\Models\GroupAttendanceDay;
 use App\Models\Invoice;
 use App\Models\InvoiceItem;
+use App\Models\MemorizationSession;
 use App\Models\ParentProfile;
 use App\Models\Payment;
 use App\Models\PaymentMethod;
@@ -161,6 +162,66 @@ class ReportsAndApiTest extends TestCase
             ->assertSee('Report Student')
             ->assertSee('5')
             ->assertSee('4');
+    }
+
+    public function test_student_activity_summary_report_headers_toggle_sort_direction(): void
+    {
+        [$manager, $group] = $this->reportingContext();
+
+        $this->actingAs($manager);
+
+        $parent = ParentProfile::create([
+            'father_name' => 'Sortable Parent',
+            'father_phone' => '0944000410',
+        ]);
+
+        $student = Student::create([
+            'parent_id' => $parent->id,
+            'first_name' => 'Zeta',
+            'last_name' => 'Student',
+            'birth_date' => '2014-05-13',
+            'status' => 'active',
+        ]);
+
+        $enrollment = Enrollment::create([
+            'student_id' => $student->id,
+            'group_id' => $group->id,
+            'enrolled_at' => '2026-09-02',
+            'status' => 'active',
+            'final_points_cached' => 9,
+            'memorized_pages_cached' => 2,
+        ]);
+
+        MemorizationSession::create([
+            'enrollment_id' => $enrollment->id,
+            'student_id' => $student->id,
+            'teacher_id' => $group->teacher_id,
+            'recorded_on' => '2026-09-12',
+            'entry_type' => 'new',
+            'from_page' => 10,
+            'to_page' => 11,
+            'pages_count' => 2,
+        ]);
+
+        PointTransaction::create([
+            'student_id' => $student->id,
+            'enrollment_id' => $enrollment->id,
+            'point_type_id' => PointType::query()->value('id'),
+            'source_type' => 'manual',
+            'points' => 9,
+            'entered_by' => $manager->id,
+            'entered_at' => '2026-09-12 09:00:00',
+        ]);
+
+        Volt::test('reports.student-activity-summary')
+            ->set('academic_year_id', $group->academic_year_id)
+            ->set('group_id', $group->id)
+            ->set('date_from', '2026-09-01')
+            ->set('date_to', '2026-09-30')
+            ->call('sortBy', 'points')
+            ->assertSeeInOrder(['Zeta Student', 'Report Student'])
+            ->call('sortBy', 'points')
+            ->assertSeeInOrder(['Report Student', 'Zeta Student']);
     }
 
     public function test_group_memorization_ranking_page_compares_two_ranges(): void
@@ -538,7 +599,7 @@ class ReportsAndApiTest extends TestCase
             'attendance_status_id' => $presentStatus->id,
         ]);
 
-        \App\Models\MemorizationSession::create([
+        MemorizationSession::create([
             'enrollment_id' => $enrollment->id,
             'student_id' => $student->id,
             'teacher_id' => $teacher->id,
@@ -739,7 +800,7 @@ class ReportsAndApiTest extends TestCase
             'status' => 'active',
         ]);
 
-        \App\Models\MemorizationSession::create([
+        MemorizationSession::create([
             'enrollment_id' => $enrollmentA->id,
             'student_id' => $studentA->id,
             'teacher_id' => $teacher->id,
@@ -750,7 +811,7 @@ class ReportsAndApiTest extends TestCase
             'pages_count' => 12,
         ]);
 
-        \App\Models\MemorizationSession::create([
+        MemorizationSession::create([
             'enrollment_id' => $enrollmentB->id,
             'student_id' => $studentB->id,
             'teacher_id' => $teacher->id,
@@ -761,7 +822,7 @@ class ReportsAndApiTest extends TestCase
             'pages_count' => 5,
         ]);
 
-        \App\Models\MemorizationSession::create([
+        MemorizationSession::create([
             'enrollment_id' => $enrollmentA->id,
             'student_id' => $studentA->id,
             'teacher_id' => $teacher->id,
@@ -772,7 +833,7 @@ class ReportsAndApiTest extends TestCase
             'pages_count' => 4,
         ]);
 
-        \App\Models\MemorizationSession::create([
+        MemorizationSession::create([
             'enrollment_id' => $enrollmentB->id,
             'student_id' => $studentB->id,
             'teacher_id' => $teacher->id,

@@ -7,14 +7,29 @@ use App\Models\Group;
 use App\Services\ReportingService;
 use Livewire\Volt\Component;
 
-new class extends Component {
+new class extends Component
+{
     use AuthorizesPermissions;
     use AuthorizesTeacherAssignments;
 
     public mixed $academic_year_id = null;
+
     public mixed $group_id = null;
+
     public string $date_from = '';
+
     public string $date_to = '';
+
+    public string $sortField = 'student_name';
+
+    public string $sortDirection = 'asc';
+
+    protected array $sortableFields = [
+        'group',
+        'memorized_pages',
+        'points',
+        'student_name',
+    ];
 
     public function mount(): void
     {
@@ -48,11 +63,27 @@ new class extends Component {
         $this->date_to = '';
     }
 
+    public function sortBy(string $field): void
+    {
+        if (! in_array($field, $this->sortableFields, true)) {
+            return;
+        }
+
+        if ($this->sortField === $field) {
+            $this->sortDirection = $this->sortDirection === 'asc' ? 'desc' : 'asc';
+
+            return;
+        }
+
+        $this->sortField = $field;
+        $this->sortDirection = $field === 'student_name' || $field === 'group' ? 'asc' : 'desc';
+    }
+
     public function with(): array
     {
         $this->normalizeFilters();
 
-        $rows = app(ReportingService::class)->studentActivitySummary($this->filters());
+        $rows = $this->sortedRows(app(ReportingService::class)->studentActivitySummary($this->filters()));
 
         return [
             'academicYears' => AcademicYear::query()->where('is_active', true)->orderByDesc('starts_on')->get(['id', 'name']),
@@ -81,6 +112,39 @@ new class extends Component {
             'date_to' => $this->date_to,
             'group_id' => $this->group_id,
         ];
+    }
+
+    protected function sortedRows(array $rows): array
+    {
+        $field = in_array($this->sortField, $this->sortableFields, true)
+            ? $this->sortField
+            : 'student_name';
+        $direction = $this->sortDirection === 'desc' ? 'desc' : 'asc';
+
+        return collect($rows)
+            ->sort(function (array $left, array $right) use ($field, $direction): int {
+                $comparison = match ($field) {
+                    'memorized_pages', 'points' => ($left[$field] ?? 0) <=> ($right[$field] ?? 0),
+                    default => strnatcasecmp((string) ($left[$field] ?? ''), (string) ($right[$field] ?? '')),
+                };
+
+                if ($comparison === 0) {
+                    $comparison = strnatcasecmp((string) ($left['student_name'] ?? ''), (string) ($right['student_name'] ?? ''));
+                }
+
+                return $direction === 'desc' ? -$comparison : $comparison;
+            })
+            ->values()
+            ->all();
+    }
+
+    protected function sortIndicator(string $field): string
+    {
+        if ($this->sortField !== $field) {
+            return '';
+        }
+
+        return $this->sortDirection === 'asc' ? '↑' : '↓';
     }
 
     protected function normalizeFilters(): void
@@ -213,10 +277,38 @@ new class extends Component {
                         <table class="text-sm">
                             <thead>
                                 <tr>
-                                    <th class="px-5 py-4 text-left lg:px-6">{{ __('reports.student_activity.headers.student') }}</th>
-                                    <th class="px-5 py-4 text-left lg:px-6">{{ __('reports.student_activity.headers.memorized_pages') }}</th>
-                                    <th class="px-5 py-4 text-left lg:px-6">{{ __('reports.student_activity.headers.points') }}</th>
-                                    <th class="px-5 py-4 text-left lg:px-6">{{ __('reports.student_activity.headers.group') }}</th>
+                                    <th class="px-5 py-4 text-left lg:px-6">
+                                        <button type="button" wire:click="sortBy('student_name')" class="inline-flex items-center gap-2 font-medium text-inherit">
+                                            <span>{{ __('reports.student_activity.headers.student') }}</span>
+                                            @if ($sortIndicator = $this->sortIndicator('student_name'))
+                                                <span aria-hidden="true">{{ $sortIndicator }}</span>
+                                            @endif
+                                        </button>
+                                    </th>
+                                    <th class="px-5 py-4 text-left lg:px-6">
+                                        <button type="button" wire:click="sortBy('memorized_pages')" class="inline-flex items-center gap-2 font-medium text-inherit">
+                                            <span>{{ __('reports.student_activity.headers.memorized_pages') }}</span>
+                                            @if ($sortIndicator = $this->sortIndicator('memorized_pages'))
+                                                <span aria-hidden="true">{{ $sortIndicator }}</span>
+                                            @endif
+                                        </button>
+                                    </th>
+                                    <th class="px-5 py-4 text-left lg:px-6">
+                                        <button type="button" wire:click="sortBy('points')" class="inline-flex items-center gap-2 font-medium text-inherit">
+                                            <span>{{ __('reports.student_activity.headers.points') }}</span>
+                                            @if ($sortIndicator = $this->sortIndicator('points'))
+                                                <span aria-hidden="true">{{ $sortIndicator }}</span>
+                                            @endif
+                                        </button>
+                                    </th>
+                                    <th class="px-5 py-4 text-left lg:px-6">
+                                        <button type="button" wire:click="sortBy('group')" class="inline-flex items-center gap-2 font-medium text-inherit">
+                                            <span>{{ __('reports.student_activity.headers.group') }}</span>
+                                            @if ($sortIndicator = $this->sortIndicator('group'))
+                                                <span aria-hidden="true">{{ $sortIndicator }}</span>
+                                            @endif
+                                        </button>
+                                    </th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-white/6">
