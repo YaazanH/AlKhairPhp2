@@ -1,3 +1,5 @@
+import jsQR from 'jsqr';
+
 const adminConfirmState = {
     activeElement: null,
     componentId: null,
@@ -695,6 +697,9 @@ function initializeQuickAttendanceScanners() {
         let scanning = false;
         let lastValue = '';
         let lastSeenAt = 0;
+        let lastFrameScanAt = 0;
+        let qrCanvas = null;
+        let qrContext = null;
 
         const messageText = (key, fallback = '') => root.dataset[key] || fallback;
 
@@ -757,8 +762,55 @@ function initializeQuickAttendanceScanners() {
             }
         };
 
+        const decodeQrFromCanvas = () => {
+            if (!(video instanceof HTMLVideoElement) || !video.videoWidth || !video.videoHeight) {
+                return '';
+            }
+
+            qrCanvas ??= document.createElement('canvas');
+
+            if (qrCanvas.width !== video.videoWidth || qrCanvas.height !== video.videoHeight) {
+                qrCanvas.width = video.videoWidth;
+                qrCanvas.height = video.videoHeight;
+                qrContext = qrCanvas.getContext('2d', { willReadFrequently: true });
+            }
+
+            if (!qrContext) {
+                return '';
+            }
+
+            qrContext.drawImage(video, 0, 0, qrCanvas.width, qrCanvas.height);
+
+            const imageData = qrContext.getImageData(0, 0, qrCanvas.width, qrCanvas.height);
+            const code = jsQR(imageData.data, imageData.width, imageData.height, {
+                inversionAttempts: 'attemptBoth',
+            });
+
+            return code?.data || '';
+        };
+
+        const detectCode = async () => {
+            if (!(video instanceof HTMLVideoElement)) {
+                return '';
+            }
+
+            if (detector) {
+                try {
+                    const codes = await detector.detect(video);
+
+                    if (codes.length > 0) {
+                        return codes[0].rawValue || '';
+                    }
+                } catch (_error) {
+                    detector = null;
+                }
+            }
+
+            return decodeQrFromCanvas();
+        };
+
         const scanLoop = async () => {
-            if (!scanning || !detector || !(video instanceof HTMLVideoElement) || video.readyState < 2) {
+            if (!scanning || !(video instanceof HTMLVideoElement) || video.readyState < 2) {
                 if (scanning) {
                     requestAnimationFrame(scanLoop);
                 }
@@ -766,14 +818,20 @@ function initializeQuickAttendanceScanners() {
                 return;
             }
 
-            try {
-                const codes = await detector.detect(video);
+            const now = Date.now();
 
-                if (codes.length > 0) {
-                    await submitValue(codes[0].rawValue || '');
+            if (now - lastFrameScanAt > 140) {
+                lastFrameScanAt = now;
+
+                try {
+                    const value = await detectCode();
+
+                    if (value) {
+                        await submitValue(value);
+                    }
+                } catch (_error) {
+                    setMessage(messageText('cameraError'));
                 }
-            } catch (_error) {
-                setMessage(messageText('cameraError'));
             }
 
             if (scanning) {
@@ -781,8 +839,22 @@ function initializeQuickAttendanceScanners() {
             }
         };
 
+        const startCameraStream = async () => {
+            try {
+                return await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        facingMode: { ideal: 'environment' },
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 },
+                    },
+                });
+            } catch (_error) {
+                return navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+            }
+        };
+
         startButton?.addEventListener('click', async () => {
-            if (!('BarcodeDetector' in window)) {
+            if (!navigator.mediaDevices?.getUserMedia) {
                 setMessage(messageText('cameraNotSupported'));
                 input?.focus();
 
@@ -790,8 +862,17 @@ function initializeQuickAttendanceScanners() {
             }
 
             try {
-                detector = new BarcodeDetector({ formats: ['qr_code', 'code_39', 'code_128', 'ean_13', 'ean_8'] });
-                stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+                detector = null;
+
+                if ('BarcodeDetector' in window) {
+                    try {
+                        detector = new window.BarcodeDetector({ formats: ['qr_code', 'code_39', 'code_128', 'ean_13', 'ean_8'] });
+                    } catch (_error) {
+                        detector = null;
+                    }
+                }
+
+                stream = await startCameraStream();
 
                 if (video instanceof HTMLVideoElement) {
                     video.srcObject = stream;
