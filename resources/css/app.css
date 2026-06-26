@@ -212,6 +212,31 @@
     html[dir='rtl'] .text-right {
         text-align: left !important;
     }
+
+    html[dir='rtl'] .surface-table,
+    html[dir='rtl'] .surface-table .overflow-x-auto,
+    html[dir='rtl'] .surface-table table {
+        direction: rtl;
+    }
+
+    html[dir='rtl'] .surface-table th,
+    html[dir='rtl'] .surface-table td {
+        text-align: right;
+    }
+
+    html[dir='rtl'] .surface-table th.text-right,
+    html[dir='rtl'] .surface-table td.text-right {
+        text-align: left !important;
+    }
+
+    html[dir='rtl'] .surface-table th.text-center,
+    html[dir='rtl'] .surface-table td.text-center {
+        text-align: center !important;
+    }
+
+    html[dir='rtl'] .surface-table :where(th, td):last-child .justify-end {
+        justify-content: flex-start;
+    }
 }
 
 [data-flux-field] {
@@ -1080,6 +1105,89 @@ html:not(.dark) .surface-table thead {
 
 .surface-table td {
     color: var(--app-text);
+}
+
+.admin-collapsible {
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 1rem;
+    padding: 0;
+}
+
+.admin-collapsible[open] {
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.admin-collapsible__summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    min-height: 3rem;
+    padding: 0.85rem 1rem;
+    color: #fff;
+    cursor: pointer;
+    font-size: 0.9rem;
+    font-weight: 700;
+    list-style: none;
+}
+
+.admin-collapsible__summary::-webkit-details-marker {
+    display: none;
+}
+
+.admin-collapsible__summary::before {
+    content: '+';
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    width: 1.5rem;
+    height: 1.5rem;
+    border-radius: 9999px;
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--app-muted);
+    font-weight: 700;
+}
+
+.admin-collapsible[open] > .admin-collapsible__summary::before {
+    content: '-';
+}
+
+.admin-collapsible__count {
+    flex: 0 0 auto;
+    border-radius: 9999px;
+    background: rgba(11, 143, 67, 0.14);
+    padding: 0.25rem 0.6rem;
+    color: #dff8e7;
+    font-size: 0.74rem;
+    font-weight: 700;
+}
+
+.admin-collapsible > :not(summary) {
+    margin-inline: 1rem;
+    margin-bottom: 1rem;
+}
+
+html:not(.dark) .admin-collapsible {
+    border-color: rgba(17, 81, 43, 0.12);
+}
+
+html:not(.dark) .admin-collapsible[open] {
+    background: rgba(18, 109, 59, 0.05);
+}
+
+html:not(.dark) .admin-collapsible__summary {
+    color: var(--app-text);
+}
+
+html:not(.dark) .admin-collapsible__summary::before {
+    background: rgba(18, 109, 59, 0.1);
+    color: var(--app-accent);
+}
+
+html:not(.dark) .admin-collapsible__count {
+    background: rgba(18, 109, 59, 0.1);
+    color: #153d25;
 }
 
 .eyebrow {

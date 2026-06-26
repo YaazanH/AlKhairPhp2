@@ -20,32 +20,53 @@ use Livewire\WithPagination;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 
-new class extends Component {
+new class extends Component
+{
     use AuthorizesPermissions;
     use SupportsCreateAndNew;
     use WithFileUploads;
     use WithPagination;
 
     public ?int $editingId = null;
+
     public string $name = '';
+
     public string $username = '';
+
     public string $email = '';
+
     public string $phone = '';
+
     public string $password = '';
+
     public string $profile_photo_path = '';
+
     public string $profile_photo_url = '';
+
     public $profile_photo_upload = null;
+
     public bool $is_active = true;
+
     public array $roles = [];
+
     public array $direct_permissions = [];
+
     public array $scope_groups = [];
+
     public array $scope_students = [];
+
     public array $scope_teachers = [];
+
     public array $scope_parents = [];
+
     public string $search = '';
+
     public string $roleFilter = 'all';
+
     public string $statusFilter = 'all';
+
     public int $perPage = 15;
+
     public bool $showFormModal = false;
 
     public function mount(): void
@@ -603,8 +624,14 @@ new class extends Component {
                     <div class="mt-2 text-sm text-neutral-400">{{ __('access.users.help.permissions') }}</div>
                     <div class="mt-4 space-y-4">
                         @foreach ($permissionGroups as $group => $permissions)
-                            <div class="rounded-2xl border border-white/8 p-4">
-                                <div class="text-sm font-semibold text-white">{{ $group }}</div>
+                            @php
+                                $selectedPermissionCount = $permissions->pluck('name')->intersect($direct_permissions)->count();
+                            @endphp
+                            <details class="admin-collapsible">
+                                <summary class="admin-collapsible__summary">
+                                    <span>{{ $group }}</span>
+                                    <span class="admin-collapsible__count">{{ $selectedPermissionCount }}/{{ $permissions->count() }}</span>
+                                </summary>
                                 <div class="mt-3 grid gap-3 md:grid-cols-2">
                                     @foreach ($permissions as $permission)
                                         <label class="flex items-start gap-3 text-sm text-neutral-200">
@@ -613,7 +640,7 @@ new class extends Component {
                                         </label>
                                     @endforeach
                                 </div>
-                            </div>
+                            </details>
                         @endforeach
                     </div>
                 </div>
@@ -630,8 +657,11 @@ new class extends Component {
                     <p class="mt-2 text-sm text-neutral-400">{{ __('access.users.scopes.help') }}</p>
 
                     <div class="mt-4 space-y-4">
-                        <div class="rounded-2xl border border-white/8 p-4">
-                            <div class="text-sm font-semibold text-white">{{ __('access.users.scopes.groups') }}</div>
+                        <details class="admin-collapsible">
+                            <summary class="admin-collapsible__summary">
+                                <span>{{ __('access.users.scopes.groups') }}</span>
+                                <span class="admin-collapsible__count">{{ count($scope_groups) }}/{{ $availableScopeGroups->count() }}</span>
+                            </summary>
                             <div class="mt-3 grid gap-3 md:grid-cols-2">
                                 @forelse ($availableScopeGroups as $scopeGroup)
                                     <label class="flex items-start gap-3 text-sm text-neutral-200">
@@ -642,10 +672,13 @@ new class extends Component {
                                     <div class="text-sm text-neutral-400">{{ __('access.users.scopes.empty') }}</div>
                                 @endforelse
                             </div>
-                        </div>
+                        </details>
 
-                        <div class="rounded-2xl border border-white/8 p-4">
-                            <div class="text-sm font-semibold text-white">{{ __('access.users.scopes.students') }}</div>
+                        <details class="admin-collapsible">
+                            <summary class="admin-collapsible__summary">
+                                <span>{{ __('access.users.scopes.students') }}</span>
+                                <span class="admin-collapsible__count">{{ count($scope_students) }}/{{ $availableScopeStudents->count() }}</span>
+                            </summary>
                             <div class="mt-3 grid gap-3 md:grid-cols-2">
                                 @forelse ($availableScopeStudents as $scopeStudent)
                                     <label class="flex items-start gap-3 text-sm text-neutral-200">
@@ -656,10 +689,13 @@ new class extends Component {
                                     <div class="text-sm text-neutral-400">{{ __('access.users.scopes.empty') }}</div>
                                 @endforelse
                             </div>
-                        </div>
+                        </details>
 
-                        <div class="rounded-2xl border border-white/8 p-4">
-                            <div class="text-sm font-semibold text-white">{{ __('access.users.scopes.teachers') }}</div>
+                        <details class="admin-collapsible">
+                            <summary class="admin-collapsible__summary">
+                                <span>{{ __('access.users.scopes.teachers') }}</span>
+                                <span class="admin-collapsible__count">{{ count($scope_teachers) }}/{{ $availableScopeTeachers->count() }}</span>
+                            </summary>
                             <div class="mt-3 grid gap-3 md:grid-cols-2">
                                 @forelse ($availableScopeTeachers as $scopeTeacher)
                                     <label class="flex items-start gap-3 text-sm text-neutral-200">
@@ -670,10 +706,13 @@ new class extends Component {
                                     <div class="text-sm text-neutral-400">{{ __('access.users.scopes.empty') }}</div>
                                 @endforelse
                             </div>
-                        </div>
+                        </details>
 
-                        <div class="rounded-2xl border border-white/8 p-4">
-                            <div class="text-sm font-semibold text-white">{{ __('access.users.scopes.parents') }}</div>
+                        <details class="admin-collapsible">
+                            <summary class="admin-collapsible__summary">
+                                <span>{{ __('access.users.scopes.parents') }}</span>
+                                <span class="admin-collapsible__count">{{ count($scope_parents) }}/{{ $availableScopeParents->count() }}</span>
+                            </summary>
                             <div class="mt-3 grid gap-3 md:grid-cols-2">
                                 @forelse ($availableScopeParents as $scopeParent)
                                     <label class="flex items-start gap-3 text-sm text-neutral-200">
@@ -684,7 +723,7 @@ new class extends Component {
                                     <div class="text-sm text-neutral-400">{{ __('access.users.scopes.empty') }}</div>
                                 @endforelse
                             </div>
-                        </div>
+                        </details>
                     </div>
                 </div>
             </section>
