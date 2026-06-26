@@ -677,6 +677,153 @@ function initializePublicGallerySliders() {
 document.addEventListener('DOMContentLoaded', initializePublicGallerySliders);
 document.addEventListener('livewire:navigated', initializePublicGallerySliders);
 
+function initializeQuickAttendanceScanners() {
+    document.querySelectorAll('[data-quick-attendance-scanner]').forEach((root) => {
+        if (!(root instanceof HTMLElement) || root.dataset.bound === 'true') {
+            return;
+        }
+
+        root.dataset.bound = 'true';
+
+        const video = root.querySelector('[data-quick-attendance-video]');
+        const message = root.querySelector('[data-quick-attendance-message]');
+        const input = root.querySelector('#quick-attendance-scan');
+        const startButton = root.querySelector('[data-quick-attendance-start]');
+        const stopButton = root.querySelector('[data-quick-attendance-stop]');
+        let stream = null;
+        let detector = null;
+        let scanning = false;
+        let lastValue = '';
+        let lastSeenAt = 0;
+
+        const messageText = (key, fallback = '') => root.dataset[key] || fallback;
+
+        const setMessage = (text) => {
+            if (message) {
+                message.textContent = text;
+            }
+        };
+
+        const component = () => {
+            const componentRoot = root.closest('[wire\\:id]');
+            const componentId = componentRoot?.getAttribute('wire:id');
+
+            return componentId && window.Livewire ? window.Livewire.find(componentId) : null;
+        };
+
+        const stop = () => {
+            scanning = false;
+
+            if (stream) {
+                stream.getTracks().forEach((track) => track.stop());
+                stream = null;
+            }
+
+            if (video instanceof HTMLVideoElement) {
+                video.srcObject = null;
+            }
+
+            setMessage(messageText('cameraIdle'));
+        };
+
+        const submitValue = async (value) => {
+            const normalizedValue = String(value || '').trim();
+            const now = Date.now();
+
+            if (!normalizedValue || (normalizedValue === lastValue && now - lastSeenAt < 2200)) {
+                return;
+            }
+
+            lastValue = normalizedValue;
+            lastSeenAt = now;
+            setMessage(messageText('cameraDetected'));
+
+            if (input instanceof HTMLInputElement) {
+                input.value = normalizedValue;
+                input.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+
+            const livewireComponent = component();
+
+            if (!livewireComponent) {
+                return;
+            }
+
+            try {
+                await livewireComponent.set('scan_value', normalizedValue, false);
+                await livewireComponent.call('scanStudent');
+            } catch (_error) {
+                setMessage(messageText('cameraError'));
+            }
+        };
+
+        const scanLoop = async () => {
+            if (!scanning || !detector || !(video instanceof HTMLVideoElement) || video.readyState < 2) {
+                if (scanning) {
+                    requestAnimationFrame(scanLoop);
+                }
+
+                return;
+            }
+
+            try {
+                const codes = await detector.detect(video);
+
+                if (codes.length > 0) {
+                    await submitValue(codes[0].rawValue || '');
+                }
+            } catch (_error) {
+                setMessage(messageText('cameraError'));
+            }
+
+            if (scanning) {
+                requestAnimationFrame(scanLoop);
+            }
+        };
+
+        startButton?.addEventListener('click', async () => {
+            if (!('BarcodeDetector' in window)) {
+                setMessage(messageText('cameraNotSupported'));
+                input?.focus();
+
+                return;
+            }
+
+            try {
+                detector = new BarcodeDetector({ formats: ['qr_code', 'code_39', 'code_128', 'ean_13', 'ean_8'] });
+                stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+
+                if (video instanceof HTMLVideoElement) {
+                    video.srcObject = stream;
+                    await video.play();
+                }
+
+                scanning = true;
+                setMessage(messageText('cameraRunning'));
+                requestAnimationFrame(scanLoop);
+            } catch (_error) {
+                setMessage(messageText('cameraError'));
+            }
+        });
+
+        stopButton?.addEventListener('click', stop);
+        root.quickAttendanceStop = stop;
+    });
+}
+
+function stopQuickAttendanceScanners() {
+    document.querySelectorAll('[data-quick-attendance-scanner]').forEach((root) => {
+        if (typeof root.quickAttendanceStop === 'function') {
+            root.quickAttendanceStop();
+        }
+    });
+}
+
+document.addEventListener('DOMContentLoaded', initializeQuickAttendanceScanners);
+document.addEventListener('livewire:navigated', initializeQuickAttendanceScanners);
+document.addEventListener('livewire:commit', initializeQuickAttendanceScanners);
+document.addEventListener('livewire:navigating', stopQuickAttendanceScanners);
+
 async function writeAdminCopyText(text) {
     if (!text) {
         return;

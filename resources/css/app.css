@@ -1464,11 +1464,6 @@ html:not(.dark) .app-pagination__summary-strong {
     cursor: default;
 }
 
-html[dir='rtl'] .app-pagination__mobile,
-html[dir='rtl'] .app-pagination__nav {
-    flex-direction: row-reverse;
-}
-
 html:not(.dark) .app-pagination__button,
 html:not(.dark) .app-pagination__page,
 html:not(.dark) .app-pagination__icon {

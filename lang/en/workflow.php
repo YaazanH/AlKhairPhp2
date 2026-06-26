@@ -212,6 +212,7 @@ return [
             'stop_camera' => 'Stop camera',
             'camera_idle' => 'Camera is stopped. You can still type or scan into the input field.',
             'camera_running' => 'Camera is running. Hold a student card code inside the video frame.',
+            'camera_detected' => 'Code detected. Applying the selected attendance status...',
             'camera_not_supported' => 'This browser does not support camera barcode detection. Use the input field or a USB scanner.',
             'camera_error' => 'Camera scanning could not start. Check camera permission or use the input field.',
             'scan_input' => 'Card code',
@@ -221,6 +222,7 @@ return [
                 'marked' => ':student marked as :status.',
             ],
             'errors' => [
+                'select_status_required' => 'Select the attendance status before scanning.',
                 'empty_scan' => 'Scan or enter a student card code first.',
                 'unknown_scan' => 'This barcode is not a student card code.',
                 'student_not_in_day' => 'No active student in this attendance day matches that card.',

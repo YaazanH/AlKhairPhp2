@@ -23,6 +23,10 @@ new class extends Component
 
     public string $scan_value = '';
 
+    public string $scan_feedback = '';
+
+    public string $scan_feedback_type = 'info';
+
     public string $search = '';
 
     public function mount(StudentAttendanceDay $studentAttendanceDay): void
@@ -90,19 +94,23 @@ new class extends Component
         ];
     }
 
-    public function markEnrollment(int $enrollmentId): void
+    public function markEnrollment(int $enrollmentId): bool
     {
         $this->authorizePermission('attendance.student.take');
 
         if ($this->currentDay->fresh()->status === 'closed') {
             $this->addError('scan_value', __('workflow.student_attendance.messages.closed_day_locked'));
+            $this->setScanFeedback(__('workflow.student_attendance.messages.closed_day_locked'), 'error');
 
-            return;
+            return false;
         }
 
-        $validated = $this->validate([
-            'selected_status_id' => ['required', 'integer', 'exists:attendance_statuses,id'],
-        ]);
+        if (blank($this->selected_status_id)) {
+            $this->addError('selected_status_id', __('workflow.student_attendance.quick.errors.select_status_required'));
+            $this->setScanFeedback(__('workflow.student_attendance.quick.errors.select_status_required'), 'error');
+
+            return false;
+        }
 
         $groupIds = $this->currentDay->groupAttendanceDays()->pluck('group_id');
         $enrollment = Enrollment::query()
@@ -115,24 +123,40 @@ new class extends Component
         $this->authorizeScopedEnrollmentAccess($enrollment);
 
         $status = AttendanceStatus::query()
-            ->whereKey((int) $validated['selected_status_id'])
+            ->whereKey((int) $this->selected_status_id)
             ->where('is_active', true)
             ->whereIn('scope', ['student', 'both'])
-            ->firstOrFail();
+            ->first();
+
+        if (! $status) {
+            $this->addError('selected_status_id', __('workflow.student_attendance.quick.errors.select_status_required'));
+            $this->setScanFeedback(__('workflow.student_attendance.quick.errors.select_status_required'), 'error');
+
+            return false;
+        }
 
         try {
             app(StudentAttendanceDayService::class)->recordEnrollmentStatus($this->currentDay, $enrollment, $status);
         } catch (InvalidArgumentException $exception) {
             $this->addError('scan_value', $exception->getMessage());
+            $this->setScanFeedback($exception->getMessage(), 'error');
 
-            return;
+            return false;
         }
 
         $this->resetErrorBag('scan_value');
+        $this->resetErrorBag('selected_status_id');
+        $message = __('workflow.student_attendance.quick.messages.marked', [
+            'student' => $enrollment->student?->full_name,
+            'status' => $status->name,
+        ]);
+        $this->setScanFeedback($message, 'success');
         session()->flash('status', __('workflow.student_attendance.quick.messages.marked', [
             'student' => $enrollment->student?->full_name,
             'status' => $status->name,
         ]));
+
+        return true;
     }
 
     public function scanStudent(): void
@@ -143,6 +167,7 @@ new class extends Component
 
         if ($value === '') {
             $this->addError('scan_value', __('workflow.student_attendance.quick.errors.empty_scan'));
+            $this->setScanFeedback(__('workflow.student_attendance.quick.errors.empty_scan'), 'error');
 
             return;
         }
@@ -151,6 +176,7 @@ new class extends Component
 
         if (! $studentNumber) {
             $this->addError('scan_value', __('workflow.student_attendance.quick.errors.unknown_scan'));
+            $this->setScanFeedback(__('workflow.student_attendance.quick.errors.unknown_scan'), 'error');
 
             return;
         }
@@ -167,18 +193,27 @@ new class extends Component
 
         if ($enrollments->isEmpty()) {
             $this->addError('scan_value', __('workflow.student_attendance.quick.errors.student_not_in_day'));
+            $this->setScanFeedback(__('workflow.student_attendance.quick.errors.student_not_in_day'), 'error');
 
             return;
         }
 
         if ($enrollments->count() > 1) {
             $this->addError('scan_value', __('workflow.student_attendance.quick.errors.multiple_enrollments'));
+            $this->setScanFeedback(__('workflow.student_attendance.quick.errors.multiple_enrollments'), 'error');
 
             return;
         }
 
-        $this->markEnrollment($enrollments->first()->id);
-        $this->scan_value = '';
+        if ($this->markEnrollment($enrollments->first()->id)) {
+            $this->scan_value = '';
+        }
+    }
+
+    protected function setScanFeedback(string $message, string $type = 'info'): void
+    {
+        $this->scan_feedback = $message;
+        $this->scan_feedback_type = in_array($type, ['success', 'error', 'info'], true) ? $type : 'info';
     }
 
     protected function defaultStudentAttendanceStatusId(): ?int
@@ -223,24 +258,71 @@ new class extends Component
         </div>
     @endif
 
+    <section
+        class="surface-panel p-5 lg:p-6"
+        id="quick-attendance-scanner"
+        data-quick-attendance-scanner
+        data-camera-idle="{{ __('workflow.student_attendance.quick.camera_idle') }}"
+        data-camera-running="{{ __('workflow.student_attendance.quick.camera_running') }}"
+        data-camera-detected="{{ __('workflow.student_attendance.quick.camera_detected') }}"
+        data-camera-not-supported="{{ __('workflow.student_attendance.quick.camera_not_supported') }}"
+        data-camera-error="{{ __('workflow.student_attendance.quick.camera_error') }}"
+    >
+        <div class="admin-toolbar">
+            <div>
+                <div class="admin-toolbar__title">{{ __('workflow.student_attendance.quick.scanner_title') }}</div>
+                <p class="admin-toolbar__subtitle">{{ __('workflow.student_attendance.quick.scanner_help') }}</p>
+            </div>
+            <div class="admin-toolbar__actions">
+                <button type="button" class="pill-link pill-link--accent" data-quick-attendance-start @disabled($isDayClosed)>
+                    {{ __('workflow.student_attendance.quick.start_camera') }}
+                </button>
+                <button type="button" class="pill-link" data-quick-attendance-stop>
+                    {{ __('workflow.student_attendance.quick.stop_camera') }}
+                </button>
+            </div>
+        </div>
+
+        <div class="mt-5 grid gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
+            <div class="overflow-hidden rounded-2xl border border-white/10 bg-black/40" wire:ignore>
+                <video data-quick-attendance-video class="aspect-video w-full object-cover" muted playsinline></video>
+            </div>
+            <div class="space-y-4">
+                <div>
+                    <label for="quick-attendance-status" class="mb-1 block text-sm font-medium">{{ __('workflow.student_attendance.quick.status') }}</label>
+                    <select id="quick-attendance-status" wire:model="selected_status_id" class="w-full rounded-xl px-4 py-3 text-sm" data-searchable="false" @disabled($isDayClosed)>
+                        <option value="">{{ __('workflow.student_attendance.quick.select_status') }}</option>
+                        @foreach ($statuses as $status)
+                            <option value="{{ $status->id }}">{{ $status->name }}{{ $status->is_default ? ' - '.__('settings.tracking.labels.default_attendance_status') : '' }}</option>
+                        @endforeach
+                    </select>
+                    @error('selected_status_id')
+                        <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
+                    @enderror
+                </div>
+
+                <div class="soft-callout p-4 text-sm {{ $scan_feedback_type === 'success' ? 'text-emerald-100' : ($scan_feedback_type === 'error' ? 'text-red-100' : '') }}" data-quick-attendance-message>
+                    {{ $scan_feedback ?: __('workflow.student_attendance.quick.camera_idle') }}
+                </div>
+
+                <div>
+                    <label for="quick-attendance-scan" class="mb-1 block text-sm font-medium">{{ __('workflow.student_attendance.quick.scan_input') }}</label>
+                    <input id="quick-attendance-scan" wire:model="scan_value" wire:keydown.enter="scanStudent" type="text" class="w-full rounded-xl px-4 py-3 text-sm" placeholder="{{ __('workflow.student_attendance.quick.scan_placeholder') }}" @disabled($isDayClosed)>
+                    @error('scan_value')
+                        <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
+                    @enderror
+                </div>
+                <button type="button" id="quick-attendance-submit-scan" wire:click="scanStudent" class="pill-link pill-link--accent w-full justify-center" @disabled($isDayClosed)>
+                    {{ __('workflow.student_attendance.quick.apply_scan') }}
+                </button>
+            </div>
+        </div>
+    </section>
+
     <section class="surface-panel p-5 lg:p-6">
-        <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_16rem] lg:items-end">
-            <div>
-                <label for="quick-attendance-search" class="mb-1 block text-sm font-medium">{{ __('crud.common.filters.search') }}</label>
-                <input id="quick-attendance-search" wire:model.live.debounce.250ms="search" type="text" class="w-full rounded-xl px-4 py-3 text-sm" placeholder="{{ __('workflow.student_attendance.quick.search_placeholder') }}">
-            </div>
-            <div>
-                <label for="quick-attendance-status" class="mb-1 block text-sm font-medium">{{ __('workflow.student_attendance.quick.status') }}</label>
-                <select id="quick-attendance-status" wire:model="selected_status_id" class="w-full rounded-xl px-4 py-3 text-sm" data-searchable="false" @disabled($isDayClosed)>
-                    <option value="">{{ __('workflow.student_attendance.quick.select_status') }}</option>
-                    @foreach ($statuses as $status)
-                        <option value="{{ $status->id }}">{{ $status->name }}{{ $status->is_default ? ' - '.__('settings.tracking.labels.default_attendance_status') : '' }}</option>
-                    @endforeach
-                </select>
-                @error('selected_status_id')
-                    <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
-                @enderror
-            </div>
+        <div>
+            <label for="quick-attendance-search" class="mb-1 block text-sm font-medium">{{ __('crud.common.filters.search') }}</label>
+            <input id="quick-attendance-search" wire:model.live.debounce.250ms="search" type="text" class="w-full rounded-xl px-4 py-3 text-sm" placeholder="{{ __('workflow.student_attendance.quick.search_placeholder') }}">
         </div>
     </section>
 
@@ -300,137 +382,4 @@ new class extends Component
             </div>
         @endif
     </section>
-
-    <section class="surface-panel p-5 lg:p-6" id="quick-attendance-scanner">
-        <div class="admin-toolbar">
-            <div>
-                <div class="admin-toolbar__title">{{ __('workflow.student_attendance.quick.scanner_title') }}</div>
-                <p class="admin-toolbar__subtitle">{{ __('workflow.student_attendance.quick.scanner_help') }}</p>
-            </div>
-            <div class="admin-toolbar__actions">
-                <button type="button" class="pill-link pill-link--accent" data-quick-attendance-start @disabled($isDayClosed)>
-                    {{ __('workflow.student_attendance.quick.start_camera') }}
-                </button>
-                <button type="button" class="pill-link" data-quick-attendance-stop>
-                    {{ __('workflow.student_attendance.quick.stop_camera') }}
-                </button>
-            </div>
-        </div>
-
-        <div class="mt-5 grid gap-4 lg:grid-cols-[minmax(0,1fr)_18rem]">
-            <div class="overflow-hidden rounded-2xl border border-white/10 bg-black/40">
-                <video data-quick-attendance-video class="aspect-video w-full object-cover" muted playsinline></video>
-            </div>
-            <div class="space-y-4">
-                <div class="soft-callout p-4 text-sm" data-quick-attendance-message>
-                    {{ __('workflow.student_attendance.quick.camera_idle') }}
-                </div>
-                <div>
-                    <label for="quick-attendance-scan" class="mb-1 block text-sm font-medium">{{ __('workflow.student_attendance.quick.scan_input') }}</label>
-                    <input id="quick-attendance-scan" wire:model="scan_value" wire:keydown.enter="scanStudent" type="text" class="w-full rounded-xl px-4 py-3 text-sm" placeholder="{{ __('workflow.student_attendance.quick.scan_placeholder') }}" @disabled($isDayClosed)>
-                    @error('scan_value')
-                        <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
-                    @enderror
-                </div>
-                <button type="button" id="quick-attendance-submit-scan" wire:click="scanStudent" class="pill-link pill-link--accent w-full justify-center" @disabled($isDayClosed)>
-                    {{ __('workflow.student_attendance.quick.apply_scan') }}
-                </button>
-            </div>
-        </div>
-    </section>
-
-    <script>
-        (() => {
-            const root = document.getElementById('quick-attendance-scanner');
-            if (!root || root.dataset.bound === 'true') {
-                return;
-            }
-
-            root.dataset.bound = 'true';
-            const video = root.querySelector('[data-quick-attendance-video]');
-            const message = root.querySelector('[data-quick-attendance-message]');
-            const input = document.getElementById('quick-attendance-scan');
-            const submit = document.getElementById('quick-attendance-submit-scan');
-            let stream = null;
-            let detector = null;
-            let scanning = false;
-            let lastValue = '';
-            let lastSeenAt = 0;
-
-            const setMessage = (text) => {
-                if (message) {
-                    message.textContent = text;
-                }
-            };
-
-            const stop = () => {
-                scanning = false;
-                if (stream) {
-                    stream.getTracks().forEach((track) => track.stop());
-                    stream = null;
-                }
-                if (video) {
-                    video.srcObject = null;
-                }
-                setMessage(@js(__('workflow.student_attendance.quick.camera_idle')));
-            };
-
-            const submitValue = (value) => {
-                const now = Date.now();
-                if (!value || (value === lastValue && now - lastSeenAt < 2000)) {
-                    return;
-                }
-                lastValue = value;
-                lastSeenAt = now;
-                input.value = value;
-                input.dispatchEvent(new Event('input', { bubbles: true }));
-                submit.click();
-            };
-
-            const scanLoop = async () => {
-                if (!scanning || !detector || !video || video.readyState < 2) {
-                    if (scanning) {
-                        requestAnimationFrame(scanLoop);
-                    }
-                    return;
-                }
-
-                try {
-                    const codes = await detector.detect(video);
-                    if (codes.length > 0) {
-                        submitValue(codes[0].rawValue || '');
-                    }
-                } catch (error) {
-                    setMessage(@js(__('workflow.student_attendance.quick.camera_error')));
-                }
-
-                if (scanning) {
-                    requestAnimationFrame(scanLoop);
-                }
-            };
-
-            root.querySelector('[data-quick-attendance-start]')?.addEventListener('click', async () => {
-                if (!('BarcodeDetector' in window)) {
-                    setMessage(@js(__('workflow.student_attendance.quick.camera_not_supported')));
-                    input?.focus();
-                    return;
-                }
-
-                try {
-                    detector = new BarcodeDetector({ formats: ['qr_code', 'code_39', 'code_128', 'ean_13', 'ean_8'] });
-                    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-                    video.srcObject = stream;
-                    await video.play();
-                    scanning = true;
-                    setMessage(@js(__('workflow.student_attendance.quick.camera_running')));
-                    requestAnimationFrame(scanLoop);
-                } catch (error) {
-                    setMessage(@js(__('workflow.student_attendance.quick.camera_error')));
-                }
-            });
-
-            root.querySelector('[data-quick-attendance-stop]')?.addEventListener('click', stop);
-            document.addEventListener('livewire:navigating', stop);
-        })();
-    </script>
 </div>
