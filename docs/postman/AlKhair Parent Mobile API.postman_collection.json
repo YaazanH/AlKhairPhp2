@@ -1,0 +1,581 @@
+{
+  "info": {
+    "name": "AlKhair Parent Mobile API",
+    "description": "Parent mobile API handoff collection. Set base_url, login, password, student_id, invoice_id, and activity_id before running requests.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000/api/v1"
+    },
+    {
+      "key": "token",
+      "value": ""
+    },
+    {
+      "key": "login",
+      "value": ""
+    },
+    {
+      "key": "password",
+      "value": ""
+    },
+    {
+      "key": "student_id",
+      "value": "1"
+    },
+    {
+      "key": "invoice_id",
+      "value": "1"
+    },
+    {
+      "key": "activity_id",
+      "value": "1"
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Create Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  const json = pm.response.json();",
+                  "  pm.collectionVariables.set('token', json.token);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"device_name\": \"Parent Mobile\",\n  \"login\": \"{{login}}\",\n  \"password\": \"{{password}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/token",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "token"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Revoke Current Token",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/token",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "token"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Parent",
+      "item": [
+        {
+          "name": "Profile",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/parent/profile",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "parent",
+                "profile"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Summary",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/parent/summary",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "parent",
+                "summary"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Children",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/parent/children",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "parent",
+                "children"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Child Detail",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/parent/children/{{student_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "parent",
+                "children",
+                "{{student_id}}"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Child Progress",
+      "item": [
+        {
+          "name": "Attendance",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/parent/children/{{student_id}}/attendance?date_from=2026-09-01&date_to=2026-09-30&per_page=25",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "parent",
+                "children",
+                "{{student_id}}",
+                "attendance"
+              ],
+              "query": [
+                {
+                  "key": "date_from",
+                  "value": "2026-09-01"
+                },
+                {
+                  "key": "date_to",
+                  "value": "2026-09-30"
+                },
+                {
+                  "key": "per_page",
+                  "value": "25"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Memorization",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/parent/children/{{student_id}}/memorization?date_from=2026-09-01&date_to=2026-09-30&entry_type=new&per_page=25",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "parent",
+                "children",
+                "{{student_id}}",
+                "memorization"
+              ],
+              "query": [
+                {
+                  "key": "date_from",
+                  "value": "2026-09-01"
+                },
+                {
+                  "key": "date_to",
+                  "value": "2026-09-30"
+                },
+                {
+                  "key": "entry_type",
+                  "value": "new"
+                },
+                {
+                  "key": "per_page",
+                  "value": "25"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Points",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/parent/children/{{student_id}}/points?date_from=2026-09-01&date_to=2026-09-30&per_page=25",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "parent",
+                "children",
+                "{{student_id}}",
+                "points"
+              ],
+              "query": [
+                {
+                  "key": "date_from",
+                  "value": "2026-09-01"
+                },
+                {
+                  "key": "date_to",
+                  "value": "2026-09-30"
+                },
+                {
+                  "key": "per_page",
+                  "value": "25"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Assessments",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/parent/children/{{student_id}}/assessments?date_from=2026-09-01&date_to=2026-09-30&per_page=25",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "parent",
+                "children",
+                "{{student_id}}",
+                "assessments"
+              ],
+              "query": [
+                {
+                  "key": "date_from",
+                  "value": "2026-09-01"
+                },
+                {
+                  "key": "date_to",
+                  "value": "2026-09-30"
+                },
+                {
+                  "key": "per_page",
+                  "value": "25"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Quran Tests",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/parent/children/{{student_id}}/quran-tests?date_from=2026-09-01&date_to=2026-09-30&per_page=25",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "parent",
+                "children",
+                "{{student_id}}",
+                "quran-tests"
+              ],
+              "query": [
+                {
+                  "key": "date_from",
+                  "value": "2026-09-01"
+                },
+                {
+                  "key": "date_to",
+                  "value": "2026-09-30"
+                },
+                {
+                  "key": "per_page",
+                  "value": "25"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Notes",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/parent/children/{{student_id}}/notes?date_from=2026-09-01&date_to=2026-09-30&per_page=25",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "parent",
+                "children",
+                "{{student_id}}",
+                "notes"
+              ],
+              "query": [
+                {
+                  "key": "date_from",
+                  "value": "2026-09-01"
+                },
+                {
+                  "key": "date_to",
+                  "value": "2026-09-30"
+                },
+                {
+                  "key": "per_page",
+                  "value": "25"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Finance",
+      "item": [
+        {
+          "name": "Invoices",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/parent/invoices?status=&date_from=2026-09-01&date_to=2026-09-30&per_page=25",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "parent",
+                "invoices"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": ""
+                },
+                {
+                  "key": "date_from",
+                  "value": "2026-09-01"
+                },
+                {
+                  "key": "date_to",
+                  "value": "2026-09-30"
+                },
+                {
+                  "key": "per_page",
+                  "value": "25"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Invoice Detail",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/parent/invoices/{{invoice_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "parent",
+                "invoices",
+                "{{invoice_id}}"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Activities",
+      "item": [
+        {
+          "name": "Available Activities",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/parent/activities",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "parent",
+                "activities"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Respond To Activity",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"student_id\": {{student_id}},\n  \"response\": \"registered\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/parent/activities/{{activity_id}}/responses",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "parent",
+                "activities",
+                "{{activity_id}}",
+                "responses"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

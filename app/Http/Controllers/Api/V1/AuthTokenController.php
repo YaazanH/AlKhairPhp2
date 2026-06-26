@@ -75,8 +75,12 @@ class AuthTokenController extends Controller
     protected function resolveApiAbilities(User $user): array
     {
         $apiPermissions = [
+            'activities.responses.respond',
+            'activities.responses.view',
             'activities.view',
+            'assessment-results.view',
             'assessments.view',
+            'dashboard.parent.view',
             'enrollments.create',
             'enrollments.delete',
             'enrollments.update',
@@ -86,6 +90,11 @@ class AuthTokenController extends Controller
             'groups.update',
             'groups.view',
             'invoices.view',
+            'memorization.view',
+            'payments.view',
+            'points.view',
+            'quran-awqaf-tests.view',
+            'quran-tests.view',
             'reports.view',
             'students.create',
             'students.delete',

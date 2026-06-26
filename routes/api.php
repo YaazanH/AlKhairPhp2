@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\V1\AuthTokenController;
 use App\Http\Controllers\Api\V1\FinanceWriteController;
 use App\Http\Controllers\Api\V1\OperationalWriteController;
+use App\Http\Controllers\Api\V1\ParentMobileController;
 use App\Http\Controllers\Api\V1\RecordsController;
 use App\Http\Controllers\Api\V1\ReportOverviewController;
 use App\Http\Controllers\Api\V1\TeacherDailySummaryController;
@@ -27,6 +28,22 @@ Route::middleware('auth:sanctum')->prefix('v1')->group(function () {
         Route::get('assessments', 'assessments');
         Route::get('activities', 'activities');
         Route::get('invoices', 'invoices');
+    });
+    Route::prefix('parent')->controller(ParentMobileController::class)->group(function () {
+        Route::get('profile', 'profile');
+        Route::get('summary', 'summary');
+        Route::get('children', 'children');
+        Route::get('children/{student}', 'child');
+        Route::get('children/{student}/attendance', 'attendance');
+        Route::get('children/{student}/memorization', 'memorization');
+        Route::get('children/{student}/points', 'points');
+        Route::get('children/{student}/assessments', 'assessments');
+        Route::get('children/{student}/quran-tests', 'quranTests');
+        Route::get('children/{student}/notes', 'notes');
+        Route::get('invoices', 'invoices');
+        Route::get('invoices/{invoice}', 'invoice');
+        Route::get('activities', 'activities');
+        Route::post('activities/{activity}/responses', 'respondToActivity');
     });
     Route::controller(WriteRecordsController::class)->group(function () {
         Route::post('students', 'storeStudent');
