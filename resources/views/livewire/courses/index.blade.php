@@ -21,6 +21,7 @@ new class extends Component {
     public string $starts_on = '';
     public string $ends_on = '';
     public bool $is_active = true;
+    public bool $awards_points = true;
     public string $search = '';
     public string $statusFilter = 'all';
     public int $perPage = 15;
@@ -84,6 +85,7 @@ new class extends Component {
             'starts_on' => ['nullable', 'date'],
             'ends_on' => ['nullable', 'date', 'after_or_equal:starts_on'],
             'is_active' => ['boolean'],
+            'awards_points' => ['boolean'],
         ];
     }
 
@@ -133,6 +135,7 @@ new class extends Component {
         $this->starts_on = $course->starts_on?->format('Y-m-d') ?? '';
         $this->ends_on = $course->ends_on?->format('Y-m-d') ?? '';
         $this->is_active = $course->is_active;
+        $this->awards_points = $course->awards_points;
         $this->showFormModal = true;
 
         $this->resetValidation();
@@ -146,6 +149,7 @@ new class extends Component {
         $this->starts_on = '';
         $this->ends_on = '';
         $this->is_active = true;
+        $this->awards_points = true;
         $this->showFormModal = false;
 
         $this->resetValidation();
@@ -357,6 +361,7 @@ new class extends Component {
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.courses.table.headers.course') }}</th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.courses.table.headers.dates') }}</th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.courses.table.headers.groups') }}</th>
+                            <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.courses.table.headers.points') }}</th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.courses.table.headers.status') }}</th>
                             <th class="px-5 py-4 text-right lg:px-6">{{ __('crud.courses.table.headers.actions') }}</th>
                         </tr>
@@ -376,6 +381,11 @@ new class extends Component {
                                         : __('crud.common.not_available') }}
                                 </td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ number_format($course->groups_count) }}</td>
+                                <td class="px-5 py-4 lg:px-6">
+                                    <span class="{{ $course->awards_points ? 'status-chip status-chip--emerald' : 'status-chip status-chip--slate' }}">
+                                        {{ $course->awards_points ? __('crud.courses.table.points_enabled') : __('crud.courses.table.points_disabled') }}
+                                    </span>
+                                </td>
                                 <td class="px-5 py-4 lg:px-6">
                                     <span class="{{ $course->is_active ? 'status-chip status-chip--emerald' : 'status-chip status-chip--slate' }}">
                                         {{ $course->is_active ? __('crud.common.status_options.active') : __('crud.common.status_options.inactive') }}
@@ -448,6 +458,11 @@ new class extends Component {
             <label class="flex items-center gap-3 text-sm">
                 <input wire:model="is_active" type="checkbox" class="rounded border-neutral-300 text-neutral-900">
                 <span>{{ __('crud.courses.form.active_course') }}</span>
+            </label>
+
+            <label class="flex items-center gap-3 text-sm">
+                <input wire:model="awards_points" type="checkbox" class="rounded border-neutral-300 text-neutral-900">
+                <span>{{ __('crud.courses.form.awards_points') }}</span>
             </label>
 
             <div class="flex flex-wrap items-center gap-3">

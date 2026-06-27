@@ -52,6 +52,8 @@ new class extends Component {
     public ?string $issued_password = null;
     public string $search = '';
     public string $statusFilter = 'all';
+    public string $sortField = 'student';
+    public string $sortDirection = 'asc';
     public int $perPage = 15;
     public bool $showFormModal = false;
     public bool $showAccountModal = false;
@@ -76,6 +78,16 @@ new class extends Component {
     public bool $enrollment_group_auto = true;
     public bool $syncing_enrollment_group_id = false;
 
+    protected array $sortableFields = [
+        'enrollments',
+        'grade',
+        'juz',
+        'parent',
+        'status',
+        'student',
+        'student_number',
+    ];
+
     public function mount(): void
     {
         $this->authorizePermission('students.view');
@@ -92,9 +104,8 @@ new class extends Component {
             ->with(['parentProfile', 'gradeLevel', 'quranCurrentJuz'])
             ->withCount('enrollments')
             ->when(filled($this->search), fn (Builder $query) => $this->applyStudentSearch($query, $this->search))
-            ->when(in_array($this->statusFilter, ['active', 'inactive', 'graduated', 'blocked'], true), fn ($query) => $query->where('status', $this->statusFilter))
-            ->orderBy('last_name')
-            ->orderBy('first_name');
+            ->when(in_array($this->statusFilter, ['active', 'inactive', 'graduated', 'blocked'], true), fn ($query) => $query->where('status', $this->statusFilter));
+        $this->applyStudentSort($filteredQuery);
 
         $filteredCount = (clone $filteredQuery)->count();
 
@@ -156,6 +167,22 @@ new class extends Component {
 
     public function updatedStatusFilter(): void
     {
+        $this->resetPage();
+    }
+
+    public function sortBy(string $field): void
+    {
+        if (! in_array($field, $this->sortableFields, true)) {
+            return;
+        }
+
+        if ($this->sortField === $field) {
+            $this->sortDirection = $this->sortDirection === 'asc' ? 'desc' : 'asc';
+        } else {
+            $this->sortField = $field;
+            $this->sortDirection = in_array($field, ['student', 'student_number', 'parent', 'grade', 'status'], true) ? 'asc' : 'desc';
+        }
+
         $this->resetPage();
     }
 
@@ -834,6 +861,56 @@ new class extends Component {
         });
     }
 
+    protected function applyStudentSort(Builder $query): void
+    {
+        $direction = $this->sortDirection === 'desc' ? 'desc' : 'asc';
+
+        match ($this->sortField) {
+            'enrollments' => $query->orderBy('enrollments_count', $direction),
+            'grade' => $query->orderBy(
+                GradeLevel::query()
+                    ->select('name')
+                    ->whereColumn('grade_levels.id', 'students.grade_level_id')
+                    ->limit(1),
+                $direction,
+            ),
+            'juz' => $query->orderBy(
+                QuranJuz::query()
+                    ->select('juz_number')
+                    ->whereColumn('quran_juzs.id', 'students.quran_current_juz_id')
+                    ->limit(1),
+                $direction,
+            ),
+            'parent' => $query->orderBy(
+                ParentProfile::query()
+                    ->select('father_name')
+                    ->whereColumn('parents.id', 'students.parent_id')
+                    ->limit(1),
+                $direction,
+            ),
+            'status' => $query->orderBy('status', $direction),
+            'student_number' => $query->orderBy('student_number', $direction),
+            default => $query
+                ->orderBy('first_name', $direction)
+                ->orderBy('last_name', $direction),
+        };
+
+        if ($this->sortField !== 'student') {
+            $query->orderBy('first_name')->orderBy('last_name');
+        }
+
+        $query->orderBy('id');
+    }
+
+    protected function sortIndicator(string $field): string
+    {
+        if ($this->sortField !== $field) {
+            return '';
+        }
+
+        return $this->sortDirection === 'asc' ? '↑' : '↓';
+    }
+
     protected function normalizeArabicSearch(string $value): string
     {
         $normalized = trim(preg_replace('/\s+/u', ' ', $value) ?? '');
@@ -1181,13 +1258,62 @@ new class extends Component {
                 <table class="text-sm">
                     <thead>
                         <tr>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.students.table.headers.student') }}</th>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.students.table.headers.student_number') }}</th>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.students.table.headers.parent') }}</th>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.students.table.headers.grade') }}</th>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.students.table.headers.juz') }}</th>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.students.table.headers.enrollments') }}</th>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.students.table.headers.status') }}</th>
+                            <th class="px-5 py-4 text-left lg:px-6">
+                                <button type="button" wire:click="sortBy('student')" class="inline-flex items-center gap-2 font-medium text-inherit">
+                                    <span>{{ __('crud.students.table.headers.student') }}</span>
+                                    @if ($sortIndicator = $this->sortIndicator('student'))
+                                        <span aria-hidden="true">{{ $sortIndicator }}</span>
+                                    @endif
+                                </button>
+                            </th>
+                            <th class="px-5 py-4 text-left lg:px-6">
+                                <button type="button" wire:click="sortBy('student_number')" class="inline-flex items-center gap-2 font-medium text-inherit">
+                                    <span>{{ __('crud.students.table.headers.student_number') }}</span>
+                                    @if ($sortIndicator = $this->sortIndicator('student_number'))
+                                        <span aria-hidden="true">{{ $sortIndicator }}</span>
+                                    @endif
+                                </button>
+                            </th>
+                            <th class="px-5 py-4 text-left lg:px-6">
+                                <button type="button" wire:click="sortBy('parent')" class="inline-flex items-center gap-2 font-medium text-inherit">
+                                    <span>{{ __('crud.students.table.headers.parent') }}</span>
+                                    @if ($sortIndicator = $this->sortIndicator('parent'))
+                                        <span aria-hidden="true">{{ $sortIndicator }}</span>
+                                    @endif
+                                </button>
+                            </th>
+                            <th class="px-5 py-4 text-left lg:px-6">
+                                <button type="button" wire:click="sortBy('grade')" class="inline-flex items-center gap-2 font-medium text-inherit">
+                                    <span>{{ __('crud.students.table.headers.grade') }}</span>
+                                    @if ($sortIndicator = $this->sortIndicator('grade'))
+                                        <span aria-hidden="true">{{ $sortIndicator }}</span>
+                                    @endif
+                                </button>
+                            </th>
+                            <th class="px-5 py-4 text-left lg:px-6">
+                                <button type="button" wire:click="sortBy('juz')" class="inline-flex items-center gap-2 font-medium text-inherit">
+                                    <span>{{ __('crud.students.table.headers.juz') }}</span>
+                                    @if ($sortIndicator = $this->sortIndicator('juz'))
+                                        <span aria-hidden="true">{{ $sortIndicator }}</span>
+                                    @endif
+                                </button>
+                            </th>
+                            <th class="px-5 py-4 text-left lg:px-6">
+                                <button type="button" wire:click="sortBy('enrollments')" class="inline-flex items-center gap-2 font-medium text-inherit">
+                                    <span>{{ __('crud.students.table.headers.enrollments') }}</span>
+                                    @if ($sortIndicator = $this->sortIndicator('enrollments'))
+                                        <span aria-hidden="true">{{ $sortIndicator }}</span>
+                                    @endif
+                                </button>
+                            </th>
+                            <th class="px-5 py-4 text-left lg:px-6">
+                                <button type="button" wire:click="sortBy('status')" class="inline-flex items-center gap-2 font-medium text-inherit">
+                                    <span>{{ __('crud.students.table.headers.status') }}</span>
+                                    @if ($sortIndicator = $this->sortIndicator('status'))
+                                        <span aria-hidden="true">{{ $sortIndicator }}</span>
+                                    @endif
+                                </button>
+                            </th>
                             @if (auth()->user()->can('students.view') || auth()->user()->can('students.update') || auth()->user()->can('students.delete'))
                                 <th class="px-5 py-4 text-right lg:px-6">{{ __('crud.students.table.headers.actions') }}</th>
                             @endif

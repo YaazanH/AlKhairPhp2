@@ -533,6 +533,52 @@ class StudentAttendanceDayModuleTest extends TestCase
             ->assertSeeText('2026-10-05');
     }
 
+    public function test_disabling_course_points_removes_old_attendance_points_from_effective_totals(): void
+    {
+        $this->seed();
+
+        $manager = User::factory()->create([
+            'username' => 'attendance-no-points-manager',
+            'phone' => '0998222111',
+        ]);
+        $manager->assignRole('manager');
+
+        $teacher = Teacher::create([
+            'first_name' => 'No Points',
+            'last_name' => 'Teacher',
+            'phone' => '0998222112',
+            'status' => 'active',
+        ]);
+
+        $course = Course::create([
+            'name' => 'No Points Attendance Course',
+            'is_active' => true,
+            'awards_points' => true,
+        ]);
+        $enrollment = $this->makeEnrollment($teacher->id, 'No Points Group', true, $course);
+        $present = AttendanceStatus::query()->where('code', 'present')->firstOrFail();
+        $service = app(StudentAttendanceDayService::class);
+
+        $this->actingAs($manager);
+
+        $day = $service->createOrSyncDay('2026-10-12', collect([$enrollment->group]), $manager, null, 'open', null, $course->id);
+        $service->recordEnrollmentStatus($day, $enrollment->fresh(['student', 'group.course']), $present);
+
+        $this->assertSame(2, $enrollment->fresh()->final_points_cached);
+        $this->assertSame(2, PointTransaction::query()->where('enrollment_id', $enrollment->id)->effectiveActive()->sum('points'));
+
+        $course->update(['awards_points' => false]);
+
+        $this->assertSame(0, $enrollment->fresh()->final_points_cached);
+        $this->assertSame(0, PointTransaction::query()->where('enrollment_id', $enrollment->id)->effectiveActive()->sum('points'));
+        $this->assertSame(1, PointTransaction::query()->where('enrollment_id', $enrollment->id)->inactiveSource()->count());
+
+        $service->recordEnrollmentStatus($day, $enrollment->fresh(['student', 'group.course']), $present);
+
+        $this->assertSame(0, $enrollment->fresh()->final_points_cached);
+        $this->assertSame(0, PointTransaction::query()->where('enrollment_id', $enrollment->id)->whereNull('voided_at')->sum('points'));
+    }
+
     private function teacherContext(string $groupName, bool $otherTeacher = false): array
     {
         $teacherUser = User::factory()->create([

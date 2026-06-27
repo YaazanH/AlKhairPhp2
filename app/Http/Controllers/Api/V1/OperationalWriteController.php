@@ -410,20 +410,22 @@ class OperationalWriteController extends Controller
             ], 422);
         }
 
-        $transaction = PointTransaction::query()->create([
-            'enrollment_id' => $enrollment->id,
-            'entered_at' => now(),
-            'entered_by' => $request->user()->id,
-            'notes' => blank($validated['notes'] ?? null) ? null : $validated['notes'],
-            'point_type_id' => $pointType->id,
-            'points' => (int) $validated['points'],
-            'policy_id' => null,
-            'source_id' => null,
-            'source_type' => 'manual',
-            'student_id' => $enrollment->student_id,
-        ]);
+        $ledger = app(PointLedgerService::class);
+        $transaction = $ledger->recordManualPoints(
+            $enrollment->fresh(['group.course']),
+            $pointType,
+            (int) $validated['points'],
+            blank($validated['notes'] ?? null) ? null : $validated['notes'],
+            $request->user()->id,
+        );
 
-        app(PointLedgerService::class)->syncEnrollmentCaches($enrollment->fresh(['student']));
+        if (! $transaction) {
+            return response()->json([
+                'message' => __('workflow.points.errors.course_points_disabled'),
+            ], 422);
+        }
+
+        $ledger->syncEnrollmentCaches($enrollment->fresh(['student']));
 
         return response()->json($this->pointTransactionPayload($transaction->fresh(['pointType'])), 201);
     }

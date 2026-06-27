@@ -269,8 +269,46 @@ class BarcodeScannerWorkflowTest extends TestCase
             StudentAttendanceDay::query()
                 ->whereDate('attendance_date', $attendanceDate)
                 ->where('course_id', $secondEnrollment->group->course_id)
-                ->count()
+            ->count()
         );
+    }
+
+    public function test_scanner_point_action_processes_without_points_when_course_points_are_disabled(): void
+    {
+        $this->seed();
+
+        $manager = User::factory()->create(['username' => 'barcode-manager-no-points']);
+        $manager->assignRole('manager');
+        $this->actingAs($manager);
+
+        $enrollment = $this->makeEnrollment();
+        $enrollment->group->course->update(['awards_points' => false]);
+
+        $catalog = app(BarcodeActionCatalogService::class);
+        $bonusType = PointType::query()->create([
+            'name' => 'Scanner No Points',
+            'code' => 'scanner-no-points',
+            'category' => 'manual',
+            'default_points' => 5,
+            'allow_manual_entry' => true,
+            'allow_negative' => false,
+            'is_active' => true,
+        ]);
+        $catalog->syncReferenceActions();
+
+        app(ScannerDumpImportService::class)->apply(
+            $enrollment->group->course_id,
+            '2026-04-15',
+            $catalog->pointActionCode($bonusType)."\n{$enrollment->student_id}",
+            $manager,
+        );
+
+        $this->assertSame(1, BarcodeScanImport::query()->firstOrFail()->processed_count);
+        $this->assertDatabaseMissing('point_transactions', [
+            'enrollment_id' => $enrollment->id,
+            'source_type' => 'barcode_scan',
+        ]);
+        $this->assertSame(0, $enrollment->fresh()->final_points_cached);
     }
 
     protected function makeEnrollment(): Enrollment

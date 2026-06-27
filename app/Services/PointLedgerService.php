@@ -58,7 +58,7 @@ class PointLedgerService
 
     public function recordAutomaticPoints(Enrollment $enrollment, string $sourceType, int $sourceId, PointType $pointType, ?PointPolicy $policy, int $points, ?string $notes = null): ?PointTransaction
     {
-        if ($points === 0) {
+        if ($points === 0 || ! $this->enrollmentAwardsPoints($enrollment)) {
             return null;
         }
 
@@ -93,6 +93,33 @@ class PointLedgerService
             $points,
             $notes,
         );
+    }
+
+    public function recordManualPoints(Enrollment $enrollment, PointType $pointType, int $points, ?string $notes = null, ?int $enteredBy = null): ?PointTransaction
+    {
+        if ($points === 0 || ! $this->enrollmentAwardsPoints($enrollment)) {
+            return null;
+        }
+
+        return PointTransaction::query()->create([
+            'student_id' => $enrollment->student_id,
+            'enrollment_id' => $enrollment->id,
+            'point_type_id' => $pointType->id,
+            'policy_id' => null,
+            'source_type' => 'manual',
+            'source_id' => null,
+            'points' => $points,
+            'entered_by' => $enteredBy ?? auth()->id(),
+            'entered_at' => now(),
+            'notes' => $notes,
+        ]);
+    }
+
+    public function enrollmentAwardsPoints(Enrollment $enrollment): bool
+    {
+        $enrollment->loadMissing('group.course');
+
+        return (bool) ($enrollment->group?->course?->is_active && $enrollment->group?->course?->awards_points);
     }
 
     public function voidSourceTransactions(string $sourceType, int $sourceId, ?string $reason = null): void

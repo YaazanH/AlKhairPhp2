@@ -210,14 +210,20 @@ new class extends Component {
                 return;
             }
 
+            $enrollment = $this->scopeEnrollmentsQuery(Enrollment::query()->with(['student', 'group.course']))
+                ->findOrFail($transaction->enrollment_id);
+
+            if (! app(PointLedgerService::class)->enrollmentAwardsPoints($enrollment)) {
+                $this->addError('manual_point_type_id', __('workflow.points.errors.course_points_disabled'));
+
+                return;
+            }
+
             $transaction->update([
                 'point_type_id' => $pointType->id,
                 'points' => $points,
                 'notes' => null,
             ]);
-
-            $enrollment = $this->scopeEnrollmentsQuery(Enrollment::query()->with('student'))
-                ->findOrFail($transaction->enrollment_id);
         } else {
             $student = $this->scopeStudentsQuery(Student::query())->findOrFail($validated['selectedStudentId']);
             $this->authorizeScopedStudentAccess($student);
@@ -246,21 +252,14 @@ new class extends Component {
 
             abort_unless(in_array((int) $validated['selectedEnrollmentId'], $availableEnrollmentIds, true), 403);
 
-            $enrollment = $this->scopeEnrollmentsQuery(Enrollment::query()->with('student'))
+            $enrollment = $this->scopeEnrollmentsQuery(Enrollment::query()->with(['student', 'group.course']))
                 ->findOrFail((int) $validated['selectedEnrollmentId']);
 
-            PointTransaction::query()->create([
-                'student_id' => $enrollment->student_id,
-                'enrollment_id' => $enrollment->id,
-                'point_type_id' => $pointType->id,
-                'policy_id' => null,
-                'source_type' => 'manual',
-                'source_id' => null,
-                'points' => $points,
-                'entered_by' => auth()->id(),
-                'entered_at' => now(),
-                'notes' => null,
-            ]);
+            if (! app(PointLedgerService::class)->recordManualPoints($enrollment, $pointType, $points)) {
+                $this->addError('manual_point_type_id', __('workflow.points.errors.course_points_disabled'));
+
+                return;
+            }
         }
 
         app(PointLedgerService::class)->syncEnrollmentCaches($enrollment->fresh(['student']));

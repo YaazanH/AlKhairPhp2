@@ -208,8 +208,8 @@ class ScannerDumpImportService
                 $applied = $this->applyAction($action, $enrollment, $attendanceDate, $actor, $event);
 
                 $event->update([
-                    'applied_model_type' => $applied::class,
-                    'applied_model_id' => $applied->getKey(),
+                    'applied_model_type' => $applied ? $applied::class : null,
+                    'applied_model_id' => $applied?->getKey(),
                     'result' => 'applied',
                     'message' => __('barcodes.import.messages.applied'),
                 ]);
@@ -225,7 +225,7 @@ class ScannerDumpImportService
         return $preview + ['import' => $import];
     }
 
-    protected function applyAction(BarcodeAction $action, Enrollment $enrollment, string $attendanceDate, User $actor, BarcodeScanEvent $event): Model
+    protected function applyAction(BarcodeAction $action, Enrollment $enrollment, string $attendanceDate, User $actor, BarcodeScanEvent $event): ?Model
     {
         if ($action->isAttendance()) {
             return $this->applyAttendanceAction($action, $enrollment, $attendanceDate, $actor);
@@ -255,10 +255,14 @@ class ScannerDumpImportService
         );
     }
 
-    protected function applyPointAction(BarcodeAction $action, Enrollment $enrollment, User $actor, BarcodeScanEvent $event): PointTransaction
+    protected function applyPointAction(BarcodeAction $action, Enrollment $enrollment, User $actor, BarcodeScanEvent $event): ?PointTransaction
     {
         /** @var PointType $pointType */
         $pointType = $action->pointType()->firstOrFail();
+
+        if (! $this->ledger->enrollmentAwardsPoints($enrollment)) {
+            return null;
+        }
 
         $transaction = PointTransaction::query()->create([
             'student_id' => $enrollment->student_id,

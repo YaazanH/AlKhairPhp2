@@ -48,7 +48,7 @@ new class extends Component
         return [
             'dayRecord' => $day,
             'canAddManualGroup' => $this->canPermission('attendance.student.take') && $day->status !== 'closed',
-            'canQuickAttend' => $this->canPermission('attendance.student.take'),
+            'canQuickAttend' => $this->canPermission('attendance.student.take') && $day->status !== 'closed',
             'canToggleDayStatus' => $this->canPermission('attendance.student.toggle-day-status'),
             'availableExtraGroups' => $this->scopeGroupsQuery(
                 Group::query()

@@ -847,6 +847,7 @@ return [
             'edit_manual_only' => 'Only active manual point entries can be edited.',
             'invalid_manual_point_type' => 'Choose an active manual point type with a configured non-zero amount.',
             'no_active_enrollment' => 'This student does not have an active enrollment in your current scope.',
+            'course_points_disabled' => 'The selected course does not award student points.',
             'select_group' => 'Select the active group you want to record this point entry under.',
             'void_transaction_missing' => 'This point entry is no longer available. Reopen the delete dialog and try again.',
         ],

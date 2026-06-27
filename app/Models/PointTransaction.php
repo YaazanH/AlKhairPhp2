@@ -75,7 +75,9 @@ class PointTransaction extends Model
     {
         return $query
             ->notVoided()
-            ->whereHas('enrollment.group.course', fn (Builder $builder) => $builder->where('is_active', true));
+            ->whereHas('enrollment.group.course', fn (Builder $builder) => $builder
+                ->where('is_active', true)
+                ->where('awards_points', true));
     }
 
     public function scopeInactiveSource(Builder $query): Builder
@@ -84,7 +86,10 @@ class PointTransaction extends Model
             ->notVoided()
             ->where(function (Builder $builder) {
                 $builder
-                    ->whereHas('enrollment.group.course', fn (Builder $courseQuery) => $courseQuery->where('is_active', false))
+                    ->whereHas('enrollment.group.course', fn (Builder $courseQuery) => $courseQuery
+                        ->where(fn (Builder $stateQuery) => $stateQuery
+                            ->where('is_active', false)
+                            ->orWhere('awards_points', false)))
                     ->orWhereDoesntHave('enrollment.group.course');
             });
     }
@@ -111,11 +116,15 @@ class PointTransaction extends Model
             && $this->enrollment->group
             && $this->enrollment->group->relationLoaded('course')
         ) {
-            return (bool) $this->enrollment->group->course?->is_active;
+            $course = $this->enrollment->group->course;
+
+            return (bool) ($course?->is_active && $course?->awards_points);
         }
 
         return $this->enrollment()
-            ->whereHas('group.course', fn (Builder $builder) => $builder->where('is_active', true))
+            ->whereHas('group.course', fn (Builder $builder) => $builder
+                ->where('is_active', true)
+                ->where('awards_points', true))
             ->exists();
     }
 }

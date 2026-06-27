@@ -78,6 +78,12 @@ new class extends Component {
             return;
         }
 
+        if (! app(PointLedgerService::class)->enrollmentAwardsPoints($this->currentEnrollment->fresh(['group.course']))) {
+            $this->addError('manual_point_type_id', __('workflow.points.errors.course_points_disabled'));
+
+            return;
+        }
+
         if ($this->editingTransactionId) {
             $transaction = PointTransaction::query()
                 ->where('enrollment_id', $this->currentEnrollment->id)
@@ -95,18 +101,7 @@ new class extends Component {
                 'notes' => null,
             ]);
         } else {
-            PointTransaction::query()->create([
-                'student_id' => $this->currentEnrollment->student_id,
-                'enrollment_id' => $this->currentEnrollment->id,
-                'point_type_id' => $pointType->id,
-                'policy_id' => null,
-                'source_type' => 'manual',
-                'source_id' => null,
-                'points' => $points,
-                'entered_by' => auth()->id(),
-                'entered_at' => now(),
-                'notes' => null,
-            ]);
+            app(PointLedgerService::class)->recordManualPoints($this->currentEnrollment->fresh(['group.course']), $pointType, $points);
         }
 
         app(PointLedgerService::class)->syncEnrollmentCaches($this->currentEnrollment->fresh(['student']));

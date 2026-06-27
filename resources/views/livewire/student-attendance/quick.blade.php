@@ -10,6 +10,7 @@ use App\Models\StudentAttendanceRecord;
 use App\Services\BarcodeActions\BarcodeActionCatalogService;
 use App\Services\StudentAttendanceDayService;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\DB;
 use Livewire\Volt\Component;
 
 new class extends Component
@@ -28,6 +29,16 @@ new class extends Component
     public string $scan_feedback_type = 'info';
 
     public string $search = '';
+
+    public string $sortField = 'student';
+
+    public string $sortDirection = 'asc';
+
+    protected array $sortableFields = [
+        'attendance',
+        'group',
+        'student',
+    ];
 
     public function mount(StudentAttendanceDay $studentAttendanceDay): void
     {
@@ -55,15 +66,7 @@ new class extends Component
             ->with(['group.course', 'student.parentProfile'])
             ->whereIn('group_id', $groupIds)
             ->where('status', 'active')
-            ->when(filled($this->search), function (Builder $query): void {
-                $search = '%'.trim($this->search).'%';
-
-                $query->whereHas('student', fn (Builder $studentQuery) => $studentQuery
-                    ->where('first_name', 'like', $search)
-                    ->orWhere('last_name', 'like', $search)
-                    ->orWhere('student_number', 'like', $search)
-                    ->orWhereHas('parentProfile', fn (Builder $parentQuery) => $parentQuery->where('father_name', 'like', $search)));
-            })
+            ->when(filled($this->search), fn (Builder $query) => $this->applyQuickStudentSearch($query, $this->search))
             ->orderBy(
                 Student::query()
                     ->select('first_name')
@@ -77,6 +80,7 @@ new class extends Component
                     ->limit(1),
             )
             ->get();
+        $enrollments = $this->sortedEnrollments($enrollments, $records);
 
         return [
             'dayRecord' => $day,
@@ -211,10 +215,165 @@ new class extends Component
         }
     }
 
+    public function sortBy(string $field): void
+    {
+        if (! in_array($field, $this->sortableFields, true)) {
+            return;
+        }
+
+        if ($this->sortField === $field) {
+            $this->sortDirection = $this->sortDirection === 'asc' ? 'desc' : 'asc';
+
+            return;
+        }
+
+        $this->sortField = $field;
+        $this->sortDirection = in_array($field, ['group', 'student'], true) ? 'asc' : 'desc';
+    }
+
     protected function setScanFeedback(string $message, string $type = 'info'): void
     {
         $this->scan_feedback = $message;
         $this->scan_feedback_type = in_array($type, ['success', 'error', 'info'], true) ? $type : 'info';
+    }
+
+    protected function sortedEnrollments($enrollments, $records)
+    {
+        $field = in_array($this->sortField, $this->sortableFields, true)
+            ? $this->sortField
+            : 'student';
+        $direction = $this->sortDirection === 'desc' ? 'desc' : 'asc';
+
+        return $enrollments
+            ->sort(function (Enrollment $left, Enrollment $right) use ($field, $direction, $records): int {
+                $comparison = match ($field) {
+                    'attendance' => strnatcasecmp(
+                        (string) ($records->get($left->id)?->status?->name ?? ''),
+                        (string) ($records->get($right->id)?->status?->name ?? ''),
+                    ),
+                    'group' => strnatcasecmp((string) ($left->group?->name ?? ''), (string) ($right->group?->name ?? '')),
+                    default => strnatcasecmp((string) ($left->student?->full_name ?? ''), (string) ($right->student?->full_name ?? '')),
+                };
+
+                if ($comparison === 0) {
+                    $comparison = strnatcasecmp((string) ($left->student?->full_name ?? ''), (string) ($right->student?->full_name ?? ''));
+                }
+
+                return $direction === 'desc' ? -$comparison : $comparison;
+            })
+            ->values();
+    }
+
+    protected function sortIndicator(string $field): string
+    {
+        if ($this->sortField !== $field) {
+            return '';
+        }
+
+        return $this->sortDirection === 'asc' ? '↑' : '↓';
+    }
+
+    protected function applyQuickStudentSearch(Builder $query, string $search): void
+    {
+        $normalizedSearch = '%'.$this->normalizeArabicSearch($search).'%';
+        $rawSearch = '%'.trim($search).'%';
+
+        $query->where(function (Builder $builder) use ($normalizedSearch, $rawSearch): void {
+            $builder
+                ->whereHas('student', function (Builder $studentQuery) use ($normalizedSearch, $rawSearch): void {
+                    $normalizedFullName = $this->normalizedSqlExpression($this->sqlConcatWithSpaces(['first_name', 'last_name']));
+                    $normalizedFirstName = $this->normalizedSqlExpression('coalesce(first_name, \'\')');
+                    $normalizedLastName = $this->normalizedSqlExpression('coalesce(last_name, \'\')');
+
+                    $studentQuery
+                        ->whereRaw($normalizedFirstName.' like ?', [$normalizedSearch])
+                        ->orWhereRaw($normalizedLastName.' like ?', [$normalizedSearch])
+                        ->orWhereRaw($normalizedFullName.' like ?', [$normalizedSearch])
+                        ->orWhere('student_number', 'like', $rawSearch)
+                        ->orWhereHas('parentProfile', function (Builder $parentQuery) use ($normalizedSearch): void {
+                            $normalizedFatherName = $this->normalizedSqlExpression('coalesce(father_name, \'\')');
+                            $normalizedMotherName = $this->normalizedSqlExpression('coalesce(mother_name, \'\')');
+
+                            $parentQuery
+                                ->whereRaw($normalizedFatherName.' like ?', [$normalizedSearch])
+                                ->orWhereRaw($normalizedMotherName.' like ?', [$normalizedSearch]);
+                        });
+                })
+                ->orWhereHas('group', function (Builder $groupQuery) use ($normalizedSearch): void {
+                    $normalizedGroupName = $this->normalizedSqlExpression('coalesce(name, \'\')');
+
+                    $groupQuery
+                        ->whereRaw($normalizedGroupName.' like ?', [$normalizedSearch])
+                        ->orWhereHas('course', function (Builder $courseQuery) use ($normalizedSearch): void {
+                            $normalizedCourseName = $this->normalizedSqlExpression('coalesce(name, \'\')');
+
+                            $courseQuery->whereRaw($normalizedCourseName.' like ?', [$normalizedSearch]);
+                        });
+                });
+        });
+    }
+
+    protected function normalizeArabicSearch(string $value): string
+    {
+        $normalized = trim(preg_replace('/\s+/u', ' ', $value) ?? '');
+
+        return strtr($normalized, [
+            'أ' => 'ا',
+            'إ' => 'ا',
+            'آ' => 'ا',
+            'ٱ' => 'ا',
+            'ؤ' => 'و',
+            'ئ' => 'ي',
+            'ى' => 'ي',
+            'ة' => 'ه',
+            'ء' => '',
+            'ـ' => '',
+            'ً' => '',
+            'ٌ' => '',
+            'ٍ' => '',
+            'َ' => '',
+            'ُ' => '',
+            'ِ' => '',
+            'ّ' => '',
+            'ْ' => '',
+        ]);
+    }
+
+    protected function normalizedSqlExpression(string $expression): string
+    {
+        foreach ([
+            'أ' => 'ا',
+            'إ' => 'ا',
+            'آ' => 'ا',
+            'ٱ' => 'ا',
+            'ؤ' => 'و',
+            'ئ' => 'ي',
+            'ى' => 'ي',
+            'ة' => 'ه',
+            'ء' => '',
+            'ـ' => '',
+            'ً' => '',
+            'ٌ' => '',
+            'ٍ' => '',
+            'َ' => '',
+            'ُ' => '',
+            'ِ' => '',
+            'ّ' => '',
+            'ْ' => '',
+        ] as $from => $to) {
+            $expression = "replace($expression, '$from', '$to')";
+        }
+
+        return "trim(replace(replace(replace($expression, '  ', ' '), '  ', ' '), '  ', ' '))";
+    }
+
+    protected function sqlConcatWithSpaces(array $columns): string
+    {
+        $wrappedColumns = array_map(fn (string $column) => "coalesce($column, '')", $columns);
+
+        return DB::connection()->getDriverName() === 'sqlite'
+            ? implode(" || ' ' || ", $wrappedColumns)
+            : 'concat_ws(\' \', '.implode(', ', $wrappedColumns).')';
     }
 
     protected function defaultStudentAttendanceStatusId(): ?int
@@ -342,9 +501,30 @@ new class extends Component
                 <table class="text-sm">
                     <thead>
                         <tr>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.table.headers.student') }}</th>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.day_details.table.headers.group') }}</th>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.table.headers.attendance') }}</th>
+                            <th class="px-5 py-4 text-left lg:px-6">
+                                <button type="button" wire:click="sortBy('student')" class="inline-flex items-center gap-2 font-medium text-inherit">
+                                    <span>{{ __('workflow.student_attendance.table.headers.student') }}</span>
+                                    @if ($sortIndicator = $this->sortIndicator('student'))
+                                        <span aria-hidden="true">{{ $sortIndicator }}</span>
+                                    @endif
+                                </button>
+                            </th>
+                            <th class="px-5 py-4 text-left lg:px-6">
+                                <button type="button" wire:click="sortBy('group')" class="inline-flex items-center gap-2 font-medium text-inherit">
+                                    <span>{{ __('workflow.student_attendance.day_details.table.headers.group') }}</span>
+                                    @if ($sortIndicator = $this->sortIndicator('group'))
+                                        <span aria-hidden="true">{{ $sortIndicator }}</span>
+                                    @endif
+                                </button>
+                            </th>
+                            <th class="px-5 py-4 text-left lg:px-6">
+                                <button type="button" wire:click="sortBy('attendance')" class="inline-flex items-center gap-2 font-medium text-inherit">
+                                    <span>{{ __('workflow.student_attendance.table.headers.attendance') }}</span>
+                                    @if ($sortIndicator = $this->sortIndicator('attendance'))
+                                        <span aria-hidden="true">{{ $sortIndicator }}</span>
+                                    @endif
+                                </button>
+                            </th>
                             <th class="px-5 py-4 text-right lg:px-6">{{ __('workflow.student_attendance.day_details.table.headers.actions') }}</th>
                         </tr>
                     </thead>

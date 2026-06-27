@@ -44,12 +44,13 @@ class AdminExportController extends Controller
             $query->where('is_active', $request->string('status')->value() === 'active');
         }
 
-        return $this->streamXlsx('courses', ['Name', 'Description', 'Starts On', 'Ends On', 'Groups', 'Status'], $query->get()->map(fn (Course $course) => [
+        return $this->streamXlsx('courses', ['Name', 'Description', 'Starts On', 'Ends On', 'Groups', 'Points', 'Status'], $query->get()->map(fn (Course $course) => [
             $course->name,
             $course->description,
             $course->starts_on?->format('Y-m-d'),
             $course->ends_on?->format('Y-m-d'),
             $course->groups_count,
+            $course->awards_points ? 'Enabled' : 'Disabled',
             $course->is_active ? 'Active' : 'Inactive',
         ])->all());
     }

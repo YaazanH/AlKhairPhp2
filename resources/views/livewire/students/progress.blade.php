@@ -609,9 +609,11 @@ new class extends Component {
                                 </span>
                             </td>
                             <td class="px-5 py-4 text-right lg:px-6">
-                                <button type="button" wire:click="showMissingPages({{ $row->juz->id }})" class="pill-link pill-link--compact">
-                                    {{ __('workflow.student_progress.juz_progress.show_missing') }}
-                                </button>
+                                @unless ($row->is_complete)
+                                    <button type="button" wire:click="showMissingPages({{ $row->juz->id }})" class="pill-link pill-link--compact">
+                                        {{ __('workflow.student_progress.juz_progress.show_missing') }}
+                                    </button>
+                                @endunless
                             </td>
                         </tr>
                     @endforeach
