@@ -295,16 +295,20 @@ return [
             'buttons' => [
                 'preview' => 'معاينة الطباعة',
                 'mark_printed' => 'تغيير إلى مطبوع',
+                'mark_unprinted' => 'تغيير إلى غير مطبوع',
                 'mark_printed_busy' => 'جارٍ التحديث...',
+                'mark_unprinted_busy' => 'جارٍ التحديث...',
                 'select_visible' => 'تحديد الظاهر',
                 'clear' => 'مسح',
             ],
             'messages' => [
                 'marked_printed' => 'تم تحديث الطلاب المحددين إلى بطاقات مطبوعة.',
+                'marked_unprinted' => 'تم تغيير الطلاب المحددين إلى بطاقات غير مطبوعة.',
             ],
             'errors' => [
                 'no_students_selected' => 'حدد طالباً واحداً على الأقل أولاً.',
                 'mark_printed_failed' => 'تعذر تحديث حالة الطباعة الآن.',
+                'mark_unprinted_failed' => 'تعذر مسح حالة الطباعة الآن.',
             ],
         ],
         'empty' => [

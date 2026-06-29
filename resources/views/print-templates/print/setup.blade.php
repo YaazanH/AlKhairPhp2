@@ -89,6 +89,14 @@
                                 >
                                     {{ __('print_templates.print.setup.buttons.mark_printed') }}
                                 </button>
+                                <button
+                                    type="button"
+                                    class="pill-link"
+                                    data-mark-selected-unprinted
+                                    data-clear-url="{{ route('id-cards.print.clear') }}"
+                                >
+                                    {{ __('print_templates.print.setup.buttons.mark_unprinted') }}
+                                </button>
                             @endif
                             <a href="{{ $cancelUrl }}" class="pill-link">{{ __('crud.common.actions.cancel') }}</a>
                         </div>
@@ -238,6 +246,7 @@
             const pageSizeSelect = document.querySelector('[data-print-page-size-select]');
             const copyPanel = document.querySelector('[data-copy-count-panel]');
             const markPrintedButton = document.querySelector('[data-mark-selected-printed]');
+            const markUnprintedButton = document.querySelector('[data-mark-selected-unprinted]');
             const printStatusNotice = document.querySelector('[data-print-status-notice]');
 
             if (!templateSelect) {
@@ -245,11 +254,16 @@
             }
 
             const printedFlagLabel = @json(__('print_templates.print.setup.fields.printed_flag'));
+            const notPrintedFlagLabel = @json(__('print_templates.print.setup.fields.not_printed_flag'));
             const markPrintedDefaultLabel = @json(__('print_templates.print.setup.buttons.mark_printed'));
+            const markUnprintedDefaultLabel = @json(__('print_templates.print.setup.buttons.mark_unprinted'));
             const markPrintedBusyLabel = @json(__('print_templates.print.setup.buttons.mark_printed_busy'));
+            const markUnprintedBusyLabel = @json(__('print_templates.print.setup.buttons.mark_unprinted_busy'));
             const markPrintedSuccessMessage = @json(__('print_templates.print.setup.messages.marked_printed'));
+            const markUnprintedSuccessMessage = @json(__('print_templates.print.setup.messages.marked_unprinted'));
             const markPrintedEmptyMessage = @json(__('print_templates.print.setup.errors.no_students_selected'));
             const markPrintedFailedMessage = @json(__('print_templates.print.setup.errors.mark_printed_failed'));
+            const markUnprintedFailedMessage = @json(__('print_templates.print.setup.errors.mark_unprinted_failed'));
             const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
                 || document.querySelector('input[name="_token"]')?.value
                 || '';
@@ -418,6 +432,24 @@
                 });
             }
 
+            function updateStudentUnprintedState(studentIds) {
+                const selectedIds = new Set(studentIds.map((id) => String(id)));
+
+                document.querySelectorAll('[data-source-card="student"]').forEach((card) => {
+                    if (!selectedIds.has(card.dataset.recordId)) {
+                        return;
+                    }
+
+                    card.dataset.cardPrinted = '0';
+
+                    const stateLabel = card.querySelector('[data-student-print-state]');
+
+                    if (stateLabel) {
+                        stateLabel.textContent = notPrintedFlagLabel;
+                    }
+                });
+            }
+
             function updatePanels() {
                 const sources = activeSources();
                 const active = sources.map((source) => source.entity);
@@ -539,6 +571,49 @@
                 } finally {
                     markPrintedButton.disabled = false;
                     markPrintedButton.textContent = markPrintedDefaultLabel;
+                }
+            });
+
+            markUnprintedButton?.addEventListener('click', async () => {
+                const studentIds = selectedStudentIds();
+
+                if (studentIds.length === 0) {
+                    setPrintStatusNotice(markPrintedEmptyMessage, 'error');
+                    return;
+                }
+
+                setPrintStatusNotice('', 'neutral');
+                markUnprintedButton.disabled = true;
+                markUnprintedButton.textContent = markUnprintedBusyLabel;
+
+                try {
+                    const response = await fetch(markUnprintedButton.dataset.clearUrl, {
+                        method: 'DELETE',
+                        headers: {
+                            'Accept': 'application/json',
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': csrfToken,
+                            'X-Requested-With': 'XMLHttpRequest',
+                        },
+                        body: JSON.stringify({
+                            template_id: templateSelect.value,
+                            student_ids: studentIds,
+                        }),
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`Request failed with status ${response.status}`);
+                    }
+
+                    updateStudentUnprintedState(studentIds);
+                    applySourceFilter('student');
+                    setPrintStatusNotice(markUnprintedSuccessMessage, 'success');
+                } catch (error) {
+                    console.error(error);
+                    setPrintStatusNotice(markUnprintedFailedMessage, 'error');
+                } finally {
+                    markUnprintedButton.disabled = false;
+                    markUnprintedButton.textContent = markUnprintedDefaultLabel;
                 }
             });
 

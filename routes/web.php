@@ -51,6 +51,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('id-cards/print', [PrintTemplatePrintController::class, 'createStudentCards'])->middleware('permission:id-cards.print')->name('id-cards.print.create');
     Route::post('id-cards/print/preview', [PrintTemplatePrintController::class, 'previewStudentCards'])->middleware('permission:id-cards.print')->name('id-cards.print.preview');
     Route::post('id-cards/print/record', [PrintTemplatePrintController::class, 'recordStudentCardPrints'])->middleware('permission:id-cards.print')->name('id-cards.print.record');
+    Route::delete('id-cards/print/record', [PrintTemplatePrintController::class, 'clearStudentCardPrints'])->middleware('permission:id-cards.print')->name('id-cards.print.clear');
     Route::get('print-templates', [PrintTemplateController::class, 'index'])->middleware('permission:id-cards.view')->name('print-templates.templates.index');
     Route::get('print-templates/create', [PrintTemplateController::class, 'create'])->middleware('permission:id-cards.templates.manage')->name('print-templates.templates.create');
     Route::post('print-templates', [PrintTemplateController::class, 'store'])->middleware('permission:id-cards.templates.manage')->name('print-templates.templates.store');

@@ -295,16 +295,20 @@ return [
             'buttons' => [
                 'preview' => 'Preview print',
                 'mark_printed' => 'Change to printed',
+                'mark_unprinted' => 'Change to not printed',
                 'mark_printed_busy' => 'Updating...',
+                'mark_unprinted_busy' => 'Updating...',
                 'select_visible' => 'Select visible',
                 'clear' => 'Clear',
             ],
             'messages' => [
                 'marked_printed' => 'The selected students were marked as printed.',
+                'marked_unprinted' => 'The selected students were marked as not printed.',
             ],
             'errors' => [
                 'no_students_selected' => 'Select at least one student first.',
                 'mark_printed_failed' => 'The print status could not be updated right now.',
+                'mark_unprinted_failed' => 'The print status could not be cleared right now.',
             ],
         ],
         'empty' => [

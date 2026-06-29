@@ -400,10 +400,12 @@ class IdCardBuilderTest extends TestCase
             ->assertOk()
             ->assertSee('data-source-printed-filter="student"', false)
             ->assertSee('data-mark-selected-printed', false)
+            ->assertSee('data-mark-selected-unprinted', false)
             ->assertSee('data-card-printed="1"', false)
             ->assertSee('Card Group')
             ->assertSee(__('print_templates.print.setup.fields.printed_flag'))
-            ->assertSee(__('print_templates.print.setup.buttons.mark_printed'));
+            ->assertSee(__('print_templates.print.setup.buttons.mark_printed'))
+            ->assertSee(__('print_templates.print.setup.buttons.mark_unprinted'));
     }
 
     public function test_student_card_print_record_endpoint_creates_history_rows(): void
@@ -450,6 +452,58 @@ class IdCardBuilderTest extends TestCase
             'student_id' => $student->id,
             'print_template_id' => $template->id,
             'printed_by' => $manager->id,
+        ]);
+    }
+
+    public function test_student_card_print_clear_endpoint_removes_history_rows(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $manager = User::factory()->create();
+        $manager->assignRole('manager');
+
+        $parent = ParentProfile::query()->create([
+            'father_name' => 'Clear Parent',
+            'is_active' => true,
+        ]);
+
+        $student = Student::query()->create([
+            'parent_id' => $parent->id,
+            'first_name' => 'Clear',
+            'last_name' => 'Student',
+            'birth_date' => '2014-05-12',
+            'status' => 'active',
+        ]);
+
+        $template = PrintTemplate::query()->create([
+            'name' => 'Clear Cards',
+            'width_mm' => 85.6,
+            'height_mm' => 53.98,
+            'data_sources' => [
+                ['entity' => 'student', 'mode' => 'multiple'],
+            ],
+            'layout_json' => [],
+            'is_active' => true,
+            'is_student_card' => true,
+        ]);
+
+        StudentCardPrint::query()->create([
+            'student_id' => $student->id,
+            'print_template_id' => $template->id,
+            'printed_by' => $manager->id,
+            'printed_at' => now(),
+        ]);
+
+        $this->actingAs($manager)
+            ->deleteJson(route('id-cards.print.clear'), [
+                'template_id' => $template->id,
+                'student_ids' => [$student->id],
+            ])
+            ->assertOk()
+            ->assertJson(['cleared' => true]);
+
+        $this->assertDatabaseMissing('student_card_prints', [
+            'student_id' => $student->id,
         ]);
     }
 

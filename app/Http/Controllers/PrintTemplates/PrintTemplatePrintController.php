@@ -53,11 +53,7 @@ class PrintTemplatePrintController extends Controller
     {
         abort_unless($request->user()?->can('id-cards.print'), 403);
 
-        $validated = $request->validate([
-            'template_id' => ['required', 'exists:print_templates,id'],
-            'student_ids' => ['required', 'array', 'min:1'],
-            'student_ids.*' => ['integer', 'exists:students,id'],
-        ]);
+        $validated = $this->validateStudentCardPrintRequest($request);
 
         $template = PrintTemplate::query()->findOrFail($validated['template_id']);
         abort_unless($template->is_student_card && $this->hasStudentRepeatingSource($template), 404);
@@ -87,6 +83,31 @@ class PrintTemplatePrintController extends Controller
         ]);
     }
 
+    public function clearStudentCardPrints(Request $request): JsonResponse
+    {
+        abort_unless($request->user()?->can('id-cards.print'), 403);
+
+        $validated = $this->validateStudentCardPrintRequest($request);
+
+        $template = PrintTemplate::query()->findOrFail($validated['template_id']);
+        abort_unless($template->is_student_card && $this->hasStudentRepeatingSource($template), 404);
+
+        $studentIds = collect($validated['student_ids'])
+            ->map(fn (mixed $studentId) => (int) $studentId)
+            ->filter(fn (int $studentId) => $studentId > 0)
+            ->unique()
+            ->values();
+
+        StudentCardPrint::query()
+            ->whereIn('student_id', $studentIds)
+            ->delete();
+
+        return response()->json([
+            'cleared' => true,
+            'student_ids' => $studentIds->all(),
+        ]);
+    }
+
     protected function authorizeFinanceRequestPrint(Request $request, array $sources): void
     {
         $financeSource = collect($sources)
@@ -106,6 +127,15 @@ class PrintTemplatePrintController extends Controller
             },
             403,
         );
+    }
+
+    protected function validateStudentCardPrintRequest(Request $request): array
+    {
+        return $request->validate([
+            'template_id' => ['required', 'exists:print_templates,id'],
+            'student_ids' => ['required', 'array', 'min:1'],
+            'student_ids.*' => ['integer', 'exists:students,id'],
+        ]);
     }
 
     protected function contextsFromRequest(Request $request, array $sources, int $copyCount): Collection|RedirectResponse
