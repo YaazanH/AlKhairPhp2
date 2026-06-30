@@ -181,17 +181,33 @@ class ReportingService
             ->groupBy('enrollment_id')
             ->pluck('total_points', 'enrollment_id');
 
+        $attendanceCounts = $this->scopedStudentAttendanceRecordsQuery($filters)
+            ->whereIn('enrollment_id', $enrollmentIds)
+            ->join('attendance_statuses', 'attendance_statuses.id', '=', 'student_attendance_records.attendance_status_id')
+            ->selectRaw('student_attendance_records.enrollment_id')
+            ->selectRaw('SUM(CASE WHEN attendance_statuses.is_present = 1 THEN 1 ELSE 0 END) as attended_days')
+            ->selectRaw('SUM(CASE WHEN attendance_statuses.is_present = 1 THEN 0 ELSE 1 END) as absent_days')
+            ->groupBy('student_attendance_records.enrollment_id')
+            ->get()
+            ->keyBy('enrollment_id');
+
         return $enrollments
-            ->map(fn (Enrollment $enrollment) => [
-                'academic_year' => $enrollment->group?->academicYear?->name,
-                'course' => $enrollment->group?->course?->name,
-                'enrollment_id' => $enrollment->id,
-                'group' => $enrollment->group?->name,
-                'memorized_pages' => (int) ($memorizedPages[$enrollment->id] ?? 0),
-                'points' => (int) ($points[$enrollment->id] ?? 0),
-                'student_id' => $enrollment->student_id,
-                'student_name' => trim(($enrollment->student?->first_name ?? '').' '.($enrollment->student?->last_name ?? '')),
-            ])
+            ->map(function (Enrollment $enrollment) use ($attendanceCounts, $memorizedPages, $points) {
+                $attendance = $attendanceCounts->get($enrollment->id);
+
+                return [
+                    'academic_year' => $enrollment->group?->academicYear?->name,
+                    'absent_days' => (int) ($attendance?->absent_days ?? 0),
+                    'attended_days' => (int) ($attendance?->attended_days ?? 0),
+                    'course' => $enrollment->group?->course?->name,
+                    'enrollment_id' => $enrollment->id,
+                    'group' => $enrollment->group?->name,
+                    'memorized_pages' => (int) ($memorizedPages[$enrollment->id] ?? 0),
+                    'points' => (int) ($points[$enrollment->id] ?? 0),
+                    'student_id' => $enrollment->student_id,
+                    'student_name' => trim(($enrollment->student?->first_name ?? '').' '.($enrollment->student?->last_name ?? '')),
+                ];
+            })
             ->values()
             ->all();
     }
@@ -203,6 +219,8 @@ class ReportingService
                 $row['student_name'],
                 $row['memorized_pages'],
                 $row['points'],
+                $row['attended_days'],
+                $row['absent_days'],
                 $row['group'],
                 $row['course'],
                 $row['academic_year'],

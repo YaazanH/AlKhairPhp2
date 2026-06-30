@@ -26,6 +26,8 @@ new class extends Component
 
     protected array $sortableFields = [
         'group',
+        'absent_days',
+        'attended_days',
         'memorized_pages',
         'points',
         'student_name',
@@ -95,6 +97,8 @@ new class extends Component
             )->get(),
             'rows' => $rows,
             'totals' => [
+                'absent_days' => collect($rows)->sum('absent_days'),
+                'attended_days' => collect($rows)->sum('attended_days'),
                 'memorized_pages' => collect($rows)->sum('memorized_pages'),
                 'points' => collect($rows)->sum('points'),
                 'students' => count($rows),
@@ -124,7 +128,7 @@ new class extends Component
         return collect($rows)
             ->sort(function (array $left, array $right) use ($field, $direction): int {
                 $comparison = match ($field) {
-                    'memorized_pages', 'points' => ($left[$field] ?? 0) <=> ($right[$field] ?? 0),
+                    'absent_days', 'attended_days', 'memorized_pages', 'points' => ($left[$field] ?? 0) <=> ($right[$field] ?? 0),
                     default => strnatcasecmp((string) ($left[$field] ?? ''), (string) ($right[$field] ?? '')),
                 };
 
@@ -249,7 +253,7 @@ new class extends Component
         </section>
 
         <div class="grid gap-6">
-            <section class="grid gap-4 md:grid-cols-3">
+            <section class="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
                 <article class="surface-panel report-kpi-card p-5">
                     <div class="kpi-label report-kpi-label">{{ __('reports.student_activity.students') }}</div>
                     <div class="metric-value report-kpi-value mt-5">{{ number_format($totals['students']) }}</div>
@@ -261,6 +265,14 @@ new class extends Component
                 <article class="surface-panel report-kpi-card p-5">
                     <div class="kpi-label report-kpi-label">{{ __('reports.student_activity.points') }}</div>
                     <div class="metric-value report-kpi-value mt-5">{{ number_format($totals['points']) }}</div>
+                </article>
+                <article class="surface-panel report-kpi-card p-5">
+                    <div class="kpi-label report-kpi-label">{{ __('reports.student_activity.attended_days') }}</div>
+                    <div class="metric-value report-kpi-value mt-5">{{ number_format($totals['attended_days']) }}</div>
+                </article>
+                <article class="surface-panel report-kpi-card p-5">
+                    <div class="kpi-label report-kpi-label">{{ __('reports.student_activity.absent_days') }}</div>
+                    <div class="metric-value report-kpi-value mt-5">{{ number_format($totals['absent_days']) }}</div>
                 </article>
             </section>
 
@@ -302,6 +314,22 @@ new class extends Component
                                         </button>
                                     </th>
                                     <th class="px-5 py-4 text-left lg:px-6">
+                                        <button type="button" wire:click="sortBy('attended_days')" class="inline-flex items-center gap-2 font-medium text-inherit">
+                                            <span>{{ __('reports.student_activity.headers.attended_days') }}</span>
+                                            @if ($sortIndicator = $this->sortIndicator('attended_days'))
+                                                <span aria-hidden="true">{{ $sortIndicator }}</span>
+                                            @endif
+                                        </button>
+                                    </th>
+                                    <th class="px-5 py-4 text-left lg:px-6">
+                                        <button type="button" wire:click="sortBy('absent_days')" class="inline-flex items-center gap-2 font-medium text-inherit">
+                                            <span>{{ __('reports.student_activity.headers.absent_days') }}</span>
+                                            @if ($sortIndicator = $this->sortIndicator('absent_days'))
+                                                <span aria-hidden="true">{{ $sortIndicator }}</span>
+                                            @endif
+                                        </button>
+                                    </th>
+                                    <th class="px-5 py-4 text-left lg:px-6">
                                         <button type="button" wire:click="sortBy('group')" class="inline-flex items-center gap-2 font-medium text-inherit">
                                             <span>{{ __('reports.student_activity.headers.group') }}</span>
                                             @if ($sortIndicator = $this->sortIndicator('group'))
@@ -317,6 +345,8 @@ new class extends Component
                                         <td class="px-5 py-4 font-medium text-white lg:px-6">{{ $row['student_name'] ?: __('reports.leaderboard.unknown_student') }}</td>
                                         <td class="px-5 py-4 text-neutral-200 lg:px-6">{{ number_format($row['memorized_pages']) }}</td>
                                         <td class="px-5 py-4 text-neutral-200 lg:px-6">{{ number_format($row['points']) }}</td>
+                                        <td class="px-5 py-4 text-neutral-200 lg:px-6">{{ number_format($row['attended_days']) }}</td>
+                                        <td class="px-5 py-4 text-neutral-200 lg:px-6">{{ number_format($row['absent_days']) }}</td>
                                         <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $row['group'] }}</td>
                                     </tr>
                                 @endforeach
