@@ -1,0 +1,2399 @@
+{
+  "info": {
+    "_postman_id": "80f1eaf0-cc90-4afd-9650-alkhair-mobile-api",
+    "name": "AlKhair Mobile API - Complete",
+    "description": "Complete collection for every route in routes/api.php. Login stores the Sanctum bearer token automatically. Requests inherit Bearer {{token}} unless marked otherwise.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "pm.request.headers.upsert({ key: 'Accept', value: 'application/json' });"
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "token",
+      "value": ""
+    },
+    {
+      "key": "user_id",
+      "value": ""
+    },
+    {
+      "key": "student_id",
+      "value": ""
+    },
+    {
+      "key": "parent_id",
+      "value": ""
+    },
+    {
+      "key": "group_id",
+      "value": ""
+    },
+    {
+      "key": "enrollment_id",
+      "value": ""
+    },
+    {
+      "key": "teacher_id",
+      "value": ""
+    },
+    {
+      "key": "academic_year_id",
+      "value": ""
+    },
+    {
+      "key": "course_id",
+      "value": ""
+    },
+    {
+      "key": "grade_level_id",
+      "value": ""
+    },
+    {
+      "key": "juz_id",
+      "value": ""
+    },
+    {
+      "key": "assessment_id",
+      "value": ""
+    },
+    {
+      "key": "assessment_type_id",
+      "value": ""
+    },
+    {
+      "key": "activity_id",
+      "value": ""
+    },
+    {
+      "key": "invoice_id",
+      "value": ""
+    },
+    {
+      "key": "attendance_status_id",
+      "value": ""
+    },
+    {
+      "key": "teacher_attendance_status_id",
+      "value": ""
+    },
+    {
+      "key": "quran_test_type_id",
+      "value": ""
+    },
+    {
+      "key": "point_type_id",
+      "value": ""
+    },
+    {
+      "key": "point_transaction_id",
+      "value": ""
+    },
+    {
+      "key": "registration_id",
+      "value": ""
+    },
+    {
+      "key": "activity_payment_id",
+      "value": ""
+    },
+    {
+      "key": "expense_category_id",
+      "value": ""
+    },
+    {
+      "key": "activity_expense_id",
+      "value": ""
+    },
+    {
+      "key": "invoice_item_id",
+      "value": ""
+    },
+    {
+      "key": "payment_method_id",
+      "value": ""
+    },
+    {
+      "key": "payment_id",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "01 Authentication",
+      "item": [
+        {
+          "name": "Login - Create Token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/token",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "token"
+              ]
+            },
+            "description": "Creates a Laravel Sanctum token. User must be active and have at least one API-enabled permission.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"device_name\": \"{{device_name}}\",\n  \"login\": \"{{login}}\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Token created', () => pm.expect(pm.response.code).to.eql(201));",
+                  "const body = pm.response.json();",
+                  "if (body.token) pm.environment.set('token', body.token);",
+                  "if (body.user?.id) pm.environment.set('user_id', body.user.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Current User",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/user",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "user"
+              ]
+            },
+            "description": "Returns the authenticated user."
+          }
+        },
+        {
+          "name": "Logout - Revoke Current Token",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/token",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "token"
+              ]
+            },
+            "description": "Revokes the bearer token used for this request."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Token revoked', () => pm.expect(pm.response.code).to.eql(204));",
+                  "if (pm.response.code === 204) pm.environment.unset('token');"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "02 Reports",
+      "item": [
+        {
+          "name": "Overview",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/reports/overview?academic_year_id={{academic_year_id}}&date_from={{date_from}}&date_to={{date_to}}&group_id={{group_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "reports",
+                "overview"
+              ],
+              "query": [
+                {
+                  "key": "academic_year_id",
+                  "value": "{{academic_year_id}}",
+                  "description": "Academic year ID",
+                  "disabled": true
+                },
+                {
+                  "key": "date_from",
+                  "value": "{{date_from}}",
+                  "description": "Start date",
+                  "disabled": true
+                },
+                {
+                  "key": "date_to",
+                  "value": "{{date_to}}",
+                  "description": "End date",
+                  "disabled": true
+                },
+                {
+                  "key": "group_id",
+                  "value": "{{group_id}}",
+                  "description": "Group ID",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Permission: reports.view"
+          }
+        },
+        {
+          "name": "Teachers Daily Summary",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/reports/teachers/daily-summary?date={{date}}&include_empty=false&teacher_id={{teacher_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "reports",
+                "teachers",
+                "daily-summary"
+              ],
+              "query": [
+                {
+                  "key": "date",
+                  "value": "{{date}}",
+                  "description": "Date YYYY-MM-DD",
+                  "disabled": true
+                },
+                {
+                  "key": "include_empty",
+                  "value": "false",
+                  "description": "Include teachers without activity",
+                  "disabled": true
+                },
+                {
+                  "key": "teacher_id",
+                  "value": "{{teacher_id}}",
+                  "description": "Teacher ID",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Permission: reports.view"
+          }
+        }
+      ]
+    },
+    {
+      "name": "03 Read Records",
+      "item": [
+        {
+          "name": "List Students",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/students?group_id={{group_id}}&parent_id={{parent_id}}&status=active&page=1&per_page=25",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "students"
+              ],
+              "query": [
+                {
+                  "key": "group_id",
+                  "value": "{{group_id}}",
+                  "description": "Group ID",
+                  "disabled": true
+                },
+                {
+                  "key": "parent_id",
+                  "value": "{{parent_id}}",
+                  "description": "Parent ID",
+                  "disabled": true
+                },
+                {
+                  "key": "status",
+                  "value": "active",
+                  "description": "active|inactive|graduated|blocked",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Page",
+                  "disabled": true
+                },
+                {
+                  "key": "per_page",
+                  "value": "25",
+                  "description": "1-100",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Permission: students.view"
+          }
+        },
+        {
+          "name": "List Groups",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/groups?academic_year_id={{academic_year_id}}&is_active=true&teacher_id={{teacher_id}}&page=1&per_page=25",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "groups"
+              ],
+              "query": [
+                {
+                  "key": "academic_year_id",
+                  "value": "{{academic_year_id}}",
+                  "description": "Academic year ID",
+                  "disabled": true
+                },
+                {
+                  "key": "is_active",
+                  "value": "true",
+                  "description": "Boolean",
+                  "disabled": true
+                },
+                {
+                  "key": "teacher_id",
+                  "value": "{{teacher_id}}",
+                  "description": "Teacher or assistant teacher ID",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Page",
+                  "disabled": true
+                },
+                {
+                  "key": "per_page",
+                  "value": "25",
+                  "description": "1-100",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Permission: groups.view"
+          }
+        },
+        {
+          "name": "List Enrollments",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/enrollments?group_id={{group_id}}&student_id={{student_id}}&status=active&page=1&per_page=25",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "enrollments"
+              ],
+              "query": [
+                {
+                  "key": "group_id",
+                  "value": "{{group_id}}",
+                  "description": "Group ID",
+                  "disabled": true
+                },
+                {
+                  "key": "student_id",
+                  "value": "{{student_id}}",
+                  "description": "Student ID",
+                  "disabled": true
+                },
+                {
+                  "key": "status",
+                  "value": "active",
+                  "description": "Enrollment status",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Page",
+                  "disabled": true
+                },
+                {
+                  "key": "per_page",
+                  "value": "25",
+                  "description": "1-100",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Permission: enrollments.view"
+          }
+        },
+        {
+          "name": "List Assessments",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/assessments?assessment_type_id={{assessment_type_id}}&group_id={{group_id}}&is_active=true&page=1&per_page=25",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "assessments"
+              ],
+              "query": [
+                {
+                  "key": "assessment_type_id",
+                  "value": "{{assessment_type_id}}",
+                  "description": "Assessment type ID",
+                  "disabled": true
+                },
+                {
+                  "key": "group_id",
+                  "value": "{{group_id}}",
+                  "description": "Group ID",
+                  "disabled": true
+                },
+                {
+                  "key": "is_active",
+                  "value": "true",
+                  "description": "Boolean",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Page",
+                  "disabled": true
+                },
+                {
+                  "key": "per_page",
+                  "value": "25",
+                  "description": "1-100",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Permission: assessments.view"
+          }
+        },
+        {
+          "name": "List Activities",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/activities?group_id={{group_id}}&is_active=true&page=1&per_page=25",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "activities"
+              ],
+              "query": [
+                {
+                  "key": "group_id",
+                  "value": "{{group_id}}",
+                  "description": "Group ID",
+                  "disabled": true
+                },
+                {
+                  "key": "is_active",
+                  "value": "true",
+                  "description": "Boolean",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Page",
+                  "disabled": true
+                },
+                {
+                  "key": "per_page",
+                  "value": "25",
+                  "description": "1-100",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Permission: activities.view"
+          }
+        },
+        {
+          "name": "List Invoices",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/invoices?invoice_type=tuition&parent_id={{parent_id}}&status=open&page=1&per_page=25",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "invoices"
+              ],
+              "query": [
+                {
+                  "key": "invoice_type",
+                  "value": "tuition",
+                  "description": "Invoice type",
+                  "disabled": true
+                },
+                {
+                  "key": "parent_id",
+                  "value": "{{parent_id}}",
+                  "description": "Parent ID",
+                  "disabled": true
+                },
+                {
+                  "key": "status",
+                  "value": "open",
+                  "description": "Invoice status",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Page",
+                  "disabled": true
+                },
+                {
+                  "key": "per_page",
+                  "value": "25",
+                  "description": "1-100",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Permission: invoices.view"
+          }
+        }
+      ]
+    },
+    {
+      "name": "04 Parent Mobile",
+      "item": [
+        {
+          "name": "Profile",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/parent/profile",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "parent",
+                "profile"
+              ]
+            },
+            "description": "Requires an active parent profile linked to the authenticated account."
+          }
+        },
+        {
+          "name": "Dashboard Summary",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/parent/summary",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "parent",
+                "summary"
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "Children",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/parent/children",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "parent",
+                "children"
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "Child Details",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/parent/children/{{student_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "parent",
+                "children",
+                "{{student_id}}"
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "Child Attendance",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/parent/children/{{student_id}}/attendance?date_from={{date_from}}&date_to={{date_to}}&page=1&per_page=25",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "parent",
+                "children",
+                "{{student_id}}",
+                "attendance"
+              ],
+              "query": [
+                {
+                  "key": "date_from",
+                  "value": "{{date_from}}",
+                  "description": "Start date YYYY-MM-DD",
+                  "disabled": true
+                },
+                {
+                  "key": "date_to",
+                  "value": "{{date_to}}",
+                  "description": "End date YYYY-MM-DD",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Pagination page",
+                  "disabled": true
+                },
+                {
+                  "key": "per_page",
+                  "value": "25",
+                  "description": "Items per page (1-100)",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "Child Memorization",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/parent/children/{{student_id}}/memorization?entry_type=new&date_from={{date_from}}&date_to={{date_to}}&page=1&per_page=25",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "parent",
+                "children",
+                "{{student_id}}",
+                "memorization"
+              ],
+              "query": [
+                {
+                  "key": "entry_type",
+                  "value": "new",
+                  "description": "new|review|correction",
+                  "disabled": true
+                },
+                {
+                  "key": "date_from",
+                  "value": "{{date_from}}",
+                  "description": "Start date",
+                  "disabled": true
+                },
+                {
+                  "key": "date_to",
+                  "value": "{{date_to}}",
+                  "description": "End date",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Page",
+                  "disabled": true
+                },
+                {
+                  "key": "per_page",
+                  "value": "25",
+                  "description": "1-100",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "Child Points",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/parent/children/{{student_id}}/points?date_from={{date_from}}&date_to={{date_to}}&page=1&per_page=25",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "parent",
+                "children",
+                "{{student_id}}",
+                "points"
+              ],
+              "query": [
+                {
+                  "key": "date_from",
+                  "value": "{{date_from}}",
+                  "description": "Start date YYYY-MM-DD",
+                  "disabled": true
+                },
+                {
+                  "key": "date_to",
+                  "value": "{{date_to}}",
+                  "description": "End date YYYY-MM-DD",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Pagination page",
+                  "disabled": true
+                },
+                {
+                  "key": "per_page",
+                  "value": "25",
+                  "description": "Items per page (1-100)",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "Child Assessments",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/parent/children/{{student_id}}/assessments?date_from={{date_from}}&date_to={{date_to}}&page=1&per_page=25",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "parent",
+                "children",
+                "{{student_id}}",
+                "assessments"
+              ],
+              "query": [
+                {
+                  "key": "date_from",
+                  "value": "{{date_from}}",
+                  "description": "Start date YYYY-MM-DD",
+                  "disabled": true
+                },
+                {
+                  "key": "date_to",
+                  "value": "{{date_to}}",
+                  "description": "End date YYYY-MM-DD",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Pagination page",
+                  "disabled": true
+                },
+                {
+                  "key": "per_page",
+                  "value": "25",
+                  "description": "Items per page (1-100)",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "Child Quran Tests",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/parent/children/{{student_id}}/quran-tests?date_from={{date_from}}&date_to={{date_to}}&page=1&per_page=25",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "parent",
+                "children",
+                "{{student_id}}",
+                "quran-tests"
+              ],
+              "query": [
+                {
+                  "key": "date_from",
+                  "value": "{{date_from}}",
+                  "description": "Start date YYYY-MM-DD",
+                  "disabled": true
+                },
+                {
+                  "key": "date_to",
+                  "value": "{{date_to}}",
+                  "description": "End date YYYY-MM-DD",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Pagination page",
+                  "disabled": true
+                },
+                {
+                  "key": "per_page",
+                  "value": "25",
+                  "description": "Items per page (1-100)",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "Child Notes",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/parent/children/{{student_id}}/notes?date_from={{date_from}}&date_to={{date_to}}&page=1&per_page=25",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "parent",
+                "children",
+                "{{student_id}}",
+                "notes"
+              ],
+              "query": [
+                {
+                  "key": "date_from",
+                  "value": "{{date_from}}",
+                  "description": "Start date YYYY-MM-DD",
+                  "disabled": true
+                },
+                {
+                  "key": "date_to",
+                  "value": "{{date_to}}",
+                  "description": "End date YYYY-MM-DD",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Pagination page",
+                  "disabled": true
+                },
+                {
+                  "key": "per_page",
+                  "value": "25",
+                  "description": "Items per page (1-100)",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "Invoices",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/parent/invoices?status=open&date_from={{date_from}}&date_to={{date_to}}&page=1&per_page=25",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "parent",
+                "invoices"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "open",
+                  "description": "Invoice status",
+                  "disabled": true
+                },
+                {
+                  "key": "date_from",
+                  "value": "{{date_from}}",
+                  "description": "Start date",
+                  "disabled": true
+                },
+                {
+                  "key": "date_to",
+                  "value": "{{date_to}}",
+                  "description": "End date",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Page",
+                  "disabled": true
+                },
+                {
+                  "key": "per_page",
+                  "value": "25",
+                  "description": "1-100",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "Invoice Details",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/parent/invoices/{{invoice_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "parent",
+                "invoices",
+                "{{invoice_id}}"
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "Available Activities",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/parent/activities",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "parent",
+                "activities"
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "Respond to Activity",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/parent/activities/{{activity_id}}/responses",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "parent",
+                "activities",
+                "{{activity_id}}",
+                "responses"
+              ]
+            },
+            "description": "Permission: activities.responses.respond. response: registered|declined",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"student_id\": \"{{student_id}}\",\n  \"response\": \"registered\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "05 Students Groups Enrollments",
+      "item": [
+        {
+          "name": "Create Student",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/students",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "students"
+              ]
+            },
+            "description": "Permission: students.create",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"first_name\": \"أحمد\",\n  \"last_name\": \"الخطيب\",\n  \"birth_date\": \"2012-05-15\",\n  \"parent_id\": \"{{parent_id}}\",\n  \"gender\": \"male\",\n  \"grade_level_id\": \"{{grade_level_id}}\",\n  \"joined_at\": \"{{date}}\",\n  \"school_name\": \"Example School\",\n  \"quran_current_juz_id\": \"{{juz_id}}\",\n  \"status\": \"active\",\n  \"notes\": null,\n  \"photo_path\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Update Student",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/students/{{student_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "students",
+                "{{student_id}}"
+              ]
+            },
+            "description": "Permission: students.update",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"first_name\": \"أحمد\",\n  \"last_name\": \"الخطيب\",\n  \"birth_date\": \"2012-05-15\",\n  \"parent_id\": \"{{parent_id}}\",\n  \"gender\": \"male\",\n  \"grade_level_id\": \"{{grade_level_id}}\",\n  \"joined_at\": \"{{date}}\",\n  \"school_name\": \"Example School\",\n  \"quran_current_juz_id\": \"{{juz_id}}\",\n  \"status\": \"active\",\n  \"notes\": \"Updated from mobile\",\n  \"photo_path\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Delete Student",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/students/{{student_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "students",
+                "{{student_id}}"
+              ]
+            },
+            "description": "Permission: students.delete. Fails with 422 while enrollments exist."
+          }
+        },
+        {
+          "name": "Create Group",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/groups",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "groups"
+              ]
+            },
+            "description": "Permission: groups.create",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Mobile Group\",\n  \"academic_year_id\": \"{{academic_year_id}}\",\n  \"course_id\": \"{{course_id}}\",\n  \"teacher_id\": \"{{teacher_id}}\",\n  \"assistant_teacher_id\": null,\n  \"grade_level_id\": \"{{grade_level_id}}\",\n  \"capacity\": 25,\n  \"monthly_fee\": 100,\n  \"starts_on\": \"{{date_from}}\",\n  \"ends_on\": \"{{date_to}}\",\n  \"is_active\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Update Group",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/groups/{{group_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "groups",
+                "{{group_id}}"
+              ]
+            },
+            "description": "Permission: groups.update",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Mobile Group\",\n  \"academic_year_id\": \"{{academic_year_id}}\",\n  \"course_id\": \"{{course_id}}\",\n  \"teacher_id\": \"{{teacher_id}}\",\n  \"assistant_teacher_id\": null,\n  \"grade_level_id\": \"{{grade_level_id}}\",\n  \"capacity\": 30,\n  \"monthly_fee\": 100,\n  \"starts_on\": \"{{date_from}}\",\n  \"ends_on\": \"{{date_to}}\",\n  \"is_active\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Delete Group",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/groups/{{group_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "groups",
+                "{{group_id}}"
+              ]
+            },
+            "description": "Permission: groups.delete. Fails when linked enrollments or schedules exist."
+          }
+        },
+        {
+          "name": "Create Enrollment",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/enrollments",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "enrollments"
+              ]
+            },
+            "description": "Permission: enrollments.create",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"student_id\": \"{{student_id}}\",\n  \"group_id\": \"{{group_id}}\",\n  \"enrolled_at\": \"{{date}}\",\n  \"left_at\": null,\n  \"status\": \"active\",\n  \"notes\": \"Created from mobile\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Update Enrollment",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/enrollments/{{enrollment_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "enrollments",
+                "{{enrollment_id}}"
+              ]
+            },
+            "description": "Permission: enrollments.update",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"student_id\": \"{{student_id}}\",\n  \"group_id\": \"{{group_id}}\",\n  \"enrolled_at\": \"{{date}}\",\n  \"left_at\": null,\n  \"status\": \"active\",\n  \"notes\": \"Updated from mobile\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Delete Enrollment",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/enrollments/{{enrollment_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "enrollments",
+                "{{enrollment_id}}"
+              ]
+            },
+            "description": "Permission: enrollments.delete"
+          }
+        }
+      ]
+    },
+    {
+      "name": "06 Attendance Learning Points",
+      "item": [
+        {
+          "name": "Record Group Attendance",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/groups/{{group_id}}/attendance",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "groups",
+                "{{group_id}}",
+                "attendance"
+              ]
+            },
+            "description": "Permission: attendance.student.take. Records must belong to active enrollments in this group.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"attendance_date\": \"{{date}}\",\n  \"notes\": \"Recorded from mobile\",\n  \"records\": [\n    {\n      \"enrollment_id\": \"{{enrollment_id}}\",\n      \"attendance_status_id\": \"{{attendance_status_id}}\",\n      \"notes\": null\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Record Teacher Attendance",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/teacher-attendance",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "teacher-attendance"
+              ]
+            },
+            "description": "Permission: attendance.teacher.take",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"attendance_date\": \"{{date}}\",\n  \"status\": \"completed\",\n  \"notes\": \"Recorded from mobile\",\n  \"records\": [\n    {\n      \"teacher_id\": \"{{teacher_id}}\",\n      \"attendance_status_id\": \"{{teacher_attendance_status_id}}\",\n      \"notes\": null\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Record Memorization",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/enrollments/{{enrollment_id}}/memorization",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "enrollments",
+                "{{enrollment_id}}",
+                "memorization"
+              ]
+            },
+            "description": "Permission: memorization.record. entry_type: new|review",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"entry_type\": \"new\",\n  \"from_page\": 1,\n  \"to_page\": 2,\n  \"recorded_on\": \"{{date}}\",\n  \"teacher_id\": \"{{teacher_id}}\",\n  \"notes\": \"Recorded from mobile\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Record Quran Test",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/enrollments/{{enrollment_id}}/quran-tests",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "enrollments",
+                "{{enrollment_id}}",
+                "quran-tests"
+              ]
+            },
+            "description": "Permission: quran-tests.record or quran-awqaf-tests.record depending on test type.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"juz_id\": \"{{juz_id}}\",\n  \"quran_test_type_id\": \"{{quran_test_type_id}}\",\n  \"teacher_id\": \"{{teacher_id}}\",\n  \"tested_on\": \"{{date}}\",\n  \"score\": 85,\n  \"status\": \"passed\",\n  \"notes\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Add Manual Points",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/enrollments/{{enrollment_id}}/points/manual",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "enrollments",
+                "{{enrollment_id}}",
+                "points",
+                "manual"
+              ]
+            },
+            "description": "Permission: points.create-manual. Negative values require a point type that allows negatives.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"point_type_id\": \"{{point_type_id}}\",\n  \"points\": 10,\n  \"notes\": \"Mobile adjustment\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Void Point Transaction",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/points/{{point_transaction_id}}/void",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "points",
+                "{{point_transaction_id}}",
+                "void"
+              ]
+            },
+            "description": "Permission: points.void",
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Save Assessment Results",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/assessments/{{assessment_id}}/results",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "assessments",
+                "{{assessment_id}}",
+                "results"
+              ]
+            },
+            "description": "Permission: assessment-results.record. score max is the assessment total mark.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"results\": [\n    {\n      \"enrollment_id\": \"{{enrollment_id}}\",\n      \"score\": 85,\n      \"status\": \"passed\",\n      \"attempt_no\": 1,\n      \"notes\": null\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "07 Finance and Activities",
+      "item": [
+        {
+          "name": "Create Activity Registration",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/activities/{{activity_id}}/registrations",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "activities",
+                "{{activity_id}}",
+                "registrations"
+              ]
+            },
+            "description": "Permission: activities.registrations.manage",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"student_id\": \"{{student_id}}\",\n  \"enrollment_id\": \"{{enrollment_id}}\",\n  \"fee_amount\": 50,\n  \"status\": \"registered\",\n  \"notes\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Update Activity Registration",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/activities/{{activity_id}}/registrations/{{registration_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "activities",
+                "{{activity_id}}",
+                "registrations",
+                "{{registration_id}}"
+              ]
+            },
+            "description": "Permission: activities.registrations.manage",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"student_id\": \"{{student_id}}\",\n  \"enrollment_id\": \"{{enrollment_id}}\",\n  \"fee_amount\": 50,\n  \"status\": \"attended\",\n  \"notes\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Delete Activity Registration",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/activities/{{activity_id}}/registrations/{{registration_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "activities",
+                "{{activity_id}}",
+                "registrations",
+                "{{registration_id}}"
+              ]
+            },
+            "description": "Permission: activities.registrations.manage"
+          }
+        },
+        {
+          "name": "Create Activity Payment",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/activities/{{activity_id}}/payments",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "activities",
+                "{{activity_id}}",
+                "payments"
+              ]
+            },
+            "description": "Permission: activities.payments.manage",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"activity_registration_id\": \"{{registration_id}}\",\n  \"amount\": 50,\n  \"paid_at\": \"{{date}}\",\n  \"payment_method_id\": \"{{payment_method_id}}\",\n  \"reference_no\": \"MOBILE-001\",\n  \"notes\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Void Activity Payment",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/activities/{{activity_id}}/payments/{{activity_payment_id}}/void",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "activities",
+                "{{activity_id}}",
+                "payments",
+                "{{activity_payment_id}}",
+                "void"
+              ]
+            },
+            "description": "Permission: activities.payments.manage",
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Create Activity Expense",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/activities/{{activity_id}}/expenses",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "activities",
+                "{{activity_id}}",
+                "expenses"
+              ]
+            },
+            "description": "Permission: activities.expenses.manage",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 25,\n  \"description\": \"Transport\",\n  \"expense_category_id\": \"{{expense_category_id}}\",\n  \"spent_on\": \"{{date}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Update Activity Expense",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/activities/{{activity_id}}/expenses/{{activity_expense_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "activities",
+                "{{activity_id}}",
+                "expenses",
+                "{{activity_expense_id}}"
+              ]
+            },
+            "description": "Permission: activities.expenses.manage",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 30,\n  \"description\": \"Transport updated\",\n  \"expense_category_id\": \"{{expense_category_id}}\",\n  \"spent_on\": \"{{date}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Delete Activity Expense",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/activities/{{activity_id}}/expenses/{{activity_expense_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "activities",
+                "{{activity_id}}",
+                "expenses",
+                "{{activity_expense_id}}"
+              ]
+            },
+            "description": "Permission: activities.expenses.manage"
+          }
+        },
+        {
+          "name": "Create Invoice Item",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/invoices/{{invoice_id}}/items",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "invoices",
+                "{{invoice_id}}",
+                "items"
+              ]
+            },
+            "description": "Permission: invoices.update",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"Course fee\",\n  \"quantity\": 1,\n  \"unit_price\": 100,\n  \"student_id\": \"{{student_id}}\",\n  \"enrollment_id\": \"{{enrollment_id}}\",\n  \"activity_id\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Update Invoice Item",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/invoices/{{invoice_id}}/items/{{invoice_item_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "invoices",
+                "{{invoice_id}}",
+                "items",
+                "{{invoice_item_id}}"
+              ]
+            },
+            "description": "Permission: invoices.update",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"Course fee updated\",\n  \"quantity\": 1,\n  \"unit_price\": 120,\n  \"student_id\": \"{{student_id}}\",\n  \"enrollment_id\": \"{{enrollment_id}}\",\n  \"activity_id\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Delete Invoice Item",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/invoices/{{invoice_id}}/items/{{invoice_item_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "invoices",
+                "{{invoice_id}}",
+                "items",
+                "{{invoice_item_id}}"
+              ]
+            },
+            "description": "Permission: invoices.update"
+          }
+        },
+        {
+          "name": "Create Invoice Payment",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/invoices/{{invoice_id}}/payments",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "invoices",
+                "{{invoice_id}}",
+                "payments"
+              ]
+            },
+            "description": "Permission: payments.create",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 100,\n  \"paid_at\": \"{{date}}\",\n  \"payment_method_id\": \"{{payment_method_id}}\",\n  \"reference_no\": \"MOBILE-002\",\n  \"notes\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Void Invoice Payment",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/invoices/{{invoice_id}}/payments/{{payment_id}}/void",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "invoices",
+                "{{invoice_id}}",
+                "payments",
+                "{{payment_id}}",
+                "void"
+              ]
+            },
+            "description": "Permission: payments.void",
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "08 API Documentation",
+      "description": "Generated API documentation routes registered by the application.",
+      "item": [
+        {
+          "name": "Interactive API Documentation",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "text/html"
+              }
+            ],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{base_url}}/docs/api",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "docs",
+                "api"
+              ]
+            },
+            "description": "Browser-friendly interactive API documentation."
+          }
+        },
+        {
+          "name": "OpenAPI Specification",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{base_url}}/docs/api.json",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "docs",
+                "api.json"
+              ]
+            },
+            "description": "Generated OpenAPI JSON specification."
+          }
+        }
+      ]
+    }
+  ]
+}

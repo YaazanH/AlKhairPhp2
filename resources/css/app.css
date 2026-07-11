@@ -4497,26 +4497,24 @@ html:not(.dark) .public-gallery-slider {
     .surface-table {
         max-width: 100%;
         overflow: hidden !important;
-        contain: layout paint;
+        isolation: isolate;
     }
 
     .surface-table:has(.searchable-select--open) {
         overflow: visible !important;
-        contain: none;
     }
 
     .surface-table .overflow-x-auto {
         max-width: 100%;
         overflow-x: auto;
         overflow-y: hidden;
-        -webkit-overflow-scrolling: touch;
         overscroll-behavior-x: contain;
-        contain: layout paint;
+        scrollbar-gutter: stable;
     }
 
     .surface-table table {
         min-width: 42rem;
-        width: max-content;
+        width: 100%;
     }
 
     .surface-table th,

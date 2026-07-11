@@ -394,9 +394,18 @@ function enhanceSearchableSelect(select) {
     wrapper.append(button, panel);
     select.insertAdjacentElement('afterend', wrapper);
 
-    const sync = () => {
+    let optionsSignature = '';
+
+    const sync = (force = false) => {
         label.textContent = selectedOptionText(select) || select.querySelector('option[value=""]')?.textContent?.trim() || 'Select';
-        buildSearchableSelectOptions(select, list, search.value);
+        const nextOptionsSignature = Array.from(select.options)
+            .map((option) => `${option.value}\u0000${option.textContent}\u0000${option.disabled}\u0000${option.hidden}`)
+            .join('\u0001');
+
+        if (force || nextOptionsSignature !== optionsSignature) {
+            optionsSignature = nextOptionsSignature;
+            buildSearchableSelectOptions(select, list, search.value);
+        }
     };
 
     select.searchableSelectSync = sync;
@@ -418,7 +427,7 @@ function enhanceSearchableSelect(select) {
     });
 
     search.addEventListener('input', () => buildSearchableSelectOptions(select, list, search.value));
-    select.addEventListener('change', sync);
+    select.addEventListener('change', () => sync());
 }
 
 function initializeSearchableSelects() {
@@ -461,16 +470,6 @@ document.addEventListener('keydown', (event) => {
 document.addEventListener('DOMContentLoaded', initializeSearchableSelects);
 document.addEventListener('livewire:navigated', initializeSearchableSelects);
 document.addEventListener('livewire:initialized', scheduleSearchableSelectInitialization);
-
-document.addEventListener('click', (event) => {
-    const trigger = event.target instanceof Element
-        ? event.target.closest('[wire\\:click], [wire\\:submit], [data-searchable-refresh]')
-        : null;
-
-    if (trigger) {
-        scheduleSearchableSelectInitialization();
-    }
-});
 
 const searchableSelectObserver = new MutationObserver((mutations) => {
     const shouldInitialize = mutations.some((mutation) => {
