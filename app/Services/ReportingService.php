@@ -242,7 +242,12 @@ class ReportingService
 
     protected function attendance(array $filters): array
     {
-        $statusCounts = $this->scopedStudentAttendanceRecordsQuery($filters)
+        $recordsQuery = $this->scopedStudentAttendanceRecordsQuery($filters);
+        $daysRecorded = $this->scopedAttendanceDaysQuery($filters)->count();
+        $presentCount = (clone $recordsQuery)
+            ->whereHas('status', fn (Builder $query) => $query->where('is_present', true))
+            ->count();
+        $statusCounts = (clone $recordsQuery)
             ->selectRaw('attendance_status_id, COUNT(*) as total')
             ->groupBy('attendance_status_id')
             ->pluck('total', 'attendance_status_id');
@@ -254,7 +259,12 @@ class ReportingService
             ->get(['id', 'name', 'code']);
 
         return [
-            'days_recorded' => $this->scopedAttendanceDaysQuery($filters)->count(),
+            'average_present_per_day' => $daysRecorded > 0 ? $this->decimal($presentCount / $daysRecorded) : 0.0,
+            'days_recorded' => $daysRecorded,
+            'present_count' => $presentCount,
+            'selected_day_present_count' => $filters['date_from'] && $filters['date_from'] === $filters['date_to']
+                ? $presentCount
+                : null,
             'breakdown' => $statuses
                 ->map(fn (AttendanceStatus $status) => [
                     'code' => $status->code,

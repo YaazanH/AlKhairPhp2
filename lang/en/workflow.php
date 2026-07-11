@@ -640,6 +640,7 @@ return [
             'no_active_enrollment' => 'This student does not have an active enrollment in your current scope.',
             'select_group' => 'Select the active group you want to create this partial test under.',
             'juz_not_eligible' => 'This juz is not available for a new partial cycle for the selected student.',
+            'open_cycle_exists' => 'This student already has an open partial test.',
             'part_already_passed' => 'This part is already passed and cannot be attempted again.',
         ],
         'table' => [
@@ -684,8 +685,9 @@ return [
         ],
         'warnings' => [
             'open_cycle_title' => 'Student already has an open partial test',
-            'open_cycle_copy' => 'This student still has unfinished partial cycles. Create another one only if you intend to track a separate juz in parallel.',
+            'open_cycle_copy' => 'This student still has an unfinished partial test. Open the existing test before creating another cycle.',
             'create_anyway' => 'Create anyway',
+            'open_existing' => 'Open existing test',
             'parts_progress' => ':count of 4 parts passed',
         ],
     ],
@@ -737,7 +739,7 @@ return [
             'no_active_enrollment' => 'This student does not have an active enrollment in your current scope.',
             'select_group' => 'Select the active group you want to create this final test under.',
             'juz_not_eligible' => 'This juz is not available for a new final test for the selected student.',
-            'open_cycle_exists' => 'This student already has an open final test for the selected juz.',
+            'open_cycle_exists' => 'This student already has an open final test.',
             'score_not_in_range' => 'This score does not match the configured passed or failed range for final tests.',
         ],
         'table' => [
@@ -1004,6 +1006,7 @@ return [
             ],
             'messages' => [
                 'saved' => 'Assessment results saved successfully.',
+                'quick_saved' => 'Assessment result saved successfully.',
                 'void_reason' => 'Assessment result updated.',
                 'automatic_points' => 'Automatic :type points for score :score',
             ],
@@ -1023,6 +1026,15 @@ return [
                     'results' => 'Results',
                     'actions' => 'Actions',
                 ],
+            ],
+            'quick_entry' => [
+                'action' => 'Quick entry',
+                'title' => 'Quick result entry',
+                'help' => 'Select one active student in this group and enter the result score.',
+                'student' => 'Student',
+                'select_student' => 'Select student',
+                'score' => 'Result',
+                'save' => 'Save result',
             ],
             'table' => [
                 'title' => 'Group results',

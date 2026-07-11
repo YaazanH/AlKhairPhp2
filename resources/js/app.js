@@ -425,14 +425,21 @@ function initializeSearchableSelects() {
     document.querySelectorAll('select').forEach(enhanceSearchableSelect);
 }
 
+let searchableSelectInitializationTimer = null;
+
 function scheduleSearchableSelectInitialization() {
+    if (searchableSelectInitializationTimer) {
+        window.clearTimeout(searchableSelectInitializationTimer);
+    }
+
     window.requestAnimationFrame(() => {
         initializeSearchableSelects();
     });
 
-    [120, 350, 800].forEach((delay) => {
-        window.setTimeout(initializeSearchableSelects, delay);
-    });
+    searchableSelectInitializationTimer = window.setTimeout(() => {
+        searchableSelectInitializationTimer = null;
+        initializeSearchableSelects();
+    }, 160);
 }
 
 window.initializeSearchableSelects = initializeSearchableSelects;

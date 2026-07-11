@@ -26,13 +26,22 @@ new class extends Component {
     public string $search = '';
     public string $statusFilter = 'all';
     public string $juzFilter = 'all';
+    public string $sortField = 'student';
+    public string $sortDirection = 'asc';
     public int $perPage = 15;
     public bool $showFormModal = false;
     public bool $showOpenTestWarningModal = false;
     public array $openTestWarnings = [];
+    public ?int $existingPartialTestId = null;
     public ?int $pendingCreateStudentId = null;
     public ?int $pendingCreateEnrollmentId = null;
     public ?int $pendingCreateJuzId = null;
+
+    protected array $sortableFields = [
+        'juz',
+        'status',
+        'student',
+    ];
 
     public function mount(): void
     {
@@ -72,8 +81,8 @@ new class extends Component {
             ->when(
                 $this->juzFilter !== 'all' && filled($this->juzFilter),
                 fn (Builder $query) => $query->where('juz_id', (int) $this->juzFilter)
-            )
-            ->latest('id');
+            );
+        $this->applyPartialTestSort($testsQuery);
 
         $studentOptions = $this->quranStudentsQuery(
             Student::query()
@@ -130,6 +139,22 @@ new class extends Component {
         $this->resetPage();
     }
 
+    public function sortBy(string $field): void
+    {
+        if (! in_array($field, $this->sortableFields, true)) {
+            return;
+        }
+
+        if ($this->sortField === $field) {
+            $this->sortDirection = $this->sortDirection === 'asc' ? 'desc' : 'asc';
+        } else {
+            $this->sortField = $field;
+            $this->sortDirection = $field === 'student' ? 'asc' : 'desc';
+        }
+
+        $this->resetPage();
+    }
+
     public function updatedSelectedStudentId(): void
     {
         $enrollmentIds = $this->availableEnrollmentsQuery()
@@ -171,21 +196,27 @@ new class extends Component {
 
     public function confirmOpenTestWarningCreate(): void
     {
+        $this->openExistingTest();
+    }
+
+    public function openExistingTest(): void
+    {
         $this->authorizePermission('quran-partial-tests.record');
 
-        if (! $this->pendingCreateStudentId || ! $this->pendingCreateEnrollmentId || ! $this->pendingCreateJuzId) {
+        if (! $this->existingPartialTestId) {
             $this->resetPendingCreateWarning();
 
             return;
         }
 
-        $student = $this->quranStudentsQuery(Student::query()->with('pageAchievements'))->findOrFail($this->pendingCreateStudentId);
+        $partialTest = $this->quranPartialTestsQuery(
+            QuranPartialTest::query()->with('enrollment')
+        )->findOrFail($this->existingPartialTestId);
 
-        $enrollment = $this->quranEnrollmentsQuery(
-            Enrollment::query()->with(['student.pageAchievements', 'group.course'])
-        )->findOrFail($this->pendingCreateEnrollmentId);
+        $this->resetPendingCreateWarning();
+        $this->closeFormModal();
 
-        $this->attemptCreatePartialTest($student, $enrollment, $this->pendingCreateJuzId, true);
+        $this->redirect(route('quran-partial-tests.show', $partialTest), navigate: true);
     }
 
     public function save(): void
@@ -274,8 +305,10 @@ new class extends Component {
                 $this->pendingCreateStudentId = $student->id;
                 $this->pendingCreateEnrollmentId = $enrollment->id;
                 $this->pendingCreateJuzId = $juzId;
+                $this->existingPartialTestId = $openTests->first()->id;
                 $this->openTestWarnings = $openTests
                     ->map(fn (QuranPartialTest $partialTest) => [
+                        'id' => $partialTest->id,
                         'group' => $partialTest->enrollment?->group?->name ?: __('workflow.common.no_group'),
                         'course' => $partialTest->enrollment?->group?->course?->name ?: __('workflow.common.no_course'),
                         'juz_number' => $partialTest->juz?->juz_number,
@@ -319,6 +352,7 @@ new class extends Component {
     {
         $this->showOpenTestWarningModal = false;
         $this->openTestWarnings = [];
+        $this->existingPartialTestId = null;
         $this->pendingCreateStudentId = null;
         $this->pendingCreateEnrollmentId = null;
         $this->pendingCreateJuzId = null;
@@ -348,6 +382,49 @@ new class extends Component {
     protected function quranPartialTestsQuery(Builder $query): Builder
     {
         return $query;
+    }
+
+    protected function applyPartialTestSort(Builder $query): void
+    {
+        $direction = $this->sortDirection === 'desc' ? 'desc' : 'asc';
+
+        match ($this->sortField) {
+            'juz' => $query
+                ->orderBy(
+                    QuranJuz::query()
+                        ->select('juz_number')
+                        ->whereColumn('quran_juzs.id', 'quran_partial_tests.juz_id')
+                        ->limit(1),
+                    $direction,
+                )
+                ->orderByDesc('id'),
+            'status' => $query->orderBy('status', $direction)->orderByDesc('id'),
+            default => $query
+                ->orderBy(
+                    Student::query()
+                        ->select('first_name')
+                        ->whereColumn('students.id', 'quran_partial_tests.student_id')
+                        ->limit(1),
+                    $direction,
+                )
+                ->orderBy(
+                    Student::query()
+                        ->select('last_name')
+                        ->whereColumn('students.id', 'quran_partial_tests.student_id')
+                        ->limit(1),
+                    $direction,
+                )
+                ->orderByDesc('id'),
+        };
+    }
+
+    protected function sortIndicator(string $field): string
+    {
+        if ($this->sortField !== $field) {
+            return '';
+        }
+
+        return $this->sortDirection === 'asc' ? '↑' : '↓';
     }
 }; ?>
 
@@ -423,11 +500,23 @@ new class extends Component {
                 <table class="text-sm">
                     <thead>
                         <tr>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.quran_partial_tests.table.headers.student') }}</th>
+                            <th class="px-5 py-4 text-left lg:px-6">
+                                <button type="button" wire:click="sortBy('student')" class="inline-flex items-center gap-2 font-medium text-inherit">
+                                    {{ __('workflow.quran_partial_tests.table.headers.student') }} <span>{{ $this->sortIndicator('student') }}</span>
+                                </button>
+                            </th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.quran_partial_tests.table.headers.group') }}</th>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.quran_partial_tests.table.headers.juz') }}</th>
+                            <th class="px-5 py-4 text-left lg:px-6">
+                                <button type="button" wire:click="sortBy('juz')" class="inline-flex items-center gap-2 font-medium text-inherit">
+                                    {{ __('workflow.quran_partial_tests.table.headers.juz') }} <span>{{ $this->sortIndicator('juz') }}</span>
+                                </button>
+                            </th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.quran_partial_tests.table.headers.parts') }}</th>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.quran_partial_tests.table.headers.status') }}</th>
+                            <th class="px-5 py-4 text-left lg:px-6">
+                                <button type="button" wire:click="sortBy('status')" class="inline-flex items-center gap-2 font-medium text-inherit">
+                                    {{ __('workflow.quran_partial_tests.table.headers.status') }} <span>{{ $this->sortIndicator('status') }}</span>
+                                </button>
+                            </th>
                             <th class="px-5 py-4 text-right lg:px-6">{{ __('workflow.quran_partial_tests.table.headers.actions') }}</th>
                         </tr>
                     </thead>
@@ -573,7 +662,7 @@ new class extends Component {
 
             <div class="flex justify-end gap-3">
                 <button type="button" wire:click="closeOpenTestWarningModal" class="pill-link">{{ __('crud.common.actions.cancel') }}</button>
-                <button type="button" wire:click="confirmOpenTestWarningCreate" class="pill-link pill-link--accent">{{ __('workflow.quran_partial_tests.warnings.create_anyway') }}</button>
+                <button type="button" wire:click="openExistingTest" class="pill-link pill-link--accent">{{ __('workflow.quran_partial_tests.warnings.open_existing') }}</button>
             </div>
         </div>
     </x-admin.modal>

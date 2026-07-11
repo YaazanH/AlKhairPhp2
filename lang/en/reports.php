@@ -80,6 +80,9 @@ return [
         'eyebrow' => 'Attendance',
         'title' => 'Status breakdown',
         'days_recorded' => 'Attendance days recorded: :count',
+        'average_present' => 'Average present per day',
+        'selected_day_present' => 'Present on selected day',
+        'select_single_day' => 'Select one day',
         'empty' => 'No attendance records match the current filters.',
     ],
     'assessments' => [

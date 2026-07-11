@@ -80,6 +80,9 @@ return [
         'eyebrow' => 'الحضور',
         'title' => 'توزيع الحالات',
         'days_recorded' => 'أيام الحضور المسجلة: :count',
+        'average_present' => 'متوسط الحضور اليومي',
+        'selected_day_present' => 'الحضور في اليوم المحدد',
+        'select_single_day' => 'اختر يوماً واحداً',
         'empty' => 'لا توجد سجلات حضور تطابق الفلاتر الحالية.',
     ],
     'assessments' => [

@@ -18,6 +18,10 @@ class QuranFinalTestService
 {
     public function create(Enrollment $enrollment, QuranJuz $juz): QuranFinalTest
     {
+        if ($this->inProgressTestsForStudent($enrollment->student)->isNotEmpty()) {
+            throw new LogicException(__('workflow.quran_final_tests.errors.open_cycle_exists'));
+        }
+
         if (! $this->eligibleJuzIdsForStudent($enrollment->student)->contains($juz->id)) {
             throw new LogicException(__('workflow.quran_final_tests.errors.juz_not_eligible'));
         }
@@ -83,6 +87,20 @@ class QuranFinalTestService
             ->where('student_id', $studentId)
             ->where('juz_id', $juzId)
             ->first();
+    }
+
+    public function inProgressTestsForStudent(Student $student): Collection
+    {
+        return QuranFinalTest::query()
+            ->with([
+                'attempts.teacher',
+                'enrollment.group.course',
+                'juz',
+            ])
+            ->where('student_id', $student->id)
+            ->where('status', 'in_progress')
+            ->orderByDesc('id')
+            ->get();
     }
 
     public function recordAttempt(QuranFinalTest $finalTest, Teacher $teacher, array $data): QuranFinalTestAttempt

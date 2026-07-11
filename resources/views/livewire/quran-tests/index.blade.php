@@ -33,9 +33,20 @@ new class extends Component {
     public string $search = '';
     public string $statusFilter = 'all';
     public string $juzFilter = 'all';
+    public string $sortField = 'tested_on';
+    public string $sortDirection = 'desc';
     public int $perPage = 15;
     public bool $showFormModal = false;
     public bool $showEligibleAwqafModal = false;
+
+    protected array $sortableFields = [
+        'juz',
+        'score',
+        'status',
+        'student',
+        'teacher',
+        'tested_on',
+    ];
 
     public function mount(): void
     {
@@ -82,9 +93,8 @@ new class extends Component {
             ->when(
                 $this->juzFilter !== 'all' && filled($this->juzFilter),
                 fn (Builder $query) => $query->where('juz_id', (int) $this->juzFilter)
-            )
-            ->latest('tested_on')
-            ->latest('id');
+            );
+        $this->applyQuranTestSort($testsQuery);
 
         $studentOptions = $this->quranStudentsQuery(
             Student::query()
@@ -133,6 +143,22 @@ new class extends Component {
 
     public function updatedJuzFilter(): void
     {
+        $this->resetPage();
+    }
+
+    public function sortBy(string $field): void
+    {
+        if (! in_array($field, $this->sortableFields, true)) {
+            return;
+        }
+
+        if ($this->sortField === $field) {
+            $this->sortDirection = $this->sortDirection === 'asc' ? 'desc' : 'asc';
+        } else {
+            $this->sortField = $field;
+            $this->sortDirection = in_array($field, ['student', 'teacher', 'status'], true) ? 'asc' : 'desc';
+        }
+
         $this->resetPage();
     }
 
@@ -426,6 +452,67 @@ new class extends Component {
         return $query;
     }
 
+    protected function applyQuranTestSort(Builder $query): void
+    {
+        $direction = $this->sortDirection === 'desc' ? 'desc' : 'asc';
+
+        match ($this->sortField) {
+            'juz' => $query
+                ->orderBy(
+                    QuranJuz::query()
+                        ->select('juz_number')
+                        ->whereColumn('quran_juzs.id', 'quran_tests.juz_id')
+                        ->limit(1),
+                    $direction,
+                )
+                ->orderByDesc('id'),
+            'score' => $query->orderBy('score', $direction)->orderByDesc('id'),
+            'status' => $query->orderBy('status', $direction)->orderByDesc('id'),
+            'student' => $query
+                ->orderBy(
+                    Student::query()
+                        ->select('first_name')
+                        ->whereColumn('students.id', 'quran_tests.student_id')
+                        ->limit(1),
+                    $direction,
+                )
+                ->orderBy(
+                    Student::query()
+                        ->select('last_name')
+                        ->whereColumn('students.id', 'quran_tests.student_id')
+                        ->limit(1),
+                    $direction,
+                )
+                ->orderByDesc('id'),
+            'teacher' => $query
+                ->orderBy(
+                    Teacher::query()
+                        ->select('first_name')
+                        ->whereColumn('teachers.id', 'quran_tests.teacher_id')
+                        ->limit(1),
+                    $direction,
+                )
+                ->orderBy(
+                    Teacher::query()
+                        ->select('last_name')
+                        ->whereColumn('teachers.id', 'quran_tests.teacher_id')
+                        ->limit(1),
+                    $direction,
+                )
+                ->orderByDesc('id'),
+            default => $query->orderBy('tested_on', $direction)->orderBy('id', $direction),
+        };
+    }
+
+    protected function sortIndicator(string $field): string
+    {
+        if ($this->sortField !== $field) {
+            return '';
+        }
+
+        return $this->sortDirection === 'asc' ? '↑' : '↓';
+    }
+
     protected function authorizeAnyPermission(array $permissions): void
     {
         abort_unless($this->canAnyPermission($permissions), 403);
@@ -519,13 +606,37 @@ new class extends Component {
                 <table class="text-sm">
                     <thead>
                         <tr>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.quran_tests.workbench.table.headers.student') }}</th>
+                            <th class="px-5 py-4 text-left lg:px-6">
+                                <button type="button" wire:click="sortBy('student')" class="inline-flex items-center gap-2 font-medium text-inherit">
+                                    {{ __('workflow.quran_tests.workbench.table.headers.student') }} <span>{{ $this->sortIndicator('student') }}</span>
+                                </button>
+                            </th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.quran_tests.workbench.table.headers.group') }}</th>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.quran_tests.workbench.table.headers.date') }}</th>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.quran_tests.workbench.table.headers.juz') }}</th>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.quran_tests.workbench.table.headers.score') }}</th>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.quran_tests.workbench.table.headers.status') }}</th>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.quran_tests.workbench.table.headers.teacher') }}</th>
+                            <th class="px-5 py-4 text-left lg:px-6">
+                                <button type="button" wire:click="sortBy('tested_on')" class="inline-flex items-center gap-2 font-medium text-inherit">
+                                    {{ __('workflow.quran_tests.workbench.table.headers.date') }} <span>{{ $this->sortIndicator('tested_on') }}</span>
+                                </button>
+                            </th>
+                            <th class="px-5 py-4 text-left lg:px-6">
+                                <button type="button" wire:click="sortBy('juz')" class="inline-flex items-center gap-2 font-medium text-inherit">
+                                    {{ __('workflow.quran_tests.workbench.table.headers.juz') }} <span>{{ $this->sortIndicator('juz') }}</span>
+                                </button>
+                            </th>
+                            <th class="px-5 py-4 text-left lg:px-6">
+                                <button type="button" wire:click="sortBy('score')" class="inline-flex items-center gap-2 font-medium text-inherit">
+                                    {{ __('workflow.quran_tests.workbench.table.headers.score') }} <span>{{ $this->sortIndicator('score') }}</span>
+                                </button>
+                            </th>
+                            <th class="px-5 py-4 text-left lg:px-6">
+                                <button type="button" wire:click="sortBy('status')" class="inline-flex items-center gap-2 font-medium text-inherit">
+                                    {{ __('workflow.quran_tests.workbench.table.headers.status') }} <span>{{ $this->sortIndicator('status') }}</span>
+                                </button>
+                            </th>
+                            <th class="px-5 py-4 text-left lg:px-6">
+                                <button type="button" wire:click="sortBy('teacher')" class="inline-flex items-center gap-2 font-medium text-inherit">
+                                    {{ __('workflow.quran_tests.workbench.table.headers.teacher') }} <span>{{ $this->sortIndicator('teacher') }}</span>
+                                </button>
+                            </th>
                             @can('quran-awqaf-tests.delete')
                                 <th class="px-5 py-4 text-right lg:px-6">{{ __('crud.common.actions.actions') }}</th>
                             @endcan

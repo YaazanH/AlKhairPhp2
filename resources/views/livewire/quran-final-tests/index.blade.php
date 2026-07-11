@@ -26,11 +26,19 @@ new class extends Component {
     public string $search = '';
     public string $statusFilter = 'all';
     public string $juzFilter = 'all';
+    public string $sortField = 'student';
+    public string $sortDirection = 'asc';
     public int $perPage = 15;
     public bool $showFormModal = false;
     public bool $showOpenTestWarningModal = false;
     public ?int $existingFinalTestId = null;
     public array $existingFinalTestSummary = [];
+
+    protected array $sortableFields = [
+        'juz',
+        'status',
+        'student',
+    ];
 
     public function mount(): void
     {
@@ -70,9 +78,8 @@ new class extends Component {
             ->when(
                 $this->juzFilter !== 'all' && filled($this->juzFilter),
                 fn (Builder $query) => $query->where('juz_id', (int) $this->juzFilter)
-            )
-            ->latest('passed_on')
-            ->latest('id');
+            );
+        $this->applyFinalTestSort($testsQuery);
 
         $studentOptions = $this->quranStudentsQuery(
             Student::query()
@@ -126,6 +133,22 @@ new class extends Component {
 
     public function updatedJuzFilter(): void
     {
+        $this->resetPage();
+    }
+
+    public function sortBy(string $field): void
+    {
+        if (! in_array($field, $this->sortableFields, true)) {
+            return;
+        }
+
+        if ($this->sortField === $field) {
+            $this->sortDirection = $this->sortDirection === 'asc' ? 'desc' : 'asc';
+        } else {
+            $this->sortField = $field;
+            $this->sortDirection = $field === 'student' ? 'asc' : 'desc';
+        }
+
         $this->resetPage();
     }
 
@@ -229,6 +252,23 @@ new class extends Component {
 
         abort_unless(in_array((int) $validated['selectedEnrollmentId'], $availableEnrollmentIds, true), 403);
 
+        $openFinalTest = app(QuranFinalTestService::class)
+            ->inProgressTestsForStudent($student)
+            ->first();
+
+        if ($openFinalTest) {
+            $this->existingFinalTestId = $openFinalTest->id;
+            $this->existingFinalTestSummary = [
+                'attempts' => $openFinalTest->attempts->count(),
+                'group' => $openFinalTest->enrollment?->group?->name ?: __('workflow.common.no_group'),
+                'juz_number' => $openFinalTest->juz?->juz_number,
+                'last_tested_on' => optional($openFinalTest->attempts->last()?->tested_on)->format('Y-m-d'),
+            ];
+            $this->showOpenTestWarningModal = true;
+
+            return;
+        }
+
         $existingFinalTest = app(QuranFinalTestService::class)->existingTestForStudentAndJuz(
             (int) $validated['selectedStudentId'],
             (int) $validated['juz_id'],
@@ -323,6 +363,49 @@ new class extends Component {
     {
         return $query;
     }
+
+    protected function applyFinalTestSort(Builder $query): void
+    {
+        $direction = $this->sortDirection === 'desc' ? 'desc' : 'asc';
+
+        match ($this->sortField) {
+            'juz' => $query
+                ->orderBy(
+                    QuranJuz::query()
+                        ->select('juz_number')
+                        ->whereColumn('quran_juzs.id', 'quran_final_tests.juz_id')
+                        ->limit(1),
+                    $direction,
+                )
+                ->orderByDesc('id'),
+            'status' => $query->orderBy('status', $direction)->orderByDesc('id'),
+            default => $query
+                ->orderBy(
+                    Student::query()
+                        ->select('first_name')
+                        ->whereColumn('students.id', 'quran_final_tests.student_id')
+                        ->limit(1),
+                    $direction,
+                )
+                ->orderBy(
+                    Student::query()
+                        ->select('last_name')
+                        ->whereColumn('students.id', 'quran_final_tests.student_id')
+                        ->limit(1),
+                    $direction,
+                )
+                ->orderByDesc('id'),
+        };
+    }
+
+    protected function sortIndicator(string $field): string
+    {
+        if ($this->sortField !== $field) {
+            return '';
+        }
+
+        return $this->sortDirection === 'asc' ? '↑' : '↓';
+    }
 }; ?>
 
 <div class="page-stack">
@@ -397,11 +480,23 @@ new class extends Component {
                 <table class="text-sm">
                     <thead>
                         <tr>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.quran_final_tests.table.headers.student') }}</th>
+                            <th class="px-5 py-4 text-left lg:px-6">
+                                <button type="button" wire:click="sortBy('student')" class="inline-flex items-center gap-2 font-medium text-inherit">
+                                    {{ __('workflow.quran_final_tests.table.headers.student') }} <span>{{ $this->sortIndicator('student') }}</span>
+                                </button>
+                            </th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.quran_final_tests.table.headers.group') }}</th>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.quran_final_tests.table.headers.juz') }}</th>
+                            <th class="px-5 py-4 text-left lg:px-6">
+                                <button type="button" wire:click="sortBy('juz')" class="inline-flex items-center gap-2 font-medium text-inherit">
+                                    {{ __('workflow.quran_final_tests.table.headers.juz') }} <span>{{ $this->sortIndicator('juz') }}</span>
+                                </button>
+                            </th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.quran_final_tests.table.headers.attempts') }}</th>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.quran_final_tests.table.headers.status') }}</th>
+                            <th class="px-5 py-4 text-left lg:px-6">
+                                <button type="button" wire:click="sortBy('status')" class="inline-flex items-center gap-2 font-medium text-inherit">
+                                    {{ __('workflow.quran_final_tests.table.headers.status') }} <span>{{ $this->sortIndicator('status') }}</span>
+                                </button>
+                            </th>
                             <th class="px-5 py-4 text-right lg:px-6">{{ __('workflow.quran_final_tests.table.headers.actions') }}</th>
                         </tr>
                     </thead>

@@ -30,6 +30,8 @@ new class extends Component {
     public string $notes = '';
     public string $search = '';
     public string $entryTypeFilter = 'all';
+    public string $sortField = 'recorded_on';
+    public string $sortDirection = 'desc';
     public int $perPage = 15;
     public bool $showFormModal = false;
     public bool $showDuplicateModal = false;
@@ -38,6 +40,14 @@ new class extends Component {
     public array $pendingMemorizationPayload = [];
     public ?int $pendingEnrollmentId = null;
     public ?int $pendingSessionId = null;
+
+    protected array $sortableFields = [
+        'entry_type',
+        'pages_count',
+        'recorded_on',
+        'student',
+        'teacher',
+    ];
 
     public function mount(): void
     {
@@ -77,9 +87,8 @@ new class extends Component {
             ->when(
                 in_array($this->entryTypeFilter, ['new', 'review', 'correction'], true),
                 fn (Builder $query) => $query->where('entry_type', $this->entryTypeFilter)
-            )
-            ->latest('recorded_on')
-            ->latest('id');
+            );
+        $this->applySessionSort($sessionsQuery);
 
         $studentOptions = $this->scopeStudentsQuery(
             Student::query()
@@ -125,6 +134,22 @@ new class extends Component {
 
     public function updatedEntryTypeFilter(): void
     {
+        $this->resetPage();
+    }
+
+    public function sortBy(string $field): void
+    {
+        if (! in_array($field, $this->sortableFields, true)) {
+            return;
+        }
+
+        if ($this->sortField === $field) {
+            $this->sortDirection = $this->sortDirection === 'asc' ? 'desc' : 'asc';
+        } else {
+            $this->sortField = $field;
+            $this->sortDirection = in_array($field, ['student', 'teacher', 'entry_type'], true) ? 'asc' : 'desc';
+        }
+
         $this->resetPage();
     }
 
@@ -396,6 +421,58 @@ new class extends Component {
         return auth()->user()?->teacherProfile;
     }
 
+    protected function applySessionSort(Builder $query): void
+    {
+        $direction = $this->sortDirection === 'desc' ? 'desc' : 'asc';
+
+        match ($this->sortField) {
+            'entry_type' => $query->orderBy('entry_type', $direction)->orderByDesc('id'),
+            'pages_count' => $query->orderBy('pages_count', $direction)->orderByDesc('id'),
+            'student' => $query
+                ->orderBy(
+                    Student::query()
+                        ->select('first_name')
+                        ->whereColumn('students.id', 'memorization_sessions.student_id')
+                        ->limit(1),
+                    $direction,
+                )
+                ->orderBy(
+                    Student::query()
+                        ->select('last_name')
+                        ->whereColumn('students.id', 'memorization_sessions.student_id')
+                        ->limit(1),
+                    $direction,
+                )
+                ->orderByDesc('id'),
+            'teacher' => $query
+                ->orderBy(
+                    Teacher::query()
+                        ->select('first_name')
+                        ->whereColumn('teachers.id', 'memorization_sessions.teacher_id')
+                        ->limit(1),
+                    $direction,
+                )
+                ->orderBy(
+                    Teacher::query()
+                        ->select('last_name')
+                        ->whereColumn('teachers.id', 'memorization_sessions.teacher_id')
+                        ->limit(1),
+                    $direction,
+                )
+                ->orderByDesc('id'),
+            default => $query->orderBy('recorded_on', $direction)->orderBy('id', $direction),
+        };
+    }
+
+    protected function sortIndicator(string $field): string
+    {
+        if ($this->sortField !== $field) {
+            return '';
+        }
+
+        return $this->sortDirection === 'asc' ? '↑' : '↓';
+    }
+
     protected function resolveTeacherId(array $validated): ?int
     {
         if ($this->currentTeacher() && ! $this->editingSessionId) {
@@ -488,12 +565,32 @@ new class extends Component {
                 <table class="text-sm">
                     <thead>
                         <tr>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.memorization.workbench.table.headers.student') }}</th>
+                            <th class="px-5 py-4 text-left lg:px-6">
+                                <button type="button" wire:click="sortBy('student')" class="inline-flex items-center gap-2 font-medium text-inherit">
+                                    {{ __('workflow.memorization.workbench.table.headers.student') }} <span>{{ $this->sortIndicator('student') }}</span>
+                                </button>
+                            </th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.memorization.workbench.table.headers.group') }}</th>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.memorization.workbench.table.headers.date') }}</th>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.memorization.workbench.table.headers.type') }}</th>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.memorization.workbench.table.headers.pages') }}</th>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.memorization.workbench.table.headers.teacher') }}</th>
+                            <th class="px-5 py-4 text-left lg:px-6">
+                                <button type="button" wire:click="sortBy('recorded_on')" class="inline-flex items-center gap-2 font-medium text-inherit">
+                                    {{ __('workflow.memorization.workbench.table.headers.date') }} <span>{{ $this->sortIndicator('recorded_on') }}</span>
+                                </button>
+                            </th>
+                            <th class="px-5 py-4 text-left lg:px-6">
+                                <button type="button" wire:click="sortBy('entry_type')" class="inline-flex items-center gap-2 font-medium text-inherit">
+                                    {{ __('workflow.memorization.workbench.table.headers.type') }} <span>{{ $this->sortIndicator('entry_type') }}</span>
+                                </button>
+                            </th>
+                            <th class="px-5 py-4 text-left lg:px-6">
+                                <button type="button" wire:click="sortBy('pages_count')" class="inline-flex items-center gap-2 font-medium text-inherit">
+                                    {{ __('workflow.memorization.workbench.table.headers.pages') }} <span>{{ $this->sortIndicator('pages_count') }}</span>
+                                </button>
+                            </th>
+                            <th class="px-5 py-4 text-left lg:px-6">
+                                <button type="button" wire:click="sortBy('teacher')" class="inline-flex items-center gap-2 font-medium text-inherit">
+                                    {{ __('workflow.memorization.workbench.table.headers.teacher') }} <span>{{ $this->sortIndicator('teacher') }}</span>
+                                </button>
+                            </th>
                             @can('memorization.record')
                                 <th class="px-5 py-4 text-right lg:px-6">{{ __('workflow.memorization.workbench.table.headers.actions') }}</th>
                             @endcan

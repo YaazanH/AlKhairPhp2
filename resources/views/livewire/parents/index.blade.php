@@ -8,6 +8,7 @@ use App\Models\ParentProfile;
 use App\Models\Student;
 use App\Services\ManagedUserService;
 use App\Services\ParentNumberService;
+use App\Support\ArabicSearch;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
@@ -239,6 +240,16 @@ new class extends Component {
         }
 
         $validated = $this->validate();
+
+        if ($duplicate = $this->findDuplicateParent($validated)) {
+            $this->addError('father_name', __('crud.parents.errors.duplicate_profile', [
+                'name' => $duplicate->father_name,
+                'number' => $duplicate->parent_number ?: $duplicate->id,
+            ]));
+
+            return;
+        }
+
         $parent = ParentProfile::query()->updateOrCreate(
             ['id' => $this->editingId],
             $validated,
@@ -498,6 +509,42 @@ new class extends Component {
         return $profileId
             ? ParentProfile::query()->whereKey($profileId)->value('user_id')
             : null;
+    }
+
+    protected function findDuplicateParent(array $validated): ?ParentProfile
+    {
+        $fatherName = ArabicSearch::normalizeForDuplicate((string) ($validated['father_name'] ?? ''));
+        $motherName = ArabicSearch::normalizeForDuplicate((string) ($validated['mother_name'] ?? ''));
+        $phones = collect([
+            $validated['father_phone'] ?? null,
+            $validated['mother_phone'] ?? null,
+            $validated['home_phone'] ?? null,
+        ])
+            ->map(fn ($phone) => preg_replace('/\D+/', '', (string) $phone) ?: null)
+            ->filter()
+            ->values();
+
+        if ($fatherName === '' && $phones->isEmpty()) {
+            return null;
+        }
+
+        return $this->scopeParentsQuery(
+            ParentProfile::query()
+                ->when($this->editingId, fn (Builder $query) => $query->whereKeyNot($this->editingId))
+                ->orderByDesc('id')
+        )
+            ->get()
+            ->first(function (ParentProfile $parent) use ($fatherName, $motherName, $phones): bool {
+                $parentPhones = collect([$parent->father_phone, $parent->mother_phone, $parent->home_phone])
+                    ->map(fn ($phone) => preg_replace('/\D+/', '', (string) $phone) ?: null)
+                    ->filter();
+
+                $phoneMatches = $phones->isNotEmpty() && $phones->intersect($parentPhones)->isNotEmpty();
+                $fatherMatches = $fatherName !== '' && ArabicSearch::normalizeForDuplicate($parent->father_name) === $fatherName;
+                $motherMatches = $motherName !== '' && ArabicSearch::normalizeForDuplicate((string) $parent->mother_name) === $motherName;
+
+                return $phoneMatches || ($fatherMatches && $motherName !== '' && $motherMatches);
+            });
     }
 
     protected function bulkStatusPreview(): array

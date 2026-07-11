@@ -17,6 +17,7 @@ use App\Models\StudentGender;
 use App\Models\User;
 use App\Services\ManagedUserService;
 use App\Services\StudentNumberService;
+use App\Support\ArabicSearch;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -390,6 +391,15 @@ new class extends Component {
         $validated = $this->validate();
         $this->authorizeScopedParentAccess(ParentProfile::query()->findOrFail($validated['parent_id']));
 
+        if ($duplicate = $this->findDuplicateStudent($validated)) {
+            $this->addError('first_name', __('crud.students.errors.duplicate_profile', [
+                'name' => $duplicate->full_name,
+                'number' => $duplicate->student_number ?: $duplicate->id,
+            ]));
+
+            return;
+        }
+
         $selectedGroupId = ! $isEditing && filled($validated['enrollment_group_id'] ?? null)
             ? (int) $validated['enrollment_group_id']
             : null;
@@ -535,6 +545,21 @@ new class extends Component {
             'quick_parent_home_phone' => __('crud.parents.form.fields.home_phone'),
             'quick_parent_address' => __('crud.parents.form.fields.address'),
         ]);
+
+        if ($duplicate = $this->findDuplicateParent([
+            'father_name' => $validated['quick_parent_father_name'],
+            'father_phone' => $validated['quick_parent_father_phone'],
+            'mother_name' => $validated['quick_parent_mother_name'],
+            'mother_phone' => $validated['quick_parent_mother_phone'],
+            'home_phone' => $validated['quick_parent_home_phone'],
+        ])) {
+            $this->addError('quick_parent_father_name', __('crud.parents.errors.duplicate_profile', [
+                'name' => $duplicate->father_name,
+                'number' => $duplicate->parent_number ?: $duplicate->id,
+            ]));
+
+            return;
+        }
 
         $parent = ParentProfile::query()->create([
             'father_name' => $validated['quick_parent_father_name'],
@@ -1149,6 +1174,71 @@ new class extends Component {
         }
 
         return null;
+    }
+
+    protected function findDuplicateStudent(array $validated): ?Student
+    {
+        $firstName = ArabicSearch::normalizeForDuplicate((string) ($validated['first_name'] ?? ''));
+        $lastName = ArabicSearch::normalizeForDuplicate((string) ($validated['last_name'] ?? ''));
+        $birthDate = $this->normalizeBirthYearValue((string) ($validated['birth_date'] ?? ''));
+        $parentId = (int) ($validated['parent_id'] ?? 0);
+
+        if ($firstName === '' || $lastName === '') {
+            return null;
+        }
+
+        return $this->scopeStudentsQuery(
+            Student::query()
+                ->when($this->editingId, fn (Builder $query) => $query->whereKeyNot($this->editingId))
+                ->where(function (Builder $query) use ($parentId, $birthDate): void {
+                    $query->where('parent_id', $parentId);
+
+                    if ($birthDate) {
+                        $query->orWhereDate('birth_date', $birthDate);
+                    }
+                })
+                ->orderByDesc('id')
+        )
+            ->get()
+            ->first(function (Student $student) use ($firstName, $lastName): bool {
+                return ArabicSearch::normalizeForDuplicate($student->first_name) === $firstName
+                    && ArabicSearch::normalizeForDuplicate($student->last_name) === $lastName;
+            });
+    }
+
+    protected function findDuplicateParent(array $validated): ?ParentProfile
+    {
+        $fatherName = ArabicSearch::normalizeForDuplicate((string) ($validated['father_name'] ?? ''));
+        $motherName = ArabicSearch::normalizeForDuplicate((string) ($validated['mother_name'] ?? ''));
+        $phones = collect([
+            $validated['father_phone'] ?? null,
+            $validated['mother_phone'] ?? null,
+            $validated['home_phone'] ?? null,
+        ])
+            ->map(fn ($phone) => preg_replace('/\D+/', '', (string) $phone) ?: null)
+            ->filter()
+            ->values();
+
+        if ($fatherName === '' && $phones->isEmpty()) {
+            return null;
+        }
+
+        return $this->scopeParentsQuery(
+            ParentProfile::query()
+                ->orderByDesc('id')
+        )
+            ->get()
+            ->first(function (ParentProfile $parent) use ($fatherName, $motherName, $phones): bool {
+                $parentPhones = collect([$parent->father_phone, $parent->mother_phone, $parent->home_phone])
+                    ->map(fn ($phone) => preg_replace('/\D+/', '', (string) $phone) ?: null)
+                    ->filter();
+
+                $phoneMatches = $phones->isNotEmpty() && $phones->intersect($parentPhones)->isNotEmpty();
+                $fatherMatches = $fatherName !== '' && ArabicSearch::normalizeForDuplicate($parent->father_name) === $fatherName;
+                $motherMatches = $motherName !== '' && ArabicSearch::normalizeForDuplicate((string) $parent->mother_name) === $motherName;
+
+                return $phoneMatches || ($fatherMatches && $motherName !== '' && $motherMatches);
+            });
     }
 
     protected function linkedUserId(): ?int

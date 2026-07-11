@@ -130,6 +130,7 @@ return [
         ],
         'errors' => [
             'delete_linked' => 'This parent profile cannot be deleted while students are linked to it.',
+            'duplicate_profile' => 'A similar parent profile already exists: :name (:number). Open that record instead of creating a duplicate.',
         ],
         'bulk_status' => [
             'title' => 'Bulk parent status',
@@ -434,6 +435,7 @@ return [
         'errors' => [
             'delete_linked' => 'This student cannot be deleted while enrollments still exist.',
             'delete_memorization' => 'This student cannot be deleted because memorization or Quran page progress exists.',
+            'duplicate_profile' => 'A similar student already exists: :name (:number). Open that record instead of creating a duplicate.',
         ],
         'bulk_status' => [
             'title' => 'Bulk student status',
@@ -730,6 +732,8 @@ return [
             ],
             'errors' => [
                 'already_enrolled' => 'This student is already enrolled in the selected group.',
+                'already_active' => 'This student already has an active enrollment. Complete or cancel it before creating another one.',
+                'inactive_student' => 'Only active students can be enrolled.',
             ],
         ],
   ];

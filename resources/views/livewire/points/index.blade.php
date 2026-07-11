@@ -24,11 +24,21 @@ new class extends Component {
     public ?int $manual_point_type_id = null;
     public string $search = '';
     public string $stateFilter = 'active';
+    public string $sortField = 'entered_at';
+    public string $sortDirection = 'desc';
     public int $perPage = 15;
     public bool $showFormModal = false;
     public bool $showVoidModal = false;
     public ?int $voidTransactionId = null;
     public string $void_reason = '';
+
+    protected array $sortableFields = [
+        'entered_at',
+        'points',
+        'point_type',
+        'state',
+        'student',
+    ];
 
     public function mount(): void
     {
@@ -64,9 +74,8 @@ new class extends Component {
                 });
             })
             ->when($this->stateFilter === 'active', fn (Builder $query) => $query->effectiveActive())
-            ->when($this->stateFilter === 'voided', fn (Builder $query) => $query->whereNotNull('voided_at'))
-            ->latest('entered_at')
-            ->latest('id');
+            ->when($this->stateFilter === 'voided', fn (Builder $query) => $query->whereNotNull('voided_at'));
+        $this->applyPointSort($transactionsQuery);
 
         $studentOptions = $this->scopeStudentsQuery(
             Student::query()
@@ -112,6 +121,22 @@ new class extends Component {
 
     public function updatedStateFilter(): void
     {
+        $this->resetPage();
+    }
+
+    public function sortBy(string $field): void
+    {
+        if (! in_array($field, $this->sortableFields, true)) {
+            return;
+        }
+
+        if ($this->sortField === $field) {
+            $this->sortDirection = $this->sortDirection === 'asc' ? 'desc' : 'asc';
+        } else {
+            $this->sortField = $field;
+            $this->sortDirection = in_array($field, ['student', 'point_type', 'state'], true) ? 'asc' : 'desc';
+        }
+
         $this->resetPage();
     }
 
@@ -369,6 +394,51 @@ new class extends Component {
                 ->when(! $this->selectedStudentId, fn (Builder $query) => $query->whereRaw('1 = 0'))
         );
     }
+
+    protected function applyPointSort(Builder $query): void
+    {
+        $direction = $this->sortDirection === 'desc' ? 'desc' : 'asc';
+
+        match ($this->sortField) {
+            'points' => $query->orderBy('points', $direction)->orderByDesc('id'),
+            'point_type' => $query
+                ->orderBy(
+                    PointType::query()
+                        ->select('name')
+                        ->whereColumn('point_types.id', 'point_transactions.point_type_id')
+                        ->limit(1),
+                    $direction,
+                )
+                ->orderByDesc('id'),
+            'state' => $query->orderByRaw('case when voided_at is null then 0 else 1 end '.($direction === 'desc' ? 'desc' : 'asc'))->orderByDesc('id'),
+            'student' => $query
+                ->orderBy(
+                    Student::query()
+                        ->select('first_name')
+                        ->whereColumn('students.id', 'point_transactions.student_id')
+                        ->limit(1),
+                    $direction,
+                )
+                ->orderBy(
+                    Student::query()
+                        ->select('last_name')
+                        ->whereColumn('students.id', 'point_transactions.student_id')
+                        ->limit(1),
+                    $direction,
+                )
+                ->orderByDesc('id'),
+            default => $query->orderBy('entered_at', $direction)->orderBy('id', $direction),
+        };
+    }
+
+    protected function sortIndicator(string $field): string
+    {
+        if ($this->sortField !== $field) {
+            return '';
+        }
+
+        return $this->sortDirection === 'asc' ? '↑' : '↓';
+    }
 }; ?>
 
 <div class="page-stack">
@@ -433,13 +503,33 @@ new class extends Component {
                 <table class="text-sm">
                     <thead>
                         <tr>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.points.workbench.table.headers.student') }}</th>
+                            <th class="px-5 py-4 text-left lg:px-6">
+                                <button type="button" wire:click="sortBy('student')" class="inline-flex items-center gap-2 font-medium text-inherit">
+                                    {{ __('workflow.points.workbench.table.headers.student') }} <span>{{ $this->sortIndicator('student') }}</span>
+                                </button>
+                            </th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.points.workbench.table.headers.group') }}</th>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.points.workbench.table.headers.entered_at') }}</th>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.points.workbench.table.headers.type') }}</th>
+                            <th class="px-5 py-4 text-left lg:px-6">
+                                <button type="button" wire:click="sortBy('entered_at')" class="inline-flex items-center gap-2 font-medium text-inherit">
+                                    {{ __('workflow.points.workbench.table.headers.entered_at') }} <span>{{ $this->sortIndicator('entered_at') }}</span>
+                                </button>
+                            </th>
+                            <th class="px-5 py-4 text-left lg:px-6">
+                                <button type="button" wire:click="sortBy('point_type')" class="inline-flex items-center gap-2 font-medium text-inherit">
+                                    {{ __('workflow.points.workbench.table.headers.type') }} <span>{{ $this->sortIndicator('point_type') }}</span>
+                                </button>
+                            </th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.points.workbench.table.headers.source') }}</th>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.points.workbench.table.headers.points') }}</th>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.points.workbench.table.headers.state') }}</th>
+                            <th class="px-5 py-4 text-left lg:px-6">
+                                <button type="button" wire:click="sortBy('points')" class="inline-flex items-center gap-2 font-medium text-inherit">
+                                    {{ __('workflow.points.workbench.table.headers.points') }} <span>{{ $this->sortIndicator('points') }}</span>
+                                </button>
+                            </th>
+                            <th class="px-5 py-4 text-left lg:px-6">
+                                <button type="button" wire:click="sortBy('state')" class="inline-flex items-center gap-2 font-medium text-inherit">
+                                    {{ __('workflow.points.workbench.table.headers.state') }} <span>{{ $this->sortIndicator('state') }}</span>
+                                </button>
+                            </th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.points.workbench.table.headers.void_reason') }}</th>
                             <th class="px-5 py-4 text-right lg:px-6">{{ __('workflow.points.workbench.table.headers.actions') }}</th>
                         </tr>

@@ -18,6 +18,10 @@ class QuranPartialTestService
 {
     public function create(Enrollment $enrollment, QuranJuz $juz): QuranPartialTest
     {
+        if ($this->inProgressTestsForStudent($enrollment->student)->isNotEmpty()) {
+            throw new LogicException(__('workflow.quran_partial_tests.errors.open_cycle_exists'));
+        }
+
         if (! $this->eligibleJuzIdsForStudent($enrollment->student)->contains($juz->id)) {
             throw new LogicException(__('workflow.quran_partial_tests.errors.juz_not_eligible'));
         }

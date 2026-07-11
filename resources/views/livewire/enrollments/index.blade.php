@@ -28,8 +28,18 @@ new class extends Component {
     public string $statusFilter = 'all';
     public string $courseFilter = 'all';
     public string $groupFilter = 'all';
+    public string $sortField = 'student';
+    public string $sortDirection = 'asc';
     public int $perPage = 15;
     public bool $showFormModal = false;
+
+    protected array $sortableFields = [
+        'course',
+        'enrolled_at',
+        'group',
+        'status',
+        'student',
+    ];
 
     public function mount(): void
     {
@@ -54,8 +64,8 @@ new class extends Component {
             })
             ->when($this->courseFilter !== 'all', fn ($query) => $query->whereHas('group', fn ($groupQuery) => $groupQuery->where('course_id', (int) $this->courseFilter)))
             ->when($this->groupFilter !== 'all', fn ($query) => $query->where('group_id', (int) $this->groupFilter))
-            ->when(in_array($this->statusFilter, ['active', 'completed', 'cancelled'], true), fn ($query) => $query->where('status', $this->statusFilter))
-            ->orderByDesc('enrolled_at');
+            ->when(in_array($this->statusFilter, ['active', 'completed', 'cancelled'], true), fn ($query) => $query->where('status', $this->statusFilter));
+        $this->applyEnrollmentSort($filteredQuery);
 
         $filteredCount = (clone $filteredQuery)->count();
 
@@ -102,6 +112,22 @@ new class extends Component {
 
     public function updatedGroupFilter(): void
     {
+        $this->resetPage();
+    }
+
+    public function sortBy(string $field): void
+    {
+        if (! in_array($field, $this->sortableFields, true)) {
+            return;
+        }
+
+        if ($this->sortField === $field) {
+            $this->sortDirection = $this->sortDirection === 'asc' ? 'desc' : 'asc';
+        } else {
+            $this->sortField = $field;
+            $this->sortDirection = in_array($field, ['student', 'group', 'course', 'status'], true) ? 'asc' : 'desc';
+        }
+
         $this->resetPage();
     }
 
@@ -157,8 +183,27 @@ new class extends Component {
         }
 
         $validated = $this->validate();
-        $this->authorizeScopedStudentAccess(Student::query()->findOrFail($validated['student_id']));
+        $student = Student::query()->findOrFail($validated['student_id']);
+        $this->authorizeScopedStudentAccess($student);
         $this->authorizeScopedGroupAccess(Group::query()->findOrFail($validated['group_id']));
+
+        if ($student->status !== 'active') {
+            $this->addError('student_id', __('crud.enrollments.errors.inactive_student'));
+
+            return;
+        }
+
+        $activeEnrollmentExists = Enrollment::query()
+            ->where('student_id', $validated['student_id'])
+            ->where('status', 'active')
+            ->when($this->editingId, fn ($query) => $query->whereKeyNot($this->editingId))
+            ->exists();
+
+        if ($activeEnrollmentExists) {
+            $this->addError('student_id', __('crud.enrollments.errors.already_active'));
+
+            return;
+        }
 
         $duplicateEnrollmentExists = Enrollment::query()
             ->where('student_id', $validated['student_id'])
@@ -266,6 +311,12 @@ new class extends Component {
     protected function availableStudentsQuery()
     {
         return $this->scopeStudentsQuery(Student::query())
+            ->where('status', 'active')
+            ->whereDoesntHave('enrollments', function ($enrollmentQuery) {
+                $enrollmentQuery
+                    ->where('status', 'active')
+                    ->when($this->editingId, fn ($innerQuery) => $innerQuery->whereKeyNot($this->editingId));
+            })
             ->when($this->group_id, function ($query) {
                 $query->whereDoesntHave('enrollments', function ($enrollmentQuery) {
                     $enrollmentQuery
@@ -273,6 +324,61 @@ new class extends Component {
                         ->when($this->editingId, fn ($innerQuery) => $innerQuery->whereKeyNot($this->editingId));
                 });
             });
+    }
+
+    protected function applyEnrollmentSort($query): void
+    {
+        $direction = $this->sortDirection === 'desc' ? 'desc' : 'asc';
+
+        match ($this->sortField) {
+            'course' => $query
+                ->orderBy(
+                    Course::query()
+                        ->select('name')
+                        ->whereIn('courses.id', Group::query()
+                            ->select('course_id')
+                            ->whereColumn('groups.id', 'enrollments.group_id')
+                            ->limit(1)),
+                    $direction,
+                )
+                ->orderBy('enrolled_at', 'desc'),
+            'enrolled_at' => $query->orderBy('enrolled_at', $direction)->orderByDesc('id'),
+            'group' => $query
+                ->orderBy(
+                    Group::query()
+                        ->select('name')
+                        ->whereColumn('groups.id', 'enrollments.group_id')
+                        ->limit(1),
+                    $direction,
+                )
+                ->orderBy('enrolled_at', 'desc'),
+            'status' => $query->orderBy('status', $direction)->orderBy('enrolled_at', 'desc'),
+            default => $query
+                ->orderBy(
+                    Student::query()
+                        ->select('first_name')
+                        ->whereColumn('students.id', 'enrollments.student_id')
+                        ->limit(1),
+                    $direction,
+                )
+                ->orderBy(
+                    Student::query()
+                        ->select('last_name')
+                        ->whereColumn('students.id', 'enrollments.student_id')
+                        ->limit(1),
+                    $direction,
+                )
+                ->orderBy('enrolled_at', 'desc'),
+        };
+    }
+
+    protected function sortIndicator(string $field): string
+    {
+        if ($this->sortField !== $field) {
+            return '';
+        }
+
+        return $this->sortDirection === 'asc' ? '↑' : '↓';
     }
 }; ?>
 
@@ -377,11 +483,31 @@ new class extends Component {
                 <table class="text-sm">
                     <thead>
                         <tr>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.enrollments.table.headers.student') }}</th>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.enrollments.table.headers.group') }}</th>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.enrollments.table.headers.course') }}</th>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.enrollments.table.headers.enrolled') }}</th>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.enrollments.table.headers.status') }}</th>
+                            <th class="px-5 py-4 text-left lg:px-6">
+                                <button type="button" wire:click="sortBy('student')" class="inline-flex items-center gap-2 font-medium text-inherit">
+                                    {{ __('crud.enrollments.table.headers.student') }} <span>{{ $this->sortIndicator('student') }}</span>
+                                </button>
+                            </th>
+                            <th class="px-5 py-4 text-left lg:px-6">
+                                <button type="button" wire:click="sortBy('group')" class="inline-flex items-center gap-2 font-medium text-inherit">
+                                    {{ __('crud.enrollments.table.headers.group') }} <span>{{ $this->sortIndicator('group') }}</span>
+                                </button>
+                            </th>
+                            <th class="px-5 py-4 text-left lg:px-6">
+                                <button type="button" wire:click="sortBy('course')" class="inline-flex items-center gap-2 font-medium text-inherit">
+                                    {{ __('crud.enrollments.table.headers.course') }} <span>{{ $this->sortIndicator('course') }}</span>
+                                </button>
+                            </th>
+                            <th class="px-5 py-4 text-left lg:px-6">
+                                <button type="button" wire:click="sortBy('enrolled_at')" class="inline-flex items-center gap-2 font-medium text-inherit">
+                                    {{ __('crud.enrollments.table.headers.enrolled') }} <span>{{ $this->sortIndicator('enrolled_at') }}</span>
+                                </button>
+                            </th>
+                            <th class="px-5 py-4 text-left lg:px-6">
+                                <button type="button" wire:click="sortBy('status')" class="inline-flex items-center gap-2 font-medium text-inherit">
+                                    {{ __('crud.enrollments.table.headers.status') }} <span>{{ $this->sortIndicator('status') }}</span>
+                                </button>
+                            </th>
                             @if (auth()->user()->can('memorization.view') || auth()->user()->can('quran-awqaf-tests.view') || auth()->user()->can('quran-tests.view') || auth()->user()->can('points.view') || auth()->user()->can('enrollments.update') || auth()->user()->can('enrollments.delete'))
                                 <th class="px-5 py-4 text-right lg:px-6">{{ __('crud.enrollments.table.headers.actions') }}</th>
                             @endif
