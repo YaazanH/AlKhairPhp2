@@ -36,6 +36,7 @@ new class extends Component {
 
     protected array $sortableFields = [
         'juz',
+        'last_tested_on',
         'status',
         'student',
     ];
@@ -49,12 +50,14 @@ new class extends Component {
     public function with(): array
     {
         $testsQuery = $this->quranFinalTestsQuery(
-            QuranFinalTest::query()->with([
-                'student.parentProfile',
-                'enrollment.group.course',
-                'juz',
-                'attempts.teacher',
-            ])
+            QuranFinalTest::query()
+                ->withMax('attempts as last_tested_on', 'tested_on')
+                ->with([
+                    'student.parentProfile',
+                    'enrollment.group.course',
+                    'juz',
+                    'attempts.teacher',
+                ])
         )
             ->when(filled($this->search), function (Builder $query) {
                 $search = '%'.$this->search.'%';
@@ -378,6 +381,7 @@ new class extends Component {
                     $direction,
                 )
                 ->orderByDesc('id'),
+            'last_tested_on' => $query->orderBy('last_tested_on', $direction)->orderByDesc('id'),
             'status' => $query->orderBy('status', $direction)->orderByDesc('id'),
             default => $query
                 ->orderBy(
@@ -493,6 +497,11 @@ new class extends Component {
                             </th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.quran_final_tests.table.headers.attempts') }}</th>
                             <th class="px-5 py-4 text-left lg:px-6">
+                                <button type="button" wire:click="sortBy('last_tested_on')" class="inline-flex items-center gap-2 font-medium text-inherit">
+                                    {{ __('workflow.quran_final_tests.table.headers.last_tested_on') }} <span>{{ $this->sortIndicator('last_tested_on') }}</span>
+                                </button>
+                            </th>
+                            <th class="px-5 py-4 text-left lg:px-6">
                                 <button type="button" wire:click="sortBy('status')" class="inline-flex items-center gap-2 font-medium text-inherit">
                                     {{ __('workflow.quran_final_tests.table.headers.status') }} <span>{{ $this->sortIndicator('status') }}</span>
                                 </button>
@@ -518,6 +527,7 @@ new class extends Component {
                                 </td>
                                 <td class="px-5 py-4 text-white lg:px-6">{{ __('workflow.common.labels.juz_number', ['number' => $finalTest->juz?->juz_number ?: __('workflow.common.not_available')]) }}</td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ number_format($finalTest->attempts->count()) }}</td>
+                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $finalTest->last_tested_on?->format('Y-m-d') ?: __('workflow.common.not_available') }}</td>
                                 <td class="px-5 py-4 lg:px-6"><span class="status-chip status-chip--slate">{{ __('workflow.quran_final_tests.statuses.'.$finalTest->status) }}</span></td>
                                 <td class="px-5 py-4 text-right lg:px-6">
                                     <div class="flex flex-wrap justify-end gap-2">

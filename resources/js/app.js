@@ -397,7 +397,12 @@ function enhanceSearchableSelect(select) {
     let optionsSignature = '';
 
     const sync = (force = false) => {
-        label.textContent = selectedOptionText(select) || select.querySelector('option[value=""]')?.textContent?.trim() || 'Select';
+        const nextLabel = selectedOptionText(select) || select.querySelector('option[value=""]')?.textContent?.trim() || 'Select';
+
+        if (label.textContent !== nextLabel) {
+            label.textContent = nextLabel;
+        }
+
         const nextOptionsSignature = Array.from(select.options)
             .map((option) => `${option.value}\u0000${option.textContent}\u0000${option.disabled}\u0000${option.hidden}`)
             .join('\u0001');
@@ -469,7 +474,25 @@ document.addEventListener('keydown', (event) => {
 
 document.addEventListener('DOMContentLoaded', initializeSearchableSelects);
 document.addEventListener('livewire:navigated', initializeSearchableSelects);
-document.addEventListener('livewire:initialized', scheduleSearchableSelectInitialization);
+document.addEventListener('livewire:initialized', () => {
+    scheduleSearchableSelectInitialization();
+
+    window.Livewire?.hook('morph.updated', ({ el }) => {
+        if (
+            el instanceof HTMLSelectElement
+            || el.matches?.('.searchable-select')
+            || el.querySelector?.('select')
+        ) {
+            scheduleSearchableSelectInitialization();
+        }
+    });
+
+    window.Livewire?.hook('morph.added', ({ el }) => {
+        if (el instanceof HTMLSelectElement || el.querySelector?.('select')) {
+            scheduleSearchableSelectInitialization();
+        }
+    });
+});
 
 const searchableSelectObserver = new MutationObserver((mutations) => {
     const shouldInitialize = mutations.some((mutation) => {

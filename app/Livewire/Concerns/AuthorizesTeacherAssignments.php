@@ -112,6 +112,11 @@ trait AuthorizesTeacherAssignments
         return $this->accessScopes()->scopeAssessmentResults($query, Auth::user());
     }
 
+    protected function scopeAwqafSubjectTestsQuery(Builder $query): Builder
+    {
+        return $this->accessScopes()->scopeAwqafSubjectTests($query, Auth::user());
+    }
+
     protected function scopeAssessmentsQuery(Builder $query): Builder
     {
         return $this->accessScopes()->scopeAssessments($query, Auth::user());

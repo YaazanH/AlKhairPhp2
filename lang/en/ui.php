@@ -50,6 +50,7 @@ return [
         'quran_partial_tests' => 'Partial Tests',
         'quran_final_tests' => 'Final Tests',
         'quran_tests' => 'Awqaf Tests',
+        'awqaf_subject_tests' => 'Awqaf Subject Tests',
         'point_ledger' => 'Point Ledger',
         'student_attendance' => 'Student Attendance',
         'teacher_attendance' => 'Teacher Attendance',

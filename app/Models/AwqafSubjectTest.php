@@ -5,35 +5,31 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 
-class QuranFinalTest extends Model
+class AwqafSubjectTest extends Model
 {
     use HasFactory;
 
     protected $fillable = [
         'enrollment_id',
         'student_id',
-        'juz_id',
+        'awqaf_subject_id',
+        'tested_on',
+        'score',
         'status',
-        'passed_on',
         'created_by',
+        'notes',
     ];
 
     protected function casts(): array
     {
         return [
-            'last_tested_on' => 'date',
-            'passed_on' => 'date',
+            'tested_on' => 'date',
+            'score' => 'decimal:2',
         ];
     }
 
-    public function attempts(): HasMany
-    {
-        return $this->hasMany(QuranFinalTestAttempt::class)->orderBy('attempt_no');
-    }
-
-    public function createdBy(): BelongsTo
+    public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
     }
@@ -43,13 +39,13 @@ class QuranFinalTest extends Model
         return $this->belongsTo(Enrollment::class);
     }
 
-    public function juz(): BelongsTo
-    {
-        return $this->belongsTo(QuranJuz::class, 'juz_id');
-    }
-
     public function student(): BelongsTo
     {
         return $this->belongsTo(Student::class);
+    }
+
+    public function subject(): BelongsTo
+    {
+        return $this->belongsTo(AwqafSubject::class, 'awqaf_subject_id');
     }
 }

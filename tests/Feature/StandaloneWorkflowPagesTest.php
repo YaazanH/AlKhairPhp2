@@ -5,11 +5,13 @@ namespace Tests\Feature;
 use App\Models\Course;
 use App\Models\Enrollment;
 use App\Models\Group;
+use App\Models\AwqafSubject;
 use App\Models\MemorizationSession;
 use App\Models\ParentProfile;
 use App\Models\PointTransaction;
 use App\Models\PointType;
 use App\Models\QuranFinalTest;
+use App\Models\QuranFinalTestAttempt;
 use App\Models\QuranJuz;
 use App\Models\QuranPartialTest;
 use App\Models\QuranTest;
@@ -304,6 +306,99 @@ class StandaloneWorkflowPagesTest extends TestCase
             ->set('juzFilter', (string) $juzs->first()->id)
             ->assertSee('Final Filter Alpha')
             ->assertDontSee('Final Filter Beta');
+    }
+
+    public function test_final_test_workbench_can_sort_by_last_quiz_date(): void
+    {
+        [$teacher] = $this->teacherContext();
+        $juz = QuranJuz::query()->where('juz_number', 1)->firstOrFail();
+
+        $olderEnrollment = $this->makeEnrollment($teacher->id, 'Final Date Older');
+        $newerEnrollment = $this->makeEnrollment($teacher->id, 'Final Date Newer');
+
+        $olderFinalTest = QuranFinalTest::query()->create([
+            'created_by' => $teacher->user_id,
+            'enrollment_id' => $olderEnrollment->id,
+            'juz_id' => $juz->id,
+            'status' => 'in_progress',
+            'student_id' => $olderEnrollment->student_id,
+        ]);
+
+        $newerFinalTest = QuranFinalTest::query()->create([
+            'created_by' => $teacher->user_id,
+            'enrollment_id' => $newerEnrollment->id,
+            'juz_id' => $juz->id,
+            'status' => 'in_progress',
+            'student_id' => $newerEnrollment->student_id,
+        ]);
+
+        QuranFinalTestAttempt::query()->create([
+            'attempt_no' => 1,
+            'quran_final_test_id' => $olderFinalTest->id,
+            'score' => 55,
+            'status' => 'failed',
+            'teacher_id' => $teacher->id,
+            'tested_on' => '2026-09-10',
+        ]);
+
+        QuranFinalTestAttempt::query()->create([
+            'attempt_no' => 1,
+            'quran_final_test_id' => $newerFinalTest->id,
+            'score' => 60,
+            'status' => 'failed',
+            'teacher_id' => $teacher->id,
+            'tested_on' => '2026-09-20',
+        ]);
+
+        Volt::test('quran-final-tests.index')
+            ->set('sortField', 'last_tested_on')
+            ->set('sortDirection', 'asc')
+            ->assertSee('2026-09-10')
+            ->assertSee('2026-09-20')
+            ->assertSeeInOrder(['Final Date Older', 'Final Date Newer'])
+            ->call('sortBy', 'last_tested_on')
+            ->assertSeeInOrder(['Final Date Newer', 'Final Date Older']);
+    }
+
+    public function test_awqaf_subject_test_workbench_records_non_quran_subject_test(): void
+    {
+        [$teacher, $enrollment] = $this->teacherContext();
+
+        $subject = AwqafSubject::query()->create([
+            'name' => 'Fiqh Basics',
+            'code' => 'fiqh-basics',
+            'sort_order' => 10,
+            'is_active' => true,
+        ]);
+
+        Volt::test('awqaf-subject-tests.index')
+            ->call('openCreateModal')
+            ->set('selectedStudentId', $enrollment->student_id)
+            ->set('selectedEnrollmentId', $enrollment->id)
+            ->set('awqaf_subject_id', $subject->id)
+            ->set('tested_on', '2026-09-22')
+            ->set('score', '82')
+            ->set('status', 'passed')
+            ->call('save')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('awqaf_subject_tests', [
+            'awqaf_subject_id' => $subject->id,
+            'enrollment_id' => $enrollment->id,
+            'score' => 82,
+            'status' => 'passed',
+            'student_id' => $enrollment->student_id,
+        ]);
+
+        $this->assertSame(
+            '2026-09-22',
+            \App\Models\AwqafSubjectTest::query()->firstOrFail()->tested_on->toDateString(),
+        );
+
+        Volt::test('awqaf-subject-tests.index')
+            ->assertSee('Fiqh Basics')
+            ->assertSee('2026-09-22')
+            ->assertSee(trim($enrollment->student->first_name.' '.$enrollment->student->last_name));
     }
 
     public function test_manager_point_ledger_workbench_creates_and_updates_manual_entries(): void

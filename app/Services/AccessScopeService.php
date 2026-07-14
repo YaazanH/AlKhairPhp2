@@ -414,6 +414,15 @@ class AccessScopeService
         return $this->applyScopedIds($query, 'enrollment_id', $this->accessibleEnrollmentIds($user));
     }
 
+    public function scopeAwqafSubjectTests(Builder $query, ?User $user): Builder
+    {
+        if ($this->isUnrestricted($user)) {
+            return $query;
+        }
+
+        return $this->applyScopedIds($query, 'enrollment_id', $this->accessibleEnrollmentIds($user));
+    }
+
     public function scopeAssessments(Builder $query, ?User $user): Builder
     {
         if ($this->isUnrestricted($user)) {

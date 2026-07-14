@@ -188,6 +188,7 @@ return [
         'quran-partial-tests' => 'Quran partial tests',
         'quran-final-tests' => 'Quran final tests',
         'quran-awqaf-tests' => 'Quran awqaf tests',
+        'awqaf-subject-tests' => 'Awqaf subject tests',
         'finance' => 'Finance',
     ],
     'permissions' => [
@@ -213,6 +214,9 @@ return [
         'quran-awqaf-tests.record-linked-teacher' => 'Auto-fill the linked teacher on awqaf Quran tests',
         'quran-awqaf-tests.override-progression' => 'Override Quran awqaf test progression',
         'quran-awqaf-tests.delete' => 'Delete Quran awqaf tests',
+        'awqaf-subject-tests.view' => 'View Awqaf subject tests',
+        'awqaf-subject-tests.record' => 'Record Awqaf subject tests',
+        'awqaf-subject-tests.delete' => 'Delete Awqaf subject tests',
         'quran-tests.record-linked-teacher' => 'Auto-fill the linked teacher on awqaf Quran tests',
         'finance.settings.manage' => 'Manage finance settings',
         'finance.currencies.manage' => 'Manage finance currencies',
