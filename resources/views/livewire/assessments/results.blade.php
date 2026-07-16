@@ -22,9 +22,6 @@ new class extends Component {
     public string $search = '';
     public string $resultStatusFilter = 'all';
     public ?int $selectedGroupId = null;
-    public bool $showQuickEntryModal = false;
-    public ?int $quick_enrollment_id = null;
-    public string $quick_score = '';
     public string $sortField = 'student';
     public string $sortDirection = 'asc';
 
@@ -111,14 +108,6 @@ new class extends Component {
             'assessmentGroupCount' => $assessmentGroups->count(),
             'assessmentPointsByEnrollment' => $this->assessmentPointsByEnrollment(),
             'enrollments' => $enrollments,
-            'quickEntryEnrollments' => $selectedGroup
-                ? Enrollment::query()
-                    ->with('student')
-                    ->where('group_id', $selectedGroup->id)
-                    ->where('status', 'active')
-                    ->orderBy('enrolled_at')
-                    ->get()
-                : collect(),
             'selectedGroup' => $selectedGroup,
             'totalActiveEnrollments' => $assessmentGroups->sum('active_enrollments_count'),
             'totalSavedResults' => $assessmentGroups->sum('assessment_results_count'),
@@ -135,6 +124,9 @@ new class extends Component {
         $this->authorizeTeacherGroupAccess($group);
 
         $this->selectedGroupId = $groupId;
+        $this->ensureDefaultAttempts($groupId);
+        $this->search = '';
+        $this->resultStatusFilter = 'all';
         $this->resetValidation();
     }
 
@@ -219,31 +211,7 @@ new class extends Component {
         session()->flash('status', __('workflow.assessments.results.messages.saved'));
     }
 
-    public function openQuickEntryModal(): void
-    {
-        $this->authorizePermission('assessment-results.record');
-
-        if (! $this->selectedGroupId || ! in_array($this->selectedGroupId, $this->assessmentGroupIds(), true)) {
-            $this->addError('selectedGroupId', __('workflow.assessments.results.errors.select_group'));
-
-            return;
-        }
-
-        $this->quick_enrollment_id = null;
-        $this->quick_score = '';
-        $this->showQuickEntryModal = true;
-        $this->resetValidation(['quick_enrollment_id', 'quick_score']);
-    }
-
-    public function closeQuickEntryModal(): void
-    {
-        $this->quick_enrollment_id = null;
-        $this->quick_score = '';
-        $this->showQuickEntryModal = false;
-        $this->resetValidation(['quick_enrollment_id', 'quick_score']);
-    }
-
-    public function saveQuickResult(): void
+    public function saveEnrollmentResult(int $enrollmentId): void
     {
         $this->authorizePermission('assessment-results.record');
         $this->authorizeTeacherAssessmentAccess($this->currentAssessment);
@@ -256,27 +224,21 @@ new class extends Component {
 
         $maxMark = $this->currentAssessment->total_mark !== null ? (float) $this->currentAssessment->total_mark : 100;
         $validated = $this->validate([
-            'quick_enrollment_id' => ['required', 'exists:enrollments,id'],
-            'quick_score' => ['required', 'numeric', 'min:0', 'max:'.$maxMark],
-        ], [], [
-            'quick_enrollment_id' => __('workflow.assessments.results.quick_entry.student'),
-            'quick_score' => __('workflow.assessments.results.quick_entry.score'),
+            'result_scores.'.$enrollmentId => ['required', 'numeric', 'min:0', 'max:'.$maxMark],
+            'result_attempts.'.$enrollmentId => ['nullable', 'integer', 'min:1'],
+            'result_notes.'.$enrollmentId => ['nullable', 'string'],
         ]);
 
         $enrollment = Enrollment::query()
             ->where('group_id', $this->selectedGroupId)
             ->where('status', 'active')
-            ->findOrFail((int) $validated['quick_enrollment_id']);
+            ->findOrFail($enrollmentId);
         $selectedGroup = Group::query()->findOrFail($this->selectedGroupId);
         $this->authorizeTeacherGroupAccess($selectedGroup);
 
         $teacherId = auth()->user()?->teacherProfile?->id ?: $this->currentAssessment->group?->teacher_id;
         $teacherId = $teacherId ?: $selectedGroup->teacher_id;
-        $numericScore = (float) $validated['quick_score'];
-        $existingResult = AssessmentResult::query()
-            ->where('assessment_id', $this->currentAssessment->id)
-            ->where('enrollment_id', $enrollment->id)
-            ->first();
+        $numericScore = (float) $validated['result_scores'][$enrollmentId];
 
         $result = AssessmentResult::query()->updateOrCreate(
             [
@@ -288,15 +250,14 @@ new class extends Component {
                 'teacher_id' => $teacherId,
                 'score' => $numericScore,
                 'status' => $this->statusForScore($numericScore),
-                'attempt_no' => $existingResult?->attempt_no ?: 1,
-                'notes' => $existingResult?->notes,
+                'attempt_no' => (int) ($validated['result_attempts'][$enrollmentId] ?? 1),
+                'notes' => blank($validated['result_notes'][$enrollmentId] ?? null) ? null : $validated['result_notes'][$enrollmentId],
             ],
         );
 
         app(AssessmentService::class)->syncResultPoints($result->fresh(['assessment.type', 'enrollment.student']));
 
         $this->loadResults();
-        $this->closeQuickEntryModal();
         session()->flash('status', __('workflow.assessments.results.messages.quick_saved'));
     }
 
@@ -310,6 +271,23 @@ new class extends Component {
         $this->result_statuses = $results->mapWithKeys(fn (AssessmentResult $result) => [$result->enrollment_id => $result->status])->toArray();
         $this->result_attempts = $results->mapWithKeys(fn (AssessmentResult $result) => [$result->enrollment_id => $result->attempt_no])->toArray();
         $this->result_notes = $results->mapWithKeys(fn (AssessmentResult $result) => [$result->enrollment_id => $result->notes ?? ''])->toArray();
+
+        if ($this->selectedGroupId) {
+            $this->ensureDefaultAttempts($this->selectedGroupId);
+        }
+    }
+
+    protected function ensureDefaultAttempts(int $groupId): void
+    {
+        Enrollment::query()
+            ->where('group_id', $groupId)
+            ->where('status', 'active')
+            ->pluck('id')
+            ->each(function ($enrollmentId): void {
+                if (! array_key_exists($enrollmentId, $this->result_attempts) || blank($this->result_attempts[$enrollmentId])) {
+                    $this->result_attempts[$enrollmentId] = 1;
+                }
+            });
     }
 
     public function displayStatusForEnrollment(int $enrollmentId): string
@@ -485,52 +463,37 @@ new class extends Component {
         </article>
     </section>
 
-    <section class="surface-table">
-        <div class="admin-grid-meta">
+    <section class="surface-panel p-5 lg:p-6">
+        <div class="admin-toolbar">
             <div>
-                <div class="admin-grid-meta__title">{{ __('workflow.assessments.results.groups.title') }}</div>
-                <div class="admin-grid-meta__summary">{{ __('crud.common.badges.in_view', ['count' => number_format($assessmentGroups->count())]) }}</div>
+                <div class="admin-toolbar__title">{{ __('workflow.assessments.results.groups.choose_title') }}</div>
+                <p class="admin-toolbar__subtitle">{{ __('workflow.assessments.results.groups.choose_help') }}</p>
             </div>
         </div>
 
         @if ($assessmentGroups->isEmpty())
             <div class="admin-empty-state">{{ __('workflow.assessments.results.groups.empty') }}</div>
         @else
-            <div class="overflow-x-auto">
-                <table class="text-sm">
-                    <thead>
-                        <tr>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.assessments.results.groups.headers.group') }}</th>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.assessments.results.groups.headers.teacher') }}</th>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.assessments.results.groups.headers.students') }}</th>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.assessments.results.groups.headers.results') }}</th>
-                            <th class="px-5 py-4 text-right lg:px-6">{{ __('workflow.assessments.results.groups.headers.actions') }}</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-white/6">
-                        @foreach ($assessmentGroups as $group)
-                            <tr class="{{ (int) $selectedGroupId === (int) $group->id ? 'bg-white/[0.03]' : '' }}">
-                                <td class="px-5 py-4 lg:px-6">
-                                    <div class="font-semibold text-white">{{ $group->name }}</div>
-                                    <div class="mt-1 text-xs uppercase tracking-[0.18em] text-neutral-500">{{ $group->course?->name ?: __('workflow.common.no_course') }}</div>
-                                </td>
-                                <td class="px-5 py-4 text-neutral-300 lg:px-6">
-                                    {{ $group->teacher ? $group->teacher->first_name.' '.$group->teacher->last_name : __('workflow.common.no_teacher_assigned') }}
-                                </td>
-                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ number_format((int) $group->active_enrollments_count) }}</td>
-                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ number_format((int) $group->assessment_results_count) }}</td>
-                                <td class="px-5 py-4 lg:px-6">
-                                    <div class="flex justify-end">
-                                        <button type="button" wire:click="selectGroup({{ $group->id }})" class="{{ (int) $selectedGroupId === (int) $group->id ? 'pill-link pill-link--compact pill-link--accent' : 'pill-link pill-link--compact' }}">
-                                            {{ (int) $selectedGroupId === (int) $group->id ? __('workflow.assessments.results.groups.selected') : __('workflow.assessments.results.groups.open') }}
-                                        </button>
-                                    </div>
-                                </td>
-                            </tr>
-                        @endforeach
-                    </tbody>
-                </table>
+            <div class="mt-5 flex flex-wrap gap-3">
+                @foreach ($assessmentGroups as $group)
+                    <button
+                        type="button"
+                        wire:click="selectGroup({{ $group->id }})"
+                        class="{{ (int) $selectedGroupId === (int) $group->id ? 'pill-link pill-link--accent' : 'pill-link' }}"
+                    >
+                        <span>{{ $group->name }}</span>
+                        <span class="opacity-70">{{ $group->assessment_results_count }}/{{ $group->active_enrollments_count }}</span>
+                    </button>
+                @endforeach
             </div>
+
+            @if ($selectedGroup)
+                <div class="mt-5 flex flex-wrap gap-3 border-t border-white/10 pt-5">
+                    <span class="badge-soft badge-soft--emerald">{{ $selectedGroup->course?->name ?: __('workflow.common.no_course') }}</span>
+                    <span class="badge-soft">{{ $selectedGroup->teacher ? $selectedGroup->teacher->first_name.' '.$selectedGroup->teacher->last_name : __('workflow.common.no_teacher_assigned') }}</span>
+                    <span class="badge-soft">{{ __('workflow.assessments.results.groups.progress', ['saved' => number_format((int) $selectedGroup->assessment_results_count), 'total' => number_format((int) $selectedGroup->active_enrollments_count)]) }}</span>
+                </div>
+            @endif
         @endif
     </section>
 
@@ -560,13 +523,6 @@ new class extends Component {
                         <option value="absent">{{ __('workflow.common.result_status.absent') }}</option>
                     </select>
                 </div>
-                @if ($selectedGroup)
-                    @can('assessment-results.record')
-                        <button type="button" wire:click="openQuickEntryModal" class="pill-link pill-link--accent">
-                            {{ __('workflow.assessments.results.quick_entry.action') }}
-                        </button>
-                    @endcan
-                @endif
             </div>
         </div>
 
@@ -602,6 +558,9 @@ new class extends Component {
                         </th>
                         <th class="px-5 py-3 text-left font-medium">{{ __('workflow.assessments.results.table.headers.notes') }}</th>
                         <th class="px-5 py-3 text-left font-medium">{{ __('workflow.assessments.results.table.headers.cached_points') }}</th>
+                        @can('assessment-results.record')
+                            <th class="px-5 py-3 text-right font-medium">{{ __('workflow.assessments.results.table.headers.actions') }}</th>
+                        @endcan
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-white/6">
@@ -620,7 +579,7 @@ new class extends Component {
                                 </div>
                             </td>
                             <td class="px-5 py-3">
-                                <input wire:model="result_scores.{{ $enrollment->id }}" type="number" min="0" step="0.01" class="w-28 rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                                <input wire:model.live.debounce.300ms="result_scores.{{ $enrollment->id }}" wire:keydown.enter="saveEnrollmentResult({{ $enrollment->id }})" type="number" min="0" max="{{ $assessmentRecord->total_mark !== null ? (float) $assessmentRecord->total_mark : 100 }}" step="0.01" class="w-28 rounded-xl px-3 py-2 text-sm">
                                 @error('result_scores.'.$enrollment->id) <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
                             </td>
                             <td class="px-5 py-3">
@@ -629,16 +588,23 @@ new class extends Component {
                                 </span>
                             </td>
                             <td class="px-5 py-3">
-                                <input wire:model="result_attempts.{{ $enrollment->id }}" type="number" min="1" class="w-20 rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                                <input wire:model="result_attempts.{{ $enrollment->id }}" type="number" min="1" class="w-20 rounded-xl px-3 py-2 text-sm">
                             </td>
                             <td class="px-5 py-3">
-                                <input wire:model="result_notes.{{ $enrollment->id }}" type="text" class="w-full min-w-48 rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                                <input wire:model="result_notes.{{ $enrollment->id }}" type="text" class="w-full min-w-48 rounded-xl px-3 py-2 text-sm" placeholder="{{ __('workflow.assessments.results.table.notes_optional') }}">
                             </td>
                             <td class="px-5 py-3"><span class="status-chip status-chip--slate">{{ $assessmentPointsByEnrollment[$enrollment->id] ?? 0 }}</span></td>
+                            @can('assessment-results.record')
+                                <td class="px-5 py-3 text-right">
+                                    <button type="button" wire:click="saveEnrollmentResult({{ $enrollment->id }})" class="pill-link pill-link--compact">
+                                        {{ __('workflow.assessments.results.quick_entry.save') }}
+                                    </button>
+                                </td>
+                            @endcan
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="6" class="px-5 py-10 text-center text-sm text-neutral-500">{{ __('workflow.assessments.results.table.empty') }}</td>
+                            <td colspan="7" class="px-5 py-10 text-center text-sm text-neutral-500">{{ __('workflow.assessments.results.table.empty') }}</td>
                         </tr>
                     @endforelse
                 </tbody>
@@ -657,42 +623,4 @@ new class extends Component {
     @endcan
     @endif
 
-    <x-admin.modal :show="$showQuickEntryModal" :title="__('workflow.assessments.results.quick_entry.title')" :description="__('workflow.assessments.results.quick_entry.help')" close-method="closeQuickEntryModal" max-width="3xl">
-        <form wire:submit="saveQuickResult" class="space-y-4" data-searchable-refresh>
-            <div>
-                <label for="assessment-quick-student" class="mb-1 block text-sm font-medium">{{ __('workflow.assessments.results.quick_entry.student') }}</label>
-                <select
-                    id="assessment-quick-student"
-                    wire:model="quick_enrollment_id"
-                    data-search-placeholder="{{ __('crud.common.filters.search_placeholder') }}"
-                    class="w-full rounded-xl px-4 py-3 text-sm"
-                >
-                    <option value="">{{ __('workflow.assessments.results.quick_entry.select_student') }}</option>
-                    @foreach ($quickEntryEnrollments as $enrollment)
-                        <option
-                            value="{{ $enrollment->id }}"
-                            data-search="{{ trim(implode(' ', array_filter([$enrollment->student?->student_number, $enrollment->student?->first_name, $enrollment->student?->last_name]))) }}"
-                        >
-                            {{ $enrollment->student?->first_name }} {{ $enrollment->student?->last_name }}
-                            @if ($enrollment->student?->student_number)
-                                - {{ $enrollment->student->student_number }}
-                            @endif
-                        </option>
-                    @endforeach
-                </select>
-                @error('quick_enrollment_id') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
-            </div>
-
-            <div>
-                <label for="assessment-quick-score" class="mb-1 block text-sm font-medium">{{ __('workflow.assessments.results.quick_entry.score') }}</label>
-                <input id="assessment-quick-score" wire:model="quick_score" type="number" min="0" step="0.01" max="{{ $assessmentRecord->total_mark !== null ? (float) $assessmentRecord->total_mark : 100 }}" class="w-full rounded-xl px-4 py-3 text-sm">
-                @error('quick_score') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
-            </div>
-
-            <div class="flex flex-wrap justify-end gap-3">
-                <button type="button" wire:click="closeQuickEntryModal" class="pill-link">{{ __('crud.common.actions.cancel') }}</button>
-                <button type="submit" class="pill-link pill-link--accent">{{ __('workflow.assessments.results.quick_entry.save') }}</button>
-            </div>
-        </form>
-    </x-admin.modal>
 </div>

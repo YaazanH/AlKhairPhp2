@@ -90,6 +90,26 @@ class AssessmentWorkflowTest extends TestCase
         $this->assertSame(2, $enrollment->fresh()->final_points_cached);
     }
 
+    public function test_result_roster_defaults_attempt_to_one_and_saves_a_single_student_inline(): void
+    {
+        [$assessment, $enrollment] = $this->assessmentContext();
+
+        Volt::test('assessments.results', ['assessment' => $assessment])
+            ->assertSet('selectedGroupId', $enrollment->group_id)
+            ->assertSet('result_attempts.'.$enrollment->id, 1)
+            ->set('result_scores.'.$enrollment->id, '85')
+            ->call('saveEnrollmentResult', $enrollment->id)
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('assessment_results', [
+            'assessment_id' => $assessment->id,
+            'enrollment_id' => $enrollment->id,
+            'score' => 85,
+            'status' => 'passed',
+            'attempt_no' => 1,
+        ]);
+    }
+
     public function test_score_bands_cannot_overlap_for_the_same_assessment_type(): void
     {
         $this->assessmentContext();

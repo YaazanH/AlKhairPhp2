@@ -1064,7 +1064,7 @@ return [
         ],
         'results' => [
             'title' => 'Assessment Results',
-            'subtitle' => 'Choose one assessment group first, then record results for its active students.',
+            'subtitle' => 'Choose a group, find students by name, and enter scores from one quick roster.',
             'stats' => [
                 'groups' => 'Groups',
             ],
@@ -1079,6 +1079,9 @@ return [
             ],
             'groups' => [
                 'title' => 'Assessment groups',
+                'choose_title' => 'Choose a group',
+                'choose_help' => 'Each group has its own student list, ordered by name. The counter shows saved results out of active students.',
+                'progress' => ':saved of :total results saved',
                 'empty' => 'No groups are linked to this assessment.',
                 'select_first' => 'Select a group above to load its students and record results.',
                 'open' => 'Open results',
@@ -1110,7 +1113,9 @@ return [
                     'attempt' => 'Attempt',
                     'notes' => 'Notes',
                     'cached_points' => 'Assessment points',
+                    'actions' => 'Actions',
                 ],
+                'notes_optional' => 'Optional note',
             ],
             'filters' => [
                 'search_placeholder' => 'Search by student name or number',
