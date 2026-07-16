@@ -23,6 +23,7 @@ class QuranPartialTest extends Model
     protected function casts(): array
     {
         return [
+            'last_tested_on' => 'date',
             'passed_on' => 'date',
         ];
     }

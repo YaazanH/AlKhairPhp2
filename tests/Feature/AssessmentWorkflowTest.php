@@ -188,11 +188,27 @@ class AssessmentWorkflowTest extends TestCase
             'status' => 'active',
         ]);
 
+        $otherCourse = Course::create([
+            'name' => 'Other Assessment Course',
+            'is_active' => true,
+        ]);
+        Group::create([
+            'course_id' => $otherCourse->id,
+            'academic_year_id' => $yearId,
+            'teacher_id' => $teacher->id,
+            'name' => 'Hidden Other Course Group',
+            'capacity' => 12,
+            'is_active' => true,
+        ]);
+
         $existingAssessment->delete();
 
         Volt::test('assessments.index')
             ->call('create')
             ->set('group_scope', 'multiple')
+            ->set('groupCourseFilter', (string) $course->id)
+            ->assertSee('Second Assessment Group')
+            ->assertDontSee('Hidden Other Course Group')
             ->call('toggleGroup', $firstEnrollment->group_id)
             ->call('toggleGroup', $secondGroup->id)
             ->assertSet('group_ids', [

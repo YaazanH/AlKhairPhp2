@@ -895,7 +895,7 @@ new class extends Component {
 
                 <div>
                     <label for="father-phone" class="mb-1 block text-sm font-medium">{{ __('crud.parents.form.fields.father_phone') }}</label>
-                    <input id="father-phone" wire:model="father_phone" type="text" class="w-full rounded-xl px-4 py-3 text-sm">
+                    <x-phone-input id="father-phone" model="father_phone" :value="$father_phone" />
                     @error('father_phone')
                         <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                     @enderror
@@ -913,7 +913,7 @@ new class extends Component {
 
                 <div>
                     <label for="mother-phone" class="mb-1 block text-sm font-medium">{{ __('crud.parents.form.fields.mother_phone') }}</label>
-                    <input id="mother-phone" wire:model="mother_phone" type="text" class="w-full rounded-xl px-4 py-3 text-sm">
+                    <x-phone-input id="mother-phone" model="mother_phone" :value="$mother_phone" />
                     @error('mother_phone')
                         <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                     @enderror
@@ -923,7 +923,7 @@ new class extends Component {
             <div class="grid gap-4 md:grid-cols-2">
                 <div>
                     <label for="home-phone" class="mb-1 block text-sm font-medium">{{ __('crud.parents.form.fields.home_phone') }}</label>
-                    <input id="home-phone" wire:model="home_phone" type="text" class="w-full rounded-xl px-4 py-3 text-sm">
+                    <x-phone-input id="home-phone" model="home_phone" :value="$home_phone" />
                     @error('home_phone')
                         <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                     @enderror

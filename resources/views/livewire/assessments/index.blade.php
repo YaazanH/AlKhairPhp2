@@ -33,6 +33,7 @@ new class extends Component {
     public string $total_mark = '';
     public string $pass_mark = '';
     public bool $is_active = true;
+    public string $groupCourseFilter = 'all';
     public string $courseFilter = 'all';
     public int $perPage = 15;
     public bool $showForm = false;
@@ -47,8 +48,11 @@ new class extends Component {
         $groupQuery = $this->scopeGroupsQuery(
             Group::query()->with(['course', 'academicYear'])->orderBy('name')
         );
-        $availableGroups = (clone $groupQuery)->get();
-        $courseIds = $availableGroups->pluck('course_id')->filter()->unique()->values();
+        $allAvailableGroups = (clone $groupQuery)->get();
+        $availableGroups = $allAvailableGroups
+            ->when($this->groupCourseFilter !== 'all', fn ($groups) => $groups->where('course_id', (int) $this->groupCourseFilter))
+            ->values();
+        $courseIds = $allAvailableGroups->pluck('course_id')->filter()->unique()->values();
         $assessmentQuery = $this->scopeAssessmentsQuery(
             Assessment::query()
                 ->with(['group.course', 'groups.course', 'type'])
@@ -95,6 +99,13 @@ new class extends Component {
         $this->resetPage();
     }
 
+    public function updatedGroupCourseFilter(): void
+    {
+        $this->group_id = null;
+        $this->group_ids = [];
+        $this->resetValidation(['group_id', 'group_ids']);
+    }
+
     public function updatedScheduledAt(): void
     {
         if ($this->due_at_manually_changed) {
@@ -115,7 +126,9 @@ new class extends Component {
             return;
         }
 
-        $group = $this->scopeGroupsQuery(Group::query())->findOrFail($groupId);
+        $group = $this->scopeGroupsQuery(Group::query())
+            ->when($this->groupCourseFilter !== 'all', fn ($query) => $query->where('course_id', (int) $this->groupCourseFilter))
+            ->findOrFail($groupId);
         $this->authorizeTeacherGroupAccess($group);
 
         $selected = collect($this->group_ids)
@@ -230,6 +243,8 @@ new class extends Component {
         $this->group_id = $groupIds[0] ?? $assessment->group_id;
         $this->group_ids = array_map('strval', $groupIds);
         $this->group_scope = count($groupIds) > 1 ? 'multiple' : 'single';
+        $courseIds = $assessment->groups->pluck('course_id')->filter()->unique();
+        $this->groupCourseFilter = $courseIds->count() === 1 ? (string) $courseIds->first() : 'all';
         $this->assessment_type_id = $assessment->assessment_type_id;
         $this->title = $assessment->title;
         $this->description = $assessment->description ?? '';
@@ -259,6 +274,7 @@ new class extends Component {
         $this->total_mark = '';
         $this->pass_mark = '';
         $this->is_active = true;
+        $this->groupCourseFilter = 'all';
 
         if ($closeForm) {
             $this->showForm = false;
@@ -334,6 +350,7 @@ new class extends Component {
         }
 
         return $this->scopeGroupsQuery(Group::query())
+            ->when($this->groupCourseFilter !== 'all', fn ($query) => $query->where('course_id', (int) $this->groupCourseFilter))
             ->pluck('id')
             ->map(fn ($id) => (int) $id)
             ->all();
@@ -412,6 +429,17 @@ new class extends Component {
 
                 <form wire:submit.prevent="save" class="space-y-4">
                     <div class="grid gap-4 md:grid-cols-2">
+                        <div>
+                            <label for="assessment-group-course" class="mb-1 block text-sm font-medium">{{ __('workflow.assessments.index.form.course') }}</label>
+                            <select id="assessment-group-course" wire:model.live="groupCourseFilter" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                                <option value="all">{{ __('workflow.assessments.index.form.all_courses') }}</option>
+                                @foreach ($courses as $course)
+                                    <option value="{{ $course->id }}">{{ $course->name }}</option>
+                                @endforeach
+                            </select>
+                            <div class="mt-1 text-xs text-neutral-500">{{ __('workflow.assessments.index.form.course_help') }}</div>
+                        </div>
+
                         <div>
                             <label class="mb-1 block text-sm font-medium">{{ __('workflow.assessments.index.form.group_scope') }}</label>
                             <select wire:model.live="group_scope" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">

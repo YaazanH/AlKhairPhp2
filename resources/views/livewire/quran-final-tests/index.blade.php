@@ -26,8 +26,8 @@ new class extends Component {
     public string $search = '';
     public string $statusFilter = 'all';
     public string $juzFilter = 'all';
-    public string $sortField = 'student';
-    public string $sortDirection = 'asc';
+    public string $sortField = 'created_at';
+    public string $sortDirection = 'desc';
     public int $perPage = 15;
     public bool $showFormModal = false;
     public bool $showOpenTestWarningModal = false;
@@ -383,6 +383,7 @@ new class extends Component {
                 ->orderByDesc('id'),
             'last_tested_on' => $query->orderBy('last_tested_on', $direction)->orderByDesc('id'),
             'status' => $query->orderBy('status', $direction)->orderByDesc('id'),
+            'created_at' => $query->orderBy('created_at', $direction)->orderBy('id', $direction),
             default => $query
                 ->orderBy(
                     Student::query()

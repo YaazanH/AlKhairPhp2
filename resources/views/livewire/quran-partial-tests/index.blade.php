@@ -6,6 +6,7 @@ use App\Livewire\Concerns\SupportsCreateAndNew;
 use App\Models\Enrollment;
 use App\Models\QuranJuz;
 use App\Models\QuranPartialTest;
+use App\Models\QuranPartialTestAttempt;
 use App\Models\Student;
 use App\Services\PointLedgerService;
 use App\Services\QuranPartialTestService;
@@ -26,8 +27,8 @@ new class extends Component {
     public string $search = '';
     public string $statusFilter = 'all';
     public string $juzFilter = 'all';
-    public string $sortField = 'student';
-    public string $sortDirection = 'asc';
+    public string $sortField = 'created_at';
+    public string $sortDirection = 'desc';
     public int $perPage = 15;
     public bool $showFormModal = false;
     public bool $showOpenTestWarningModal = false;
@@ -39,6 +40,7 @@ new class extends Component {
 
     protected array $sortableFields = [
         'juz',
+        'last_tested_on',
         'status',
         'student',
     ];
@@ -52,12 +54,22 @@ new class extends Component {
     public function with(): array
     {
         $testsQuery = $this->quranPartialTestsQuery(
-            QuranPartialTest::query()->with([
-                'student.parentProfile',
-                'enrollment.group.course',
-                'juz',
-                'parts.attempts',
-            ])
+            QuranPartialTest::query()
+                ->addSelect([
+                    'last_tested_on' => QuranPartialTestAttempt::query()
+                        ->select('tested_on')
+                        ->join('quran_partial_test_parts', 'quran_partial_test_parts.id', '=', 'quran_partial_test_attempts.quran_partial_test_part_id')
+                        ->whereColumn('quran_partial_test_parts.quran_partial_test_id', 'quran_partial_tests.id')
+                        ->orderByDesc('quran_partial_test_attempts.tested_on')
+                        ->orderByDesc('quran_partial_test_attempts.id')
+                        ->limit(1),
+                ])
+                ->with([
+                    'student.parentProfile',
+                    'enrollment.group.course',
+                    'juz',
+                    'parts.attempts',
+                ])
         )
             ->when(filled($this->search), function (Builder $query) {
                 $search = '%'.$this->search.'%';
@@ -399,6 +411,8 @@ new class extends Component {
                 )
                 ->orderByDesc('id'),
             'status' => $query->orderBy('status', $direction)->orderByDesc('id'),
+            'last_tested_on' => $query->orderBy('last_tested_on', $direction)->orderByDesc('id'),
+            'created_at' => $query->orderBy('created_at', $direction)->orderBy('id', $direction),
             default => $query
                 ->orderBy(
                     Student::query()
@@ -513,6 +527,11 @@ new class extends Component {
                             </th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.quran_partial_tests.table.headers.parts') }}</th>
                             <th class="px-5 py-4 text-left lg:px-6">
+                                <button type="button" wire:click="sortBy('last_tested_on')" class="inline-flex items-center gap-2 font-medium text-inherit">
+                                    {{ __('workflow.quran_partial_tests.table.headers.last_tested_on') }} <span>{{ $this->sortIndicator('last_tested_on') }}</span>
+                                </button>
+                            </th>
+                            <th class="px-5 py-4 text-left lg:px-6">
                                 <button type="button" wire:click="sortBy('status')" class="inline-flex items-center gap-2 font-medium text-inherit">
                                     {{ __('workflow.quran_partial_tests.table.headers.status') }} <span>{{ $this->sortIndicator('status') }}</span>
                                 </button>
@@ -538,6 +557,7 @@ new class extends Component {
                                 </td>
                                 <td class="px-5 py-4 text-white lg:px-6">{{ __('workflow.common.labels.juz_number', ['number' => $partialTest->juz?->juz_number ?: __('workflow.common.not_available')]) }}</td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $partialTest->parts->where('status', 'passed')->count() }} / 4</td>
+                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $partialTest->last_tested_on?->format('Y-m-d') ?: __('workflow.common.not_available') }}</td>
                                 <td class="px-5 py-4 lg:px-6"><span class="status-chip status-chip--slate">{{ __('workflow.quran_partial_tests.statuses.'.$partialTest->status) }}</span></td>
                                 <td class="px-5 py-4 text-right lg:px-6">
                                     <div class="flex flex-wrap justify-end gap-2">

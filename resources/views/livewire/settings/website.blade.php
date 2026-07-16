@@ -516,7 +516,7 @@ new class extends Component {
             </div>
             <div class="grid gap-4 lg:grid-cols-2">
                 <input wire:model="site_name" type="text" class="rounded-xl px-4 py-3 text-sm" placeholder="{{ __('site.admin.website.fields.site_name') }}">
-                <input wire:model="contact_phone" type="text" dir="ltr" class="admin-locale-field--en rounded-xl px-4 py-3 text-sm" placeholder="{{ __('site.admin.website.fields.contact_phone') }}">
+                <x-phone-input model="contact_phone" :value="$contact_phone" :placeholder="__('site.admin.website.fields.contact_phone')" />
                 <input wire:model="site_tagline_en" type="text" dir="ltr" class="admin-locale-field--en rounded-xl px-4 py-3 text-sm" placeholder="{{ __('site.admin.website.fields.site_tagline_en') }}">
                 <input wire:model="site_tagline_ar" type="text" dir="rtl" class="admin-locale-field--ar rounded-xl px-4 py-3 text-sm" placeholder="{{ __('site.admin.website.fields.site_tagline_ar') }}">
                 <textarea wire:model="site_description_en" rows="3" dir="ltr" class="admin-locale-field--en rounded-xl px-4 py-3 text-sm lg:col-span-2" placeholder="{{ __('site.admin.website.fields.site_description_en') }}"></textarea>

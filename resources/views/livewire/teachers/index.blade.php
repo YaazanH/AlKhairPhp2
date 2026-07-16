@@ -867,7 +867,7 @@ new class extends Component {
             <div class="grid gap-4 md:grid-cols-2">
                 <div>
                     <label for="teacher-phone" class="mb-1 block text-sm font-medium">{{ __('crud.teachers.form.fields.phone') }}</label>
-                    <input id="teacher-phone" wire:model="phone" type="text" class="w-full rounded-xl px-4 py-3 text-sm">
+                    <x-phone-input id="teacher-phone" model="phone" :value="$phone" :required="true" />
                     @error('phone')
                         <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                     @enderror
@@ -1084,7 +1084,7 @@ new class extends Component {
             <div class="grid gap-4 md:grid-cols-2">
                 <div>
                     <label for="review-teacher-phone" class="mb-1 block text-sm font-medium">{{ __('crud.teachers.form.fields.phone') }}</label>
-                    <input id="review-teacher-phone" wire:model="phone" type="text" class="w-full rounded-xl px-4 py-3 text-sm">
+                    <x-phone-input id="review-teacher-phone" model="phone" :value="$phone" :required="true" />
                     @error('phone')
                         <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                     @enderror

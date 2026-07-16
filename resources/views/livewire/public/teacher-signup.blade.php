@@ -114,15 +114,11 @@ new #[Layout('components.layouts.auth')] class extends Component {
             :placeholder="__('access.teacher_signup.fields.last_name')"
         />
 
-        <flux:input
-            wire:model="phone"
-            :label="__('access.teacher_signup.fields.phone')"
-            type="text"
-            name="phone"
-            required
-            autocomplete="tel"
-            :placeholder="__('access.teacher_signup.fields.phone')"
-        />
+        <div>
+            <label class="mb-2 block text-sm font-medium">{{ __('access.teacher_signup.fields.phone') }}</label>
+            <x-phone-input model="phone" :value="$phone" :required="true" :placeholder="__('access.teacher_signup.fields.phone')" />
+            @error('phone') <div class="mt-1 text-sm text-red-500">{{ $message }}</div> @enderror
+        </div>
 
         <flux:input
             wire:model="username"

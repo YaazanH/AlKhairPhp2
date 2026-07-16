@@ -576,7 +576,7 @@ new class extends Component
 
                     <div class="admin-form-field">
                         <label class="mb-1 block text-sm font-medium">{{ __('access.users.fields.phone') }}</label>
-                        <input wire:model="phone" type="text" class="w-full rounded-xl px-4 py-3 text-sm">
+                        <x-phone-input model="phone" :value="$phone" />
                         @error('phone')
                             <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                         @enderror

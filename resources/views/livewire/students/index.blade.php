@@ -1613,7 +1613,7 @@ new class extends Component {
 
                 <div>
                     <label for="student-phone" class="mb-1 block text-sm font-medium">{{ __('crud.students.form.fields.phone') }}</label>
-                    <input id="student-phone" wire:model="student_phone" type="text" class="w-full rounded-xl px-4 py-3 text-sm">
+                    <x-phone-input id="student-phone" model="student_phone" :value="$student_phone" />
                     <p class="mt-1 text-xs text-neutral-500">{{ __('crud.students.form.student_phone_help') }}</p>
                     @error('student_phone')
                         <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
@@ -1676,7 +1676,7 @@ new class extends Component {
 
                         <div>
                             <label class="mb-1 block text-sm font-medium">{{ __('crud.parents.form.fields.father_phone') }}</label>
-                            <input wire:model="quick_parent_father_phone" type="text" class="w-full rounded-xl px-4 py-3 text-sm">
+                            <x-phone-input model="quick_parent_father_phone" :value="$quick_parent_father_phone" />
                             @error('quick_parent_father_phone')
                                 <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                             @enderror
@@ -1706,7 +1706,7 @@ new class extends Component {
 
                         <div>
                             <label class="mb-1 block text-sm font-medium">{{ __('crud.parents.form.fields.home_phone') }}</label>
-                            <input wire:model="quick_parent_home_phone" type="text" class="w-full rounded-xl px-4 py-3 text-sm">
+                            <x-phone-input model="quick_parent_home_phone" :value="$quick_parent_home_phone" />
                             @error('quick_parent_home_phone')
                                 <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                             @enderror
@@ -1724,7 +1724,7 @@ new class extends Component {
 
                         <div>
                             <label class="mb-1 block text-sm font-medium">{{ __('crud.parents.form.fields.mother_phone') }}</label>
-                            <input wire:model="quick_parent_mother_phone" type="text" class="w-full rounded-xl px-4 py-3 text-sm">
+                            <x-phone-input model="quick_parent_mother_phone" :value="$quick_parent_mother_phone" />
                             @error('quick_parent_mother_phone')
                                 <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                             @enderror

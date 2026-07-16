@@ -1124,7 +1124,7 @@ new class extends Component {
                     <div class="grid gap-4 md:grid-cols-2">
                         <div>
                             <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.school_phone') }}</label>
-                            <input wire:model="school_phone" type="text" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                            <x-phone-input model="school_phone" :value="$school_phone" />
                             @error('school_phone') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
                         </div>
                         <div>
@@ -1612,7 +1612,7 @@ new class extends Component {
             <div class="grid gap-4 md:grid-cols-2">
                 <div>
                     <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.school_phone') }}</label>
-                    <input wire:model="school_phone" type="text" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                    <x-phone-input model="school_phone" :value="$school_phone" />
                     @error('school_phone') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
                 </div>
                 <div>

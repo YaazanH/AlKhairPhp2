@@ -14,6 +14,8 @@ use App\Models\QuranFinalTest;
 use App\Models\QuranFinalTestAttempt;
 use App\Models\QuranJuz;
 use App\Models\QuranPartialTest;
+use App\Models\QuranPartialTestAttempt;
+use App\Models\QuranPartialTestPart;
 use App\Models\QuranTest;
 use App\Models\StudentPageAchievement;
 use App\Models\Student;
@@ -351,6 +353,11 @@ class StandaloneWorkflowPagesTest extends TestCase
         ]);
 
         Volt::test('quran-final-tests.index')
+            ->assertSet('sortField', 'created_at')
+            ->assertSet('sortDirection', 'desc')
+            ->assertSeeInOrder(['Final Date Newer', 'Final Date Older']);
+
+        Volt::test('quran-final-tests.index')
             ->set('sortField', 'last_tested_on')
             ->set('sortDirection', 'asc')
             ->assertSee('2026-09-10')
@@ -358,6 +365,63 @@ class StandaloneWorkflowPagesTest extends TestCase
             ->assertSeeInOrder(['Final Date Older', 'Final Date Newer'])
             ->call('sortBy', 'last_tested_on')
             ->assertSeeInOrder(['Final Date Newer', 'Final Date Older']);
+    }
+
+    public function test_partial_test_workbench_shows_last_test_date_and_defaults_to_newest_record(): void
+    {
+        [$teacher] = $this->teacherContext();
+        $juz = QuranJuz::query()->where('juz_number', 1)->firstOrFail();
+        $olderEnrollment = $this->makeEnrollment($teacher->id, 'Partial Record Older');
+        $newerEnrollment = $this->makeEnrollment($teacher->id, 'Partial Record Newer');
+
+        $olderTest = QuranPartialTest::query()->create([
+            'created_by' => $teacher->user_id,
+            'enrollment_id' => $olderEnrollment->id,
+            'juz_id' => $juz->id,
+            'status' => 'in_progress',
+            'student_id' => $olderEnrollment->student_id,
+        ]);
+        $newerTest = QuranPartialTest::query()->create([
+            'created_by' => $teacher->user_id,
+            'enrollment_id' => $newerEnrollment->id,
+            'juz_id' => $juz->id,
+            'status' => 'in_progress',
+            'student_id' => $newerEnrollment->student_id,
+        ]);
+
+        $olderPart = QuranPartialTestPart::query()->create([
+            'part_number' => 1,
+            'quran_partial_test_id' => $olderTest->id,
+            'status' => 'pending',
+        ]);
+        $newerPart = QuranPartialTestPart::query()->create([
+            'part_number' => 1,
+            'quran_partial_test_id' => $newerTest->id,
+            'status' => 'pending',
+        ]);
+        QuranPartialTestAttempt::query()->create([
+            'attempt_no' => 1,
+            'mistake_count' => 4,
+            'quran_partial_test_part_id' => $olderPart->id,
+            'status' => 'failed',
+            'teacher_id' => $teacher->id,
+            'tested_on' => '2026-09-12',
+        ]);
+        QuranPartialTestAttempt::query()->create([
+            'attempt_no' => 1,
+            'mistake_count' => 2,
+            'quran_partial_test_part_id' => $newerPart->id,
+            'status' => 'passed',
+            'teacher_id' => $teacher->id,
+            'tested_on' => '2026-09-22',
+        ]);
+
+        Volt::test('quran-partial-tests.index')
+            ->assertSet('sortField', 'created_at')
+            ->assertSet('sortDirection', 'desc')
+            ->assertSee('2026-09-12')
+            ->assertSee('2026-09-22')
+            ->assertSeeInOrder(['Partial Record Newer', 'Partial Record Older']);
     }
 
     public function test_awqaf_subject_test_workbench_records_non_quran_subject_test(): void

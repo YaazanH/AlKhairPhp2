@@ -345,12 +345,12 @@ new class extends Component {
             <div class="grid gap-4 md:grid-cols-2">
                 <div>
                     <label class="mb-1 block text-sm font-medium">{{ __('community_contacts.fields.phone') }}</label>
-                    <input wire:model="phone" type="text" dir="ltr" class="w-full rounded-xl px-4 py-3 text-sm">
+                    <x-phone-input model="phone" :value="$phone" />
                     @error('phone') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
                 </div>
                 <div>
                     <label class="mb-1 block text-sm font-medium">{{ __('community_contacts.fields.secondary_phone') }}</label>
-                    <input wire:model="secondary_phone" type="text" dir="ltr" class="w-full rounded-xl px-4 py-3 text-sm">
+                    <x-phone-input model="secondary_phone" :value="$secondary_phone" />
                     @error('secondary_phone') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
                 </div>
             </div>
