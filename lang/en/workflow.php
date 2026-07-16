@@ -1103,6 +1103,12 @@ return [
                 'score' => 'Result',
                 'save' => 'Save result',
             ],
+            'student_entry' => [
+                'title' => 'Add a result by student',
+                'help' => 'Search every group in this assessment, choose the student, and enter the mark directly.',
+                'all_groups' => 'All assessment groups',
+                'search_placeholder' => 'Search by student name, number, or group',
+            ],
             'table' => [
                 'title' => 'Group results',
                 'empty' => 'No active enrollments exist for this assessment group.',

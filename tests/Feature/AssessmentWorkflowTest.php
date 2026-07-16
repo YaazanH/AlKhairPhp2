@@ -218,10 +218,11 @@ class AssessmentWorkflowTest extends TestCase
         $resultsComponent = Volt::test('assessments.results', ['assessment' => $assessment])
             ->assertSee('Assessment Group')
             ->assertSee('Second Assessment Group')
-            ->call('selectGroup', $firstEnrollment->group_id)
-            ->set('result_scores.'.$firstEnrollment->id, '80')
-            ->set('result_attempts.'.$firstEnrollment->id, '1')
-            ->call('saveResults')
+            ->assertSet('selectedGroupId', null)
+            ->assertSet('quick_attempt', 1)
+            ->set('quick_enrollment_id', (string) $firstEnrollment->id)
+            ->set('quick_score', '80')
+            ->call('saveQuickResult')
             ->assertHasNoErrors();
 
         $resultsComponent

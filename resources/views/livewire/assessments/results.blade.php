@@ -22,6 +22,10 @@ new class extends Component {
     public string $search = '';
     public string $resultStatusFilter = 'all';
     public ?int $selectedGroupId = null;
+    public string $quick_enrollment_id = '';
+    public string $quick_score = '';
+    public int $quick_attempt = 1;
+    public string $quick_notes = '';
     public string $sortField = 'student';
     public string $sortDirection = 'asc';
 
@@ -108,6 +112,13 @@ new class extends Component {
             'assessmentGroupCount' => $assessmentGroups->count(),
             'assessmentPointsByEnrollment' => $this->assessmentPointsByEnrollment(),
             'enrollments' => $enrollments,
+            'quickEntryEnrollments' => Enrollment::query()
+                ->with(['student', 'group.course'])
+                ->whereIn('group_id', $assessmentGroups->pluck('id'))
+                ->where('status', 'active')
+                ->get()
+                ->sortBy(fn (Enrollment $enrollment) => mb_strtolower((string) ($enrollment->student?->full_name ?? '')))
+                ->values(),
             'selectedGroup' => $selectedGroup,
             'totalActiveEnrollments' => $assessmentGroups->sum('active_enrollments_count'),
             'totalSavedResults' => $assessmentGroups->sum('assessment_results_count'),
@@ -257,6 +268,85 @@ new class extends Component {
 
         app(AssessmentService::class)->syncResultPoints($result->fresh(['assessment.type', 'enrollment.student']));
 
+        $this->loadResults();
+        session()->flash('status', __('workflow.assessments.results.messages.quick_saved'));
+    }
+
+    public function updatedQuickEnrollmentId($enrollmentId): void
+    {
+        $this->quick_score = '';
+        $this->quick_attempt = 1;
+        $this->quick_notes = '';
+        $this->resetValidation(['quick_enrollment_id', 'quick_score', 'quick_attempt', 'quick_notes']);
+
+        if (blank($enrollmentId)) {
+            return;
+        }
+
+        $enrollment = Enrollment::query()
+            ->whereIn('group_id', $this->assessmentGroups()->pluck('id'))
+            ->where('status', 'active')
+            ->find($enrollmentId);
+
+        if (! $enrollment) {
+            return;
+        }
+
+        $result = AssessmentResult::query()
+            ->where('assessment_id', $this->currentAssessment->id)
+            ->where('enrollment_id', $enrollment->id)
+            ->first();
+
+        if ($result) {
+            $this->quick_score = $result->score !== null ? number_format((float) $result->score, 2, '.', '') : '';
+            $this->quick_attempt = $result->attempt_no ?: 1;
+            $this->quick_notes = $result->notes ?? '';
+        }
+    }
+
+    public function saveQuickResult(): void
+    {
+        $this->authorizePermission('assessment-results.record');
+        $this->authorizeTeacherAssessmentAccess($this->currentAssessment);
+
+        $maxMark = $this->currentAssessment->total_mark !== null ? (float) $this->currentAssessment->total_mark : 100;
+        $validated = $this->validate([
+            'quick_enrollment_id' => ['required', 'integer', 'exists:enrollments,id'],
+            'quick_score' => ['required', 'numeric', 'min:0', 'max:'.$maxMark],
+            'quick_attempt' => ['required', 'integer', 'min:1'],
+            'quick_notes' => ['nullable', 'string'],
+        ]);
+
+        $enrollment = Enrollment::query()
+            ->with('group')
+            ->whereIn('group_id', $this->assessmentGroups()->pluck('id'))
+            ->where('status', 'active')
+            ->findOrFail((int) $validated['quick_enrollment_id']);
+        $this->authorizeTeacherGroupAccess($enrollment->group);
+
+        $teacherId = auth()->user()?->teacherProfile?->id ?: $enrollment->group?->teacher_id;
+        $numericScore = (float) $validated['quick_score'];
+        $result = AssessmentResult::query()->updateOrCreate(
+            [
+                'assessment_id' => $this->currentAssessment->id,
+                'enrollment_id' => $enrollment->id,
+            ],
+            [
+                'student_id' => $enrollment->student_id,
+                'teacher_id' => $teacherId,
+                'score' => $numericScore,
+                'status' => $this->statusForScore($numericScore),
+                'attempt_no' => (int) $validated['quick_attempt'],
+                'notes' => blank($validated['quick_notes'] ?? null) ? null : $validated['quick_notes'],
+            ],
+        );
+
+        app(AssessmentService::class)->syncResultPoints($result->fresh(['assessment.type', 'enrollment.student']));
+
+        $this->quick_enrollment_id = '';
+        $this->quick_score = '';
+        $this->quick_attempt = 1;
+        $this->quick_notes = '';
         $this->loadResults();
         session()->flash('status', __('workflow.assessments.results.messages.quick_saved'));
     }
@@ -443,6 +533,67 @@ new class extends Component {
     @if (session('status'))
         <div class="flash-success px-4 py-3 text-sm">{{ session('status') }}</div>
     @endif
+
+    @can('assessment-results.record')
+        <section class="surface-panel p-5 lg:p-6">
+            <div class="admin-toolbar">
+                <div>
+                    <div class="admin-toolbar__title">{{ __('workflow.assessments.results.student_entry.title') }}</div>
+                    <p class="admin-toolbar__subtitle">{{ __('workflow.assessments.results.student_entry.help') }}</p>
+                </div>
+                <span class="badge-soft badge-soft--emerald">{{ __('workflow.assessments.results.student_entry.all_groups') }}</span>
+            </div>
+
+            <form wire:submit="saveQuickResult" class="mt-5 grid gap-4 lg:grid-cols-[minmax(18rem,2fr)_8rem_7rem_minmax(12rem,1fr)_auto] lg:items-end" data-searchable-refresh>
+                <div>
+                    <label for="assessment-student-entry" class="mb-1 block text-sm font-medium">{{ __('workflow.assessments.results.quick_entry.student') }}</label>
+                    <select
+                        id="assessment-student-entry"
+                        wire:model.live="quick_enrollment_id"
+                        class="searchable-select w-full rounded-xl px-4 py-3 text-sm"
+                        data-search-placeholder="{{ __('workflow.assessments.results.student_entry.search_placeholder') }}"
+                    >
+                        <option value="">{{ __('workflow.assessments.results.quick_entry.select_student') }}</option>
+                        @foreach ($quickEntryEnrollments as $enrollment)
+                            <option
+                                value="{{ $enrollment->id }}"
+                                data-search="{{ trim(implode(' ', array_filter([$enrollment->student?->student_number, $enrollment->student?->first_name, $enrollment->student?->last_name, $enrollment->group?->name, $enrollment->group?->course?->name]))) }}"
+                            >
+                                {{ $enrollment->student?->full_name }}
+                                @if ($enrollment->student?->student_number)
+                                    - {{ $enrollment->student->student_number }}
+                                @endif
+                                · {{ $enrollment->group?->name }}
+                            </option>
+                        @endforeach
+                    </select>
+                    @error('quick_enrollment_id') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
+                </div>
+
+                <div>
+                    <label for="assessment-student-score" class="mb-1 block text-sm font-medium">{{ __('workflow.assessments.results.quick_entry.score') }}</label>
+                    <input id="assessment-student-score" wire:model="quick_score" type="number" min="0" max="{{ $assessmentRecord->total_mark !== null ? (float) $assessmentRecord->total_mark : 100 }}" step="0.01" class="w-full rounded-xl px-4 py-3 text-sm">
+                    @error('quick_score') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
+                </div>
+
+                <div>
+                    <label for="assessment-student-attempt" class="mb-1 block text-sm font-medium">{{ __('workflow.assessments.results.table.headers.attempt') }}</label>
+                    <input id="assessment-student-attempt" wire:model="quick_attempt" type="number" min="1" class="w-full rounded-xl px-4 py-3 text-sm">
+                    @error('quick_attempt') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
+                </div>
+
+                <div>
+                    <label for="assessment-student-notes" class="mb-1 block text-sm font-medium">{{ __('workflow.assessments.results.table.headers.notes') }}</label>
+                    <input id="assessment-student-notes" wire:model="quick_notes" type="text" class="w-full rounded-xl px-4 py-3 text-sm" placeholder="{{ __('workflow.assessments.results.table.notes_optional') }}">
+                    @error('quick_notes') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
+                </div>
+
+                <button type="submit" class="pill-link pill-link--accent justify-center lg:mb-px">
+                    {{ __('workflow.assessments.results.quick_entry.save') }}
+                </button>
+            </form>
+        </section>
+    @endcan
 
     <section class="admin-kpi-grid">
         <article class="stat-card">
