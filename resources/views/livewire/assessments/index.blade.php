@@ -109,6 +109,31 @@ new class extends Component {
         $this->due_at_manually_changed = true;
     }
 
+    public function toggleGroup(int $groupId): void
+    {
+        if ($this->group_scope !== 'multiple') {
+            return;
+        }
+
+        $group = $this->scopeGroupsQuery(Group::query())->findOrFail($groupId);
+        $this->authorizeTeacherGroupAccess($group);
+
+        $selected = collect($this->group_ids)
+            ->map(fn ($id) => (int) $id)
+            ->filter()
+            ->unique();
+
+        $this->group_ids = ($selected->contains($groupId)
+            ? $selected->reject(fn ($id) => $id === $groupId)
+            : $selected->push($groupId))
+            ->sort()
+            ->map(fn ($id) => (string) $id)
+            ->values()
+            ->all();
+
+        $this->resetValidation('group_ids');
+    }
+
     public function rules(): array
     {
         $rules = [
@@ -177,11 +202,13 @@ new class extends Component {
             'is_active' => $validated['is_active'],
         ];
 
-        $assessment = $this->editingId
-            ? tap(Assessment::query()->findOrFail($this->editingId))->update($payload)
-            : Assessment::query()->create($payload + ['created_by' => auth()->id()]);
+        DB::transaction(function () use ($payload, $groupIds): void {
+            $assessment = $this->editingId
+                ? tap(Assessment::query()->findOrFail($this->editingId))->update($payload)
+                : Assessment::query()->create($payload + ['created_by' => auth()->id()]);
 
-        $this->syncAssessmentGroups($assessment, $groupIds);
+            $this->syncAssessmentGroups($assessment, $groupIds);
+        });
 
         session()->flash('status', $this->editingId ? __('workflow.assessments.index.messages.updated') : __('workflow.assessments.index.messages.created'));
         $this->cancel();
@@ -383,7 +410,7 @@ new class extends Component {
                     <p class="text-sm text-neutral-400">{{ __('workflow.assessments.index.form.help') }}</p>
                 </div>
 
-                <form wire:submit="save" class="space-y-4">
+                <form wire:submit.prevent="save" class="space-y-4">
                     <div class="grid gap-4 md:grid-cols-2">
                         <div>
                             <label class="mb-1 block text-sm font-medium">{{ __('workflow.assessments.index.form.group_scope') }}</label>
@@ -407,14 +434,36 @@ new class extends Component {
                                 @error('group_id') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
                             </div>
                         @elseif ($group_scope === 'multiple')
-                            <div>
+                            <div class="md:col-span-2">
                                 <label class="mb-1 block text-sm font-medium">{{ __('workflow.assessments.index.form.groups') }}</label>
-                                <select wire:model="group_ids" multiple size="6" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                                <div class="max-h-72 overflow-y-auto rounded-2xl border border-white/10 bg-white/[0.02] p-3">
+                                    <div class="grid gap-2 sm:grid-cols-2">
                                     @foreach ($groups as $group)
-                                        <option value="{{ $group->id }}">{{ $group->name }}{{ $group->course ? ' | '.$group->course->name : '' }}</option>
+                                        @php
+                                            $isSelected = in_array((string) $group->id, array_map('strval', $group_ids), true);
+                                        @endphp
+                                        <button
+                                            type="button"
+                                            wire:click="toggleGroup({{ $group->id }})"
+                                            class="flex items-center gap-3 rounded-xl border px-3 py-3 text-start transition {{ $isSelected ? 'border-emerald-400/40 bg-emerald-500/10 text-white' : 'border-white/10 bg-white/[0.02] text-neutral-300 hover:bg-white/[0.05]' }}"
+                                        >
+                                            <span class="flex h-5 w-5 shrink-0 items-center justify-center rounded border {{ $isSelected ? 'border-emerald-400 bg-emerald-500 text-white' : 'border-white/20' }}" aria-hidden="true">
+                                                {{ $isSelected ? '✓' : '' }}
+                                            </span>
+                                            <span class="min-w-0">
+                                                <span class="block truncate font-medium">{{ $group->name }}</span>
+                                                @if ($group->course)
+                                                    <span class="mt-0.5 block truncate text-xs text-neutral-500">{{ $group->course->name }}</span>
+                                                @endif
+                                            </span>
+                                        </button>
                                     @endforeach
-                                </select>
-                                <div class="mt-1 text-xs text-neutral-500">{{ __('workflow.assessments.index.form.multiple_groups_help') }}</div>
+                                    </div>
+                                </div>
+                                <div class="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-neutral-500">
+                                    <span>{{ __('workflow.assessments.index.form.multiple_groups_help') }}</span>
+                                    <span class="badge-soft">{{ __('workflow.assessments.index.form.selected_groups_count', ['count' => count($group_ids)]) }}</span>
+                                </div>
                                 @error('group_ids') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
                             </div>
                         @else

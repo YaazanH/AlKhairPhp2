@@ -991,7 +991,8 @@ return [
                 'description' => 'الوصف',
                 'select_group' => 'اختر المجموعة',
                 'select_type' => 'اختر النوع',
-                'multiple_groups_help' => 'اضغط Ctrl أثناء الاختيار لتحديد أكثر من مجموعة.',
+                'multiple_groups_help' => 'اضغط على كل مجموعة تريد إضافتها. يتم تثبيت اختيارك مباشرة.',
+                'selected_groups_count' => ':count محددة',
                 'all_groups_help' => 'سيشمل هذا التقييم كل المجموعات المتاحة (:count).',
                 'group_scope_options' => [
                     'single' => 'مجموعة واحدة',

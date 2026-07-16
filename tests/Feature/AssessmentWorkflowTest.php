@@ -193,7 +193,12 @@ class AssessmentWorkflowTest extends TestCase
         Volt::test('assessments.index')
             ->call('create')
             ->set('group_scope', 'multiple')
-            ->set('group_ids', [$firstEnrollment->group_id, $secondGroup->id])
+            ->call('toggleGroup', $firstEnrollment->group_id)
+            ->call('toggleGroup', $secondGroup->id)
+            ->assertSet('group_ids', [
+                (string) min($firstEnrollment->group_id, $secondGroup->id),
+                (string) max($firstEnrollment->group_id, $secondGroup->id),
+            ])
             ->set('assessment_type_id', $quizType->id)
             ->set('title', 'Shared Quiz')
             ->set('scheduled_at', '2026-10-01T10:00')

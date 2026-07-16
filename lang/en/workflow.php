@@ -991,7 +991,8 @@ return [
                 'description' => 'Description',
                 'select_group' => 'Select group',
                 'select_type' => 'Select type',
-                'multiple_groups_help' => 'Hold Ctrl while clicking to select more than one group.',
+                'multiple_groups_help' => 'Click each group you want to include. Your selection is saved immediately.',
+                'selected_groups_count' => ':count selected',
                 'all_groups_help' => 'This assessment will include all available groups (:count).',
                 'group_scope_options' => [
                     'single' => 'One group',
