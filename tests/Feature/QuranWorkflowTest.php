@@ -377,6 +377,47 @@ class QuranWorkflowTest extends TestCase
             ->sum('points'));
     }
 
+    public function test_adding_a_new_memorization_day_does_not_recalculate_historical_points(): void
+    {
+        [, $enrollment] = $this->workflowContext('tiered-memorization');
+
+        Volt::test('enrollments.memorization', ['enrollment' => $enrollment])
+            ->set('recorded_on', '2026-09-08')
+            ->set('teacher_id', $enrollment->group->teacher_id)
+            ->set('entry_type', 'new')
+            ->set('from_page', '20')
+            ->set('to_page', '20')
+            ->call('saveMemorization')
+            ->assertHasNoErrors();
+
+        $historicalTransaction = PointTransaction::query()
+            ->where('enrollment_id', $enrollment->id)
+            ->where('source_type', 'memorization_session')
+            ->whereNull('voided_at')
+            ->firstOrFail();
+
+        Volt::test('enrollments.memorization', ['enrollment' => $enrollment])
+            ->set('recorded_on', '2026-09-09')
+            ->set('teacher_id', $enrollment->group->teacher_id)
+            ->set('entry_type', 'new')
+            ->set('from_page', '21')
+            ->set('to_page', '21')
+            ->call('saveMemorization')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('point_transactions', [
+            'id' => $historicalTransaction->id,
+            'points' => 10,
+            'voided_at' => null,
+        ]);
+        $this->assertSame(2, PointTransaction::query()
+            ->where('enrollment_id', $enrollment->id)
+            ->where('source_type', 'memorization_session')
+            ->whereNull('voided_at')
+            ->count());
+        $this->assertSame(20, $enrollment->fresh()->final_points_cached);
+    }
+
     public function test_final_test_progression_requires_a_passed_partial_cycle_and_saves_attempt_history(): void
     {
         [, $enrollment] = $this->workflowContext('teacher');

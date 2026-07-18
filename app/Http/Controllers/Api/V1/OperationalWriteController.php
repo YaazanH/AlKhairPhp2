@@ -9,7 +9,6 @@ use App\Models\AttendanceStatus;
 use App\Models\Enrollment;
 use App\Models\Group;
 use App\Models\GroupAttendanceDay;
-use App\Models\MemorizationSession;
 use App\Models\MemorizationSessionPage;
 use App\Models\PointTransaction;
 use App\Models\PointType;
@@ -22,6 +21,7 @@ use App\Models\TeacherAttendanceDay;
 use App\Models\TeacherAttendanceRecord;
 use App\Services\AccessScopeService;
 use App\Services\AssessmentService;
+use App\Services\MemorizationService;
 use App\Services\PointLedgerService;
 use App\Services\QuranProgressionService;
 use App\Services\StudentAttendanceDayService;
@@ -224,55 +224,11 @@ class OperationalWriteController extends Controller
             ], 422);
         }
 
-        $session = DB::transaction(function () use ($request, $validated, $enrollment, $pages, $existingPages) {
-            $session = MemorizationSession::query()->create([
-                'enrollment_id' => $enrollment->id,
-                'entry_type' => $validated['entry_type'],
-                'from_page' => $validated['from_page'],
-                'notes' => blank($validated['notes'] ?? null) ? null : $validated['notes'],
-                'pages_count' => count($pages),
-                'recorded_on' => $validated['recorded_on'],
-                'recorded_by_user_id' => $request->user()?->id,
-                'student_id' => $enrollment->student_id,
-                'teacher_id' => $validated['teacher_id'],
-                'to_page' => $validated['to_page'],
-            ]);
-
-            $session->pages()->createMany(collect($pages)->map(fn (int $pageNo) => [
-                'page_no' => $pageNo,
-            ])->all());
-
-            $newPages = array_values(array_diff($pages, $existingPages));
-
-            if ($newPages !== []) {
-                StudentPageAchievement::query()->insert(collect($newPages)->map(fn (int $pageNo) => [
-                    'first_enrollment_id' => $enrollment->id,
-                    'first_recorded_on' => $validated['recorded_on'],
-                    'first_session_id' => $session->id,
-                    'page_no' => $pageNo,
-                    'student_id' => $enrollment->student_id,
-                ])->all());
-
-                $ledger = app(PointLedgerService::class);
-                $policy = $ledger->resolvePolicy('memorization', 'page', $enrollment->student?->grade_level_id);
-
-                if ($policy) {
-                    $ledger->recordAutomaticPoints(
-                        $enrollment,
-                        'memorization_session',
-                        $session->id,
-                        $policy->pointType,
-                        $policy,
-                        $policy->points * count($newPages),
-                        'Automatic memorization points from the integration API.',
-                    );
-                }
-
-                $ledger->syncEnrollmentCaches($enrollment->fresh(['student']));
-            }
-
-            return $session->fresh(['teacher']);
-        });
+        $session = app(MemorizationService::class)->saveSession($enrollment, [
+            ...$validated,
+            'notes' => $validated['notes'] ?? null,
+            'recorded_by_user_id' => $request->user()?->id,
+        ])->load('teacher');
 
         return response()->json([
             'entry_type' => $session->entry_type,

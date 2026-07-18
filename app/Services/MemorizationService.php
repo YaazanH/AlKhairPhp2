@@ -16,17 +16,16 @@ class MemorizationService
 {
     public function __construct(
         protected PointLedgerService $ledger,
-    ) {
-    }
+    ) {}
 
     public function saveSession(
         Enrollment $enrollment,
         array $validated,
         ?MemorizationSession $session = null,
         bool $skipDuplicatePages = false,
-    ): MemorizationSession
-    {
+    ): MemorizationSession {
         return DB::transaction(function () use ($enrollment, $validated, $session, $skipDuplicatePages): MemorizationSession {
+            $isEditing = $session !== null;
             $recordedByUserId = $validated['recorded_by_user_id'] ?? $session?->recorded_by_user_id ?? auth()->id();
             $pageNumbers = range((int) $validated['from_page'], (int) $validated['to_page']);
             $duplicatePages = $this->findDuplicatePages($enrollment, $pageNumbers, $validated['entry_type'], $session);
@@ -53,7 +52,7 @@ class MemorizationService
                 'from_page' => min($pageNumbers),
                 'to_page' => max($pageNumbers),
                 'pages_count' => count($pageNumbers),
-                'notes' => $validated['notes'] ?: null,
+                'notes' => ($validated['notes'] ?? null) ?: null,
             ];
 
             if ($session) {
@@ -72,7 +71,13 @@ class MemorizationService
                 ])->all()
             );
 
-            $this->rebuildStudentAchievementsAndPoints($enrollment->student()->firstOrFail());
+            $student = $enrollment->student()->firstOrFail();
+
+            if ($isEditing) {
+                $this->rebuildStudentAchievementsAndPoints($student);
+            } else {
+                $this->recordNewSessionAchievementsAndPoints($enrollment, $session, $student, $pageNumbers);
+            }
 
             return $session->fresh(['pages', 'teacher']);
         });
@@ -108,6 +113,98 @@ class MemorizationService
         throw ValidationException::withMessages([
             'from_page' => __('workflow.memorization.errors.duplicate_pages', ['pages' => implode(', ', $existingPages)]),
         ]);
+    }
+
+    protected function recordNewSessionAchievementsAndPoints(
+        Enrollment $enrollment,
+        MemorizationSession $session,
+        Student $student,
+        array $pageNumbers,
+    ): void {
+        if ($session->entry_type !== 'review') {
+            $timestamp = now();
+
+            StudentPageAchievement::query()->insert(
+                collect($pageNumbers)->map(fn (int $pageNo) => [
+                    'student_id' => $student->id,
+                    'page_no' => $pageNo,
+                    'first_enrollment_id' => $enrollment->id,
+                    'first_session_id' => $session->id,
+                    'first_recorded_on' => $session->recorded_on,
+                    'created_at' => $timestamp,
+                    'updated_at' => $timestamp,
+                ])->all()
+            );
+
+            if (! $this->isLegacyImportSession($session)) {
+                $this->recalculateDailyReward($enrollment, $student, $session->recorded_on->toDateString());
+            }
+        }
+
+        $this->ledger->syncEnrollmentCaches($enrollment->fresh(['student']));
+    }
+
+    protected function recalculateDailyReward(Enrollment $enrollment, Student $student, string $recordedOn): void
+    {
+        $sessions = MemorizationSession::query()
+            ->with('enrollment')
+            ->where('student_id', $student->id)
+            ->where('enrollment_id', $enrollment->id)
+            ->whereDate('recorded_on', $recordedOn)
+            ->where('entry_type', '!=', 'review')
+            ->orderBy('id')
+            ->get()
+            ->reject(fn (MemorizationSession $session) => $this->isLegacyImportSession($session));
+
+        if ($sessions->isEmpty()) {
+            return;
+        }
+
+        PointTransaction::query()
+            ->where('student_id', $student->id)
+            ->where('enrollment_id', $enrollment->id)
+            ->where('source_type', 'memorization_session')
+            ->whereIn('source_id', $sessions->pluck('id'))
+            ->whereNull('voided_at')
+            ->update([
+                'voided_at' => now(),
+                'voided_by' => auth()->id(),
+                'void_reason' => __('workflow.memorization.messages.void_reason'),
+            ]);
+
+        $newPageCount = StudentPageAchievement::query()
+            ->where('student_id', $student->id)
+            ->where('first_enrollment_id', $enrollment->id)
+            ->whereDate('first_recorded_on', $recordedOn)
+            ->count();
+
+        if ($newPageCount === 0) {
+            return;
+        }
+
+        $policy = $this->ledger->resolvePolicy(
+            'memorization',
+            'page',
+            $student->grade_level_id,
+            $newPageCount,
+            $recordedOn,
+        );
+
+        if (! $policy?->pointType) {
+            return;
+        }
+
+        $policyHasRange = $policy->from_value !== null || $policy->to_value !== null;
+
+        $this->ledger->recordAutomaticPoints(
+            $enrollment,
+            'memorization_session',
+            $sessions->last()->id,
+            $policy->pointType,
+            $policy,
+            $policyHasRange ? $policy->points : $policy->points * $newPageCount,
+            __('workflow.memorization.messages.automatic_reward', ['count' => $newPageCount]),
+        );
     }
 
     public function rebuildStudentAchievementsAndPoints(Student $student): void
