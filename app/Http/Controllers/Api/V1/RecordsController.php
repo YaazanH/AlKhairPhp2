@@ -11,6 +11,7 @@ use App\Models\Invoice;
 use App\Models\Student;
 use App\Services\AccessScopeService;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Http\Request;
 
 class RecordsController extends Controller
@@ -242,7 +243,13 @@ class RecordsController extends Controller
 
         return app(AccessScopeService::class)
             ->scopeStudents(Student::query(), $request->user())
-            ->with(['gradeLevel', 'parentProfile', 'quranCurrentJuz'])
+            ->with([
+                'gradeLevel',
+                'parentProfile',
+                'quranCurrentJuz',
+                'enrollments' => fn (HasMany $query) => $query->latest('enrolled_at')->latest('id'),
+                'enrollments.studentAttendanceRecords' => fn (HasMany $query) => $query->latest('id')->limit(1),
+            ])
             ->withCount('enrollments')
             ->when($validated['group_id'] ?? null, function (Builder $query, int $groupId) {
                 $query->whereHas('enrollments', fn (Builder $builder) => $builder->where('group_id', $groupId));
@@ -253,8 +260,10 @@ class RecordsController extends Controller
             ->orderBy('first_name')
             ->paginate($validated['per_page'] ?? 15)
             ->through(fn (Student $student) => [
+                'attendance_status_id' => $student->currentActiveEnrollment()?->studentAttendanceRecords->first()?->attendance_status_id,
                 'birth_date' => $student->birth_date?->format('Y-m-d'),
                 'current_juz' => $student->quranCurrentJuz?->juz_number,
+                'enrollment_id' => $student->currentActiveEnrollment()?->id,
                 'enrollments_count' => $student->enrollments_count,
                 'first_name' => $student->first_name,
                 'grade_level' => $student->gradeLevel?->name,
