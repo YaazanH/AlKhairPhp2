@@ -14,6 +14,7 @@ use App\Models\PointTransaction;
 use App\Models\PointType;
 use App\Models\QuranTest;
 use App\Models\QuranTestType;
+use App\Models\StudentAttendanceDay;
 use App\Models\StudentAttendanceRecord;
 use App\Models\StudentPageAchievement;
 use App\Models\Teacher;
@@ -21,13 +22,16 @@ use App\Models\TeacherAttendanceDay;
 use App\Models\TeacherAttendanceRecord;
 use App\Services\AccessScopeService;
 use App\Services\AssessmentService;
+use App\Services\BarcodeActions\BarcodeActionCatalogService;
 use App\Services\MemorizationService;
 use App\Services\PointLedgerService;
 use App\Services\QuranProgressionService;
 use App\Services\StudentAttendanceDayService;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use InvalidArgumentException;
 
 class OperationalWriteController extends Controller
 {
@@ -120,6 +124,201 @@ class OperationalWriteController extends Controller
                 'student_name' => $record->enrollment?->student?->full_name,
             ])->values()->all(),
             'status' => $day->studentAttendanceDay?->status ?? $day->status,
+        ]);
+    }
+
+    /**
+     * Create or fetch today's (or a given date's) student attendance day for a group,
+     * so the mobile app can obtain the studentAttendanceDay id required by the scan endpoint.
+     */
+    public function openStudentAttendanceDay(Request $request)
+    {
+        $this->authorizePermission($request, 'attendance.student.take');
+
+        $validated = $request->validate([
+            'attendance_date' => ['required', 'date'],
+            'group_id' => ['required', 'integer', Rule::exists('groups', 'id')->whereNull('deleted_at')],
+        ]);
+
+        $group = Group::query()->findOrFail($validated['group_id']);
+        $this->authorizeTeacherGroupScope($request, $group);
+
+        $studentAttendanceDay = app(StudentAttendanceDayService::class)->createOrSyncDay(
+            $validated['attendance_date'],
+            collect([$group]),
+            $request->user(),
+        );
+
+        $this->authorizeScopedStudentAttendanceDayAccess($request, $studentAttendanceDay);
+
+        return response()->json([
+            'id' => $studentAttendanceDay->id,
+            'attendance_date' => $studentAttendanceDay->attendance_date?->format('Y-m-d'),
+            'status' => $studentAttendanceDay->status,
+        ]);
+    }
+
+    /**
+     * One-shot fast attendance scan: resolves the student and their active group
+     * directly from the scanned value, then opens/reuses today's student attendance
+     * day for that group and records the status — no group/day id needed upfront.
+     */
+    public function quickScanStudentAttendance(Request $request)
+    {
+        $this->authorizePermission($request, 'attendance.student.take');
+
+        $validated = $request->validate([
+            'attendance_status_id' => ['required', 'integer', Rule::exists('attendance_statuses', 'id')->where(fn ($query) => $query->where('is_active', true)->whereIn('scope', ['student', 'both']))],
+            'scan_value' => ['required', 'string'],
+        ]);
+
+        $studentNumber = app(BarcodeActionCatalogService::class)->studentNumberFromBarcode($validated['scan_value']);
+
+        if (! $studentNumber) {
+            return response()->json([
+                'message' => __('workflow.student_attendance.quick.errors.unknown_scan'),
+            ], 422);
+        }
+
+        $accessScope = app(AccessScopeService::class);
+        $isUnrestricted = $accessScope->isUnrestricted($request->user());
+        $accessibleGroupIds = $isUnrestricted ? [] : $accessScope->accessibleGroupIds($request->user());
+
+        $enrollments = Enrollment::query()
+            ->with(['student', 'group'])
+            ->where('status', 'active')
+            ->when(! $isUnrestricted, fn (Builder $query) => $query->whereIn('group_id', $accessibleGroupIds))
+            ->whereHas('student', fn (Builder $query) => $query
+                ->where('student_number', $studentNumber)
+                ->orWhere('id', (int) $studentNumber))
+            ->get();
+
+        if ($enrollments->isEmpty()) {
+            return response()->json([
+                'message' => __('workflow.student_attendance.quick.errors.student_not_in_day'),
+            ], 422);
+        }
+
+        if ($enrollments->count() > 1) {
+            return response()->json([
+                'message' => __('workflow.student_attendance.quick.errors.multiple_enrollments'),
+            ], 422);
+        }
+
+        $enrollment = $enrollments->first();
+        $this->authorizeTeacherEnrollmentScope($request, $enrollment);
+
+        $status = AttendanceStatus::query()
+            ->whereKey((int) $validated['attendance_status_id'])
+            ->where('is_active', true)
+            ->whereIn('scope', ['student', 'both'])
+            ->firstOrFail();
+
+        $attendanceDate = now()->toDateString();
+
+        $studentAttendanceDay = app(StudentAttendanceDayService::class)->createOrSyncDay(
+            $attendanceDate,
+            collect([$enrollment->group]),
+            $request->user(),
+        );
+
+        if ($studentAttendanceDay->fresh()->status === 'closed') {
+            return response()->json([
+                'message' => __('workflow.student_attendance.messages.closed_day_locked'),
+            ], 422);
+        }
+
+        try {
+            $record = app(StudentAttendanceDayService::class)->recordEnrollmentStatus($studentAttendanceDay, $enrollment, $status);
+        } catch (InvalidArgumentException $exception) {
+            return response()->json([
+                'message' => $exception->getMessage(),
+            ], 422);
+        }
+
+        return response()->json([
+            'attendance_status_id' => $record->attendance_status_id,
+            'attendance_status_name' => $status->name,
+            'enrollment_id' => $record->enrollment_id,
+            'student_id' => $enrollment->student_id,
+            'student_name' => $enrollment->student?->full_name,
+            'group_id' => $enrollment->group_id,
+            'group_name' => $enrollment->group?->name,
+        ]);
+    }
+
+    /**
+     * Mark one student's attendance for a day by scanning/entering a barcode value.
+     */
+    public function scanStudentAttendance(Request $request, StudentAttendanceDay $studentAttendanceDay)
+    {
+        $this->authorizePermission($request, 'attendance.student.take');
+        $this->authorizeScopedStudentAttendanceDayAccess($request, $studentAttendanceDay);
+
+        $validated = $request->validate([
+            'attendance_status_id' => ['required', 'integer', Rule::exists('attendance_statuses', 'id')->where(fn ($query) => $query->where('is_active', true)->whereIn('scope', ['student', 'both']))],
+            'scan_value' => ['required', 'string'],
+        ]);
+
+        if ($studentAttendanceDay->fresh()->status === 'closed') {
+            return response()->json([
+                'message' => __('workflow.student_attendance.messages.closed_day_locked'),
+            ], 422);
+        }
+
+        $studentNumber = app(BarcodeActionCatalogService::class)->studentNumberFromBarcode($validated['scan_value']);
+
+        if (! $studentNumber) {
+            return response()->json([
+                'message' => __('workflow.student_attendance.quick.errors.unknown_scan'),
+            ], 422);
+        }
+
+        $groupIds = $studentAttendanceDay->groupAttendanceDays()->pluck('group_id');
+        $enrollments = Enrollment::query()
+            ->with(['student', 'group'])
+            ->whereIn('group_id', $groupIds)
+            ->where('status', 'active')
+            ->whereHas('student', fn (Builder $query) => $query
+                ->where('student_number', $studentNumber)
+                ->orWhere('id', (int) $studentNumber))
+            ->get();
+
+        if ($enrollments->isEmpty()) {
+            return response()->json([
+                'message' => __('workflow.student_attendance.quick.errors.student_not_in_day'),
+            ], 422);
+        }
+
+        if ($enrollments->count() > 1) {
+            return response()->json([
+                'message' => __('workflow.student_attendance.quick.errors.multiple_enrollments'),
+            ], 422);
+        }
+
+        $enrollment = $enrollments->first();
+        $this->authorizeTeacherEnrollmentScope($request, $enrollment);
+
+        $status = AttendanceStatus::query()
+            ->whereKey((int) $validated['attendance_status_id'])
+            ->where('is_active', true)
+            ->whereIn('scope', ['student', 'both'])
+            ->firstOrFail();
+
+        try {
+            $record = app(StudentAttendanceDayService::class)->recordEnrollmentStatus($studentAttendanceDay, $enrollment, $status);
+        } catch (InvalidArgumentException $exception) {
+            return response()->json([
+                'message' => $exception->getMessage(),
+            ], 422);
+        }
+
+        return response()->json([
+            'attendance_status_id' => $record->attendance_status_id,
+            'attendance_status_name' => $status->name,
+            'enrollment_id' => $record->enrollment_id,
+            'student_id' => $enrollment->student_id,
+            'student_name' => $enrollment->student?->full_name,
         ]);
     }
 
@@ -548,6 +747,11 @@ class OperationalWriteController extends Controller
     protected function authorizeTeacherGroupScope(Request $request, Group $group): void
     {
         abort_unless(app(AccessScopeService::class)->canAccessGroup($request->user(), $group), 403);
+    }
+
+    protected function authorizeScopedStudentAttendanceDayAccess(Request $request, StudentAttendanceDay $studentAttendanceDay): void
+    {
+        abort_unless(app(AccessScopeService::class)->canAccessStudentAttendanceDay($request->user(), $studentAttendanceDay), 403);
     }
 
     protected function pointTransactionPayload(PointTransaction $transaction): array

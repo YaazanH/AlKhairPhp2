@@ -60,6 +60,9 @@ Route::middleware('auth:sanctum')->prefix('v1')->group(function () {
     });
     Route::controller(OperationalWriteController::class)->group(function () {
         Route::post('groups/{group}/attendance', 'storeGroupAttendance');
+        Route::post('student-attendance/days', 'openStudentAttendanceDay');
+        Route::post('student-attendance/quick-scan', 'quickScanStudentAttendance');
+        Route::post('student-attendance/days/{studentAttendanceDay}/scan', 'scanStudentAttendance');
         Route::post('teacher-attendance', 'storeTeacherAttendance');
         Route::post('enrollments/{enrollment}/memorization', 'storeMemorization');
         Route::post('enrollments/{enrollment}/quran-tests', 'storeQuranTest');
