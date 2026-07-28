@@ -46,6 +46,41 @@ class WriteApiTest extends TestCase
         $this->assertDatabaseCount('personal_access_tokens', 0);
     }
 
+    public function test_api_token_exposes_all_effective_permissions_for_the_authenticated_user(): void
+    {
+        $this->seed();
+
+        $teacher = User::factory()->create([
+            'name' => 'Permission Complete Teacher',
+            'username' => 'permission-complete-teacher',
+            'phone' => '0666000599',
+            'password' => 'P@ssw0rd',
+        ]);
+        $teacher->assignRole('teacher');
+
+        $expectedPermissions = $teacher->getAllPermissions()
+            ->pluck('name')
+            ->sort()
+            ->values()
+            ->all();
+
+        $response = $this->postJson('/api/v1/auth/token', [
+            'device_name' => 'permission-check',
+            'login' => 'permission-complete-teacher',
+            'password' => 'P@ssw0rd',
+        ]);
+
+        $response->assertCreated();
+
+        $this->assertSame($expectedPermissions, $response->json('abilities'));
+        $this->assertSame($expectedPermissions, $response->json('user.permissions'));
+        $this->assertContains('attendance.student.take', $response->json('abilities'));
+        $this->assertContains('memorization.record', $response->json('abilities'));
+        $this->assertContains('quran-partial-tests.record', $response->json('abilities'));
+        $this->assertContains('quran-final-tests.record', $response->json('abilities'));
+        $this->assertContains('assessment-results.record', $response->json('abilities'));
+    }
+
     public function test_manager_can_create_update_and_delete_students_groups_and_enrollments_via_api(): void
     {
         [$token, $parent, $teacher, $course, $academicYear, $gradeLevel] = $this->managerApiContext();

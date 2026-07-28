@@ -81,9 +81,9 @@ Response: the authenticated Laravel user object.
 
 ## Important Auth Note
 
-Current API controllers authorize requests using the logged-in user's application permissions such as `students.view`, `memorization.record`, and `attendance.student.take`.
+API login returns the authenticated user's complete effective application permission set in both `abilities` and `user.permissions`. This is the same permission set used by the website, including permissions inherited through roles and permissions assigned directly to the user.
 
-The token `abilities` returned by the login endpoint are currently informational and are not directly checked inside these controllers with `tokenCan()`.
+Current API controllers authorize requests against the user's current application permissions, such as `students.view`, `memorization.record`, and `attendance.student.take`. The token abilities are a login-time snapshot for clients; data-scope checks and endpoint-specific business rules are enforced separately.
 
 ## Common Behavior
 

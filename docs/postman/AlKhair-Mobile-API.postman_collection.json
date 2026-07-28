@@ -166,7 +166,7 @@
                 "token"
               ]
             },
-            "description": "Creates a Laravel Sanctum token. User must be active and have at least one API-enabled permission.",
+            "description": "Creates a Laravel Sanctum token. User must be active and have at least one effective application permission. The response returns the same complete effective permission set used by the website.",
             "auth": {
               "type": "noauth"
             },
