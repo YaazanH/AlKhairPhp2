@@ -115,7 +115,7 @@ class RecordsController extends Controller
 
         return app(AccessScopeService::class)
             ->scopeEnrollments(Enrollment::query(), $request->user())
-            ->with(['group.course', 'student.parentProfile'])
+            ->with(['group.course', 'group.teacher', 'student.parentProfile'])
             ->when($validated['group_id'] ?? null, fn (Builder $query, int $groupId) => $query->where('group_id', $groupId))
             ->when($validated['status'] ?? null, fn (Builder $query, string $status) => $query->where('status', $status))
             ->when($validated['student_id'] ?? null, fn (Builder $query, int $studentId) => $query->where('student_id', $studentId))
