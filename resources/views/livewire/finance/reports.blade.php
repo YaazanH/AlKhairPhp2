@@ -174,7 +174,7 @@ new class extends Component {
 
         <div class="surface-table">
             <div class="admin-grid-meta"><div><div class="admin-grid-meta__title">{{ __('finance.reports.quarter_totals') }}</div></div></div>
-            <div class="overflow-x-auto"><table class="text-sm"><thead><tr><th class="px-5 py-3 text-left">{{ __('finance.fields.quarter') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.period') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.revenue_total') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.expense_total') }}</th></tr></thead><tbody class="divide-y divide-white/6">@foreach ($report['quarter_totals'] as $quarter)<tr><td class="px-5 py-3">Q{{ $quarter['quarter'] }}</td><td class="px-5 py-3">{{ $quarter['start']->format('Y-m-d') }} - {{ $quarter['end']->format('Y-m-d') }}</td><td class="px-5 py-3">{{ app(FinanceService::class)->formatCurrencyAmount($quarter['income'], $report['summary']['local_currency']) }}</td><td class="px-5 py-3">{{ app(FinanceService::class)->formatCurrencyAmount($quarter['expense'], $report['summary']['local_currency']) }}</td></tr>@endforeach</tbody></table></div>
+            <div class="overflow-x-auto"><table class="text-sm"><thead><tr><th class="px-5 py-3 text-left">{{ __('finance.fields.quarter') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.period') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.revenue_total') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.expense_total') }}</th></tr></thead><tbody class="divide-y divide-white/6">@foreach ($report['quarter_totals'] as $quarter)<tr><td class="px-5 py-3">Q{{ $quarter['quarter'] }}</td><td class="px-5 py-3">{{ $quarter['start']->format('d-m-Y') }} - {{ $quarter['end']->format('d-m-Y') }}</td><td class="px-5 py-3">{{ app(FinanceService::class)->formatCurrencyAmount($quarter['income'], $report['summary']['local_currency']) }}</td><td class="px-5 py-3">{{ app(FinanceService::class)->formatCurrencyAmount($quarter['expense'], $report['summary']['local_currency']) }}</td></tr>@endforeach</tbody></table></div>
         </div>
 
         <div class="surface-table">
@@ -227,7 +227,7 @@ new class extends Component {
                                     <td class="px-5 py-3">{{ data_get($generatedReport->filters, 'cash_box_name', data_get($generatedReport->report_data, 'cash_box.name', '-')) }}</td>
                                     <td class="px-5 py-3">{{ data_get($generatedReport->filters, 'currency_code', data_get($generatedReport->report_data, 'currency.code', '-')) }}</td>
                                     <td class="px-5 py-3">{{ $generatedReport->generatedBy?->name ?: (data_get($generatedReport->report_data, 'issuer_name') ?: '-') }}</td>
-                                    <td class="px-5 py-3">{{ $generatedReport->created_at?->format('Y-m-d H:i') }}</td>
+                                    <td class="px-5 py-3">{{ $generatedReport->created_at?->format('d-m-Y H:i') }}</td>
                                     <td class="px-5 py-3">
                                         <div class="admin-action-cluster admin-action-cluster--end">
                                             <a href="{{ route('finance.reports.generated.show', $generatedReport) }}" target="_blank" rel="noopener" class="pill-link pill-link--compact">{{ __('finance.reports.review_saved_report') }}</a>

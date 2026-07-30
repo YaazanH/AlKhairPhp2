@@ -405,7 +405,7 @@ new class extends Component {
                     <tbody class="divide-y divide-white/6">
                         @foreach ($sessions as $session)
                             <tr>
-                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $session->recorded_on?->format('Y-m-d') }}</td>
+                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $session->recorded_on?->format('d-m-Y') }}</td>
                                 <td class="px-5 py-4 lg:px-6">
                                     <span class="status-chip status-chip--slate">{{ __('workflow.common.entry_type.' . $session->entry_type) }}</span>
                                 </td>

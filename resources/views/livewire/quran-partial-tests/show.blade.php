@@ -198,7 +198,7 @@ new class extends Component {
                                 @foreach ($part->attempts as $attempt)
                                     <tr>
                                         <td class="px-4 py-3">{{ $attempt->attempt_no }}</td>
-                                        <td class="px-4 py-3">{{ $attempt->tested_on?->format('Y-m-d') }}</td>
+                                        <td class="px-4 py-3">{{ $attempt->tested_on?->format('d-m-Y') }}</td>
                                         <td class="px-4 py-3">{{ $attempt->teacher?->first_name }} {{ $attempt->teacher?->last_name }}</td>
                                         <td class="px-4 py-3">
                                             @if ($attempt->mistake_count !== null)

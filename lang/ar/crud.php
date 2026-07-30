@@ -271,6 +271,7 @@ return [
                 'ends_on' => 'تنتهي في',
             ],
             'active_course' => 'دورة نشطة',
+            'default_course' => 'الدورة الافتراضية لفلاتر الدورات',
             'awards_points' => 'هذه الدورة تمنح نقاطا للطلاب',
             'create_submit' => 'إضافة دورة',
             'update_submit' => 'تحديث الدورة',
@@ -291,6 +292,7 @@ return [
             'date_range' => ':start إلى :end',
             'points_enabled' => 'مفعلة',
             'points_disabled' => 'معطلة',
+            'default' => 'افتراضية',
         ],
             'messages' => [
                 'created' => 'تم إنشاء الدورة بنجاح.',
@@ -359,6 +361,7 @@ return [
                 'grade_level' => 'المرحلة الدراسية',
                 'group' => 'المجموعة',
                 'current_juz' => 'الجزء الحالي',
+                'external_memorized_juzs' => 'أجزاء محفوظة في مسجد آخر',
                 'status' => 'الحالة',
                 'media' => 'الوسائط',
                 'joined_at' => 'تاريخ الانضمام',
@@ -366,6 +369,7 @@ return [
             ],
             'student_phone_help' => 'اختياري. يستخدم لتسجيل الدخول أو التواصل عند الحاجة.',
             'group_help' => 'يتم اختيار مجموعة من نفس المرحلة تلقائياً عند توفرها، ويمكنك اختيار أي مجموعة أخرى يدوياً.',
+            'external_memorized_juzs_help' => 'اختر جميع الأجزاء المحفوظة سابقاً. لن يمكن تسجيل صفحاتها كحفظ جديد ولن تمنح نقاطاً هنا. استخدم Ctrl (أو Command على Mac) لاختيار أكثر من جزء.',
             'placeholders' => [
                 'select_parent' => 'اختر ولي الأمر',
                 'select_gender' => 'اختر الجنس',

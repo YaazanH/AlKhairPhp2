@@ -2,6 +2,7 @@
 
 use App\Livewire\Concerns\AuthorizesPermissions;
 use App\Models\AssessmentType;
+use App\Models\Course;
 use App\Services\CourseCompletionRuleService;
 use Illuminate\Validation\Rule;
 use Livewire\Volt\Component;
@@ -24,6 +25,7 @@ new class extends Component {
     public function mount(): void
     {
         $this->authorizePermission('course-completion-rules.manage');
+        $this->course_id = Course::query()->where('is_default', true)->where('is_active', true)->value('id');
         $this->loadSettings();
     }
 

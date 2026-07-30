@@ -399,7 +399,7 @@ new class extends Component {
                                     <div class="mt-1 text-xs text-neutral-500">{{ $test->enrollment?->group?->course?->name ?: __('workflow.common.no_course') }}</div>
                                 </td>
                                 <td class="px-5 py-4 text-white lg:px-6">{{ $test->subject?->name ?: __('workflow.common.not_available') }}</td>
-                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $test->tested_on?->format('Y-m-d') }}</td>
+                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $test->tested_on?->format('d-m-Y') }}</td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $test->score !== null ? number_format((float) $test->score, 2) : __('workflow.common.not_available') }}</td>
                                 <td class="px-5 py-4 lg:px-6"><span class="status-chip {{ $test->status === 'passed' ? 'status-chip--emerald' : 'status-chip--slate' }}">{{ __('workflow.awqaf_subject_tests.statuses.'.$test->status) }}</span></td>
                                 <td class="px-5 py-4 text-right lg:px-6">

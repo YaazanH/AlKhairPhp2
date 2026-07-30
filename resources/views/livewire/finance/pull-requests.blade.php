@@ -593,7 +593,7 @@ new class extends Component {
                 <tbody class="divide-y divide-white/6">
                     @forelse ($requests as $request)
                         <tr>
-                            <td class="px-5 py-3"><div class="font-medium text-white">{{ $request->request_no }}</div><div class="text-xs text-neutral-500">{{ $request->created_at?->format('Y-m-d H:i') }}</div></td>
+                            <td class="px-5 py-3"><div class="font-medium text-white">{{ $request->request_no }}</div><div class="text-xs text-neutral-500">{{ $request->created_at?->format('d-m-Y H:i') }}</div></td>
                             <td class="px-5 py-3"><div>{{ $request->requestedBy?->name ?: '-' }}</div><div class="text-xs text-neutral-500">{{ $request->teacher ? trim($request->teacher->first_name.' '.$request->teacher->last_name) : '-' }}</div></td>
                             <td class="px-5 py-3"><div>{{ $request->pullRequestKind?->name ?: '-' }}</div><div class="text-xs text-neutral-500">{{ $request->pullRequestKind ? __('finance.pull_modes.'.$request->pullRequestKind->mode) : '-' }}</div></td>
                             <td class="px-5 py-3">

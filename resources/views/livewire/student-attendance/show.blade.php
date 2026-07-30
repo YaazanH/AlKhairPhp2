@@ -95,7 +95,12 @@ new class extends Component
                         'enrollments as active_enrollments_count' => fn ($enrollmentQuery) => $enrollmentQuery->where('status', 'active'),
                     ]),
             ])
-        )->orderBy('group_id');
+        )->orderBy(
+            Group::query()
+                ->select('name')
+                ->whereColumn('groups.id', 'group_attendance_days.group_id')
+                ->limit(1)
+        );
     }
 
     public function addManualGroup(): void
@@ -192,7 +197,7 @@ new class extends Component
         <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('workflow.student_attendance.day_details.title') }}</h1>
         <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ __('workflow.student_attendance.day_details.subtitle') }}</p>
         <div class="mt-6 flex flex-wrap gap-3">
-            <span class="badge-soft">{{ $dayRecord->attendance_date?->format('Y-m-d') }}</span>
+            <span class="badge-soft">{{ $dayRecord->attendance_date?->format('d-m-Y') }}</span>
             <span class="badge-soft badge-soft--emerald">{{ $dayRecord->course?->name ?: __('workflow.common.no_course') }}</span>
             <span class="badge-soft badge-soft--emerald">{{ __('workflow.student_attendance.day_details.stats.groups') }}: {{ number_format($stats['groups']) }}</span>
             <span class="badge-soft">{{ __('workflow.student_attendance.day_details.stats.students') }}: {{ number_format($stats['students']) }}</span>

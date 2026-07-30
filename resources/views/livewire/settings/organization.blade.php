@@ -1282,7 +1282,7 @@ new class extends Component {
                                             <div class="font-medium">{{ $academicYear->name }}</div>
                                             <div class="text-xs text-neutral-500">{{ $academicYear->is_current ? __('settings.organization.labels.current_year') : __('settings.organization.labels.not_current') }}</div>
                                         </td>
-                                        <td class="px-5 py-3">{{ __('settings.organization.labels.date_range', ['start' => $academicYear->starts_on?->format('Y-m-d'), 'end' => $academicYear->ends_on?->format('Y-m-d')]) }}</td>
+                                        <td class="px-5 py-3">{{ __('settings.organization.labels.date_range', ['start' => $academicYear->starts_on?->format('d-m-Y'), 'end' => $academicYear->ends_on?->format('d-m-Y')]) }}</td>
                                         <td class="px-5 py-3">{{ $academicYear->groups_count }}</td>
                                         <td class="px-5 py-3">{{ $academicYear->is_active ? __('settings.common.states.active') : __('settings.common.states.inactive') }}</td>
                                         <td class="px-5 py-3">

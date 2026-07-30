@@ -298,10 +298,9 @@ new class extends Component {
                             <tr>
                                 <td class="px-5 py-4 text-white lg:px-6">
                                     <div class="flex flex-wrap items-center gap-2 font-semibold">
-                                        <span>{{ $day->attendance_date?->format('Y-m-d') }}</span>
+                                        <span>{{ $day->attendance_date?->format('d-m-Y') }}</span>
                                         <span class="text-xs font-medium text-neutral-400">{{ $day->attendance_date?->locale(app()->getLocale())->translatedFormat('l') }}</span>
                                     </div>
-                                    <div class="mt-1 text-xs text-neutral-500">{{ $day->notes ?: __('workflow.common.not_available') }}</div>
                                 </td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ number_format((int) $day->records_count) }}</td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ number_format((int) $day->marked_records_count) }}</td>

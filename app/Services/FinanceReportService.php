@@ -602,6 +602,7 @@ class FinanceReportService
             'decimal_places' => $currency->decimal_places,
             'id' => $currency->id,
             'name' => $currency->name,
+            'symbol' => $currency->symbol,
         ];
     }
 
@@ -615,6 +616,7 @@ class FinanceReportService
             'code' => $currency['code'] ?? null,
             'decimal_places' => $currency['decimal_places'] ?? 2,
             'name' => $currency['name'] ?? null,
+            'symbol' => $currency['symbol'] ?? null,
         ]));
     }
 

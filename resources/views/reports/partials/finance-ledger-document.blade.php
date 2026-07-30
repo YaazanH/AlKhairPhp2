@@ -298,7 +298,7 @@
                 @if (($template['include_exported_at'] ?? false) && ! empty($report['exported_at']))
                     <div class="ledger-report-doc__meta-card">
                         <span class="ledger-report-doc__meta-label">{{ $service->bilingual('Exported at', 'تاريخ التصدير', $language) }}</span>
-                        <span class="ledger-report-doc__meta-value">{{ \Illuminate\Support\Carbon::parse($report['exported_at'])->format('Y-m-d H:i') }}</span>
+                        <span class="ledger-report-doc__meta-value">{{ \Illuminate\Support\Carbon::parse($report['exported_at'])->format('d-m-Y H:i') }}</span>
                     </div>
                 @endif
             </section>

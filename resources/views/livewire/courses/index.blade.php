@@ -21,6 +21,7 @@ new class extends Component {
     public string $starts_on = '';
     public string $ends_on = '';
     public bool $is_active = true;
+    public bool $is_default = false;
     public bool $awards_points = true;
     public string $search = '';
     public string $statusFilter = 'all';
@@ -85,6 +86,7 @@ new class extends Component {
             'starts_on' => ['nullable', 'date'],
             'ends_on' => ['nullable', 'date', 'after_or_equal:starts_on'],
             'is_active' => ['boolean'],
+            'is_default' => ['boolean'],
             'awards_points' => ['boolean'],
         ];
     }
@@ -105,6 +107,8 @@ new class extends Component {
         $validated['description'] = $validated['description'] ?: null;
         $validated['starts_on'] = $validated['starts_on'] ?: null;
         $validated['ends_on'] = $validated['ends_on'] ?: null;
+        $validated['is_default'] = $validated['is_default']
+            || ! Course::query()->when($this->editingId, fn ($query) => $query->whereKeyNot($this->editingId))->where('is_default', true)->exists();
 
         $course = Course::query()->updateOrCreate(
             ['id' => $this->editingId],
@@ -135,6 +139,7 @@ new class extends Component {
         $this->starts_on = $course->starts_on?->format('Y-m-d') ?? '';
         $this->ends_on = $course->ends_on?->format('Y-m-d') ?? '';
         $this->is_active = $course->is_active;
+        $this->is_default = $course->is_default;
         $this->awards_points = $course->awards_points;
         $this->showFormModal = true;
 
@@ -149,6 +154,7 @@ new class extends Component {
         $this->starts_on = '';
         $this->ends_on = '';
         $this->is_active = true;
+        $this->is_default = Course::query()->where('is_default', true)->doesntExist();
         $this->awards_points = true;
         $this->showFormModal = false;
 
@@ -168,6 +174,8 @@ new class extends Component {
         }
 
         $course->delete();
+        Course::query()->where('is_default', true)->exists()
+            ?: Course::query()->where('is_active', true)->orderBy('name')->first()?->update(['is_default' => true]);
 
         if ($this->editingId === $courseId) {
             $this->cancel();
@@ -199,6 +207,7 @@ new class extends Component {
             $newCourse->name = $this->uniqueCopyName($source->name);
             $newCourse->description = null;
             $newCourse->is_active = false;
+            $newCourse->is_default = false;
             $newCourse->save();
 
             foreach ($source->groups as $group) {
@@ -267,7 +276,8 @@ new class extends Component {
     protected function deactivateCourseTree(Course $course): void
     {
         DB::transaction(function () use ($course): void {
-            $course->forceFill(['is_active' => false])->save();
+            $wasDefault = $course->is_default;
+            $course->forceFill(['is_active' => false, 'is_default' => false])->save();
 
             $groupIds = Group::query()
                 ->where('course_id', $course->id)
@@ -280,6 +290,15 @@ new class extends Component {
             Enrollment::query()
                 ->whereIn('group_id', $groupIds)
                 ->update(['status' => 'cancelled']);
+
+            if ($wasDefault) {
+                Course::query()
+                    ->whereKeyNot($course->id)
+                    ->where('is_active', true)
+                    ->orderBy('name')
+                    ->first()
+                    ?->update(['is_default' => true]);
+            }
         });
     }
 }; ?>
@@ -375,8 +394,8 @@ new class extends Component {
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">
                                     {{ $course->starts_on || $course->ends_on
                                         ? __('crud.courses.table.date_range', [
-                                            'start' => $course->starts_on?->format('Y-m-d') ?: __('crud.common.not_available'),
-                                            'end' => $course->ends_on?->format('Y-m-d') ?: __('crud.common.not_available'),
+                                            'start' => $course->starts_on?->format('d-m-Y') ?: __('crud.common.not_available'),
+                                            'end' => $course->ends_on?->format('d-m-Y') ?: __('crud.common.not_available'),
                                         ])
                                         : __('crud.common.not_available') }}
                                 </td>
@@ -390,6 +409,9 @@ new class extends Component {
                                     <span class="{{ $course->is_active ? 'status-chip status-chip--emerald' : 'status-chip status-chip--slate' }}">
                                         {{ $course->is_active ? __('crud.common.status_options.active') : __('crud.common.status_options.inactive') }}
                                     </span>
+                                    @if ($course->is_default)
+                                        <span class="status-chip status-chip--gold">{{ __('crud.courses.table.default') }}</span>
+                                    @endif
                                 </td>
                                 <td class="px-5 py-4 lg:px-6">
                                     <div class="flex flex-wrap justify-end gap-2">
@@ -458,6 +480,11 @@ new class extends Component {
             <label class="flex items-center gap-3 text-sm">
                 <input wire:model="is_active" type="checkbox" class="rounded border-neutral-300 text-neutral-900">
                 <span>{{ __('crud.courses.form.active_course') }}</span>
+            </label>
+
+            <label class="flex items-center gap-3 text-sm">
+                <input wire:model="is_default" type="checkbox" class="rounded border-neutral-300 text-neutral-900">
+                <span>{{ __('crud.courses.form.default_course') }}</span>
             </label>
 
             <label class="flex items-center gap-3 text-sm">

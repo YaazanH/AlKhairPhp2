@@ -325,7 +325,7 @@ new class extends Component {
                                 $state = $transaction->effectiveState();
                             @endphp
                             <tr class="{{ $state !== 'active' ? 'opacity-60' : '' }}">
-                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $transaction->entered_at?->format('Y-m-d H:i') }}</td>
+                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $transaction->entered_at?->format('d-m-Y H:i') }}</td>
                                 <td class="px-5 py-4 text-white lg:px-6">{{ $transaction->pointType?->name ?: __('workflow.common.not_available') }}</td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $sourceLabel }}</td>
                                 <td class="px-5 py-4 lg:px-6">

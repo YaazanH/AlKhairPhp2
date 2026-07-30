@@ -38,6 +38,7 @@ Route::middleware(['auth'])->group(function () {
     Volt::route('reports/student-activity-summary', 'reports.student-activity-summary')->middleware('permission:reports.view')->name('reports.student-activity-summary');
     Volt::route('reports/rankings/groups', 'reports.groups-ranking')->middleware('permission:reports.view')->name('reports.rankings.groups');
     Volt::route('reports/rankings/students', 'reports.students-ranking')->middleware('permission:reports.view')->name('reports.rankings.students');
+    Volt::route('reports/rankings', 'reports.rankings')->middleware('permission:reports.view')->name('reports.rankings');
     Volt::route('users', 'users.index')->middleware('permission:users.view')->name('users.index');
     Volt::route('community-contacts', 'community-contacts.index')->middleware('permission:community-contacts.view')->name('community-contacts.index');
     Route::get('users/export', [AdminExportController::class, 'users'])->middleware('permission:users.view')->name('users.export');

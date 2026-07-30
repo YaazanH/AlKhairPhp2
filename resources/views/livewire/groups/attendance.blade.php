@@ -336,7 +336,7 @@ new class extends Component
                                 class="w-full rounded-2xl border px-4 py-3 text-left transition {{ $attendance_date === $day->attendance_date?->format('Y-m-d') ? 'border-emerald-400/40 bg-emerald-500/10 text-white' : 'border-white/10 bg-white/5 text-neutral-300 hover:border-white/20 hover:bg-white/10' }}"
                             >
                                 <div class="flex items-center justify-between gap-3">
-                                    <div class="font-medium">{{ $day->attendance_date?->format('Y-m-d') }}</div>
+                                    <div class="font-medium">{{ $day->attendance_date?->format('d-m-Y') }}</div>
                                     <span class="{{ $day->status === 'closed' ? 'status-chip status-chip--emerald' : 'status-chip status-chip--slate' }}">
                                         {{ __('workflow.common.day_status.' . $day->status) }}
                                     </span>
@@ -377,7 +377,7 @@ new class extends Component
                                 <td class="px-5 py-4 lg:px-6">
                                     <div class="font-semibold text-white">{{ $enrollment->student?->first_name }} {{ $enrollment->student?->last_name }}</div>
                                 </td>
-                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $enrollment->enrolled_at?->format('Y-m-d') }}</td>
+                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $enrollment->enrolled_at?->format('d-m-Y') }}</td>
                                 <td class="px-5 py-4 text-white lg:px-6">{{ $enrollment->final_points_cached }}</td>
                                 <td class="px-5 py-4 lg:px-6">
                                     <select

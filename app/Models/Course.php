@@ -16,6 +16,10 @@ class Course extends Model
     protected static function booted(): void
     {
         static::saved(function (Course $course): void {
+            if ($course->is_default && ($course->wasRecentlyCreated || $course->wasChanged('is_default'))) {
+                static::query()->whereKeyNot($course->id)->update(['is_default' => false]);
+            }
+
             if ($course->wasChanged('is_active') || $course->wasChanged('awards_points')) {
                 app(PointLedgerService::class)->syncCourseEnrollmentCaches($course);
             }
@@ -31,6 +35,7 @@ class Course extends Model
         'starts_on',
         'ends_on',
         'is_active',
+        'is_default',
         'awards_points',
     ];
 
@@ -40,6 +45,7 @@ class Course extends Model
             'starts_on' => 'date',
             'ends_on' => 'date',
             'is_active' => 'boolean',
+            'is_default' => 'boolean',
             'awards_points' => 'boolean',
         ];
     }

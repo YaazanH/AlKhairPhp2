@@ -47,7 +47,7 @@
     if (($template['include_exported_at'] ?? false) && ! empty($report['exported_at'])) {
         $details[] = [
             'label' => $service->bilingual('Exported at', 'تاريخ التصدير', $language),
-            'value' => \Illuminate\Support\Carbon::parse($report['exported_at'])->format('Y-m-d H:i'),
+            'value' => \Illuminate\Support\Carbon::parse($report['exported_at'])->format('d-m-Y H:i'),
         ];
     }
 

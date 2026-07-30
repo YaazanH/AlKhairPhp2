@@ -28,8 +28,8 @@ new class extends Component {
     public string $statusFilter = 'all';
     public string $courseFilter = 'all';
     public string $groupFilter = 'all';
-    public string $sortField = 'student';
-    public string $sortDirection = 'asc';
+    public string $sortField = 'enrolled_at';
+    public string $sortDirection = 'desc';
     public int $perPage = 15;
     public bool $showFormModal = false;
 
@@ -44,6 +44,7 @@ new class extends Component {
     public function mount(): void
     {
         $this->authorizePermission('enrollments.view');
+        $this->courseFilter = (string) (Course::query()->where('is_default', true)->where('is_active', true)->value('id') ?? 'all');
     }
 
     public function with(): array
@@ -537,7 +538,7 @@ new class extends Component {
                                 </td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $enrollment->group?->name ?: __('crud.common.not_available') }}</td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $enrollment->group?->course?->name ?: __('crud.common.not_available') }}</td>
-                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $enrollment->enrolled_at?->format('Y-m-d') }}</td>
+                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $enrollment->enrolled_at?->format('d-m-Y') }}</td>
                                 <td class="px-5 py-4 lg:px-6"><span class="{{ $enrollmentStatusClass }}">{{ __('crud.common.status_options.'.$enrollment->status) }}</span></td>
                                 @if (auth()->user()->can('memorization.view') || auth()->user()->can('quran-awqaf-tests.view') || auth()->user()->can('quran-tests.view') || auth()->user()->can('points.view') || auth()->user()->can('enrollments.update') || auth()->user()->can('enrollments.delete'))
                                     <td class="px-5 py-4 lg:px-6">

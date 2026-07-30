@@ -271,6 +271,7 @@ return [
                 'ends_on' => 'Ends on',
             ],
             'active_course' => 'Active course',
+            'default_course' => 'Default course for course filters',
             'awards_points' => 'This course awards student points',
             'create_submit' => 'Create course',
             'update_submit' => 'Update course',
@@ -291,6 +292,7 @@ return [
             'date_range' => ':start to :end',
             'points_enabled' => 'Enabled',
             'points_disabled' => 'Disabled',
+            'default' => 'Default',
         ],
             'messages' => [
                 'created' => 'Course created successfully.',
@@ -359,6 +361,7 @@ return [
                 'grade_level' => 'Grade level',
                 'group' => 'Group',
                 'current_juz' => 'Current juz',
+                'external_memorized_juzs' => 'Juz memorized at another mosque',
                 'status' => 'Status',
                 'media' => 'Media',
                 'joined_at' => 'Joined at',
@@ -366,6 +369,7 @@ return [
             ],
             'student_phone_help' => 'Optional. Used for login or contact when needed.',
             'group_help' => 'A matching group for the selected grade is picked automatically when available, and you can still choose any other group manually.',
+            'external_memorized_juzs_help' => 'Select every previously memorized juz. Those page ranges cannot be recorded as new memorization and never earn points here. Hold Ctrl (or Command on Mac) to select more than one.',
             'placeholders' => [
                 'select_parent' => 'Select parent',
                 'select_gender' => 'Select gender',

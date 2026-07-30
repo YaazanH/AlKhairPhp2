@@ -179,6 +179,7 @@ class ReportExportController extends Controller
         $validated = $request->validate([
             'academic_year_id' => ['nullable', 'integer', 'exists:academic_years,id'],
             'assessment_type_id' => ['nullable', 'integer', 'exists:assessment_types,id'],
+            'course_id' => ['nullable', 'integer', 'exists:courses,id'],
             'date_from' => ['nullable', 'date'],
             'date_to' => ['nullable', 'date', 'after_or_equal:date_from'],
             'group_id' => ['nullable', 'integer', 'exists:groups,id'],
@@ -191,6 +192,15 @@ class ReportExportController extends Controller
                 ->exists();
 
             abort_unless($scopedGroup, 403);
+        }
+
+        if (($validated['course_id'] ?? null) !== null) {
+            $courseIsAccessible = app(AccessScopeService::class)
+                ->scopeGroups(\App\Models\Group::query(), $request->user())
+                ->where('course_id', $validated['course_id'])
+                ->exists();
+
+            abort_unless($courseIsAccessible, 403);
         }
 
         return $validated;

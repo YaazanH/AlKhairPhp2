@@ -30,7 +30,7 @@ class ReportingService
             ->orderByDesc('id')
             ->get()
             ->map(fn (AssessmentResult $result) => [
-                $result->assessment?->scheduled_at?->format('Y-m-d H:i'),
+                $result->assessment?->scheduled_at?->format('d-m-Y H:i'),
                 $result->assessment?->group?->academicYear?->name,
                 $result->assessment?->group?->name,
                 $result->assessment?->group?->course?->name,
@@ -61,7 +61,7 @@ class ReportingService
             ->orderByDesc('student_attendance_records.id')
             ->get()
             ->map(fn (\App\Models\StudentAttendanceRecord $record) => [
-                $record->attendanceDay?->attendance_date?->format('Y-m-d'),
+                $record->attendanceDay?->attendance_date?->format('d-m-Y'),
                 $record->attendanceDay?->group?->academicYear?->name,
                 $record->attendanceDay?->group?->name,
                 $record->attendanceDay?->group?->course?->name,
@@ -103,7 +103,7 @@ class ReportingService
             ->orderByDesc('id')
             ->get()
             ->map(fn (MemorizationSession $session) => [
-                $session->recorded_on?->format('Y-m-d'),
+                $session->recorded_on?->format('d-m-Y'),
                 $session->enrollment?->group?->academicYear?->name,
                 $session->enrollment?->group?->name,
                 $session->enrollment?->group?->course?->name,
@@ -128,7 +128,7 @@ class ReportingService
             ->orderByDesc('id')
             ->get()
             ->map(fn (PointTransaction $transaction) => [
-                $transaction->entered_at?->format('Y-m-d H:i'),
+                $transaction->entered_at?->format('d-m-Y H:i'),
                 $transaction->enrollment?->group?->academicYear?->name,
                 $transaction->enrollment?->group?->name,
                 $transaction->enrollment?->group?->course?->name,
@@ -243,7 +243,10 @@ class ReportingService
     protected function attendance(array $filters): array
     {
         $recordsQuery = $this->scopedStudentAttendanceRecordsQuery($filters);
-        $daysRecorded = $this->scopedAttendanceDaysQuery($filters)->count();
+        $daysRecorded = $this->scopedAttendanceDaysQuery($filters)
+            ->distinct()
+            ->count('attendance_date');
+        $singleDateSelected = $filters['date_from'] && $filters['date_from'] === $filters['date_to'];
         $presentCount = (clone $recordsQuery)
             ->whereHas('status', fn (Builder $query) => $query->where('is_present', true))
             ->count();
@@ -265,10 +268,13 @@ class ReportingService
             'selected_day_present_count' => $filters['date_from'] && $filters['date_from'] === $filters['date_to']
                 ? $presentCount
                 : null,
+            'single_date_selected' => (bool) $singleDateSelected,
             'breakdown' => $statuses
                 ->map(fn (AttendanceStatus $status) => [
                     'code' => $status->code,
-                    'count' => (int) ($statusCounts[$status->id] ?? 0),
+                    'count' => $singleDateSelected
+                        ? (int) ($statusCounts[$status->id] ?? 0)
+                        : ($daysRecorded > 0 ? $this->decimal(((int) ($statusCounts[$status->id] ?? 0)) / $daysRecorded) : 0.0),
                     'name' => $status->name,
                 ])
                 ->values()
@@ -340,6 +346,7 @@ class ReportingService
     {
         return [
             'academic_year_id' => $this->normalizeNullableInteger($filters['academic_year_id'] ?? null),
+            'course_id' => $this->normalizeNullableInteger($filters['course_id'] ?? null),
             'assessment_type_id' => $this->normalizeNullableInteger($filters['assessment_type_id'] ?? null),
             'date_from' => $this->normalizeNullableString($filters['date_from'] ?? null),
             'date_to' => $this->normalizeNullableString($filters['date_to'] ?? null),
@@ -362,7 +369,7 @@ class ReportingService
                 return [
                     'balance' => $balance,
                     'invoice_no' => $invoice->invoice_no,
-                    'issue_date' => $invoice->issue_date?->format('Y-m-d'),
+                    'issue_date' => $invoice->issue_date?->format('d-m-Y'),
                     'parent_name' => $invoice->parentProfile?->father_name ?: 'Unknown parent',
                     'status' => $invoice->status,
                 ];
@@ -447,7 +454,7 @@ class ReportingService
                 $builder->where('assessment_type_id', $filters['assessment_type_id']);
             }
 
-            if ($filters['group_id'] || $filters['academic_year_id']) {
+            if ($filters['group_id'] || $filters['academic_year_id'] || $filters['course_id']) {
                 $builder->where(function (Builder $assessmentBuilder) use ($filters) {
                     $assessmentBuilder
                         ->whereHas('group', fn (Builder $groupBuilder) => $this->applyGroupScope($groupBuilder, $filters))
@@ -465,7 +472,7 @@ class ReportingService
 
         $this->applyDateRange($query, 'attendance_date', $filters);
 
-        if ($filters['group_id'] || $filters['academic_year_id']) {
+        if ($filters['group_id'] || $filters['academic_year_id'] || $filters['course_id']) {
             $query->whereHas('group', fn (Builder $builder) => $this->applyGroupScope($builder, $filters));
         }
 
@@ -499,7 +506,7 @@ class ReportingService
 
         $this->applyDateRange($query, 'paid_at', $filters);
 
-        if ($filters['group_id'] || $filters['academic_year_id']) {
+        if ($filters['group_id'] || $filters['academic_year_id'] || $filters['course_id']) {
             $query->whereHas('invoice.items', fn (Builder $builder) => $this->applyInvoiceItemScope($builder, $filters));
         }
 
@@ -512,7 +519,7 @@ class ReportingService
 
         $this->applyDateRange($query, 'issue_date', $filters);
 
-        if ($filters['group_id'] || $filters['academic_year_id']) {
+        if ($filters['group_id'] || $filters['academic_year_id'] || $filters['course_id']) {
             $query->whereHas('items', fn (Builder $builder) => $this->applyInvoiceItemScope($builder, $filters));
         }
 
@@ -545,7 +552,7 @@ class ReportingService
     {
         $query = app(AccessScopeService::class)->scopeStudents(Student::query(), auth()->user());
 
-        if ($filters['group_id'] || $filters['academic_year_id']) {
+        if ($filters['group_id'] || $filters['academic_year_id'] || $filters['course_id']) {
             $query->whereHas('enrollments.group', fn (Builder $builder) => $this->applyGroupScope($builder, $filters));
         }
 
@@ -560,7 +567,7 @@ class ReportingService
             $this->applyDateRange($builder, 'attendance_date', $filters);
         });
 
-        if ($filters['group_id'] || $filters['academic_year_id']) {
+        if ($filters['group_id'] || $filters['academic_year_id'] || $filters['course_id']) {
             $query->whereHas('attendanceDay.group', fn (Builder $builder) => $this->applyGroupScope($builder, $filters));
         }
 
@@ -569,7 +576,7 @@ class ReportingService
 
     protected function applyActivityGroupScope(Builder $query, array $filters): void
     {
-        if (! $filters['group_id'] && ! $filters['academic_year_id']) {
+        if (! $filters['group_id'] && ! $filters['academic_year_id'] && ! $filters['course_id']) {
             return;
         }
 
@@ -587,7 +594,7 @@ class ReportingService
             $this->applyDateRange($query, 'activity_date', $filters);
         }
 
-        if (! $filters['group_id'] && ! $filters['academic_year_id']) {
+        if (! $filters['group_id'] && ! $filters['academic_year_id'] && ! $filters['course_id']) {
             return;
         }
 
@@ -611,7 +618,7 @@ class ReportingService
 
     protected function applyEnrollmentRelationshipScope(Builder $query, array $filters): void
     {
-        if (! $filters['group_id'] && ! $filters['academic_year_id']) {
+        if (! $filters['group_id'] && ! $filters['academic_year_id'] && ! $filters['course_id']) {
             return;
         }
 
@@ -620,7 +627,7 @@ class ReportingService
 
     protected function applyEnrollmentScope(Builder $query, array $filters): void
     {
-        if (! $filters['group_id'] && ! $filters['academic_year_id']) {
+        if (! $filters['group_id'] && ! $filters['academic_year_id'] && ! $filters['course_id']) {
             return;
         }
 
@@ -636,11 +643,15 @@ class ReportingService
         if ($filters['academic_year_id']) {
             $query->where('academic_year_id', $filters['academic_year_id']);
         }
+
+        if ($filters['course_id']) {
+            $query->where('course_id', $filters['course_id']);
+        }
     }
 
     protected function applyInvoiceItemScope(Builder $query, array $filters): void
     {
-        if (! $filters['group_id'] && ! $filters['academic_year_id']) {
+        if (! $filters['group_id'] && ! $filters['academic_year_id'] && ! $filters['course_id']) {
             return;
         }
 

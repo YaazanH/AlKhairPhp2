@@ -453,7 +453,7 @@ new class extends Component
                                                 <span>{{ $user->username }}</span>
                                                 <span>{{ $user->email }}</span>
                                                 @if ($user->phone)
-                                                    <span>{{ $user->phone }}</span>
+                                                    <bdi dir="ltr" class="inline-block">{{ $user->phone }}</bdi>
                                                 @endif
                                             </div>
                                         </div>

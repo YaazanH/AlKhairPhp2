@@ -279,7 +279,7 @@ new class extends Component {
 
         <div class="mt-6 flex flex-wrap gap-3">
             <span class="badge-soft">{{ __('workflow.memorization.form.entry_type') }}: {{ __('workflow.common.entry_type.new') }}</span>
-            <span class="badge-soft badge-soft--emerald">{{ __('workflow.common.labels.recorded_on', ['value' => now()->format('Y-m-d')]) }}</span>
+            <span class="badge-soft badge-soft--emerald">{{ __('workflow.common.labels.recorded_on', ['value' => now()->format('d-m-Y')]) }}</span>
         </div>
 
         @if (session('status'))

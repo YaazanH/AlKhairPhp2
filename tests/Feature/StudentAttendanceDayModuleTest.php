@@ -530,7 +530,7 @@ class StudentAttendanceDayModuleTest extends TestCase
         $this->actingAs($manager)
             ->get(route('student-attendance.index', absolute: false))
             ->assertOk()
-            ->assertSeeText('2026-10-05');
+            ->assertSeeText('05-10-2026');
     }
 
     public function test_disabling_course_points_removes_old_attendance_points_from_effective_totals(): void

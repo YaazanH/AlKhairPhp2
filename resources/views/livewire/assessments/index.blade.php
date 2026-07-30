@@ -41,6 +41,9 @@ new class extends Component {
     public function mount(): void
     {
         $this->authorizePermission('assessments.view');
+        $defaultCourseId = Course::query()->where('is_default', true)->where('is_active', true)->value('id');
+        $this->courseFilter = (string) ($defaultCourseId ?? 'all');
+        $this->groupCourseFilter = (string) ($defaultCourseId ?? 'all');
     }
 
     public function with(): array
@@ -634,8 +637,8 @@ new class extends Component {
                                         </div>
                                     </td>
                                     <td class="px-5 py-3">
-                                        <div>{{ $assessment->scheduled_at?->format('Y-m-d H:i') ?: __('workflow.common.not_available') }}</div>
-                                        <div class="text-xs text-neutral-500">{{ __('workflow.common.labels.due', ['value' => $assessment->due_at?->format('Y-m-d H:i') ?: __('workflow.common.not_available')]) }}</div>
+                                        <div>{{ $assessment->scheduled_at?->format('d-m-Y H:i') ?: __('workflow.common.not_available') }}</div>
+                                        <div class="text-xs text-neutral-500">{{ __('workflow.common.labels.due', ['value' => $assessment->due_at?->format('d-m-Y H:i') ?: __('workflow.common.not_available')]) }}</div>
                                     </td>
                                     <td class="px-5 py-3">
                                         <div>{{ __('workflow.common.labels.total', ['value' => $assessment->total_mark !== null ? number_format((float) $assessment->total_mark, 2) : __('workflow.common.not_available')]) }}</div>

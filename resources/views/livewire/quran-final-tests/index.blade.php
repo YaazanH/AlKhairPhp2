@@ -26,7 +26,7 @@ new class extends Component {
     public string $search = '';
     public string $statusFilter = 'all';
     public string $juzFilter = 'all';
-    public string $sortField = 'created_at';
+    public string $sortField = 'last_tested_on';
     public string $sortDirection = 'desc';
     public int $perPage = 15;
     public bool $showFormModal = false;
@@ -265,7 +265,7 @@ new class extends Component {
                 'attempts' => $openFinalTest->attempts->count(),
                 'group' => $openFinalTest->enrollment?->group?->name ?: __('workflow.common.no_group'),
                 'juz_number' => $openFinalTest->juz?->juz_number,
-                'last_tested_on' => optional($openFinalTest->attempts->last()?->tested_on)->format('Y-m-d'),
+                'last_tested_on' => optional($openFinalTest->attempts->last()?->tested_on)->format('d-m-Y'),
             ];
             $this->showOpenTestWarningModal = true;
 
@@ -283,7 +283,7 @@ new class extends Component {
                 'attempts' => $existingFinalTest->attempts->count(),
                 'group' => $existingFinalTest->enrollment?->group?->name ?: __('workflow.common.no_group'),
                 'juz_number' => $existingFinalTest->juz?->juz_number,
-                'last_tested_on' => optional($existingFinalTest->attempts->last()?->tested_on)->format('Y-m-d'),
+                'last_tested_on' => optional($existingFinalTest->attempts->last()?->tested_on)->format('d-m-Y'),
             ];
             $this->showOpenTestWarningModal = true;
 
@@ -528,7 +528,7 @@ new class extends Component {
                                 </td>
                                 <td class="px-5 py-4 text-white lg:px-6">{{ __('workflow.common.labels.juz_number', ['number' => $finalTest->juz?->juz_number ?: __('workflow.common.not_available')]) }}</td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ number_format($finalTest->attempts->count()) }}</td>
-                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $finalTest->last_tested_on?->format('Y-m-d') ?: __('workflow.common.not_available') }}</td>
+                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $finalTest->last_tested_on?->format('d-m-Y') ?: __('workflow.common.not_available') }}</td>
                                 <td class="px-5 py-4 lg:px-6"><span class="status-chip status-chip--slate">{{ __('workflow.quran_final_tests.statuses.'.$finalTest->status) }}</span></td>
                                 <td class="px-5 py-4 text-right lg:px-6">
                                     <div class="flex flex-wrap justify-end gap-2">

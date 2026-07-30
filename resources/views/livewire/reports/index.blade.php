@@ -2,8 +2,8 @@
 
 use App\Livewire\Concerns\AuthorizesPermissions;
 use App\Livewire\Concerns\AuthorizesTeacherAssignments;
-use App\Models\AcademicYear;
 use App\Models\AssessmentType;
+use App\Models\Course;
 use App\Models\Group;
 use App\Services\ReportingService;
 use Livewire\Volt\Component;
@@ -12,7 +12,7 @@ new class extends Component {
     use AuthorizesPermissions;
     use AuthorizesTeacherAssignments;
 
-    public mixed $academic_year_id = null;
+    public mixed $course_id = null;
     public mixed $assessment_type_id = null;
     public mixed $group_id = null;
     public string $date_from = '';
@@ -21,10 +21,10 @@ new class extends Component {
     public function mount(): void
     {
         $this->authorizePermission('reports.view');
-        $this->academic_year_id = $this->currentAcademicYearId();
+        $this->course_id = Course::query()->where('is_default', true)->where('is_active', true)->value('id');
     }
 
-    public function updatedAcademicYearId(): void
+    public function updatedCourseId(): void
     {
         $this->normalizeFilters();
 
@@ -34,7 +34,7 @@ new class extends Component {
 
         $groupExists = $this->scopeGroupsQuery(Group::query())
             ->whereKey($this->group_id)
-            ->when($this->academic_year_id, fn ($query) => $query->where('academic_year_id', $this->academic_year_id))
+            ->when($this->course_id, fn ($query) => $query->where('course_id', $this->course_id))
             ->exists();
 
         if (! $groupExists) {
@@ -44,7 +44,7 @@ new class extends Component {
 
     public function clearFilters(): void
     {
-        $this->academic_year_id = $this->currentAcademicYearId();
+        $this->course_id = Course::query()->where('is_default', true)->where('is_active', true)->value('id');
         $this->assessment_type_id = null;
         $this->group_id = null;
         $this->date_from = '';
@@ -56,12 +56,12 @@ new class extends Component {
         $this->normalizeFilters();
 
         return [
-            'academicYears' => AcademicYear::query()->where('is_active', true)->orderByDesc('starts_on')->get(['id', 'name']),
+            'courses' => Course::query()->where('is_active', true)->orderByDesc('is_default')->orderBy('name')->get(['id', 'name']),
             'assessmentTypes' => AssessmentType::query()->where('is_active', true)->orderBy('name')->get(['id', 'name']),
             'groups' => $this->scopeGroupsQuery(
                 Group::query()
                     ->with(['course', 'academicYear'])
-                    ->when($this->academic_year_id, fn ($query) => $query->where('academic_year_id', $this->academic_year_id))
+                    ->when($this->course_id, fn ($query) => $query->where('course_id', $this->course_id))
                     ->orderBy('name')
             )->get(),
             'report' => app(ReportingService::class)->overview($this->filters()),
@@ -73,7 +73,8 @@ new class extends Component {
         $this->normalizeFilters();
 
         return [
-            'academic_year_id' => $this->academic_year_id,
+            'academic_year_id' => null,
+            'course_id' => $this->course_id,
             'assessment_type_id' => $this->assessment_type_id,
             'date_from' => $this->date_from,
             'date_to' => $this->date_to,
@@ -83,7 +84,7 @@ new class extends Component {
 
     protected function normalizeFilters(): void
     {
-        $this->academic_year_id = $this->normalizeSelectValue($this->academic_year_id);
+        $this->course_id = $this->normalizeSelectValue($this->course_id);
         $this->assessment_type_id = $this->normalizeSelectValue($this->assessment_type_id);
         $this->group_id = $this->normalizeSelectValue($this->group_id);
     }
@@ -103,18 +104,11 @@ new class extends Component {
         return (int) $value;
     }
 
-    protected function currentAcademicYearId(): ?int
-    {
-        return AcademicYear::query()
-            ->where('is_current', true)
-            ->where('is_active', true)
-            ->value('id');
-    }
 }; ?>
 
 @php
     $scopePills = [
-        $academic_year_id ? __('reports.scope_pills.academic_filtered') : __('reports.scope_pills.all_academic_years'),
+        $course_id ? __('reports.scope_pills.course_filtered') : __('reports.scope_pills.all_courses'),
         $group_id ? __('reports.scope_pills.single_group') : __('reports.scope_pills.all_groups'),
         $assessment_type_id ? __('reports.scope_pills.assessment_type_filtered') : __('reports.scope_pills.all_assessment_types'),
         ($date_from || $date_to) ? __('reports.scope_pills.custom_date_range') : __('reports.scope_pills.all_dates'),
@@ -147,45 +141,22 @@ new class extends Component {
         </div>
 </section>
 
-    <div class="grid gap-4 md:grid-cols-3">
-        <a href="{{ route('reports.student-activity-summary') }}" class="surface-panel report-panel report-nav-card min-w-0 p-5 lg:p-6">
-            <div class="eyebrow">{{ __('reports.navigation.eyebrow') }}</div>
-            <h2 class="font-display mt-3 text-2xl text-white">{{ __('reports.navigation.student_activity_title') }}</h2>
-            <p class="mt-3 text-sm leading-7 text-neutral-300">{{ __('reports.navigation.student_activity_subtitle') }}</p>
-            <span class="pill-link report-nav-card__cta mt-5 inline-flex">{{ __('reports.navigation.open') }}</span>
-        </a>
-
-        <a href="{{ route('reports.rankings.groups') }}" class="surface-panel report-panel report-nav-card min-w-0 p-5 lg:p-6">
-            <div class="eyebrow">{{ __('reports.navigation.eyebrow') }}</div>
-            <h2 class="font-display mt-3 text-2xl text-white">{{ __('reports.navigation.groups_title') }}</h2>
-            <p class="mt-3 text-sm leading-7 text-neutral-300">{{ __('reports.navigation.groups_subtitle') }}</p>
-            <span class="pill-link report-nav-card__cta mt-5 inline-flex">{{ __('reports.navigation.open') }}</span>
-        </a>
-
-        <a href="{{ route('reports.rankings.students') }}" class="surface-panel report-panel report-nav-card min-w-0 p-5 lg:p-6">
-            <div class="eyebrow">{{ __('reports.navigation.eyebrow') }}</div>
-            <h2 class="font-display mt-3 text-2xl text-white">{{ __('reports.navigation.students_title') }}</h2>
-            <p class="mt-3 text-sm leading-7 text-neutral-300">{{ __('reports.navigation.students_subtitle') }}</p>
-            <span class="pill-link report-nav-card__cta mt-5 inline-flex">{{ __('reports.navigation.open') }}</span>
-        </a>
-    </div>
-
     <div class="reports-overview-grid grid items-stretch gap-6 xl:grid-cols-3">
-        <section class="surface-panel report-panel report-panel--filters min-w-0 p-5 lg:p-6">
+        <section class="surface-panel report-panel report-panel--filters min-w-0 p-5 lg:p-6 xl:col-span-3">
             <div class="mb-5">
                 <div class="eyebrow">{{ __('reports.filters.eyebrow') }}</div>
                 <h2 class="font-display mt-3 text-2xl text-white">{{ __('reports.filters.title') }}</h2>
                 <p class="mt-3 max-w-3xl text-sm leading-7 text-neutral-300">{{ __('reports.filters.subtitle') }}</p>
             </div>
 
-            <div class="grid gap-4">
-                <div class="grid gap-4">
+            <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                <div class="grid gap-4 md:grid-cols-2 xl:col-span-2">
                     <div>
-                        <label class="report-field-label mb-2 block text-sm font-medium">{{ __('reports.filters.academic_year') }}</label>
-                        <select wire:model.live="academic_year_id" class="report-control w-full rounded-xl px-3 py-2.5 text-sm">
-                            <option value="">{{ __('reports.filters.all_academic_years') }}</option>
-                            @foreach ($academicYears as $academicYear)
-                                <option value="{{ $academicYear->id }}">{{ $academicYear->name }}</option>
+                        <label class="report-field-label mb-2 block text-sm font-medium">{{ __('reports.filters.course') }}</label>
+                        <select wire:model.live="course_id" class="report-control w-full rounded-xl px-3 py-2.5 text-sm">
+                            <option value="">{{ __('reports.filters.all_courses') }}</option>
+                            @foreach ($courses as $course)
+                                <option value="{{ $course->id }}">{{ $course->name }}</option>
                             @endforeach
                         </select>
                     </div>
@@ -221,7 +192,7 @@ new class extends Component {
             </div>
         </section>
 
-        <section class="report-kpi-stack grid min-w-0 gap-3">
+        <section class="report-kpi-stack grid min-w-0 gap-3 md:grid-cols-3 xl:col-span-3">
             @foreach ($headlineCards as $card)
                 <article class="surface-panel report-kpi-card p-5">
                     <div class="flex items-start justify-between gap-4">
@@ -234,29 +205,6 @@ new class extends Component {
             @endforeach
         </section>
 
-        <section class="surface-panel report-panel report-panel--exports min-w-0 p-6">
-            <div class="eyebrow">{{ __('reports.exports.eyebrow') }}</div>
-            <h2 class="font-display mt-3 text-2xl text-white">{{ __('reports.exports.title') }}</h2>
-            <p class="mt-3 text-sm leading-7 text-neutral-300">{{ __('reports.exports.subtitle') }}</p>
-
-            <div class="report-export-list mt-5 grid gap-3">
-                <a href="{{ route('reports.exports.attendance', ['academic_year_id' => $academic_year_id, 'group_id' => $group_id, 'assessment_type_id' => $assessment_type_id, 'date_from' => $date_from, 'date_to' => $date_to]) }}" class="pill-link pill-link--accent report-export-link">
-                    {{ __('reports.exports.attendance') }}
-                </a>
-                <a href="{{ route('reports.exports.memorization', ['academic_year_id' => $academic_year_id, 'group_id' => $group_id, 'assessment_type_id' => $assessment_type_id, 'date_from' => $date_from, 'date_to' => $date_to]) }}" class="pill-link report-export-link">
-                    {{ __('reports.exports.memorization') }}
-                </a>
-                <a href="{{ route('reports.exports.points', ['academic_year_id' => $academic_year_id, 'group_id' => $group_id, 'assessment_type_id' => $assessment_type_id, 'date_from' => $date_from, 'date_to' => $date_to]) }}" class="pill-link report-export-link">
-                    {{ __('reports.exports.points') }}
-                </a>
-                <a href="{{ route('reports.exports.student-activity-summary', ['academic_year_id' => $academic_year_id, 'group_id' => $group_id, 'date_from' => $date_from, 'date_to' => $date_to]) }}" class="pill-link report-export-link">
-                    {{ __('reports.student_activity.export') }}
-                </a>
-                <a href="{{ route('reports.exports.assessments', ['academic_year_id' => $academic_year_id, 'group_id' => $group_id, 'assessment_type_id' => $assessment_type_id, 'date_from' => $date_from, 'date_to' => $date_to]) }}" class="pill-link report-export-link">
-                    {{ __('reports.exports.assessments') }}
-                </a>
-            </div>
-        </section>
     </div>
 
     <div class="grid gap-6 xl:grid-cols-2">
@@ -284,7 +232,7 @@ new class extends Component {
                 @foreach ($report['attendance']['breakdown'] as $status)
                     <div class="flex items-center justify-between rounded-2xl border border-white/8 bg-white/4 px-4 py-3 text-sm">
                         <span class="text-neutral-200">{{ $status['name'] }}</span>
-                        <span class="font-semibold text-white">{{ number_format($status['count']) }}</span>
+                        <span class="font-semibold text-white">{{ number_format($status['count'], $report['attendance']['single_date_selected'] ? 0 : 2) }}</span>
                     </div>
                 @endforeach
             </div>
@@ -395,4 +343,34 @@ new class extends Component {
             @endif
         </section>
     </div>
+
+    <div class="grid gap-4 md:grid-cols-2">
+        <a href="{{ route('reports.student-activity-summary') }}" class="surface-panel report-panel report-nav-card min-w-0 p-5 lg:p-6">
+            <div class="eyebrow">{{ __('reports.navigation.eyebrow') }}</div>
+            <h2 class="font-display mt-3 text-2xl text-white">{{ __('reports.navigation.student_activity_title') }}</h2>
+            <p class="mt-3 text-sm leading-7 text-neutral-300">{{ __('reports.navigation.student_activity_subtitle') }}</p>
+            <span class="pill-link report-nav-card__cta mt-5 inline-flex">{{ __('reports.navigation.open') }}</span>
+        </a>
+
+        <a href="{{ route('reports.rankings') }}" class="surface-panel report-panel report-nav-card min-w-0 p-5 lg:p-6">
+            <div class="eyebrow">{{ __('reports.navigation.eyebrow') }}</div>
+            <h2 class="font-display mt-3 text-2xl text-white">{{ __('reports.rankings.combined_title') }}</h2>
+            <p class="mt-3 text-sm leading-7 text-neutral-300">{{ __('reports.rankings.combined_subtitle') }}</p>
+            <span class="pill-link report-nav-card__cta mt-5 inline-flex">{{ __('reports.navigation.open') }}</span>
+        </a>
+    </div>
+
+    <section class="surface-panel report-panel report-panel--exports min-w-0 p-6">
+        <div class="eyebrow">{{ __('reports.exports.eyebrow') }}</div>
+        <h2 class="font-display mt-3 text-2xl text-white">{{ __('reports.exports.title') }}</h2>
+        <p class="mt-3 text-sm leading-7 text-neutral-300">{{ __('reports.exports.subtitle') }}</p>
+
+        <div class="report-export-list mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+            <a href="{{ route('reports.exports.attendance', ['course_id' => $course_id, 'group_id' => $group_id, 'assessment_type_id' => $assessment_type_id, 'date_from' => $date_from, 'date_to' => $date_to]) }}" class="pill-link pill-link--accent report-export-link">{{ __('reports.exports.attendance') }}</a>
+            <a href="{{ route('reports.exports.memorization', ['course_id' => $course_id, 'group_id' => $group_id, 'assessment_type_id' => $assessment_type_id, 'date_from' => $date_from, 'date_to' => $date_to]) }}" class="pill-link report-export-link">{{ __('reports.exports.memorization') }}</a>
+            <a href="{{ route('reports.exports.points', ['course_id' => $course_id, 'group_id' => $group_id, 'assessment_type_id' => $assessment_type_id, 'date_from' => $date_from, 'date_to' => $date_to]) }}" class="pill-link report-export-link">{{ __('reports.exports.points') }}</a>
+            <a href="{{ route('reports.exports.student-activity-summary', ['course_id' => $course_id, 'group_id' => $group_id, 'date_from' => $date_from, 'date_to' => $date_to]) }}" class="pill-link report-export-link">{{ __('reports.student_activity.export') }}</a>
+            <a href="{{ route('reports.exports.assessments', ['course_id' => $course_id, 'group_id' => $group_id, 'assessment_type_id' => $assessment_type_id, 'date_from' => $date_from, 'date_to' => $date_to]) }}" class="pill-link report-export-link">{{ __('reports.exports.assessments') }}</a>
+        </div>
+    </section>
 </div>

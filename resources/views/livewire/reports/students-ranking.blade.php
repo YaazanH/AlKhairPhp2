@@ -192,8 +192,8 @@ new class extends Component {
     ];
 
     $rangeLabels = [
-        'first' => Carbon::parse($comparison['first_range']['date_from'])->format('Y-m-d').' → '.Carbon::parse($comparison['first_range']['date_to'])->format('Y-m-d'),
-        'second' => Carbon::parse($comparison['second_range']['date_from'])->format('Y-m-d').' → '.Carbon::parse($comparison['second_range']['date_to'])->format('Y-m-d'),
+        'first' => Carbon::parse($comparison['first_range']['date_from'])->format('d-m-Y').' → '.Carbon::parse($comparison['first_range']['date_to'])->format('d-m-Y'),
+        'second' => Carbon::parse($comparison['second_range']['date_from'])->format('d-m-Y').' → '.Carbon::parse($comparison['second_range']['date_to'])->format('d-m-Y'),
     ];
 @endphp
 

@@ -185,7 +185,7 @@ new class extends Component {
                         @foreach ($finalTestRecord->attempts as $attempt)
                             <tr>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $attempt->attempt_no }}</td>
-                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $attempt->tested_on?->format('Y-m-d') }}</td>
+                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $attempt->tested_on?->format('d-m-Y') }}</td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $attempt->teacher?->first_name }} {{ $attempt->teacher?->last_name }}</td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $attempt->score !== null ? $attempt->score : __('workflow.common.not_available') }}</td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ __('workflow.common.result_status.'.$attempt->status) }}</td>

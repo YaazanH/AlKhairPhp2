@@ -350,7 +350,7 @@ new class extends Component {
                                         </td>
                                         <td class="px-4 py-4 text-neutral-300 lg:px-5">{{ $studentFile->file_type }}</td>
                                         <td class="px-4 py-4 text-neutral-300 lg:px-5">{{ $studentFile->uploader?->name ?: __('media.student_files.files.system') }}</td>
-                                        <td class="px-4 py-4 text-neutral-300 lg:px-5">{{ $studentFile->created_at?->format('Y-m-d H:i') }}</td>
+                                        <td class="px-4 py-4 text-neutral-300 lg:px-5">{{ $studentFile->created_at?->format('d-m-Y H:i') }}</td>
                                         <td class="px-4 py-4 lg:px-5">
                                             <div class="admin-action-cluster admin-action-cluster--end">
                                                 <a href="{{ asset('storage/'.ltrim($studentFile->file_path, '/')) }}" target="_blank" class="pill-link pill-link--compact">

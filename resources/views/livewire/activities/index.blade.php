@@ -419,7 +419,7 @@ new class extends Component {
                                         <div class="font-medium">{{ $audienceLabel }}</div>
                                         <div class="text-xs text-neutral-500">{{ __('activities.common.audience.'.$activity->audience_scope) }}</div>
                                     </td>
-                                    <td class="px-5 py-3">{{ $activity->activity_date?->format('Y-m-d') }}</td>
+                                    <td class="px-5 py-3">{{ $activity->activity_date?->format('d-m-Y') }}</td>
                                     <td class="px-5 py-3">{{ number_format($activity->registrations_count) }}</td>
                                     <td class="px-5 py-3">
                                         <div>{{ __('activities.index.table.financials.expected', ['amount' => number_format((float) $activity->expected_revenue_cached, 2)]) }}</div>

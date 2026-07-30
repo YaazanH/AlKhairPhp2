@@ -49,7 +49,7 @@
                                             <div class="admin-identity-stack__title">{{ $template->name }}</div>
                                             <div class="admin-identity-stack__meta">
                                                 <span>{{ number_format($template->width_mm, 2) }} × {{ number_format($template->height_mm, 2) }} mm</span>
-                                                <span>{{ $template->updated_at?->format('Y-m-d') }}</span>
+                                                <span>{{ $template->updated_at?->format('d-m-Y') }}</span>
                                             </div>
                                         </div>
                                     </td>

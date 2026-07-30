@@ -559,7 +559,7 @@ new class extends Component {
                                     </div>
 
                                     <div class="text-xs text-neutral-500">
-                                        {{ $note->noted_at?->format('Y-m-d H:i') ?: '-' }}
+                                        {{ $note->noted_at?->format('d-m-Y H:i') ?: '-' }}
                                         | {{ $note->author?->name ?: __('notes.log.unknown_author') }}
                                         | {{ $note->enrollment?->group?->name ?: __('notes.log.general_note') }}
                                     </div>

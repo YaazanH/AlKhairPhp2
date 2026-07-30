@@ -561,7 +561,7 @@ new class extends Component {
                                     <div class="font-medium text-white">{{ $transaction->enrollment?->group?->name ?: __('workflow.common.no_group') }}</div>
                                     <div class="mt-1 text-xs uppercase tracking-[0.18em] text-neutral-500">{{ $transaction->enrollment?->group?->course?->name ?: __('workflow.common.no_course') }}</div>
                                 </td>
-                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $transaction->entered_at?->format('Y-m-d H:i') }}</td>
+                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $transaction->entered_at?->format('d-m-Y H:i') }}</td>
                                 <td class="px-5 py-4 text-white lg:px-6">{{ $transaction->pointType?->name ?: __('workflow.common.not_available') }}</td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $sourceLabel }}</td>
                                 <td class="px-5 py-4 lg:px-6">

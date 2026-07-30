@@ -754,8 +754,8 @@ new class extends Component {
                                 <td class="px-5 py-4 font-mono text-white lg:px-6">{{ $parent->parent_number ?: $parent->id }}</td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $parent->mother_name ?: __('crud.common.not_available') }}</td>
                                 <td class="px-5 py-4 text-white lg:px-6">{{ number_format($parent->students_count) }}</td>
-                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $parent->father_phone ?: __('crud.common.not_available') }}</td>
-                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $parent->mother_phone ?: __('crud.common.not_available') }}</td>
+                                <td class="px-5 py-4 text-neutral-300 lg:px-6"><bdi dir="ltr" class="inline-block">{{ $parent->father_phone ?: __('crud.common.not_available') }}</bdi></td>
+                                <td class="px-5 py-4 text-neutral-300 lg:px-6"><bdi dir="ltr" class="inline-block">{{ $parent->mother_phone ?: __('crud.common.not_available') }}</bdi></td>
                                 <td class="px-5 py-4 lg:px-6">
                                     <span class="{{ $parent->is_active ? 'status-chip status-chip--emerald' : 'status-chip status-chip--slate' }}">
                                         {{ $parent->is_active ? __('crud.common.status_options.active') : __('crud.common.status_options.inactive') }}

@@ -757,7 +757,7 @@ new class extends Component {
                                         </div>
                                     </div>
                                 </td>
-                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $teacher->phone }}</td>
+                                <td class="px-5 py-4 text-neutral-300 lg:px-6"><bdi dir="ltr" class="inline-block">{{ $teacher->phone }}</bdi></td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $accessRoleLabel }}</td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $teacher->course?->name ?: __('crud.common.not_available') }}</td>
                                 <td class="px-5 py-4 text-white lg:px-6">{{ number_format($teacher->assigned_groups_count + $teacher->assisted_groups_count) }}</td>

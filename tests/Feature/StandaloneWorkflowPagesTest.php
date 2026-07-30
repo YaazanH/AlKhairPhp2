@@ -353,15 +353,15 @@ class StandaloneWorkflowPagesTest extends TestCase
         ]);
 
         Volt::test('quran-final-tests.index')
-            ->assertSet('sortField', 'created_at')
+            ->assertSet('sortField', 'last_tested_on')
             ->assertSet('sortDirection', 'desc')
             ->assertSeeInOrder(['Final Date Newer', 'Final Date Older']);
 
         Volt::test('quran-final-tests.index')
             ->set('sortField', 'last_tested_on')
             ->set('sortDirection', 'asc')
-            ->assertSee('2026-09-10')
-            ->assertSee('2026-09-20')
+            ->assertSee('10-09-2026')
+            ->assertSee('20-09-2026')
             ->assertSeeInOrder(['Final Date Older', 'Final Date Newer'])
             ->call('sortBy', 'last_tested_on')
             ->assertSeeInOrder(['Final Date Newer', 'Final Date Older']);
@@ -419,8 +419,8 @@ class StandaloneWorkflowPagesTest extends TestCase
         Volt::test('quran-partial-tests.index')
             ->assertSet('sortField', 'created_at')
             ->assertSet('sortDirection', 'desc')
-            ->assertSee('2026-09-12')
-            ->assertSee('2026-09-22')
+            ->assertSee('12-09-2026')
+            ->assertSee('22-09-2026')
             ->assertSeeInOrder(['Partial Record Newer', 'Partial Record Older']);
     }
 
@@ -461,7 +461,7 @@ class StandaloneWorkflowPagesTest extends TestCase
 
         Volt::test('awqaf-subject-tests.index')
             ->assertSee('Fiqh Basics')
-            ->assertSee('2026-09-22')
+            ->assertSee('22-09-2026')
             ->assertSee(trim($enrollment->student->first_name.' '.$enrollment->student->last_name));
     }
 

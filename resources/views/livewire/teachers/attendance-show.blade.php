@@ -309,7 +309,7 @@ new class extends Component {
         <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('workflow.teacher_attendance.day_details.title') }}</h1>
         <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ __('workflow.teacher_attendance.day_details.subtitle') }}</p>
         <div class="mt-6 flex flex-wrap gap-3">
-            <span class="badge-soft">{{ $dayRecord->attendance_date?->format('Y-m-d') }}</span>
+            <span class="badge-soft">{{ $dayRecord->attendance_date?->format('d-m-Y') }}</span>
             <span class="badge-soft badge-soft--emerald">{{ __('workflow.teacher_attendance.day_details.stats.scheduled') }}: {{ number_format($stats['scheduled']) }}</span>
             <span class="badge-soft">{{ __('workflow.teacher_attendance.day_details.stats.teachers') }}: {{ number_format($stats['teachers']) }}</span>
             <span class="badge-soft">{{ __('workflow.teacher_attendance.day_details.stats.marked') }}: {{ number_format($stats['marked']) }}</span>
@@ -452,7 +452,7 @@ new class extends Component {
                                         <x-teacher-avatar :teacher="$teacher" size="sm" />
                                         <div class="student-inline__body">
                                             <div class="student-inline__name">{{ $teacher?->first_name }} {{ $teacher?->last_name }}</div>
-                                            <div class="student-inline__meta">{{ $teacher?->phone }}</div>
+                                            <div class="student-inline__meta"><bdi dir="ltr" class="inline-block">{{ $teacher?->phone }}</bdi></div>
                                         </div>
                                     </div>
                                 </td>

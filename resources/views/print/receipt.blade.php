@@ -39,7 +39,7 @@
         </div>
         <div class="meta-card">
             <span class="meta-label">{{ __('print.receipt.details') }}</span>
-            <div class="meta-value">{{ __('print.receipt.date', ['date' => $payment->paid_at?->format('Y-m-d') ?: '-']) }}</div>
+            <div class="meta-value">{{ __('print.receipt.date', ['date' => $payment->paid_at?->format('d-m-Y') ?: '-']) }}</div>
             <div class="subtitle">{{ __('print.receipt.method', ['method' => $payment->paymentMethod?->name ?: '-']) }}</div>
             <div class="subtitle">{{ __('print.receipt.reference', ['reference' => $payment->reference_no ?: '-']) }}</div>
         </div>
@@ -64,7 +64,7 @@
                 @if ($payment->voided_at)
                     <tr>
                         <th>{{ __('print.receipt.headers.void_details') }}</th>
-                        <td>{{ __('print.receipt.voided_by', ['date' => $payment->voided_at?->format('Y-m-d H:i'), 'user' => $payment->voidedBy?->name ?: __('print.receipt.unknown_user')]) }}</td>
+                        <td>{{ __('print.receipt.voided_by', ['date' => $payment->voided_at?->format('d-m-Y H:i'), 'user' => $payment->voidedBy?->name ?: __('print.receipt.unknown_user')]) }}</td>
                     </tr>
                     <tr>
                         <th>{{ __('print.receipt.headers.void_reason') }}</th>

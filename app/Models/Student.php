@@ -6,6 +6,7 @@ use App\Services\StudentNumberService;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -176,6 +177,13 @@ class Student extends Model
     public function quranCurrentJuz(): BelongsTo
     {
         return $this->belongsTo(QuranJuz::class, 'quran_current_juz_id');
+    }
+
+    public function externalMemorizedJuzs(): BelongsToMany
+    {
+        return $this->belongsToMany(QuranJuz::class, 'student_external_memorized_juz')
+            ->withTimestamps()
+            ->orderBy('juz_number');
     }
 
     public function user(): BelongsTo

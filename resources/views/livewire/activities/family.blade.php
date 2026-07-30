@@ -214,7 +214,7 @@ new class extends Component {
                                 <span class="status-chip status-chip--emerald">{{ __('activities.common.states.'.($activity->is_active ? 'active' : 'inactive')) }}</span>
                             </div>
                             <div class="mt-3 flex flex-wrap gap-4 text-sm text-neutral-300">
-                                <span>{{ __('activities.family.meta.date') }}: {{ $activity->activity_date?->format('Y-m-d') }}</span>
+                                <span>{{ __('activities.family.meta.date') }}: {{ $activity->activity_date?->format('d-m-Y') }}</span>
                                 <span>{{ __('activities.family.meta.fee') }}: {{ number_format((float) ($activity->fee_amount ?? 0), 2) }}</span>
                                 <span>{{ __('activities.family.meta.audience') }}: {{ $audienceText }}</span>
                             </div>

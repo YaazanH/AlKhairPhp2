@@ -16,9 +16,9 @@ use LogicException;
 
 class QuranPartialTestService
 {
-    public function create(Enrollment $enrollment, QuranJuz $juz): QuranPartialTest
+    public function create(Enrollment $enrollment, QuranJuz $juz, bool $allowAnotherOpenCycle = false): QuranPartialTest
     {
-        if ($this->inProgressTestsForStudent($enrollment->student)->isNotEmpty()) {
+        if (! $allowAnotherOpenCycle && $this->inProgressTestsForStudent($enrollment->student)->isNotEmpty()) {
             throw new LogicException(__('workflow.quran_partial_tests.errors.open_cycle_exists'));
         }
 

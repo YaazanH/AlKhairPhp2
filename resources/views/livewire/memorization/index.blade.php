@@ -616,7 +616,7 @@ new class extends Component {
                                     <div class="font-medium text-white">{{ $session->enrollment?->group?->name ?: __('workflow.common.no_group') }}</div>
                                     <div class="mt-1 text-xs uppercase tracking-[0.18em] text-neutral-500">{{ $session->enrollment?->group?->course?->name ?: __('workflow.common.no_course') }}</div>
                                 </td>
-                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $session->recorded_on?->format('Y-m-d') }}</td>
+                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $session->recorded_on?->format('d-m-Y') }}</td>
                                 <td class="px-5 py-4 lg:px-6"><span class="status-chip status-chip--slate">{{ __('workflow.common.entry_type.'.$session->entry_type) }}</span></td>
                                 <td class="px-5 py-4 text-white lg:px-6">{{ __('workflow.memorization.table.page_range', ['from' => $session->from_page, 'to' => $session->to_page, 'count' => $session->pages_count]) }}</td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $session->teacher?->first_name }} {{ $session->teacher?->last_name }}</td>

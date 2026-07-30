@@ -289,7 +289,7 @@ new class extends Component {
             </div>
             <div class="surface-panel px-5 py-4">
                 <div class="text-sm font-semibold text-white">{{ $activityRecord->title }}</div>
-                <div class="mt-1 text-sm text-neutral-400">{{ $activityRecord->activity_date?->format('Y-m-d') }}</div>
+                <div class="mt-1 text-sm text-neutral-400">{{ $activityRecord->activity_date?->format('d-m-Y') }}</div>
                 <div class="mt-1 text-xs text-neutral-500">
                     {{ __('activities.common.audience.'.$activityRecord->audience_scope) }}
                     @if ($activityRecord->audience_scope === 'multiple_groups')
@@ -516,7 +516,7 @@ new class extends Component {
                         <tbody class="divide-y divide-white/6">
                             @forelse ($payments as $payment)
                                 <tr class="{{ $payment->voided_at ? 'opacity-60' : '' }}">
-                                    <td class="px-5 py-3">{{ $payment->paid_at?->format('Y-m-d') }}</td>
+                                    <td class="px-5 py-3">{{ $payment->paid_at?->format('d-m-Y') }}</td>
                                     <td class="px-5 py-3">
                                         <div class="student-inline">
                                             <x-student-avatar :student="$payment->registration?->student" size="sm" />
@@ -551,7 +551,7 @@ new class extends Component {
                         <tbody class="divide-y divide-white/6">
                             @forelse ($expenses as $expense)
                                 <tr>
-                                    <td class="px-5 py-3">{{ $expense->spent_on?->format('Y-m-d') }}</td>
+                                    <td class="px-5 py-3">{{ $expense->spent_on?->format('d-m-Y') }}</td>
                                     <td class="px-5 py-3">{{ $expense->category?->name ?: '-' }}</td>
                                     <td class="px-5 py-3">{{ $expense->description }}</td>
                                     <td class="px-5 py-3">{{ number_format((float) $expense->amount, 2) }}</td>

@@ -397,7 +397,7 @@ new class extends Component
         <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('workflow.student_attendance.quick.title') }}</h1>
         <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ __('workflow.student_attendance.quick.subtitle') }}</p>
         <div class="mt-6 flex flex-wrap gap-3">
-            <span class="badge-soft">{{ $dayRecord->attendance_date?->format('Y-m-d') }}</span>
+            <span class="badge-soft">{{ $dayRecord->attendance_date?->format('d-m-Y') }}</span>
             <span class="badge-soft badge-soft--emerald">{{ $dayRecord->course?->name ?: __('workflow.common.no_course') }}</span>
             <span class="badge-soft">{{ __('workflow.student_attendance.day_details.stats.groups') }}: {{ number_format($dayRecord->groupAttendanceDays->count()) }}</span>
             <span class="badge-soft">{{ __('workflow.student_attendance.day_details.stats.marked') }}: {{ number_format($markedCount) }}</span>

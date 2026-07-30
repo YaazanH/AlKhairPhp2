@@ -208,7 +208,23 @@ new class extends Component {
 
     public function confirmOpenTestWarningCreate(): void
     {
-        $this->openExistingTest();
+        $this->authorizePermission('quran-partial-tests.record');
+
+        if (! $this->pendingCreateStudentId || ! $this->pendingCreateEnrollmentId || ! $this->pendingCreateJuzId) {
+            $this->resetPendingCreateWarning();
+
+            return;
+        }
+
+        $student = $this->quranStudentsQuery(Student::query()->with('pageAchievements'))
+            ->findOrFail($this->pendingCreateStudentId);
+        $enrollment = $this->quranEnrollmentsQuery(
+            Enrollment::query()->with(['student.pageAchievements', 'group.course'])
+        )->where('student_id', $student->id)->findOrFail($this->pendingCreateEnrollmentId);
+        $juzId = $this->pendingCreateJuzId;
+
+        $this->resetPendingCreateWarning();
+        $this->attemptCreatePartialTest($student, $enrollment, $juzId, true);
     }
 
     public function openExistingTest(): void
@@ -337,6 +353,7 @@ new class extends Component {
             $partialTest = app(QuranPartialTestService::class)->create(
                 $enrollment,
                 QuranJuz::query()->findOrFail($juzId),
+                $ignoreOpenTestWarning,
             );
         } catch (\LogicException $exception) {
             $this->addError('juz_id', $exception->getMessage());
@@ -556,8 +573,8 @@ new class extends Component {
                                     <div class="mt-1 text-xs uppercase tracking-[0.18em] text-neutral-500">{{ $partialTest->enrollment?->group?->course?->name ?: __('workflow.common.no_course') }}</div>
                                 </td>
                                 <td class="px-5 py-4 text-white lg:px-6">{{ __('workflow.common.labels.juz_number', ['number' => $partialTest->juz?->juz_number ?: __('workflow.common.not_available')]) }}</td>
-                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $partialTest->parts->where('status', 'passed')->count() }} / 4</td>
-                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $partialTest->last_tested_on?->format('Y-m-d') ?: __('workflow.common.not_available') }}</td>
+                                <td class="px-5 py-4 text-neutral-300 lg:px-6"><span dir="ltr" class="inline-block">{{ $partialTest->parts->where('status', 'passed')->count() }} / 4</span></td>
+                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $partialTest->last_tested_on?->format('d-m-Y') ?: __('workflow.common.not_available') }}</td>
                                 <td class="px-5 py-4 lg:px-6"><span class="status-chip status-chip--slate">{{ __('workflow.quran_partial_tests.statuses.'.$partialTest->status) }}</span></td>
                                 <td class="px-5 py-4 text-right lg:px-6">
                                     <div class="flex flex-wrap justify-end gap-2">

@@ -16,6 +16,7 @@ use App\Models\Student;
 use App\Models\StudentGender;
 use App\Models\User;
 use App\Services\ManagedUserService;
+use App\Services\MemorizationService;
 use App\Services\StudentNumberService;
 use App\Support\ArabicSearch;
 use Illuminate\Database\Eloquent\Builder;
@@ -41,6 +42,7 @@ new class extends Component {
     public ?int $grade_level_id = null;
     public ?int $enrollment_group_id = null;
     public ?int $quran_current_juz_id = null;
+    public array $external_memorized_juz_ids = [];
     public string $photo_path = '';
     public string $status = 'active';
     public string $joined_at = '';
@@ -131,7 +133,7 @@ new class extends Component {
                 ->orderBy('name')
                 ->get(['id', 'name', 'academic_year_id', 'course_id', 'grade_level_id']),
             'fatherJobs' => FatherJob::query()->where('is_active', true)->orderBy('name')->get(['name']),
-            'juzs' => QuranJuz::query()->orderBy('juz_number')->get(['id', 'juz_number']),
+            'juzs' => QuranJuz::query()->orderBy('juz_number')->get(['id', 'juz_number', 'from_page', 'to_page']),
             'schools' => School::query()->where('is_active', true)->orderBy('name')->get(['name']),
             'totals' => [
                 'all' => $baseQuery->count(),
@@ -352,6 +354,8 @@ new class extends Component {
             'grade_level_id' => ['nullable', 'exists:grade_levels,id'],
             'enrollment_group_id' => ['nullable', 'exists:groups,id'],
             'quran_current_juz_id' => ['nullable', 'exists:quran_juzs,id'],
+            'external_memorized_juz_ids' => ['array'],
+            'external_memorized_juz_ids.*' => ['integer', 'distinct', 'exists:quran_juzs,id'],
             'photo_path' => ['nullable', 'string', 'max:255'],
             'status' => ['required', 'in:active,inactive,graduated,blocked'],
             'joined_at' => ['nullable', 'date'],
@@ -414,6 +418,8 @@ new class extends Component {
         $studentPhone = filled($validated['student_phone'] ?? null) ? trim((string) $validated['student_phone']) : null;
         unset($validated['student_phone']);
         unset($validated['enrollment_group_id']);
+        $externalMemorizedJuzIds = array_map('intval', $validated['external_memorized_juz_ids'] ?? []);
+        unset($validated['external_memorized_juz_ids']);
         $validated['birth_date'] = $this->normalizeBirthYearValue((string) $validated['birth_date']);
         $validated['gender'] = $validated['gender'] ?: null;
         $validated['grade_level_id'] = $validated['grade_level_id'] ?: null;
@@ -422,7 +428,7 @@ new class extends Component {
         $validated['joined_at'] = $isEditing
             ? ($validated['joined_at'] ?: null)
             : ($validated['joined_at'] ?: now()->toDateString());
-        $payload = DB::transaction(function () use ($isEditing, $selectedGroup, $studentPhone, $validated): array {
+        $payload = DB::transaction(function () use ($externalMemorizedJuzIds, $isEditing, $selectedGroup, $studentPhone, $validated): array {
             $student = Student::query()->updateOrCreate(
                 ['id' => $this->editingId],
                 $validated,
@@ -442,6 +448,11 @@ new class extends Component {
 
             $student->user()->associate($result['user']);
             $student->save();
+            $juzSyncChanges = $student->externalMemorizedJuzs()->sync($externalMemorizedJuzIds);
+
+            if ($juzSyncChanges['attached'] !== [] || $juzSyncChanges['detached'] !== [] || $juzSyncChanges['updated'] !== []) {
+                app(MemorizationService::class)->rebuildStudentAchievementsAndPoints($student);
+            }
 
             if (! $isEditing && $selectedGroup && ! Enrollment::query()
                 ->where('student_id', $student->id)
@@ -599,7 +610,7 @@ new class extends Component {
     {
         $this->authorizePermission('students.update');
 
-        $student = Student::query()->findOrFail($studentId);
+        $student = Student::query()->with('externalMemorizedJuzs')->findOrFail($studentId);
         $this->authorizeScopedStudentAccess($student);
 
         $this->editingId = $student->id;
@@ -613,6 +624,7 @@ new class extends Component {
         $this->grade_level_id = $student->grade_level_id;
         $this->enrollment_group_id = null;
         $this->quran_current_juz_id = $student->quran_current_juz_id;
+        $this->external_memorized_juz_ids = $student->externalMemorizedJuzs->pluck('id')->map(fn ($id) => (int) $id)->all();
         $this->photo_path = $student->photo_path ?? '';
         $this->status = $student->status;
         $this->joined_at = $student->joined_at?->format('Y-m-d') ?? '';
@@ -722,6 +734,7 @@ new class extends Component {
         $this->grade_level_id = null;
         $this->enrollment_group_id = null;
         $this->quran_current_juz_id = null;
+        $this->external_memorized_juz_ids = [];
         $this->photo_path = '';
         $this->status = 'active';
         $this->joined_at = '';
@@ -1865,6 +1878,22 @@ new class extends Component {
                         @enderror
                     </div>
                 @endif
+            </div>
+
+            <div>
+                <label for="student-external-juzs" class="mb-1 block text-sm font-medium">{{ __('crud.students.form.fields.external_memorized_juzs') }}</label>
+                <select id="student-external-juzs" wire:model="external_memorized_juz_ids" multiple size="8" class="w-full rounded-xl px-4 py-3 text-sm">
+                    @foreach ($juzs as $juz)
+                        <option value="{{ $juz->id }}">
+                            {{ __('crud.students.labels.juz_number', ['number' => $juz->juz_number]) }}
+                            ({{ $juz->from_page }}-{{ $juz->to_page }})
+                        </option>
+                    @endforeach
+                </select>
+                <p class="mt-2 text-xs text-neutral-400">{{ __('crud.students.form.external_memorized_juzs_help') }}</p>
+                @error('external_memorized_juz_ids.*')
+                    <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
+                @enderror
             </div>
 
             @if ($editingId)

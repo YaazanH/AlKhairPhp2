@@ -54,7 +54,8 @@
     <select
         x-model="regionDial"
         x-on:change="syncPhone"
-        class="w-full rounded-xl px-3 py-3 text-sm"
+        class="w-full rounded-xl px-3 py-3 text-left text-sm"
+        style="direction: ltr; unicode-bidi: isolate;"
         aria-label="{{ __('phone.country_code') }}"
     >
         @foreach ($phoneCountries as $country)
@@ -71,7 +72,9 @@
         type="tel"
         inputmode="tel"
         autocomplete="tel-national"
-        class="w-full rounded-xl px-4 py-3 text-sm"
+        dir="ltr"
+        class="w-full rounded-xl px-4 py-3 text-left text-sm"
+        style="unicode-bidi: isolate;"
         placeholder="{{ $placeholder ?: __('phone.number_placeholder') }}"
         @required($required)
     >

@@ -3,6 +3,7 @@
 use App\Livewire\Concerns\AuthorizesPermissions;
 use App\Livewire\Concerns\AuthorizesTeacherAssignments;
 use App\Models\AssessmentResult;
+use App\Models\Course;
 use App\Models\Enrollment;
 use App\Models\MemorizationSession;
 use App\Models\PointTransaction;
@@ -29,6 +30,7 @@ new class extends Component {
     public function mount(?Student $student = null): void
     {
         $this->authorizePermission('students.view');
+        $this->courseFilter = (string) (Course::query()->where('is_default', true)->where('is_active', true)->value('id') ?? 'all');
 
         if ($student) {
             $this->setCurrentStudent($student->id);
@@ -51,7 +53,7 @@ new class extends Component {
             $this->currentStudent = null;
             $this->selectedStudentId = null;
             $this->studentSearch = '';
-            $this->courseFilter = 'all';
+            $this->courseFilter = $this->defaultCourseFilter();
             $this->missingJuzId = null;
 
             return;
@@ -80,7 +82,7 @@ new class extends Component {
         $this->currentStudent = null;
         $this->selectedStudentId = null;
         $this->studentSearch = '';
-        $this->courseFilter = 'all';
+        $this->courseFilter = $this->defaultCourseFilter();
         $this->missingJuzId = null;
     }
 
@@ -416,8 +418,13 @@ new class extends Component {
         $this->currentStudent = $student;
         $this->selectedStudentId = (int) $student->id;
         $this->studentSearch = $student->full_name;
-        $this->courseFilter = 'all';
+        $this->courseFilter = $this->defaultCourseFilter();
         $this->missingJuzId = null;
+    }
+
+    protected function defaultCourseFilter(): string
+    {
+        return (string) (Course::query()->where('is_default', true)->where('is_active', true)->value('id') ?? 'all');
     }
 
     protected function studentOptionsQuery()
@@ -649,7 +656,7 @@ new class extends Component {
                         <tbody class="divide-y divide-white/6">
                             @foreach ($memorizationRows as $row)
                                 <tr>
-                                    <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $row->recorded_on?->format('Y-m-d') ?: __('crud.common.not_available') }}</td>
+                                    <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $row->recorded_on?->format('d-m-Y') ?: __('crud.common.not_available') }}</td>
                                     <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $row->group_name ?: __('crud.common.not_available') }}</td>
                                     <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ __('workflow.common.entry_type.'.$row->entry_type) }}</td>
                                     <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $row->page_no ?: __('crud.common.not_available') }}</td>
@@ -696,7 +703,7 @@ new class extends Component {
                                     <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $partialTest->enrollment?->group?->name ?: __('crud.common.not_available') }}</td>
                                     <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ number_format($passedParts) }} / {{ number_format($partialTest->parts->count()) }}</td>
                                     <td class="px-5 py-4 lg:px-6"><span class="status-chip {{ $partialTest->status === 'passed' ? 'status-chip--emerald' : 'status-chip--slate' }}">{{ __('workflow.quran_partial_tests.statuses.'.$partialTest->status) }}</span></td>
-                                    <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $partialTest->passed_on?->format('Y-m-d') ?: __('crud.common.not_available') }}</td>
+                                    <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $partialTest->passed_on?->format('d-m-Y') ?: __('crud.common.not_available') }}</td>
                                 </tr>
                             @endforeach
                         </tbody>
@@ -731,7 +738,7 @@ new class extends Component {
                         <tbody class="divide-y divide-white/6">
                             @foreach ($quranFinalTests as $test)
                                 <tr>
-                                    <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $test->tested_on?->format('Y-m-d') ?: __('crud.common.not_available') }}</td>
+                                    <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $test->tested_on?->format('d-m-Y') ?: __('crud.common.not_available') }}</td>
                                     <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $test->enrollment?->group?->name ?: __('crud.common.not_available') }}</td>
                                     <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $test->juz ? __('workflow.common.labels.juz_number', ['number' => $test->juz->juz_number]) : __('crud.common.not_available') }}</td>
                                     <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $test->score !== null ? number_format((float) $test->score, 2) : __('workflow.common.not_available') }}</td>
@@ -772,7 +779,7 @@ new class extends Component {
                         <tbody class="divide-y divide-white/6">
                             @foreach ($awqafTests as $test)
                                 <tr>
-                                    <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $test->tested_on?->format('Y-m-d') ?: __('crud.common.not_available') }}</td>
+                                    <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $test->tested_on?->format('d-m-Y') ?: __('crud.common.not_available') }}</td>
                                     <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $test->enrollment?->group?->name ?: __('crud.common.not_available') }}</td>
                                     <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $test->juz ? __('workflow.common.labels.juz_number', ['number' => $test->juz->juz_number]) : __('crud.common.not_available') }}</td>
                                     <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $test->type_label }}</td>
@@ -950,7 +957,7 @@ new class extends Component {
                                     $state = $transaction->effectiveState();
                                 @endphp
                                 <tr>
-                                    <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $transaction->entered_at?->format('Y-m-d H:i') ?: __('crud.common.not_available') }}</td>
+                                    <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $transaction->entered_at?->format('d-m-Y H:i') ?: __('crud.common.not_available') }}</td>
                                     <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $transaction->enrollment?->group?->name ?: __('crud.common.not_available') }}</td>
                                     <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $transaction->pointType?->name ?: __('crud.common.not_available') }}</td>
                                     <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ number_format((int) $transaction->points) }}</td>
@@ -988,7 +995,7 @@ new class extends Component {
                     <tbody class="divide-y divide-white/6">
                         @foreach ($parentVisibleNotes as $note)
                             <tr>
-                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $note->noted_at?->format('Y-m-d H:i') ?: __('crud.common.not_available') }}</td>
+                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $note->noted_at?->format('d-m-Y H:i') ?: __('crud.common.not_available') }}</td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $note->author?->name ?: __('crud.common.not_available') }}</td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $note->body }}</td>
                             </tr>

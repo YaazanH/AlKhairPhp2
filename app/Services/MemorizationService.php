@@ -6,6 +6,7 @@ use App\Models\Enrollment;
 use App\Models\MemorizationSession;
 use App\Models\MemorizationSessionPage;
 use App\Models\PointTransaction;
+use App\Models\QuranJuz;
 use App\Models\Student;
 use App\Models\StudentPageAchievement;
 use Illuminate\Support\Facades\DB;
@@ -89,7 +90,7 @@ class MemorizationService
             return [];
         }
 
-        return MemorizationSessionPage::query()
+        $recordedPages = MemorizationSessionPage::query()
             ->whereIn('page_no', $pageNumbers)
             ->whereHas('session', function ($query) use ($enrollment, $session) {
                 $query
@@ -98,6 +99,16 @@ class MemorizationService
                     ->when($session, fn ($builder) => $builder->whereKeyNot($session->id));
             })
             ->pluck('page_no')
+            ->all();
+
+        $externalPages = QuranJuz::query()
+            ->whereHas('externallyMemorizedByStudents', fn ($query) => $query->whereKey($enrollment->student_id))
+            ->get(['from_page', 'to_page'])
+            ->flatMap(fn (QuranJuz $juz) => range($juz->from_page, $juz->to_page))
+            ->intersect($pageNumbers)
+            ->all();
+
+        return collect([...$recordedPages, ...$externalPages])
             ->unique()
             ->sort()
             ->values()
@@ -231,7 +242,11 @@ class MemorizationService
                 ->orderBy('id')
                 ->get();
 
-            $seenPages = [];
+            $seenPages = $student->externalMemorizedJuzs()
+                ->get(['from_page', 'to_page'])
+                ->flatMap(fn (QuranJuz $juz) => range($juz->from_page, $juz->to_page))
+                ->mapWithKeys(fn (int $pageNo) => [$pageNo => true])
+                ->all();
             $achievementRows = [];
             $dailyRewards = [];
 

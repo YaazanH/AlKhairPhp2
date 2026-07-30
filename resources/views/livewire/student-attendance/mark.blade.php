@@ -6,6 +6,7 @@ use App\Models\AttendanceStatus;
 use App\Models\Enrollment;
 use App\Models\GroupAttendanceDay;
 use App\Models\StudentAttendanceRecord;
+use App\Models\Student;
 use App\Services\StudentAttendanceDayService;
 use Livewire\Volt\Component;
 
@@ -44,7 +45,18 @@ new class extends Component
             ->with('student')
             ->where('group_id', $groupDay->group_id)
             ->where('status', 'active')
-            ->orderBy('enrolled_at')
+            ->orderBy(
+                Student::query()
+                    ->select('first_name')
+                    ->whereColumn('students.id', 'enrollments.student_id')
+                    ->limit(1)
+            )
+            ->orderBy(
+                Student::query()
+                    ->select('last_name')
+                    ->whereColumn('students.id', 'enrollments.student_id')
+                    ->limit(1)
+            )
             ->get();
 
         return [
@@ -227,7 +239,7 @@ new class extends Component
         <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('workflow.student_attendance.marking.title') }}</h1>
         <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ __('workflow.student_attendance.marking.subtitle') }}</p>
         <div class="mt-6 flex flex-wrap gap-3">
-            <span class="badge-soft">{{ $groupDayRecord->studentAttendanceDay?->attendance_date?->format('Y-m-d') }}</span>
+            <span class="badge-soft">{{ $groupDayRecord->studentAttendanceDay?->attendance_date?->format('d-m-Y') }}</span>
             <span class="badge-soft badge-soft--emerald">{{ $groupDayRecord->group?->name ?: __('workflow.common.no_group') }}</span>
             <span class="badge-soft">{{ $groupDayRecord->group?->course?->name ?: __('workflow.common.no_course') }}</span>
         </div>
@@ -325,7 +337,7 @@ new class extends Component
                                         </div>
                                     </div>
                                 </td>
-                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $enrollment->enrolled_at?->format('Y-m-d') }}</td>
+                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $enrollment->enrolled_at?->format('d-m-Y') }}</td>
                                 <td class="px-5 py-4 text-white lg:px-6">{{ $enrollment->final_points_cached }}</td>
                                 <td class="px-5 py-4 lg:px-6">
                                     <select

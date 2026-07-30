@@ -69,6 +69,13 @@ class ReportsAndApiTest extends TestCase
             ->assertSee('Reports')
             ->assertDontSee('Students in scope');
 
+        $this->actingAs($manager)
+            ->get(route('reports.rankings', absolute: false))
+            ->assertOk()
+            ->assertSee('Group and student rankings')
+            ->assertSee('Group movement between ranges')
+            ->assertSee('Student movement between ranges');
+
         Sanctum::actingAs($manager);
 
         $overview = $this->getJson('/api/v1/reports/overview?group_id='.$group->id.'&date_from=2026-09-01&date_to=2026-09-30');
@@ -133,6 +140,37 @@ class ReportsAndApiTest extends TestCase
             ->set('group_id', [(string) $group->id])
             ->set('assessment_type_id', [(string) $assessmentTypeId])
             ->assertHasNoErrors();
+    }
+
+    public function test_attendance_averages_use_distinct_attendance_dates_not_group_sessions(): void
+    {
+        [$manager, $group] = $this->reportingContext();
+        $this->actingAs($manager);
+
+        $secondGroup = Group::create([
+            'course_id' => $group->course_id,
+            'academic_year_id' => $group->academic_year_id,
+            'teacher_id' => $group->teacher_id,
+            'name' => 'Second report group',
+            'capacity' => 10,
+            'is_active' => true,
+        ]);
+
+        GroupAttendanceDay::create([
+            'group_id' => $secondGroup->id,
+            'attendance_date' => '2026-09-10',
+            'status' => 'open',
+        ]);
+
+        $attendance = app(ReportingService::class)->overview([
+            'course_id' => $group->course_id,
+            'date_from' => '2026-09-01',
+            'date_to' => '2026-09-30',
+        ])['attendance'];
+
+        $this->assertSame(1, $attendance['days_recorded']);
+        $this->assertSame(1.0, $attendance['average_present_per_day']);
+        $this->assertFalse($attendance['single_date_selected']);
     }
 
     public function test_student_activity_summary_report_combines_pages_and_points_by_group_and_date(): void

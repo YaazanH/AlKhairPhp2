@@ -436,9 +436,17 @@ class FinanceService
     public function formatCurrencyAmount(float|int|string|null $amount, ?FinanceCurrency $currency, bool $withCode = true): string
     {
         $decimals = max(0, min(6, (int) ($currency?->decimal_places ?? 2)));
-        $formatted = number_format((float) ($amount ?? 0), $decimals);
+        $numericAmount = (float) ($amount ?? 0);
+        $formatted = number_format(abs($numericAmount), $decimals);
 
-        return $withCode && $currency?->code ? trim($formatted.' '.$currency->code) : $formatted;
+        if (! $withCode) {
+            return $formatted;
+        }
+
+        $sign = $numericAmount < 0 ? '-' : '+';
+        $currencyLabel = $currency?->symbol ?: $currency?->code;
+
+        return trim($sign.$formatted.($currencyLabel ? ' '.$currencyLabel : ''));
     }
 
     public function exchangeRateLabel(float $fromRateToBase, float $toRateToBase, ?string $fromCode = null, ?string $toCode = null): string

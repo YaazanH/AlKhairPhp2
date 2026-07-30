@@ -23,6 +23,7 @@ use App\Models\Teacher;
 use App\Models\TeacherAttendanceDay;
 use App\Models\User;
 use App\Services\QuranProgressionService;
+use App\Services\MemorizationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Livewire\Volt\Volt;
@@ -375,6 +376,38 @@ class QuranWorkflowTest extends TestCase
             ->where('source_type', 'memorization_session')
             ->whereNull('voided_at')
             ->sum('points'));
+    }
+
+    public function test_juz_memorized_at_another_mosque_is_treated_as_duplicate_and_cannot_earn_points(): void
+    {
+        [, $enrollment] = $this->workflowContext('teacher');
+        $juz = QuranJuz::query()->orderBy('juz_number')->firstOrFail();
+        $candidatePages = [$juz->from_page, min($juz->from_page + 1, $juz->to_page)];
+
+        app(MemorizationService::class)->saveSession($enrollment, [
+            'recorded_on' => '2026-09-12',
+            'teacher_id' => $enrollment->group->teacher_id,
+            'entry_type' => 'new',
+            'from_page' => $candidatePages[0],
+            'to_page' => $candidatePages[1],
+            'notes' => null,
+        ]);
+
+        $this->assertDatabaseCount('student_page_achievements', count($candidatePages));
+        $this->assertDatabaseHas('point_transactions', ['voided_at' => null]);
+
+        $enrollment->student->externalMemorizedJuzs()->sync([$juz->id]);
+        app(MemorizationService::class)->rebuildStudentAchievementsAndPoints($enrollment->student);
+
+        $duplicates = app(MemorizationService::class)->findDuplicatePages(
+            $enrollment,
+            $candidatePages,
+            'new',
+        );
+
+        $this->assertSame($candidatePages, $duplicates);
+        $this->assertDatabaseCount('student_page_achievements', 0);
+        $this->assertDatabaseMissing('point_transactions', ['voided_at' => null]);
     }
 
     public function test_adding_a_new_memorization_day_does_not_recalculate_historical_points(): void

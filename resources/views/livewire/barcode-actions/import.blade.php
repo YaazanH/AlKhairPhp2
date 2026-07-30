@@ -23,6 +23,7 @@ new class extends Component {
     {
         $this->authorizePermission('barcode-scans.import');
         $this->attendance_date = now()->toDateString();
+        $this->course_id = Course::query()->where('is_default', true)->where('is_active', true)->value('id');
     }
 
     public function resetAttendanceDateToToday(): void
@@ -252,7 +253,7 @@ new class extends Component {
                                 <div class="flex items-start justify-between gap-3">
                                     <div>
                                         <div class="font-semibold text-white">{{ $import->course?->name }}</div>
-                                        <div class="mt-1 text-neutral-400">{{ $import->attendance_date?->format('Y-m-d') }}</div>
+                                        <div class="mt-1 text-neutral-400">{{ $import->attendance_date?->format('d-m-Y') }}</div>
                                     </div>
                                     <span class="{{ $import->error_count > 0 ? 'status-chip status-chip--rose' : 'status-chip status-chip--emerald' }}">{{ $import->status }}</span>
                                 </div>

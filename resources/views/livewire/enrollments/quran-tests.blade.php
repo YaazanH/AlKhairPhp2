@@ -258,7 +258,7 @@ new class extends Component {
                         <tbody class="divide-y divide-white/6">
                             @foreach ($tests as $test)
                                 <tr>
-                                    <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $test->tested_on?->format('Y-m-d') }}</td>
+                                    <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $test->tested_on?->format('d-m-Y') }}</td>
                                     <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ __('workflow.common.labels.juz_number', ['number' => $test->juz?->juz_number]) }}</td>
                                     <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $test->attempt_no }}</td>
                                     <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $test->score !== null ? $test->score : __('workflow.common.not_available') }}</td>

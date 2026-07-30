@@ -53,6 +53,7 @@ new class extends Component {
     public function mount(): void
     {
         $this->authorizePermission('groups.view');
+        $this->courseFilter = (string) (Course::query()->where('is_default', true)->where('is_active', true)->value('id') ?? 'all');
         $this->resetForm();
         $this->quickSummaryDate = now()->toDateString();
     }
@@ -1298,7 +1299,7 @@ new class extends Component {
                                                 @endif
                                             </td>
                                             <td class="px-5 py-4 font-mono text-neutral-300 lg:px-6">{{ $enrollment->student?->student_number ?: __('crud.common.not_available') }}</td>
-                                            <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $enrollment->student?->user?->phone ?: __('crud.common.not_available') }}</td>
+                                            <td class="px-5 py-4 text-neutral-300 lg:px-6"><bdi dir="ltr" class="inline-block">{{ $enrollment->student?->user?->phone ?: __('crud.common.not_available') }}</bdi></td>
                                             <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $enrollment->student?->gradeLevel?->name ?: __('crud.common.not_available') }}</td>
                                             <td class="px-5 py-4 font-mono text-neutral-300 lg:px-6">{{ $enrollment->student?->parentProfile?->parent_number ?: __('crud.common.not_available') }}</td>
                                             <td class="px-5 py-4 text-neutral-300 lg:px-6">
@@ -1308,9 +1309,9 @@ new class extends Component {
                                                 @endif
                                             </td>
                                             <td class="px-5 py-4 text-neutral-300 lg:px-6">
-                                                {{ $enrollment->student?->parentProfile?->father_phone ?: ($enrollment->student?->parentProfile?->mother_phone ?: ($enrollment->student?->parentProfile?->home_phone ?: __('crud.common.not_available'))) }}
+                                                <bdi dir="ltr" class="inline-block">{{ $enrollment->student?->parentProfile?->father_phone ?: ($enrollment->student?->parentProfile?->mother_phone ?: ($enrollment->student?->parentProfile?->home_phone ?: __('crud.common.not_available'))) }}</bdi>
                                             </td>
-                                            <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $enrollment->enrolled_at?->format('Y-m-d') ?: __('crud.common.not_available') }}</td>
+                                            <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $enrollment->enrolled_at?->format('d-m-Y') ?: __('crud.common.not_available') }}</td>
                                             <td class="px-5 py-4 lg:px-6"><span class="{{ $rosterStatusClass }}">{{ __('crud.common.status_options.'.$enrollment->status) }}</span></td>
                                             @can('enrollments.delete')
                                                 <td class="px-5 py-4 lg:px-6">

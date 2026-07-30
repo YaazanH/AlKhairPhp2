@@ -46,7 +46,7 @@
                     <tr>
                         <td class="px-5 py-3">
                             <div class="font-medium text-white">{{ $request->request_no }}</div>
-                            <div class="text-xs text-neutral-500">{{ $request->created_at?->format('Y-m-d H:i') }} | {{ $request->requestedBy?->name ?: '-' }}</div>
+                            <div class="text-xs text-neutral-500">{{ $request->created_at?->format('d-m-Y H:i') }} | {{ $request->requestedBy?->name ?: '-' }}</div>
                             @if (! $showCounterpartyColumn && $request->counterparty_name)
                                 <div class="mt-1 text-xs text-emerald-200">{{ __('finance.fields.revenue_name') }}: {{ $request->maskedCounterpartyName() }}</div>
                             @endif

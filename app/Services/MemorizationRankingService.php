@@ -168,6 +168,10 @@ class MemorizationRankingService
                 fn (Builder $builder) => $builder->whereHas('enrollment.group', fn (Builder $groupQuery) => $groupQuery->where('academic_year_id', $filters['academic_year_id']))
             )
             ->when(
+                $filters['course_id'],
+                fn (Builder $builder) => $builder->whereHas('enrollment.group', fn (Builder $groupQuery) => $groupQuery->where('course_id', $filters['course_id']))
+            )
+            ->when(
                 $filters['group_id'],
                 fn (Builder $builder) => $builder->whereIn('memorization_sessions.enrollment_id', function ($subQuery) use ($filters) {
                     $subQuery
@@ -212,6 +216,7 @@ class MemorizationRankingService
     {
         return [
             'academic_year_id' => $this->normalizeNullableInteger($filters['academic_year_id'] ?? null),
+            'course_id' => $this->normalizeNullableInteger($filters['course_id'] ?? null),
             'first_date_from' => $this->normalizeDate($filters['first_date_from'] ?? null),
             'first_date_to' => $this->normalizeDate($filters['first_date_to'] ?? null),
             'group_id' => $this->normalizeNullableInteger($filters['group_id'] ?? null),

@@ -4,6 +4,8 @@ return [
     'scope_pills' => [
         'academic_filtered' => 'Academic year filtered',
         'all_academic_years' => 'All academic years',
+        'course_filtered' => 'Course filtered',
+        'all_courses' => 'All courses',
         'single_group' => 'Single group in focus',
         'all_groups' => 'All groups in scope',
         'assessment_type_filtered' => 'Assessment type filtered',
@@ -22,6 +24,8 @@ return [
         'subtitle' => 'Use academic, group, and date filters to narrow the view without changing any records.',
         'academic_year' => 'Academic year',
         'all_academic_years' => 'All academic years',
+        'course' => 'Course',
+        'all_courses' => 'All courses',
         'group' => 'Group',
         'all_groups' => 'All groups',
         'assessment_type' => 'Assessment type',
@@ -157,6 +161,8 @@ return [
         ],
     ],
     'rankings' => [
+        'combined_title' => 'Group and student rankings',
+        'combined_subtitle' => 'Compare group ranking first, then student ranking below it, using one shared course, group, and date-range filter.',
         'groups' => [
             'eyebrow' => 'Memorization momentum',
             'title' => 'Group memorization ranking',
