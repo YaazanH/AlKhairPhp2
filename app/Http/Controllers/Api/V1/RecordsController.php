@@ -115,7 +115,7 @@ class RecordsController extends Controller
 
         return app(AccessScopeService::class)
             ->scopeEnrollments(Enrollment::query(), $request->user())
-            ->with(['group.course', 'student.parentProfile'])
+            ->with(['group.course', 'group.teacher', 'student.parentProfile'])
             ->when($validated['group_id'] ?? null, fn (Builder $query, int $groupId) => $query->where('group_id', $groupId))
             ->when($validated['status'] ?? null, fn (Builder $query, string $status) => $query->where('status', $status))
             ->when($validated['student_id'] ?? null, fn (Builder $query, int $studentId) => $query->where('student_id', $studentId))
@@ -238,6 +238,7 @@ class RecordsController extends Controller
             'group_id' => ['nullable', 'integer', 'exists:groups,id'],
             'parent_id' => ['nullable', 'integer', 'exists:parents,id'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
+            'search' => ['nullable', 'string', 'max:100'],
             'status' => ['nullable', 'string', 'max:50'],
         ]);
 
@@ -256,6 +257,14 @@ class RecordsController extends Controller
             })
             ->when($validated['parent_id'] ?? null, fn (Builder $query, int $parentId) => $query->where('parent_id', $parentId))
             ->when($validated['status'] ?? null, fn (Builder $query, string $status) => $query->where('status', $status))
+            ->when($validated['search'] ?? null, function (Builder $query, string $search) {
+                $query->where(function (Builder $builder) use ($search) {
+                    $builder
+                        ->where('first_name', 'like', "%{$search}%")
+                        ->orWhere('last_name', 'like', "%{$search}%")
+                        ->orWhereRaw("CONCAT(first_name, ' ', last_name) LIKE ?", ["%{$search}%"]);
+                });
+            })
             ->orderBy('last_name')
             ->orderBy('first_name')
             ->paginate($validated['per_page'] ?? 15)

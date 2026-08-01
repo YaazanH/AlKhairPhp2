@@ -54,6 +54,7 @@ class AuthTokenController extends Controller
                 'permissions' => $abilities,
                 'roles' => $user->getRoleNames()->values()->all(),
                 'username' => $user->username,
+                'teacher_id' => $user->teacherProfile?->id,
             ],
         ], 201);
     }
