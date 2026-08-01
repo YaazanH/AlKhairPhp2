@@ -334,6 +334,8 @@ class RoleSeeder extends Seeder
                 'student-notes.create',
                 'student-notes.update',
                 'student-notes.delete',
+                'finance.pull-requests.view',
+                'finance.pull-requests.create',
             ],
             RoleRegistry::PARENT => [
                 'dashboard.parent.view',

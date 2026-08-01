@@ -16,6 +16,7 @@ class FinanceCategory extends Model
         'name',
         'code',
         'type',
+        'is_donation',
         'is_active',
     ];
 
@@ -23,6 +24,7 @@ class FinanceCategory extends Model
     {
         return [
             'is_active' => 'boolean',
+            'is_donation' => 'boolean',
         ];
     }
 

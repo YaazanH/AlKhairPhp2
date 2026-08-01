@@ -16,6 +16,7 @@ class Invoice extends Model
     protected $fillable = [
         'parent_id',
         'invoice_no',
+        'original_invoice_no',
         'invoicer_name',
         'invoice_type',
         'finance_invoice_kind_id',
@@ -27,6 +28,9 @@ class Invoice extends Model
         'discount',
         'total',
         'notes',
+        'original_image_path',
+        'finalised_at',
+        'finalised_by',
     ];
 
     protected function casts(): array
@@ -37,12 +41,18 @@ class Invoice extends Model
             'subtotal' => 'decimal:2',
             'discount' => 'decimal:2',
             'total' => 'decimal:2',
+            'finalised_at' => 'datetime',
         ];
     }
 
     public function items(): HasMany
     {
         return $this->hasMany(InvoiceItem::class);
+    }
+
+    public function finalisedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'finalised_by');
     }
 
     public function financeRequest(): BelongsTo

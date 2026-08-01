@@ -12,8 +12,9 @@ use Livewire\Volt\Component;
 new class extends Component {
     use AuthorizesPermissions;
 
-    public int $year;
-    public string $quarter = '';
+    public string $ledger_period_mode = 'quarter';
+    public int $ledger_year;
+    public string $ledger_quarter = '';
     public string $ledger_cash_box_id = '';
     public string $ledger_currency_id = '';
     public string $ledger_date_from = '';
@@ -24,10 +25,9 @@ new class extends Component {
     {
         $this->authorizePermission('finance.reports.view');
 
-        $this->year = (int) now()->year;
-        $this->quarter = (string) now()->quarter;
-        $this->ledger_date_from = now()->startOfYear()->toDateString();
-        $this->ledger_date_to = now()->toDateString();
+        $this->ledger_year = (int) now()->year;
+        $this->ledger_quarter = (string) now()->quarter;
+        $this->syncLedgerQuarterDates();
         $this->ledger_template_id = (string) app(FinanceReportService::class)->defaultLedgerTemplate()->id;
         $this->selectDefaultLedgerCashBox();
     }
@@ -35,6 +35,27 @@ new class extends Component {
     public function updatedLedgerCashBoxId(): void
     {
         $this->selectDefaultLedgerCurrency();
+    }
+
+    public function updatedLedgerPeriodMode(): void
+    {
+        if ($this->ledger_period_mode === 'quarter') {
+            $this->syncLedgerQuarterDates();
+        }
+    }
+
+    public function updatedLedgerYear(): void
+    {
+        if ($this->ledger_period_mode === 'quarter') {
+            $this->syncLedgerQuarterDates();
+        }
+    }
+
+    public function updatedLedgerQuarter(): void
+    {
+        if ($this->ledger_period_mode === 'quarter') {
+            $this->syncLedgerQuarterDates();
+        }
     }
 
     public function with(): array
@@ -58,7 +79,6 @@ new class extends Component {
                 ->orderByDesc('is_default')
                 ->orderBy('name')
                 ->get(),
-            'report' => app(FinanceReportService::class)->report($this->year, $this->quarter !== '' ? (int) $this->quarter : null),
         ];
     }
 
@@ -99,6 +119,14 @@ new class extends Component {
         $this->selectDefaultLedgerCurrency();
     }
 
+    protected function syncLedgerQuarterDates(): void
+    {
+        $quarter = max(1, min(4, (int) $this->ledger_quarter));
+        $start = \Illuminate\Support\Carbon::create($this->ledger_year, (($quarter - 1) * 3) + 1, 1)->startOfDay();
+        $this->ledger_date_from = $start->toDateString();
+        $this->ledger_date_to = $start->copy()->addMonths(2)->endOfMonth()->toDateString();
+    }
+
     protected function selectDefaultLedgerCurrency(): void
     {
         if ($this->ledger_cash_box_id === '') {
@@ -129,68 +157,22 @@ new class extends Component {
 }; ?>
 
 <div class="page-stack">
-    <section class="page-hero p-6 lg:p-8">
+    <section class="page-hero p-6 lg:p-8" style="order: 1">
         <div class="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
             <div>
                 <div class="eyebrow">{{ __('ui.nav.finance') }}</div>
                 <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('finance.reports.title') }}</h1>
                 <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ __('finance.reports.subtitle') }}</p>
             </div>
-            <div class="grid gap-4 md:grid-cols-2 xl:min-w-[24rem]">
-                <div>
-                    <label class="mb-1 block text-sm font-medium">{{ __('finance.fields.year') }}</label>
-                    <input wire:model.live="year" type="number" min="2000" max="2100" class="w-full rounded-xl px-4 py-3 text-sm">
-                </div>
-                <div>
-                    <label class="mb-1 block text-sm font-medium">{{ __('finance.fields.quarter') }}</label>
-                    <select wire:model.live="quarter" data-searchable="false" class="w-full rounded-xl px-4 py-3 text-sm">
-                        <option value="">{{ __('finance.options.all_year') }}</option>
-                        <option value="1">Q1</option>
-                        <option value="2">Q2</option>
-                        <option value="3">Q3</option>
-                        <option value="4">Q4</option>
-                    </select>
-                </div>
-            </div>
+            @can('finance.report-templates.manage')
+                <a href="{{ route('settings.finance.report-templates') }}" class="pill-link pill-link--accent">{{ __('finance.reports.manage_templates') }}</a>
+            @endcan
         </div>
-    </section>
-
-    <section class="admin-kpi-grid">
-        <article class="stat-card"><div class="kpi-label">{{ __('finance.fields.income') }}</div><div class="metric-value mt-3"><bdi dir="ltr">{{ app(FinanceService::class)->formatCurrencyAmount($report['summary']['income'], $report['summary']['local_currency']) }}</bdi></div></article>
-        <article class="stat-card"><div class="kpi-label">{{ __('finance.fields.expense') }}</div><div class="metric-value mt-3"><bdi dir="ltr">{{ app(FinanceService::class)->formatCurrencyAmount($report['summary']['expense'], $report['summary']['local_currency']) }}</bdi></div></article>
-        <article class="stat-card"><div class="kpi-label">{{ __('finance.fields.net') }}</div><div class="metric-value mt-3"><bdi dir="ltr">{{ app(FinanceService::class)->formatCurrencyAmount($report['summary']['net'], $report['summary']['local_currency']) }}</bdi></div></article>
-    </section>
-
-    <section class="grid gap-6 xl:grid-cols-2">
-        <div class="surface-table">
-            <div class="admin-grid-meta"><div><div class="admin-grid-meta__title">{{ __('finance.reports.pending_pull_requests') }}</div></div></div>
-            <div class="overflow-x-auto"><table class="text-sm"><thead><tr><th class="px-5 py-3 text-left">{{ __('finance.common.request') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.requester') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.pull_kind') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.amount') }}</th></tr></thead><tbody class="divide-y divide-white/6">@forelse ($report['pending_pull_requests'] as $request)<tr><td class="px-5 py-3">{{ $request->request_no }}</td><td class="px-5 py-3">{{ $request->requestedBy?->name ?: '-' }}</td><td class="px-5 py-3">{{ $request->pullRequestKind?->name ?: '-' }}</td><td class="px-5 py-3"><bdi dir="ltr">{{ app(FinanceService::class)->formatCurrencyAmount($request->requested_amount, $request->requestedCurrency) }}</bdi></td></tr>@empty<tr><td colspan="4" class="px-5 py-10 text-center text-sm text-neutral-500">{{ __('finance.empty.no_pending_pull_requests') }}</td></tr>@endforelse</tbody></table></div>
-        </div>
-
-        <div class="surface-table">
-            <div class="admin-grid-meta"><div><div class="admin-grid-meta__title">{{ __('finance.reports.cash_balances') }}</div><div class="admin-grid-meta__summary">{{ __('finance.reports.cash_balances_subtitle') }}</div></div></div>
-            <div class="overflow-x-auto"><table class="text-sm"><thead><tr><th class="px-5 py-3 text-left">{{ __('finance.fields.cash_box') }}</th><th class="px-5 py-3 text-left">{{ __('finance.common.currency') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.balance') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.local_equivalent') }}</th></tr></thead><tbody class="divide-y divide-white/6">@foreach ($report['balances'] as $boxBalance)@foreach ($boxBalance['currencies'] as $row)<tr><td class="px-5 py-3">{{ $boxBalance['cash_box']->name }}</td><td class="px-5 py-3">{{ $row['currency']->code }}</td><td class="px-5 py-3"><bdi dir="ltr">{{ app(FinanceService::class)->formatCurrencyAmount($row['balance'], $row['currency']) }}</bdi></td><td class="px-5 py-3"><bdi dir="ltr">{{ app(FinanceService::class)->formatCurrencyAmount($row['local_equivalent'], $report['summary']['local_currency']) }}</bdi></td></tr>@endforeach@endforeach</tbody></table></div>
-        </div>
-
-        <div class="surface-table">
-            <div class="admin-grid-meta"><div><div class="admin-grid-meta__title">{{ __('finance.reports.quarter_totals') }}</div></div></div>
-            <div class="overflow-x-auto"><table class="text-sm"><thead><tr><th class="px-5 py-3 text-left">{{ __('finance.fields.quarter') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.period') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.revenue_total') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.expense_total') }}</th></tr></thead><tbody class="divide-y divide-white/6">@foreach ($report['quarter_totals'] as $quarter)<tr><td class="px-5 py-3">Q{{ $quarter['quarter'] }}</td><td class="px-5 py-3">{{ $quarter['start']->format('d-m-Y') }} - {{ $quarter['end']->format('d-m-Y') }}</td><td class="px-5 py-3"><bdi dir="ltr">{{ app(FinanceService::class)->formatCurrencyAmount($quarter['income'], $report['summary']['local_currency']) }}</bdi></td><td class="px-5 py-3"><bdi dir="ltr">{{ app(FinanceService::class)->formatCurrencyAmount($quarter['expense'], $report['summary']['local_currency']) }}</bdi></td></tr>@endforeach</tbody></table></div>
-        </div>
-
-        <div class="surface-table">
-            <div class="admin-grid-meta"><div><div class="admin-grid-meta__title">{{ __('finance.reports.totals_by_currency') }}</div><div class="admin-grid-meta__summary">{{ __('finance.reports.totals_by_currency_subtitle') }}</div></div></div>
-            <div class="overflow-x-auto"><table class="text-sm"><thead><tr><th class="px-5 py-3 text-left">{{ __('finance.common.currency') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.income') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.expense') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.net') }}</th></tr></thead><tbody class="divide-y divide-white/6">@forelse ($report['summary_by_currency'] as $row)<tr><td class="px-5 py-3">{{ $row['currency']?->code }}</td><td class="px-5 py-3"><bdi dir="ltr">{{ app(FinanceService::class)->formatCurrencyAmount($row['income'], $row['currency']) }}</bdi></td><td class="px-5 py-3"><bdi dir="ltr">{{ app(FinanceService::class)->formatCurrencyAmount($row['expense'], $row['currency']) }}</bdi></td><td class="px-5 py-3"><bdi dir="ltr">{{ app(FinanceService::class)->formatCurrencyAmount($row['net'], $row['currency']) }}</bdi></td></tr>@empty<tr><td colspan="4" class="px-5 py-10 text-center text-sm text-neutral-500">{{ __('finance.empty.no_transactions') }}</td></tr>@endforelse</tbody></table></div>
-        </div>
-    </section>
-
-    <section class="surface-table">
-        <div class="admin-grid-meta"><div><div class="admin-grid-meta__title">{{ __('finance.reports.category_totals') }}</div><div class="admin-grid-meta__summary">{{ __('finance.reports.category_totals_subtitle') }}</div></div></div>
-        <div class="overflow-x-auto"><table class="text-sm"><thead><tr><th class="px-5 py-3 text-left">{{ __('finance.fields.category') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.income') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.expense') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.net') }}</th></tr></thead><tbody class="divide-y divide-white/6">@foreach ($report['category_totals'] as $row)<tr><td class="px-5 py-3">{{ $row['category'] }}</td><td class="px-5 py-3"><bdi dir="ltr">{{ app(FinanceService::class)->formatCurrencyAmount($row['income'], $report['summary']['local_currency']) }}</bdi></td><td class="px-5 py-3"><bdi dir="ltr">{{ app(FinanceService::class)->formatCurrencyAmount($row['expense'], $report['summary']['local_currency']) }}</bdi></td><td class="px-5 py-3"><bdi dir="ltr">{{ app(FinanceService::class)->formatCurrencyAmount($row['net'], $report['summary']['local_currency']) }}</bdi></td></tr>@endforeach</tbody></table></div>
     </section>
 
     @can('finance.reports.export')
         @if ($generatedReportsEnabled)
-            <section class="surface-table">
+            <section class="surface-table" style="order: 3">
                 <div class="admin-grid-meta">
                     <div>
                         <div class="admin-grid-meta__title">{{ __('finance.reports.generated_reports') }}</div>
@@ -207,7 +189,7 @@ new class extends Component {
                                 <th class="px-5 py-3 text-left">{{ __('finance.fields.cash_box') }}</th>
                                 <th class="px-5 py-3 text-left">{{ __('finance.common.currency') }}</th>
                                 <th class="px-5 py-3 text-left">{{ __('finance.fields.user') }}</th>
-                                <th class="px-5 py-3 text-left">{{ __('finance.fields.date') }}</th>
+                                <th class="px-5 py-3 text-left">{{ __('finance.common.date') }}</th>
                                 <th class="px-5 py-3 text-right">{{ __('finance.actions.actions') }}</th>
                             </tr>
                         </thead>
@@ -223,7 +205,7 @@ new class extends Component {
                                         <div class="font-medium text-white">{{ $savedTemplate }}</div>
                                         <div class="text-xs text-neutral-500">{{ data_get($generatedReport->report_data, 'template.title') }}</div>
                                     </td>
-                                    <td class="px-5 py-3">{{ $savedStart }} - {{ $savedEnd }}</td>
+                                    <td class="px-5 py-3">{{ $savedStart ? \Illuminate\Support\Carbon::parse($savedStart)->format('d-m-Y') : '-' }} - {{ $savedEnd ? \Illuminate\Support\Carbon::parse($savedEnd)->format('d-m-Y') : '-' }}</td>
                                     <td class="px-5 py-3">{{ data_get($generatedReport->filters, 'cash_box_name', data_get($generatedReport->report_data, 'cash_box.name', '-')) }}</td>
                                     <td class="px-5 py-3">{{ data_get($generatedReport->filters, 'currency_code', data_get($generatedReport->report_data, 'currency.code', '-')) }}</td>
                                     <td class="px-5 py-3">{{ $generatedReport->generatedBy?->name ?: (data_get($generatedReport->report_data, 'issuer_name') ?: '-') }}</td>
@@ -246,7 +228,7 @@ new class extends Component {
                 </div>
             </section>
         @else
-            <section class="surface-panel p-5 lg:p-6">
+            <section class="surface-panel p-5 lg:p-6" style="order: 3">
                 <div class="rounded-3xl border border-amber-400/25 bg-amber-500/10 px-4 py-4 text-sm text-amber-100">
                     {{ __('finance.reports.generated_reports_unavailable') }}
                 </div>
@@ -265,7 +247,7 @@ new class extends Component {
                 'template_id' => $ledger_template_id ?: null,
             ];
         @endphp
-        <section class="surface-panel p-5 lg:p-6">
+        <section class="surface-panel p-5 lg:p-6" style="order: 2">
             <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                     <div class="eyebrow">{{ __('finance.reports.ledger_export') }}</div>
@@ -308,15 +290,33 @@ new class extends Component {
                         </select>
                     </div>
                 </div>
-                <div class="grid gap-4 md:grid-cols-2">
+                <div class="grid gap-4 md:grid-cols-3">
                     <div>
-                        <label class="mb-1 block text-sm font-medium">{{ __('finance.fields.from_date') }}</label>
-                        <input wire:model.live="ledger_date_from" type="date" class="w-full rounded-xl px-4 py-3 text-sm">
+                        <label class="mb-1 block text-sm font-medium">{{ __('finance.fields.period') }}</label>
+                        <select wire:model.live="ledger_period_mode" data-searchable="false" class="w-full rounded-xl px-4 py-3 text-sm">
+                            <option value="quarter">{{ __('finance.reports.period_quarter') }}</option>
+                            <option value="custom">{{ __('finance.reports.period_custom') }}</option>
+                        </select>
                     </div>
-                    <div>
-                        <label class="mb-1 block text-sm font-medium">{{ __('finance.fields.to_date') }}</label>
-                        <input wire:model.live="ledger_date_to" type="date" class="w-full rounded-xl px-4 py-3 text-sm">
-                    </div>
+                    @if ($ledger_period_mode === 'quarter')
+                        <div>
+                            <label class="mb-1 block text-sm font-medium">{{ __('finance.fields.year') }}</label>
+                            <select wire:model.live="ledger_year" class="w-full rounded-xl px-4 py-3 text-sm">@for ($reportYear = now()->year + 1; $reportYear >= now()->year - 10; $reportYear--)<option value="{{ $reportYear }}">{{ $reportYear }}</option>@endfor</select>
+                        </div>
+                        <div>
+                            <label class="mb-1 block text-sm font-medium">{{ __('finance.fields.quarter') }}</label>
+                            <select wire:model.live="ledger_quarter" class="w-full rounded-xl px-4 py-3 text-sm">@for ($reportQuarter = 1; $reportQuarter <= 4; $reportQuarter++)<option value="{{ $reportQuarter }}">Q{{ $reportQuarter }}</option>@endfor</select>
+                        </div>
+                    @else
+                        <div>
+                            <label class="mb-1 block text-sm font-medium">{{ __('finance.fields.from_date') }}</label>
+                            <input wire:model.live="ledger_date_from" type="date" class="w-full rounded-xl px-4 py-3 text-sm">
+                        </div>
+                        <div>
+                            <label class="mb-1 block text-sm font-medium">{{ __('finance.fields.to_date') }}</label>
+                            <input wire:model.live="ledger_date_to" type="date" class="w-full rounded-xl px-4 py-3 text-sm">
+                        </div>
+                    @endif
                 </div>
             </div>
 

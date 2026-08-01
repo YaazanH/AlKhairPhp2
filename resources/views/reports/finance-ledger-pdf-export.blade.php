@@ -16,7 +16,7 @@
 
     $details = [
         [
-            'label' => $service->bilingual('Cash box', 'الصندوق', $language),
+            'label' => $service->bilingual('Fund', 'الصندوق', $language),
             'value' => data_get($report, 'cash_box.name'),
         ],
         [
@@ -25,15 +25,15 @@
         ],
         [
             'label' => $service->bilingual('From date', 'من تاريخ', $language),
-            'value' => $report['start'] ?? '',
+            'value' => ! empty($report['start']) ? \Illuminate\Support\Carbon::parse($report['start'])->format('d-m-Y') : '',
         ],
         [
             'label' => $service->bilingual('To date', 'إلى تاريخ', $language),
-            'value' => $report['end'] ?? '',
+            'value' => ! empty($report['end']) ? \Illuminate\Support\Carbon::parse($report['end'])->format('d-m-Y') : '',
         ],
         [
             'label' => $service->bilingual('Report date', 'تاريخ التقرير', $language),
-            'value' => $report['report_date'] ?? '',
+            'value' => ! empty($report['report_date']) ? \Illuminate\Support\Carbon::parse($report['report_date'])->format('d-m-Y') : '',
         ],
     ];
 

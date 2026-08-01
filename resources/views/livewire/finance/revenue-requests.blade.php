@@ -62,9 +62,12 @@ new class extends Component {
                 ->whereIn('type', [FinanceRequest::TYPE_REVENUE, FinanceRequest::TYPE_RETURN])
                 ->orderBy('name')
                 ->get(),
+            'selectedRevenueCategory' => FinanceCategory::query()->find($this->finance_category_id),
             'requests' => FinanceRequest::query()
-                ->with(['activity', 'cashBox', 'category', 'requestedBy', 'reviewedBy', 'teacher', 'requestedCurrency', 'acceptedCurrency', 'attachments'])
+                ->with(['activity', 'cashBox', 'category', 'postedTransaction', 'requestedBy', 'reviewedBy', 'teacher', 'requestedCurrency', 'acceptedCurrency', 'attachments'])
                 ->whereIn('type', [FinanceRequest::TYPE_REVENUE, FinanceRequest::TYPE_RETURN])
+                ->where('status', FinanceRequest::STATUS_ACCEPTED)
+                ->whereHas('postedTransaction')
                 ->when(! $canReview, fn ($query) => $query->where('requested_by', auth()->id()))
                 ->latest()
                 ->paginate($this->perPage),
@@ -93,7 +96,7 @@ new class extends Component {
                     ->where('is_active', true)
                     ->whereIn('type', [FinanceRequest::TYPE_REVENUE, FinanceRequest::TYPE_RETURN]),
             ],
-            'counterparty_name' => ['nullable', 'string', 'max:255'],
+            'counterparty_name' => [FinanceCategory::query()->whereKey($this->finance_category_id)->where('is_donation', true)->exists() ? 'required' : 'nullable', 'string', 'max:255'],
             'request_date' => [auth()->user()?->can('finance.entries.update') ? 'required' : 'nullable', 'date'],
             'requested_reason' => ['nullable', 'string', 'max:2000'],
         ]);
@@ -110,7 +113,7 @@ new class extends Component {
             'requested_currency_id' => $validated['currency_id'],
             'requested_amount' => $validated['amount'],
             'finance_category_id' => $category->id,
-            'counterparty_name' => $validated['counterparty_name'] ?: null,
+            'counterparty_name' => $category->is_donation ? ($validated['counterparty_name'] ?: null) : null,
             'requested_by' => auth()->id(),
             'requested_reason' => $validated['requested_reason'] ?: null,
         ]);
@@ -182,6 +185,10 @@ new class extends Component {
 
         if (in_array($categoryType, [FinanceRequest::TYPE_REVENUE, FinanceRequest::TYPE_RETURN], true)) {
             $this->request_type = $categoryType;
+        }
+
+        if (! FinanceCategory::query()->whereKey($this->finance_category_id)->where('is_donation', true)->exists()) {
+            $this->counterparty_name = '';
         }
     }
 
@@ -308,7 +315,7 @@ new class extends Component {
     >
         <form wire:submit="submitRequest" class="grid gap-4 lg:grid-cols-3">
             <div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.revenue_kind') }}</label><select wire:model.live="finance_category_id" class="w-full rounded-xl px-4 py-3 text-sm"><option value="">{{ __('finance.actions.choose_category') }}</option>@foreach ($revenueCategories as $category)<option value="{{ $category->id }}">{{ $category->name }}</option>@endforeach</select>@error('finance_category_id') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
-            <div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.revenue_name') }}</label><input wire:model="counterparty_name" type="text" class="w-full rounded-xl px-4 py-3 text-sm"><p class="mt-1 text-xs text-neutral-500">{{ __('finance.messages.revenue_name_mask_help') }}</p>@error('counterparty_name') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
+            @if ($selectedRevenueCategory?->is_donation)<div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.revenue_name') }}</label><input wire:model="counterparty_name" type="text" class="w-full rounded-xl px-4 py-3 text-sm"><p class="mt-1 text-xs text-neutral-500">{{ __('finance.messages.revenue_name_mask_help') }}</p>@error('counterparty_name') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>@endif
             <div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.amount') }}</label><input wire:model="amount" type="text" inputmode="decimal" data-thousand-separator class="w-full rounded-xl px-4 py-3 text-sm">@error('amount') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
             <div><label class="mb-1 block text-sm font-medium">{{ __('finance.common.currency') }}</label><select wire:model.live="currency_id" class="w-full rounded-xl px-4 py-3 text-sm">@foreach ($currencies as $currency)<option value="{{ $currency->id }}">{{ $currency->code }}</option>@endforeach</select></div>
             @can('finance.entries.update')<div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.entry_date') }}</label><input wire:model="request_date" type="date" class="w-full rounded-xl px-4 py-3 text-sm">@error('request_date') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>@endcan
@@ -323,6 +330,5 @@ new class extends Component {
         </form>
     </x-admin.modal>
 
-    @include('livewire.finance.partials.requests-table', ['requests' => $requests, 'cashBoxes' => $cashBoxes, 'cashBoxesByCurrency' => $cashBoxesByCurrency, 'reviewPermission' => 'finance.revenue-requests.review', 'createPermission' => 'finance.revenue-requests.create', 'createMethod' => 'openCreateModal', 'createLabel' => __('finance.revenue_requests.new'), 'recordLabel' => __('finance.options.revenue'), 'emptyLabel' => __('finance.empty.no_revenue'), 'amountStyle' => 'actual_only', 'showCounterpartyColumn' => true, 'counterpartyLabel' => __('finance.fields.revenue_name')])
-    @include('livewire.finance.partials.request-maintenance-modals')
+    <section class="surface-table"><div class="admin-grid-meta"><div><div class="admin-grid-meta__title">{{ __('finance.revenue_requests.title') }}</div><div class="admin-grid-meta__summary">{{ __('crud.common.badges.in_view', ['count' => number_format($requests->total())]) }}</div></div>@can('finance.revenue-requests.create')<button wire:click="openCreateModal" class="pill-link pill-link--accent">{{ __('finance.revenue_requests.new') }}</button>@endcan</div><div class="overflow-x-auto"><table class="text-sm"><thead><tr><th class="px-5 py-3 text-left">{{ __('finance.fields.income_no') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.category') }}</th><th class="px-5 py-3 text-left">{{ __('finance.common.description') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.amount') }}</th><th class="px-5 py-3 text-right">{{ __('finance.actions.actions') }}</th></tr></thead><tbody class="divide-y divide-white/6">@forelse ($requests as $request)<tr><td class="px-5 py-3"><div class="font-semibold text-white">{{ $request->request_no }}</div><div class="text-xs text-neutral-500">{{ $request->postedTransaction?->transaction_date?->format('d-m-Y') }} · {{ __('finance.fields.entered_by') }} {{ $request->reviewedBy?->name ?: '-' }}</div></td><td class="px-5 py-3">{{ $request->category?->name ?: '-' }}</td><td class="px-5 py-3"><div>{{ $request->requested_reason ?: '-' }}</div>@if ($request->category?->is_donation && $request->counterparty_name)<div class="text-xs text-neutral-500">{{ $request->maskedCounterpartyName() }}</div>@endif</td><td class="px-5 py-3"><bdi dir="ltr" class="font-semibold text-white">{{ app(FinanceService::class)->formatCurrencyAmount($request->accepted_amount, $request->acceptedCurrency) }}</bdi></td><td class="px-5 py-3"><div class="admin-action-cluster admin-action-cluster--end"><a href="{{ route('finance.requests.print', ['financeRequest' => $request, 'choose' => 1]) }}" target="_blank" class="pill-link pill-link--compact">{{ __('finance.actions.print') }}</a></div></td></tr>@empty<tr><td colspan="5" class="px-5 py-10 text-center text-neutral-500">{{ __('finance.empty.no_revenue') }}</td></tr>@endforelse</tbody></table></div>@if ($requests->hasPages())<div class="border-t border-white/8 px-5 py-4">{{ $requests->links() }}</div>@endif</section>
 </div>

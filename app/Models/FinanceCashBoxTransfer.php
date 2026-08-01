@@ -12,6 +12,7 @@ class FinanceCashBoxTransfer extends Model
 
     protected $fillable = [
         'pair_uuid',
+        'transfer_no',
         'from_cash_box_id',
         'to_cash_box_id',
         'currency_id',

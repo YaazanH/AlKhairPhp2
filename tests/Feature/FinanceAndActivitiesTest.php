@@ -577,7 +577,7 @@ class FinanceAndActivitiesTest extends TestCase
         ]);
         Volt::test('finance.expense-requests')
             ->assertSee($request->request_no)
-            ->assertSee('Count request');
+            ->assertSee(__('finance.pull_modes.count'));
 
         $this->actingAs($teacherUser);
         Volt::test('finance.pull-requests')->assertSee($request->request_no);
@@ -782,6 +782,7 @@ class FinanceAndActivitiesTest extends TestCase
         $category = FinanceCategory::query()->create([
             'code' => 'privacy-donation',
             'is_active' => true,
+            'is_donation' => true,
             'name' => 'Privacy donation',
             'type' => FinanceRequest::TYPE_REVENUE,
         ]);
@@ -812,7 +813,6 @@ class FinanceAndActivitiesTest extends TestCase
 
         Volt::test('finance.revenue-requests')
             ->assertSee('Y**** A* H****')
-            ->assertSee(__('finance.fields.revenue_name'))
             ->call('openFinanceRequestEditModal', $request->id)
             ->set('edit_counterparty_name', 'Updated Donor')
             ->set('edit_request_date', '2026-02-05')
@@ -1113,7 +1113,8 @@ class FinanceAndActivitiesTest extends TestCase
             ->orderBy('id')
             ->get();
         $this->assertSame('EXC-000001', data_get($exchangeTransactions[0]->metadata, 'reference'));
-        $this->assertStringStartsWith('EXC-000001', (string) $exchangeTransactions[0]->description);
+        $this->assertSame('EXC-000001', $exchangeTransactions[0]->special_transaction_no);
+        $this->assertSame('Test exchange', $exchangeTransactions[0]->description);
         $this->assertDatabaseHas('finance_transactions', [
             'cash_box_id' => $mainBox->id,
             'currency_id' => $usd->id,
@@ -1511,6 +1512,155 @@ class FinanceAndActivitiesTest extends TestCase
         $this->assertSame($enrollment->id, $registration->enrollment_id);
         $this->assertSame('registered', $registration->status);
         $this->assertSame('18.00', $targetedActivity->fresh()->expected_revenue_cached);
+    }
+
+    public function test_fund_transfers_have_the_configured_prefix_and_do_not_affect_operating_totals(): void
+    {
+        $this->signIn();
+
+        $service = app(FinanceService::class);
+        $currency = $service->localCurrency();
+        $from = FinanceCashBox::query()->firstOrFail();
+        $to = FinanceCashBox::query()->create(['code' => 'transfer-target', 'name' => 'Transfer target', 'is_active' => true]);
+        $to->currencies()->sync([$currency->id]);
+        AppSetting::storeValue('finance', 'transfer_prefix', 'MOVE', 'string');
+
+        $service->postTransaction([
+            'cash_box_id' => $from->id,
+            'currency_id' => $currency->id,
+            'type' => 'opening_balance',
+            'direction' => 'in',
+            'amount' => 100,
+            'transaction_date' => now()->toDateString(),
+        ]);
+
+        $beforeTransfer = app(FinanceReportService::class)->report((int) now()->year, (int) now()->quarter)['summary'];
+        $transfer = $service->recordCashBoxTransfer($from, $to, $currency, 25, now()->toDateString(), auth()->user(), 'Rebalance funds');
+        $report = app(FinanceReportService::class)->report((int) now()->year, (int) now()->quarter);
+
+        $this->assertSame('MOVE-000001', $transfer->transfer_no);
+        $this->assertSame($beforeTransfer['expense'], $report['summary']['expense']);
+        $this->assertSame($beforeTransfer['income'], $report['summary']['income']);
+        $this->assertSame(2, FinanceTransaction::query()->where('special_transaction_no', $transfer->transfer_no)->count());
+    }
+
+    public function test_count_expense_finalisation_edits_the_original_expense_without_posting_income(): void
+    {
+        $this->signIn();
+
+        $service = app(FinanceService::class);
+        $currency = $service->localCurrency();
+        $fund = FinanceCashBox::query()->firstOrFail();
+        $kind = FinancePullRequestKind::query()->where('mode', FinancePullRequestKind::MODE_COUNT)->firstOrFail();
+        $category = FinanceCategory::query()->whereIn('type', ['expense', 'management'])->firstOrFail();
+
+        $service->postTransaction(['cash_box_id' => $fund->id, 'currency_id' => $currency->id, 'type' => 'opening_balance', 'direction' => 'in', 'amount' => 100]);
+        $request = FinanceRequest::query()->create([
+            'request_no' => $service->nextRequestNumber(FinanceRequest::TYPE_PULL),
+            'type' => FinanceRequest::TYPE_PULL,
+            'status' => FinanceRequest::STATUS_PENDING,
+            'finance_pull_request_kind_id' => $kind->id,
+            'finance_category_id' => $category->id,
+            'requested_currency_id' => $currency->id,
+            'requested_amount' => 60,
+            'requested_count' => 6,
+            'requested_by' => auth()->id(),
+            'requested_reason' => 'Supplies',
+        ]);
+
+        $request = $service->acceptRequest($request, 60, $fund, auth()->user(), null, 6);
+        $transactionId = $request->posted_transaction_id;
+        $service->finaliseCountExpense($request, 5, 15, auth()->user());
+
+        $this->assertSame(FinanceRequest::STATUS_SETTLED, $request->fresh()->status);
+        $this->assertSame('45.00', $request->fresh()->accepted_amount);
+        $this->assertDatabaseHas('finance_transactions', ['id' => $transactionId, 'signed_amount' => -45]);
+        $this->assertSame(2, FinanceTransaction::query()->count());
+    }
+
+    public function test_deleted_transactions_remain_auditable_but_are_excluded_from_active_balances(): void
+    {
+        $this->signIn();
+
+        $service = app(FinanceService::class);
+        $currency = $service->localCurrency();
+        $fund = FinanceCashBox::query()->firstOrFail();
+        $transaction = $service->postTransaction(['cash_box_id' => $fund->id, 'currency_id' => $currency->id, 'type' => 'opening_balance', 'direction' => 'in', 'amount' => 80]);
+
+        $service->deleteTransactionRecord($transaction, auth()->user(), 'Incorrect entry');
+
+        $this->assertSame(0, FinanceTransaction::query()->count());
+        $this->assertDatabaseHas('finance_transactions', ['id' => $transaction->id, 'status' => 'deleted', 'deletion_reason' => 'Incorrect entry']);
+        $this->assertSame(0.0, (float) $service->cashBoxBalances(auth()->user())->first()['currencies']->first()['balance']);
+    }
+
+    public function test_invoice_expense_finalisation_uses_the_locked_invoice_total(): void
+    {
+        $this->signIn();
+
+        $service = app(FinanceService::class);
+        $currency = $service->localCurrency();
+        $fund = FinanceCashBox::query()->firstOrFail();
+        $kind = FinancePullRequestKind::query()->where('mode', FinancePullRequestKind::MODE_INVOICE)->firstOrFail();
+        $category = FinanceCategory::query()->whereIn('type', ['expense', 'management'])->firstOrFail();
+        $service->postTransaction(['cash_box_id' => $fund->id, 'currency_id' => $currency->id, 'type' => 'opening_balance', 'direction' => 'in', 'amount' => 100]);
+        $request = FinanceRequest::query()->create([
+            'request_no' => $service->nextRequestNumber(FinanceRequest::TYPE_PULL),
+            'type' => FinanceRequest::TYPE_PULL,
+            'status' => FinanceRequest::STATUS_PENDING,
+            'finance_pull_request_kind_id' => $kind->id,
+            'finance_category_id' => $category->id,
+            'requested_currency_id' => $currency->id,
+            'requested_amount' => 40,
+            'requested_by' => auth()->id(),
+            'requested_reason' => 'Invoice supplies',
+        ]);
+        $request = $service->acceptRequest($request, 40, $fund, auth()->user());
+        $invoice = Invoice::query()->create([
+            'invoice_no' => $service->nextInvoiceNumber(),
+            'original_invoice_no' => 'VENDOR-10',
+            'invoicer_name' => 'Vendor',
+            'invoice_type' => 'finance',
+            'finance_request_id' => $request->id,
+            'issue_date' => now()->toDateString(),
+            'status' => 'draft',
+            'subtotal' => 55,
+            'discount' => 0,
+            'total' => 55,
+        ]);
+
+        $service->finaliseInvoiceExpense($request, $invoice, auth()->user());
+
+        $this->assertSame(FinanceRequest::STATUS_SETTLED, $request->fresh()->status);
+        $this->assertSame('55.00', $request->fresh()->accepted_amount);
+        $this->assertSame('issued', $invoice->fresh()->status);
+        $this->assertNotNull($invoice->fresh()->finalised_at);
+        $this->assertDatabaseHas('finance_transactions', ['id' => $request->posted_transaction_id, 'signed_amount' => -55]);
+    }
+
+    public function test_withdrawal_navigation_is_available_to_teachers_but_hidden_from_finance_admins(): void
+    {
+        $this->seed();
+        $teacherUser = User::factory()->create();
+        $teacherUser->assignRole('teacher');
+        Teacher::query()->create([
+            'user_id' => $teacherUser->id,
+            'first_name' => 'Withdrawal',
+            'last_name' => 'Teacher',
+            'phone' => '0944000999',
+            'status' => 'active',
+        ]);
+
+        $this->actingAs($teacherUser)->get(route('finance.pull-requests.index'))->assertOk();
+        $teacherItems = collect(app(\App\Services\SidebarNavigationService::class)->sidebarFor($teacherUser))->pluck('items')->flatten(1);
+        $this->assertTrue($teacherItems->contains(fn (array $item) => $item['key'] === 'finance_pull_requests'));
+        $this->assertFalse($teacherItems->contains(fn (array $item) => $item['key'] === 'finance_dashboard'));
+
+        $manager = User::factory()->create();
+        $manager->assignRole('manager');
+        $managerItems = collect(app(\App\Services\SidebarNavigationService::class)->sidebarFor($manager))->pluck('items')->flatten(1);
+        $this->assertFalse($managerItems->contains(fn (array $item) => $item['key'] === 'finance_pull_requests'));
+        $this->assertTrue($managerItems->contains(fn (array $item) => $item['key'] === 'finance_dashboard'));
     }
 
     private function financeContext(): array

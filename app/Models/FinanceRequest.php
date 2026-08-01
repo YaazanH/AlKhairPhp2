@@ -25,6 +25,7 @@ class FinanceRequest extends Model
 
     protected $fillable = [
         'request_no',
+        'expense_no',
         'type',
         'status',
         'finance_pull_request_kind_id',

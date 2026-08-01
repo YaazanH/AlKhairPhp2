@@ -244,22 +244,6 @@ new class extends Component {
     </section>
 
     <section class="grid gap-6 xl:grid-cols-2">
-        @if ($manualAdjustmentEnabled)
-        @can('finance.cash-box.adjust')
-            <div class="surface-panel p-5 lg:p-6">
-                <div class="admin-section-card__title">{{ __('finance.cash_box.manual_adjustment') }}</div>
-                <form wire:submit="adjust" class="mt-5 grid gap-4 md:grid-cols-2">
-                    <div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.cash_box') }}</label><select wire:model.live="adjust_cash_box_id" class="w-full rounded-xl px-4 py-3 text-sm"><option value="">{{ __('finance.actions.choose_box') }}</option>@foreach ($adjustCashBoxes as $box)<option value="{{ $box->id }}">{{ $box->name }}</option>@endforeach</select>@error('adjust_cash_box_id') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
-                    <div><label class="mb-1 block text-sm font-medium">{{ __('finance.common.currency') }}</label><select wire:model.live="adjust_currency_id" class="w-full rounded-xl px-4 py-3 text-sm">@foreach ($adjustCurrencies as $currency)<option value="{{ $currency->id }}">{{ $currency->code }}</option>@endforeach</select></div>
-                    <div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.direction') }}</label><select wire:model="adjust_direction" class="w-full rounded-xl px-4 py-3 text-sm"><option value="in">{{ __('finance.options.in') }}</option><option value="out">{{ __('finance.options.out') }}</option></select></div>
-                    <div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.amount') }}</label><input wire:model="adjust_amount" type="text" inputmode="decimal" data-thousand-separator class="w-full rounded-xl px-4 py-3 text-sm">@error('adjust_amount') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
-                    <div class="md:col-span-2"><label class="mb-1 block text-sm font-medium">{{ __('finance.common.description') }}</label><input wire:model="adjust_description" type="text" class="w-full rounded-xl px-4 py-3 text-sm">@error('adjust_description') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
-                    <div class="md:col-span-2"><button type="submit" class="pill-link pill-link--accent">{{ __('finance.actions.post_adjustment') }}</button></div>
-                </form>
-            </div>
-        @endcan
-        @endif
-
         @if ($transferEnabled)
         @can('finance.cash-box.transfer')
             <div class="surface-panel p-5 lg:p-6">

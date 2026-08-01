@@ -1835,6 +1835,8 @@ html:not(.dark) .admin-modal__dialog {
 .admin-modal__dialog--3xl { max-width: 52rem; }
 .admin-modal__dialog--4xl { max-width: 64rem; }
 .admin-modal__dialog--5xl { max-width: 76rem; }
+.admin-modal__dialog--6xl { max-width: 88rem; }
+.admin-modal__dialog--7xl { max-width: 96rem; }
 
 .admin-modal__header {
     display: flex;
@@ -2618,6 +2620,18 @@ html:not(.dark) .barcode-import-page [class*='bg-black/'] {
     background: rgba(220, 122, 137, 0.1);
 }
 
+.status-chip--amber {
+    color: #fde68a;
+    border-color: rgba(251, 191, 36, 0.22);
+    background: rgba(251, 191, 36, 0.1);
+}
+
+.status-chip--blue {
+    color: #bfdbfe;
+    border-color: rgba(96, 165, 250, 0.22);
+    background: rgba(59, 130, 246, 0.1);
+}
+
 .status-chip--slate {
     color: #d1c5b6;
     border-color: rgba(216, 204, 185, 0.14);
@@ -2646,6 +2660,18 @@ html:not(.dark) .status-chip--rose {
     border-color: rgba(185, 28, 28, 0.2);
     background: rgba(254, 226, 226, 0.72);
     color: #991b1b;
+}
+
+html:not(.dark) .status-chip--amber {
+    border-color: rgba(180, 83, 9, 0.2);
+    background: rgba(254, 243, 199, 0.76);
+    color: #92400e;
+}
+
+html:not(.dark) .status-chip--blue {
+    border-color: rgba(29, 78, 216, 0.18);
+    background: rgba(219, 234, 254, 0.76);
+    color: #1e40af;
 }
 
 html:not(.dark) .status-chip--slate {

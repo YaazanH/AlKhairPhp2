@@ -270,7 +270,7 @@
 
             <section class="ledger-report-doc__meta-grid">
                 <div class="ledger-report-doc__meta-card">
-                    <span class="ledger-report-doc__meta-label">{{ $service->bilingual('Cash box', 'الصندوق', $language) }}</span>
+                    <span class="ledger-report-doc__meta-label">{{ $service->bilingual('Fund', 'الصندوق', $language) }}</span>
                     <span class="ledger-report-doc__meta-value">{{ data_get($report, 'cash_box.name') }}</span>
                 </div>
                 <div class="ledger-report-doc__meta-card">
@@ -279,15 +279,15 @@
                 </div>
                 <div class="ledger-report-doc__meta-card">
                     <span class="ledger-report-doc__meta-label">{{ $service->bilingual('From date', 'من تاريخ', $language) }}</span>
-                    <span class="ledger-report-doc__meta-value">{{ $report['start'] }}</span>
+                    <span class="ledger-report-doc__meta-value">{{ \Illuminate\Support\Carbon::parse($report['start'])->format('d-m-Y') }}</span>
                 </div>
                 <div class="ledger-report-doc__meta-card">
                     <span class="ledger-report-doc__meta-label">{{ $service->bilingual('To date', 'إلى تاريخ', $language) }}</span>
-                    <span class="ledger-report-doc__meta-value">{{ $report['end'] }}</span>
+                    <span class="ledger-report-doc__meta-value">{{ \Illuminate\Support\Carbon::parse($report['end'])->format('d-m-Y') }}</span>
                 </div>
                 <div class="ledger-report-doc__meta-card">
                     <span class="ledger-report-doc__meta-label">{{ $service->bilingual('Report date', 'تاريخ التقرير', $language) }}</span>
-                    <span class="ledger-report-doc__meta-value">{{ $report['report_date'] }}</span>
+                    <span class="ledger-report-doc__meta-value">{{ \Illuminate\Support\Carbon::parse($report['report_date'])->format('d-m-Y') }}</span>
                 </div>
                 @if (($template['show_issuer_name'] ?? false) && ! empty($report['issuer_name']))
                     <div class="ledger-report-doc__meta-card">

@@ -28,8 +28,11 @@ class FinanceReportService
             ->orderBy('transaction_date')
             ->get();
 
-        $income = (float) $transactions->where('local_amount', '>', 0)->sum('local_amount');
-        $expense = abs((float) $transactions->where('local_amount', '<', 0)->sum('local_amount'));
+        $operatingTransactions = $transactions
+            ->reject(fn (FinanceTransaction $transaction) => in_array($transaction->type, ['cash_box_transfer', 'currency_exchange'], true));
+
+        $income = (float) $operatingTransactions->where('local_amount', '>', 0)->sum('local_amount');
+        $expense = abs((float) $operatingTransactions->where('local_amount', '<', 0)->sum('local_amount'));
 
         return [
             'period' => [
@@ -39,14 +42,14 @@ class FinanceReportService
                 'quarter' => $quarter,
             ],
             'balances' => app(FinanceService::class)->cashBoxBalances(auth()->user()),
-            'category_totals' => $transactions
+            'category_totals' => $operatingTransactions
+                ->where('local_amount', '<', 0)
                 ->groupBy(fn (FinanceTransaction $transaction) => $transaction->category?->name ?: __('finance.options.uncategorized'))
                 ->map(fn ($rows, $category) => [
                     'category' => $category,
-                    'income' => round((float) $rows->where('local_amount', '>', 0)->sum('local_amount'), 2),
                     'expense' => round(abs((float) $rows->where('local_amount', '<', 0)->sum('local_amount')), 2),
-                    'net' => round((float) $rows->sum('local_amount'), 2),
                 ])
+                ->sortByDesc('expense')
                 ->values(),
             'pending_pull_requests' => FinanceRequest::query()
                 ->with(['activity', 'pullRequestKind', 'requestedBy', 'requestedCurrency'])
@@ -56,7 +59,8 @@ class FinanceReportService
                 ->limit(10)
                 ->get(),
             'quarter_totals' => $this->quarterTotals($year),
-            'summary_by_currency' => $transactions
+            'latest_transactions' => $transactions->sortByDesc(fn (FinanceTransaction $transaction) => $transaction->transaction_date?->format('Y-m-d').str_pad((string) $transaction->id, 12, '0', STR_PAD_LEFT))->take(5)->values(),
+            'summary_by_currency' => $operatingTransactions
                 ->groupBy('currency_id')
                 ->map(function ($rows) {
                     $currency = $rows->first()->currency;
@@ -87,7 +91,7 @@ class FinanceReportService
     {
         return $this->report($year, $quarter)['transactions']
             ->map(fn (FinanceTransaction $transaction) => [
-                $transaction->transaction_date?->format('Y-m-d'),
+                $transaction->transaction_date?->format('d-m-Y'),
                 $transaction->transaction_no,
                 $transaction->cashBox?->name,
                 $transaction->currency?->code,
@@ -123,7 +127,7 @@ class FinanceReportService
                 'name' => 'Default ledger report',
                 'show_issuer_name' => true,
                 'show_page_numbers' => false,
-                'subtitle' => 'Cash box ledger by selected currency and date range.',
+                'subtitle' => 'Fund ledger by selected currency and date range.',
                 'title' => 'Finance Ledger Report',
             ]);
     }
@@ -141,7 +145,7 @@ class FinanceReportService
             'running_balance' => ['en' => 'Balance', 'ar' => 'الرصيد'],
             'amount' => ['en' => 'Amount', 'ar' => 'المبلغ'],
             'direction' => ['en' => 'Direction', 'ar' => 'الاتجاه'],
-            'cash_box' => ['en' => 'Cash box', 'ar' => 'الصندوق'],
+            'cash_box' => ['en' => 'Fund', 'ar' => 'الصندوق'],
             'currency' => ['en' => 'Currency', 'ar' => 'العملة'],
             'entered_by' => ['en' => 'User', 'ar' => 'المستخدم'],
             'reference' => ['en' => 'Reference', 'ar' => 'المرجع'],
@@ -225,7 +229,7 @@ class FinanceReportService
                 'type' => app(FinanceService::class)->transactionTypeLabel('revenue_request'),
                 'category' => 'Student fees',
                 'signed_amount' => 2500.0,
-                'cash_box' => 'Main Cash Box',
+                'cash_box' => 'Main Fund',
                 'currency' => $currencySnapshot['code'],
                 'entered_by' => $issuer?->name ?: 'Finance Manager',
                 'reference' => 'REV-000321',
@@ -238,7 +242,7 @@ class FinanceReportService
                 'type' => app(FinanceService::class)->transactionTypeLabel('expense_request'),
                 'category' => 'Supplies',
                 'signed_amount' => -600.0,
-                'cash_box' => 'Main Cash Box',
+                'cash_box' => 'Main Fund',
                 'currency' => $currencySnapshot['code'],
                 'entered_by' => $issuer?->name ?: 'Finance Manager',
                 'reference' => 'EXP-000118',
@@ -251,7 +255,7 @@ class FinanceReportService
                 'type' => app(FinanceService::class)->transactionTypeLabel('pull_request'),
                 'category' => 'Teacher support',
                 'signed_amount' => -300.0,
-                'cash_box' => 'Main Cash Box',
+                'cash_box' => 'Main Fund',
                 'currency' => $currencySnapshot['code'],
                 'entered_by' => $issuer?->name ?: 'Finance Manager',
                 'reference' => 'PUL-000042',
@@ -291,7 +295,7 @@ class FinanceReportService
 
         return $this->buildLedgerReportArray(
             $template,
-            'Main Cash Box',
+            'Main Fund',
             $currencySnapshot,
             $start,
             $end,
@@ -455,7 +459,7 @@ class FinanceReportService
         $rows = [
             [$template['title'] ?? __('finance.report_templates.default_title')],
             [$this->bilingual('Date range', 'الفترة', $language), ($report['start'] ?? '').' - '.($report['end'] ?? '')],
-            [$this->bilingual('Cash box', 'الصندوق', $language), data_get($report, 'cash_box.name', '')],
+            [$this->bilingual('Fund', 'الصندوق', $language), data_get($report, 'cash_box.name', '')],
             [$this->bilingual('Currency', 'العملة', $language), data_get($report, 'currency.code', '')],
         ];
 
@@ -516,7 +520,7 @@ class FinanceReportService
             'income' => ($row['income'] ?? 0) > 0 ? $this->formatMoney((float) $row['income'], $transaction->currency) : '',
             'reference' => (string) ($transaction->financeRequest?->request_no ?: data_get($transaction->metadata, 'reference', '')),
             'running_balance' => $this->formatMoney((float) ($row['running_balance'] ?? 0), $transaction->currency),
-            'transaction_date' => $transaction->transaction_date?->format('Y-m-d') ?: '',
+            'transaction_date' => $transaction->transaction_date?->format('d-m-Y') ?: '',
             'transaction_no' => (string) ($transaction->transaction_no ?: ''),
             'type' => app(FinanceService::class)->transactionTypeLabel((string) $transaction->type, $transaction),
             default => '',
@@ -636,7 +640,7 @@ class FinanceReportService
             'income' => $income > 0 ? $this->formatMoney($income, $currency) : '',
             'reference' => (string) ($transaction->financeRequest?->request_no ?: data_get($transaction->metadata, 'reference', '')),
             'running_balance' => $this->formatMoney($runningBalance, $currency),
-            'transaction_date' => $transaction->transaction_date?->format('Y-m-d') ?: '',
+            'transaction_date' => $transaction->transaction_date?->format('d-m-Y') ?: '',
             'transaction_no' => (string) ($transaction->transaction_no ?: ''),
             'type' => app(FinanceService::class)->transactionTypeLabel((string) $transaction->type, $transaction),
             '_expense_raw' => $expense,
@@ -674,6 +678,7 @@ class FinanceReportService
                 [$start, $end] = $this->period($year, $quarter);
                 $transactions = FinanceTransaction::query()
                     ->whereBetween('transaction_date', [$start->toDateString(), $end->toDateString()])
+                    ->whereNotIn('type', ['cash_box_transfer', 'currency_exchange'])
                     ->get(['local_amount']);
 
                 return [

@@ -84,7 +84,7 @@ class ReportExportController extends Controller
 
         return $this->xlsxDownload(
             'finance-report',
-            ['Date', 'Transaction No', 'Cash Box', 'Currency', 'Type', 'Direction', 'Amount', 'Signed Amount', 'Base Amount', 'Local Amount', 'Category', 'Activity', 'Teacher', 'Description'],
+            ['Date', 'Transaction No', 'Fund', 'Currency', 'Type', 'Direction', 'Amount', 'Signed Amount', 'Base Amount', 'Local Amount', 'Category', 'Activity', 'Teacher', 'Description'],
             app(FinanceReportService::class)->exportRows((int) $validated['year'], isset($validated['quarter']) ? (int) $validated['quarter'] : null),
         );
     }

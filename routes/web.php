@@ -3,6 +3,7 @@
 use App\Http\Controllers\AdminExportController;
 use App\Http\Controllers\BarcodeActionPrintController;
 use App\Http\Controllers\FinanceRequestPrintController;
+use App\Http\Controllers\FinanceInvoicePrintController;
 use App\Http\Controllers\IdCards\IdCardBarcodePreviewController;
 use App\Http\Controllers\IdCards\IdCardTemplateController;
 use App\Http\Controllers\PrintController;
@@ -126,6 +127,7 @@ Route::middleware(['auth'])->group(function () {
     Volt::route('activities', 'activities.index')->middleware('permission:activities.view')->name('activities.index');
     Volt::route('activities/family', 'activities.family')->middleware('permission:activities.responses.view')->name('activities.family');
     Volt::route('activities/{activity}/finance', 'activities.finance')->middleware('permission:activities.finance.view')->name('activities.finance');
+    Volt::route('finance', 'finance.dashboard')->middleware('permission:finance.reports.view')->name('finance.dashboard');
     Volt::route('finance/reports', 'finance.reports')->middleware('permission:finance.reports.view')->name('finance.reports.index');
     Route::get('finance/reports/export', [ReportExportController::class, 'finance'])->middleware('permission:finance.reports.export')->name('finance.reports.export');
     Route::get('finance/reports/ledger/export', [ReportExportController::class, 'financeLedger'])->middleware('permission:finance.reports.export')->name('finance.reports.ledger.export');
@@ -136,6 +138,7 @@ Route::middleware(['auth'])->group(function () {
     Volt::route('finance/revenue-requests', 'finance.revenue-requests')->middleware('permission:finance.revenue-requests.view')->name('finance.revenue-requests.index');
     Volt::route('finance/exchange', 'finance.exchange')->middleware('permission:finance.exchange.view')->name('finance.exchange.index');
     Route::get('finance/requests/{financeRequest}/print', FinanceRequestPrintController::class)->name('finance.requests.print');
+    Route::get('finance/invoices/{invoice}/print', FinanceInvoicePrintController::class)->name('finance.invoices.print');
     Volt::route('invoices', 'invoices.index')->middleware('permission:invoices.view')->name('invoices.index');
     Volt::route('invoices/{invoice}/payments', 'invoices.payments')->middleware('permission:invoices.view')->name('invoices.payments');
     Route::get('invoices/{invoice}/print', [PrintController::class, 'invoice'])->middleware('permission:invoices.view')->name('invoices.print');

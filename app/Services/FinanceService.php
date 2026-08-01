@@ -95,7 +95,7 @@ class FinanceService
                 'direction' => $direction,
                 'amount' => $acceptedAmount,
                 'transaction_date' => $transactionDate ?: now()->toDateString(),
-                'description' => trim($reference.' '.$request->requested_reason),
+                'description' => $request->requested_reason,
                 'entered_by' => $reviewer?->id,
                 'metadata' => [
                     'reference' => $reference,
@@ -120,6 +120,7 @@ class FinanceService
                 'review_notes' => $notes,
                 'reviewed_by' => $reviewer?->id,
                 'status' => FinanceRequest::STATUS_ACCEPTED,
+                'expense_no' => $direction === 'out' ? ($request->expense_no ?: $this->nextExpenseNumber()) : $request->expense_no,
             ]);
 
             if ($request->activity_id) {
@@ -188,6 +189,74 @@ class FinanceService
                 'final_count' => $finalCount,
                 'remaining_amount' => $remainingAmount,
                 'return_transaction_id' => $returnTransaction?->id,
+                'settled_at' => now(),
+                'settled_by' => $user?->id,
+                'status' => FinanceRequest::STATUS_SETTLED,
+            ]);
+
+            return $request->fresh();
+        });
+    }
+
+    public function finaliseCountExpense(FinanceRequest $request, int $finalCount, float $remainingAmount, ?User $user = null): FinanceRequest
+    {
+        return DB::transaction(function () use ($finalCount, $remainingAmount, $request, $user): FinanceRequest {
+            $request->loadMissing(['acceptedCurrency', 'postedTransaction', 'pullRequestKind']);
+
+            if ($request->status !== FinanceRequest::STATUS_ACCEPTED || $request->pullRequestKind?->mode !== FinancePullRequestKind::MODE_COUNT) {
+                throw ValidationException::withMessages(['request' => __('finance.validation.pull_request_not_settleable')]);
+            }
+
+            $remainingAmount = round(max(0, $remainingAmount), 2);
+            $acceptedAmount = (float) $request->accepted_amount;
+
+            if ($remainingAmount > $acceptedAmount) {
+                throw ValidationException::withMessages(['remaining_amount' => __('finance.validation.remaining_exceeds_accepted')]);
+            }
+
+            $finalAmount = round($acceptedAmount - $remainingAmount, 2);
+            $this->replaceExpenseTransactionAmount($request, $finalAmount, $user);
+
+            $request->update([
+                'accepted_amount' => $finalAmount,
+                'final_count' => $finalCount,
+                'remaining_amount' => $remainingAmount,
+                'settled_at' => now(),
+                'settled_by' => $user?->id,
+                'status' => FinanceRequest::STATUS_SETTLED,
+            ]);
+
+            return $request->fresh();
+        });
+    }
+
+    public function finaliseInvoiceExpense(FinanceRequest $request, Invoice $invoice, ?User $user = null): FinanceRequest
+    {
+        return DB::transaction(function () use ($invoice, $request, $user): FinanceRequest {
+            $request->loadMissing(['postedTransaction', 'pullRequestKind']);
+            $invoice->refresh();
+
+            if ($request->status !== FinanceRequest::STATUS_ACCEPTED || $request->pullRequestKind?->mode !== FinancePullRequestKind::MODE_INVOICE) {
+                throw ValidationException::withMessages(['request' => __('finance.validation.pull_request_not_settleable')]);
+            }
+
+            if ((int) $invoice->finance_request_id !== (int) $request->id || (float) $invoice->total <= 0) {
+                throw ValidationException::withMessages(['invoice' => __('finance.validation.invoice_pull_mismatch')]);
+            }
+
+            $finalAmount = round((float) $invoice->total, 2);
+            $this->replaceExpenseTransactionAmount($request, $finalAmount, $user);
+
+            $invoice->update([
+                'status' => 'issued',
+                'finalised_at' => now(),
+                'finalised_by' => $user?->id,
+            ]);
+
+            $request->update([
+                'accepted_amount' => $finalAmount,
+                'invoice_id' => $invoice->id,
+                'remaining_amount' => max(round((float) $request->requested_amount - $finalAmount, 2), 0),
                 'settled_at' => now(),
                 'settled_by' => $user?->id,
                 'status' => FinanceRequest::STATUS_SETTLED,
@@ -699,6 +768,14 @@ class FinanceService
         return $this->sequencedNumber($prefix, $lastRequestNo, 6);
     }
 
+    public function nextExpenseNumber(): string
+    {
+        $prefix = $this->numberingPrefix('expense_request_prefix', 'EXP');
+        $last = FinanceRequest::query()->where('expense_no', 'like', $prefix.'-%')->latest('id')->value('expense_no');
+
+        return $this->sequencedNumber($prefix, $last, 6);
+    }
+
     public function nextExchangeNumber(): string
     {
         $prefix = $this->numberingPrefix('exchange_prefix', 'EXC');
@@ -709,6 +786,18 @@ class FinanceService
             ->value('exchange_no');
 
         return $this->sequencedNumber($prefix, $lastExchangeNo, 6);
+    }
+
+    public function nextTransferNumber(): string
+    {
+        $prefix = $this->numberingPrefix('transfer_prefix', 'TRSF');
+
+        $lastTransferNo = FinanceCashBoxTransfer::query()
+            ->where('transfer_no', 'like', $prefix.'-%')
+            ->latest('id')
+            ->value('transfer_no');
+
+        return $this->sequencedNumber($prefix, $lastTransferNo, 6);
     }
 
     public function postTransaction(array $payload): FinanceTransaction
@@ -725,6 +814,7 @@ class FinanceService
 
         return FinanceTransaction::query()->create([
             'transaction_no' => $payload['transaction_no'] ?? $this->nextTransactionNumber(),
+            'special_transaction_no' => $payload['special_transaction_no'] ?? null,
             'cash_box_id' => $cashBox->id,
             'currency_id' => $currency->id,
             'finance_category_id' => $payload['finance_category_id'] ?? null,
@@ -746,6 +836,70 @@ class FinanceService
             'pair_uuid' => $payload['pair_uuid'] ?? null,
             'metadata' => $payload['metadata'] ?? null,
         ]);
+    }
+
+    public function updateTransaction(FinanceTransaction $transaction, array $payload, ?User $user = null): FinanceTransaction
+    {
+        return DB::transaction(function () use ($payload, $transaction, $user): FinanceTransaction {
+            $cashBox = $this->cashBoxForUser((int) $payload['cash_box_id'], $user, false);
+            $currency = FinanceCurrency::query()->findOrFail((int) $payload['currency_id']);
+            $direction = (string) $payload['direction'];
+            $amount = abs((float) $payload['amount']);
+            $signedAmount = $direction === 'out' ? -$amount : $amount;
+            $snapshot = $this->amountSnapshot($currency, $signedAmount);
+
+            $this->ensureCashBoxSupportsCurrency($cashBox, $currency);
+            $this->ensureNonNegativeReplacementBalance($cashBox, $currency, $signedAmount, $transaction);
+
+            $transaction->update([
+                'amount' => $amount,
+                'base_amount' => $snapshot['base_amount'],
+                'cash_box_id' => $cashBox->id,
+                'currency_id' => $currency->id,
+                'description' => $payload['description'] ?: null,
+                'direction' => $direction,
+                'entered_by' => $payload['entered_by'] ?? $user?->id ?? $transaction->entered_by,
+                'finance_category_id' => $payload['finance_category_id'] ?: null,
+                'local_amount' => $snapshot['local_amount'],
+                'rate_to_base' => $snapshot['rate_to_base'],
+                'signed_amount' => $signedAmount,
+                'transaction_date' => $payload['transaction_date'],
+                'type' => $payload['type'],
+                'special_transaction_no' => $payload['special_transaction_no'] ?: null,
+                'metadata' => array_merge($transaction->metadata ?? [], [
+                    'edited_at' => now()->toISOString(),
+                    'edited_by' => $user?->id,
+                ]),
+            ]);
+
+            return $transaction->fresh();
+        });
+    }
+
+    public function deleteTransactionRecord(FinanceTransaction $transaction, ?User $user = null, ?string $reason = null): int
+    {
+        return DB::transaction(function () use ($reason, $transaction, $user): int {
+            $query = FinanceTransaction::query();
+
+            if ($transaction->pair_uuid) {
+                $query->where('pair_uuid', $transaction->pair_uuid);
+            } else {
+                $query->whereKey($transaction->id);
+            }
+
+            $transactions = $query->get();
+
+            foreach ($transactions as $row) {
+                $row->update([
+                    'status' => 'deleted',
+                    'deleted_by' => $user?->id,
+                    'deletion_reason' => $reason,
+                ]);
+                $row->delete();
+            }
+
+            return $transactions->count();
+        });
     }
 
     public function recordActivityExpense(ActivityExpense $expense, ?float $previousAmount = null): void
@@ -822,8 +976,10 @@ class FinanceService
         return DB::transaction(function () use ($amount, $currency, $date, $fromCashBox, $notes, $toCashBox, $user): FinanceCashBoxTransfer {
             $pairUuid = (string) Str::uuid();
 
+            $transferNo = $this->nextTransferNumber();
             $transfer = FinanceCashBoxTransfer::query()->create([
                 'pair_uuid' => $pairUuid,
+                'transfer_no' => $transferNo,
                 'from_cash_box_id' => $fromCashBox->id,
                 'to_cash_box_id' => $toCashBox->id,
                 'currency_id' => $currency->id,
@@ -840,6 +996,7 @@ class FinanceService
                     'source_type' => FinanceCashBoxTransfer::class,
                     'source_id' => $transfer->id,
                     'type' => 'cash_box_transfer',
+                    'special_transaction_no' => $transferNo,
                     'direction' => $side['direction'],
                     'amount' => $amount,
                     'transaction_date' => $date,
@@ -859,7 +1016,7 @@ class FinanceService
             $pairUuid = (string) Str::uuid();
             $fromSnapshot = $this->amountSnapshot($fromCurrency, $fromAmount);
             $exchangeNo = $this->nextExchangeNumber();
-            $description = trim($exchangeNo.' '.($notes ?? ''));
+            $description = $notes;
 
             $exchange = FinanceCurrencyExchange::query()->create([
                 'pair_uuid' => $pairUuid,
@@ -885,6 +1042,7 @@ class FinanceService
                 'source_type' => FinanceCurrencyExchange::class,
                 'source_id' => $exchange->id,
                 'type' => 'currency_exchange',
+                'special_transaction_no' => $exchangeNo,
                 'direction' => 'out',
                 'amount' => $fromAmount,
                 'transaction_date' => $date,
@@ -903,6 +1061,7 @@ class FinanceService
                 'source_type' => FinanceCurrencyExchange::class,
                 'source_id' => $exchange->id,
                 'type' => 'currency_exchange',
+                'special_transaction_no' => $exchangeNo,
                 'direction' => 'in',
                 'amount' => $toAmount,
                 'transaction_date' => $date,
@@ -1179,6 +1338,35 @@ class FinanceService
                 'available' => $this->formatCurrencyAmount($available, $currency, false),
                 'currency' => $currency->code,
                 'cash_box' => $cashBox->name,
+            ]),
+        ]);
+    }
+
+    protected function replaceExpenseTransactionAmount(FinanceRequest $request, float $amount, ?User $user = null): void
+    {
+        $transaction = $request->postedTransaction;
+
+        if (! $transaction) {
+            throw ValidationException::withMessages(['request' => __('finance.validation.missing_posted_transaction')]);
+        }
+
+        $currency = $transaction->currency()->firstOrFail();
+        $cashBox = $transaction->cashBox()->firstOrFail();
+        $signedAmount = -abs($amount);
+        $snapshot = $this->amountSnapshot($currency, $signedAmount);
+
+        $this->ensureNonNegativeReplacementBalance($cashBox, $currency, $signedAmount, $transaction);
+
+        $transaction->update([
+            'amount' => abs($amount),
+            'signed_amount' => $signedAmount,
+            'base_amount' => $snapshot['base_amount'],
+            'local_amount' => $snapshot['local_amount'],
+            'rate_to_base' => $snapshot['rate_to_base'],
+            'entered_by' => $user?->id ?: $transaction->entered_by,
+            'metadata' => array_merge($transaction->metadata ?? [], [
+                'finalised_at' => now()->toISOString(),
+                'finalised_by' => $user?->id,
             ]),
         ]);
     }

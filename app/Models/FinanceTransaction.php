@@ -6,13 +6,16 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class FinanceTransaction extends Model
 {
     use HasFactory;
+    use SoftDeletes;
 
     protected $fillable = [
         'transaction_no',
+        'special_transaction_no',
         'cash_box_id',
         'currency_id',
         'finance_category_id',
@@ -33,6 +36,9 @@ class FinanceTransaction extends Model
         'entered_by',
         'pair_uuid',
         'metadata',
+        'status',
+        'deleted_by',
+        'deletion_reason',
     ];
 
     protected function casts(): array
@@ -71,6 +77,11 @@ class FinanceTransaction extends Model
     public function enteredBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'entered_by');
+    }
+
+    public function deletedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'deleted_by');
     }
 
     public function financeRequest(): BelongsTo

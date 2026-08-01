@@ -5,10 +5,14 @@ use App\Livewire\Concerns\FormatsFinanceNumbers;
 use App\Livewire\Concerns\HandlesFinanceRequestMaintenance;
 use App\Livewire\Concerns\SupportsCreateAndNew;
 use App\Models\FinanceCurrency;
+use App\Models\FinanceCategory;
 use App\Models\FinancePullRequestKind;
 use App\Models\FinanceRequest;
 use App\Models\FinanceRequestAttachment;
+use App\Models\Invoice;
+use App\Models\InvoiceItem;
 use App\Services\FinanceService;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use Livewire\Volt\Component;
 use Livewire\WithFileUploads;
@@ -27,6 +31,7 @@ new class extends Component {
     public ?int $currency_id = null;
     public ?int $cash_box_id = null;
     public ?int $finance_pull_request_kind_id = null;
+    public ?int $finance_category_id = null;
     public string $requested_reason = '';
     public array $attachments = [];
     public array $review_amounts = [];
@@ -35,6 +40,16 @@ new class extends Component {
     public array $review_notes = [];
     public int $perPage = 15;
     public bool $showCreateModal = false;
+    public ?int $finalisingRequestId = null;
+    public ?int $viewingInvoiceId = null;
+    public string $final_count = '';
+    public string $remaining_amount = '0';
+    public string $original_invoice_no = '';
+    public string $invoice_issuer = '';
+    public string $invoice_date = '';
+    public array $invoice_items = [];
+    public mixed $invoice_image = null;
+    public bool $confirm_invoice_overage = false;
 
     public function mount(): void
     {
@@ -55,8 +70,9 @@ new class extends Component {
                 ->all(),
             'currencies' => app(FinanceService::class)->currenciesForCashBox($this->cash_box_id)->get(),
             'pullKinds' => FinancePullRequestKind::query()->where('is_active', true)->orderBy('mode')->orderBy('name')->get(),
+            'expenseCategories' => FinanceCategory::query()->where('is_active', true)->whereIn('type', ['expense', 'management'])->orderBy('name')->get(),
             'requests' => FinanceRequest::query()
-                ->with(['activity', 'cashBox', 'category', 'pullRequestKind', 'requestedBy', 'reviewedBy', 'teacher', 'requestedCurrency', 'acceptedCurrency', 'attachments'])
+                ->with(['activity', 'cashBox', 'category', 'invoice.items', 'postedTransaction', 'pullRequestKind', 'requestedBy', 'reviewedBy', 'teacher', 'requestedCurrency', 'acceptedCurrency', 'attachments'])
                 ->where(function ($query): void {
                     $query
                         ->where('type', FinanceRequest::TYPE_EXPENSE)
@@ -66,6 +82,8 @@ new class extends Component {
                                 ->whereIn('status', [FinanceRequest::STATUS_ACCEPTED, FinanceRequest::STATUS_SETTLED]);
                         });
                 })
+                ->whereIn('status', [FinanceRequest::STATUS_ACCEPTED, FinanceRequest::STATUS_SETTLED])
+                ->whereHas('postedTransaction')
                 ->when(! $canReview, fn ($query) => $query->where(function ($builder) {
                     $builder
                         ->where('requested_by', auth()->id())
@@ -73,6 +91,8 @@ new class extends Component {
                 }))
                 ->latest()
                 ->paginate($this->perPage),
+            'finalisingRequest' => $this->finalisingRequestId ? FinanceRequest::query()->with(['invoice.items', 'pullRequestKind', 'acceptedCurrency'])->find($this->finalisingRequestId) : null,
+            'viewingInvoice' => $this->viewingInvoiceId ? Invoice::query()->with(['items', 'financeRequest.acceptedCurrency'])->find($this->viewingInvoiceId) : null,
         ];
     }
 
@@ -94,6 +114,7 @@ new class extends Component {
             'cash_box_id' => [$canReview ? 'required' : 'nullable', 'exists:finance_cash_boxes,id'],
             'currency_id' => ['required', 'exists:finance_currencies,id'],
             'finance_pull_request_kind_id' => ['required', 'exists:finance_pull_request_kinds,id'],
+            'finance_category_id' => ['required', 'exists:finance_categories,id'],
             'request_date' => [auth()->user()?->can('finance.entries.update') ? 'required' : 'nullable', 'date'],
             'requested_reason' => ['nullable', 'string', 'max:2000'],
         ]);
@@ -105,7 +126,7 @@ new class extends Component {
             'finance_pull_request_kind_id' => $validated['finance_pull_request_kind_id'],
             'requested_currency_id' => $validated['currency_id'],
             'requested_amount' => $validated['amount'],
-            'finance_category_id' => null,
+            'finance_category_id' => $validated['finance_category_id'],
             'requested_by' => auth()->id(),
             'requested_reason' => $validated['requested_reason'] ?: null,
         ]);
@@ -232,6 +253,7 @@ new class extends Component {
         $this->currency_id = app(FinanceService::class)->localCurrency()->id;
         $this->cash_box_id = app(FinanceService::class)->defaultCashBoxForUser(auth()->user(), $this->currency_id)?->id;
         $this->finance_pull_request_kind_id = app(FinanceService::class)->defaultPullRequestKindId();
+        $this->finance_category_id = FinanceCategory::query()->where('is_active', true)->whereIn('type', ['expense', 'management'])->orderBy('name')->value('id');
         $this->requested_reason = '';
         $this->attachments = [];
 
@@ -247,6 +269,126 @@ new class extends Component {
         }
 
         return $exception->getMessage();
+    }
+
+    public function openFinaliseModal(int $requestId): void
+    {
+        $this->authorizePermission('finance.expense-requests.review');
+        $request = FinanceRequest::query()->with(['invoice.items', 'pullRequestKind'])->where('status', FinanceRequest::STATUS_ACCEPTED)->findOrFail($requestId);
+        $this->finalisingRequestId = $request->id;
+        $this->final_count = (string) ($request->accepted_count ?: $request->requested_count ?: '');
+        $this->remaining_amount = '0';
+        $this->invoice_date = now()->toDateString();
+        $this->invoice_items = [['item_name' => '', 'quantity' => '1', 'unit_price' => '']];
+        $this->resetValidation();
+    }
+
+    public function closeFinaliseModal(): void
+    {
+        $this->reset(['finalisingRequestId', 'final_count', 'remaining_amount', 'original_invoice_no', 'invoice_issuer', 'invoice_date', 'invoice_items', 'invoice_image', 'confirm_invoice_overage']);
+        $this->resetValidation();
+    }
+
+    public function addInvoiceItem(): void
+    {
+        $this->invoice_items[] = ['item_name' => '', 'quantity' => '1', 'unit_price' => ''];
+    }
+
+    public function removeInvoiceItem(int $index): void
+    {
+        unset($this->invoice_items[$index]);
+        $this->invoice_items = array_values($this->invoice_items);
+    }
+
+    public function finaliseCountExpense(): void
+    {
+        $this->authorizePermission('finance.expense-requests.review');
+        $this->normalizeFinanceNumberProperty('final_count');
+        $this->normalizeFinanceNumberProperty('remaining_amount');
+        $validated = $this->validate([
+            'final_count' => ['required', 'integer', 'min:0'],
+            'remaining_amount' => ['required', 'numeric', 'min:0'],
+        ]);
+        $request = FinanceRequest::query()->where('status', FinanceRequest::STATUS_ACCEPTED)->findOrFail($this->finalisingRequestId);
+
+        try {
+            app(FinanceService::class)->finaliseCountExpense($request, (int) $validated['final_count'], (float) $validated['remaining_amount'], auth()->user());
+        } catch (ValidationException $exception) {
+            $this->addError('remaining_amount', $this->firstValidationMessage($exception));
+            return;
+        }
+
+        $this->closeFinaliseModal();
+        session()->flash('status', __('finance.messages.expense_finalised'));
+    }
+
+    public function finaliseInvoiceExpense(): void
+    {
+        $this->authorizePermission('finance.expense-requests.review');
+        foreach ($this->invoice_items as $index => $item) {
+            $this->invoice_items[$index]['quantity'] = str_replace(',', '', (string) ($item['quantity'] ?? ''));
+            $this->invoice_items[$index]['unit_price'] = str_replace(',', '', (string) ($item['unit_price'] ?? ''));
+        }
+        $validated = $this->validate([
+            'original_invoice_no' => ['required', 'string', 'max:255'],
+            'invoice_issuer' => ['required', 'string', 'max:255'],
+            'invoice_date' => ['required', 'date'],
+            'invoice_items' => ['required', 'array', 'min:1'],
+            'invoice_items.*.item_name' => ['required', 'string', 'max:255'],
+            'invoice_items.*.quantity' => ['required', 'numeric', 'gt:0'],
+            'invoice_items.*.unit_price' => ['required', 'numeric', 'min:0'],
+            'invoice_image' => ['nullable', 'image', 'max:8192'],
+            'confirm_invoice_overage' => ['boolean'],
+        ]);
+        $request = FinanceRequest::query()->with('pullRequestKind')->where('status', FinanceRequest::STATUS_ACCEPTED)->findOrFail($this->finalisingRequestId);
+        $total = round(collect($validated['invoice_items'])->sum(fn (array $item) => (float) $item['quantity'] * (float) $item['unit_price']), 2);
+
+        if ($total > (float) $request->accepted_amount && ! $validated['confirm_invoice_overage']) {
+            $this->addError('confirm_invoice_overage', __('finance.validation.confirm_invoice_overage', ['amount' => app(FinanceService::class)->formatCurrencyAmount($total, $request->acceptedCurrency)]));
+            return;
+        }
+
+        $imagePath = $validated['invoice_image'] ? $validated['invoice_image']->store('finance/invoices', 'public') : null;
+        $invoice = Invoice::query()->create([
+            'invoice_no' => app(FinanceService::class)->nextInvoiceNumber(),
+            'original_invoice_no' => $validated['original_invoice_no'],
+            'invoicer_name' => $validated['invoice_issuer'],
+            'invoice_type' => 'finance',
+            'finance_invoice_kind_id' => app(FinanceService::class)->defaultInvoiceKindId(),
+            'finance_request_id' => $request->id,
+            'issue_date' => $validated['invoice_date'],
+            'status' => 'draft',
+            'subtotal' => $total,
+            'discount' => 0,
+            'total' => $total,
+            'original_image_path' => $imagePath,
+        ]);
+        foreach ($validated['invoice_items'] as $index => $item) {
+            InvoiceItem::query()->create([
+                'invoice_id' => $invoice->id,
+                'line_no' => $index + 1,
+                'item_name' => $item['item_name'],
+                'description' => $item['item_name'],
+                'quantity' => $item['quantity'],
+                'unit_price' => $item['unit_price'],
+                'amount' => round((float) $item['quantity'] * (float) $item['unit_price'], 2),
+            ]);
+        }
+
+        try {
+            app(FinanceService::class)->finaliseInvoiceExpense($request, $invoice, auth()->user());
+        } catch (ValidationException $exception) {
+            $invoice->items()->delete();
+            $invoice->delete();
+            if ($imagePath) {
+                Storage::disk('public')->delete($imagePath);
+            }
+            $this->addError('invoice_items', $this->firstValidationMessage($exception));
+            return;
+        }
+
+        $this->closeFinaliseModal();
+        session()->flash('status', __('finance.messages.expense_finalised'));
     }
 
     protected function financeRequestMaintenanceTypes(): array
@@ -275,6 +417,7 @@ new class extends Component {
     >
         <form wire:submit="submitRequest" class="grid gap-4 lg:grid-cols-3">
             <div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.expense_kind') }}</label><select wire:model="finance_pull_request_kind_id" class="w-full rounded-xl px-4 py-3 text-sm"><option value="">{{ __('finance.actions.choose_expense_kind') }}</option>@foreach ($pullKinds as $kind)<option value="{{ $kind->id }}">{{ $kind->name }} - {{ __('finance.pull_modes.'.$kind->mode) }}</option>@endforeach</select>@error('finance_pull_request_kind_id') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
+            <div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.category') }}</label><select wire:model="finance_category_id" class="w-full rounded-xl px-4 py-3 text-sm"><option value="">{{ __('finance.actions.choose_category') }}</option>@foreach ($expenseCategories as $category)<option value="{{ $category->id }}">{{ $category->name }}</option>@endforeach</select>@error('finance_category_id') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
             <div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.amount') }}</label><input wire:model="amount" type="text" inputmode="decimal" data-thousand-separator class="w-full rounded-xl px-4 py-3 text-sm">@error('amount') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
             <div><label class="mb-1 block text-sm font-medium">{{ __('finance.common.currency') }}</label><select wire:model="currency_id" class="w-full rounded-xl px-4 py-3 text-sm">@foreach ($currencies as $currency)<option value="{{ $currency->id }}">{{ $currency->code }}</option>@endforeach</select></div>
             @can('finance.entries.update')<div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.entry_date') }}</label><input wire:model="request_date" type="date" class="w-full rounded-xl px-4 py-3 text-sm">@error('request_date') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>@endcan
@@ -289,6 +432,24 @@ new class extends Component {
         </form>
     </x-admin.modal>
 
-    @include('livewire.finance.partials.requests-table', ['requests' => $requests, 'cashBoxes' => $cashBoxes, 'cashBoxesByCurrency' => $cashBoxesByCurrency, 'reviewPermission' => 'finance.expense-requests.review', 'createPermission' => 'finance.expense-requests.create', 'createMethod' => 'openCreateModal', 'createLabel' => __('finance.expense_requests.new'), 'recordLabel' => __('finance.fields.expense'), 'emptyLabel' => __('finance.empty.no_expenses'), 'amountStyle' => 'actual_only'])
-    @include('livewire.finance.partials.request-maintenance-modals')
+    <section class="surface-table">
+        <div class="admin-grid-meta"><div><div class="admin-grid-meta__title">{{ __('finance.expense_requests.title') }}</div><div class="admin-grid-meta__summary">{{ __('crud.common.badges.in_view', ['count' => number_format($requests->total())]) }}</div></div>@can('finance.expense-requests.create')<button wire:click="openCreateModal" class="pill-link pill-link--accent">{{ __('finance.expense_requests.new') }}</button>@endcan</div>
+        <div class="overflow-x-auto"><table class="text-sm"><thead><tr><th class="px-4 py-3 text-left">{{ __('finance.fields.expense_no') }}</th><th class="px-4 py-3 text-left">{{ __('finance.fields.category') }}</th><th class="px-4 py-3 text-left">{{ __('finance.common.description') }}</th><th class="px-4 py-3 text-left">{{ __('finance.fields.amount') }}</th><th class="px-4 py-3 text-left">{{ __('finance.common.status') }}</th><th class="px-4 py-3 text-right">{{ __('finance.actions.actions') }}</th></tr></thead><tbody class="divide-y divide-white/6">
+            @forelse ($requests as $request)<tr><td class="px-4 py-3"><div class="font-semibold text-white">{{ $request->expense_no ?: $request->request_no }}</div><div class="text-xs text-neutral-500">{{ $request->postedTransaction?->transaction_date?->format('d-m-Y') }} · {{ __('finance.fields.approved_by') }} {{ $request->reviewedBy?->name ?: '-' }}</div></td><td class="px-4 py-3"><div>{{ $request->category?->name ?: '-' }}</div><div class="text-xs text-neutral-500">{{ $request->pullRequestKind ? __('finance.pull_modes.'.$request->pullRequestKind->mode) : '-' }}</div></td><td class="px-4 py-3"><div class="max-w-xs">{{ $request->requested_reason ?: '-' }}</div><div class="text-xs text-neutral-500">{{ __('finance.fields.request_no') }}: {{ $request->request_no }}</div></td><td class="px-4 py-3"><bdi dir="ltr" class="font-semibold text-white">{{ app(FinanceService::class)->formatCurrencyAmount($request->accepted_amount, $request->acceptedCurrency) }}</bdi></td><td class="px-4 py-3"><span class="status-chip {{ $request->status === 'settled' ? 'status-chip--emerald' : 'status-chip--amber' }}">{{ $request->status === 'settled' ? __('finance.statuses.settled') : __('finance.statuses.pending') }}</span></td><td class="px-4 py-3"><div class="admin-action-cluster admin-action-cluster--end">@if ($request->status === 'accepted')<button wire:click="openFinaliseModal({{ $request->id }})" class="pill-link pill-link--compact pill-link--accent">{{ __('finance.actions.finalise') }}</button>@endif @if ($request->invoice)<button wire:click="$set('viewingInvoiceId', {{ $request->invoice->id }})" class="pill-link pill-link--compact">{{ __('finance.actions.view_invoice') }}</button>@endif</div></td></tr>
+            @empty<tr><td colspan="6" class="px-5 py-10 text-center text-neutral-500">{{ __('finance.empty.no_expenses') }}</td></tr>@endforelse
+        </tbody></table></div>@if ($requests->hasPages())<div class="border-t border-white/8 px-5 py-4">{{ $requests->links() }}</div>@endif
+    </section>
+
+    <x-admin.modal :show="$finalisingRequestId !== null" :title="__('finance.actions.finalise')" close-method="closeFinaliseModal" max-width="5xl">
+        @if ($finalisingRequest)
+            <div class="mb-5 soft-callout p-4"><div class="font-semibold text-white">{{ $finalisingRequest->expense_no ?: $finalisingRequest->request_no }}</div><div class="mt-1 text-sm text-neutral-300"><bdi dir="ltr">{{ app(FinanceService::class)->formatCurrencyAmount($finalisingRequest->accepted_amount, $finalisingRequest->acceptedCurrency) }}</bdi></div></div>
+            @if ($finalisingRequest->pullRequestKind?->mode === 'count')
+                <form wire:submit="finaliseCountExpense" class="grid gap-4 md:grid-cols-2"><div><label class="mb-1 block text-sm">{{ __('finance.fields.final_count') }}</label><input wire:model="final_count" data-thousand-separator class="w-full rounded-xl px-4 py-3">@error('final_count')<div class="text-sm text-red-400">{{ $message }}</div>@enderror</div><div><label class="mb-1 block text-sm">{{ __('finance.fields.remaining_amount') }}</label><input wire:model="remaining_amount" data-thousand-separator class="w-full rounded-xl px-4 py-3">@error('remaining_amount')<div class="text-sm text-red-400">{{ $message }}</div>@enderror</div><div class="md:col-span-2 flex justify-end"><button class="pill-link pill-link--accent">{{ __('finance.actions.finalise') }}</button></div></form>
+            @else
+                <form wire:submit="finaliseInvoiceExpense" class="space-y-5"><div class="grid gap-4 md:grid-cols-3"><div><label class="mb-1 block text-sm">{{ __('finance.fields.original_invoice_no') }}</label><input wire:model="original_invoice_no" class="w-full rounded-xl px-4 py-3"></div><div><label class="mb-1 block text-sm">{{ __('finance.fields.invoice_issuer') }}</label><input wire:model="invoice_issuer" class="w-full rounded-xl px-4 py-3"></div><div><label class="mb-1 block text-sm">{{ __('finance.common.date') }}</label><input wire:model="invoice_date" type="date" class="w-full rounded-xl px-4 py-3"></div></div><div class="space-y-3">@foreach ($invoice_items as $index => $item)<div class="grid gap-3 md:grid-cols-[1fr_9rem_11rem_auto]"><input wire:model="invoice_items.{{ $index }}.item_name" placeholder="{{ __('finance.fields.item_name') }}" class="rounded-xl px-4 py-3"><input wire:model="invoice_items.{{ $index }}.quantity" data-thousand-separator placeholder="{{ __('finance.fields.quantity') }}" class="rounded-xl px-4 py-3"><input wire:model="invoice_items.{{ $index }}.unit_price" data-thousand-separator placeholder="{{ __('finance.fields.unit_price') }}" class="rounded-xl px-4 py-3"><button type="button" wire:click="removeInvoiceItem({{ $index }})" class="pill-link pill-link--danger">×</button></div>@endforeach<button type="button" wire:click="addInvoiceItem" class="pill-link pill-link--compact">{{ __('finance.actions.add') }}</button></div><div><label class="mb-1 block text-sm">{{ __('finance.fields.original_invoice_image') }}</label><input wire:model="invoice_image" type="file" accept="image/*" class="w-full rounded-xl px-4 py-3"></div>@error('invoice_items')<div class="text-sm text-red-400">{{ $message }}</div>@enderror @error('confirm_invoice_overage')<div class="rounded-xl border border-amber-400/20 bg-amber-500/10 p-4 text-sm text-amber-100">{{ $message }}<label class="mt-3 flex gap-2"><input wire:model="confirm_invoice_overage" type="checkbox">{{ __('finance.messages.use_invoice_total') }}</label></div>@enderror<div class="rounded-xl border border-amber-400/20 bg-amber-500/10 p-4 text-sm text-amber-100">{{ __('finance.messages.invoice_immutable_warning') }}</div><div class="flex justify-end"><button wire:confirm="{{ __('finance.messages.invoice_immutable_warning') }}" class="pill-link pill-link--accent">{{ __('finance.actions.finalise') }}</button></div></form>
+            @endif
+        @endif
+    </x-admin.modal>
+
+    <x-admin.modal :show="$viewingInvoiceId !== null" :title="__('finance.actions.view_invoice')" close-method="$set('viewingInvoiceId', null)" max-width="5xl">@if ($viewingInvoice)<div class="grid gap-3 md:grid-cols-3"><div><div class="kpi-label">{{ __('finance.fields.invoice_no') }}</div><div class="mt-1 text-white">{{ $viewingInvoice->invoice_no }}</div></div><div><div class="kpi-label">{{ __('finance.fields.original_invoice_no') }}</div><div class="mt-1 text-white">{{ $viewingInvoice->original_invoice_no }}</div></div><div><div class="kpi-label">{{ __('finance.fields.invoice_issuer') }}</div><div class="mt-1 text-white">{{ $viewingInvoice->invoicer_name }}</div></div></div><div class="mt-5 overflow-x-auto"><table class="text-sm"><thead><tr><th class="px-4 py-3 text-left">{{ __('finance.fields.item_name') }}</th><th class="px-4 py-3 text-left">{{ __('finance.fields.quantity') }}</th><th class="px-4 py-3 text-left">{{ __('finance.fields.unit_price') }}</th><th class="px-4 py-3 text-left">{{ __('finance.fields.amount') }}</th></tr></thead><tbody>@foreach ($viewingInvoice->items as $item)<tr><td class="px-4 py-3">{{ $item->item_name }}</td><td class="px-4 py-3">{{ $item->quantity }}</td><td class="px-4 py-3">{{ $item->unit_price }}</td><td class="px-4 py-3">{{ $item->amount }}</td></tr>@endforeach</tbody></table></div><div class="mt-5 flex flex-wrap justify-end gap-3">@if ($viewingInvoice->original_image_path)<a href="{{ asset('storage/'.$viewingInvoice->original_image_path) }}" target="_blank" class="pill-link">{{ __('finance.actions.view_original') }}</a>@endif<a href="{{ route('finance.invoices.print', $viewingInvoice) }}" target="_blank" class="pill-link pill-link--accent">{{ __('finance.actions.print_a5') }}</a></div>@endif</x-admin.modal>
 </div>
