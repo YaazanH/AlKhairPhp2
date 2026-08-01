@@ -215,16 +215,10 @@ new class extends Component {
                 <p class="mt-3 text-sm leading-7 text-neutral-300">{{ __('reports.attendance.days_recorded', ['count' => number_format($report['attendance']['days_recorded'])]) }}</p>
             </div>
 
-            <div class="mb-4 grid gap-3 md:grid-cols-2">
+            <div class="mb-4">
                 <div class="rounded-2xl border border-white/8 bg-white/4 p-4">
                     <div class="kpi-label">{{ __('reports.attendance.average_present') }}</div>
-                    <div class="mt-3 text-2xl font-semibold text-white">{{ number_format($report['attendance']['average_present_per_day'], 2) }}</div>
-                </div>
-                <div class="rounded-2xl border border-white/8 bg-white/4 p-4">
-                    <div class="kpi-label">{{ __('reports.attendance.selected_day_present') }}</div>
-                    <div class="mt-3 text-2xl font-semibold text-white">
-                        {{ $report['attendance']['selected_day_present_count'] === null ? __('reports.attendance.select_single_day') : number_format($report['attendance']['selected_day_present_count']) }}
-                    </div>
+                    <div class="mt-3 text-2xl font-semibold text-white">{{ number_format($report['attendance']['average_present_per_day']) }}</div>
                 </div>
             </div>
 
@@ -232,7 +226,7 @@ new class extends Component {
                 @foreach ($report['attendance']['breakdown'] as $status)
                     <div class="flex items-center justify-between rounded-2xl border border-white/8 bg-white/4 px-4 py-3 text-sm">
                         <span class="text-neutral-200">{{ $status['name'] }}</span>
-                        <span class="font-semibold text-white">{{ number_format($status['count'], $report['attendance']['single_date_selected'] ? 0 : 2) }}</span>
+                        <span class="font-semibold text-white">{{ number_format($status['count']) }}</span>
                     </div>
                 @endforeach
             </div>

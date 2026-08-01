@@ -73,7 +73,9 @@ new class extends Component {
             'stats' => [
                 'teachers' => $teacherRecords->count(),
                 'scheduled' => count(array_intersect($existingTeacherIds, $scheduledTeacherIds)),
-                'marked' => $teacherRecords->filter(fn (TeacherAttendanceRecord $record) => filled($record->attendance_status_id))->count(),
+                'marked' => $teacherRecords
+                    ->filter(fn (TeacherAttendanceRecord $record) => (bool) $record->status?->is_present)
+                    ->count(),
             ],
         ];
     }

@@ -443,7 +443,7 @@ class FinanceService
             return $formatted;
         }
 
-        $sign = $numericAmount < 0 ? '-' : '+';
+        $sign = $numericAmount < 0 ? '-' : '';
         $currencyLabel = $currency?->symbol ?: $currency?->code;
 
         return trim($sign.$formatted.($currencyLabel ? ' '.$currencyLabel : ''));

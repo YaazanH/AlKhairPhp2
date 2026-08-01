@@ -284,7 +284,7 @@ return [
                 'headers' => [
                     'date' => 'Date',
                     'teachers' => 'Teachers',
-                    'marked' => 'Marked teachers',
+                    'marked' => 'Attendees',
                     'status' => 'Status',
                     'actions' => 'Actions',
                 ],
@@ -298,7 +298,7 @@ return [
             'stats' => [
                 'scheduled' => 'Scheduled teachers',
                 'teachers' => 'Teachers in day',
-                'marked' => 'Marked teachers',
+                'marked' => 'Attendees',
             ],
             'manual_add' => [
                 'title' => 'Add extra teacher',

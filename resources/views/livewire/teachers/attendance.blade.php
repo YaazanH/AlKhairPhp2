@@ -40,7 +40,8 @@ new class extends Component {
         $daysQuery = $this->scopeTeacherAttendanceDaysQuery(
             TeacherAttendanceDay::query()->withCount([
                 'records',
-                'records as marked_records_count' => fn (Builder $query) => $query->whereNotNull('attendance_status_id'),
+                'records as present_records_count' => fn (Builder $query) => $query
+                    ->whereHas('status', fn (Builder $statusQuery) => $statusQuery->where('is_present', true)),
             ])
         )
             ->when(filled($this->search), fn (Builder $query) => $query->whereDate('attendance_date', $this->search))
@@ -297,13 +298,13 @@ new class extends Component {
                         @foreach ($days as $day)
                             <tr>
                                 <td class="px-5 py-4 text-white lg:px-6">
-                                    <div class="flex flex-wrap items-center gap-2 font-semibold">
-                                        <span>{{ $day->attendance_date?->format('d-m-Y') }}</span>
+                                    <div class="flex flex-col items-start font-semibold">
                                         <span class="text-xs font-medium text-neutral-400">{{ $day->attendance_date?->locale(app()->getLocale())->translatedFormat('l') }}</span>
+                                        <span class="mt-1">{{ $day->attendance_date?->format('d-m-Y') }}</span>
                                     </div>
                                 </td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ number_format((int) $day->records_count) }}</td>
-                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ number_format((int) $day->marked_records_count) }}</td>
+                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ number_format((int) $day->present_records_count) }}</td>
                                 <td class="px-5 py-4 lg:px-6">
                                     <span class="{{ $day->status === 'closed' ? 'status-chip status-chip--emerald' : 'status-chip status-chip--slate' }}">
                                         {{ __('workflow.common.day_status.'.$day->status) }}

@@ -97,6 +97,13 @@ new class extends Component {
 @php
     $rangeOne = Carbon::parse($first_date_from)->format('d-m-Y').' → '.Carbon::parse($first_date_to)->format('d-m-Y');
     $rangeTwo = Carbon::parse($second_date_from)->format('d-m-Y').' → '.Carbon::parse($second_date_to)->format('d-m-Y');
+    $movementMeta = [
+        'up' => ['class' => 'ranking-movement-badge--up', 'icon' => '▲'],
+        'down' => ['class' => 'ranking-movement-badge--down', 'icon' => '▼'],
+        'same' => ['class' => 'ranking-movement-badge--same', 'icon' => '—'],
+        'new' => ['class' => 'ranking-movement-badge--new', 'icon' => '✦'],
+        'dropped' => ['class' => 'ranking-movement-badge--dropped', 'icon' => '•'],
+    ];
 @endphp
 
 <div class="page-stack">
@@ -153,12 +160,24 @@ new class extends Component {
                     </tr></thead>
                     <tbody class="divide-y divide-white/6">
                     @foreach ($ranking['comparison']['rows'] as $row)
+                        @php($movement = $movementMeta[$row['movement_state']])
                         <tr>
                             <td class="px-5 py-4 font-semibold text-white">{{ $row['display_rank'] ? '#'.$row['display_rank'] : '—' }}</td>
                             <td class="px-5 py-4 text-white">{{ $row['entity_name'] }}</td>
                             <td class="px-5 py-4">{{ number_format($row['first_pages']) }} / {{ number_format($row['first_sessions']) }}</td>
                             <td class="px-5 py-4">{{ number_format($row['second_pages']) }} / {{ number_format($row['second_sessions']) }}</td>
-                            <td class="px-5 py-4">{{ __('reports.rankings.movement.'.$row['movement_state']) }}@if ($row['movement_steps']) ({{ $row['movement_steps'] }})@endif</td>
+                            <td class="px-5 py-4">
+                                <span class="ranking-movement-badge {{ $movement['class'] }}">
+                                    <span aria-hidden="true">{{ $movement['icon'] }}</span>
+                                    @if ($row['movement_state'] === 'up')
+                                        {{ __('reports.rankings.movement.up_steps', ['count' => number_format($row['movement_steps'])]) }}
+                                    @elseif ($row['movement_state'] === 'down')
+                                        {{ __('reports.rankings.movement.down_steps', ['count' => number_format($row['movement_steps'])]) }}
+                                    @else
+                                        {{ __('reports.rankings.movement.'.$row['movement_state']) }}
+                                    @endif
+                                </span>
+                            </td>
                         </tr>
                     @endforeach
                     </tbody>

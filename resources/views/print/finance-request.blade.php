@@ -12,7 +12,7 @@
                     <div class="admin-toolbar__title">{{ $request->request_no }}</div>
                     <p class="admin-toolbar__subtitle">
                         {{ ucfirst($request->type) }} |
-                        {{ app(\App\Services\FinanceService::class)->formatCurrencyAmount($request->accepted_amount, $request->acceptedCurrency) }}
+                        <bdi dir="ltr">{{ app(\App\Services\FinanceService::class)->formatCurrencyAmount($request->accepted_amount, $request->acceptedCurrency) }}</bdi>
                     </p>
                 </div>
             </div>

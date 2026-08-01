@@ -83,13 +83,13 @@
                                     $actualAmount = $request->accepted_amount ?? $request->requested_amount;
                                     $actualCurrency = $request->accepted_amount !== null ? $request->acceptedCurrency : $request->requestedCurrency;
                                 @endphp
-                                <div class="text-base font-semibold text-white">{{ app(\App\Services\FinanceService::class)->formatCurrencyAmount($actualAmount, $actualCurrency) }}</div>
+                                <div class="text-base font-semibold text-white"><bdi dir="ltr">{{ app(\App\Services\FinanceService::class)->formatCurrencyAmount($actualAmount, $actualCurrency) }}</bdi></div>
                             @else
                                 @if ($request->accepted_amount !== null)
-                                    <div class="text-base font-semibold text-white">{{ __('finance.fields.accepted') }}: {{ app(\App\Services\FinanceService::class)->formatCurrencyAmount($request->accepted_amount, $request->acceptedCurrency) }}</div>
-                                    <div class="mt-1 text-xs text-neutral-500">{{ __('finance.fields.requested') }}: {{ app(\App\Services\FinanceService::class)->formatCurrencyAmount($request->requested_amount, $request->requestedCurrency) }}</div>
+                                    <div class="text-base font-semibold text-white">{{ __('finance.fields.accepted') }}: <bdi dir="ltr">{{ app(\App\Services\FinanceService::class)->formatCurrencyAmount($request->accepted_amount, $request->acceptedCurrency) }}</bdi></div>
+                                    <div class="mt-1 text-xs text-neutral-500">{{ __('finance.fields.requested') }}: <bdi dir="ltr">{{ app(\App\Services\FinanceService::class)->formatCurrencyAmount($request->requested_amount, $request->requestedCurrency) }}</bdi></div>
                                 @else
-                                    <div class="text-base font-semibold text-white">{{ __('finance.fields.requested') }}: {{ app(\App\Services\FinanceService::class)->formatCurrencyAmount($request->requested_amount, $request->requestedCurrency) }}</div>
+                                    <div class="text-base font-semibold text-white">{{ __('finance.fields.requested') }}: <bdi dir="ltr">{{ app(\App\Services\FinanceService::class)->formatCurrencyAmount($request->requested_amount, $request->requestedCurrency) }}</bdi></div>
                                     <div class="mt-1 text-xs text-neutral-500">{{ __('finance.fields.accepted') }}: -</div>
                                 @endif
                             @endif

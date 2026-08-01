@@ -479,7 +479,8 @@ class FinanceAndActivitiesTest extends TestCase
         $this->assertSame(0, $localCurrency->decimal_places);
         $this->assertSame('12,800', $financeService->currencyRateInput($localCurrency));
         $this->assertSame('1 USD = 12,800 SYP', $financeService->currencyRateLabel($localCurrency));
-        $this->assertSame('+1,235 SYP', $financeService->formatCurrencyAmount(1234.56, $localCurrency));
+        $this->assertSame('1,235 SYP', $financeService->formatCurrencyAmount(1234.56, $localCurrency));
+        $this->assertSame('-1,235 SYP', $financeService->formatCurrencyAmount(-1234.56, $localCurrency));
 
         Volt::test('settings.finance')
             ->call('editCurrency', $localCurrency->id)

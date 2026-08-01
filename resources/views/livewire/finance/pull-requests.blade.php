@@ -466,7 +466,7 @@ new class extends Component {
             <div class="grid gap-3 md:grid-cols-3">
                 <div class="rounded-3xl border border-white/10 bg-white/[0.04] p-4">
                     <div class="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">{{ __('finance.fields.requested') }}</div>
-                    <div class="mt-2 text-2xl font-semibold text-white">{{ app(FinanceService::class)->formatCurrencyAmount($reviewRequest->requested_amount, $reviewRequest->requestedCurrency) }}</div>
+                    <div class="mt-2 text-2xl font-semibold text-white"><bdi dir="ltr">{{ app(FinanceService::class)->formatCurrencyAmount($reviewRequest->requested_amount, $reviewRequest->requestedCurrency) }}</bdi></div>
                     @if ($reviewIsCount)
                         <div class="mt-1 text-sm text-neutral-400">{{ __('finance.fields.people_count') }}: {{ number_format((float) $reviewRequest->requested_count) }}</div>
                     @endif
@@ -544,7 +544,7 @@ new class extends Component {
             <div class="grid gap-3 md:grid-cols-3">
                 <div class="rounded-3xl border border-white/10 bg-white/[0.04] p-4">
                     <div class="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">{{ __('finance.fields.accepted') }}</div>
-                    <div class="mt-2 text-2xl font-semibold text-white">{{ app(FinanceService::class)->formatCurrencyAmount($settlementRequest->accepted_amount, $settlementRequest->acceptedCurrency) }}</div>
+                    <div class="mt-2 text-2xl font-semibold text-white"><bdi dir="ltr">{{ app(FinanceService::class)->formatCurrencyAmount($settlementRequest->accepted_amount, $settlementRequest->acceptedCurrency) }}</bdi></div>
                 </div>
                 <div class="rounded-3xl border border-white/10 bg-white/[0.04] p-4">
                     <div class="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">{{ __('finance.fields.people_count') }}</div>
@@ -598,10 +598,10 @@ new class extends Component {
                             <td class="px-5 py-3"><div>{{ $request->pullRequestKind?->name ?: '-' }}</div><div class="text-xs text-neutral-500">{{ $request->pullRequestKind ? __('finance.pull_modes.'.$request->pullRequestKind->mode) : '-' }}</div></td>
                             <td class="px-5 py-3">
                                 @if ($request->accepted_amount !== null)
-                                    <div class="text-base font-semibold text-white">{{ __('finance.fields.accepted') }}: {{ app(FinanceService::class)->formatCurrencyAmount($request->accepted_amount, $request->acceptedCurrency) }}</div>
-                                    <div class="mt-1 text-xs text-neutral-500">{{ __('finance.fields.requested') }}: {{ app(FinanceService::class)->formatCurrencyAmount($request->requested_amount, $request->requestedCurrency) }}</div>
+                                    <div class="text-base font-semibold text-white">{{ __('finance.fields.accepted') }}: <bdi dir="ltr">{{ app(FinanceService::class)->formatCurrencyAmount($request->accepted_amount, $request->acceptedCurrency) }}</bdi></div>
+                                    <div class="mt-1 text-xs text-neutral-500">{{ __('finance.fields.requested') }}: <bdi dir="ltr">{{ app(FinanceService::class)->formatCurrencyAmount($request->requested_amount, $request->requestedCurrency) }}</bdi></div>
                                 @else
-                                    <div class="text-base font-semibold text-white">{{ __('finance.fields.requested') }}: {{ app(FinanceService::class)->formatCurrencyAmount($request->requested_amount, $request->requestedCurrency) }}</div>
+                                    <div class="text-base font-semibold text-white">{{ __('finance.fields.requested') }}: <bdi dir="ltr">{{ app(FinanceService::class)->formatCurrencyAmount($request->requested_amount, $request->requestedCurrency) }}</bdi></div>
                                     <div class="mt-1 text-xs text-neutral-500">{{ __('finance.fields.accepted') }}: -</div>
                                 @endif
                                 @if($request->requested_count)<div class="text-xs text-neutral-500">{{ __('finance.fields.people_count') }}: {{ number_format((float) ($request->accepted_count ?: $request->requested_count)) }}</div>@endif

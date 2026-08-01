@@ -262,7 +262,7 @@ class ReportingService
             ->get(['id', 'name', 'code']);
 
         return [
-            'average_present_per_day' => $daysRecorded > 0 ? $this->decimal($presentCount / $daysRecorded) : 0.0,
+            'average_present_per_day' => $daysRecorded > 0 ? (float) ceil($presentCount / $daysRecorded) : 0.0,
             'days_recorded' => $daysRecorded,
             'present_count' => $presentCount,
             'selected_day_present_count' => $filters['date_from'] && $filters['date_from'] === $filters['date_to']
@@ -274,7 +274,7 @@ class ReportingService
                     'code' => $status->code,
                     'count' => $singleDateSelected
                         ? (int) ($statusCounts[$status->id] ?? 0)
-                        : ($daysRecorded > 0 ? $this->decimal(((int) ($statusCounts[$status->id] ?? 0)) / $daysRecorded) : 0.0),
+                        : ($daysRecorded > 0 ? (float) ceil(((int) ($statusCounts[$status->id] ?? 0)) / $daysRecorded) : 0.0),
                     'name' => $status->name,
                 ])
                 ->values()
