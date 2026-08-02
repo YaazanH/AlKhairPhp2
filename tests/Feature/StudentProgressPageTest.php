@@ -232,7 +232,7 @@ class StudentProgressPageTest extends TestCase
             ->assertSeeText('اختر طالباً من الأعلى لعرض صفحة التقدم الكاملة.');
     }
 
-    public function test_final_attempt_finishes_juz_and_exposes_awqaf_action_even_with_missing_pages(): void
+    public function test_finished_juz_uses_quick_awqaf_action_and_hides_completed_actions(): void
     {
         $this->seed(RoleSeeder::class);
         [, $student] = $this->makeScopedProgressData();
@@ -262,8 +262,33 @@ class StudentProgressPageTest extends TestCase
 
         Volt::test('students.progress', ['student' => $student])
             ->assertSeeText(__('workflow.student_progress.juz_progress.statuses.finished'))
-            ->assertSeeText('0/4')
-            ->assertSeeText(__('workflow.student_progress.juz_progress.add_awqaf_test'));
+            ->assertDontSeeText('0/4')
+            ->assertDontSeeText(__('workflow.student_progress.juz_progress.show_missing'))
+            ->assertSeeText(__('workflow.student_progress.juz_progress.add_awqaf_test'))
+            ->call('openAwqafTest', $enrollment->id, $juz->id)
+            ->assertSet('showAwqafTestModal', true)
+            ->set('awqafTestedOn', '2026-09-16')
+            ->set('awqafScore', '60')
+            ->set('awqafStatus', 'failed')
+            ->call('saveAwqafTest')
+            ->assertHasNoErrors()
+            ->assertSet('showAwqafTestModal', false)
+            ->assertSeeText(__('workflow.student_progress.juz_progress.add_awqaf_test'))
+            ->call('openAwqafTest', $enrollment->id, $juz->id)
+            ->set('awqafTestedOn', '2026-09-17')
+            ->set('awqafScore', '88')
+            ->set('awqafStatus', 'passed')
+            ->call('saveAwqafTest')
+            ->assertHasNoErrors()
+            ->assertDontSeeText(__('workflow.student_progress.juz_progress.add_awqaf_test'));
+
+        $this->assertDatabaseHas('quran_tests', [
+            'enrollment_id' => $enrollment->id,
+            'juz_id' => $juz->id,
+            'score' => 88,
+            'status' => 'passed',
+            'attempt_no' => 2,
+        ]);
     }
 
     private function makeScopedProgressData(): array
@@ -347,6 +372,12 @@ class StudentProgressPageTest extends TestCase
             'name' => 'Partial',
             'code' => 'partial',
             'sort_order' => 1,
+            'is_active' => true,
+        ]);
+        QuranTestType::create([
+            'name' => 'Awqaf',
+            'code' => 'awqaf',
+            'sort_order' => 3,
             'is_active' => true,
         ]);
 

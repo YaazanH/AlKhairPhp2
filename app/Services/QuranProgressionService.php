@@ -54,6 +54,7 @@ class QuranProgressionService
                 ->where('student_id', $enrollment->student_id)
                 ->where('juz_id', $juzId)
                 ->whereHas('type', fn ($query) => $query->where('code', 'awqaf'))
+                ->where('status', 'passed')
                 ->exists();
 
             if ($existingAwqaf) {
@@ -82,6 +83,7 @@ class QuranProgressionService
         $recordedAwqafJuzIds = QuranTest::query()
             ->where('student_id', $studentId)
             ->whereHas('type', fn ($query) => $query->where('code', 'awqaf'))
+            ->where('status', 'passed')
             ->pluck('juz_id')
             ->map(fn ($id) => (int) $id);
 
