@@ -40,7 +40,9 @@ class FinanceRequestPrintController extends Controller
 
         $defaultTemplate = $this->defaultTemplateFor($financeRequest, $templates);
 
-        if (! request()->boolean('choose') && $defaultTemplate) {
+        $isIncome = in_array($financeRequest->type, [FinanceRequest::TYPE_REVENUE, FinanceRequest::TYPE_RETURN], true);
+
+        if ($defaultTemplate && ($isIncome || ! request()->boolean('choose'))) {
             return $this->previewWithTemplate($financeRequest, $defaultTemplate);
         }
 
@@ -60,10 +62,20 @@ class FinanceRequestPrintController extends Controller
         $templateId = (int) (AppSetting::groupValues('finance')->get($this->defaultTemplateSettingKey($financeRequest->type)) ?: 0);
 
         if ($templateId <= 0) {
-            return null;
+            return in_array($financeRequest->type, [FinanceRequest::TYPE_REVENUE, FinanceRequest::TYPE_RETURN], true)
+                ? $templates->first()
+                : null;
         }
 
-        return $templates->firstWhere('id', $templateId);
+        $configured = $templates->firstWhere('id', $templateId);
+
+        if ($configured) {
+            return $configured;
+        }
+
+        return in_array($financeRequest->type, [FinanceRequest::TYPE_REVENUE, FinanceRequest::TYPE_RETURN], true)
+            ? $templates->first()
+            : null;
     }
 
     protected function defaultTemplateSettingKey(string $type): string

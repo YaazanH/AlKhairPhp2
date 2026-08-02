@@ -253,6 +253,7 @@ class FinanceAndActivitiesTest extends TestCase
         $cashBox = FinanceCashBox::query()->firstOrFail();
 
         $this->actingAs($manager);
+        AppSetting::storeValue('finance', 'expense_request_prefix', 'DBIT', 'string');
         app(FinanceService::class)->postTransaction([
             'cash_box_id' => $cashBox->id,
             'currency_id' => app(FinanceService::class)->localCurrency()->id,
@@ -275,10 +276,13 @@ class FinanceAndActivitiesTest extends TestCase
         $this->assertSame(FinanceRequest::STATUS_ACCEPTED, $request->status);
         $this->assertSame('1075.00', $request->accepted_amount);
         $this->assertSame($cashBox->id, $request->cash_box_id);
+        $this->assertSame('DBIT-000001', $request->expense_no);
         $this->assertDatabaseHas('finance_transactions', [
             'finance_request_id' => $request->id,
             'cash_box_id' => $cashBox->id,
             'type' => 'pull_request',
+            'special_transaction_no' => 'DBIT-000001',
+            'description' => 'Class materials',
             'signed_amount' => -1075,
         ]);
 
@@ -438,6 +442,11 @@ class FinanceAndActivitiesTest extends TestCase
             ->assertSee($revenueRequest->request_no)
             ->assertSee(now()->format('Y-m-d'))
             ->assertSee('Page 1');
+
+        $this->get(route('finance.requests.print', ['financeRequest' => $revenueRequest, 'choose' => 1]))
+            ->assertOk()
+            ->assertSee('Revenue Receipt')
+            ->assertDontSee(__('finance.print.title'));
     }
 
     public function test_finance_settings_currency_and_cash_box_rules(): void

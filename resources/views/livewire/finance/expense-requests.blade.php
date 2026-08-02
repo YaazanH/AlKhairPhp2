@@ -5,7 +5,6 @@ use App\Livewire\Concerns\FormatsFinanceNumbers;
 use App\Livewire\Concerns\HandlesFinanceRequestMaintenance;
 use App\Livewire\Concerns\SupportsCreateAndNew;
 use App\Models\FinanceCurrency;
-use App\Models\FinanceCategory;
 use App\Models\FinancePullRequestKind;
 use App\Models\FinanceRequest;
 use App\Models\FinanceRequestAttachment;
@@ -31,7 +30,6 @@ new class extends Component {
     public ?int $currency_id = null;
     public ?int $cash_box_id = null;
     public ?int $finance_pull_request_kind_id = null;
-    public ?int $finance_category_id = null;
     public string $requested_reason = '';
     public array $attachments = [];
     public array $review_amounts = [];
@@ -70,7 +68,6 @@ new class extends Component {
                 ->all(),
             'currencies' => app(FinanceService::class)->currenciesForCashBox($this->cash_box_id)->get(),
             'pullKinds' => FinancePullRequestKind::query()->where('is_active', true)->orderBy('mode')->orderBy('name')->get(),
-            'expenseCategories' => FinanceCategory::query()->where('is_active', true)->whereIn('type', ['expense', 'management'])->orderBy('name')->get(),
             'requests' => FinanceRequest::query()
                 ->with(['activity', 'cashBox', 'category', 'invoice.items', 'postedTransaction', 'pullRequestKind', 'requestedBy', 'reviewedBy', 'teacher', 'requestedCurrency', 'acceptedCurrency', 'attachments'])
                 ->where(function ($query): void {
@@ -114,7 +111,6 @@ new class extends Component {
             'cash_box_id' => [$canReview ? 'required' : 'nullable', 'exists:finance_cash_boxes,id'],
             'currency_id' => ['required', 'exists:finance_currencies,id'],
             'finance_pull_request_kind_id' => ['required', 'exists:finance_pull_request_kinds,id'],
-            'finance_category_id' => ['required', 'exists:finance_categories,id'],
             'request_date' => [auth()->user()?->can('finance.entries.update') ? 'required' : 'nullable', 'date'],
             'requested_reason' => ['nullable', 'string', 'max:2000'],
         ]);
@@ -126,7 +122,6 @@ new class extends Component {
             'finance_pull_request_kind_id' => $validated['finance_pull_request_kind_id'],
             'requested_currency_id' => $validated['currency_id'],
             'requested_amount' => $validated['amount'],
-            'finance_category_id' => $validated['finance_category_id'],
             'requested_by' => auth()->id(),
             'requested_reason' => $validated['requested_reason'] ?: null,
         ]);
@@ -253,7 +248,6 @@ new class extends Component {
         $this->currency_id = app(FinanceService::class)->localCurrency()->id;
         $this->cash_box_id = app(FinanceService::class)->defaultCashBoxForUser(auth()->user(), $this->currency_id)?->id;
         $this->finance_pull_request_kind_id = app(FinanceService::class)->defaultPullRequestKindId();
-        $this->finance_category_id = FinanceCategory::query()->where('is_active', true)->whereIn('type', ['expense', 'management'])->orderBy('name')->value('id');
         $this->requested_reason = '';
         $this->attachments = [];
 
@@ -416,8 +410,7 @@ new class extends Component {
         max-width="5xl"
     >
         <form wire:submit="submitRequest" class="grid gap-4 lg:grid-cols-3">
-            <div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.expense_kind') }}</label><select wire:model="finance_pull_request_kind_id" class="w-full rounded-xl px-4 py-3 text-sm"><option value="">{{ __('finance.actions.choose_expense_kind') }}</option>@foreach ($pullKinds as $kind)<option value="{{ $kind->id }}">{{ $kind->name }} - {{ __('finance.pull_modes.'.$kind->mode) }}</option>@endforeach</select>@error('finance_pull_request_kind_id') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
-            <div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.category') }}</label><select wire:model="finance_category_id" class="w-full rounded-xl px-4 py-3 text-sm"><option value="">{{ __('finance.actions.choose_category') }}</option>@foreach ($expenseCategories as $category)<option value="{{ $category->id }}">{{ $category->name }}</option>@endforeach</select>@error('finance_category_id') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
+            <div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.category') }}</label><select wire:model="finance_pull_request_kind_id" class="w-full rounded-xl px-4 py-3 text-sm"><option value="">{{ __('finance.actions.choose_expense_kind') }}</option>@foreach ($pullKinds as $kind)<option value="{{ $kind->id }}">{{ $kind->name }} - {{ __('finance.pull_modes.'.$kind->mode) }}</option>@endforeach</select>@error('finance_pull_request_kind_id') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
             <div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.amount') }}</label><input wire:model="amount" type="text" inputmode="decimal" data-thousand-separator class="w-full rounded-xl px-4 py-3 text-sm">@error('amount') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
             <div><label class="mb-1 block text-sm font-medium">{{ __('finance.common.currency') }}</label><select wire:model="currency_id" class="w-full rounded-xl px-4 py-3 text-sm">@foreach ($currencies as $currency)<option value="{{ $currency->id }}">{{ $currency->code }}</option>@endforeach</select></div>
             @can('finance.entries.update')<div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.entry_date') }}</label><input wire:model="request_date" type="date" class="w-full rounded-xl px-4 py-3 text-sm">@error('request_date') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>@endcan
@@ -435,7 +428,7 @@ new class extends Component {
     <section class="surface-table">
         <div class="admin-grid-meta"><div><div class="admin-grid-meta__title">{{ __('finance.expense_requests.title') }}</div><div class="admin-grid-meta__summary">{{ __('crud.common.badges.in_view', ['count' => number_format($requests->total())]) }}</div></div>@can('finance.expense-requests.create')<button wire:click="openCreateModal" class="pill-link pill-link--accent">{{ __('finance.expense_requests.new') }}</button>@endcan</div>
         <div class="overflow-x-auto"><table class="text-sm"><thead><tr><th class="px-4 py-3 text-left">{{ __('finance.fields.expense_no') }}</th><th class="px-4 py-3 text-left">{{ __('finance.fields.category') }}</th><th class="px-4 py-3 text-left">{{ __('finance.common.description') }}</th><th class="px-4 py-3 text-left">{{ __('finance.fields.amount') }}</th><th class="px-4 py-3 text-left">{{ __('finance.common.status') }}</th><th class="px-4 py-3 text-right">{{ __('finance.actions.actions') }}</th></tr></thead><tbody class="divide-y divide-white/6">
-            @forelse ($requests as $request)<tr><td class="px-4 py-3"><div class="font-semibold text-white">{{ $request->expense_no ?: $request->request_no }}</div><div class="text-xs text-neutral-500">{{ $request->postedTransaction?->transaction_date?->format('d-m-Y') }} · {{ __('finance.fields.approved_by') }} {{ $request->reviewedBy?->name ?: '-' }}</div></td><td class="px-4 py-3"><div>{{ $request->category?->name ?: '-' }}</div><div class="text-xs text-neutral-500">{{ $request->pullRequestKind ? __('finance.pull_modes.'.$request->pullRequestKind->mode) : '-' }}</div></td><td class="px-4 py-3"><div class="max-w-xs">{{ $request->requested_reason ?: '-' }}</div><div class="text-xs text-neutral-500">{{ __('finance.fields.request_no') }}: {{ $request->request_no }}</div></td><td class="px-4 py-3"><bdi dir="ltr" class="font-semibold text-white">{{ app(FinanceService::class)->formatCurrencyAmount($request->accepted_amount, $request->acceptedCurrency) }}</bdi></td><td class="px-4 py-3"><span class="status-chip {{ $request->status === 'settled' ? 'status-chip--emerald' : 'status-chip--amber' }}">{{ $request->status === 'settled' ? __('finance.statuses.settled') : __('finance.statuses.pending') }}</span></td><td class="px-4 py-3"><div class="admin-action-cluster admin-action-cluster--end">@if ($request->status === 'accepted')<button wire:click="openFinaliseModal({{ $request->id }})" class="pill-link pill-link--compact pill-link--accent">{{ __('finance.actions.finalise') }}</button>@endif @if ($request->invoice)<button wire:click="$set('viewingInvoiceId', {{ $request->invoice->id }})" class="pill-link pill-link--compact">{{ __('finance.actions.view_invoice') }}</button>@endif</div></td></tr>
+            @forelse ($requests as $request)<tr><td class="px-4 py-3"><div class="font-semibold text-white">{{ $request->expense_no ?: $request->request_no }}</div><div class="text-xs text-neutral-500">{{ $request->postedTransaction?->transaction_date?->format('d-m-Y') }} · {{ $request->reviewedBy?->name ?: '-' }}</div></td><td class="px-4 py-3"><div>{{ $request->pullRequestKind?->name ?: '-' }}</div><div class="text-xs text-neutral-500">{{ $request->pullRequestKind ? __('finance.pull_modes.'.$request->pullRequestKind->mode) : '-' }}</div></td><td class="px-4 py-3"><div class="max-w-xs">{{ $request->requested_reason ?: '-' }}</div><div class="text-xs text-neutral-500">{{ $request->request_no }} · {{ $request->teacher ? trim($request->teacher->first_name.' '.$request->teacher->last_name) : ($request->requestedBy?->name ?: '-') }}</div></td><td class="px-4 py-3"><bdi dir="ltr" class="font-semibold text-white">{{ app(FinanceService::class)->formatCurrencyAmount($request->accepted_amount, $request->acceptedCurrency) }}</bdi></td><td class="px-4 py-3"><span class="status-chip {{ $request->status === 'settled' ? 'status-chip--emerald' : 'status-chip--amber' }}">{{ $request->status === 'settled' ? __('finance.statuses.settled') : __('finance.statuses.pending') }}</span></td><td class="px-4 py-3"><div class="admin-action-cluster admin-action-cluster--end">@if ($request->status === 'accepted')<button wire:click="openFinaliseModal({{ $request->id }})" class="pill-link pill-link--compact pill-link--accent">{{ __('finance.actions.finalise') }}</button>@endif @if ($request->invoice)<button wire:click="$set('viewingInvoiceId', {{ $request->invoice->id }})" class="pill-link pill-link--compact">{{ __('finance.actions.view_invoice') }}</button>@endif</div></td></tr>
             @empty<tr><td colspan="6" class="px-5 py-10 text-center text-neutral-500">{{ __('finance.empty.no_expenses') }}</td></tr>@endforelse
         </tbody></table></div>@if ($requests->hasPages())<div class="border-t border-white/8 px-5 py-4">{{ $requests->links() }}</div>@endif
     </section>

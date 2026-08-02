@@ -18,7 +18,7 @@
     </style>
 </head>
 <body>
-    <div class="actions"><button onclick="window.print()">{{ __('finance.actions.print') }}</button></div>
+    <div class="actions"><button type="button" onclick="window.print()">{{ __('finance.actions.print') }}</button></div>
     <h1>{{ __('finance.fields.invoice_no') }}: {{ $invoice->invoice_no }}</h1>
     <div class="meta">
         <div>{{ __('finance.fields.original_invoice_no') }}: {{ $invoice->original_invoice_no }}</div>
@@ -31,5 +31,6 @@
         <tbody>@foreach ($invoice->items as $item)<tr><td>{{ $item->item_name }}</td><td>{{ $item->quantity }}</td><td>{{ $item->unit_price }}</td><td>{{ $item->amount }}</td></tr>@endforeach</tbody>
     </table>
     <div class="total"><bdi dir="ltr">{{ app(\App\Services\FinanceService::class)->formatCurrencyAmount($invoice->total, $invoice->financeRequest?->acceptedCurrency) }}</bdi></div>
+    <script>window.addEventListener('load', () => window.print());</script>
 </body>
 </html>

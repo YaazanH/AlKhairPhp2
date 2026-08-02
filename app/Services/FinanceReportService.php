@@ -23,7 +23,7 @@ class FinanceReportService
         $localCurrency = app(FinanceService::class)->localCurrency();
 
         $transactions = FinanceTransaction::query()
-            ->with(['cashBox', 'category', 'currency', 'activity', 'teacher'])
+            ->with(['cashBox', 'category', 'currency', 'activity', 'teacher', 'financeRequest.pullRequestKind'])
             ->whereBetween('transaction_date', [$start->toDateString(), $end->toDateString()])
             ->orderBy('transaction_date')
             ->get();
@@ -44,7 +44,7 @@ class FinanceReportService
             'balances' => app(FinanceService::class)->cashBoxBalances(auth()->user()),
             'category_totals' => $operatingTransactions
                 ->where('local_amount', '<', 0)
-                ->groupBy(fn (FinanceTransaction $transaction) => $transaction->category?->name ?: __('finance.options.uncategorized'))
+                ->groupBy(fn (FinanceTransaction $transaction) => app(FinanceService::class)->transactionCategoryLabel($transaction))
                 ->map(fn ($rows, $category) => [
                     'category' => $category,
                     'expense' => round(abs((float) $rows->where('local_amount', '<', 0)->sum('local_amount')), 2),

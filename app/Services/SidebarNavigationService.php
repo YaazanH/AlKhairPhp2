@@ -61,7 +61,6 @@ class SidebarNavigationService
 
             'activities' => $this->item('ui.nav.activities', 'sparkles', 'activities.index', ['activities.index', 'activities.finance'], 'academics', 40, ['activities.view']),
             'family_activities' => $this->item('ui.nav.family_activities', 'heart', 'activities.family', ['activities.family'], 'academics', 50, ['activities.responses.view']),
-            'invoices' => $this->item('ui.nav.invoices', 'document-currency-dollar', 'invoices.index', ['invoices.*'], 'academics', 60, ['invoices.view']),
             'finance_dashboard' => $this->item('ui.nav.finance_dashboard', 'chart-bar', 'finance.dashboard', ['finance.dashboard', 'finance.cash-box.*'], 'finance', 10, ['finance.reports.view']),
             'finance_expense_requests' => $this->item('ui.nav.finance_expense_requests', 'receipt-refund', 'finance.expense-requests.index', ['finance.expense-requests.*'], 'finance', 20, ['finance.expense-requests.view']),
             'finance_revenue_requests' => $this->item('ui.nav.finance_income', 'receipt-percent', 'finance.revenue-requests.index', ['finance.revenue-requests.*'], 'finance', 30, ['finance.revenue-requests.view']),

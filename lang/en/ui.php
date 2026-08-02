@@ -66,7 +66,7 @@ return [
         'finance_income' => 'Income',
         'finance_cash_box' => 'Fund',
         'finance_expense_requests' => 'Expenses',
-        'finance_revenue_requests' => 'Revenues',
+        'finance_revenue_requests' => 'Income',
         'finance_exchange' => 'Exchange',
         'identity_tools' => 'Identity Tools',
         'print_templates' => 'Print Templates',

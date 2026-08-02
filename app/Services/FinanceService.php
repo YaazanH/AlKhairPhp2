@@ -50,6 +50,17 @@ class FinanceService
         return $label === 'finance.transaction_types.'.$type ? Str::headline($type) : $label;
     }
 
+    public function transactionCategoryLabel(FinanceTransaction $transaction): string
+    {
+        $transaction->loadMissing(['category', 'financeRequest.pullRequestKind']);
+
+        if ($transaction->financeRequest?->pullRequestKind) {
+            return $transaction->financeRequest->pullRequestKind->name;
+        }
+
+        return $transaction->category?->name ?: __('finance.options.uncategorized');
+    }
+
     public function accessibleCashBoxes(?User $user, bool $activeOnly = true): Builder
     {
         $query = FinanceCashBox::query();
@@ -81,6 +92,8 @@ class FinanceService
             $direction = in_array($request->type, [FinanceRequest::TYPE_PULL, FinanceRequest::TYPE_EXPENSE], true) ? 'out' : 'in';
             $reference = $this->financeRequestReference($request);
             $isPull = $request->type === FinanceRequest::TYPE_PULL;
+            $expenseNo = $direction === 'out' ? ($request->expense_no ?: $this->nextExpenseNumber()) : null;
+            $specialTransactionNo = $expenseNo ?: $request->request_no;
 
             $transaction = $this->postTransaction([
                 'cash_box_id' => $cashBox->id,
@@ -92,6 +105,7 @@ class FinanceService
                 'source_type' => FinanceRequest::class,
                 'source_id' => $request->id,
                 'type' => $request->type.'_request',
+                'special_transaction_no' => $specialTransactionNo,
                 'direction' => $direction,
                 'amount' => $acceptedAmount,
                 'transaction_date' => $transactionDate ?: now()->toDateString(),
@@ -120,7 +134,7 @@ class FinanceService
                 'review_notes' => $notes,
                 'reviewed_by' => $reviewer?->id,
                 'status' => FinanceRequest::STATUS_ACCEPTED,
-                'expense_no' => $direction === 'out' ? ($request->expense_no ?: $this->nextExpenseNumber()) : $request->expense_no,
+                'expense_no' => $expenseNo ?: $request->expense_no,
             ]);
 
             if ($request->activity_id) {
@@ -808,13 +822,19 @@ class FinanceService
         $amount = abs((float) ($payload['amount'] ?? 0));
         $signedAmount = $direction === 'out' ? -$amount : $amount;
         $snapshot = $this->amountSnapshot($currency, $signedAmount);
+        $specialTransactionNo = $payload['special_transaction_no'] ?? null;
+
+        if (! $specialTransactionNo && ! empty($payload['finance_request_id'])) {
+            $financeRequest = FinanceRequest::query()->find((int) $payload['finance_request_id']);
+            $specialTransactionNo = $financeRequest?->expense_no ?: $financeRequest?->request_no;
+        }
 
         $this->ensureCashBoxSupportsCurrency($cashBox, $currency);
         $this->ensureNonNegativeBalance($cashBox, $currency, $signedAmount);
 
         return FinanceTransaction::query()->create([
             'transaction_no' => $payload['transaction_no'] ?? $this->nextTransactionNumber(),
-            'special_transaction_no' => $payload['special_transaction_no'] ?? null,
+            'special_transaction_no' => $specialTransactionNo,
             'cash_box_id' => $cashBox->id,
             'currency_id' => $currency->id,
             'finance_category_id' => $payload['finance_category_id'] ?? null,
@@ -865,7 +885,6 @@ class FinanceService
                 'signed_amount' => $signedAmount,
                 'transaction_date' => $payload['transaction_date'],
                 'type' => $payload['type'],
-                'special_transaction_no' => $payload['special_transaction_no'] ?: null,
                 'metadata' => array_merge($transaction->metadata ?? [], [
                     'edited_at' => now()->toISOString(),
                     'edited_by' => $user?->id,

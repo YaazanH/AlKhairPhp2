@@ -88,7 +88,6 @@ new class extends Component {
     public ?int $maintaining_transaction_id = null;
     public bool $maintaining_transaction_deleted = false;
     public string $maint_transaction_date = '';
-    public string $maint_special_transaction_no = '';
     public ?int $maint_cash_box_id = null;
     public ?int $maint_currency_id = null;
     public ?int $maint_category_id = null;
@@ -620,7 +619,6 @@ new class extends Component {
         $this->maintaining_transaction_id = $transaction->id;
         $this->maintaining_transaction_deleted = $transaction->trashed();
         $this->maint_transaction_date = $transaction->transaction_date?->toDateString() ?: '';
-        $this->maint_special_transaction_no = $transaction->special_transaction_no ?: '';
         $this->maint_cash_box_id = $transaction->cash_box_id;
         $this->maint_currency_id = $transaction->currency_id;
         $this->maint_category_id = $transaction->finance_category_id;
@@ -645,7 +643,6 @@ new class extends Component {
             'maint_description' => ['nullable', 'string', 'max:2000'],
             'maint_direction' => ['required', 'in:in,out'],
             'maint_entered_by' => ['nullable', 'exists:users,id'],
-            'maint_special_transaction_no' => ['nullable', 'string', 'max:100'],
             'maint_transaction_date' => ['required', 'date'],
             'maint_type' => ['required', 'string', 'max:50'],
         ]);
@@ -659,7 +656,6 @@ new class extends Component {
             'description' => $validated['maint_description'],
             'direction' => $validated['maint_direction'],
             'entered_by' => $validated['maint_entered_by'],
-            'special_transaction_no' => $validated['maint_special_transaction_no'],
             'transaction_date' => $validated['maint_transaction_date'],
             'type' => $validated['maint_type'],
         ], auth()->user());
@@ -1088,7 +1084,6 @@ new class extends Component {
             @endif
             <form wire:submit="saveTransactionMaintenance" class="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                 <div><label class="mb-1 block text-sm">{{ __('finance.common.date') }}</label><input wire:model="maint_transaction_date" type="date" class="w-full rounded-xl px-4 py-3"></div>
-                <div><label class="mb-1 block text-sm">{{ __('finance.fields.special_transaction_no') }}</label><input wire:model="maint_special_transaction_no" class="w-full rounded-xl px-4 py-3"></div>
                 <div><label class="mb-1 block text-sm">{{ __('finance.fields.cash_box') }}</label><select wire:model="maint_cash_box_id" class="w-full rounded-xl px-4 py-3">@foreach ($cashBoxes as $fund)<option value="{{ $fund->id }}">{{ $fund->name }}</option>@endforeach</select></div>
                 <div><label class="mb-1 block text-sm">{{ __('finance.common.currency') }}</label><select wire:model="maint_currency_id" class="w-full rounded-xl px-4 py-3">@foreach ($currencies as $currency)<option value="{{ $currency->id }}">{{ $currency->code }}</option>@endforeach</select></div>
                 <div><label class="mb-1 block text-sm">{{ __('finance.fields.category') }}</label><select wire:model="maint_category_id" class="w-full rounded-xl px-4 py-3"><option value="">-</option>@foreach ($financeCategories as $category)<option value="{{ $category->id }}">{{ $category->name }}</option>@endforeach</select></div>

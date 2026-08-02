@@ -5,7 +5,6 @@ use App\Livewire\Concerns\FormatsFinanceNumbers;
 use App\Livewire\Concerns\HandlesFinanceRequestMaintenance;
 use App\Livewire\Concerns\SupportsCreateAndNew;
 use App\Models\AppSetting;
-use App\Models\FinanceCategory;
 use App\Models\FinancePullRequestKind;
 use App\Models\FinanceRequest;
 use App\Models\Invoice;
@@ -26,7 +25,6 @@ new class extends Component {
     public string $requested_count = '';
     public string $request_date = '';
     public ?int $finance_pull_request_kind_id = null;
-    public ?int $finance_category_id = null;
     public ?int $cash_box_id = null;
     public ?int $teacher_id = null;
     public string $requested_reason = '';
@@ -54,15 +52,11 @@ new class extends Component {
         $localCurrency = app(FinanceService::class)->localCurrency();
         $canReview = auth()->user()?->can('finance.pull-requests.review') ?? false;
         $kinds = FinancePullRequestKind::query()->where('is_active', true)->orderBy('mode')->orderBy('name')->get();
-        $expenseCategories = FinanceCategory::query()->where('is_active', true)->whereIn('type', ['expense', 'management'])->orderBy('name')->get();
 
         if (! $this->finance_pull_request_kind_id && $kinds->isNotEmpty()) {
             $this->finance_pull_request_kind_id = app(FinanceService::class)->defaultPullRequestKindId() ?: $kinds->first()->id;
         }
 
-        if (! $this->finance_category_id && $expenseCategories->isNotEmpty()) {
-            $this->finance_category_id = $expenseCategories->first()->id;
-        }
 
         return [
             'cashBoxes' => app(FinanceService::class)->accessibleCashBoxesForCurrency(auth()->user(), $localCurrency->id)->get(),
@@ -71,7 +65,6 @@ new class extends Component {
                 ? FinanceRequest::query()->with(['cashBox', 'pullRequestKind', 'requestedBy', 'teacher', 'requestedCurrency', 'acceptedCurrency'])->where('type', FinanceRequest::TYPE_PULL)->find($this->reviewingRequestId)
                 : null,
             'pullKinds' => $kinds,
-            'expenseCategories' => $expenseCategories,
             'selectedPullKind' => $kinds->firstWhere('id', (int) $this->finance_pull_request_kind_id),
             'settlementRequest' => $this->settlingRequestId
                 ? FinanceRequest::query()->with(['cashBox', 'pullRequestKind', 'requestedBy', 'teacher', 'requestedCurrency', 'acceptedCurrency'])->where('type', FinanceRequest::TYPE_PULL)->find($this->settlingRequestId)
@@ -108,7 +101,6 @@ new class extends Component {
         $rules = [
             'cash_box_id' => [$canReview ? 'required' : 'nullable', 'exists:finance_cash_boxes,id'],
             'finance_pull_request_kind_id' => ['required', 'exists:finance_pull_request_kinds,id'],
-            'finance_category_id' => ['required', 'exists:finance_categories,id'],
             'request_date' => [auth()->user()?->can('finance.entries.update') ? 'required' : 'nullable', 'date'],
             'requested_amount' => ['required', 'numeric', 'gt:0'],
             'requested_count' => [$kind->mode === FinancePullRequestKind::MODE_COUNT ? 'required' : 'nullable', 'integer', 'min:1'],
@@ -128,7 +120,6 @@ new class extends Component {
             'type' => FinanceRequest::TYPE_PULL,
             'status' => FinanceRequest::STATUS_PENDING,
             'finance_pull_request_kind_id' => $kind->id,
-            'finance_category_id' => $validated['finance_category_id'],
             'requested_currency_id' => $currency->id,
             'requested_amount' => $validated['requested_amount'],
             'requested_count' => $kind->mode === FinancePullRequestKind::MODE_COUNT ? (int) $validated['requested_count'] : null,
@@ -366,7 +357,6 @@ new class extends Component {
         $this->request_date = now()->toDateString();
         $this->cash_box_id = app(FinanceService::class)->defaultCashBoxForUser(auth()->user(), $localCurrency->id)?->id;
         $this->finance_pull_request_kind_id = app(FinanceService::class)->defaultPullRequestKindId();
-        $this->finance_category_id = FinanceCategory::query()->where('is_active', true)->whereIn('type', ['expense', 'management'])->orderBy('name')->value('id');
         $this->teacher_id = null;
         $this->requested_reason = '';
         $this->accepted_terms = false;
@@ -421,8 +411,7 @@ new class extends Component {
         max-width="5xl"
     >
         <form wire:submit="submitRequest" class="grid gap-4 lg:grid-cols-4">
-            <div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.pull_kind') }}</label><select wire:model.live="finance_pull_request_kind_id" class="w-full rounded-xl px-4 py-3 text-sm">@foreach ($pullKinds as $kind)<option value="{{ $kind->id }}">{{ $kind->name }} - {{ __('finance.pull_modes.'.$kind->mode) }}</option>@endforeach</select>@error('finance_pull_request_kind_id') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
-            <div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.category') }}</label><select wire:model="finance_category_id" class="w-full rounded-xl px-4 py-3 text-sm"><option value="">{{ __('finance.actions.choose_category') }}</option>@foreach ($expenseCategories as $category)<option value="{{ $category->id }}">{{ $category->name }}</option>@endforeach</select>@error('finance_category_id') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
+            <div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.category') }}</label><select wire:model.live="finance_pull_request_kind_id" class="w-full rounded-xl px-4 py-3 text-sm">@foreach ($pullKinds as $kind)<option value="{{ $kind->id }}">{{ $kind->name }} - {{ __('finance.pull_modes.'.$kind->mode) }}</option>@endforeach</select>@error('finance_pull_request_kind_id') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
             <div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.amount') }} ({{ $localCurrency->code }})</label><input wire:model="requested_amount" type="text" inputmode="decimal" data-thousand-separator class="w-full rounded-xl px-4 py-3 text-sm">@error('requested_amount') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
             @can('finance.entries.update')
                 <div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.entry_date') }}</label><input wire:model="request_date" type="date" class="w-full rounded-xl px-4 py-3 text-sm">@error('request_date') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
@@ -606,8 +595,8 @@ new class extends Component {
                     @forelse ($requests as $request)
                         <tr>
                             <td class="px-5 py-3"><div class="font-medium text-white">{{ $request->request_no }}</div><div class="text-xs text-neutral-500">{{ $request->created_at?->format('d-m-Y H:i') }}</div></td>
-                            <td class="px-5 py-3"><div>{{ $request->requestedBy?->name ?: '-' }}</div><div class="text-xs text-neutral-500">{{ $request->teacher ? trim($request->teacher->first_name.' '.$request->teacher->last_name) : '-' }}</div></td>
-                            <td class="px-5 py-3"><div>{{ $request->category?->name ?: '-' }}</div><div class="text-xs text-neutral-500">{{ $request->pullRequestKind?->name ?: '-' }}</div></td>
+                            <td class="px-5 py-3">{{ $request->teacher ? trim($request->teacher->first_name.' '.$request->teacher->last_name) : ($request->requestedBy?->name ?: '-') }}</td>
+                            <td class="px-5 py-3"><div>{{ $request->pullRequestKind?->name ?: '-' }}</div><div class="text-xs text-neutral-500">{{ $request->pullRequestKind ? __('finance.pull_modes.'.$request->pullRequestKind->mode) : '-' }}</div></td>
                             <td class="px-5 py-3">
                                 @if ($request->status === 'declined')
                                     <div class="max-w-xs text-sm leading-5 text-red-200">{{ $request->review_notes ?: __('finance.statuses.declined') }}</div>
