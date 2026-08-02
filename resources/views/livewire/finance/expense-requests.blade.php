@@ -45,6 +45,7 @@ new class extends Component {
     public string $original_invoice_no = '';
     public string $invoice_issuer = '';
     public string $invoice_date = '';
+    public string $invoice_deduction = '0';
     public array $invoice_items = [];
     public mixed $invoice_image = null;
     public bool $confirm_invoice_overage = false;
@@ -273,13 +274,14 @@ new class extends Component {
         $this->final_count = (string) ($request->accepted_count ?: $request->requested_count ?: '');
         $this->remaining_amount = '0';
         $this->invoice_date = now()->toDateString();
+        $this->invoice_deduction = '0';
         $this->invoice_items = [['item_name' => '', 'quantity' => '1', 'unit_price' => '']];
         $this->resetValidation();
     }
 
     public function closeFinaliseModal(): void
     {
-        $this->reset(['finalisingRequestId', 'final_count', 'remaining_amount', 'original_invoice_no', 'invoice_issuer', 'invoice_date', 'invoice_items', 'invoice_image', 'confirm_invoice_overage']);
+        $this->reset(['finalisingRequestId', 'final_count', 'remaining_amount', 'original_invoice_no', 'invoice_issuer', 'invoice_date', 'invoice_deduction', 'invoice_items', 'invoice_image', 'confirm_invoice_overage']);
         $this->resetValidation();
     }
 
@@ -292,6 +294,23 @@ new class extends Component {
     {
         unset($this->invoice_items[$index]);
         $this->invoice_items = array_values($this->invoice_items);
+    }
+
+    public function invoicePreviewTotals(): array
+    {
+        $subtotal = round(collect($this->invoice_items)->sum(function (array $item): float {
+            $quantity = (float) str_replace(',', '', (string) ($item['quantity'] ?? 0));
+            $unitPrice = (float) str_replace(',', '', (string) ($item['unit_price'] ?? 0));
+
+            return $quantity * $unitPrice;
+        }), 2);
+        $deduction = max(0, (float) str_replace(',', '', $this->invoice_deduction ?: '0'));
+
+        return [
+            'subtotal' => $subtotal,
+            'deduction' => $deduction,
+            'grand_total' => max(round($subtotal - $deduction, 2), 0),
+        ];
     }
 
     public function finaliseCountExpense(): void
@@ -319,6 +338,7 @@ new class extends Component {
     public function finaliseInvoiceExpense(): void
     {
         $this->authorizePermission('finance.expense-requests.review');
+        $this->normalizeFinanceNumberProperty('invoice_deduction');
         foreach ($this->invoice_items as $index => $item) {
             $this->invoice_items[$index]['quantity'] = str_replace(',', '', (string) ($item['quantity'] ?? ''));
             $this->invoice_items[$index]['unit_price'] = str_replace(',', '', (string) ($item['unit_price'] ?? ''));
@@ -327,6 +347,7 @@ new class extends Component {
             'original_invoice_no' => ['required', 'string', 'max:255'],
             'invoice_issuer' => ['required', 'string', 'max:255'],
             'invoice_date' => ['required', 'date'],
+            'invoice_deduction' => ['required', 'numeric', 'min:0'],
             'invoice_items' => ['required', 'array', 'min:1'],
             'invoice_items.*.item_name' => ['required', 'string', 'max:255'],
             'invoice_items.*.quantity' => ['required', 'numeric', 'gt:0'],
@@ -335,7 +356,15 @@ new class extends Component {
             'confirm_invoice_overage' => ['boolean'],
         ]);
         $request = FinanceRequest::query()->with('pullRequestKind')->where('status', FinanceRequest::STATUS_ACCEPTED)->findOrFail($this->finalisingRequestId);
-        $total = round(collect($validated['invoice_items'])->sum(fn (array $item) => (float) $item['quantity'] * (float) $item['unit_price']), 2);
+        $subtotal = round(collect($validated['invoice_items'])->sum(fn (array $item) => (float) $item['quantity'] * (float) $item['unit_price']), 2);
+        $deduction = round((float) $validated['invoice_deduction'], 2);
+
+        if ($deduction >= $subtotal) {
+            $this->addError('invoice_deduction', __('finance.validation.deduction_exceeds_subtotal'));
+            return;
+        }
+
+        $total = round($subtotal - $deduction, 2);
 
         if ($total > (float) $request->accepted_amount && ! $validated['confirm_invoice_overage']) {
             $this->addError('confirm_invoice_overage', __('finance.validation.confirm_invoice_overage', ['amount' => app(FinanceService::class)->formatCurrencyAmount($total, $request->acceptedCurrency)]));
@@ -352,8 +381,8 @@ new class extends Component {
             'finance_request_id' => $request->id,
             'issue_date' => $validated['invoice_date'],
             'status' => 'draft',
-            'subtotal' => $total,
-            'discount' => 0,
+            'subtotal' => $subtotal,
+            'discount' => $deduction,
             'total' => $total,
             'original_image_path' => $imagePath,
         ]);
@@ -439,10 +468,11 @@ new class extends Component {
             @if ($finalisingRequest->pullRequestKind?->mode === 'count')
                 <form wire:submit="finaliseCountExpense" class="grid gap-4 md:grid-cols-2"><div><label class="mb-1 block text-sm">{{ __('finance.fields.final_count') }}</label><input wire:model="final_count" data-thousand-separator class="w-full rounded-xl px-4 py-3">@error('final_count')<div class="text-sm text-red-400">{{ $message }}</div>@enderror</div><div><label class="mb-1 block text-sm">{{ __('finance.fields.remaining_amount') }}</label><input wire:model="remaining_amount" data-thousand-separator class="w-full rounded-xl px-4 py-3">@error('remaining_amount')<div class="text-sm text-red-400">{{ $message }}</div>@enderror</div><div class="md:col-span-2 flex justify-end"><button class="pill-link pill-link--accent">{{ __('finance.actions.finalise') }}</button></div></form>
             @else
-                <form wire:submit="finaliseInvoiceExpense" class="space-y-5"><div class="grid gap-4 md:grid-cols-3"><div><label class="mb-1 block text-sm">{{ __('finance.fields.original_invoice_no') }}</label><input wire:model="original_invoice_no" class="w-full rounded-xl px-4 py-3"></div><div><label class="mb-1 block text-sm">{{ __('finance.fields.invoice_issuer') }}</label><input wire:model="invoice_issuer" class="w-full rounded-xl px-4 py-3"></div><div><label class="mb-1 block text-sm">{{ __('finance.common.date') }}</label><input wire:model="invoice_date" type="date" class="w-full rounded-xl px-4 py-3"></div></div><div class="space-y-3">@foreach ($invoice_items as $index => $item)<div class="grid gap-3 md:grid-cols-[1fr_9rem_11rem_auto]"><input wire:model="invoice_items.{{ $index }}.item_name" placeholder="{{ __('finance.fields.item_name') }}" class="rounded-xl px-4 py-3"><input wire:model="invoice_items.{{ $index }}.quantity" data-thousand-separator placeholder="{{ __('finance.fields.quantity') }}" class="rounded-xl px-4 py-3"><input wire:model="invoice_items.{{ $index }}.unit_price" data-thousand-separator placeholder="{{ __('finance.fields.unit_price') }}" class="rounded-xl px-4 py-3"><button type="button" wire:click="removeInvoiceItem({{ $index }})" class="pill-link pill-link--danger">×</button></div>@endforeach<button type="button" wire:click="addInvoiceItem" class="pill-link pill-link--compact">{{ __('finance.actions.add') }}</button></div><div><label class="mb-1 block text-sm">{{ __('finance.fields.original_invoice_image') }}</label><input wire:model="invoice_image" type="file" accept="image/*" class="w-full rounded-xl px-4 py-3"></div>@error('invoice_items')<div class="text-sm text-red-400">{{ $message }}</div>@enderror @error('confirm_invoice_overage')<div class="rounded-xl border border-amber-400/20 bg-amber-500/10 p-4 text-sm text-amber-100">{{ $message }}<label class="mt-3 flex gap-2"><input wire:model="confirm_invoice_overage" type="checkbox">{{ __('finance.messages.use_invoice_total') }}</label></div>@enderror<div class="rounded-xl border border-amber-400/20 bg-amber-500/10 p-4 text-sm text-amber-100">{{ __('finance.messages.invoice_immutable_warning') }}</div><div class="flex justify-end"><button wire:confirm="{{ __('finance.messages.invoice_immutable_warning') }}" class="pill-link pill-link--accent">{{ __('finance.actions.finalise') }}</button></div></form>
+                @php($invoiceTotals = $this->invoicePreviewTotals())
+                <form wire:submit="finaliseInvoiceExpense" class="space-y-5"><div class="grid gap-4 md:grid-cols-3"><div><label class="mb-1 block text-sm">{{ __('finance.fields.original_invoice_no') }}</label><input wire:model="original_invoice_no" class="w-full rounded-xl px-4 py-3"></div><div><label class="mb-1 block text-sm">{{ __('finance.fields.invoice_issuer') }}</label><input wire:model="invoice_issuer" class="w-full rounded-xl px-4 py-3"></div><div><label class="mb-1 block text-sm">{{ __('finance.common.date') }}</label><input wire:model="invoice_date" type="date" class="w-full rounded-xl px-4 py-3"></div></div><div class="space-y-3">@foreach ($invoice_items as $index => $item)<div class="grid gap-3 md:grid-cols-[1fr_9rem_11rem_auto]"><input wire:model="invoice_items.{{ $index }}.item_name" placeholder="{{ __('finance.fields.item_name') }}" class="rounded-xl px-4 py-3"><input wire:model.live.debounce.300ms="invoice_items.{{ $index }}.quantity" data-thousand-separator placeholder="{{ __('finance.fields.quantity') }}" class="rounded-xl px-4 py-3"><input wire:model.live.debounce.300ms="invoice_items.{{ $index }}.unit_price" data-thousand-separator placeholder="{{ __('finance.fields.unit_price') }}" class="rounded-xl px-4 py-3"><button type="button" wire:click="removeInvoiceItem({{ $index }})" class="pill-link pill-link--danger">×</button></div>@endforeach<button type="button" wire:click="addInvoiceItem" class="pill-link pill-link--compact">{{ __('finance.actions.add') }}</button></div><div class="grid gap-4 md:grid-cols-[minmax(0,1fr)_22rem]"><div><label class="mb-1 block text-sm">{{ __('finance.fields.original_invoice_image') }}</label><input wire:model="invoice_image" type="file" accept="image/*" class="w-full rounded-xl px-4 py-3"></div><div><label class="mb-1 block text-sm">{{ __('finance.fields.deduction') }}</label><input wire:model.live.debounce.300ms="invoice_deduction" data-thousand-separator class="w-full rounded-xl px-4 py-3">@error('invoice_deduction')<div class="mt-1 text-sm text-red-400">{{ $message }}</div>@enderror</div></div><div class="grid gap-3 sm:grid-cols-3"><div class="rounded-xl border border-white/8 bg-white/4 p-4"><div class="kpi-label">{{ __('finance.fields.subtotal') }}</div><bdi dir="ltr" class="mt-2 block font-semibold text-white">{{ app(FinanceService::class)->formatCurrencyAmount($invoiceTotals['subtotal'], $finalisingRequest->acceptedCurrency) }}</bdi></div><div class="rounded-xl border border-white/8 bg-white/4 p-4"><div class="kpi-label">{{ __('finance.fields.deduction') }}</div><bdi dir="ltr" class="mt-2 block font-semibold text-white">{{ app(FinanceService::class)->formatCurrencyAmount(-$invoiceTotals['deduction'], $finalisingRequest->acceptedCurrency) }}</bdi></div><div class="rounded-xl border border-emerald-400/20 bg-emerald-500/10 p-4"><div class="kpi-label">{{ __('finance.fields.grand_total') }}</div><bdi dir="ltr" class="mt-2 block font-semibold text-white">{{ app(FinanceService::class)->formatCurrencyAmount($invoiceTotals['grand_total'], $finalisingRequest->acceptedCurrency) }}</bdi></div></div>@error('invoice_items')<div class="text-sm text-red-400">{{ $message }}</div>@enderror @error('confirm_invoice_overage')<div class="rounded-xl border border-amber-400/20 bg-amber-500/10 p-4 text-sm text-amber-100">{{ $message }}<label class="mt-3 flex gap-2"><input wire:model="confirm_invoice_overage" type="checkbox">{{ __('finance.messages.use_invoice_total') }}</label></div>@enderror<div class="rounded-xl border border-amber-400/20 bg-amber-500/10 p-4 text-sm text-amber-100">{{ __('finance.messages.invoice_immutable_warning') }}</div><div class="flex justify-end"><button wire:confirm="{{ __('finance.messages.invoice_immutable_warning') }}" class="pill-link pill-link--accent">{{ __('finance.actions.finalise') }}</button></div></form>
             @endif
         @endif
     </x-admin.modal>
 
-    <x-admin.modal :show="$viewingInvoiceId !== null" :title="__('finance.actions.view_invoice')" close-method="$set('viewingInvoiceId', null)" max-width="5xl">@if ($viewingInvoice)<div class="grid gap-3 md:grid-cols-3"><div><div class="kpi-label">{{ __('finance.fields.invoice_no') }}</div><div class="mt-1 text-white">{{ $viewingInvoice->invoice_no }}</div></div><div><div class="kpi-label">{{ __('finance.fields.original_invoice_no') }}</div><div class="mt-1 text-white">{{ $viewingInvoice->original_invoice_no }}</div></div><div><div class="kpi-label">{{ __('finance.fields.invoice_issuer') }}</div><div class="mt-1 text-white">{{ $viewingInvoice->invoicer_name }}</div></div></div><div class="mt-5 overflow-x-auto"><table class="text-sm"><thead><tr><th class="px-4 py-3 text-left">{{ __('finance.fields.item_name') }}</th><th class="px-4 py-3 text-left">{{ __('finance.fields.quantity') }}</th><th class="px-4 py-3 text-left">{{ __('finance.fields.unit_price') }}</th><th class="px-4 py-3 text-left">{{ __('finance.fields.amount') }}</th></tr></thead><tbody>@foreach ($viewingInvoice->items as $item)<tr><td class="px-4 py-3">{{ $item->item_name }}</td><td class="px-4 py-3">{{ $item->quantity }}</td><td class="px-4 py-3">{{ $item->unit_price }}</td><td class="px-4 py-3">{{ $item->amount }}</td></tr>@endforeach</tbody></table></div><div class="mt-5 flex flex-wrap justify-end gap-3">@if ($viewingInvoice->original_image_path)<a href="{{ asset('storage/'.$viewingInvoice->original_image_path) }}" target="_blank" class="pill-link">{{ __('finance.actions.view_original') }}</a>@endif<a href="{{ route('finance.invoices.print', $viewingInvoice) }}" target="_blank" class="pill-link pill-link--accent">{{ __('finance.actions.print_a5') }}</a></div>@endif</x-admin.modal>
+    <x-admin.modal :show="$viewingInvoiceId !== null" :title="__('finance.actions.view_invoice')" close-method="$set('viewingInvoiceId', null)" max-width="5xl">@if ($viewingInvoice)<div class="grid gap-3 md:grid-cols-3"><div><div class="kpi-label">{{ __('finance.fields.invoice_no') }}</div><div class="mt-1 text-white">{{ $viewingInvoice->invoice_no }}</div></div><div><div class="kpi-label">{{ __('finance.fields.original_invoice_no') }}</div><div class="mt-1 text-white">{{ $viewingInvoice->original_invoice_no }}</div></div><div><div class="kpi-label">{{ __('finance.fields.invoice_issuer') }}</div><div class="mt-1 text-white">{{ $viewingInvoice->invoicer_name }}</div></div></div><div class="mt-5 overflow-x-auto"><table class="text-sm"><thead><tr><th class="px-4 py-3 text-left">{{ __('finance.fields.item_name') }}</th><th class="px-4 py-3 text-left">{{ __('finance.fields.quantity') }}</th><th class="px-4 py-3 text-left">{{ __('finance.fields.unit_price') }}</th><th class="px-4 py-3 text-left">{{ __('finance.fields.amount') }}</th></tr></thead><tbody>@foreach ($viewingInvoice->items as $item)<tr><td class="px-4 py-3">{{ $item->item_name }}</td><td class="px-4 py-3">{{ $item->quantity }}</td><td class="px-4 py-3">{{ $item->unit_price }}</td><td class="px-4 py-3">{{ $item->amount }}</td></tr>@endforeach</tbody><tfoot><tr><th colspan="3" class="px-4 py-3 text-right">{{ __('finance.fields.subtotal') }}</th><td class="px-4 py-3"><bdi dir="ltr">{{ app(FinanceService::class)->formatCurrencyAmount($viewingInvoice->subtotal, $viewingInvoice->financeRequest?->acceptedCurrency) }}</bdi></td></tr><tr><th colspan="3" class="px-4 py-3 text-right">{{ __('finance.fields.deduction') }}</th><td class="px-4 py-3"><bdi dir="ltr">{{ app(FinanceService::class)->formatCurrencyAmount(-(float) $viewingInvoice->discount, $viewingInvoice->financeRequest?->acceptedCurrency) }}</bdi></td></tr><tr><th colspan="3" class="px-4 py-3 text-right text-white">{{ __('finance.fields.grand_total') }}</th><td class="px-4 py-3 font-semibold text-white"><bdi dir="ltr">{{ app(FinanceService::class)->formatCurrencyAmount($viewingInvoice->total, $viewingInvoice->financeRequest?->acceptedCurrency) }}</bdi></td></tr></tfoot></table></div><div class="mt-5 flex flex-wrap justify-end gap-3">@if ($viewingInvoice->original_image_path)<a href="{{ asset('storage/'.$viewingInvoice->original_image_path) }}" target="_blank" class="pill-link">{{ __('finance.actions.view_original') }}</a>@endif<a href="{{ route('finance.invoices.print', $viewingInvoice) }}" target="_blank" class="pill-link pill-link--accent">{{ __('finance.actions.print_a5') }}</a></div>@endif</x-admin.modal>
 </div>

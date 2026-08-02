@@ -22,6 +22,8 @@ use App\Models\StudentAttendanceDay;
 use App\Models\StudentAttendanceRecord;
 use App\Models\StudentGender;
 use App\Models\Teacher;
+use App\Models\TeacherAttendanceDay;
+use App\Models\TeacherAttendanceRecord;
 use App\Models\User;
 use App\Services\CourseCompletionRuleService;
 use App\Services\SidebarNavigationService;
@@ -33,6 +35,39 @@ use Tests\TestCase;
 class SystemSettingsTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_linked_attendance_status_can_be_deleted_without_deleting_history(): void
+    {
+        $this->signIn();
+        $status = AttendanceStatus::query()->create([
+            'name' => 'Temporary late',
+            'code' => 'temporary-late',
+            'scope' => 'teacher',
+            'is_active' => true,
+        ]);
+        $teacher = Teacher::query()->create([
+            'first_name' => 'Status',
+            'last_name' => 'Teacher',
+            'phone' => '0999555000',
+            'status' => 'active',
+        ]);
+        $day = TeacherAttendanceDay::query()->create([
+            'attendance_date' => now()->toDateString(),
+            'created_by' => auth()->id(),
+        ]);
+        $record = TeacherAttendanceRecord::query()->create([
+            'teacher_attendance_day_id' => $day->id,
+            'teacher_id' => $teacher->id,
+            'attendance_status_id' => $status->id,
+        ]);
+
+        Volt::test('settings.tracking')
+            ->call('deleteAttendanceStatus', $status->id)
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseMissing('attendance_statuses', ['id' => $status->id]);
+        $this->assertNull($record->fresh()->attendance_status_id);
+    }
 
     public function test_settings_pages_require_the_settings_permission(): void
     {

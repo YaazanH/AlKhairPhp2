@@ -29,8 +29,12 @@
     <table>
         <thead><tr><th>{{ __('finance.fields.item_name') }}</th><th>{{ __('finance.fields.quantity') }}</th><th>{{ __('finance.fields.unit_price') }}</th><th>{{ __('finance.fields.amount') }}</th></tr></thead>
         <tbody>@foreach ($invoice->items as $item)<tr><td>{{ $item->item_name }}</td><td>{{ $item->quantity }}</td><td>{{ $item->unit_price }}</td><td>{{ $item->amount }}</td></tr>@endforeach</tbody>
+        <tfoot>
+            <tr><th colspan="3">{{ __('finance.fields.subtotal') }}</th><td><bdi dir="ltr">{{ app(\App\Services\FinanceService::class)->formatCurrencyAmount($invoice->subtotal, $invoice->financeRequest?->acceptedCurrency) }}</bdi></td></tr>
+            <tr><th colspan="3">{{ __('finance.fields.deduction') }}</th><td><bdi dir="ltr">{{ app(\App\Services\FinanceService::class)->formatCurrencyAmount(-(float) $invoice->discount, $invoice->financeRequest?->acceptedCurrency) }}</bdi></td></tr>
+            <tr><th colspan="3">{{ __('finance.fields.grand_total') }}</th><td><bdi dir="ltr">{{ app(\App\Services\FinanceService::class)->formatCurrencyAmount($invoice->total, $invoice->financeRequest?->acceptedCurrency) }}</bdi></td></tr>
+        </tfoot>
     </table>
-    <div class="total"><bdi dir="ltr">{{ app(\App\Services\FinanceService::class)->formatCurrencyAmount($invoice->total, $invoice->financeRequest?->acceptedCurrency) }}</bdi></div>
     <script>window.addEventListener('load', () => window.print());</script>
 </body>
 </html>

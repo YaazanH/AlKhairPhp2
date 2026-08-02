@@ -59,7 +59,7 @@ class FinanceReportService
                 ->limit(10)
                 ->get(),
             'quarter_totals' => $this->quarterTotals($year),
-            'latest_transactions' => $transactions->sortByDesc(fn (FinanceTransaction $transaction) => $transaction->transaction_date?->format('Y-m-d').str_pad((string) $transaction->id, 12, '0', STR_PAD_LEFT))->take(5)->values(),
+            'latest_transactions' => $transactions->sortByDesc(fn (FinanceTransaction $transaction) => $transaction->transaction_date?->format('Y-m-d').str_pad((string) $transaction->id, 12, '0', STR_PAD_LEFT))->take(4)->values(),
             'summary_by_currency' => $operatingTransactions
                 ->groupBy('currency_id')
                 ->map(function ($rows) {

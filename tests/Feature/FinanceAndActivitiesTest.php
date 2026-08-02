@@ -1553,6 +1553,74 @@ class FinanceAndActivitiesTest extends TestCase
         $this->assertSame(2, FinanceTransaction::query()->where('special_transaction_no', $transfer->transfer_no)->count());
     }
 
+    public function test_legacy_expenses_are_finalised_and_renumbered_with_the_configured_prefix(): void
+    {
+        $this->signIn();
+
+        $service = app(FinanceService::class);
+        $currency = $service->localCurrency();
+        $fund = FinanceCashBox::query()->firstOrFail();
+        $kind = FinancePullRequestKind::query()->where('mode', FinancePullRequestKind::MODE_COUNT)->firstOrFail();
+        $service->postTransaction(['cash_box_id' => $fund->id, 'currency_id' => $currency->id, 'type' => 'opening_balance', 'direction' => 'in', 'amount' => 100]);
+        $request = FinanceRequest::query()->create([
+            'request_no' => $service->nextRequestNumber(FinanceRequest::TYPE_EXPENSE),
+            'type' => FinanceRequest::TYPE_EXPENSE,
+            'status' => FinanceRequest::STATUS_PENDING,
+            'finance_pull_request_kind_id' => $kind->id,
+            'requested_currency_id' => $currency->id,
+            'requested_amount' => 20,
+            'requested_by' => auth()->id(),
+        ]);
+        $request = $service->acceptRequest($request, 20, $fund, auth()->user(), null, 1);
+        $this->assertStringStartsWith('EXP-', $request->expense_no);
+
+        AppSetting::storeValue('finance', 'expense_request_prefix', 'DBIT');
+        $migration = require database_path('migrations/2026_08_02_020000_finalise_and_renumber_legacy_expenses.php');
+        $migration->up();
+
+        $request->refresh();
+        $this->assertSame(FinanceRequest::STATUS_SETTLED, $request->status);
+        $this->assertSame('DBIT-000001', $request->expense_no);
+        $this->assertNotNull($request->settled_at);
+        $this->assertSame('DBIT-000001', $request->postedTransaction->fresh()->special_transaction_no);
+    }
+
+    public function test_finance_dashboard_limits_latest_activity_and_exposes_category_percentage(): void
+    {
+        $this->signIn();
+
+        $service = app(FinanceService::class);
+        $currency = $service->localCurrency();
+        $fund = FinanceCashBox::query()->firstOrFail();
+        $service->postTransaction([
+            'cash_box_id' => $fund->id,
+            'currency_id' => $currency->id,
+            'type' => 'opening_balance',
+            'direction' => 'in',
+            'amount' => 100,
+            'transaction_date' => now()->toDateString(),
+        ]);
+
+        foreach (range(1, 5) as $index) {
+            $transaction = $service->postTransaction([
+                'cash_box_id' => $fund->id,
+                'currency_id' => $currency->id,
+                'type' => 'manual_expense_'.$index,
+                'direction' => 'out',
+                'amount' => $index,
+                'transaction_date' => now()->toDateString(),
+                'description' => 'Dashboard expense '.$index,
+            ]);
+            $transaction->update(['local_amount' => -$index]);
+        }
+
+        $report = app(FinanceReportService::class)->report((int) now()->year, (int) now()->quarter);
+        $this->assertCount(4, $report['latest_transactions']);
+
+        Volt::test('finance.dashboard')
+            ->assertSee('% ·', false);
+    }
+
     public function test_count_expense_finalisation_edits_the_original_expense_without_posting_income(): void
     {
         $this->signIn();
@@ -1624,27 +1692,33 @@ class FinanceAndActivitiesTest extends TestCase
             'requested_by' => auth()->id(),
             'requested_reason' => 'Invoice supplies',
         ]);
-        $request = $service->acceptRequest($request, 40, $fund, auth()->user());
-        $invoice = Invoice::query()->create([
-            'invoice_no' => $service->nextInvoiceNumber(),
-            'original_invoice_no' => 'VENDOR-10',
-            'invoicer_name' => 'Vendor',
-            'invoice_type' => 'finance',
-            'finance_request_id' => $request->id,
-            'issue_date' => now()->toDateString(),
-            'status' => 'draft',
-            'subtotal' => 55,
-            'discount' => 0,
-            'total' => 55,
-        ]);
+        $request->update(['requested_amount' => 60]);
+        $request = $service->acceptRequest($request, 60, $fund, auth()->user());
 
-        $service->finaliseInvoiceExpense($request, $invoice, auth()->user());
+        Volt::test('finance.expense-requests')
+            ->call('openFinaliseModal', $request->id)
+            ->set('original_invoice_no', 'VENDOR-10')
+            ->set('invoice_issuer', 'Vendor')
+            ->set('invoice_date', now()->toDateString())
+            ->set('invoice_items', [['item_name' => 'Supplies', 'quantity' => '1', 'unit_price' => '55']])
+            ->set('invoice_deduction', '5')
+            ->call('finaliseInvoiceExpense')
+            ->assertHasNoErrors();
+
+        $invoice = Invoice::query()->where('finance_request_id', $request->id)->firstOrFail();
 
         $this->assertSame(FinanceRequest::STATUS_SETTLED, $request->fresh()->status);
-        $this->assertSame('55.00', $request->fresh()->accepted_amount);
+        $this->assertSame('50.00', $request->fresh()->accepted_amount);
+        $this->assertSame('55.00', $invoice->subtotal);
+        $this->assertSame('5.00', $invoice->discount);
+        $this->assertSame('50.00', $invoice->total);
         $this->assertSame('issued', $invoice->fresh()->status);
         $this->assertNotNull($invoice->fresh()->finalised_at);
-        $this->assertDatabaseHas('finance_transactions', ['id' => $request->posted_transaction_id, 'signed_amount' => -55]);
+        $this->assertDatabaseHas('finance_transactions', ['id' => $request->posted_transaction_id, 'signed_amount' => -50]);
+        $this->get(route('finance.invoices.print', $invoice))
+            ->assertOk()
+            ->assertSee(__('finance.fields.deduction'))
+            ->assertSee(__('finance.fields.grand_total'));
     }
 
     public function test_withdrawal_navigation_is_available_to_teachers_but_hidden_from_finance_admins(): void

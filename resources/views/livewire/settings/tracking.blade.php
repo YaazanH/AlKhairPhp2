@@ -10,8 +10,6 @@ use App\Models\AwqafSubject;
 use App\Models\AwqafSubjectTest;
 use App\Models\QuranTest;
 use App\Models\QuranTestType;
-use App\Models\StudentAttendanceRecord;
-use App\Models\TeacherAttendanceRecord;
 use App\Services\QuranFinalTestRuleService;
 use App\Services\QuranPartialTestRuleService;
 use Illuminate\Validation\Rule;
@@ -143,14 +141,17 @@ new class extends Component {
         $this->authorizePermission('settings.manage');
 
         $attendanceStatus = AttendanceStatus::query()->findOrFail($attendanceStatusId);
-
-        if (StudentAttendanceRecord::query()->where('attendance_status_id', $attendanceStatus->id)->exists() || TeacherAttendanceRecord::query()->where('attendance_status_id', $attendanceStatus->id)->exists()) {
-            $this->addError('attendanceStatusDelete', __('settings.tracking.errors.attendance_status_delete_linked'));
-
-            return;
-        }
-
+        $wasDefault = $attendanceStatus->is_default;
         $attendanceStatus->delete();
+
+        if ($wasDefault) {
+            AttendanceStatus::query()
+                ->where('is_active', true)
+                ->orderByDesc('is_present')
+                ->orderBy('id')
+                ->first()
+                ?->update(['is_default' => true]);
+        }
 
         if ($this->attendance_status_editing_id === $attendanceStatusId) {
             $this->cancelAttendanceStatus();

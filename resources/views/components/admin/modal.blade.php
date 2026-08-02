@@ -13,6 +13,7 @@
         '5xl' => 'admin-modal__dialog--5xl',
         '6xl' => 'admin-modal__dialog--6xl',
         '7xl' => 'admin-modal__dialog--7xl',
+        '8xl' => 'admin-modal__dialog--8xl',
         default => 'admin-modal__dialog--4xl',
     };
 @endphp
