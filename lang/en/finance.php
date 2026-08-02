@@ -3,6 +3,7 @@
 return [
     'actions' => [
         'add' => 'Add',
+        'save' => 'Save',
         'accept' => 'Accept',
         'actions' => 'Actions',
         'cancel' => 'Cancel',
@@ -123,6 +124,7 @@ return [
         'rate_updated' => 'Updated',
     ],
     'fields' => [
+        'report_no' => 'Report number',
         'activity' => 'Activity',
         'amount' => 'Amount',
         'cash_box' => 'Fund',
@@ -322,7 +324,16 @@ return [
         'dashboard_export' => 'Dashboard export',
         'ledger_export' => 'Ledger export',
         'ledger_export_title' => 'Funds ledger',
-        'ledger_export_subtitle' => 'Choose the fund, currency, template, and period to generate a ledger with opening, running, and closing balances.',
+        'ledger_export_subtitle' => 'Choose the fund, currency, and period to generate the fixed financial ledger.',
+        'report_settings' => 'Report settings',
+        'ledger_design' => 'Financial ledger design',
+        'ledger_design_help' => 'The ledger uses one fixed A4 portrait layout. Set its full-page background, transparent PNG logo, and final notes here.',
+        'page_background' => 'Full-page background image',
+        'report_logo' => 'Report logo',
+        'transparent_png_help' => 'PNG only, so transparency is preserved.',
+        'remove_background' => 'Remove current background',
+        'remove_logo' => 'Remove current logo',
+        'settings_saved' => 'Financial report settings saved.',
         'manage_templates' => 'Manage templates',
         'template' => 'Template',
         'generated_reports' => 'Generated reports',

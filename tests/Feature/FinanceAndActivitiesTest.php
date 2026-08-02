@@ -13,12 +13,13 @@ use App\Models\FinanceCashBox;
 use App\Models\FinanceCategory;
 use App\Models\FinanceCurrency;
 use App\Models\FinanceCurrencyExchange;
+use App\Models\FinanceGeneratedReport;
 use App\Models\FinanceInvoiceKind;
 use App\Models\FinancePullRequestKind;
-use App\Models\FinanceGeneratedReport;
 use App\Models\FinanceReportTemplate;
 use App\Models\FinanceRequest;
 use App\Models\FinanceTransaction;
+use App\Models\Group;
 use App\Models\Invoice;
 use App\Models\ParentProfile;
 use App\Models\Payment;
@@ -27,15 +28,18 @@ use App\Models\PrintPageSize;
 use App\Models\PrintTemplate;
 use App\Models\Student;
 use App\Models\Teacher;
-use App\Models\Group;
 use App\Models\User;
 use App\Services\ActivityAudienceService;
 use App\Services\FinanceReportService;
 use App\Services\FinanceService;
+use App\Services\SidebarNavigationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 use Livewire\Volt\Volt;
 use Tests\TestCase;
 
@@ -991,7 +995,7 @@ class FinanceAndActivitiesTest extends TestCase
         $cashBox = FinanceCashBox::query()->firstOrFail();
         $localCurrency = $service->localCurrency();
 
-        $this->expectException(\Illuminate\Validation\ValidationException::class);
+        $this->expectException(ValidationException::class);
 
         $service->postTransaction([
             'cash_box_id' => $cashBox->id,
@@ -1058,7 +1062,7 @@ class FinanceAndActivitiesTest extends TestCase
         $this->assertTrue(app(FinanceService::class)->currenciesForCashBox($cashBox->id)->whereKey($localCurrency->id)->exists());
         $this->assertFalse(app(FinanceService::class)->currenciesForCashBox($cashBox->id)->whereKey($baseCurrency->id)->exists());
 
-        $this->expectException(\Illuminate\Validation\ValidationException::class);
+        $this->expectException(ValidationException::class);
 
         app(FinanceService::class)->postTransaction([
             'cash_box_id' => $cashBox->id,
@@ -1218,7 +1222,12 @@ class FinanceAndActivitiesTest extends TestCase
         $this->assertSame(175.0, $report['rows'][0]['_running_balance_raw']);
         $this->assertSame(155.0, $report['rows'][1]['_running_balance_raw']);
         $this->assertStringContainsString('dir="rtl"', $rtlExportHtml);
-        $this->assertStringContainsString('font-family:dejavusanscondensed;', $rtlExportHtml);
+        $this->assertStringContainsString('size: A4 portrait', $rtlExportHtml);
+        $this->assertStringContainsString('تقرير مالي', $rtlExportHtml);
+        $this->assertStringContainsString('سري وهام - غير معد للمداولة', $rtlExportHtml);
+        $this->assertStringContainsString('type="QR"', $rtlExportHtml);
+        $this->assertStringContainsString('type="C39"', $rtlExportHtml);
+        $this->assertStringContainsString('ملخص التقرير المالي', $rtlExportHtml);
 
         Volt::test('finance.reports')
             ->assertSee(__('finance.reports.ledger_export_title'))
@@ -1236,14 +1245,12 @@ class FinanceAndActivitiesTest extends TestCase
             'date_from' => '2026-02-01',
             'date_to' => '2026-02-28',
             'format' => 'pdf',
-            'template_id' => $template->id,
         ]));
         $pdfResponse
             ->assertOk()
             ->assertHeader('content-type', 'application/pdf');
         $this->assertStringStartsWith('%PDF', (string) $pdfResponse->getContent());
-        preg_match('/\/Count\s+(\d+)/', (string) $pdfResponse->getContent(), $pdfPageMatches);
-        $this->assertLessThanOrEqual(3, (int) ($pdfPageMatches[1] ?? 0));
+        $this->assertGreaterThan(1000, strlen((string) $pdfResponse->getContent()));
 
         $this->assertSame(1, FinanceGeneratedReport::query()->count());
 
@@ -1263,10 +1270,9 @@ class FinanceAndActivitiesTest extends TestCase
             ->assertOk()
             ->assertHeader('content-type', 'application/pdf');
         $this->assertStringStartsWith('%PDF', (string) $savedPdfResponse->getContent());
-        preg_match('/\/Count\s+(\d+)/', (string) $savedPdfResponse->getContent(), $savedPdfPageMatches);
-        $this->assertLessThanOrEqual(3, (int) ($savedPdfPageMatches[1] ?? 0));
+        $this->assertGreaterThan(1000, strlen((string) $savedPdfResponse->getContent()));
         $this->assertNotSame('legacy-pdf', Storage::disk('local')->get($generatedReport->pdf_path));
-        $this->assertSame('mpdf-rtl-v2', FinanceGeneratedReport::query()->findOrFail($generatedReport->id)->report_data['pdf_renderer']);
+        $this->assertSame('mpdf-fixed-ledger-v3', FinanceGeneratedReport::query()->findOrFail($generatedReport->id)->report_data['pdf_renderer']);
 
         $this->get(route('finance.reports.generated.show', ['generatedReport' => $generatedReport, 'format' => 'xlsx']))
             ->assertOk()
@@ -1278,7 +1284,6 @@ class FinanceAndActivitiesTest extends TestCase
             'date_from' => '2026-02-01',
             'date_to' => '2026-02-28',
             'format' => 'xlsx',
-            'template_id' => $template->id,
         ]))
             ->assertOk()
             ->assertHeader('content-type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
@@ -1308,7 +1313,6 @@ class FinanceAndActivitiesTest extends TestCase
             'date_from' => '2026-02-01',
             'date_to' => '2026-02-28',
             'format' => 'pdf',
-            'template_id' => $template->id,
         ]));
         $response
             ->assertOk()
@@ -1345,7 +1349,6 @@ class FinanceAndActivitiesTest extends TestCase
             'date_from' => '2026-03-01',
             'date_to' => '2026-03-31',
             'format' => 'pdf',
-            'template_id' => $template->id,
         ]))
             ->assertOk()
             ->assertHeader('content-type', 'application/pdf');
@@ -1430,6 +1433,30 @@ class FinanceAndActivitiesTest extends TestCase
             ->assertSet('date_mode', 'exported_at')
             ->assertSet('show_issuer_name', true)
             ->assertSet('show_page_numbers', false);
+    }
+
+    public function test_finance_reports_store_fixed_ledger_background_logo_and_notes(): void
+    {
+        $this->signIn();
+        Storage::fake('public');
+
+        Volt::test('finance.reports')
+            ->set('report_background_upload', UploadedFile::fake()->image('background.jpg', 1200, 1600))
+            ->set('report_logo_upload', UploadedFile::fake()->image('logo.png', 300, 120))
+            ->set('report_notes', 'Confidential closing notes')
+            ->call('saveReportSettings')
+            ->assertHasNoErrors();
+
+        $settings = app(FinanceReportService::class)->defaultLedgerTemplate()->fresh();
+        $this->assertSame('تقرير مالي', $settings->title);
+        $this->assertSame('Financial ledger', $settings->name);
+        $this->assertSame('Confidential closing notes', $settings->custom_text);
+        $this->assertSame(FinanceReportTemplate::LANGUAGE_AR, $settings->language);
+        $this->assertSame(FinanceReportTemplate::DEFAULT_COLUMNS, $settings->normalizedColumns());
+        $this->assertTrue($settings->show_page_numbers);
+        Storage::disk('public')->assertExists($settings->background_image);
+        Storage::disk('public')->assertExists($settings->logo_image);
+        $this->assertFalse(Route::has('settings.finance.report-templates'));
     }
 
     public function test_print_page_sizes_are_managed_from_organization_settings(): void
@@ -1743,13 +1770,13 @@ class FinanceAndActivitiesTest extends TestCase
         ]);
 
         $this->actingAs($teacherUser)->get(route('finance.pull-requests.index'))->assertOk();
-        $teacherItems = collect(app(\App\Services\SidebarNavigationService::class)->sidebarFor($teacherUser))->pluck('items')->flatten(1);
+        $teacherItems = collect(app(SidebarNavigationService::class)->sidebarFor($teacherUser))->pluck('items')->flatten(1);
         $this->assertTrue($teacherItems->contains(fn (array $item) => $item['key'] === 'finance_pull_requests'));
         $this->assertFalse($teacherItems->contains(fn (array $item) => $item['key'] === 'finance_dashboard'));
 
         $manager = User::factory()->create();
         $manager->assignRole('manager');
-        $managerItems = collect(app(\App\Services\SidebarNavigationService::class)->sidebarFor($manager))->pluck('items')->flatten(1);
+        $managerItems = collect(app(SidebarNavigationService::class)->sidebarFor($manager))->pluck('items')->flatten(1);
         $this->assertFalse($managerItems->contains(fn (array $item) => $item['key'] === 'finance_pull_requests'));
         $this->assertTrue($managerItems->contains(fn (array $item) => $item['key'] === 'finance_dashboard'));
     }

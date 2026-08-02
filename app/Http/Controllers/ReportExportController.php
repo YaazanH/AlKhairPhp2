@@ -3,7 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\FinanceGeneratedReport;
-use App\Models\FinanceReportTemplate;
+use App\Models\Group;
 use App\Services\AccessScopeService;
 use App\Services\FinanceReportService;
 use App\Services\FinanceService;
@@ -99,14 +99,11 @@ class ReportExportController extends Controller
             'date_from' => ['required', 'date'],
             'date_to' => ['required', 'date', 'after_or_equal:date_from'],
             'format' => ['required', 'in:xlsx,pdf'],
-            'template_id' => ['nullable', 'integer', 'exists:finance_report_templates,id'],
         ]);
 
         $financeService = app(FinanceService::class);
         $reportService = app(FinanceReportService::class);
-        $template = isset($validated['template_id'])
-            ? FinanceReportTemplate::query()->findOrFail((int) $validated['template_id'])
-            : $reportService->defaultLedgerTemplate();
+        $template = $reportService->defaultLedgerTemplate();
         $cashBox = $financeService->cashBoxForUser((int) $validated['cash_box_id'], $request->user());
         $currency = $financeService->currenciesForCashBox($cashBox->id)
             ->whereKey((int) $validated['currency_id'])
@@ -187,7 +184,7 @@ class ReportExportController extends Controller
 
         if (($validated['group_id'] ?? null) !== null) {
             $scopedGroup = app(AccessScopeService::class)
-                ->scopeGroups(\App\Models\Group::query(), $request->user())
+                ->scopeGroups(Group::query(), $request->user())
                 ->whereKey($validated['group_id'])
                 ->exists();
 
@@ -196,7 +193,7 @@ class ReportExportController extends Controller
 
         if (($validated['course_id'] ?? null) !== null) {
             $courseIsAccessible = app(AccessScopeService::class)
-                ->scopeGroups(\App\Models\Group::query(), $request->user())
+                ->scopeGroups(Group::query(), $request->user())
                 ->where('course_id', $validated['course_id'])
                 ->exists();
 

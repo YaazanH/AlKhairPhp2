@@ -77,7 +77,6 @@ Route::middleware(['auth'])->group(function () {
     Volt::route('settings/sidebar-navigation', 'settings.sidebar-navigation')->middleware('permission:sidebar-navigation.manage')->name('settings.sidebar-navigation');
     Volt::route('settings/points', 'settings.points')->middleware('permission:settings.manage')->name('settings.points');
     Volt::route('settings/finance', 'settings.finance')->middleware('permission:finance.settings.manage')->name('settings.finance');
-    Volt::route('settings/finance/report-templates', 'settings.finance-report-templates')->middleware('permission:finance.report-templates.manage')->name('settings.finance.report-templates');
     Volt::route('settings/access-control', 'settings.access-control')->middleware('permission:roles.manage')->name('settings.access-control');
     Volt::route('settings/website', 'settings.website')->middleware('permission:website.manage')->name('settings.website');
     Volt::route('settings/website/pages', 'settings.website-pages')->middleware('permission:website.manage')->name('settings.website.pages');

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\FinanceReportService;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -11,7 +12,9 @@ class FinanceReportTemplate extends Model
     use HasFactory;
 
     public const LANGUAGE_AR = 'ar';
+
     public const LANGUAGE_BOTH = 'both';
+
     public const LANGUAGE_EN = 'en';
 
     public const LANGUAGES = [
@@ -22,15 +25,10 @@ class FinanceReportTemplate extends Model
 
     public const DEFAULT_COLUMNS = [
         'transaction_date',
-        'transaction_no',
-        'description',
-        'type',
         'category',
-        'income',
         'expense',
+        'income',
         'running_balance',
-        'entered_by',
-        'reference',
     ];
 
     protected $fillable = [
@@ -80,7 +78,7 @@ class FinanceReportTemplate extends Model
 
     public function normalizedColumns(): array
     {
-        $available = array_keys(app(\App\Services\FinanceReportService::class)->ledgerColumnDefinitions());
+        $available = array_keys(app(FinanceReportService::class)->ledgerColumnDefinitions());
         $columns = is_array($this->columns) ? $this->columns : [];
         $columns = array_values(array_intersect($columns, $available));
 

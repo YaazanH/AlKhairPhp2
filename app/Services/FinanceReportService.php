@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\AcademicYear;
 use App\Models\FinanceCashBox;
 use App\Models\FinanceCurrency;
 use App\Models\FinanceGeneratedReport;
@@ -112,25 +113,33 @@ class FinanceReportService
 
     public function defaultLedgerTemplate(): FinanceReportTemplate
     {
-        return FinanceReportTemplate::query()
+        $settings = FinanceReportTemplate::query()
             ->where('is_default', true)
             ->orderBy('id')
             ->first()
             ?: FinanceReportTemplate::query()->orderBy('id')->first()
-            ?: FinanceReportTemplate::query()->create([
-                'columns' => FinanceReportTemplate::DEFAULT_COLUMNS,
-                'date_mode' => 'exported_at',
-                'include_closing_balance' => true,
-                'include_exported_at' => true,
-                'include_opening_balance' => true,
-                'is_default' => true,
-                'language' => FinanceReportTemplate::LANGUAGE_BOTH,
-                'name' => 'Default ledger report',
-                'show_issuer_name' => true,
-                'show_page_numbers' => false,
-                'subtitle' => 'Fund ledger by selected currency and date range.',
-                'title' => 'Finance Ledger Report',
-            ]);
+            ?: new FinanceReportTemplate;
+
+        $settings->forceFill([
+            'columns' => FinanceReportTemplate::DEFAULT_COLUMNS,
+            'created_by' => $settings->created_by ?: auth()->id(),
+            'date_mode' => 'exported_at',
+            'include_closing_balance' => true,
+            'include_exported_at' => true,
+            'include_opening_balance' => true,
+            'is_default' => true,
+            'language' => FinanceReportTemplate::LANGUAGE_AR,
+            'name' => 'Financial ledger',
+            'show_issuer_name' => true,
+            'show_page_numbers' => true,
+            'subtitle' => null,
+            'title' => 'تقرير مالي',
+        ]);
+        if ($settings->isDirty()) {
+            $settings->save();
+        }
+
+        return $settings;
     }
 
     public function ledgerColumnDefinitions(): array
@@ -324,8 +333,6 @@ class FinanceReportService
                 'currency_code' => data_get($report, 'currency.code'),
                 'date_from' => data_get($report, 'start'),
                 'date_to' => data_get($report, 'end'),
-                'template_id' => (int) (data_get($report, 'template.id') ?? 0),
-                'template_name' => data_get($report, 'template.name'),
             ],
             'report_data' => $report,
             'generated_by' => $user?->id,
@@ -401,11 +408,11 @@ class FinanceReportService
 
         $mpdf = new Mpdf([
             'default_font' => $defaultFont,
-            'format' => 'A4-L',
-            'margin_bottom' => 14,
-            'margin_left' => 14,
-            'margin_right' => 14,
-            'margin_top' => 14,
+            'format' => 'A4',
+            'margin_bottom' => 20,
+            'margin_left' => 12,
+            'margin_right' => 12,
+            'margin_top' => 12,
             'mode' => 'utf-8',
             'tempDir' => $tempDir,
         ]);
@@ -413,7 +420,7 @@ class FinanceReportService
         $mpdf->autoScriptToLang = true;
         $mpdf->useSubstitutions = true;
         $mpdf->SetDirectionality(
-            $templateLanguage === FinanceReportTemplate::LANGUAGE_EN ? 'ltr' : 'rtl'
+            'rtl'
         );
 
         $html = view('reports.finance-ledger-pdf-export', [
@@ -498,6 +505,12 @@ class FinanceReportService
 
     public function ledgerColumnValue(array $row, string $column): string
     {
+        if ($column === 'category' && array_key_exists('category', $row)) {
+            return collect([$row['category'] ?? null, $row['description'] ?? null])
+                ->filter(fn ($value) => filled($value))
+                ->implode("\n");
+        }
+
         if (array_key_exists($column, $row) && ! is_array($row[$column]) && ! is_object($row[$column])) {
             return (string) $row[$column];
         }
@@ -575,7 +588,7 @@ class FinanceReportService
                 'name' => $cashBoxName,
             ],
             'closing_balance' => $closingBalance,
-            'columns' => $template->normalizedColumns(),
+            'columns' => FinanceReportTemplate::DEFAULT_COLUMNS,
             'currency' => $currency,
             'end' => $end->toDateString(),
             'expense' => $expense,
@@ -588,6 +601,10 @@ class FinanceReportService
                 'opening_balance' => $this->formatMoney($openingBalance, $currency),
             ],
             'income' => $income,
+            'academic_year' => AcademicYear::query()
+                ->whereDate('starts_on', '<=', $start->toDateString())
+                ->whereDate('ends_on', '>=', $start->toDateString())
+                ->value('name') ?: AcademicYear::query()->where('is_current', true)->value('name'),
             'issuer_name' => $issuer?->name ?: auth()->user()?->name,
             'net' => round($income - $expense, 2),
             'opening_balance' => $openingBalance,
@@ -710,7 +727,7 @@ class FinanceReportService
         return [
             'background_image_pdf_src' => $this->pdfAssetSource($backgroundImageUrl),
             'background_image_url' => $backgroundImageUrl,
-            'columns' => $template->normalizedColumns(),
+            'columns' => FinanceReportTemplate::DEFAULT_COLUMNS,
             'custom_date' => $template->custom_date?->toDateString(),
             'custom_text' => $template->custom_text,
             'date_mode' => $this->normalizeTemplateDateMode($template->date_mode),
@@ -749,7 +766,7 @@ class FinanceReportService
 
     protected function ledgerPdfRendererVersion(): string
     {
-        return 'mpdf-rtl-v2';
+        return 'mpdf-fixed-ledger-v3';
     }
 
     protected function normalizeLedgerTemplateSnapshot(array $template): array
