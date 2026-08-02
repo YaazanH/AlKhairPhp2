@@ -1198,6 +1198,7 @@ return [
             'complete' => 'مكتمل',
             'incomplete' => ':count صفحة ناقصة',
             'show_missing' => 'الصفحات الناقصة',
+            'add_awqaf_test' => 'إضافة اختبار أوقاف',
             'missing_title' => 'الصفحات الناقصة للجزء :juz',
             'missing_subtitle' => 'هذه الصفحات غير مسجلة كمحفوظة ضمن فلتر الدورة الحالي.',
             'no_missing_pages' => 'لا توجد صفحات ناقصة في هذا الجزء.',

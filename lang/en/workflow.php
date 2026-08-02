@@ -1198,6 +1198,7 @@ return [
             'complete' => 'Complete',
             'incomplete' => ':count missing pages',
             'show_missing' => 'Missing pages',
+            'add_awqaf_test' => 'Add Awqaf Test',
             'missing_title' => 'Missing pages for Juz :juz',
             'missing_subtitle' => 'These pages are not recorded as memorized for the selected course filter.',
             'no_missing_pages' => 'No missing pages in this juz.',

@@ -2146,6 +2146,20 @@ html:not(.dark) .admin-modal [class*='border-emerald'] {
     padding: 1.25rem;
 }
 
+.dashboard-manager-highlights .stat-card {
+    border-radius: 1.15rem;
+    padding: 0.85rem 1rem;
+}
+
+.dashboard-manager-highlights .metric-value {
+    font-size: clamp(1.7rem, 2.5vw, 2.35rem);
+}
+
+.dashboard-manager-highlights .badge-soft {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.65rem;
+}
+
 .stat-card::before {
     content: '';
     position: absolute;

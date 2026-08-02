@@ -143,44 +143,24 @@ new class extends Component {
 
     <div class="reports-overview-grid grid items-stretch gap-6 xl:grid-cols-3">
         <section class="surface-panel report-panel report-panel--filters min-w-0 p-5 lg:p-6 xl:col-span-3">
-            <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                <div class="grid gap-4 md:grid-cols-2 xl:col-span-2">
-                    <div>
-                        <label class="report-field-label mb-2 block text-sm font-medium">{{ __('reports.filters.course') }}</label>
-                        <select wire:model.live="course_id" class="report-control w-full rounded-xl px-3 py-2.5 text-sm">
-                            <option value="">{{ __('reports.filters.all_courses') }}</option>
-                            @foreach ($courses as $course)
-                                <option value="{{ $course->id }}">{{ $course->name }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-
-                    <div>
-                        <label class="report-field-label mb-2 block text-sm font-medium">{{ __('reports.filters.group') }}</label>
-                        <select wire:model.live="group_id" class="report-control w-full rounded-xl px-3 py-2.5 text-sm">
-                            <option value="">{{ __('reports.filters.all_groups') }}</option>
-                            @foreach ($groups as $group)
-                                <option value="{{ $group->id }}">{{ $group->name }}{{ $group->course ? ' | '.$group->course->name : '' }}</option>
-                            @endforeach
-                        </select>
-                    </div>
+            <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-[repeat(4,minmax(0,1fr))_auto] xl:items-end">
+                <div>
+                    <label class="report-field-label mb-2 block text-sm font-medium">{{ __('reports.filters.course') }}</label>
+                    <select wire:model.live="course_id" class="report-control w-full rounded-xl px-3 py-2.5 text-sm"><option value="">{{ __('reports.filters.all_courses') }}</option>@foreach ($courses as $course)<option value="{{ $course->id }}">{{ $course->name }}</option>@endforeach</select>
                 </div>
-
-                <div class="grid gap-4 md:grid-cols-2">
-                    <div>
-                        <label class="report-field-label mb-2 block text-sm font-medium">{{ __('reports.filters.date_from') }}</label>
-                        <input wire:model.live="date_from" type="date" class="report-control w-full rounded-xl px-3 py-2.5 text-sm">
-                    </div>
-
-                    <div>
-                        <label class="report-field-label mb-2 block text-sm font-medium">{{ __('reports.filters.date_to') }}</label>
-                        <input wire:model.live="date_to" type="date" class="report-control w-full rounded-xl px-3 py-2.5 text-sm">
-                    </div>
+                <div>
+                    <label class="report-field-label mb-2 block text-sm font-medium">{{ __('reports.filters.group') }}</label>
+                    <select wire:model.live="group_id" class="report-control w-full rounded-xl px-3 py-2.5 text-sm"><option value="">{{ __('reports.filters.all_groups') }}</option>@foreach ($groups as $group)<option value="{{ $group->id }}">{{ $group->name }}{{ $group->course ? ' | '.$group->course->name : '' }}</option>@endforeach</select>
                 </div>
-            </div>
-
-            <div class="mt-5 flex justify-end">
-                <button type="button" wire:click="clearFilters" class="pill-link">
+                <div>
+                    <label class="report-field-label mb-2 block text-sm font-medium">{{ __('reports.filters.date_from') }}</label>
+                    <input wire:model.live="date_from" type="date" class="report-control w-full rounded-xl px-3 py-2.5 text-sm">
+                </div>
+                <div>
+                    <label class="report-field-label mb-2 block text-sm font-medium">{{ __('reports.filters.date_to') }}</label>
+                    <input wire:model.live="date_to" type="date" class="report-control w-full rounded-xl px-3 py-2.5 text-sm">
+                </div>
+                <button type="button" wire:click="clearFilters" class="pill-link whitespace-nowrap">
                     {{ __('reports.filters.clear') }}
                 </button>
             </div>
@@ -217,9 +197,9 @@ new class extends Component {
 
             <div class="grid grid-cols-2 gap-3">
                 @foreach ($report['attendance']['breakdown'] as $status)
-                    <div class="flex items-center justify-between rounded-2xl border border-white/8 bg-white/4 px-4 py-3 text-sm">
-                        <span class="text-neutral-200">{{ $status['name'] }}</span>
-                        <span class="font-semibold text-white">{{ number_format($status['count']) }}</span>
+                    <div class="rounded-2xl border border-white/8 bg-white/4 p-4">
+                        <div class="kpi-label">{{ $status['name'] }}</div>
+                        <div class="mt-3 text-2xl font-semibold text-white">{{ number_format($status['count']) }}</div>
                     </div>
                 @endforeach
             </div>

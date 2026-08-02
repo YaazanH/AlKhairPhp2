@@ -14,6 +14,8 @@ use App\Models\MemorizationSessionPage;
 use App\Models\ParentProfile;
 use App\Models\PointTransaction;
 use App\Models\PointType;
+use App\Models\QuranFinalTest;
+use App\Models\QuranFinalTestAttempt;
 use App\Models\QuranJuz;
 use App\Models\QuranTest;
 use App\Models\QuranTestType;
@@ -197,10 +199,14 @@ class StudentProgressPageTest extends TestCase
             ->assertDontSeeText('Secondary Bonus')
             ->assertSeeText('Second Course Note');
 
-        Volt::test('students.progress', ['student' => $ownStudent])
+        $parentDetails = Volt::test('students.progress', ['student' => $ownStudent])
             ->assertDontSeeText(__('workflow.student_progress.selection.change_student'))
             ->call('showDetails', 'parent')
-            ->assertSeeText('0999555111');
+            ->assertSeeText('0999555111')
+            ->assertSeeText('Scoped Mother')
+            ->assertSeeText('Scoped Address');
+
+        $this->assertSame(3, substr_count($parentDetails->html(), 'student-parent-details__row'));
     }
 
     public function test_progress_page_without_route_student_shows_selector_for_manager_scope(): void
@@ -226,6 +232,40 @@ class StudentProgressPageTest extends TestCase
             ->assertSeeText('اختر طالباً من الأعلى لعرض صفحة التقدم الكاملة.');
     }
 
+    public function test_final_attempt_finishes_juz_and_exposes_awqaf_action_even_with_missing_pages(): void
+    {
+        $this->seed(RoleSeeder::class);
+        [, $student] = $this->makeScopedProgressData();
+
+        $manager = User::factory()->create(['username' => 'progress-final-manager', 'phone' => '8111004']);
+        $manager->assignRole('manager');
+        $this->actingAs($manager);
+
+        $enrollment = Enrollment::query()->where('student_id', $student->id)->firstOrFail();
+        $juz = QuranJuz::query()->firstOrFail();
+        $teacher = Teacher::query()->firstOrFail();
+        $finalTest = QuranFinalTest::create([
+            'enrollment_id' => $enrollment->id,
+            'student_id' => $student->id,
+            'juz_id' => $juz->id,
+            'status' => 'in_progress',
+            'created_by' => $manager->id,
+        ]);
+        QuranFinalTestAttempt::create([
+            'quran_final_test_id' => $finalTest->id,
+            'teacher_id' => $teacher->id,
+            'tested_on' => '2026-09-15',
+            'score' => 50,
+            'status' => 'failed',
+            'attempt_no' => 1,
+        ]);
+
+        Volt::test('students.progress', ['student' => $student])
+            ->assertSeeText(__('workflow.student_progress.juz_progress.statuses.finished'))
+            ->assertSeeText('0/4')
+            ->assertSeeText(__('workflow.student_progress.juz_progress.add_awqaf_test'));
+    }
+
     private function makeScopedProgressData(): array
     {
         $parentUser = User::factory()->create([
@@ -238,6 +278,11 @@ class StudentProgressPageTest extends TestCase
             'user_id' => $parentUser->id,
             'father_name' => 'Scoped Parent',
             'father_phone' => '0999555111',
+            'father_work' => 'Engineer',
+            'mother_name' => 'Scoped Mother',
+            'mother_phone' => '0999555222',
+            'address' => 'Scoped Address',
+            'home_phone' => '0115555555',
             'is_active' => true,
         ]);
 

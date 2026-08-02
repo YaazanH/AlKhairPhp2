@@ -1151,6 +1151,13 @@ class FinanceAndActivitiesTest extends TestCase
 
         $this->assertGreaterThan(0, $report['summary']['transactions']);
         $this->assertNotEmpty($report['quarter_totals']);
+        $this->assertCount(4, $report['previous_year_quarter_totals']);
+
+        Volt::test('finance.dashboard')
+            ->assertSeeText(__('finance.actions.details', [], 'ar'))
+            ->set('showQuarterDetailsModal', true)
+            ->assertSeeText(__('finance.dashboard.quarter_expense_comparison', [], 'ar'))
+            ->assertSeeText('2025');
 
         Volt::test('finance.exchange')
             ->assertSee('EXC-000001')
@@ -1616,6 +1623,7 @@ class FinanceAndActivitiesTest extends TestCase
 
         $report = app(FinanceReportService::class)->report((int) now()->year, (int) now()->quarter);
         $this->assertCount(4, $report['latest_transactions']);
+        $this->assertCount(4, $report['previous_year_quarter_totals']);
 
         Volt::test('finance.dashboard')
             ->assertSee('% ·', false);

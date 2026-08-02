@@ -5,6 +5,7 @@ use App\Models\AppSetting;
 use App\Models\Course;
 use App\Models\Enrollment;
 use App\Models\Group;
+use App\Models\GroupAttendanceDay;
 use App\Models\MemorizationSession;
 use App\Models\PrintTemplate;
 use App\Models\QuranFinalTest;
@@ -88,18 +89,26 @@ new class extends Component {
             'students' => (int) $group->active_students_count,
         ]);
 
-        $trendEnd = now()->startOfDay();
-        $trendDates = collect(range(3, 0))->map(fn (int $daysAgo) => $trendEnd->copy()->subDays($daysAgo));
-        $trendStart = $trendDates->first()->toDateString();
-        $trendFinish = $trendDates->last()->toDateString();
+        $trendDates = GroupAttendanceDay::query()
+            ->when($courseId, fn ($query) => $query->whereHas('group', fn ($groupQuery) => $groupQuery->where('course_id', $courseId)), fn ($query) => $query->whereRaw('1 = 0'))
+            ->select('attendance_date')
+            ->distinct()
+            ->orderByDesc('attendance_date')
+            ->limit(5)
+            ->pluck('attendance_date')
+            ->map(fn ($date) => Carbon::parse($date))
+            ->reverse()
+            ->values();
+        $trendStart = $trendDates->first()?->toDateString();
+        $trendFinish = $trendDates->last()?->toDateString();
         $memorizedByDate = MemorizationSession::query()
             ->join('enrollments', 'enrollments.id', '=', 'memorization_sessions.enrollment_id')
             ->join('groups', 'groups.id', '=', 'enrollments.group_id')
             ->whereNull('enrollments.deleted_at')
             ->whereNull('groups.deleted_at')
             ->where('memorization_sessions.entry_type', 'new')
-            ->whereDate('memorization_sessions.recorded_on', '>=', $trendStart)
-            ->whereDate('memorization_sessions.recorded_on', '<=', $trendFinish)
+            ->when($trendStart, fn ($query) => $query->whereDate('memorization_sessions.recorded_on', '>=', $trendStart), fn ($query) => $query->whereRaw('1 = 0'))
+            ->when($trendFinish, fn ($query) => $query->whereDate('memorization_sessions.recorded_on', '<=', $trendFinish))
             ->when($courseId, fn ($query) => $query->where('groups.course_id', $courseId), fn ($query) => $query->whereRaw('1 = 0'))
             ->selectRaw('memorization_sessions.recorded_on as activity_date, SUM(memorization_sessions.pages_count) as total_pages')
             ->groupBy('memorization_sessions.recorded_on')
@@ -107,7 +116,7 @@ new class extends Component {
             ->mapWithKeys(fn ($row) => [Carbon::parse($row->activity_date)->toDateString() => (int) $row->total_pages]);
         $attendanceByDate = StudentAttendanceRecord::query()
             ->whereHas('status', fn ($query) => $query->where('is_present', true))
-            ->whereHas('attendanceDay', fn ($query) => $query->whereBetween('attendance_date', [$trendStart, $trendFinish])
+            ->whereHas('attendanceDay', fn ($query) => $query->when($trendStart && $trendFinish, fn ($dayQuery) => $dayQuery->whereBetween('attendance_date', [$trendStart, $trendFinish]), fn ($dayQuery) => $dayQuery->whereRaw('1 = 0'))
                 ->when($courseId, fn ($dayQuery) => $dayQuery->whereHas('group', fn ($groupQuery) => $groupQuery->where('course_id', $courseId)), fn ($dayQuery) => $dayQuery->whereRaw('1 = 0')))
             ->with('attendanceDay:id,attendance_date')
             ->get(['id', 'group_attendance_day_id', 'enrollment_id'])
@@ -591,15 +600,15 @@ new class extends Component {
     </section>
 
     @if (! empty($stats))
-        <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div class="{{ $dashboardRole === 'manager' ? 'dashboard-manager-highlights gap-3' : 'gap-4' }} grid md:grid-cols-2 xl:grid-cols-4">
             @foreach ($stats as $stat)
                 <article class="stat-card">
                     <div class="flex items-start justify-between gap-4">
                         <div class="kpi-label">{{ $stat['label'] }}</div>
                         <span class="badge-soft {{ $loop->even ? 'badge-soft--emerald' : '' }}">{{ str_pad((string) $loop->iteration, 2, '0', STR_PAD_LEFT) }}</span>
                     </div>
-                    <div class="metric-value mt-6">{{ is_numeric($stat['value']) ? number_format($stat['value']) : $stat['value'] }}</div>
-                    <p class="mt-4 max-w-xs text-sm leading-6 text-neutral-300">{{ $stat['hint'] }}</p>
+                    <div class="metric-value {{ $dashboardRole === 'manager' ? 'mt-3' : 'mt-6' }}">{{ is_numeric($stat['value']) ? number_format($stat['value']) : $stat['value'] }}</div>
+                    <p class="{{ $dashboardRole === 'manager' ? 'mt-2 text-xs leading-5' : 'mt-4 text-sm leading-6' }} max-w-xs text-neutral-300">{{ $stat['hint'] }}</p>
                 </article>
             @endforeach
         </div>
@@ -610,9 +619,9 @@ new class extends Component {
             @php
                 $pieTotal = (int) $groupDistribution->sum('students');
                 $pieOffset = 0.0;
-                $chartColors = ['#34d399', '#60a5fa', '#fbbf24', '#f87171', '#a78bfa', '#22d3ee', '#fb7185', '#94a3b8'];
+                $chartColors = ['#34d399', '#60a5fa', '#fbbf24', '#f87171', '#a78bfa', '#22d3ee', '#fb7185', '#c084fc', '#2dd4bf', '#f97316', '#84cc16', '#06b6d4', '#e879f9', '#facc15', '#4ade80', '#818cf8', '#fb923c', '#38bdf8', '#e11d48', '#14b8a6'];
                 $trendMax = max(1, (int) $dailyTrend->max(fn (array $day) => max($day['pages'], $day['attendance'])));
-                $trendX = fn (int $index) => 42 + ($index * (356 / 3));
+                $trendX = fn (int $index) => 58 + ($index * (332 / max($dailyTrend->count() - 1, 1)));
                 $trendY = fn (int $value) => 178 - (($value / $trendMax) * 128);
                 $pagesLine = $dailyTrend->values()->map(fn (array $day, int $index) => $trendX($index).','.$trendY($day['pages']))->implode(' ');
                 $attendanceLine = $dailyTrend->values()->map(fn (array $day, int $index) => $trendX($index).','.$trendY($day['attendance']))->implode(' ');
@@ -652,23 +661,28 @@ new class extends Component {
                 </article>
 
                 <article class="surface-panel p-5 lg:p-6">
-                    <div class="eyebrow">{{ __('dashboard.manager.analytics.last_four_days') }}</div>
+                    <div class="eyebrow">{{ __('dashboard.manager.analytics.last_five_attendance_days') }}</div>
                     <h2 class="font-display mt-2 text-2xl text-white">{{ __('dashboard.manager.analytics.daily_activity') }}</h2>
                     <div class="mt-4 flex flex-wrap gap-4 text-xs text-neutral-300">
                         <span class="flex items-center gap-2"><i class="h-2.5 w-6 rounded-full bg-emerald-400"></i>{{ __('dashboard.manager.analytics.memorized_pages') }}</span>
                         <span class="flex items-center gap-2"><i class="h-2.5 w-6 rounded-full bg-sky-400"></i>{{ __('dashboard.manager.analytics.students_attended') }}</span>
                     </div>
                     <svg viewBox="0 0 440 220" class="mt-3 h-64 w-full overflow-visible" role="img" aria-label="{{ __('dashboard.manager.analytics.daily_activity') }}">
-                        @foreach ([50, 82, 114, 146, 178] as $gridY)
-                            <line x1="42" y1="{{ $gridY }}" x2="398" y2="{{ $gridY }}" stroke="rgba(255,255,255,.09)" stroke-width="1" />
+                        <line x1="58" y1="42" x2="58" y2="178" stroke="rgba(255,255,255,.3)" stroke-width="1.5" />
+                        <line x1="58" y1="178" x2="400" y2="178" stroke="rgba(255,255,255,.3)" stroke-width="1.5" />
+                        @foreach ([0, .25, .5, .75, 1] as $ratio)
+                            @php($gridY = 178 - ($ratio * 128))
+                            <line x1="58" y1="{{ $gridY }}" x2="400" y2="{{ $gridY }}" stroke="rgba(255,255,255,.09)" stroke-width="1" />
+                            <text x="49" y="{{ $gridY + 4 }}" text-anchor="end" fill="#a3a3a3" font-size="10">{{ number_format($trendMax * $ratio) }}</text>
                         @endforeach
                         <polyline points="{{ $pagesLine }}" fill="none" stroke="#34d399" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
                         <polyline points="{{ $attendanceLine }}" fill="none" stroke="#38bdf8" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
                         @foreach ($dailyTrend as $index => $day)
                             <circle cx="{{ $trendX($index) }}" cy="{{ $trendY($day['pages']) }}" r="5" fill="#34d399" class="dashboard-chart-point origin-center transition-transform hover:scale-150"><title>{{ $day['label'] }} · {{ __('dashboard.manager.analytics.memorized_pages') }}: {{ number_format($day['pages']) }}</title></circle>
                             <circle cx="{{ $trendX($index) }}" cy="{{ $trendY($day['attendance']) }}" r="5" fill="#38bdf8" class="dashboard-chart-point origin-center transition-transform hover:scale-150"><title>{{ $day['label'] }} · {{ __('dashboard.manager.analytics.students_attended') }}: {{ number_format($day['attendance']) }}</title></circle>
-                            <text x="{{ $trendX($index) }}" y="207" text-anchor="middle" fill="#a3a3a3" font-size="12">{{ $day['label'] }}</text>
+                            <text x="{{ $trendX($index) }}" y="202" text-anchor="middle" fill="#a3a3a3" font-size="11">{{ $day['label'] }}</text>
                         @endforeach
+                        <text x="20" y="110" text-anchor="middle" fill="#a3a3a3" font-size="10" transform="rotate(-90 20 110)">{{ __('dashboard.manager.analytics.count_axis') }}</text>
                     </svg>
                 </article>
             </section>
@@ -696,11 +710,13 @@ new class extends Component {
 
                 <article class="surface-panel p-5 lg:p-6">
                     <div class="eyebrow">{{ __('dashboard.manager.analytics.groups_eyebrow') }}</div>
-                    <h2 class="font-display mt-2 text-2xl text-white">{{ __('dashboard.manager.analytics.top_groups') }}</h2>
+                    <h2 class="font-display mt-2 text-2xl text-white">{{ __('dashboard.manager.analytics.top_groups_by_memorization') }}</h2>
                     @if ($groupPageTotals->isEmpty())
                         <div class="admin-empty-state mt-5">{{ __('dashboard.manager.analytics.no_groups') }}</div>
                     @else
-                        <div class="dashboard-bar-chart mt-8 grid h-72 grid-cols-4 items-end gap-4 border-b border-white/10 px-3">
+                        <div class="mt-8 grid grid-cols-[3rem_minmax(0,1fr)] gap-2">
+                            <div class="flex h-64 flex-col justify-between border-r border-white/20 pr-2 text-right text-[10px] text-neutral-400"><span>{{ number_format($barMax) }}</span><span>{{ number_format($barMax * .75) }}</span><span>{{ number_format($barMax * .5) }}</span><span>{{ number_format($barMax * .25) }}</span><span>0</span></div>
+                        <div class="dashboard-bar-chart grid h-64 grid-cols-4 items-end gap-4 border-b border-white/20 px-3">
                             @foreach ($groupPageTotals as $index => $group)
                                 @php($barHeight = max(3, ($group['pages'] / $barMax) * 100))
                                 <div class="flex h-full min-w-0 flex-col justify-end text-center">
@@ -712,6 +728,8 @@ new class extends Component {
                                     <div class="mt-3 truncate text-xs text-neutral-300" title="{{ $group['name'] }}">{{ $group['name'] }}</div>
                                 </div>
                             @endforeach
+                        </div>
+                        <div></div><div class="pt-2 text-center text-xs text-neutral-400">{{ __('dashboard.manager.analytics.groups_axis') }}</div>
                         </div>
                     @endif
                 </article>
