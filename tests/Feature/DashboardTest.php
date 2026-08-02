@@ -7,15 +7,20 @@ use App\Models\AppSetting;
 use App\Models\Course;
 use App\Models\Enrollment;
 use App\Models\Group;
+use App\Models\GroupAttendanceDay;
+use App\Models\MemorizationSession;
 use App\Models\ParentProfile;
 use App\Models\PrintTemplate;
 use App\Models\Student;
+use App\Models\StudentAttendanceRecord;
 use App\Models\Teacher;
 use App\Models\User;
+use App\Models\AttendanceStatus;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
+use Livewire\Volt\Volt;
 
 class DashboardTest extends TestCase
 {
@@ -71,6 +76,7 @@ class DashboardTest extends TestCase
         $course = Course::create([
             'name' => 'Quran Foundations',
             'is_active' => true,
+            'is_default' => true,
         ]);
 
         $academicYear = AcademicYear::create([
@@ -98,11 +104,52 @@ class DashboardTest extends TestCase
             'status' => 'active',
         ]);
 
-        Enrollment::create([
+        $enrollment = Enrollment::create([
             'student_id' => $student->id,
             'group_id' => $group->id,
             'enrolled_at' => '2026-09-01',
             'status' => 'active',
+            'final_points_cached' => 42,
+            'memorized_pages_cached' => 18,
+        ]);
+
+        MemorizationSession::create([
+            'enrollment_id' => $enrollment->id,
+            'student_id' => $student->id,
+            'teacher_id' => $teacher->id,
+            'recorded_on' => now()->toDateString(),
+            'entry_type' => 'new',
+            'from_page' => 1,
+            'to_page' => 5,
+            'pages_count' => 5,
+        ]);
+
+        $present = AttendanceStatus::create([
+            'name' => 'Present',
+            'code' => 'present-dashboard',
+            'scope' => 'student',
+            'is_present' => true,
+            'is_active' => true,
+        ]);
+        $attendanceDay = GroupAttendanceDay::create([
+            'group_id' => $group->id,
+            'attendance_date' => now()->toDateString(),
+            'status' => 'closed',
+        ]);
+        StudentAttendanceRecord::create([
+            'group_attendance_day_id' => $attendanceDay->id,
+            'enrollment_id' => $enrollment->id,
+            'attendance_status_id' => $present->id,
+        ]);
+
+        $otherCourse = Course::create(['name' => 'Other Course', 'is_active' => true]);
+        Group::create([
+            'course_id' => $otherCourse->id,
+            'academic_year_id' => $academicYear->id,
+            'teacher_id' => $teacher->id,
+            'name' => 'Excluded Group',
+            'capacity' => 20,
+            'is_active' => true,
         ]);
 
         $this->actingAs($manager);
@@ -110,8 +157,24 @@ class DashboardTest extends TestCase
         $this->get('/dashboard')
             ->assertOk()
             ->assertSee('Management Dashboard')
-            ->assertSee('Recent Groups')
-            ->assertSee('Boys A');
+            ->assertSee('Quran Foundations')
+            ->assertSee('Students by Group')
+            ->assertSee('Memorization and Attendance')
+            ->assertSee('Top 3 Students')
+            ->assertSee('Top 4 Groups by Memorized Pages')
+            ->assertSee('Boys A')
+            ->assertSee('Memorized pages: 5')
+            ->assertSee('Students attended: 1')
+            ->assertDontSee('Recent Groups')
+            ->assertDontSee('Excluded Group');
+
+        Volt::test('dashboard')
+            ->call('showManagerStudent', $student->id)
+            ->assertSet('selectedManagerStudentId', $student->id)
+            ->assertSee('Student Highlights')
+            ->assertSee('Omar Ali')
+            ->assertSee('42')
+            ->assertSee('18');
     }
 
     public function test_super_admin_users_see_the_management_dashboard(): void

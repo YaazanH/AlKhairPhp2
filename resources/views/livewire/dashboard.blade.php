@@ -2,18 +2,23 @@
 
 use App\Models\AcademicYear;
 use App\Models\AppSetting;
+use App\Models\Course;
 use App\Models\Enrollment;
 use App\Models\Group;
+use App\Models\MemorizationSession;
 use App\Models\PrintTemplate;
+use App\Models\QuranFinalTest;
 use App\Models\Student;
-use App\Models\StudentPageAchievement;
-use App\Models\Teacher;
+use App\Models\StudentAttendanceRecord;
 use App\Services\PrintTemplates\PrintTemplateRenderService;
 use App\Services\AccessScopeService;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Volt\Component;
 
 new class extends Component {
+    public ?int $selectedManagerStudentId = null;
+
     public function with(): array
     {
         $user = Auth::user();
@@ -64,24 +69,105 @@ new class extends Component {
 
     protected function managerData($user): array
     {
-        $currentAcademicYear = AcademicYear::query()
-            ->where('is_current', true)
-            ->first();
-        $currentYearMemorizedPages = $currentAcademicYear
-            ? StudentPageAchievement::query()
-                ->whereHas('enrollment.group', fn ($query) => $query->where('academic_year_id', $currentAcademicYear->id))
-                ->count()
-            : 0;
-
-        $recentGroups = Group::query()
-            ->with(['course', 'academicYear', 'teacher'])
-            ->withCount(['enrollments' => fn ($query) => $query->where('status', 'active')])
-            ->latest()
-            ->take(5)
-            ->get();
-        $activeEnrollmentPoints = (int) Enrollment::query()
+        $defaultCourse = Course::query()->where('is_default', true)->where('is_active', true)->first();
+        $courseId = $defaultCourse?->id;
+        $activeEnrollments = Enrollment::query()
             ->where('status', 'active')
-            ->sum('final_points_cached');
+            ->when($courseId, fn ($query) => $query->whereHas('group', fn ($groupQuery) => $groupQuery->where('course_id', $courseId)), fn ($query) => $query->whereRaw('1 = 0'));
+        $groups = Group::query()
+            ->where('is_active', true)
+            ->when($courseId, fn ($query) => $query->where('course_id', $courseId), fn ($query) => $query->whereRaw('1 = 0'))
+            ->withCount(['enrollments as active_students_count' => fn ($query) => $query->where('status', 'active')])
+            ->withSum(['enrollments as memorized_pages_total' => fn ($query) => $query->where('status', 'active')], 'memorized_pages_cached')
+            ->orderBy('name')
+            ->get();
+
+        $groupDistribution = $groups->map(fn (Group $group) => [
+            'id' => $group->id,
+            'name' => $group->name,
+            'students' => (int) $group->active_students_count,
+        ]);
+
+        $trendEnd = now()->startOfDay();
+        $trendDates = collect(range(3, 0))->map(fn (int $daysAgo) => $trendEnd->copy()->subDays($daysAgo));
+        $trendStart = $trendDates->first()->toDateString();
+        $trendFinish = $trendDates->last()->toDateString();
+        $memorizedByDate = MemorizationSession::query()
+            ->join('enrollments', 'enrollments.id', '=', 'memorization_sessions.enrollment_id')
+            ->join('groups', 'groups.id', '=', 'enrollments.group_id')
+            ->whereNull('enrollments.deleted_at')
+            ->whereNull('groups.deleted_at')
+            ->where('memorization_sessions.entry_type', 'new')
+            ->whereDate('memorization_sessions.recorded_on', '>=', $trendStart)
+            ->whereDate('memorization_sessions.recorded_on', '<=', $trendFinish)
+            ->when($courseId, fn ($query) => $query->where('groups.course_id', $courseId), fn ($query) => $query->whereRaw('1 = 0'))
+            ->selectRaw('memorization_sessions.recorded_on as activity_date, SUM(memorization_sessions.pages_count) as total_pages')
+            ->groupBy('memorization_sessions.recorded_on')
+            ->get()
+            ->mapWithKeys(fn ($row) => [Carbon::parse($row->activity_date)->toDateString() => (int) $row->total_pages]);
+        $attendanceByDate = StudentAttendanceRecord::query()
+            ->whereHas('status', fn ($query) => $query->where('is_present', true))
+            ->whereHas('attendanceDay', fn ($query) => $query->whereBetween('attendance_date', [$trendStart, $trendFinish])
+                ->when($courseId, fn ($dayQuery) => $dayQuery->whereHas('group', fn ($groupQuery) => $groupQuery->where('course_id', $courseId)), fn ($dayQuery) => $dayQuery->whereRaw('1 = 0')))
+            ->with('attendanceDay:id,attendance_date')
+            ->get(['id', 'group_attendance_day_id', 'enrollment_id'])
+            ->groupBy(fn (StudentAttendanceRecord $record) => $record->attendanceDay?->attendance_date?->toDateString())
+            ->map(fn ($records) => $records->pluck('enrollment_id')->unique()->count());
+        $dailyTrend = $trendDates->map(fn (Carbon $date) => [
+            'date' => $date->toDateString(),
+            'label' => $date->format('d-m'),
+            'pages' => (int) ($memorizedByDate[$date->toDateString()] ?? 0),
+            'attendance' => (int) ($attendanceByDate[$date->toDateString()] ?? 0),
+        ]);
+
+        $groupPageTotals = $groups->map(function (Group $group): array {
+            return [
+                'id' => $group->id,
+                'name' => $group->name,
+                'pages' => (int) $group->memorized_pages_total,
+            ];
+        })->sortByDesc('pages')->take(4)->values();
+
+        $studentTotals = (clone $activeEnrollments)
+            ->selectRaw('student_id, SUM(final_points_cached) as points, SUM(memorized_pages_cached) as pages')
+            ->groupBy('student_id')
+            ->orderByDesc('points')
+            ->orderByDesc('pages')
+            ->limit(3)
+            ->get();
+        $students = Student::query()->whereIn('id', $studentTotals->pluck('student_id'))->get()->keyBy('id');
+        $leaderboard = $studentTotals->values()->map(fn ($row, int $index) => [
+            'rank' => $index + 1,
+            'student' => $students->get($row->student_id),
+            'points' => (int) $row->points,
+            'pages' => (int) $row->pages,
+        ])->filter(fn (array $row) => $row['student'])->values();
+
+        $selectedStudent = null;
+        if ($courseId && $this->selectedManagerStudentId) {
+            $selectedStudentModel = Student::query()
+                ->whereKey($this->selectedManagerStudentId)
+                ->whereHas('enrollments', fn ($query) => $query->where('status', 'active')->whereHas('group', fn ($groupQuery) => $groupQuery->where('course_id', $courseId)))
+                ->first();
+
+            if ($selectedStudentModel) {
+                $selectedEnrollments = Enrollment::query()
+                    ->where('student_id', $selectedStudentModel->id)
+                    ->where('status', 'active')
+                    ->whereHas('group', fn ($query) => $query->where('course_id', $courseId));
+                $selectedStudent = [
+                    'student' => $selectedStudentModel,
+                    'points' => (int) (clone $selectedEnrollments)->sum('final_points_cached'),
+                    'pages' => (int) (clone $selectedEnrollments)->sum('memorized_pages_cached'),
+                    'final_tests' => QuranFinalTest::query()
+                        ->where('student_id', $selectedStudentModel->id)
+                        ->whereHas('enrollment.group', fn ($query) => $query->where('course_id', $courseId))
+                        ->count(),
+                ];
+            } else {
+                $this->selectedManagerStudentId = null;
+            }
+        }
 
         return [
             'dashboardRole' => 'manager',
@@ -90,15 +176,15 @@ new class extends Component {
             'intro' => __('dashboard.manager.intro'),
             'profileName' => $user->name,
             'profileJob' => __('dashboard.roles.manager'),
-            'currentAcademicYearName' => $currentAcademicYear?->name ?: __('dashboard.manager.profile_meta_no_year'),
-            'profileMeta' => $currentAcademicYear?->name
-                ? __('dashboard.manager.profile_meta_current_year', ['year' => $currentAcademicYear->name])
-                : __('dashboard.manager.profile_meta_no_year'),
+            'currentAcademicYearName' => $defaultCourse?->name ?: __('dashboard.manager.profile_meta_no_course'),
+            'profileMeta' => $defaultCourse
+                ? __('dashboard.manager.profile_meta_default_course', ['course' => $defaultCourse->name])
+                : __('dashboard.manager.profile_meta_no_course'),
             'stats' => [
-                ['label' => __('dashboard.manager.stats.enrolled_students.label'), 'value' => Enrollment::where('status', 'active')->distinct('student_id')->count('student_id'), 'hint' => __('dashboard.manager.stats.enrolled_students.hint')],
-                ['label' => __('dashboard.manager.stats.active_groups.label'), 'value' => Group::where('is_active', true)->count(), 'hint' => __('dashboard.manager.stats.active_groups.hint')],
-                ['label' => __('dashboard.manager.stats.total_points.label'), 'value' => $activeEnrollmentPoints, 'hint' => __('dashboard.manager.stats.total_points.hint')],
-                ['label' => __('dashboard.manager.stats.current_year_memorized_pages.label'), 'value' => $currentYearMemorizedPages, 'hint' => __('dashboard.manager.stats.current_year_memorized_pages.hint')],
+                ['label' => __('dashboard.manager.stats.enrolled_students.label'), 'value' => (clone $activeEnrollments)->distinct('student_id')->count('student_id'), 'hint' => __('dashboard.manager.stats.enrolled_students.hint')],
+                ['label' => __('dashboard.manager.stats.active_groups.label'), 'value' => $groups->count(), 'hint' => __('dashboard.manager.stats.active_groups.hint')],
+                ['label' => __('dashboard.manager.stats.total_points.label'), 'value' => (int) (clone $activeEnrollments)->sum('final_points_cached'), 'hint' => __('dashboard.manager.stats.total_points.hint')],
+                ['label' => __('dashboard.manager.stats.memorized_pages.label'), 'value' => (int) (clone $activeEnrollments)->sum('memorized_pages_cached'), 'hint' => __('dashboard.manager.stats.memorized_pages.hint')],
             ],
             'cards' => [
                 [
@@ -122,12 +208,28 @@ new class extends Component {
             ],
             'recordsHeading' => __('dashboard.manager.records.heading'),
             'recordsEmpty' => __('dashboard.manager.records.empty'),
-            'records' => $recentGroups->map(fn (Group $group) => [
-                'title' => $group->name,
-                'subtitle' => trim(($group->course?->name ?: __('dashboard.common.no_course')).' | '.($group->academicYear?->name ?: __('dashboard.common.no_year'))),
-                'meta' => trim(($group->teacher ? $group->teacher->first_name.' '.$group->teacher->last_name : __('dashboard.common.no_teacher')).' | '.__('dashboard.common.active_enrollments', ['count' => $group->enrollments_count])),
-            ]),
+            'records' => collect(),
+            'defaultCourse' => $defaultCourse,
+            'groupDistribution' => $groupDistribution,
+            'dailyTrend' => $dailyTrend,
+            'leaderboard' => $leaderboard,
+            'groupPageTotals' => $groupPageTotals,
+            'selectedManagerStudent' => $selectedStudent,
         ];
+    }
+
+    public function showManagerStudent(int $studentId): void
+    {
+        abort_unless($this->canUseManagerDashboard(Auth::user()), 403);
+        $defaultCourseId = Course::query()->where('is_default', true)->where('is_active', true)->value('id');
+        abort_unless($defaultCourseId && Student::query()->whereKey($studentId)->whereHas('enrollments', fn ($query) => $query->where('status', 'active')->whereHas('group', fn ($groupQuery) => $groupQuery->where('course_id', $defaultCourseId)))->exists(), 404);
+
+        $this->selectedManagerStudentId = $studentId;
+    }
+
+    public function closeManagerStudent(): void
+    {
+        $this->selectedManagerStudentId = null;
     }
 
     protected function teacherData($user): array
@@ -504,6 +606,132 @@ new class extends Component {
     @endif
 
     <div>
+        @if ($dashboardRole === 'manager')
+            @php
+                $pieTotal = (int) $groupDistribution->sum('students');
+                $pieOffset = 0.0;
+                $chartColors = ['#34d399', '#60a5fa', '#fbbf24', '#f87171', '#a78bfa', '#22d3ee', '#fb7185', '#94a3b8'];
+                $trendMax = max(1, (int) $dailyTrend->max(fn (array $day) => max($day['pages'], $day['attendance'])));
+                $trendX = fn (int $index) => 42 + ($index * (356 / 3));
+                $trendY = fn (int $value) => 178 - (($value / $trendMax) * 128);
+                $pagesLine = $dailyTrend->values()->map(fn (array $day, int $index) => $trendX($index).','.$trendY($day['pages']))->implode(' ');
+                $attendanceLine = $dailyTrend->values()->map(fn (array $day, int $index) => $trendX($index).','.$trendY($day['attendance']))->implode(' ');
+                $podiumOrder = collect([3, 1, 2])->map(fn (int $rank) => $leaderboard->firstWhere('rank', $rank))->filter();
+                $barMax = max(1, (int) $groupPageTotals->max('pages'));
+            @endphp
+
+            <section class="grid gap-6 xl:grid-cols-2">
+                <article class="surface-panel p-5 lg:p-6">
+                    <div class="eyebrow">{{ __('dashboard.manager.analytics.groups_eyebrow') }}</div>
+                    <h2 class="font-display mt-2 text-2xl text-white">{{ __('dashboard.manager.analytics.group_distribution') }}</h2>
+                    @if ($pieTotal > 0)
+                        <div class="mt-6 grid items-center gap-6 sm:grid-cols-[14rem_1fr]">
+                            <svg viewBox="0 0 42 42" class="mx-auto h-56 w-56 -rotate-90 overflow-visible" role="img" aria-label="{{ __('dashboard.manager.analytics.group_distribution') }}">
+                                @foreach ($groupDistribution as $index => $group)
+                                    @php($portion = ($group['students'] / $pieTotal) * 100)
+                                    @if ($portion > 0)
+                                        <circle cx="21" cy="21" r="15.9155" fill="transparent" stroke="{{ $chartColors[$index % count($chartColors)] }}" stroke-width="8" stroke-dasharray="{{ $portion }} {{ 100 - $portion }}" stroke-dashoffset="{{ -$pieOffset }}" class="dashboard-chart-segment origin-center transition-all duration-200 hover:scale-105 hover:stroke-[10]">
+                                            <title>{{ $group['name'] }} · {{ trans_choice('dashboard.manager.analytics.students_count', $group['students'], ['count' => number_format($group['students'])]) }} · {{ number_format($portion, 1) }}%</title>
+                                        </circle>
+                                    @endif
+                                    @php($pieOffset += $portion)
+                                @endforeach
+                            </svg>
+                            <div class="space-y-3">
+                                @foreach ($groupDistribution as $index => $group)
+                                    <div class="flex items-center justify-between gap-3 text-sm">
+                                        <span class="flex min-w-0 items-center gap-2"><i class="h-3 w-3 shrink-0 rounded-full" style="background: {{ $chartColors[$index % count($chartColors)] }}"></i><span class="truncate">{{ $group['name'] }}</span></span>
+                                        <strong class="text-white">{{ number_format($group['students']) }}</strong>
+                                    </div>
+                                @endforeach
+                            </div>
+                        </div>
+                    @else
+                        <div class="admin-empty-state mt-5">{{ __('dashboard.manager.analytics.no_group_students') }}</div>
+                    @endif
+                </article>
+
+                <article class="surface-panel p-5 lg:p-6">
+                    <div class="eyebrow">{{ __('dashboard.manager.analytics.last_four_days') }}</div>
+                    <h2 class="font-display mt-2 text-2xl text-white">{{ __('dashboard.manager.analytics.daily_activity') }}</h2>
+                    <div class="mt-4 flex flex-wrap gap-4 text-xs text-neutral-300">
+                        <span class="flex items-center gap-2"><i class="h-2.5 w-6 rounded-full bg-emerald-400"></i>{{ __('dashboard.manager.analytics.memorized_pages') }}</span>
+                        <span class="flex items-center gap-2"><i class="h-2.5 w-6 rounded-full bg-sky-400"></i>{{ __('dashboard.manager.analytics.students_attended') }}</span>
+                    </div>
+                    <svg viewBox="0 0 440 220" class="mt-3 h-64 w-full overflow-visible" role="img" aria-label="{{ __('dashboard.manager.analytics.daily_activity') }}">
+                        @foreach ([50, 82, 114, 146, 178] as $gridY)
+                            <line x1="42" y1="{{ $gridY }}" x2="398" y2="{{ $gridY }}" stroke="rgba(255,255,255,.09)" stroke-width="1" />
+                        @endforeach
+                        <polyline points="{{ $pagesLine }}" fill="none" stroke="#34d399" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
+                        <polyline points="{{ $attendanceLine }}" fill="none" stroke="#38bdf8" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
+                        @foreach ($dailyTrend as $index => $day)
+                            <circle cx="{{ $trendX($index) }}" cy="{{ $trendY($day['pages']) }}" r="5" fill="#34d399" class="dashboard-chart-point origin-center transition-transform hover:scale-150"><title>{{ $day['label'] }} · {{ __('dashboard.manager.analytics.memorized_pages') }}: {{ number_format($day['pages']) }}</title></circle>
+                            <circle cx="{{ $trendX($index) }}" cy="{{ $trendY($day['attendance']) }}" r="5" fill="#38bdf8" class="dashboard-chart-point origin-center transition-transform hover:scale-150"><title>{{ $day['label'] }} · {{ __('dashboard.manager.analytics.students_attended') }}: {{ number_format($day['attendance']) }}</title></circle>
+                            <text x="{{ $trendX($index) }}" y="207" text-anchor="middle" fill="#a3a3a3" font-size="12">{{ $day['label'] }}</text>
+                        @endforeach
+                    </svg>
+                </article>
+            </section>
+
+            <section class="mt-6 grid gap-6 xl:grid-cols-2">
+                <article class="surface-panel p-5 lg:p-6">
+                    <div class="eyebrow">{{ __('dashboard.manager.analytics.leaderboard_eyebrow') }}</div>
+                    <h2 class="font-display mt-2 text-2xl text-white">{{ __('dashboard.manager.analytics.top_students') }}</h2>
+                    @if ($leaderboard->isEmpty())
+                        <div class="admin-empty-state mt-5">{{ __('dashboard.manager.analytics.no_ranked_students') }}</div>
+                    @else
+                        <div class="dashboard-leaderboard mt-8 grid grid-cols-3 items-end gap-3">
+                            @foreach ($podiumOrder as $entry)
+                                @php($rankStyle = [1 => 'gold', 2 => 'silver', 3 => 'bronze'][$entry['rank']])
+                                <button type="button" wire:click="showManagerStudent({{ $entry['student']->id }})" class="dashboard-leaderboard__card dashboard-leaderboard__card--{{ $rankStyle }} dashboard-leaderboard__card--rank-{{ $entry['rank'] }} group">
+                                    <span class="dashboard-leaderboard__rank">{{ $entry['rank'] }}</span>
+                                    <x-student-avatar :student="$entry['student']" size="lg" class="mx-auto transition-transform duration-200 group-hover:scale-110" />
+                                    <span class="mt-3 block line-clamp-2 font-semibold text-white">{{ $entry['student']->full_name }}</span>
+                                    <span class="mt-2 block text-sm text-neutral-200">{{ number_format($entry['points']) }} {{ __('dashboard.manager.analytics.points') }}</span>
+                                </button>
+                            @endforeach
+                        </div>
+                    @endif
+                </article>
+
+                <article class="surface-panel p-5 lg:p-6">
+                    <div class="eyebrow">{{ __('dashboard.manager.analytics.groups_eyebrow') }}</div>
+                    <h2 class="font-display mt-2 text-2xl text-white">{{ __('dashboard.manager.analytics.top_groups') }}</h2>
+                    @if ($groupPageTotals->isEmpty())
+                        <div class="admin-empty-state mt-5">{{ __('dashboard.manager.analytics.no_groups') }}</div>
+                    @else
+                        <div class="dashboard-bar-chart mt-8 grid h-72 grid-cols-4 items-end gap-4 border-b border-white/10 px-3">
+                            @foreach ($groupPageTotals as $index => $group)
+                                @php($barHeight = max(3, ($group['pages'] / $barMax) * 100))
+                                <div class="flex h-full min-w-0 flex-col justify-end text-center">
+                                    <div class="mb-2 text-sm font-semibold text-white">{{ number_format($group['pages']) }}</div>
+                                    <div class="dashboard-bar-chart__bar mx-auto w-full max-w-16 rounded-t-xl transition-transform duration-200 hover:scale-x-110" style="height: {{ $barHeight }}%; background: {{ $chartColors[$index % count($chartColors)] }}">
+                                        <span class="sr-only">{{ $group['name'] }}: {{ trans_choice('dashboard.manager.analytics.pages_count', $group['pages'], ['count' => number_format($group['pages'])]) }}</span>
+                                        <span class="dashboard-chart-tooltip">{{ $group['name'] }} · {{ trans_choice('dashboard.manager.analytics.pages_count', $group['pages'], ['count' => number_format($group['pages'])]) }}</span>
+                                    </div>
+                                    <div class="mt-3 truncate text-xs text-neutral-300" title="{{ $group['name'] }}">{{ $group['name'] }}</div>
+                                </div>
+                            @endforeach
+                        </div>
+                    @endif
+                </article>
+            </section>
+
+            <x-admin.modal :show="$selectedManagerStudentId !== null" :title="__('dashboard.manager.analytics.student_highlights')" close-method="closeManagerStudent" max-width="3xl">
+                @if ($selectedManagerStudent)
+                    <div class="flex flex-col items-center gap-4 text-center sm:flex-row sm:text-start">
+                        <x-student-avatar :student="$selectedManagerStudent['student']" size="lg" />
+                        <div><h3 class="text-2xl font-semibold text-white">{{ $selectedManagerStudent['student']->full_name }}</h3><p class="mt-1 text-sm text-neutral-400">{{ $defaultCourse?->name }}</p></div>
+                    </div>
+                    <div class="mt-6 grid gap-4 sm:grid-cols-3">
+                        <div class="stat-card"><div class="kpi-label">{{ __('dashboard.manager.analytics.points') }}</div><div class="metric-value mt-4">{{ number_format($selectedManagerStudent['points']) }}</div></div>
+                        <div class="stat-card"><div class="kpi-label">{{ __('dashboard.manager.analytics.memorized_pages') }}</div><div class="metric-value mt-4">{{ number_format($selectedManagerStudent['pages']) }}</div></div>
+                        <div class="stat-card"><div class="kpi-label">{{ __('dashboard.manager.analytics.final_tests') }}</div><div class="metric-value mt-4">{{ number_format($selectedManagerStudent['final_tests']) }}</div></div>
+                    </div>
+                @endif
+            </x-admin.modal>
+        @endif
+
         @if ($dashboardRole === 'student')
             <section class="surface-panel mb-6 p-5 lg:p-6">
                 <div class="admin-grid-meta">
@@ -542,6 +770,7 @@ new class extends Component {
             </section>
         @endif
 
+        @if ($dashboardRole !== 'manager')
         <section class="surface-table">
             <div class="soft-keyline border-b px-5 py-5 lg:px-6">
                 <div class="flex items-center justify-between gap-4">
@@ -575,5 +804,6 @@ new class extends Component {
                 </div>
             @endif
         </section>
+        @endif
     </div>
 </div>

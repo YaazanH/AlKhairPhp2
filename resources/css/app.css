@@ -1521,6 +1521,105 @@ html:not(.dark) .app-pagination__page--dots {
     font-size: 1.25rem;
 }
 
+.dashboard-chart-segment,
+.dashboard-chart-point {
+    transform-box: fill-box;
+    transform-origin: center;
+}
+
+.dashboard-leaderboard {
+    direction: ltr;
+}
+
+.dashboard-leaderboard__card {
+    position: relative;
+    width: 100%;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 1.5rem 1.5rem 0.75rem 0.75rem;
+    padding: 1.25rem 0.65rem;
+    background: rgba(255, 255, 255, 0.04);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07);
+    text-align: center;
+    direction: inherit;
+    transition: transform 180ms ease, border-color 180ms ease, background 180ms ease;
+}
+
+html[dir='rtl'] .dashboard-leaderboard__card {
+    direction: rtl;
+}
+
+.dashboard-leaderboard__card:hover {
+    transform: translateY(-0.35rem);
+}
+
+.dashboard-leaderboard__card--rank-1 {
+    grid-column: 2;
+    min-height: 17rem;
+    padding-top: 2rem;
+    border-color: rgba(251, 191, 36, 0.55);
+    background: linear-gradient(180deg, rgba(251, 191, 36, 0.22), rgba(120, 53, 15, 0.12));
+}
+
+.dashboard-leaderboard__card--rank-2 {
+    grid-column: 3;
+    min-height: 15rem;
+    border-color: rgba(203, 213, 225, 0.42);
+    background: linear-gradient(180deg, rgba(203, 213, 225, 0.17), rgba(51, 65, 85, 0.1));
+}
+
+.dashboard-leaderboard__card--rank-3 {
+    grid-column: 1;
+    min-height: 13.5rem;
+    border-color: rgba(217, 119, 6, 0.42);
+    background: linear-gradient(180deg, rgba(217, 119, 6, 0.18), rgba(120, 53, 15, 0.08));
+}
+
+.dashboard-leaderboard__rank {
+    position: absolute;
+    top: 0.65rem;
+    inset-inline-end: 0.75rem;
+    display: grid;
+    width: 1.8rem;
+    height: 1.8rem;
+    place-items: center;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.24);
+    color: white;
+    font-size: 0.75rem;
+    font-weight: 800;
+}
+
+.dashboard-bar-chart__bar {
+    position: relative;
+    min-height: 0.75rem;
+    transform-origin: bottom;
+}
+
+.dashboard-chart-tooltip {
+    position: absolute;
+    z-index: 5;
+    inset-inline-start: 50%;
+    bottom: calc(100% + 0.65rem);
+    width: max-content;
+    max-width: 13rem;
+    transform: translateX(-50%) translateY(0.25rem);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 0.75rem;
+    padding: 0.5rem 0.7rem;
+    background: rgba(10, 10, 10, 0.95);
+    color: white;
+    font-size: 0.75rem;
+    line-height: 1.35;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 150ms ease, transform 150ms ease;
+}
+
+.dashboard-bar-chart__bar:hover .dashboard-chart-tooltip {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+}
+
 .admin-identity-stack {
     display: grid;
     gap: 0.35rem;
