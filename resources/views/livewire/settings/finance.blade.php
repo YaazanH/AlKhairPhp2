@@ -7,6 +7,7 @@ use App\Models\AppSetting;
 use App\Models\FinanceCashBox;
 use App\Models\FinanceCategory;
 use App\Models\FinanceCurrency;
+use App\Models\FinanceGeneratedReport;
 use App\Models\FinancePullRequestKind;
 use App\Models\FinanceRequest;
 use App\Models\FinanceTransaction;
@@ -16,6 +17,7 @@ use App\Models\PrintTemplate;
 use App\Models\User;
 use App\Services\FinanceService;
 use App\Services\PrintTemplates\PrintTemplateDataSourceService;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Livewire\Volt\Component;
 
@@ -97,6 +99,7 @@ new class extends Component {
     public string $maint_description = '';
     public ?int $maint_entered_by = null;
     public string $maint_delete_reason = '';
+    public string $report_lookup_no = '';
 
     public function mount(): void
     {
@@ -673,6 +676,44 @@ new class extends Component {
         session()->flash('status', __('finance.messages.transaction_deleted'));
     }
 
+    public function deleteGeneratedReport(): void
+    {
+        $this->authorizePermission('finance.settings.manage');
+
+        $validated = $this->validate([
+            'report_lookup_no' => ['required', 'string', 'max:50', 'regex:/^(?:FINR-)?0*[1-9]\d*$/i'],
+        ]);
+
+        if (! FinanceGeneratedReport::storageIsReady()) {
+            $this->addError('report_lookup_no', __('finance.reports.generated_reports_unavailable'));
+
+            return;
+        }
+
+        preg_match('/([1-9]\d*)$/', $validated['report_lookup_no'], $matches);
+        $generatedReport = FinanceGeneratedReport::query()
+            ->where('report_type', 'ledger')
+            ->find((int) ($matches[1] ?? 0));
+
+        if (! $generatedReport) {
+            $this->addError('report_lookup_no', __('finance.reports.saved_report_not_found'));
+
+            return;
+        }
+
+        $pdfPath = FinanceGeneratedReport::pdfStorageIsReady()
+            ? (string) ($generatedReport->pdf_path ?? '')
+            : '';
+
+        if ($pdfPath !== '') {
+            Storage::disk('local')->delete($pdfPath);
+        }
+
+        $generatedReport->delete();
+        $this->report_lookup_no = '';
+        session()->flash('status', __('finance.reports.saved_report_deleted'));
+    }
+
     public function savePaymentMethod(): void
     {
         $this->authorizePermission('finance.settings.manage');
@@ -838,6 +879,7 @@ new class extends Component {
             <a href="#finance-cash-boxes" class="pill-link pill-link--compact">{{ __('finance.settings.cash_boxes') }}</a>
             <a href="#finance-categories" class="pill-link pill-link--compact">{{ __('finance.settings.categories') }}</a>
             <a href="#finance-request-kinds" class="pill-link pill-link--compact">{{ __('finance.settings.request_kinds') }}</a>
+            <a href="#finance-generated-reports" class="pill-link pill-link--compact">{{ __('finance.settings.generated_report_maintenance') }}</a>
             <a href="#finance-legacy" class="pill-link pill-link--compact">{{ __('finance.settings.payment_setup') }}</a>
         </div>
     </section>
@@ -1061,6 +1103,20 @@ new class extends Component {
         </div>
         @error('pullKindDelete') <div class="mx-5 mb-4 rounded-2xl border border-red-500/25 bg-red-500/10 px-3 py-2 text-sm text-red-200">{{ $message }}</div> @enderror
         <div class="overflow-x-auto"><table class="text-sm"><thead><tr><th class="px-5 py-3 text-left">{{ __('finance.fields.name') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.mode') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.state') }}</th><th class="px-5 py-3 text-right">{{ __('finance.actions.actions') }}</th></tr></thead><tbody class="divide-y divide-white/6">@foreach ($pullRequestKinds as $kind)<tr><td class="px-5 py-3"><div class="font-medium text-white">{{ $kind->name }}</div><div class="text-xs text-neutral-500">{{ $kind->code }}</div></td><td class="px-5 py-3">{{ __('finance.pull_modes.'.$kind->mode) }}</td><td class="px-5 py-3">{{ $kind->is_active ? __('finance.common.active') : __('finance.common.inactive') }}</td><td class="px-5 py-3"><div class="admin-action-cluster admin-action-cluster--end"><button type="button" wire:click="editPullKind({{ $kind->id }})" class="pill-link pill-link--compact">{{ __('finance.actions.edit') }}</button><button type="button" wire:click="deletePullKind({{ $kind->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link pill-link--compact border-red-400/25 text-red-200">{{ __('finance.actions.delete') }}</button></div></td></tr>@endforeach</tbody></table></div>
+    </section>
+
+    <section id="finance-generated-reports" class="surface-panel p-5 lg:p-6">
+        <div class="admin-toolbar">
+            <div>
+                <div class="admin-toolbar__title">{{ __('finance.settings.generated_report_maintenance') }}</div>
+                <p class="admin-toolbar__subtitle">{{ __('finance.settings.generated_report_maintenance_help') }}</p>
+            </div>
+        </div>
+        <div class="mt-5 flex flex-col gap-3 sm:flex-row">
+            <input wire:model="report_lookup_no" placeholder="FINR-000001" class="min-w-0 flex-1 rounded-xl px-4 py-3" dir="ltr">
+            <button wire:click="deleteGeneratedReport" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" type="button" class="pill-link pill-link--danger">{{ __('finance.reports.delete_saved_report') }}</button>
+        </div>
+        @error('report_lookup_no')<div class="mt-2 text-sm text-red-400">{{ $message }}</div>@enderror
     </section>
 
     <section id="finance-legacy" class="surface-table">

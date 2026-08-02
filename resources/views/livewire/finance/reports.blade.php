@@ -137,35 +137,6 @@ new class extends Component {
         session()->flash('status', __('finance.reports.settings_saved'));
     }
 
-    public function deleteGeneratedReport(int $generatedReportId): void
-    {
-        $this->authorizePermission('finance.reports.export');
-
-        if (! FinanceGeneratedReport::storageIsReady()) {
-            return;
-        }
-
-        $generatedReport = FinanceGeneratedReport::query()
-            ->where('report_type', 'ledger')
-            ->find($generatedReportId);
-
-        if (! $generatedReport) {
-            return;
-        }
-
-        $pdfPath = FinanceGeneratedReport::pdfStorageIsReady()
-            ? (string) ($generatedReport->pdf_path ?? '')
-            : '';
-
-        if ($pdfPath !== '') {
-            Storage::disk('local')->delete($pdfPath);
-        }
-
-        $generatedReport->delete();
-
-        session()->flash('status', __('finance.reports.saved_report_deleted'));
-    }
-
     protected function selectDefaultLedgerCashBox(): void
     {
         $cashBox = app(FinanceService::class)->defaultCashBoxForUser(auth()->user());
@@ -291,7 +262,6 @@ new class extends Component {
                                         <div class="admin-action-cluster admin-action-cluster--end">
                                             <a href="{{ route('finance.reports.generated.show', $generatedReport) }}" target="_blank" rel="noopener" class="pill-link pill-link--compact">{{ __('finance.reports.review_saved_report') }}</a>
                                             <a href="{{ route('finance.reports.generated.show', ['generatedReport' => $generatedReport, 'format' => 'xlsx']) }}" class="pill-link pill-link--compact pill-link--accent">{{ __('finance.reports.export_saved_xlsx') }}</a>
-                                            <button type="button" wire:click="deleteGeneratedReport({{ $generatedReport->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link pill-link--compact border-red-400/25 text-red-200 hover:border-red-300/35 hover:bg-red-500/12">{{ __('finance.reports.delete_saved_report') }}</button>
                                         </div>
                                     </td>
                                 </tr>

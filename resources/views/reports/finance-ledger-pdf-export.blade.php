@@ -1,6 +1,5 @@
 @php
     $template = $report['template'];
-    $backgroundImage = $template['background_image_pdf_src'] ?? null;
     $logoImage = $template['logo_image_pdf_src'] ?? null;
     $reportNumber = 'FINR-'.str_pad((string) ($generatedReport?->id ?? 0), 6, '0', STR_PAD_LEFT);
     $rows = collect($report['rows'] ?? []);
@@ -25,10 +24,6 @@
         @page {
             size: A4 portrait;
             margin: 12mm 12mm 20mm;
-            @if ($backgroundImage)
-                background-image: url('{{ $backgroundImage }}');
-                background-image-resize: 6;
-            @endif
         }
         body { color: #14261a; direction: rtl; font-family: dejavusanscondensed; font-size: 10px; margin: 0; }
         .page { min-height: 253mm; }

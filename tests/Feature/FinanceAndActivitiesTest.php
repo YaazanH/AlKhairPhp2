@@ -1227,6 +1227,13 @@ class FinanceAndActivitiesTest extends TestCase
         $this->assertStringContainsString('سري وهام - غير معد للمداولة', $rtlExportHtml);
         $this->assertStringContainsString('type="QR"', $rtlExportHtml);
         $this->assertStringContainsString('type="C39"', $rtlExportHtml);
+        $this->assertStringNotContainsString('background-image-resize', $rtlExportHtml);
+
+        $reportWithBackground = $report;
+        $reportWithBackground['template']['background_image_pdf_src'] = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
+        $backgroundPdf = app(FinanceReportService::class)->renderLedgerPdf($reportWithBackground);
+        $this->assertStringStartsWith('%PDF', $backgroundPdf);
+        $this->assertGreaterThan(1000, strlen($backgroundPdf));
         $this->assertStringContainsString('ملخص التقرير المالي', $rtlExportHtml);
 
         Volt::test('finance.reports')
@@ -1272,7 +1279,7 @@ class FinanceAndActivitiesTest extends TestCase
         $this->assertStringStartsWith('%PDF', (string) $savedPdfResponse->getContent());
         $this->assertGreaterThan(1000, strlen((string) $savedPdfResponse->getContent()));
         $this->assertNotSame('legacy-pdf', Storage::disk('local')->get($generatedReport->pdf_path));
-        $this->assertSame('mpdf-fixed-ledger-v3', FinanceGeneratedReport::query()->findOrFail($generatedReport->id)->report_data['pdf_renderer']);
+        $this->assertSame('mpdf-fixed-ledger-v4', FinanceGeneratedReport::query()->findOrFail($generatedReport->id)->report_data['pdf_renderer']);
 
         $this->get(route('finance.reports.generated.show', ['generatedReport' => $generatedReport, 'format' => 'xlsx']))
             ->assertOk()
@@ -1323,7 +1330,7 @@ class FinanceAndActivitiesTest extends TestCase
             ->assertNotFound();
     }
 
-    public function test_finance_generated_report_can_be_deleted_from_reports_page(): void
+    public function test_finance_generated_report_can_only_be_deleted_from_finance_settings(): void
     {
         $this->signIn();
         Storage::fake('local');
@@ -1358,8 +1365,12 @@ class FinanceAndActivitiesTest extends TestCase
         Storage::disk('local')->assertExists($generatedReport->pdf_path);
 
         Volt::test('finance.reports')
-            ->assertSee(__('finance.reports.delete_saved_report'))
-            ->call('deleteGeneratedReport', $generatedReport->id)
+            ->assertDontSee(__('finance.reports.delete_saved_report'));
+
+        Volt::test('settings.finance')
+            ->assertSee(__('finance.settings.generated_report_maintenance'))
+            ->set('report_lookup_no', 'FINR-'.str_pad((string) $generatedReport->id, 6, '0', STR_PAD_LEFT))
+            ->call('deleteGeneratedReport')
             ->assertHasNoErrors();
 
         $this->assertDatabaseMissing('finance_generated_reports', [

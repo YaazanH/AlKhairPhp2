@@ -423,6 +423,14 @@ class FinanceReportService
             'rtl'
         );
 
+        $backgroundImage = data_get($report, 'template.background_image_pdf_src');
+
+        if (filled($backgroundImage)) {
+            $mpdf->SetWatermarkImage($backgroundImage, 1, [210, 297], [0, 0]);
+            $mpdf->watermarkImgBehind = true;
+            $mpdf->showWatermarkImage = true;
+        }
+
         $html = view('reports.finance-ledger-pdf-export', [
             'generatedReport' => $generatedReport,
             'report' => $report,
@@ -766,7 +774,7 @@ class FinanceReportService
 
     protected function ledgerPdfRendererVersion(): string
     {
-        return 'mpdf-fixed-ledger-v3';
+        return 'mpdf-fixed-ledger-v4';
     }
 
     protected function normalizeLedgerTemplateSnapshot(array $template): array
