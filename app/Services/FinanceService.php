@@ -21,8 +21,8 @@ use App\Models\InvoiceItem;
 use App\Models\Payment;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -1274,6 +1274,18 @@ class FinanceService
 
     protected function defaultFinanceCategoryId(string $type): ?int
     {
+        if ($type === FinanceRequest::TYPE_RETURN) {
+            $returnCategoryId = FinanceCategory::query()
+                ->where('is_active', true)
+                ->where('type', FinanceRequest::TYPE_RETURN)
+                ->where('code', 'return')
+                ->value('id');
+
+            if ($returnCategoryId) {
+                return (int) $returnCategoryId;
+            }
+        }
+
         return FinanceCategory::query()
             ->where('is_active', true)
             ->where('type', $type)

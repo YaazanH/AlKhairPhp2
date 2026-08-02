@@ -39,6 +39,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Livewire\Volt\Volt;
 use Tests\TestCase;
@@ -1628,6 +1629,116 @@ class FinanceAndActivitiesTest extends TestCase
         $this->assertSame('DBIT-000001', $request->expense_no);
         $this->assertNotNull($request->settled_at);
         $this->assertSame('DBIT-000001', $request->postedTransaction->fresh()->special_transaction_no);
+    }
+
+    public function test_existing_incomes_returns_and_exchanges_are_renumbered_from_settings(): void
+    {
+        $this->signIn();
+
+        $service = app(FinanceService::class);
+        $currency = $service->localCurrency();
+        $fund = FinanceCashBox::query()->firstOrFail();
+        $revenueCategory = FinanceCategory::query()->where('type', FinanceRequest::TYPE_REVENUE)->firstOrFail();
+        $service->postTransaction(['cash_box_id' => $fund->id, 'currency_id' => $currency->id, 'type' => 'opening_balance', 'direction' => 'in', 'amount' => 100]);
+
+        $revenue = FinanceRequest::query()->create([
+            'request_no' => 'OLD-INCOME-9',
+            'type' => FinanceRequest::TYPE_REVENUE,
+            'status' => FinanceRequest::STATUS_ACCEPTED,
+            'requested_currency_id' => $currency->id,
+            'requested_amount' => 25,
+            'accepted_currency_id' => $currency->id,
+            'accepted_amount' => 25,
+            'cash_box_id' => $fund->id,
+            'finance_category_id' => $revenueCategory->id,
+        ]);
+        $revenueTransaction = $service->postTransaction([
+            'cash_box_id' => $fund->id,
+            'currency_id' => $currency->id,
+            'finance_category_id' => $revenueCategory->id,
+            'finance_request_id' => $revenue->id,
+            'type' => 'revenue_request',
+            'special_transaction_no' => $revenue->request_no,
+            'direction' => 'in',
+            'amount' => 25,
+        ]);
+        $revenue->update(['posted_transaction_id' => $revenueTransaction->id]);
+
+        $return = FinanceRequest::query()->create([
+            'request_no' => 'OLD-RETURN-4',
+            'type' => FinanceRequest::TYPE_RETURN,
+            'status' => FinanceRequest::STATUS_ACCEPTED,
+            'requested_currency_id' => $currency->id,
+            'requested_amount' => 10,
+            'accepted_currency_id' => $currency->id,
+            'accepted_amount' => 10,
+            'cash_box_id' => $fund->id,
+            'finance_category_id' => null,
+        ]);
+        $returnTransaction = $service->postTransaction([
+            'cash_box_id' => $fund->id,
+            'currency_id' => $currency->id,
+            'finance_request_id' => $return->id,
+            'type' => 'return_request',
+            'special_transaction_no' => $return->request_no,
+            'direction' => 'in',
+            'amount' => 10,
+        ]);
+        $return->update(['posted_transaction_id' => $returnTransaction->id]);
+
+        $pairUuid = (string) Str::uuid();
+        $exchange = FinanceCurrencyExchange::query()->create([
+            'pair_uuid' => $pairUuid,
+            'exchange_no' => 'OLD-EXCHANGE-7',
+            'from_cash_box_id' => $fund->id,
+            'to_cash_box_id' => $fund->id,
+            'from_currency_id' => $currency->id,
+            'to_currency_id' => $currency->id,
+            'from_amount' => 5,
+            'to_amount' => 5,
+            'from_rate_to_base' => $currency->rate_to_base,
+            'to_rate_to_base' => $currency->rate_to_base,
+            'base_amount' => 5,
+            'local_amount' => 5,
+            'exchange_date' => now()->toDateString(),
+        ]);
+
+        foreach (['out', 'in'] as $direction) {
+            $service->postTransaction([
+                'cash_box_id' => $fund->id,
+                'currency_id' => $currency->id,
+                'source_type' => FinanceCurrencyExchange::class,
+                'source_id' => $exchange->id,
+                'type' => 'currency_exchange',
+                'special_transaction_no' => $exchange->exchange_no,
+                'direction' => $direction,
+                'amount' => 5,
+                'pair_uuid' => $pairUuid,
+                'metadata' => ['exchange_no' => $exchange->exchange_no, 'reference' => $exchange->exchange_no],
+            ]);
+        }
+
+        AppSetting::storeValue('finance', 'revenue_request_prefix', 'CRDT');
+        AppSetting::storeValue('finance', 'return_request_prefix', 'RTRN');
+        AppSetting::storeValue('finance', 'exchange_prefix', 'XCHG');
+
+        $migration = require database_path('migrations/2026_08_02_030000_renumber_incomes_exchanges_and_categorize_returns.php');
+        $migration->up();
+
+        $returnCategory = FinanceCategory::query()->where('code', 'return')->firstOrFail();
+        $this->assertSame('إرجاع', $returnCategory->name);
+        $this->assertSame('CRDT-000001', $revenue->fresh()->request_no);
+        $this->assertSame('CRDT-000001', $revenueTransaction->fresh()->special_transaction_no);
+        $this->assertSame('RTRN-000001', $return->fresh()->request_no);
+        $this->assertSame($returnCategory->id, $return->fresh()->finance_category_id);
+        $this->assertSame('RTRN-000001', $returnTransaction->fresh()->special_transaction_no);
+        $this->assertSame($returnCategory->id, $returnTransaction->fresh()->finance_category_id);
+        $this->assertSame('XCHG-000001', $exchange->fresh()->exchange_no);
+
+        $exchangeTransactions = FinanceTransaction::query()->where('pair_uuid', $pairUuid)->get();
+        $this->assertCount(2, $exchangeTransactions);
+        $this->assertTrue($exchangeTransactions->every(fn (FinanceTransaction $transaction) => $transaction->special_transaction_no === 'XCHG-000001'));
+        $this->assertTrue($exchangeTransactions->every(fn (FinanceTransaction $transaction) => data_get($transaction->metadata, 'reference') === 'XCHG-000001'));
     }
 
     public function test_finance_dashboard_limits_latest_activity_and_exposes_category_percentage(): void
