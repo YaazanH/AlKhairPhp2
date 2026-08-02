@@ -42,6 +42,8 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Livewire\Volt\Volt;
+use Mpdf\Mpdf;
+use setasign\Fpdi\PdfParser\StreamReader;
 use Tests\TestCase;
 
 class FinanceAndActivitiesTest extends TestCase
@@ -468,6 +470,7 @@ class FinanceAndActivitiesTest extends TestCase
             ->set('revenue_request_prefix', 'inc')
             ->set('return_request_prefix', 'rfd')
             ->set('exchange_prefix', 'fx')
+            ->set('report_prefix', 'rpt')
             ->call('saveFinanceSettings')
             ->assertHasNoErrors();
 
@@ -479,6 +482,8 @@ class FinanceAndActivitiesTest extends TestCase
         $this->assertSame('INC-000001', $financeService->nextRequestNumber(FinanceRequest::TYPE_REVENUE));
         $this->assertSame('RFD-000001', $financeService->nextRequestNumber(FinanceRequest::TYPE_RETURN));
         $this->assertSame('FX-000001', $financeService->nextExchangeNumber());
+        $this->assertSame('RPT', app(FinanceReportService::class)->reportPrefix());
+        $this->assertFalse(Route::has('finance.reports.export'));
 
         Volt::test('settings.finance')
             ->call('editCurrency', $localCurrency->id)
@@ -1169,6 +1174,28 @@ class FinanceAndActivitiesTest extends TestCase
             ->assertSee('Test exchange');
     }
 
+    public function test_quarter_comparison_converts_mixed_currencies_to_the_local_currency(): void
+    {
+        $this->signIn();
+
+        $service = app(FinanceService::class);
+        $fund = FinanceCashBox::query()->firstOrFail();
+        $baseCurrency = $service->baseCurrency();
+        $localCurrency = $service->localCurrency();
+        $localCurrency->update(['rate_to_base' => 1 / 100]);
+
+        $service->postTransaction(['cash_box_id' => $fund->id, 'currency_id' => $baseCurrency->id, 'type' => 'opening_balance', 'direction' => 'in', 'amount' => 10, 'transaction_date' => now()->toDateString()]);
+        $service->postTransaction(['cash_box_id' => $fund->id, 'currency_id' => $localCurrency->id, 'type' => 'opening_balance', 'direction' => 'in', 'amount' => 1000, 'transaction_date' => now()->toDateString()]);
+        $service->postTransaction(['cash_box_id' => $fund->id, 'currency_id' => $baseCurrency->id, 'type' => 'mixed_currency_expense', 'direction' => 'out', 'amount' => 2, 'transaction_date' => now()->toDateString()]);
+        $service->postTransaction(['cash_box_id' => $fund->id, 'currency_id' => $localCurrency->id, 'type' => 'mixed_currency_expense', 'direction' => 'out', 'amount' => 100, 'transaction_date' => now()->toDateString()]);
+
+        $report = app(FinanceReportService::class)->report((int) now()->year, (int) now()->quarter);
+        $quarter = collect($report['quarter_totals'])->firstWhere('quarter', now()->quarter);
+
+        $this->assertSame($localCurrency->id, $report['summary']['local_currency']->id);
+        $this->assertSame(300.0, $quarter['expense']);
+    }
+
     public function test_finance_ledger_report_exports_opening_running_and_closing_balances(): void
     {
         $this->signIn();
@@ -1208,7 +1235,8 @@ class FinanceAndActivitiesTest extends TestCase
             'description' => 'Expense',
         ]);
 
-        $report = app(FinanceReportService::class)->ledgerReport($template, $cashBox, $currency, '2026-02-01', '2026-02-28');
+        AppSetting::storeValue('finance', 'report_prefix', 'RPT');
+        $report = app(FinanceReportService::class)->ledgerReport($template, $cashBox, $currency, '2026-02-01', '2026-02-28', auth()->user(), 'Only for this ledger');
         $rtlExportHtml = view('reports.finance-ledger-pdf-export', [
             'generatedReport' => null,
             'report' => $report,
@@ -1219,22 +1247,36 @@ class FinanceAndActivitiesTest extends TestCase
         $this->assertSame(75.0, $report['income']);
         $this->assertSame(20.0, $report['expense']);
         $this->assertSame(155.0, $report['closing_balance']);
+        $this->assertSame('Only for this ledger', $report['notes']);
+        $this->assertSame('RPT', $report['report_prefix']);
         $this->assertCount(2, $report['rows']);
         $this->assertSame(175.0, $report['rows'][0]['_running_balance_raw']);
         $this->assertSame(155.0, $report['rows'][1]['_running_balance_raw']);
         $this->assertStringContainsString('dir="rtl"', $rtlExportHtml);
-        $this->assertStringContainsString('size: A4 portrait', $rtlExportHtml);
+        $this->assertStringNotContainsString('size: A4 portrait', $rtlExportHtml);
         $this->assertStringContainsString('تقرير مالي', $rtlExportHtml);
         $this->assertStringContainsString('سري وهام - غير معد للمداولة', $rtlExportHtml);
-        $this->assertStringContainsString('type="QR"', $rtlExportHtml);
+        $this->assertStringContainsString('data:image/svg+xml;base64,', $rtlExportHtml);
+        $this->assertStringNotContainsString('type="QR"', $rtlExportHtml);
         $this->assertStringContainsString('type="C39"', $rtlExportHtml);
+        $this->assertStringContainsString('RPT-000000', $rtlExportHtml);
         $this->assertStringNotContainsString('background-image-resize', $rtlExportHtml);
 
         $reportWithBackground = $report;
         $reportWithBackground['template']['background_image_pdf_src'] = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
+        $reportWithBackground['rows'] = collect(range(1, 50))->map(fn (int $index): array => array_merge($report['rows'][$index % 2], ['transaction_date' => sprintf('%02d-02-2026', ($index % 28) + 1)]))->all();
+        $reportWithoutBackground = $reportWithBackground;
+        $reportWithoutBackground['template']['background_image_pdf_src'] = null;
+        $plainPdf = app(FinanceReportService::class)->renderLedgerPdf($reportWithoutBackground);
         $backgroundPdf = app(FinanceReportService::class)->renderLedgerPdf($reportWithBackground);
         $this->assertStringStartsWith('%PDF', $backgroundPdf);
         $this->assertGreaterThan(1000, strlen($backgroundPdf));
+        $pdfInspector = new Mpdf(['tempDir' => storage_path('app/mpdf')]);
+        $smallPageCount = $pdfInspector->setSourceFile(StreamReader::createByString(app(FinanceReportService::class)->renderLedgerPdf($report)));
+        $plainPageCount = $pdfInspector->setSourceFile(StreamReader::createByString($plainPdf));
+        $backgroundPageCount = $pdfInspector->setSourceFile(StreamReader::createByString($backgroundPdf));
+        $this->assertGreaterThanOrEqual(2, $backgroundPageCount);
+        $this->assertLessThan(10, $backgroundPageCount, 'small='.$smallPageCount.', plain='.$plainPageCount.', background='.$backgroundPageCount);
         $this->assertStringContainsString('ملخص التقرير المالي', $rtlExportHtml);
 
         Volt::test('finance.reports')
@@ -1252,6 +1294,7 @@ class FinanceAndActivitiesTest extends TestCase
             'currency_id' => $currency->id,
             'date_from' => '2026-02-01',
             'date_to' => '2026-02-28',
+            'ledger_notes' => 'Quarter-specific note',
             'format' => 'pdf',
         ]));
         $pdfResponse
@@ -1263,6 +1306,8 @@ class FinanceAndActivitiesTest extends TestCase
         $this->assertSame(1, FinanceGeneratedReport::query()->count());
 
         $generatedReport = FinanceGeneratedReport::query()->latest('id')->firstOrFail();
+        $this->assertSame('Quarter-specific note', data_get($generatedReport->report_data, 'notes'));
+        $this->assertSame('RPT', data_get($generatedReport->report_data, 'report_prefix'));
         $this->assertNotNull($generatedReport->pdf_path);
         Storage::disk('local')->assertExists($generatedReport->pdf_path);
 
@@ -1280,11 +1325,11 @@ class FinanceAndActivitiesTest extends TestCase
         $this->assertStringStartsWith('%PDF', (string) $savedPdfResponse->getContent());
         $this->assertGreaterThan(1000, strlen((string) $savedPdfResponse->getContent()));
         $this->assertNotSame('legacy-pdf', Storage::disk('local')->get($generatedReport->pdf_path));
-        $this->assertSame('mpdf-fixed-ledger-v4', FinanceGeneratedReport::query()->findOrFail($generatedReport->id)->report_data['pdf_renderer']);
+        $this->assertSame('mpdf-fixed-ledger-v5', FinanceGeneratedReport::query()->findOrFail($generatedReport->id)->report_data['pdf_renderer']);
 
         $this->get(route('finance.reports.generated.show', ['generatedReport' => $generatedReport, 'format' => 'xlsx']))
             ->assertOk()
-            ->assertHeader('content-type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+            ->assertHeader('content-type', 'application/pdf');
 
         $this->get(route('finance.reports.ledger.export', [
             'cash_box_id' => $cashBox->id,
@@ -1293,10 +1338,10 @@ class FinanceAndActivitiesTest extends TestCase
             'date_to' => '2026-02-28',
             'format' => 'xlsx',
         ]))
-            ->assertOk()
-            ->assertHeader('content-type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+            ->assertRedirect()
+            ->assertSessionHasErrors('format');
 
-        $this->assertSame(2, FinanceGeneratedReport::query()->count());
+        $this->assertSame(1, FinanceGeneratedReport::query()->count());
     }
 
     public function test_finance_reports_page_and_ledger_export_handle_missing_generated_report_table(): void
@@ -1447,22 +1492,24 @@ class FinanceAndActivitiesTest extends TestCase
             ->assertSet('show_page_numbers', false);
     }
 
-    public function test_finance_reports_store_fixed_ledger_background_logo_and_notes(): void
+    public function test_finance_reports_store_fixed_ledger_background_and_logo_in_modal(): void
     {
         $this->signIn();
         Storage::fake('public');
 
         Volt::test('finance.reports')
+            ->call('openReportSettings')
+            ->assertSet('showReportSettingsModal', true)
             ->set('report_background_upload', UploadedFile::fake()->image('background.jpg', 1200, 1600))
             ->set('report_logo_upload', UploadedFile::fake()->image('logo.png', 300, 120))
-            ->set('report_notes', 'Confidential closing notes')
             ->call('saveReportSettings')
+            ->assertSet('showReportSettingsModal', false)
             ->assertHasNoErrors();
 
         $settings = app(FinanceReportService::class)->defaultLedgerTemplate()->fresh();
         $this->assertSame('تقرير مالي', $settings->title);
         $this->assertSame('Financial ledger', $settings->name);
-        $this->assertSame('Confidential closing notes', $settings->custom_text);
+        $this->assertNull($settings->custom_text);
         $this->assertSame(FinanceReportTemplate::LANGUAGE_AR, $settings->language);
         $this->assertSame(FinanceReportTemplate::DEFAULT_COLUMNS, $settings->normalizedColumns());
         $this->assertTrue($settings->show_page_numbers);

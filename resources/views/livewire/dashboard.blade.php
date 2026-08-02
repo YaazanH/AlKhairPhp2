@@ -607,8 +607,7 @@ new class extends Component {
                         <div class="kpi-label">{{ $stat['label'] }}</div>
                         <span class="badge-soft {{ $loop->even ? 'badge-soft--emerald' : '' }}">{{ str_pad((string) $loop->iteration, 2, '0', STR_PAD_LEFT) }}</span>
                     </div>
-                    <div class="metric-value {{ $dashboardRole === 'manager' ? 'mt-3' : 'mt-6' }}">{{ is_numeric($stat['value']) ? number_format($stat['value']) : $stat['value'] }}</div>
-                    <p class="{{ $dashboardRole === 'manager' ? 'mt-2 text-xs leading-5' : 'mt-4 text-sm leading-6' }} max-w-xs text-neutral-300">{{ $stat['hint'] }}</p>
+                    <div class="metric-value mt-3">{{ is_numeric($stat['value']) ? number_format($stat['value']) : $stat['value'] }}</div>
                 </article>
             @endforeach
         </div>

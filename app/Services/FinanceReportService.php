@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\AcademicYear;
+use App\Models\AppSetting;
 use App\Models\FinanceCashBox;
 use App\Models\FinanceCurrency;
 use App\Models\FinanceGeneratedReport;
@@ -59,8 +60,8 @@ class FinanceReportService
                 ->latest()
                 ->limit(10)
                 ->get(),
-            'quarter_totals' => $this->quarterTotals($year),
-            'previous_year_quarter_totals' => $this->quarterTotals($year - 1),
+            'quarter_totals' => $this->quarterTotals($year, $localCurrency),
+            'previous_year_quarter_totals' => $this->quarterTotals($year - 1, $localCurrency),
             'latest_transactions' => $transactions->sortByDesc(fn (FinanceTransaction $transaction) => $transaction->transaction_date?->format('Y-m-d').str_pad((string) $transaction->id, 12, '0', STR_PAD_LEFT))->take(4)->values(),
             'summary_by_currency' => $operatingTransactions
                 ->groupBy('currency_id')
@@ -87,28 +88,6 @@ class FinanceReportService
             ],
             'transactions' => $transactions,
         ];
-    }
-
-    public function exportRows(int $year, ?int $quarter = null): array
-    {
-        return $this->report($year, $quarter)['transactions']
-            ->map(fn (FinanceTransaction $transaction) => [
-                $transaction->transaction_date?->format('d-m-Y'),
-                $transaction->transaction_no,
-                $transaction->cashBox?->name,
-                $transaction->currency?->code,
-                app(FinanceService::class)->transactionTypeLabel((string) $transaction->type, $transaction),
-                $transaction->direction,
-                (float) $transaction->amount,
-                (float) $transaction->signed_amount,
-                (float) $transaction->base_amount,
-                (float) $transaction->local_amount,
-                $transaction->category?->name,
-                $transaction->activity?->title,
-                $transaction->teacher ? trim($transaction->teacher->first_name.' '.$transaction->teacher->last_name) : null,
-                $transaction->description,
-            ])
-            ->all();
     }
 
     public function defaultLedgerTemplate(): FinanceReportTemplate
@@ -173,7 +152,7 @@ class FinanceReportService
         };
     }
 
-    public function ledgerReport(FinanceReportTemplate $template, FinanceCashBox $cashBox, FinanceCurrency $currency, string $startDate, string $endDate, ?User $issuer = null): array
+    public function ledgerReport(FinanceReportTemplate $template, FinanceCashBox $cashBox, FinanceCurrency $currency, string $startDate, string $endDate, ?User $issuer = null, ?string $notes = null): array
     {
         $start = Carbon::parse($startDate)->startOfDay();
         $end = Carbon::parse($endDate)->endOfDay();
@@ -219,7 +198,23 @@ class FinanceReportService
             $rows,
             $exportedAt,
             $issuer,
+            $notes,
         );
+    }
+
+    public function reportPrefix(): string
+    {
+        $configured = AppSetting::groupValues('finance')->get('report_prefix');
+        $normalized = Str::upper(trim((string) preg_replace('/[\s-]+/u', '', (string) ($configured ?: 'FINR'))));
+
+        return $normalized !== '' ? $normalized : 'FINR';
+    }
+
+    public function reportNumber(?FinanceGeneratedReport $generatedReport = null, array $report = []): string
+    {
+        $prefix = (string) ($report['report_prefix'] ?? $this->reportPrefix());
+
+        return $prefix.'-'.str_pad((string) ($generatedReport?->id ?? 0), 6, '0', STR_PAD_LEFT);
     }
 
     public function previewLedgerReport(FinanceReportTemplate $template, ?User $issuer = null): array
@@ -419,9 +414,7 @@ class FinanceReportService
         $mpdf->autoLangToFont = true;
         $mpdf->autoScriptToLang = true;
         $mpdf->useSubstitutions = true;
-        $mpdf->SetDirectionality(
-            'rtl'
-        );
+        $mpdf->SetDirectionality('rtl');
 
         $backgroundImage = data_get($report, 'template.background_image_pdf_src');
 
@@ -586,6 +579,7 @@ class FinanceReportService
         array $rows,
         Carbon $exportedAt,
         ?User $issuer = null,
+        ?string $notes = null,
     ): array {
         $closingBalance = round($openingBalance + $income - $expense, 2);
         $templateSnapshot = $this->normalizeLedgerTemplateSnapshot($this->templateSnapshot($template));
@@ -615,10 +609,12 @@ class FinanceReportService
                 ->value('name') ?: AcademicYear::query()->where('is_current', true)->value('name'),
             'issuer_name' => $issuer?->name ?: auth()->user()?->name,
             'net' => round($income - $expense, 2),
+            'notes' => filled($notes) ? trim($notes) : null,
             'opening_balance' => $openingBalance,
             'page_number' => 1,
             'pdf_renderer' => $this->ledgerPdfRendererVersion(),
             'report_date' => $this->resolveReportDate($template, $exportedAt),
+            'report_prefix' => $this->reportPrefix(),
             'rows' => $rows,
             'start' => $start->toDateString(),
             'template' => $templateSnapshot,
@@ -697,19 +693,21 @@ class FinanceReportService
         ];
     }
 
-    protected function quarterTotals(int $year): array
+    protected function quarterTotals(int $year, FinanceCurrency $comparisonCurrency): array
     {
         return collect([1, 2, 3, 4])
-            ->map(function (int $quarter) use ($year) {
+            ->map(function (int $quarter) use ($comparisonCurrency, $year) {
                 [$start, $end] = $this->period($year, $quarter);
+                $comparisonRate = max((float) $comparisonCurrency->rate_to_base, 0.000000000001);
                 $transactions = FinanceTransaction::query()
                     ->whereBetween('transaction_date', [$start->toDateString(), $end->toDateString()])
                     ->whereNotIn('type', ['cash_box_transfer', 'currency_exchange'])
-                    ->get(['local_amount']);
+                    ->get(['base_amount']);
+                $convertedAmounts = $transactions->map(fn (FinanceTransaction $transaction): float => round((float) $transaction->base_amount / $comparisonRate, 2));
 
                 return [
-                    'income' => round((float) $transactions->where('local_amount', '>', 0)->sum('local_amount'), 2),
-                    'expense' => round(abs((float) $transactions->where('local_amount', '<', 0)->sum('local_amount')), 2),
+                    'income' => round((float) $convertedAmounts->filter(fn (float $amount): bool => $amount > 0)->sum(), 2),
+                    'expense' => round(abs((float) $convertedAmounts->filter(fn (float $amount): bool => $amount < 0)->sum()), 2),
                     'quarter' => $quarter,
                     'start' => $start,
                     'end' => $end,
@@ -774,7 +772,7 @@ class FinanceReportService
 
     protected function ledgerPdfRendererVersion(): string
     {
-        return 'mpdf-fixed-ledger-v4';
+        return 'mpdf-fixed-ledger-v5';
     }
 
     protected function normalizeLedgerTemplateSnapshot(array $template): array

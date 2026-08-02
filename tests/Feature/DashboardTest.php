@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\AcademicYear;
 use App\Models\AppSetting;
+use App\Models\AttendanceStatus;
 use App\Models\Course;
 use App\Models\Enrollment;
 use App\Models\Group;
@@ -15,12 +16,11 @@ use App\Models\Student;
 use App\Models\StudentAttendanceRecord;
 use App\Models\Teacher;
 use App\Models\User;
-use App\Models\AttendanceStatus;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Livewire\Volt\Volt;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
-use Livewire\Volt\Volt;
 
 class DashboardTest extends TestCase
 {
@@ -169,6 +169,7 @@ class DashboardTest extends TestCase
             ->assertSee('Memorized pages: 5')
             ->assertSee('Students attended: 1')
             ->assertDontSee('Recent Groups')
+            ->assertDontSee('Students with an active enrollment in the default course')
             ->assertDontSee('Excluded Group');
 
         Volt::test('dashboard')

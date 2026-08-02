@@ -73,22 +73,6 @@ class ReportExportController extends Controller
         );
     }
 
-    public function finance(Request $request): StreamedResponse
-    {
-        abort_unless($request->user()?->can('finance.reports.export'), 403);
-
-        $validated = $request->validate([
-            'quarter' => ['nullable', 'integer', 'between:1,4'],
-            'year' => ['required', 'integer', 'between:2000,2100'],
-        ]);
-
-        return $this->xlsxDownload(
-            'finance-report',
-            ['Date', 'Transaction No', 'Fund', 'Currency', 'Type', 'Direction', 'Amount', 'Signed Amount', 'Base Amount', 'Local Amount', 'Category', 'Activity', 'Teacher', 'Description'],
-            app(FinanceReportService::class)->exportRows((int) $validated['year'], isset($validated['quarter']) ? (int) $validated['quarter'] : null),
-        );
-    }
-
     public function financeLedger(Request $request)
     {
         abort_unless($request->user()?->can('finance.reports.export'), 403);
@@ -98,7 +82,8 @@ class ReportExportController extends Controller
             'currency_id' => ['required', 'integer', 'exists:finance_currencies,id'],
             'date_from' => ['required', 'date'],
             'date_to' => ['required', 'date', 'after_or_equal:date_from'],
-            'format' => ['required', 'in:xlsx,pdf'],
+            'ledger_notes' => ['nullable', 'string', 'max:4000'],
+            'format' => ['required', 'in:pdf'],
         ]);
 
         $financeService = app(FinanceService::class);
@@ -108,17 +93,10 @@ class ReportExportController extends Controller
         $currency = $financeService->currenciesForCashBox($cashBox->id)
             ->whereKey((int) $validated['currency_id'])
             ->firstOrFail();
-        $report = $reportService->ledgerReport($template, $cashBox, $currency, $validated['date_from'], $validated['date_to'], $request->user());
+        $report = $reportService->ledgerReport($template, $cashBox, $currency, $validated['date_from'], $validated['date_to'], $request->user(), $validated['ledger_notes'] ?? null);
         $generatedReport = $reportService->storeGeneratedLedgerReport($report, $validated, $request->user());
 
-        if ($validated['format'] === 'pdf') {
-            return $this->ledgerPdfResponse($reportService, $report, $generatedReport);
-        }
-
-        $rows = $reportService->ledgerExportRowsFromReport($report);
-        $headers = array_shift($rows) ?: [data_get($report, 'template.title', $template->title)];
-
-        return $this->xlsxDownload('finance-ledger-report', $headers, $rows);
+        return $this->ledgerPdfResponse($reportService, $report, $generatedReport);
     }
 
     public function generatedFinanceLedger(Request $request, int $generatedReport)
@@ -131,21 +109,10 @@ class ReportExportController extends Controller
             ->findOrFail($generatedReport);
         abort_unless($generatedReport->report_type === 'ledger', 404);
 
-        $validated = $request->validate([
-            'format' => ['nullable', 'in:xlsx,pdf'],
-        ]);
-
         $reportService = app(FinanceReportService::class);
         $report = $reportService->generatedLedgerReport($generatedReport);
 
-        if (($validated['format'] ?? 'pdf') === 'pdf') {
-            return $this->ledgerPdfResponse($reportService, $report, $generatedReport);
-        }
-
-        $rows = $reportService->ledgerExportRowsFromReport($report);
-        $headers = array_shift($rows) ?: [data_get($report, 'template.title', __('finance.report_templates.default_title'))];
-
-        return $this->xlsxDownload('finance-ledger-report', $headers, $rows);
+        return $this->ledgerPdfResponse($reportService, $report, $generatedReport);
     }
 
     protected function xlsxDownload(string $filenamePrefix, array $headers, array $rows): StreamedResponse

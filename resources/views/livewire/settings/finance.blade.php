@@ -33,6 +33,7 @@ new class extends Component {
     public string $return_request_prefix = '';
     public string $exchange_prefix = '';
     public string $transfer_prefix = '';
+    public string $report_prefix = '';
     public string $request_terms = '';
     public string $default_cash_box_id = '';
     public string $default_pull_request_kind_id = '';
@@ -568,6 +569,7 @@ new class extends Component {
             'return_request_prefix' => ['required', 'string', 'max:20'],
             'exchange_prefix' => ['required', 'string', 'max:20'],
             'transfer_prefix' => ['required', 'string', 'max:20'],
+            'report_prefix' => ['required', 'string', 'max:20', 'regex:/^[A-Za-z0-9 -]+$/'],
             'request_terms' => ['nullable', 'string'],
             'default_cash_box_id' => ['nullable', 'integer', Rule::exists('finance_cash_boxes', 'id')->where('is_active', true)],
             'default_pull_request_kind_id' => ['nullable', 'integer', Rule::exists('finance_pull_request_kinds', 'id')->where('is_active', true)],
@@ -594,6 +596,7 @@ new class extends Component {
         AppSetting::storeValue('finance', 'return_request_prefix', $this->normalizedFinancePrefix($validated['return_request_prefix'], 'RET'));
         AppSetting::storeValue('finance', 'exchange_prefix', $this->normalizedFinancePrefix($validated['exchange_prefix'], 'EXC'));
         AppSetting::storeValue('finance', 'transfer_prefix', $this->normalizedFinancePrefix($validated['transfer_prefix'], 'TRSF'));
+        AppSetting::storeValue('finance', 'report_prefix', $this->normalizedFinancePrefix($validated['report_prefix'], 'FINR'));
         AppSetting::storeValue('finance', 'request_terms', $validated['request_terms'] ?: null);
         AppSetting::storeValue('finance', 'default_cash_box_id', $validated['default_cash_box_id'] ?: null, 'integer');
         AppSetting::storeValue('finance', 'default_pull_request_kind_id', $validated['default_pull_request_kind_id'] ?: null, 'integer');
@@ -681,7 +684,7 @@ new class extends Component {
         $this->authorizePermission('finance.settings.manage');
 
         $validated = $this->validate([
-            'report_lookup_no' => ['required', 'string', 'max:50', 'regex:/^(?:FINR-)?0*[1-9]\d*$/i'],
+            'report_lookup_no' => ['required', 'string', 'max:50', 'regex:/^(?:[A-Z0-9]+-)?0*[1-9]\d*$/i'],
         ]);
 
         if (! FinanceGeneratedReport::storageIsReady()) {
@@ -834,6 +837,7 @@ new class extends Component {
         $this->return_request_prefix = $this->normalizedFinancePrefix((string) ($settings->get('return_request_prefix') ?: 'RET'), 'RET');
         $this->exchange_prefix = $this->normalizedFinancePrefix((string) ($settings->get('exchange_prefix') ?: 'EXC'), 'EXC');
         $this->transfer_prefix = $this->normalizedFinancePrefix((string) ($settings->get('transfer_prefix') ?: 'TRSF'), 'TRSF');
+        $this->report_prefix = $this->normalizedFinancePrefix((string) ($settings->get('report_prefix') ?: 'FINR'), 'FINR');
         $this->request_terms = (string) ($settings->get('request_terms') ?: '');
         $this->default_cash_box_id = (string) ($settings->get('default_cash_box_id') ?: '');
         $this->default_pull_request_kind_id = (string) ($settings->get('default_pull_request_kind_id') ?: '');
@@ -941,6 +945,11 @@ new class extends Component {
                         <label class="mb-1 block text-sm font-medium">{{ __('finance.settings.transfer_prefix') }}</label>
                         <input wire:model="transfer_prefix" type="text" class="w-full rounded-xl px-4 py-3 text-sm uppercase">
                         @error('transfer_prefix') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
+                    </div>
+                    <div>
+                        <label class="mb-1 block text-sm font-medium">{{ __('finance.settings.report_prefix') }}</label>
+                        <input wire:model="report_prefix" type="text" class="w-full rounded-xl px-4 py-3 text-sm uppercase">
+                        @error('report_prefix') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
                     </div>
                 </div>
             </div>
@@ -1105,20 +1114,6 @@ new class extends Component {
         <div class="overflow-x-auto"><table class="text-sm"><thead><tr><th class="px-5 py-3 text-left">{{ __('finance.fields.name') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.mode') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.state') }}</th><th class="px-5 py-3 text-right">{{ __('finance.actions.actions') }}</th></tr></thead><tbody class="divide-y divide-white/6">@foreach ($pullRequestKinds as $kind)<tr><td class="px-5 py-3"><div class="font-medium text-white">{{ $kind->name }}</div><div class="text-xs text-neutral-500">{{ $kind->code }}</div></td><td class="px-5 py-3">{{ __('finance.pull_modes.'.$kind->mode) }}</td><td class="px-5 py-3">{{ $kind->is_active ? __('finance.common.active') : __('finance.common.inactive') }}</td><td class="px-5 py-3"><div class="admin-action-cluster admin-action-cluster--end"><button type="button" wire:click="editPullKind({{ $kind->id }})" class="pill-link pill-link--compact">{{ __('finance.actions.edit') }}</button><button type="button" wire:click="deletePullKind({{ $kind->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link pill-link--compact border-red-400/25 text-red-200">{{ __('finance.actions.delete') }}</button></div></td></tr>@endforeach</tbody></table></div>
     </section>
 
-    <section id="finance-generated-reports" class="surface-panel p-5 lg:p-6">
-        <div class="admin-toolbar">
-            <div>
-                <div class="admin-toolbar__title">{{ __('finance.settings.generated_report_maintenance') }}</div>
-                <p class="admin-toolbar__subtitle">{{ __('finance.settings.generated_report_maintenance_help') }}</p>
-            </div>
-        </div>
-        <div class="mt-5 flex flex-col gap-3 sm:flex-row">
-            <input wire:model="report_lookup_no" placeholder="FINR-000001" class="min-w-0 flex-1 rounded-xl px-4 py-3" dir="ltr">
-            <button wire:click="deleteGeneratedReport" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" type="button" class="pill-link pill-link--danger">{{ __('finance.reports.delete_saved_report') }}</button>
-        </div>
-        @error('report_lookup_no')<div class="mt-2 text-sm text-red-400">{{ $message }}</div>@enderror
-    </section>
-
     <section id="finance-legacy" class="surface-table">
         <div class="admin-grid-meta">
             <div><div class="admin-grid-meta__title">{{ __('settings.finance.sections.payment_method.table') }}</div></div>
@@ -1158,6 +1153,20 @@ new class extends Component {
                 @endcan
             @endunless
         @endif
+    </section>
+
+    <section id="finance-generated-reports" class="surface-panel p-5 lg:p-6">
+        <div class="admin-toolbar">
+            <div>
+                <div class="admin-toolbar__title">{{ __('finance.settings.generated_report_maintenance') }}</div>
+                <p class="admin-toolbar__subtitle">{{ __('finance.settings.generated_report_maintenance_help', ['prefix' => $report_prefix]) }}</p>
+            </div>
+        </div>
+        <div class="mt-5 flex flex-col gap-3 sm:flex-row">
+            <input wire:model="report_lookup_no" placeholder="{{ $report_prefix }}-000001" class="min-w-0 flex-1 rounded-xl px-4 py-3" dir="ltr">
+            <button wire:click="deleteGeneratedReport" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" type="button" class="pill-link pill-link--danger">{{ __('finance.reports.delete_saved_report') }}</button>
+        </div>
+        @error('report_lookup_no')<div class="mt-2 text-sm text-red-400">{{ $message }}</div>@enderror
     </section>
 
     <x-admin.modal :show="$showCurrencyModal" :title="$currency_editing_id ? __('finance.actions.edit').' '.__('finance.common.currency') : __('finance.actions.create_currency')" :description="__('finance.settings.currencies_subtitle')" close-method="closeCurrencyModal" max-width="3xl">

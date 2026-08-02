@@ -26,6 +26,7 @@ new class extends Component {
     public string $report_notes = '';
     public bool $remove_report_background = false;
     public bool $remove_report_logo = false;
+    public bool $showReportSettingsModal = false;
 
     public function mount(): void
     {
@@ -34,7 +35,6 @@ new class extends Component {
         $this->ledger_year = (int) now()->year;
         $this->ledger_quarter = (string) now()->quarter;
         $this->syncLedgerQuarterDates();
-        $this->report_notes = (string) (app(FinanceReportService::class)->defaultLedgerTemplate()->custom_text ?? '');
         $this->selectDefaultLedgerCashBox();
     }
 
@@ -91,7 +91,6 @@ new class extends Component {
         $validated = $this->validate([
             'report_background_upload' => ['nullable', 'image', 'mimes:jpeg,jpg,png', 'max:8192'],
             'report_logo_upload' => ['nullable', 'image', 'mimes:png', 'max:4096'],
-            'report_notes' => ['nullable', 'string', 'max:4000'],
             'remove_report_background' => ['boolean'],
             'remove_report_logo' => ['boolean'],
         ]);
@@ -120,7 +119,7 @@ new class extends Component {
 
         $settings->forceFill([
             'columns' => FinanceReportTemplate::DEFAULT_COLUMNS,
-            'custom_text' => $validated['report_notes'] ?: null,
+            'custom_text' => null,
             'include_closing_balance' => true,
             'include_exported_at' => true,
             'include_opening_balance' => true,
@@ -134,7 +133,21 @@ new class extends Component {
         ])->save();
 
         $this->reset('report_background_upload', 'report_logo_upload', 'remove_report_background', 'remove_report_logo');
+        $this->showReportSettingsModal = false;
         session()->flash('status', __('finance.reports.settings_saved'));
+    }
+
+    public function openReportSettings(): void
+    {
+        $this->authorizePermission('finance.report-templates.manage');
+        $this->showReportSettingsModal = true;
+    }
+
+    public function closeReportSettings(): void
+    {
+        $this->reset('report_background_upload', 'report_logo_upload', 'remove_report_background', 'remove_report_logo');
+        $this->showReportSettingsModal = false;
+        $this->resetValidation();
     }
 
     protected function selectDefaultLedgerCashBox(): void
@@ -190,35 +203,11 @@ new class extends Component {
                 <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('finance.reports.title') }}</h1>
                 <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ __('finance.reports.subtitle') }}</p>
             </div>
+            @can('finance.report-templates.manage')
+                <button type="button" wire:click="openReportSettings" class="pill-link pill-link--accent">{{ __('finance.reports.report_settings') }}</button>
+            @endcan
         </div>
     </section>
-
-    @can('finance.report-templates.manage')
-        <section class="surface-panel p-5 lg:p-6" style="order: 2">
-            <div class="eyebrow">{{ __('finance.reports.report_settings') }}</div>
-            <h2 class="font-display mt-3 text-2xl text-white">{{ __('finance.reports.ledger_design') }}</h2>
-            <p class="mt-2 text-sm leading-6 text-neutral-300">{{ __('finance.reports.ledger_design_help') }}</p>
-            <form wire:submit="saveReportSettings" class="mt-5 grid gap-5 lg:grid-cols-2">
-                <div>
-                    <label class="mb-2 block text-sm font-medium">{{ __('finance.reports.page_background') }}</label>
-                    <input wire:model="report_background_upload" type="file" accept="image/png,image/jpeg" class="w-full rounded-xl px-4 py-3 text-sm">
-                    @error('report_background_upload')<div class="mt-1 text-sm text-red-400">{{ $message }}</div>@enderror
-                    @if ($ledgerSettings?->background_image_url)<img src="{{ $ledgerSettings->background_image_url }}" alt="" class="mt-3 h-28 w-full rounded-xl object-cover">@endif
-                    @if ($ledgerSettings?->background_image)<label class="mt-3 flex items-center gap-2 text-sm"><input wire:model="remove_report_background" type="checkbox"><span>{{ __('finance.reports.remove_background') }}</span></label>@endif
-                </div>
-                <div>
-                    <label class="mb-2 block text-sm font-medium">{{ __('finance.reports.report_logo') }}</label>
-                    <input wire:model="report_logo_upload" type="file" accept="image/png" class="w-full rounded-xl px-4 py-3 text-sm">
-                    <p class="mt-1 text-xs text-neutral-400">{{ __('finance.reports.transparent_png_help') }}</p>
-                    @error('report_logo_upload')<div class="mt-1 text-sm text-red-400">{{ $message }}</div>@enderror
-                    @if ($ledgerSettings?->logo_image_url)<img src="{{ $ledgerSettings->logo_image_url }}" alt="" class="mt-3 h-28 max-w-52 rounded-xl object-contain">@endif
-                    @if ($ledgerSettings?->logo_image)<label class="mt-3 flex items-center gap-2 text-sm"><input wire:model="remove_report_logo" type="checkbox"><span>{{ __('finance.reports.remove_logo') }}</span></label>@endif
-                </div>
-                <div class="lg:col-span-2"><label class="mb-2 block text-sm font-medium">{{ __('finance.common.notes') }}</label><textarea wire:model="report_notes" rows="3" class="w-full rounded-xl px-4 py-3 text-sm"></textarea>@error('report_notes')<div class="mt-1 text-sm text-red-400">{{ $message }}</div>@enderror</div>
-                <div class="lg:col-span-2 flex justify-end"><button class="pill-link pill-link--accent">{{ __('finance.actions.save') }}</button></div>
-            </form>
-        </section>
-    @endcan
 
     @can('finance.reports.export')
         @if ($generatedReportsEnabled)
@@ -251,7 +240,7 @@ new class extends Component {
                                 @endphp
                                 <tr>
                                     <td class="px-5 py-3">
-                                        <div class="font-medium text-white">FINR-{{ str_pad((string) $generatedReport->id, 6, '0', STR_PAD_LEFT) }}</div>
+                                        <div class="font-medium text-white">{{ app(FinanceReportService::class)->reportNumber($generatedReport, $generatedReport->report_data ?: []) }}</div>
                                     </td>
                                     <td class="px-5 py-3">{{ $savedStart ? \Illuminate\Support\Carbon::parse($savedStart)->format('d-m-Y') : '-' }} - {{ $savedEnd ? \Illuminate\Support\Carbon::parse($savedEnd)->format('d-m-Y') : '-' }}</td>
                                     <td class="px-5 py-3">{{ data_get($generatedReport->filters, 'cash_box_name', data_get($generatedReport->report_data, 'cash_box.name', '-')) }}</td>
@@ -261,7 +250,6 @@ new class extends Component {
                                     <td class="px-5 py-3">
                                         <div class="admin-action-cluster admin-action-cluster--end">
                                             <a href="{{ route('finance.reports.generated.show', $generatedReport) }}" target="_blank" rel="noopener" class="pill-link pill-link--compact">{{ __('finance.reports.review_saved_report') }}</a>
-                                            <a href="{{ route('finance.reports.generated.show', ['generatedReport' => $generatedReport, 'format' => 'xlsx']) }}" class="pill-link pill-link--compact pill-link--accent">{{ __('finance.reports.export_saved_xlsx') }}</a>
                                         </div>
                                     </td>
                                 </tr>
@@ -291,14 +279,20 @@ new class extends Component {
                 'currency_id' => $ledger_currency_id,
                 'date_from' => $ledger_date_from,
                 'date_to' => $ledger_date_to,
+                'ledger_notes' => $report_notes,
             ];
         @endphp
         <section class="surface-panel p-5 lg:p-6" style="order: 3">
             <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <div>
+                <div class="w-full sm:max-w-md">
                     <div class="eyebrow">{{ __('finance.reports.ledger_export') }}</div>
                     <h2 class="font-display mt-3 text-2xl text-white">{{ __('finance.reports.ledger_export_title') }}</h2>
                     <p class="mt-2 text-sm leading-6 text-neutral-300">{{ __('finance.reports.ledger_export_subtitle') }}</p>
+                </div>
+                <div class="w-full sm:max-w-md">
+                    <label class="mb-1 block text-sm font-medium">{{ __('finance.reports.report_notes') }}</label>
+                    <textarea wire:model="report_notes" rows="3" maxlength="4000" class="w-full rounded-xl px-4 py-3 text-sm"></textarea>
+                    <p class="mt-1 text-xs text-neutral-400">{{ __('finance.reports.report_notes_help') }}</p>
                 </div>
             </div>
 
@@ -355,12 +349,37 @@ new class extends Component {
 
             <div class="mt-5 flex flex-wrap gap-3">
                 @if ($ledgerReady)
-                    <a href="{{ route('finance.reports.ledger.export', array_merge($ledgerQuery, ['format' => 'xlsx'])) }}" class="pill-link pill-link--accent">{{ __('finance.reports.export_ledger_xlsx') }}</a>
-                    <a href="{{ route('finance.reports.ledger.export', array_merge($ledgerQuery, ['format' => 'pdf'])) }}" target="_blank" rel="noopener" class="pill-link">{{ __('finance.reports.export_ledger_pdf') }}</a>
+                    <a href="{{ route('finance.reports.ledger.export', array_merge($ledgerQuery, ['format' => 'pdf'])) }}" target="_blank" rel="noopener" class="pill-link pill-link--accent">{{ __('finance.reports.generate_report') }}</a>
                 @else
                     <span class="pill-link opacity-60">{{ __('finance.reports.choose_box_currency_first') }}</span>
                 @endif
             </div>
         </section>
+    @endcan
+
+    @can('finance.report-templates.manage')
+        <x-admin.modal :show="$showReportSettingsModal" :title="__('finance.reports.report_settings')" :description="__('finance.reports.ledger_design_help')" close-method="closeReportSettings" max-width="5xl">
+            <form wire:submit="saveReportSettings" class="grid gap-5 lg:grid-cols-2">
+                <div>
+                    <label class="mb-2 block text-sm font-medium">{{ __('finance.reports.page_background') }}</label>
+                    <input wire:model="report_background_upload" type="file" accept="image/png,image/jpeg" class="w-full rounded-xl px-4 py-3 text-sm">
+                    @error('report_background_upload')<div class="mt-1 text-sm text-red-400">{{ $message }}</div>@enderror
+                    @if ($ledgerSettings?->background_image_url)<img src="{{ $ledgerSettings->background_image_url }}" alt="" class="mt-3 h-28 w-full rounded-xl object-cover">@endif
+                    @if ($ledgerSettings?->background_image)<label class="mt-3 flex items-center gap-2 text-sm"><input wire:model="remove_report_background" type="checkbox"><span>{{ __('finance.reports.remove_background') }}</span></label>@endif
+                </div>
+                <div>
+                    <label class="mb-2 block text-sm font-medium">{{ __('finance.reports.report_logo') }}</label>
+                    <input wire:model="report_logo_upload" type="file" accept="image/png" class="w-full rounded-xl px-4 py-3 text-sm">
+                    <p class="mt-1 text-xs text-neutral-400">{{ __('finance.reports.transparent_png_help') }}</p>
+                    @error('report_logo_upload')<div class="mt-1 text-sm text-red-400">{{ $message }}</div>@enderror
+                    @if ($ledgerSettings?->logo_image_url)<img src="{{ $ledgerSettings->logo_image_url }}" alt="" class="mt-3 h-28 max-w-52 rounded-xl object-contain">@endif
+                    @if ($ledgerSettings?->logo_image)<label class="mt-3 flex items-center gap-2 text-sm"><input wire:model="remove_report_logo" type="checkbox"><span>{{ __('finance.reports.remove_logo') }}</span></label>@endif
+                </div>
+                <div class="lg:col-span-2 flex justify-end gap-3">
+                    <button type="button" wire:click="closeReportSettings" class="pill-link">{{ __('crud.common.actions.close') }}</button>
+                    <button class="pill-link pill-link--accent">{{ __('finance.actions.save') }}</button>
+                </div>
+            </form>
+        </x-admin.modal>
     @endcan
 </div>

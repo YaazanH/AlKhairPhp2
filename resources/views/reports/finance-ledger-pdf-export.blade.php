@@ -1,9 +1,9 @@
 @php
     $template = $report['template'];
     $logoImage = $template['logo_image_pdf_src'] ?? null;
-    $reportNumber = 'FINR-'.str_pad((string) ($generatedReport?->id ?? 0), 6, '0', STR_PAD_LEFT);
+    $reportNumber = $service->reportNumber($generatedReport, $report);
     $rows = collect($report['rows'] ?? []);
-    $dataPages = $rows->isEmpty() ? collect([collect()]) : $rows->chunk(18)->values();
+    $dataPages = $rows->isEmpty() ? collect([collect()]) : $rows->chunk(12)->values();
     $qrPayload = json_encode([
         'report_no' => $reportNumber,
         'fund' => data_get($report, 'cash_box.name'),
@@ -13,6 +13,13 @@
         'opening_balance' => $report['opening_balance'] ?? null,
         'ending_balance' => $report['closing_balance'] ?? null,
     ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    $qrSvg = (new \Mpdf\QrCode\Output\Svg())->output(
+        new \Mpdf\QrCode\QrCode($qrPayload, \Mpdf\QrCode\QrCode::ERROR_CORRECTION_MEDIUM),
+        120,
+        'white',
+        'black'
+    );
+    $qrImage = 'data:image/svg+xml;base64,'.base64_encode($qrSvg);
     $exportedAt = ! empty($report['exported_at']) ? \Illuminate\Support\Carbon::parse($report['exported_at'])->format('d-m-Y H:i') : '-';
 @endphp
 <!DOCTYPE html>
@@ -21,13 +28,8 @@
     <meta charset="utf-8">
     <title>تقرير مالي</title>
     <style>
-        @page {
-            size: A4 portrait;
-            margin: 12mm 12mm 20mm;
-        }
+        @page { margin: 12mm 12mm 20mm; }
         body { color: #14261a; direction: rtl; font-family: dejavusanscondensed; font-size: 10px; margin: 0; }
-        .page { min-height: 253mm; }
-        .page-break { page-break-after: always; }
         .first-header { background: #dcefdc; border-bottom: 1px solid #a9c9ae; margin: -12mm -12mm 5mm; padding: 8mm 12mm 5mm; }
         .first-header-table, .meta-table, .ledger-table, .summary-table, .footer-table { border-collapse: collapse; width: 100%; }
         .first-header-table td { border: 0; vertical-align: middle; }
@@ -36,7 +38,7 @@
         .title-cell { text-align: center; width: 50%; }
         .title-cell h1 { color: #123d22; font-size: 25px; margin: 0; }
         .security-notice { color: #c62828; font-size: 12px; font-weight: bold; margin-top: 2mm; }
-        .meta-box { background: rgba(255,255,255,.88); border: 1px solid #b8cfbb; margin-bottom: 4mm; padding: 3mm; }
+        .meta-box { background: rgba(255,255,255,.88); border: 1px solid #b8cfbb; padding: 3mm; }
         .meta-table td { border: 0; padding: 1.2mm 2mm; vertical-align: middle; }
         .meta-label { color: #3f6849; font-weight: bold; width: 17%; }
         .meta-value { color: #102c18; font-weight: bold; width: 24%; }
@@ -69,39 +71,37 @@
     <sethtmlpagefooter name="ledgerFooter" value="on" />
 
     @foreach ($dataPages as $pageIndex => $pageRows)
-        <section class="page page-break">
-            @if ($pageIndex === 0)
-                <header class="first-header">
-                    <table class="first-header-table" dir="ltr"><tr><td style="width:25%"></td><td class="title-cell" dir="rtl"><h1>تقرير مالي</h1><div class="security-notice">سري وهام - غير معد للمداولة</div></td><td class="logo-cell">@if ($logoImage)<img src="{{ $logoImage }}" alt="">@endif</td></tr></table>
-                </header>
-            @endif
+        @if ($pageIndex === 0)
+            <header class="first-header">
+                <table class="first-header-table" dir="ltr"><tr><td style="width:25%"></td><td class="title-cell" dir="rtl"><h1>تقرير مالي</h1><div class="security-notice">سري وهام - غير معد للمداولة</div></td><td class="logo-cell">@if ($logoImage)<img src="{{ $logoImage }}" alt="">@endif</td></tr></table>
+            </header>
+        @endif
 
-            <div class="meta-box">
-                @include('reports.partials.finance-ledger-meta', ['qrPayload' => $qrPayload, 'report' => $report])
-            </div>
-
-            <table class="ledger-table">
-                <thead><tr><th>التاريخ</th><th>التصنيف والوصف</th><th>مدين</th><th>دائن</th><th>الرصيد</th></tr></thead>
-                <tbody>
-                    @forelse ($pageRows as $row)
-                        <tr><td class="date">{{ $row['transaction_date'] }}</td><td class="category"><div class="category-name">{{ $row['category'] ?: '-' }}</div><div class="description">{{ $row['description'] ?: '-' }}</div></td><td class="money">{{ $row['expense'] ?: '-' }}</td><td class="money">{{ $row['income'] ?: '-' }}</td><td class="money">{{ $row['running_balance'] }}</td></tr>
-                    @empty
-                        <tr><td colspan="5" class="empty">{{ __('finance.empty.no_transactions') }}</td></tr>
-                    @endforelse
-                </tbody>
-            </table>
-        </section>
+        <div class="meta-box">
+            @include('reports.partials.finance-ledger-meta', ['qrImage' => $qrImage, 'report' => $report])
+        </div>
+        <table class="ledger-table">
+            <thead><tr><th>التاريخ</th><th>التصنيف والوصف</th><th>مدين</th><th>دائن</th><th>الرصيد</th></tr></thead>
+            <tbody>
+                @forelse ($pageRows as $row)
+                    <tr><td class="date">{{ $row['transaction_date'] }}</td><td class="category"><div class="category-name">{{ $row['category'] ?: '-' }}</div><div class="description">{{ $row['description'] ?: '-' }}</div></td><td class="money">{{ $row['expense'] ?: '-' }}</td><td class="money">{{ $row['income'] ?: '-' }}</td><td class="money">{{ $row['running_balance'] }}</td></tr>
+                @empty
+                    <tr><td colspan="5" class="empty">{{ __('finance.empty.no_transactions') }}</td></tr>
+                @endforelse
+            </tbody>
+        </table>
+        <pagebreak />
     @endforeach
 
-    <section class="page">
+    <section>
         <div class="meta-box">
-            @include('reports.partials.finance-ledger-meta', ['qrPayload' => $qrPayload, 'report' => $report])
+            @include('reports.partials.finance-ledger-meta', ['qrImage' => $qrImage, 'report' => $report])
         </div>
         <h2 class="summary-title">ملخص التقرير المالي</h2>
         <table class="summary-table">
             <tr><td><span class="summary-label">المسؤول المالي</span>{{ $report['issuer_name'] ?: '-' }}</td><td><span class="summary-label">إجمالي المصروفات</span><span dir="ltr">{{ data_get($report, 'formatted.expense') }}</span></td></tr>
             <tr><td><span class="summary-label">الرصيد الختامي</span><span dir="ltr">{{ data_get($report, 'formatted.closing_balance') }}</span></td><td><span class="summary-label">إجمالي الإيرادات</span><span dir="ltr">{{ data_get($report, 'formatted.income') }}</span></td></tr>
-            <tr><td><span class="summary-label">تاريخ التصدير</span>{{ $exportedAt }}</td><td><span class="summary-label">ملاحظات</span>{!! nl2br(e($template['custom_text'] ?: '-')) !!}</td></tr>
+            <tr><td><span class="summary-label">تاريخ التصدير</span>{{ $exportedAt }}</td><td><span class="summary-label">ملاحظات</span>{!! nl2br(e(($report['notes'] ?? null) ?: '-')) !!}</td></tr>
             <tr><td colspan="2" class="signature-space"><span class="summary-label">التوقيع</span><span class="signature-line"></span></td></tr>
         </table>
     </section>
