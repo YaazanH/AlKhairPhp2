@@ -5,7 +5,6 @@ namespace Tests\Feature;
 use App\Models\Course;
 use App\Models\Enrollment;
 use App\Models\Group;
-use App\Models\AwqafSubject;
 use App\Models\MemorizationSession;
 use App\Models\ParentProfile;
 use App\Models\PointTransaction;
@@ -417,52 +416,11 @@ class StandaloneWorkflowPagesTest extends TestCase
         ]);
 
         Volt::test('quran-partial-tests.index')
-            ->assertSet('sortField', 'created_at')
+            ->assertSet('sortField', 'last_tested_on')
             ->assertSet('sortDirection', 'desc')
             ->assertSee('12-09-2026')
             ->assertSee('22-09-2026')
             ->assertSeeInOrder(['Partial Record Newer', 'Partial Record Older']);
-    }
-
-    public function test_awqaf_subject_test_workbench_records_non_quran_subject_test(): void
-    {
-        [$teacher, $enrollment] = $this->teacherContext();
-
-        $subject = AwqafSubject::query()->create([
-            'name' => 'Fiqh Basics',
-            'code' => 'fiqh-basics',
-            'sort_order' => 10,
-            'is_active' => true,
-        ]);
-
-        Volt::test('awqaf-subject-tests.index')
-            ->call('openCreateModal')
-            ->set('selectedStudentId', $enrollment->student_id)
-            ->set('selectedEnrollmentId', $enrollment->id)
-            ->set('awqaf_subject_id', $subject->id)
-            ->set('tested_on', '2026-09-22')
-            ->set('score', '82')
-            ->set('status', 'passed')
-            ->call('save')
-            ->assertHasNoErrors();
-
-        $this->assertDatabaseHas('awqaf_subject_tests', [
-            'awqaf_subject_id' => $subject->id,
-            'enrollment_id' => $enrollment->id,
-            'score' => 82,
-            'status' => 'passed',
-            'student_id' => $enrollment->student_id,
-        ]);
-
-        $this->assertSame(
-            '2026-09-22',
-            \App\Models\AwqafSubjectTest::query()->firstOrFail()->tested_on->toDateString(),
-        );
-
-        Volt::test('awqaf-subject-tests.index')
-            ->assertSee('Fiqh Basics')
-            ->assertSee('22-09-2026')
-            ->assertSee(trim($enrollment->student->first_name.' '.$enrollment->student->last_name));
     }
 
     public function test_manager_point_ledger_workbench_creates_and_updates_manual_entries(): void

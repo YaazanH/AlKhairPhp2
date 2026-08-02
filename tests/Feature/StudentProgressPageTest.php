@@ -79,7 +79,7 @@ class StudentProgressPageTest extends TestCase
             ->assertForbidden();
     }
 
-    public function test_student_progress_can_filter_by_course_and_summarize_points_by_type(): void
+    public function test_student_progress_limits_highlights_to_default_course_but_keeps_history_general(): void
     {
         $this->seed(RoleSeeder::class);
 
@@ -189,14 +189,18 @@ class StudentProgressPageTest extends TestCase
         ]);
 
         Volt::test('students.progress', ['student' => $ownStudent])
-            ->set('courseFilter', (string) Course::query()->where('name', 'Quran Track')->firstOrFail()->id)
+            ->assertViewHas('stats', fn (array $stats) => $stats['points'] === 12)
             ->assertSeeText('Parent Group')
             ->assertSeeText('Quiz Reward')
-            ->assertSeeText('2 حركة')
-            ->assertDontSeeText('Parent Secondary Group')
-            ->assertDontSeeText('Course Filter Quiz')
+            ->assertSeeText('Parent Secondary Group')
+            ->assertSeeText('Course Filter Quiz')
             ->assertDontSeeText('Secondary Bonus')
-            ->assertDontSeeText('Second Course Note');
+            ->assertSeeText('Second Course Note');
+
+        Volt::test('students.progress', ['student' => $ownStudent])
+            ->assertDontSeeText(__('workflow.student_progress.selection.change_student'))
+            ->call('showDetails', 'parent')
+            ->assertSeeText('0999555111');
     }
 
     public function test_progress_page_without_route_student_shows_selector_for_manager_scope(): void
@@ -233,6 +237,7 @@ class StudentProgressPageTest extends TestCase
         $parent = ParentProfile::create([
             'user_id' => $parentUser->id,
             'father_name' => 'Scoped Parent',
+            'father_phone' => '0999555111',
             'is_active' => true,
         ]);
 
@@ -251,6 +256,7 @@ class StudentProgressPageTest extends TestCase
         $course = Course::create([
             'name' => 'Quran Track',
             'is_active' => true,
+            'is_default' => true,
         ]);
 
         $academicYear = AcademicYear::create([
@@ -508,6 +514,7 @@ class StudentProgressPageTest extends TestCase
         $course = Course::create([
             'name' => 'Revision Track',
             'is_active' => true,
+            'is_default' => true,
         ]);
 
         $academicYear = AcademicYear::create([

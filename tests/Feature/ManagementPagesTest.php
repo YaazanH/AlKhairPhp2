@@ -17,11 +17,33 @@ use App\Models\Teacher;
 use App\Models\User;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Route;
 use Tests\TestCase;
 
 class ManagementPagesTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_secondary_student_tools_are_buttons_in_their_parent_pages(): void
+    {
+        $this->seed(RoleSeeder::class);
+        $user = User::factory()->create(['username' => 'student-tools-manager', 'phone' => '9000099']);
+        $user->assignRole('manager');
+        $this->actingAs($user);
+
+        $this->get(route('students.index', absolute: false))
+            ->assertOk()
+            ->assertSeeText(__('ui.nav.bulk_student_photos'));
+        $this->get(route('student-attendance.index', absolute: false))
+            ->assertOk()
+            ->assertSeeText(__('ui.nav.scanner_import'));
+
+        $items = app(\App\Services\SidebarNavigationService::class)->defaultItems();
+        $this->assertArrayNotHasKey('bulk_student_photos', $items);
+        $this->assertArrayNotHasKey('scanner_import', $items);
+        $this->assertArrayNotHasKey('awqaf_subject_tests', $items);
+        $this->assertFalse(Route::has('awqaf-subject-tests.index'));
+    }
 
     public function test_management_pages_require_authentication(): void
     {
@@ -46,7 +68,6 @@ class ManagementPagesTest extends TestCase
             route('quran-partial-tests.index', absolute: false),
             route('quran-final-tests.index', absolute: false),
             route('quran-tests.index', absolute: false),
-            route('awqaf-subject-tests.index', absolute: false),
             route('points.index', absolute: false),
             route('activities.index', absolute: false),
             route('activities.family', absolute: false),
@@ -91,7 +112,6 @@ class ManagementPagesTest extends TestCase
             route('quran-partial-tests.index', absolute: false),
             route('quran-final-tests.index', absolute: false),
             route('quran-tests.index', absolute: false),
-            route('awqaf-subject-tests.index', absolute: false),
             route('points.index', absolute: false),
             route('activities.index', absolute: false),
             route('activities.finance', $activity, absolute: false),

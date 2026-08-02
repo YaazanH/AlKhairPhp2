@@ -34,16 +34,15 @@ class SidebarNavigationService
             'users' => $this->item('ui.nav.users', 'users', 'users.index', ['users.*'], 'people', 10, ['users.view']),
             'parents' => $this->item('ui.nav.parents', 'user-group', 'parents.index', ['parents.*'], 'people', 20, ['parents.view']),
             'teachers' => $this->item('ui.nav.teachers', 'academic-cap', 'teachers.index', ['teachers.*'], 'people', 30, ['teachers.view']),
-            'students' => $this->item('ui.nav.students', 'identification', 'students.index', ['students.index', 'students.files'], 'people', 40, ['students.view']),
+            'students' => $this->item('ui.nav.students', 'identification', 'students.index', ['students.index', 'students.files', 'students.bulk-photos'], 'people', 40, ['students.view']),
             'student_progress' => $this->item('ui.nav.student_progress', 'presentation-chart-line', 'students.progress', ['students.progress'], 'people', 50, ['students.view']),
-            'bulk_student_photos' => $this->item('ui.nav.bulk_student_photos', 'photo', 'students.bulk-photos', ['students.bulk-photos'], 'people', 60, ['students.update']),
             'community_contacts' => $this->item('ui.nav.community_contacts', 'phone', 'community-contacts.index', ['community-contacts.*'], 'people', 70, ['community-contacts.view']),
 
             'courses' => $this->item('ui.nav.courses', 'book-open', 'courses.index', ['courses.*'], 'academics', 10, ['courses.view']),
             'groups' => $this->item('ui.nav.groups', 'rectangle-group', 'groups.index', ['groups.*'], 'academics', 20, ['groups.view']),
             'enrollments' => $this->item('ui.nav.enrollments', 'clipboard-document-list', 'enrollments.index', ['enrollments.*'], 'academics', 30, ['enrollments.view']),
 
-            'student_attendance' => $this->item('ui.nav.student_attendance', 'calendar-days', 'student-attendance.index', ['student-attendance.*', 'groups.attendance'], 'tracking_attendance', 10, ['attendance.student.view']),
+            'student_attendance' => $this->item('ui.nav.student_attendance', 'calendar-days', 'student-attendance.index', ['student-attendance.*', 'groups.attendance', 'barcode-actions.import'], 'tracking_attendance', 10, ['attendance.student.view']),
             'teacher_attendance' => $this->item('ui.nav.teacher_attendance', 'clipboard-document-check', 'teachers.attendance', ['teachers.attendance'], 'tracking_attendance', 20, ['attendance.teacher.view']),
 
             'memorization' => $this->item('ui.nav.memorization', 'book-open-text', 'memorization.index', ['memorization.index', 'enrollments.memorization'], 'tracking_quran', 10, ['memorization.view']),
@@ -52,12 +51,10 @@ class SidebarNavigationService
             'quran_final_tests' => $this->item('ui.nav.quran_final_tests', 'check-badge', 'quran-final-tests.index', ['quran-final-tests.*'], 'tracking_quran', 40, ['quran-final-tests.view']),
             'quran_tests' => $this->item('ui.nav.quran_tests', 'document-check', 'quran-tests.index', ['quran-tests.*', 'enrollments.quran-tests'], 'tracking_quran', 50, ['quran-awqaf-tests.view']),
 
-            'awqaf_subject_tests' => $this->item('ui.nav.awqaf_subject_tests', 'clipboard-document-check', 'awqaf-subject-tests.index', ['awqaf-subject-tests.*'], 'tracking_performance', 5, ['awqaf-subject-tests.view']),
             'assessments' => $this->item('ui.nav.assessments', 'chart-pie', 'assessments.index', ['assessments.*'], 'tracking_performance', 10, ['assessments.view']),
             'point_ledger' => $this->item('ui.nav.point_ledger', 'trophy', 'points.index', ['points.*', 'enrollments.points'], 'tracking_performance', 20, ['points.view']),
 
             'student_notes' => $this->item('ui.nav.student_notes', 'pencil-square', 'student-notes.index', ['student-notes.*'], 'tracking_tools', 10, ['student-notes.view']),
-            'scanner_import' => $this->item('ui.nav.scanner_import', 'qr-code', 'barcode-actions.import', ['barcode-actions.import'], 'tracking_tools', 20, ['barcode-scans.import']),
 
             'activities' => $this->item('ui.nav.activities', 'sparkles', 'activities.index', ['activities.index', 'activities.finance'], 'academics', 40, ['activities.view']),
             'family_activities' => $this->item('ui.nav.family_activities', 'heart', 'activities.family', ['activities.family'], 'academics', 50, ['activities.responses.view']),

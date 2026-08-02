@@ -1331,6 +1331,7 @@ new class extends Component {
 
                 <div class="admin-toolbar__actions">
                     @can('students.update')
+                        <a href="{{ route('students.bulk-photos') }}" wire:navigate class="pill-link">{{ __('ui.nav.bulk_student_photos') }}</a>
                         <button type="button" wire:click="openBulkStatusModal" class="pill-link">{{ __('crud.common.actions.bulk_status') }}</button>
                     @endcan
                     @can('students.create')

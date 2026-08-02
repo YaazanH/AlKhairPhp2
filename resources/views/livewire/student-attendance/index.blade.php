@@ -308,6 +308,9 @@ new class extends Component
                 </div>
 
                 <div class="admin-toolbar__actions">
+                    @can('barcode-scans.import')
+                        <a href="{{ route('barcode-actions.import') }}" wire:navigate class="pill-link">{{ __('ui.nav.scanner_import') }}</a>
+                    @endcan
                     @can('attendance.student.take')
                         <button type="button" wire:click="openCreateModal" class="pill-link pill-link--accent">{{ __('workflow.student_attendance.days.create') }}</button>
                     @endcan

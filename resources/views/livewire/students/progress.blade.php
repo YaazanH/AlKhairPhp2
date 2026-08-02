@@ -23,14 +23,12 @@ new class extends Component {
 
     public ?Student $currentStudent = null;
     public int|string|null $selectedStudentId = null;
-    public string $studentSearch = '';
-    public string $courseFilter = 'all';
     public ?int $missingJuzId = null;
+    public string $openDetails = '';
 
     public function mount(?Student $student = null): void
     {
         $this->authorizePermission('students.view');
-        $this->courseFilter = (string) (Course::query()->where('is_default', true)->where('is_active', true)->value('id') ?? 'all');
 
         if ($student) {
             $this->setCurrentStudent($student->id);
@@ -38,12 +36,10 @@ new class extends Component {
             return;
         }
 
-        $singleAccessibleStudent = $this->studentOptionsQuery()
-            ->limit(2)
-            ->get();
+        $students = $this->studentOptionsQuery()->limit(2)->get();
 
-        if ($singleAccessibleStudent->count() === 1) {
-            $this->setCurrentStudent((int) $singleAccessibleStudent->first()->id);
+        if ($students->count() === 1) {
+            $this->setCurrentStudent((int) $students->first()->id);
         }
     }
 
@@ -52,14 +48,25 @@ new class extends Component {
         if (blank($value)) {
             $this->currentStudent = null;
             $this->selectedStudentId = null;
-            $this->studentSearch = '';
-            $this->courseFilter = $this->defaultCourseFilter();
             $this->missingJuzId = null;
+            $this->openDetails = '';
 
             return;
         }
 
         $this->setCurrentStudent((int) $value);
+    }
+
+    public function showDetails(string $section): void
+    {
+        if (in_array($section, ['parent', 'memorization', 'points', 'assessments', 'awqaf', 'enrollments', 'notes'], true)) {
+            $this->openDetails = $section;
+        }
+    }
+
+    public function closeDetails(): void
+    {
+        $this->openDetails = '';
     }
 
     public function showMissingPages(int $juzId): void
@@ -72,20 +79,6 @@ new class extends Component {
         $this->missingJuzId = null;
     }
 
-    public function selectStudent(int $studentId): void
-    {
-        $this->setCurrentStudent($studentId);
-    }
-
-    public function clearStudentSelection(): void
-    {
-        $this->currentStudent = null;
-        $this->selectedStudentId = null;
-        $this->studentSearch = '';
-        $this->courseFilter = $this->defaultCourseFilter();
-        $this->missingJuzId = null;
-    }
-
     public function with(): array
     {
         $studentOptions = $this->studentOptionsQuery()
@@ -93,338 +86,193 @@ new class extends Component {
             ->map(fn (Student $student): object => (object) [
                 'full_name' => $student->full_name,
                 'id' => (int) $student->id,
-                'parent_name' => $student->parentProfile?->father_name,
-                'search' => collect([
-                    $student->full_name,
-                    $student->student_number,
-                    $student->parentProfile?->father_name,
-                ])->filter()->implode(' '),
+                'search' => collect([$student->full_name, $student->student_number, $student->parentProfile?->father_name])->filter()->implode(' '),
                 'student_number' => $student->student_number,
             ]);
 
         if (! $this->currentStudent) {
-            return [
-                'studentOptions' => $studentOptions,
-            ];
+            return ['studentOptions' => $studentOptions];
         }
 
-        $studentRecord = $this->currentStudent->fresh([
-            'gradeLevel',
-            'parentProfile',
-            'quranCurrentJuz',
-        ]);
-
+        $studentRecord = $this->currentStudent->fresh(['gradeLevel', 'parentProfile', 'quranCurrentJuz']);
         $enrollments = $this->scopeEnrollmentsQuery(
             Enrollment::query()
                 ->with(['group.course', 'group.teacher'])
-                ->where('student_id', $this->currentStudent->id)
+                ->where('student_id', $studentRecord->id)
         )
-            ->when(
-                $this->courseFilter !== 'all' && filled($this->courseFilter),
-                fn ($query) => $query->whereHas('group', fn ($groupQuery) => $groupQuery->where('course_id', (int) $this->courseFilter))
-            )
             ->orderByRaw("case when status = 'active' then 0 else 1 end")
             ->orderByDesc('enrolled_at')
             ->orderByDesc('id')
             ->get();
-
         $enrollmentIds = $enrollments->pluck('id')->all();
         $activeEnrollment = $enrollments->firstWhere('status', 'active') ?: $enrollments->first();
-        $pageAchievementQuery = StudentPageAchievement::query()
-            ->where('student_id', $this->currentStudent->id)
-            ->when(
-                $this->courseFilter !== 'all' && filled($this->courseFilter),
-                fn ($query) => $enrollmentIds === []
-                    ? $query->whereRaw('1 = 0')
-                    : $query->whereIn('first_enrollment_id', $enrollmentIds),
-            );
+        $defaultCourseId = Course::query()->where('is_default', true)->where('is_active', true)->value('id');
+        $highlightEnrollmentIds = $defaultCourseId
+            ? $enrollments->filter(fn (Enrollment $enrollment) => (int) $enrollment->group?->course_id === (int) $defaultCourseId)->pluck('id')->all()
+            : [];
+        $highlightEnrollments = $enrollments->whereIn('id', $highlightEnrollmentIds);
 
-        $memorizedPages = (clone $pageAchievementQuery)
+        $generalPages = StudentPageAchievement::query()
+            ->where('student_id', $studentRecord->id)
             ->distinct()
             ->pluck('page_no')
             ->map(fn ($page) => (int) $page)
             ->unique()
             ->values();
+        $highlightPages = $highlightEnrollmentIds === []
+            ? collect()
+            : StudentPageAchievement::query()
+                ->where('student_id', $studentRecord->id)
+                ->whereIn('first_enrollment_id', $highlightEnrollmentIds)
+                ->distinct()
+                ->pluck('page_no')
+                ->map(fn ($page) => (int) $page)
+                ->unique()
+                ->values();
 
-        $memorizedPageSet = $memorizedPages->flip();
-        $courseOptions = $this->scopeEnrollmentsQuery(
-            Enrollment::query()
-                ->with('group.course')
-                ->where('student_id', $this->currentStudent->id)
-        )
-            ->get()
-            ->pluck('group.course')
-            ->filter()
-            ->unique('id')
-            ->sortBy('name')
+        $memorizationSessions = auth()->user()->can('memorization.view')
+            ? $this->scopeMemorizationSessionsQuery(
+                MemorizationSession::query()
+                    ->with(['teacher', 'pages' => fn ($query) => $query->orderBy('page_no')])
+                    ->where('student_id', $studentRecord->id)
+                    ->when($enrollmentIds === [], fn ($query) => $query->whereRaw('1 = 0'), fn ($query) => $query->whereIn('enrollment_id', $enrollmentIds))
+            )->latest('recorded_on')->latest('id')->get()
+            : collect();
+        $memorizationRows = $memorizationSessions
+            ->flatMap(function (MemorizationSession $session) {
+                $pages = $session->pages->pluck('page_no')->map(fn ($page) => (int) $page)->filter()->values();
+
+                if ($pages->isEmpty() && filled($session->from_page) && filled($session->to_page)) {
+                    $pages = collect(range((int) min($session->from_page, $session->to_page), (int) max($session->from_page, $session->to_page)));
+                }
+
+                return $pages->map(fn (int $page): object => (object) [
+                    'date' => $session->recorded_on,
+                    'page' => $page,
+                    'teacher' => $session->teacher ? trim($session->teacher->first_name.' '.$session->teacher->last_name) : null,
+                ]);
+            })
             ->values();
 
         $assessmentResults = auth()->user()->can('assessment-results.view')
             ? $this->scopeAssessmentResultsQuery(
                 AssessmentResult::query()
-                    ->with(['assessment.type', 'assessment.group.course', 'teacher', 'enrollment.group'])
-                    ->where('student_id', $this->currentStudent->id)
-                    ->when(
-                        $enrollmentIds === [],
-                        fn ($query) => $query->whereRaw('1 = 0'),
-                        fn ($query) => $query->whereIn('enrollment_id', $enrollmentIds),
-                    )
-            )
-                ->latest('id')
-                ->get()
+                    ->with(['assessment.type'])
+                    ->where('student_id', $studentRecord->id)
+                    ->when($enrollmentIds === [], fn ($query) => $query->whereRaw('1 = 0'), fn ($query) => $query->whereIn('enrollment_id', $enrollmentIds))
+            )->latest('id')->get()
             : collect();
-
-        $memorizationSessions = auth()->user()->can('memorization.view')
-            ? $this->scopeMemorizationSessionsQuery(
-                MemorizationSession::query()
-                    ->with([
-                        'enrollment.group',
-                        'teacher',
-                        'pages' => fn ($query) => $query->orderBy('page_no'),
-                    ])
-                    ->where('student_id', $this->currentStudent->id)
-            )
-                ->latest('recorded_on')
-                ->latest('id')
-                ->get()
-            : collect();
-
-        $memorizationRows = $memorizationSessions
-            ->flatMap(function (MemorizationSession $session) {
-                $sessionPages = $session->pages
-                    ->pluck('page_no')
-                    ->map(fn ($page) => (int) $page)
-                    ->filter(fn ($page) => $page > 0)
-                    ->values();
-
-                if ($sessionPages->isEmpty() && filled($session->from_page) && filled($session->to_page)) {
-                    $fromPage = (int) min($session->from_page, $session->to_page);
-                    $toPage = (int) max($session->from_page, $session->to_page);
-                    $sessionPages = collect(range($fromPage, $toPage));
-                }
-
-                if ($sessionPages->isEmpty()) {
-                    return collect([(object) [
-                        'entry_type' => $session->entry_type,
-                        'group_name' => $session->enrollment?->group?->name,
-                        'page_no' => null,
-                        'recorded_on' => $session->recorded_on,
-                        'teacher_name' => $session->teacher
-                            ? trim($session->teacher->first_name.' '.$session->teacher->last_name)
-                            : null,
-                    ]]);
-                }
-
-                return $sessionPages->map(fn (int $pageNumber): object => (object) [
-                    'entry_type' => $session->entry_type,
-                    'group_name' => $session->enrollment?->group?->name,
-                    'page_no' => $pageNumber,
-                    'recorded_on' => $session->recorded_on,
-                    'teacher_name' => $session->teacher
-                        ? trim($session->teacher->first_name.' '.$session->teacher->last_name)
-                        : null,
-                ]);
-            })
-            ->values();
 
         $awqafTests = auth()->user()->can('quran-awqaf-tests.view') || auth()->user()->can('quran-tests.view')
             ? $this->scopeQuranTestsQuery(
                 QuranTest::query()
-                    ->with(['enrollment.group', 'juz', 'teacher', 'type'])
-                    ->where('student_id', $this->currentStudent->id)
-                    ->when(
-                        $enrollmentIds === [],
-                        fn ($query) => $query->whereRaw('1 = 0'),
-                        fn ($query) => $query->whereIn('enrollment_id', $enrollmentIds),
-                    )
-            )
-                ->get()
-                ->map(fn (QuranTest $test) => (object) [
-                    'enrollment' => $test->enrollment,
-                    'juz' => $test->juz,
-                    'score' => $test->score,
-                    'sort_key' => sprintf('%010d-%010d', $test->tested_on?->timestamp ?? 0, $test->id),
-                    'status' => $test->status,
-                    'tested_on' => $test->tested_on,
-                    'type_label' => $test->type?->name ?: __('crud.common.not_available'),
-                ])
-                ->sortByDesc('sort_key')
-                ->values()
+                    ->with(['juz'])
+                    ->where('student_id', $studentRecord->id)
+                    ->when($enrollmentIds === [], fn ($query) => $query->whereRaw('1 = 0'), fn ($query) => $query->whereIn('enrollment_id', $enrollmentIds))
+            )->orderByDesc('tested_on')->orderByDesc('id')->get()
             : collect();
 
-        $quranFinalTests = auth()->user()->can('quran-final-tests.view')
-            ? $this->scopeQuranFinalTestsQuery(
-                QuranFinalTest::query()
-                    ->with(['attempts.teacher', 'enrollment.group', 'juz'])
-                    ->where('student_id', $this->currentStudent->id)
-                    ->when(
-                        $enrollmentIds === [],
-                        fn ($query) => $query->whereRaw('1 = 0'),
-                        fn ($query) => $query->whereIn('enrollment_id', $enrollmentIds),
-                    )
-            )
-                ->get()
-                ->flatMap(function (QuranFinalTest $finalTest) {
-                    return $finalTest->attempts->map(fn ($attempt) => (object) [
-                        'enrollment' => $finalTest->enrollment,
-                        'juz' => $finalTest->juz,
-                        'score' => $attempt->score,
-                        'sort_key' => sprintf('%010d-%010d', $attempt->tested_on?->timestamp ?? 0, $attempt->id),
-                        'status' => $attempt->status,
-                        'tested_on' => $attempt->tested_on,
-                    ]);
-                })
-                ->sortByDesc('sort_key')
-                ->values()
-            : collect();
-
-        $quranPartialTests = auth()->user()->can('quran-partial-tests.view')
+        $partialTests = auth()->user()->can('quran-partial-tests.view')
             ? $this->scopeQuranPartialTestsQuery(
                 QuranPartialTest::query()
-                    ->with(['enrollment.group', 'juz', 'parts.attempts.teacher'])
-                    ->where('student_id', $this->currentStudent->id)
-                    ->when(
-                        $enrollmentIds === [],
-                        fn ($query) => $query->whereRaw('1 = 0'),
-                        fn ($query) => $query->whereIn('enrollment_id', $enrollmentIds),
-                    )
-            )
-                ->latest('id')
-                ->get()
+                    ->with(['enrollment', 'parts'])
+                    ->where('student_id', $studentRecord->id)
+                    ->when($enrollmentIds === [], fn ($query) => $query->whereRaw('1 = 0'), fn ($query) => $query->whereIn('enrollment_id', $enrollmentIds))
+            )->get()
+            : collect();
+        $finalTests = auth()->user()->can('quran-final-tests.view')
+            ? $this->scopeQuranFinalTestsQuery(
+                QuranFinalTest::query()
+                    ->with(['attempts', 'enrollment'])
+                    ->where('student_id', $studentRecord->id)
+                    ->when($enrollmentIds === [], fn ($query) => $query->whereRaw('1 = 0'), fn ($query) => $query->whereIn('enrollment_id', $enrollmentIds))
+            )->get()
             : collect();
 
-        $pointTransactions = auth()->user()->can('points.view')
+        $pointTransactions = auth()->user()->can('points.view') && $highlightEnrollmentIds !== []
             ? $this->scopePointTransactionsQuery(
                 PointTransaction::query()
-                    ->with(['enrollment.group.course', 'pointType'])
-                    ->where('student_id', $this->currentStudent->id)
-                    ->when(
-                        $enrollmentIds === [],
-                        fn ($query) => $query->whereRaw('1 = 0'),
-                        fn ($query) => $query->whereIn('enrollment_id', $enrollmentIds),
-                    )
-            )
-                ->latest('entered_at')
-                ->latest('id')
-                ->get()
-            : collect()
-        ;
-        $activePointTransactions = $pointTransactions->filter(fn (PointTransaction $transaction) => $transaction->isEffectivelyActive())->values();
+                    ->with(['pointType'])
+                    ->where('student_id', $studentRecord->id)
+                    ->whereIn('enrollment_id', $highlightEnrollmentIds)
+            )->latest('entered_at')->latest('id')->get()->filter(fn (PointTransaction $transaction) => $transaction->isEffectivelyActive())->values()
+            : collect();
 
         $parentVisibleNotes = $this->scopeStudentNotesQuery(
             StudentNote::query()
-                ->with(['author', 'enrollment.group'])
-                ->where('student_id', $this->currentStudent->id)
+                ->where('student_id', $studentRecord->id)
                 ->where('visibility', 'visible_to_parent')
-                ->when(
-                    $enrollmentIds === [],
-                    fn ($query) => $query->whereRaw('1 = 0'),
-                    fn ($query) => $query->whereIn('enrollment_id', $enrollmentIds),
-                )
-        )
-            ->latest('noted_at')
-            ->latest('id')
-            ->get();
+                ->when($enrollmentIds === [], fn ($query) => $query->whereRaw('1 = 0'), fn ($query) => $query->whereIn('enrollment_id', $enrollmentIds))
+        )->latest('noted_at')->latest('id')->get();
 
-        $attendanceDays = auth()->user()->can('attendance.student.view')
+        $attendanceDays = auth()->user()->can('attendance.student.view') && $highlightEnrollmentIds !== []
             ? $this->scopeStudentAttendanceRecordsQuery(
                 StudentAttendanceRecord::query()
-                    ->with('status')
                     ->whereHas('status', fn ($query) => $query->where('is_present', true))
-                    ->when(
-                        $enrollmentIds === [],
-                        fn ($query) => $query->whereRaw('1 = 0'),
-                        fn ($query) => $query->whereIn('enrollment_id', $enrollmentIds),
-                    )
-            )
-                ->distinct('group_attendance_day_id')
-                ->count('group_attendance_day_id')
+                    ->whereIn('enrollment_id', $highlightEnrollmentIds)
+            )->distinct('group_attendance_day_id')->count('group_attendance_day_id')
             : 0;
 
-        $quranJuzProgress = QuranJuz::query()
-            ->orderBy('juz_number')
-            ->get()
-            ->map(function (QuranJuz $juz) use ($memorizedPageSet) {
-                $pages = range((int) $juz->from_page, (int) $juz->to_page);
-                $missingPages = collect($pages)
-                    ->reject(fn (int $page) => $memorizedPageSet->has($page))
-                    ->values();
+        $pageSet = $generalPages->flip();
+        $quranJuzProgress = QuranJuz::query()->orderBy('juz_number')->get()
+            ->map(function (QuranJuz $juz) use ($pageSet, $partialTests, $finalTests, $enrollments) {
+                $pages = collect(range((int) $juz->from_page, (int) $juz->to_page));
+                $missingPages = $pages->reject(fn (int $page) => $pageSet->has($page))->values();
+                $juzPartialTests = $partialTests->where('juz_id', $juz->id);
+                $passedParts = $juzPartialTests->flatMap->parts->where('status', 'passed')->pluck('part_number')->unique()->count();
+                $juzFinalTests = $finalTests->where('juz_id', $juz->id);
+                $latestFinalAttempt = $juzFinalTests->flatMap->attempts
+                    ->sortByDesc(fn ($attempt) => sprintf('%010d-%010d', $attempt->tested_on?->timestamp ?? 0, $attempt->id))
+                    ->first();
+                $finalPassed = $juzFinalTests->contains(fn (QuranFinalTest $test) => $test->status === 'passed');
+                $status = $missingPages->isNotEmpty() ? 'missing' : ($finalPassed ? 'finished' : 'awaiting');
 
                 return (object) [
                     'juz' => $juz,
-                    'total_pages' => count($pages),
-                    'memorized_pages' => count($pages) - $missingPages->count(),
+                    'memorized_pages' => $pages->count() - $missingPages->count(),
                     'missing_pages' => $missingPages,
-                    'is_complete' => $missingPages->isEmpty(),
+                    'passed_parts' => $passedParts,
+                    'latest_final_score' => $latestFinalAttempt?->score,
+                    'status' => $status,
+                    'enrollment' => $juzFinalTests->first()?->enrollment ?: $juzPartialTests->first()?->enrollment ?: $enrollments->first(),
                 ];
             })
-            ->filter(fn ($row) => $row->memorized_pages > 0)
+            ->filter(fn ($row) => $row->memorized_pages > 0 || $row->passed_parts > 0 || $row->latest_final_score !== null)
             ->values();
-
         $selectedMissingJuz = $this->missingJuzId
             ? $quranJuzProgress->first(fn ($row) => (int) $row->juz->id === (int) $this->missingJuzId)
             : null;
 
-        $pointTypeSummary = $activePointTransactions
-            ->groupBy(fn (PointTransaction $transaction) => $transaction->pointType?->id ?: 'none')
-            ->map(function ($transactions) {
-                $first = $transactions->first();
-
-                return (object) [
-                    'entries_count' => $transactions->count(),
-                    'label' => $first?->pointType?->name ?: __('crud.common.not_available'),
-                    'points_total' => (int) $transactions->sum('points'),
-                ];
-            })
-            ->sortBy('label')
-            ->values();
-
         return [
-            'studentRecord' => $studentRecord,
             'studentOptions' => $studentOptions,
-            'courseOptions' => $courseOptions,
-            'enrollments' => $enrollments,
-            'assessmentResults' => $assessmentResults,
-            'memorizationSessions' => $memorizationSessions,
-            'memorizationRows' => $memorizationRows,
+            'studentRecord' => $studentRecord,
             'activeEnrollment' => $activeEnrollment,
+            'enrollments' => $enrollments,
+            'memorizationRows' => $memorizationRows,
+            'assessmentResults' => $assessmentResults,
             'awqafTests' => $awqafTests,
-            'quranFinalTests' => $quranFinalTests,
-            'quranPartialTests' => $quranPartialTests,
+            'pointTransactions' => $pointTransactions,
+            'parentVisibleNotes' => $parentVisibleNotes,
             'quranJuzProgress' => $quranJuzProgress,
             'selectedMissingJuz' => $selectedMissingJuz,
-            'pointTransactions' => $pointTransactions,
-            'latestPointTransactions' => $pointTransactions->take(10),
-            'pointTypeSummary' => $pointTypeSummary,
-            'parentVisibleNotes' => $parentVisibleNotes,
             'stats' => [
                 'attendance_days' => $attendanceDays,
-                'memorized_pages' => $memorizedPages->count(),
-                'quran_partial_tests' => $quranPartialTests->count(),
-                'quran_final_tests' => $quranFinalTests->count(),
-                'points' => (int) $activePointTransactions->sum('points'),
+                'memorized_pages' => $highlightPages->count(),
+                'quran_partial_tests' => $partialTests->whereIn('enrollment_id', $highlightEnrollmentIds)->count(),
+                'quran_final_tests' => $finalTests->whereIn('enrollment_id', $highlightEnrollmentIds)->count(),
+                'points' => (int) $highlightEnrollments->sum('final_points_cached'),
             ],
         ];
     }
 
     protected function setCurrentStudent(int $studentId): void
     {
-        $student = Student::query()
-            ->with(['gradeLevel', 'parentProfile', 'quranCurrentJuz'])
-            ->findOrFail($studentId);
-
+        $student = Student::query()->with(['gradeLevel', 'parentProfile', 'quranCurrentJuz'])->findOrFail($studentId);
         $this->authorizeScopedStudentAccess($student);
-
         $this->currentStudent = $student;
-        $this->selectedStudentId = (int) $student->id;
-        $this->studentSearch = $student->full_name;
-        $this->courseFilter = $this->defaultCourseFilter();
+        $this->selectedStudentId = $student->id;
         $this->missingJuzId = null;
-    }
-
-    protected function defaultCourseFilter(): string
-    {
-        return (string) (Course::query()->where('is_default', true)->where('is_active', true)->value('id') ?? 'all');
+        $this->openDetails = '';
     }
 
     protected function studentOptionsQuery()
@@ -440,596 +288,157 @@ new class extends Component {
     }
 }; ?>
 
+@php
+    $statusClass = fn (string $status) => match ($status) {
+        'passed', 'finished', 'active', 'completed' => 'status-chip--emerald',
+        'failed', 'missing', 'withdrawn', 'cancelled' => 'status-chip--rose',
+        'awaiting', 'in_progress', 'pending' => 'status-chip--amber',
+        default => 'status-chip--slate',
+    };
+@endphp
+
 <div class="page-stack">
     <section class="page-hero student-progress-hero p-6 lg:p-8">
-        <div class="student-progress-hero__content">
-            <div>
-                <a href="{{ route('students.index') }}" wire:navigate class="text-sm font-medium text-neutral-200/80 hover:text-white">{{ __('ui.nav.students') }}</a>
-                <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('workflow.student_progress.title') }}</h1>
-                <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ __('workflow.student_progress.subtitle') }}</p>
-            </div>
-
-            @if ($currentStudent)
-                <div class="student-progress-hero__summary">
-                    <span class="badge-soft badge-soft--emerald">{{ $studentRecord->full_name }}</span>
-                    @if ($studentRecord->student_number)
-                        <span class="badge-soft">{{ $studentRecord->student_number }}</span>
-                    @endif
-                    @if ($activeEnrollment?->group?->name)
-                        <span class="badge-soft">{{ $activeEnrollment->group->name }}</span>
-                    @endif
-                </div>
-            @endif
-        </div>
+        <a href="{{ route('students.index') }}" wire:navigate class="text-sm font-medium text-neutral-200/80 hover:text-white">{{ __('ui.nav.students') }}</a>
+        <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('workflow.student_progress.title') }}</h1>
+        <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ __('workflow.student_progress.subtitle') }}</p>
     </section>
 
-    <section class="student-progress-top grid gap-6">
-        <div class="surface-panel surface-panel--soft student-progress-selection-card p-5 lg:p-6">
-            <div class="admin-toolbar">
-                <div>
-                    <div class="admin-toolbar__title">{{ __('workflow.student_progress.selection.title') }}</div>
-                    <p class="admin-toolbar__subtitle">{{ __('workflow.student_progress.selection.copy') }}</p>
-                </div>
-
-                @if ($currentStudent)
-                    <div class="admin-toolbar__actions">
-                        <button type="button" wire:click="clearStudentSelection" class="pill-link">
-                            {{ __('workflow.student_progress.selection.change_student') }}
-                        </button>
-                    </div>
-                @endif
+    <section class="surface-panel surface-panel--soft p-5 lg:p-6">
+        <div class="admin-toolbar__title">{{ __('workflow.student_progress.selection.title') }}</div>
+        @if ($studentOptions->isEmpty())
+            <div class="admin-empty-state mt-4">{{ __('workflow.student_progress.selection.no_students') }}</div>
+        @else
+            <div class="admin-filter-field mt-4">
+                <label for="student-progress-student">{{ __('workflow.student_progress.selection.student') }}</label>
+                <select id="student-progress-student" wire:model.live="selectedStudentId" data-search-placeholder="{{ __('workflow.student_progress.selection.search_placeholder') }}" class="w-full rounded-xl px-4 py-3 text-sm">
+                    <option value="">{{ __('workflow.student_progress.selection.select_student') }}</option>
+                    @foreach ($studentOptions as $option)
+                        <option value="{{ $option->id }}" data-search="{{ $option->search }}">{{ $option->full_name }}{{ $option->student_number ? ' - '.$option->student_number : '' }}</option>
+                    @endforeach
+                </select>
             </div>
-
-            @if ($studentOptions->isEmpty())
-                <div class="mt-4 rounded-3xl border border-white/10 bg-white/4 px-4 py-5 text-sm text-neutral-300">
-                    {{ __('workflow.student_progress.selection.no_students') }}
-                </div>
-            @else
-                <div class="mt-4 admin-filter-field">
-                    <label for="student-progress-student">{{ __('workflow.student_progress.selection.student') }}</label>
-                    <select
-                        id="student-progress-student"
-                        wire:model.live="selectedStudentId"
-                        data-search-placeholder="{{ __('workflow.student_progress.selection.search_placeholder') }}"
-                        class="w-full rounded-xl px-4 py-3 text-sm"
-                    >
-                        <option value="">{{ __('workflow.student_progress.selection.select_student') }}</option>
-                        @foreach ($studentOptions as $studentOption)
-                            <option value="{{ $studentOption->id }}" data-search="{{ $studentOption->search }}">
-                                {{ $studentOption->full_name }}{{ $studentOption->student_number ? ' - '.$studentOption->student_number : '' }}
-                            </option>
-                        @endforeach
-                    </select>
-                </div>
-            @endif
-        </div>
-
-        @if ($currentStudent)
-            <aside class="surface-panel surface-panel--soft student-progress-profile p-5 lg:p-6">
-                @php
-                    $studentPhotoUrl = $studentRecord->photo_path ? asset('storage/'.ltrim($studentRecord->photo_path, '/')) : null;
-                    $profileRows = [
-                        ['label' => __('workflow.student_progress.profile.student_no'), 'value' => $studentRecord->student_number ?: __('crud.common.not_available')],
-                        ['label' => __('workflow.student_progress.profile.student_name'), 'value' => $studentRecord->full_name],
-                        ['label' => __('workflow.student_progress.profile.father_name'), 'value' => $studentRecord->parentProfile?->father_name ?: __('crud.common.not_available')],
-                        ['label' => __('workflow.student_progress.profile.birth_year'), 'value' => $studentRecord->birth_date?->format('Y') ?: __('crud.common.not_available')],
-                        ['label' => __('workflow.student_progress.profile.grade'), 'value' => $studentRecord->gradeLevel?->name ?: __('crud.common.not_available')],
-                        ['label' => __('workflow.student_progress.profile.school'), 'value' => $studentRecord->school_name ?: __('crud.common.not_available')],
-                        ['label' => __('workflow.student_progress.profile.group'), 'value' => $activeEnrollment?->group?->name ?: __('crud.common.not_available')],
-                    ];
-                @endphp
-                <div class="grid gap-5 lg:grid-cols-[7rem_minmax(0,1fr)] lg:items-start">
-                    <div class="h-28 w-28 overflow-hidden rounded-3xl border border-white/10 bg-white/5 shadow-2xl shadow-black/10">
-                        @if ($studentPhotoUrl)
-                            <img src="{{ $studentPhotoUrl }}" alt="{{ $studentRecord->full_name }}" class="h-full w-full object-cover">
-                        @else
-                            <div class="flex h-full w-full items-center justify-center text-4xl font-semibold text-white">{{ \Illuminate\Support\Str::upper(\Illuminate\Support\Str::substr($studentRecord->first_name ?: 'S', 0, 1)) }}</div>
-                        @endif
-                    </div>
-                    <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                        @foreach ($profileRows as $row)
-                            <div class="rounded-2xl border border-white/8 bg-white/4 p-3">
-                                <div class="kpi-label">{{ $row['label'] }}</div>
-                                <div class="mt-2 text-sm font-semibold text-white">{{ $row['value'] }}</div>
-                            </div>
-                        @endforeach
-                    </div>
-                </div>
-            </aside>
         @endif
     </section>
 
     @if ($currentStudent)
-    <section class="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-        <article class="stat-card">
-            <div class="kpi-label">{{ __('workflow.student_progress.stats.attendance_days') }}</div>
-            <div class="metric-value mt-3">{{ number_format($stats['attendance_days']) }}</div>
-        </article>
-        <article class="stat-card">
-            <div class="kpi-label">{{ __('workflow.student_progress.stats.memorized_pages') }}</div>
-            <div class="metric-value mt-3">{{ number_format($stats['memorized_pages']) }}</div>
-        </article>
-        <article class="stat-card">
-            <div class="kpi-label">{{ __('workflow.student_progress.stats.quran_partial_tests') }}</div>
-            <div class="metric-value mt-3">{{ number_format($stats['quran_partial_tests']) }}</div>
-        </article>
-        <article class="stat-card">
-            <div class="kpi-label">{{ __('workflow.student_progress.stats.quran_final_tests') }}</div>
-            <div class="metric-value mt-3">{{ number_format($stats['quran_final_tests']) }}</div>
-        </article>
-        <article class="stat-card">
-            <div class="kpi-label">{{ __('workflow.student_progress.stats.points') }}</div>
-            <div class="metric-value mt-3">{{ number_format($stats['points']) }}</div>
-        </article>
-    </section>
-
-    <section class="surface-panel p-5 lg:p-6">
-        <div class="admin-toolbar">
-            <div>
-                <div class="admin-toolbar__title">{{ __('workflow.student_progress.filters.title') }}</div>
-                <p class="admin-toolbar__subtitle">{{ __('workflow.student_progress.filters.copy') }}</p>
-            </div>
-
-            <div class="admin-toolbar__controls">
-                <div class="admin-filter-field">
-                    <label for="student-progress-course-filter">{{ __('workflow.student_progress.filters.course') }}</label>
-                    <select id="student-progress-course-filter" wire:model.live="courseFilter">
-                        <option value="all">{{ __('workflow.student_progress.filters.all_courses') }}</option>
-                        @foreach ($courseOptions as $courseOption)
-                            <option value="{{ $courseOption->id }}">{{ $courseOption->name }}</option>
-                        @endforeach
-                    </select>
+        <section class="surface-panel surface-panel--soft p-5 lg:p-6">
+            @php($studentPhotoUrl = $studentRecord->photo_path ? asset('storage/'.ltrim($studentRecord->photo_path, '/')) : null)
+            <div class="grid gap-5 lg:grid-cols-[7rem_minmax(0,1fr)] lg:items-start">
+                <div class="h-28 w-28 overflow-hidden rounded-3xl border border-white/10 bg-white/5">
+                    @if ($studentPhotoUrl)<img src="{{ $studentPhotoUrl }}" alt="{{ $studentRecord->full_name }}" class="h-full w-full object-cover">@else<div class="flex h-full w-full items-center justify-center text-4xl font-semibold text-white">{{ \Illuminate\Support\Str::upper(\Illuminate\Support\Str::substr($studentRecord->first_name ?: 'S', 0, 1)) }}</div>@endif
+                </div>
+                <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                    <div class="rounded-2xl border border-white/8 bg-white/4 p-3"><div class="kpi-label">{{ __('workflow.student_progress.profile.student_no') }}</div><div class="mt-2 text-sm font-semibold text-white">{{ $studentRecord->student_number ?: __('crud.common.not_available') }}</div></div>
+                    <div class="rounded-2xl border border-white/8 bg-white/4 p-3"><div class="kpi-label">{{ __('workflow.student_progress.profile.student_name') }}</div><div class="mt-2 text-sm font-semibold text-white">{{ $studentRecord->full_name }}</div></div>
+                    <div class="rounded-2xl border border-white/8 bg-white/4 p-3"><div class="kpi-label">{{ __('workflow.student_progress.profile.father_name') }}</div><div class="mt-2 flex items-center gap-2 text-sm font-semibold text-white"><span>{{ $studentRecord->parentProfile?->father_name ?: __('crud.common.not_available') }}</span>@if ($studentRecord->parentProfile)<button type="button" wire:click="showDetails('parent')" class="pill-link pill-link--compact">{{ __('workflow.student_progress.actions.details') }}</button>@endif</div></div>
+                    <div class="rounded-2xl border border-white/8 bg-white/4 p-3"><div class="kpi-label">{{ __('workflow.student_progress.profile.birth_year') }}</div><div class="mt-2 text-sm font-semibold text-white">{{ $studentRecord->birth_date?->format('Y') ?: __('crud.common.not_available') }}</div></div>
+                    <div class="rounded-2xl border border-white/8 bg-white/4 p-3"><div class="kpi-label">{{ __('workflow.student_progress.profile.grade') }}</div><div class="mt-2 text-sm font-semibold text-white">{{ $studentRecord->gradeLevel?->name ?: __('crud.common.not_available') }}</div></div>
+                    <div class="rounded-2xl border border-white/8 bg-white/4 p-3"><div class="kpi-label">{{ __('workflow.student_progress.profile.school') }}</div><div class="mt-2 text-sm font-semibold text-white">{{ $studentRecord->school_name ?: __('crud.common.not_available') }}</div></div>
+                    <div class="rounded-2xl border border-white/8 bg-white/4 p-3"><div class="kpi-label">{{ __('workflow.student_progress.profile.group') }}</div><div class="mt-2 text-sm font-semibold text-white">{{ $activeEnrollment?->group?->name ?: __('crud.common.not_available') }}</div></div>
                 </div>
             </div>
-        </div>
-    </section>
-
-    <section class="surface-table">
-        <div class="admin-grid-meta">
-            <div>
-                <div class="admin-grid-meta__title">{{ __('workflow.student_progress.juz_progress.title') }}</div>
-                <div class="admin-grid-meta__summary">{{ __('workflow.student_progress.juz_progress.summary', ['count' => number_format($quranJuzProgress->where('is_complete', true)->count())]) }}</div>
-            </div>
-        </div>
-
-        @if ($quranJuzProgress->isEmpty())
-            <div class="admin-empty-state">{{ __('workflow.student_progress.juz_progress.empty') }}</div>
-        @else
-        <div class="overflow-x-auto">
-            <table class="text-sm">
-                <thead>
-                    <tr>
-                        <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_progress.juz_progress.headers.juz') }}</th>
-                        <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_progress.juz_progress.headers.pages') }}</th>
-                        <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_progress.juz_progress.headers.status') }}</th>
-                        <th class="px-5 py-4 text-right lg:px-6">{{ __('workflow.student_progress.juz_progress.headers.actions') }}</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-white/6">
-                    @foreach ($quranJuzProgress as $row)
-                        <tr>
-                            <td class="px-5 py-4 text-white lg:px-6">{{ __('workflow.common.labels.juz_number', ['number' => $row->juz->juz_number]) }}</td>
-                            <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ number_format($row->memorized_pages) }} / {{ number_format($row->total_pages) }}</td>
-                            <td class="px-5 py-4 lg:px-6">
-                                <span class="status-chip {{ $row->is_complete ? 'status-chip--emerald' : 'status-chip--slate' }}">
-                                    {{ $row->is_complete ? __('workflow.student_progress.juz_progress.complete') : __('workflow.student_progress.juz_progress.incomplete', ['count' => number_format($row->missing_pages->count())]) }}
-                                </span>
-                            </td>
-                            <td class="px-5 py-4 text-right lg:px-6">
-                                @unless ($row->is_complete)
-                                    <button type="button" wire:click="showMissingPages({{ $row->juz->id }})" class="pill-link pill-link--compact">
-                                        {{ __('workflow.student_progress.juz_progress.show_missing') }}
-                                    </button>
-                                @endunless
-                            </td>
-                        </tr>
-                    @endforeach
-                </tbody>
-            </table>
-        </div>
-        @endif
-    </section>
-
-    @can('memorization.view')
-        <section class="surface-table">
-            <div class="admin-grid-meta">
-                <div>
-                    <div class="admin-grid-meta__title">{{ __('workflow.student_progress.memorization.title') }}</div>
-                    <div class="admin-grid-meta__summary">{{ __('crud.common.badges.in_view', ['count' => number_format($memorizationRows->count())]) }}</div>
-                </div>
-            </div>
-
-            @if ($memorizationRows->isEmpty())
-                <div class="admin-empty-state">{{ __('workflow.student_progress.memorization.empty') }}</div>
-            @else
-                <div class="overflow-x-auto">
-                    <table class="text-sm">
-                        <thead>
-                            <tr>
-                                <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_progress.memorization.headers.date') }}</th>
-                                <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_progress.memorization.headers.group') }}</th>
-                                <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_progress.memorization.headers.type') }}</th>
-                                <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_progress.memorization.headers.pages') }}</th>
-                                <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_progress.memorization.headers.teacher') }}</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-white/6">
-                            @foreach ($memorizationRows as $row)
-                                <tr>
-                                    <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $row->recorded_on?->format('d-m-Y') ?: __('crud.common.not_available') }}</td>
-                                    <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $row->group_name ?: __('crud.common.not_available') }}</td>
-                                    <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ __('workflow.common.entry_type.'.$row->entry_type) }}</td>
-                                    <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $row->page_no ?: __('crud.common.not_available') }}</td>
-                                    <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $row->teacher_name ?: __('crud.common.not_available') }}</td>
-                                </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
-                </div>
-            @endif
         </section>
-    @endcan
 
-    @can('quran-partial-tests.view')
-        <section class="surface-table">
-            <div class="admin-grid-meta">
-                <div>
-                    <div class="admin-grid-meta__title">{{ __('workflow.student_progress.partial_tests.title') }}</div>
-                    <div class="admin-grid-meta__summary">{{ __('crud.common.badges.in_view', ['count' => number_format($quranPartialTests->count())]) }}</div>
-                </div>
-            </div>
-
-            @if ($quranPartialTests->isEmpty())
-                <div class="admin-empty-state">{{ __('workflow.student_progress.partial_tests.empty') }}</div>
-            @else
-                <div class="overflow-x-auto">
-                    <table class="text-sm">
-                        <thead>
-                            <tr>
-                                <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_progress.partial_tests.headers.juz') }}</th>
-                                <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_progress.partial_tests.headers.group') }}</th>
-                                <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_progress.partial_tests.headers.parts') }}</th>
-                                <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_progress.partial_tests.headers.status') }}</th>
-                                <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_progress.partial_tests.headers.passed_on') }}</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-white/6">
-                            @foreach ($quranPartialTests as $partialTest)
-                                @php
-                                    $passedParts = $partialTest->parts->where('status', 'passed')->count();
-                                @endphp
-                                <tr>
-                                    <td class="px-5 py-4 text-white lg:px-6">{{ $partialTest->juz ? __('workflow.common.labels.juz_number', ['number' => $partialTest->juz->juz_number]) : __('crud.common.not_available') }}</td>
-                                    <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $partialTest->enrollment?->group?->name ?: __('crud.common.not_available') }}</td>
-                                    <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ number_format($passedParts) }} / {{ number_format($partialTest->parts->count()) }}</td>
-                                    <td class="px-5 py-4 lg:px-6"><span class="status-chip {{ $partialTest->status === 'passed' ? 'status-chip--emerald' : 'status-chip--slate' }}">{{ __('workflow.quran_partial_tests.statuses.'.$partialTest->status) }}</span></td>
-                                    <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $partialTest->passed_on?->format('d-m-Y') ?: __('crud.common.not_available') }}</td>
-                                </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
-                </div>
-            @endif
-        </section>
-    @endcan
-    @can('quran-final-tests.view')
-        <section class="surface-table">
-            <div class="admin-grid-meta">
-                <div>
-                    <div class="admin-grid-meta__title">{{ __('workflow.student_progress.final_tests.title') }}</div>
-                    <div class="admin-grid-meta__summary">{{ __('crud.common.badges.in_view', ['count' => number_format($quranFinalTests->count())]) }}</div>
-                </div>
-            </div>
-
-            @if ($quranFinalTests->isEmpty())
-                <div class="admin-empty-state">{{ __('workflow.student_progress.final_tests.empty') }}</div>
-                @else
-                <div class="overflow-x-auto">
-                    <table class="text-sm">
-                        <thead>
-                            <tr>
-                                <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_progress.final_tests.headers.date') }}</th>
-                                <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_progress.final_tests.headers.group') }}</th>
-                                <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_progress.final_tests.headers.juz') }}</th>
-                                <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_progress.final_tests.headers.score') }}</th>
-                                <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_progress.final_tests.headers.status') }}</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-white/6">
-                            @foreach ($quranFinalTests as $test)
-                                <tr>
-                                    <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $test->tested_on?->format('d-m-Y') ?: __('crud.common.not_available') }}</td>
-                                    <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $test->enrollment?->group?->name ?: __('crud.common.not_available') }}</td>
-                                    <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $test->juz ? __('workflow.common.labels.juz_number', ['number' => $test->juz->juz_number]) : __('crud.common.not_available') }}</td>
-                                    <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $test->score !== null ? number_format((float) $test->score, 2) : __('workflow.common.not_available') }}</td>
-                                    <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ __('workflow.common.result_status.'.$test->status) }}</td>
-                                </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
-                </div>
-            @endif
-        </section>
-    @endcan
-
-    @canany(['quran-awqaf-tests.view', 'quran-tests.view'])
-        <section class="surface-table">
-            <div class="admin-grid-meta">
-                <div>
-                    <div class="admin-grid-meta__title">{{ __('workflow.student_progress.awqaf_tests.title') }}</div>
-                    <div class="admin-grid-meta__summary">{{ __('crud.common.badges.in_view', ['count' => number_format($awqafTests->count())]) }}</div>
-                </div>
-            </div>
-
-            @if ($awqafTests->isEmpty())
-                <div class="admin-empty-state">{{ __('workflow.student_progress.awqaf_tests.empty') }}</div>
-            @else
-                <div class="overflow-x-auto">
-                    <table class="text-sm">
-                        <thead>
-                            <tr>
-                                <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_progress.awqaf_tests.headers.date') }}</th>
-                                <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_progress.awqaf_tests.headers.group') }}</th>
-                                <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_progress.awqaf_tests.headers.juz') }}</th>
-                                <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_progress.awqaf_tests.headers.type') }}</th>
-                                <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_progress.awqaf_tests.headers.score') }}</th>
-                                <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_progress.awqaf_tests.headers.status') }}</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-white/6">
-                            @foreach ($awqafTests as $test)
-                                <tr>
-                                    <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $test->tested_on?->format('d-m-Y') ?: __('crud.common.not_available') }}</td>
-                                    <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $test->enrollment?->group?->name ?: __('crud.common.not_available') }}</td>
-                                    <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $test->juz ? __('workflow.common.labels.juz_number', ['number' => $test->juz->juz_number]) : __('crud.common.not_available') }}</td>
-                                    <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $test->type_label }}</td>
-                                    <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $test->score !== null ? number_format((float) $test->score, 2) : __('workflow.common.not_available') }}</td>
-                                    <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ __('workflow.common.result_status.'.$test->status) }}</td>
-                                </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
-                </div>
-            @endif
-        </section>
-    @endcanany
-
-    <section class="surface-table">
-        <div class="admin-grid-meta">
-            <div>
-                <div class="admin-grid-meta__title">{{ __('workflow.student_progress.enrollments.title') }}</div>
-                <div class="admin-grid-meta__summary">{{ __('crud.common.badges.in_view', ['count' => number_format($enrollments->count())]) }}</div>
-            </div>
-        </div>
-
-        @if ($enrollments->isEmpty())
-            <div class="admin-empty-state">{{ __('workflow.student_progress.enrollments.empty') }}</div>
-        @else
-            <div class="overflow-x-auto">
-                <table class="text-sm">
-                    <thead>
-                        <tr>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_progress.enrollments.headers.group') }}</th>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_progress.enrollments.headers.course') }}</th>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_progress.enrollments.headers.teacher') }}</th>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_progress.enrollments.headers.status') }}</th>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_progress.enrollments.headers.points') }}</th>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_progress.enrollments.headers.pages') }}</th>
-                            <th class="px-5 py-4 text-right lg:px-6">{{ __('workflow.student_progress.enrollments.headers.actions') }}</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-white/6">
-                        @foreach ($enrollments as $enrollment)
-                            @php
-                                $enrollmentStatusClass = match ($enrollment->status) {
-                                    'active' => 'status-chip status-chip--emerald',
-                                    'completed' => 'status-chip status-chip--gold',
-                                    default => 'status-chip status-chip--slate',
-                                };
-                            @endphp
-                            <tr>
-                                <td class="px-5 py-4 text-white lg:px-6">{{ $enrollment->group?->name ?: __('crud.common.not_available') }}</td>
-                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $enrollment->group?->course?->name ?: __('crud.common.not_available') }}</td>
-                                <td class="px-5 py-4 text-neutral-300 lg:px-6">
-                                    {{ $enrollment->group?->teacher ? trim($enrollment->group->teacher->first_name.' '.$enrollment->group->teacher->last_name) : __('crud.common.not_available') }}
-                                </td>
-                                <td class="px-5 py-4 lg:px-6"><span class="{{ $enrollmentStatusClass }}">{{ __('crud.common.status_options.'.$enrollment->status) }}</span></td>
-                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ number_format((int) $enrollment->final_points_cached) }}</td>
-                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ number_format((int) $enrollment->memorized_pages_cached) }}</td>
-                                <td class="px-5 py-4 lg:px-6">
-                                    <div class="flex flex-wrap justify-end gap-2">
-                                        @can('memorization.view')
-                                            <a href="{{ route('enrollments.memorization', $enrollment) }}" wire:navigate class="pill-link pill-link--compact">{{ __('crud.common.actions.memorization') }}</a>
-                                        @endcan
-                                        @canany(['quran-awqaf-tests.view', 'quran-tests.view'])
-                                            <a href="{{ route('enrollments.quran-tests', $enrollment) }}" wire:navigate class="pill-link pill-link--compact">{{ __('crud.common.actions.tests') }}</a>
-                                        @endcanany
-                                        @can('points.view')
-                                            <a href="{{ route('enrollments.points', $enrollment) }}" wire:navigate class="pill-link pill-link--compact">{{ __('crud.common.actions.points') }}</a>
-                                        @endcan
-                                    </div>
-                                </td>
-                            </tr>
-                        @endforeach
-                    </tbody>
-                </table>
-            </div>
-        @endif
-    </section>
-
-    @can('assessment-results.view')
-        <section class="surface-table">
-            <div class="admin-grid-meta">
-                <div>
-                    <div class="admin-grid-meta__title">{{ __('workflow.student_progress.assessments.title') }}</div>
-                    <div class="admin-grid-meta__summary">{{ __('crud.common.badges.in_view', ['count' => number_format($assessmentResults->count())]) }}</div>
-                </div>
-            </div>
-
-            @if ($assessmentResults->isEmpty())
-                <div class="admin-empty-state">{{ __('workflow.student_progress.assessments.empty') }}</div>
-            @else
-                <div class="overflow-x-auto">
-                    <table class="text-sm">
-                        <thead>
-                            <tr>
-                                <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_progress.assessments.headers.assessment') }}</th>
-                                <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_progress.assessments.headers.group') }}</th>
-                                <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_progress.assessments.headers.score') }}</th>
-                                <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_progress.assessments.headers.status') }}</th>
-                                <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_progress.assessments.headers.attempt') }}</th>
-                                <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_progress.assessments.headers.teacher') }}</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-white/6">
-                            @foreach ($assessmentResults as $result)
-                                <tr>
-                                    <td class="px-5 py-4 text-white lg:px-6">
-                                        <div>{{ $result->assessment?->title ?: __('crud.common.not_available') }}</div>
-                                        <div class="mt-1 text-xs text-neutral-500">{{ $result->assessment?->type?->name ?: __('crud.common.not_available') }}</div>
-                                    </td>
-                                    <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $result->assessment?->group?->name ?: $result->enrollment?->group?->name ?: __('crud.common.not_available') }}</td>
-                                    <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $result->score !== null ? number_format((float) $result->score, 2) : __('workflow.common.not_available') }}</td>
-                                    <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ __('workflow.common.result_status.'.$result->status) }}</td>
-                                    <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ number_format((int) $result->attempt_no) }}</td>
-                                    <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $result->teacher ? trim($result->teacher->first_name.' '.$result->teacher->last_name) : __('crud.common.not_available') }}</td>
-                                </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
-                </div>
-            @endif
-        </section>
-    @endcan
-
-    @can('points.view')
-        <section class="surface-panel p-5 lg:p-6">
-            <div class="admin-grid-meta">
-                <div>
-                    <div class="admin-grid-meta__title">{{ __('workflow.student_progress.point_type_summary.title') }}</div>
-                    <div class="admin-grid-meta__summary">{{ __('crud.common.badges.in_view', ['count' => number_format($pointTypeSummary->count())]) }}</div>
-                </div>
-            </div>
-
-            @if ($pointTypeSummary->isEmpty())
-                <div class="admin-empty-state">{{ __('workflow.student_progress.point_type_summary.empty') }}</div>
-            @else
-                <div class="admin-kpi-grid mt-5">
-                    @foreach ($pointTypeSummary as $summary)
-                        <article class="stat-card">
-                            <div class="kpi-label">{{ $summary->label }}</div>
-                            <div class="metric-value mt-3">{{ number_format($summary->points_total) }}</div>
-                            <div class="mt-3 text-sm text-neutral-400">
-                                {{ __('workflow.student_progress.point_type_summary.entries', ['count' => number_format($summary->entries_count)]) }}
-                            </div>
-                        </article>
-                    @endforeach
-                </div>
-            @endif
+        <section class="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+            @foreach ([
+                'attendance_days' => 'attendance_days',
+                'memorized_pages' => 'memorized_pages',
+                'quran_partial_tests' => 'quran_partial_tests',
+                'quran_final_tests' => 'quran_final_tests',
+                'points' => 'points',
+            ] as $key => $label)
+                <article class="stat-card"><div class="kpi-label">{{ __('workflow.student_progress.stats.'.$label) }}</div><div class="metric-value mt-3">{{ number_format($stats[$key]) }}</div></article>
+            @endforeach
         </section>
 
         <section class="surface-table">
-            <div class="admin-grid-meta">
-                <div>
-                    <div class="admin-grid-meta__title">{{ __('workflow.student_progress.points.latest_title') }}</div>
-                    <div class="admin-grid-meta__summary">{{ __('crud.common.badges.in_view', ['count' => number_format($latestPointTransactions->count())]) }}</div>
-                </div>
-            </div>
-
-            @if ($latestPointTransactions->isEmpty())
-                <div class="admin-empty-state">{{ __('workflow.student_progress.points.empty') }}</div>
-            @else
-                <div class="overflow-x-auto">
-                    <table class="text-sm">
-                        <thead>
-                            <tr>
-                                <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_progress.points.headers.date') }}</th>
-                                <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_progress.points.headers.group') }}</th>
-                                <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_progress.points.headers.type') }}</th>
-                                <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_progress.points.headers.points') }}</th>
-                                <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_progress.points.headers.state') }}</th>
-                                <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_progress.points.headers.notes') }}</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-white/6">
-                            @foreach ($latestPointTransactions as $transaction)
-                                @php
-                                    $state = $transaction->effectiveState();
-                                @endphp
-                                <tr>
-                                    <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $transaction->entered_at?->format('d-m-Y H:i') ?: __('crud.common.not_available') }}</td>
-                                    <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $transaction->enrollment?->group?->name ?: __('crud.common.not_available') }}</td>
-                                    <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $transaction->pointType?->name ?: __('crud.common.not_available') }}</td>
-                                    <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ number_format((int) $transaction->points) }}</td>
-                                    <td class="px-5 py-4 lg:px-6"><span class="status-chip status-chip--slate">{{ __('workflow.common.ledger_state.'.$state) }}</span></td>
-                                    <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $transaction->notes ?: __('crud.common.not_available') }}</td>
-                                </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
-                </div>
+            <div class="admin-grid-meta"><div><div class="admin-grid-meta__title">{{ __('workflow.student_progress.juz_progress.title') }}</div><div class="admin-grid-meta__summary">{{ __('workflow.student_progress.juz_progress.summary', ['count' => number_format($quranJuzProgress->where('status', 'finished')->count())]) }}</div></div></div>
+            @if ($quranJuzProgress->isEmpty())<div class="admin-empty-state">{{ __('workflow.student_progress.juz_progress.empty') }}</div>@else
+                <div class="overflow-x-auto"><table class="text-sm"><thead><tr>
+                    <th class="px-5 py-4 text-left">{{ __('workflow.student_progress.juz_progress.headers.juz') }}</th>
+                    <th class="px-5 py-4 text-left">{{ __('workflow.student_progress.juz_progress.headers.pages') }}</th>
+                    <th class="px-5 py-4 text-left">{{ __('workflow.student_progress.juz_progress.headers.partial_tests') }}</th>
+                    <th class="px-5 py-4 text-left">{{ __('workflow.student_progress.juz_progress.headers.final_test') }}</th>
+                    <th class="px-5 py-4 text-left">{{ __('workflow.student_progress.juz_progress.headers.status') }}</th>
+                    <th class="px-5 py-4 text-right">{{ __('workflow.student_progress.juz_progress.headers.actions') }}</th>
+                </tr></thead><tbody class="divide-y divide-white/6">
+                    @foreach ($quranJuzProgress as $row)<tr>
+                        <td class="px-5 py-4 text-white">{{ __('workflow.common.labels.juz_number', ['number' => $row->juz->juz_number]) }}</td>
+                        <td class="px-5 py-4">{{ number_format($row->memorized_pages) }}</td>
+                        <td class="px-5 py-4">{{ $row->passed_parts > 0 ? number_format($row->passed_parts) : '' }}</td>
+                        <td class="px-5 py-4">{{ $row->latest_final_score !== null ? number_format((float) $row->latest_final_score, 2) : '' }}</td>
+                        <td class="px-5 py-4"><span class="status-chip {{ $statusClass($row->status) }}">{{ __('workflow.student_progress.juz_progress.statuses.'.$row->status) }}</span></td>
+                        <td class="px-5 py-4"><div class="flex justify-end gap-2">@if ($row->missing_pages->isNotEmpty())<button type="button" wire:click="showMissingPages({{ $row->juz->id }})" class="pill-link pill-link--compact">{{ __('workflow.student_progress.juz_progress.show_missing') }}</button>@endif @if ($row->enrollment)@canany(['quran-awqaf-tests.view', 'quran-tests.view'])<a href="{{ route('enrollments.quran-tests', $row->enrollment) }}" wire:navigate class="pill-link pill-link--compact">{{ __('crud.common.actions.tests') }}</a>@endcanany @endif</div></td>
+                    </tr>@endforeach
+                </tbody></table></div>
             @endif
         </section>
-    @endcan
 
-    <section class="surface-table">
-        <div class="admin-grid-meta">
-            <div>
-                <div class="admin-grid-meta__title">{{ __('workflow.student_progress.notes.title') }}</div>
-                <div class="admin-grid-meta__summary">{{ __('crud.common.badges.in_view', ['count' => number_format($parentVisibleNotes->count())]) }}</div>
-            </div>
-        </div>
+        <section class="grid gap-6 xl:grid-cols-2">
+            @can('memorization.view')
+                <x-student-progress-table :title="__('workflow.student_progress.memorization.latest_title')" :empty="$memorizationRows->isEmpty()" :empty-text="__('workflow.student_progress.memorization.empty')" view-all-action="memorization">
+                    <x-slot:head><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.memorization.headers.date') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.memorization.headers.page') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.memorization.headers.teacher') }}</th></x-slot:head>
+                    @foreach ($memorizationRows->take(5) as $row)<tr><td class="px-4 py-3">{{ $row->date?->format('d-m-Y') }}</td><td class="px-4 py-3">{{ $row->page }}</td><td class="px-4 py-3">{{ $row->teacher ?: __('crud.common.not_available') }}</td></tr>@endforeach
+                </x-student-progress-table>
+            @endcan
+            @can('points.view')
+                <x-student-progress-table :title="__('workflow.student_progress.points.latest_title')" :empty="$pointTransactions->isEmpty()" :empty-text="__('workflow.student_progress.points.empty')" view-all-action="points">
+                    <x-slot:head><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.points.headers.date') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.points.headers.type') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.points.headers.points') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.points.headers.notes') }}</th></x-slot:head>
+                    @foreach ($pointTransactions->take(5) as $row)<tr><td class="px-4 py-3">{{ $row->entered_at?->format('d-m-Y') }}</td><td class="px-4 py-3">{{ $row->pointType?->name ?: __('crud.common.not_available') }}</td><td class="px-4 py-3">{{ number_format((int) $row->points) }}</td><td class="px-4 py-3">{{ $row->notes ?: __('crud.common.not_available') }}</td></tr>@endforeach
+                </x-student-progress-table>
+            @endcan
+        </section>
 
-        @if ($parentVisibleNotes->isEmpty())
-            <div class="admin-empty-state">{{ __('workflow.student_progress.notes.empty') }}</div>
-        @else
-            <div class="overflow-x-auto">
-                <table class="text-sm">
-                    <thead>
-                        <tr>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_progress.notes.headers.date') }}</th>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_progress.notes.headers.author') }}</th>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_progress.notes.headers.body') }}</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-white/6">
-                        @foreach ($parentVisibleNotes as $note)
-                            <tr>
-                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $note->noted_at?->format('d-m-Y H:i') ?: __('crud.common.not_available') }}</td>
-                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $note->author?->name ?: __('crud.common.not_available') }}</td>
-                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $note->body }}</td>
-                            </tr>
-                        @endforeach
-                    </tbody>
-                </table>
-            </div>
-        @endif
-    </section>
+        <section class="grid gap-6 xl:grid-cols-2">
+            @can('assessment-results.view')
+                <x-student-progress-table :title="__('workflow.student_progress.assessments.title')" :empty="$assessmentResults->isEmpty()" :empty-text="__('workflow.student_progress.assessments.empty')" view-all-action="assessments">
+                    <x-slot:head><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.assessments.headers.assessment') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.assessments.headers.score') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.assessments.headers.status') }}</th></x-slot:head>
+                    @foreach ($assessmentResults->take(5) as $row)<tr><td class="px-4 py-3">{{ $row->assessment?->title ?: __('crud.common.not_available') }}</td><td class="px-4 py-3">{{ $row->score !== null ? number_format((float) $row->score, 2) : '' }}</td><td class="px-4 py-3"><span class="status-chip {{ $statusClass($row->status) }}">{{ __('workflow.common.result_status.'.$row->status) }}</span></td></tr>@endforeach
+                </x-student-progress-table>
+            @endcan
+            @canany(['quran-awqaf-tests.view', 'quran-tests.view'])
+                <x-student-progress-table :title="__('workflow.student_progress.awqaf_tests.title')" :empty="$awqafTests->isEmpty()" :empty-text="__('workflow.student_progress.awqaf_tests.empty')" view-all-action="awqaf">
+                    <x-slot:head><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.awqaf_tests.headers.date') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.awqaf_tests.headers.juz') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.awqaf_tests.headers.score') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.awqaf_tests.headers.status') }}</th></x-slot:head>
+                    @foreach ($awqafTests->take(5) as $row)<tr><td class="px-4 py-3">{{ $row->tested_on?->format('d-m-Y') }}</td><td class="px-4 py-3">{{ $row->juz?->juz_number ?: '' }}</td><td class="px-4 py-3">{{ $row->score !== null ? number_format((float) $row->score, 2) : '' }}</td><td class="px-4 py-3"><span class="status-chip {{ $statusClass($row->status) }}">{{ __('workflow.common.result_status.'.$row->status) }}</span></td></tr>@endforeach
+                </x-student-progress-table>
+            @endcanany
+        </section>
 
-    <x-admin.modal :show="$selectedMissingJuz !== null" :title="$selectedMissingJuz ? __('workflow.student_progress.juz_progress.missing_title', ['juz' => $selectedMissingJuz->juz->juz_number]) : ''" :description="__('workflow.student_progress.juz_progress.missing_subtitle')" close-method="closeMissingPages" max-width="2xl">
-        @if ($selectedMissingJuz)
-            @if ($selectedMissingJuz->missing_pages->isEmpty())
-                <div class="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
-                    {{ __('workflow.student_progress.juz_progress.no_missing_pages') }}
-                </div>
-            @else
-                <div class="flex flex-wrap gap-2">
-                    @foreach ($selectedMissingJuz->missing_pages as $page)
-                        <span class="badge-soft">{{ $page }}</span>
-                    @endforeach
-                </div>
+        <section class="grid gap-6 xl:grid-cols-2">
+            <x-student-progress-table :title="__('workflow.student_progress.enrollments.title')" :empty="$enrollments->isEmpty()" :empty-text="__('workflow.student_progress.enrollments.empty')" view-all-action="enrollments">
+                <x-slot:head><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.enrollments.headers.course') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.enrollments.headers.group') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.enrollments.headers.teacher') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.enrollments.headers.status') }}</th></x-slot:head>
+                @foreach ($enrollments->take(5) as $row)<tr><td class="px-4 py-3">{{ $row->group?->course?->name ?: __('crud.common.not_available') }}</td><td class="px-4 py-3">{{ $row->group?->name ?: __('crud.common.not_available') }}</td><td class="px-4 py-3">{{ $row->group?->teacher ? trim($row->group->teacher->first_name.' '.$row->group->teacher->last_name) : __('crud.common.not_available') }}</td><td class="px-4 py-3"><span class="status-chip {{ $statusClass($row->status) }}">{{ __('crud.common.status_options.'.$row->status) }}</span></td></tr>@endforeach
+            </x-student-progress-table>
+            <x-student-progress-table :title="__('workflow.student_progress.notes.title')" :empty="$parentVisibleNotes->isEmpty()" :empty-text="__('workflow.student_progress.notes.empty')" view-all-action="notes">
+                <x-slot:head><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.notes.headers.date') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.notes.headers.source') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.notes.headers.body') }}</th></x-slot:head>
+                @foreach ($parentVisibleNotes->take(5) as $row)<tr><td class="px-4 py-3">{{ $row->noted_at?->format('d-m-Y') }}</td><td class="px-4 py-3">{{ $row->source }}</td><td class="px-4 py-3">{{ $row->body }}</td></tr>@endforeach
+            </x-student-progress-table>
+        </section>
+
+        <x-admin.modal :show="$openDetails !== ''" :title="$openDetails === 'parent' ? __('workflow.student_progress.parent_details.title') : __('workflow.student_progress.actions.view_all')" close-method="closeDetails" max-width="6xl">
+            @if ($openDetails === 'parent' && $studentRecord->parentProfile)
+                @php($parent = $studentRecord->parentProfile)
+                <div class="grid gap-4 md:grid-cols-2"><div><div class="kpi-label">{{ __('workflow.student_progress.profile.father_name') }}</div><div class="mt-1 text-white">{{ $parent->father_name ?: '-' }}</div></div><div><div class="kpi-label">{{ __('workflow.student_progress.parent_details.father_phone') }}</div><div class="mt-1 text-white"><bdi dir="ltr">{{ $parent->father_phone ?: '-' }}</bdi></div></div><div><div class="kpi-label">{{ __('workflow.student_progress.parent_details.father_work') }}</div><div class="mt-1 text-white">{{ $parent->father_work ?: '-' }}</div></div><div><div class="kpi-label">{{ __('workflow.student_progress.parent_details.mother_name') }}</div><div class="mt-1 text-white">{{ $parent->mother_name ?: '-' }}</div></div><div><div class="kpi-label">{{ __('workflow.student_progress.parent_details.mother_phone') }}</div><div class="mt-1 text-white"><bdi dir="ltr">{{ $parent->mother_phone ?: '-' }}</bdi></div></div><div><div class="kpi-label">{{ __('workflow.student_progress.parent_details.home_phone') }}</div><div class="mt-1 text-white"><bdi dir="ltr">{{ $parent->home_phone ?: '-' }}</bdi></div></div><div class="md:col-span-2"><div class="kpi-label">{{ __('workflow.student_progress.parent_details.address') }}</div><div class="mt-1 text-white">{{ $parent->address ?: '-' }}</div></div></div>
+            @elseif ($openDetails === 'memorization')
+                <div class="overflow-x-auto"><table class="text-sm"><thead><tr><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.memorization.headers.date') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.memorization.headers.page') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.memorization.headers.teacher') }}</th></tr></thead><tbody>@foreach ($memorizationRows as $row)<tr><td class="px-4 py-3">{{ $row->date?->format('d-m-Y') }}</td><td class="px-4 py-3">{{ $row->page }}</td><td class="px-4 py-3">{{ $row->teacher ?: '-' }}</td></tr>@endforeach</tbody></table></div>
+            @elseif ($openDetails === 'points')
+                <div class="overflow-x-auto"><table class="text-sm"><thead><tr><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.points.headers.date') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.points.headers.type') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.points.headers.points') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.points.headers.notes') }}</th></tr></thead><tbody>@foreach ($pointTransactions as $row)<tr><td class="px-4 py-3">{{ $row->entered_at?->format('d-m-Y') }}</td><td class="px-4 py-3">{{ $row->pointType?->name ?: '-' }}</td><td class="px-4 py-3">{{ number_format((int) $row->points) }}</td><td class="px-4 py-3">{{ $row->notes ?: '-' }}</td></tr>@endforeach</tbody></table></div>
+            @elseif ($openDetails === 'assessments')
+                <div class="overflow-x-auto"><table class="text-sm"><thead><tr><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.assessments.headers.assessment') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.assessments.headers.score') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.assessments.headers.status') }}</th></tr></thead><tbody>@foreach ($assessmentResults as $row)<tr><td class="px-4 py-3">{{ $row->assessment?->title ?: '-' }}</td><td class="px-4 py-3">{{ $row->score }}</td><td class="px-4 py-3">{{ __('workflow.common.result_status.'.$row->status) }}</td></tr>@endforeach</tbody></table></div>
+            @elseif ($openDetails === 'awqaf')
+                <div class="overflow-x-auto"><table class="text-sm"><thead><tr><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.awqaf_tests.headers.date') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.awqaf_tests.headers.juz') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.awqaf_tests.headers.score') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.awqaf_tests.headers.status') }}</th></tr></thead><tbody>@foreach ($awqafTests as $row)<tr><td class="px-4 py-3">{{ $row->tested_on?->format('d-m-Y') }}</td><td class="px-4 py-3">{{ $row->juz?->juz_number }}</td><td class="px-4 py-3">{{ $row->score }}</td><td class="px-4 py-3">{{ __('workflow.common.result_status.'.$row->status) }}</td></tr>@endforeach</tbody></table></div>
+            @elseif ($openDetails === 'enrollments')
+                <div class="overflow-x-auto"><table class="text-sm"><thead><tr><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.enrollments.headers.course') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.enrollments.headers.group') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.enrollments.headers.teacher') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.enrollments.headers.status') }}</th></tr></thead><tbody>@foreach ($enrollments as $row)<tr><td class="px-4 py-3">{{ $row->group?->course?->name ?: '-' }}</td><td class="px-4 py-3">{{ $row->group?->name ?: '-' }}</td><td class="px-4 py-3">{{ $row->group?->teacher ? trim($row->group->teacher->first_name.' '.$row->group->teacher->last_name) : '-' }}</td><td class="px-4 py-3">{{ __('crud.common.status_options.'.$row->status) }}</td></tr>@endforeach</tbody></table></div>
+            @elseif ($openDetails === 'notes')
+                <div class="overflow-x-auto"><table class="text-sm"><thead><tr><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.notes.headers.date') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.notes.headers.source') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.notes.headers.body') }}</th></tr></thead><tbody>@foreach ($parentVisibleNotes as $row)<tr><td class="px-4 py-3">{{ $row->noted_at?->format('d-m-Y') }}</td><td class="px-4 py-3">{{ $row->source }}</td><td class="px-4 py-3">{{ $row->body }}</td></tr>@endforeach</tbody></table></div>
             @endif
+        </x-admin.modal>
 
-            <div class="mt-5 flex justify-end">
-                <button type="button" wire:click="closeMissingPages" class="pill-link">{{ __('crud.common.actions.close') }}</button>
-            </div>
-        @endif
-    </x-admin.modal>
+        <x-admin.modal :show="$selectedMissingJuz !== null" :title="$selectedMissingJuz ? __('workflow.student_progress.juz_progress.missing_title', ['juz' => $selectedMissingJuz->juz->juz_number]) : ''" :description="__('workflow.student_progress.juz_progress.missing_subtitle')" close-method="closeMissingPages" max-width="2xl">
+            @if ($selectedMissingJuz)<div class="flex flex-wrap gap-2">@foreach ($selectedMissingJuz->missing_pages as $page)<span class="badge-soft">{{ $page }}</span>@endforeach</div>@endif
+        </x-admin.modal>
     @else
-    <section class="surface-panel p-6">
-        <div class="admin-empty-state">
-            {{ $studentOptions->isEmpty() ? __('workflow.student_progress.selection.no_students') : __('workflow.student_progress.selection.empty') }}
-        </div>
-    </section>
+        <section class="surface-panel p-6"><div class="admin-empty-state">{{ $studentOptions->isEmpty() ? __('workflow.student_progress.selection.no_students') : __('workflow.student_progress.selection.empty') }}</div></section>
     @endif
 </div>

@@ -118,7 +118,6 @@ Route::middleware(['auth'])->group(function () {
     Volt::route('quran-final-tests', 'quran-final-tests.index')->middleware('permission:quran-final-tests.view')->name('quran-final-tests.index');
     Volt::route('quran-final-tests/{finalTest}', 'quran-final-tests.show')->middleware('permission:quran-final-tests.view')->name('quran-final-tests.show');
     Volt::route('quran-tests', 'quran-tests.index')->middleware('permission:quran-awqaf-tests.view|quran-tests.view')->name('quran-tests.index');
-    Volt::route('awqaf-subject-tests', 'awqaf-subject-tests.index')->middleware('permission:awqaf-subject-tests.view')->name('awqaf-subject-tests.index');
     Route::get('quran-tests/eligible-awqaf/export', [AdminExportController::class, 'eligibleAwqafStudents'])->middleware('permission:quran-awqaf-tests.view|quran-tests.view')->name('quran-tests.eligible-awqaf.export');
     Volt::route('points', 'points.index')->middleware('permission:points.view')->name('points.index');
     Volt::route('enrollments/{enrollment}/memorization', 'enrollments.memorization')->middleware('permission:memorization.view')->name('enrollments.memorization');

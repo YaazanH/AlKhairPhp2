@@ -1151,6 +1151,10 @@ return [
             'empty' => 'Choose a student above to load the full progress page.',
             'no_students' => 'No students are available in your current scope.',
         ],
+        'actions' => [
+            'details' => 'Details',
+            'view_all' => 'View All',
+        ],
         'filters' => [
             'title' => 'Course filter',
             'copy' => 'Limit the progress view to one course when the student has multiple enrollments.',
@@ -1178,6 +1182,15 @@ return [
             'joined_at' => 'Joined',
             'notes' => 'Student notes',
         ],
+        'parent_details' => [
+            'title' => 'Parent details',
+            'father_phone' => 'Father phone',
+            'father_work' => 'Father work',
+            'mother_name' => 'Mother name',
+            'mother_phone' => 'Mother phone',
+            'home_phone' => 'Home phone',
+            'address' => 'Address',
+        ],
         'juz_progress' => [
             'title' => 'Quran juz memorization',
             'summary' => ':count completed juz',
@@ -1190,9 +1203,16 @@ return [
             'no_missing_pages' => 'No missing pages in this juz.',
             'headers' => [
                 'actions' => 'Actions',
+                'final_test' => 'Final test',
                 'juz' => 'Juz',
                 'pages' => 'Pages',
+                'partial_tests' => 'Partial tests',
                 'status' => 'Status',
+            ],
+            'statuses' => [
+                'missing' => 'Missing pages',
+                'awaiting' => 'Awaiting test',
+                'finished' => 'Finished',
             ],
         ],
         'partial_tests' => [
@@ -1256,12 +1276,14 @@ return [
         ],
         'memorization' => [
             'title' => 'Memorization history',
+            'latest_title' => 'Latest memorized pages',
             'empty' => 'No memorization sessions have been recorded yet.',
             'headers' => [
                 'date' => 'Date',
                 'group' => 'Group',
                 'type' => 'Type',
                 'pages' => 'Pages',
+                'page' => 'Page',
                 'teacher' => 'Teacher',
             ],
         ],
@@ -1301,6 +1323,7 @@ return [
             'headers' => [
                 'date' => 'Date',
                 'author' => 'Author',
+                'source' => 'Source',
                 'body' => 'Note',
             ],
         ],

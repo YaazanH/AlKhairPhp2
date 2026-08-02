@@ -27,7 +27,7 @@ new class extends Component {
     public string $search = '';
     public string $statusFilter = 'all';
     public string $juzFilter = 'all';
-    public string $sortField = 'created_at';
+    public string $sortField = 'last_tested_on';
     public string $sortDirection = 'desc';
     public int $perPage = 15;
     public bool $showFormModal = false;
