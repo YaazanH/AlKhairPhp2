@@ -143,12 +143,6 @@ new class extends Component {
 
     <div class="reports-overview-grid grid items-stretch gap-6 xl:grid-cols-3">
         <section class="surface-panel report-panel report-panel--filters min-w-0 p-5 lg:p-6 xl:col-span-3">
-            <div class="mb-5">
-                <div class="eyebrow">{{ __('reports.filters.eyebrow') }}</div>
-                <h2 class="font-display mt-3 text-2xl text-white">{{ __('reports.filters.title') }}</h2>
-                <p class="mt-3 max-w-3xl text-sm leading-7 text-neutral-300">{{ __('reports.filters.subtitle') }}</p>
-            </div>
-
             <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                 <div class="grid gap-4 md:grid-cols-2 xl:col-span-2">
                     <div>
@@ -209,20 +203,19 @@ new class extends Component {
 
     <div class="grid gap-6 xl:grid-cols-2">
         <section class="surface-panel p-5 lg:p-6">
-            <div class="mb-4">
-                <div class="eyebrow">{{ __('reports.attendance.eyebrow') }}</div>
-                <h2 class="font-display mt-3 text-2xl text-white">{{ __('reports.attendance.title') }}</h2>
-                <p class="mt-3 text-sm leading-7 text-neutral-300">{{ __('reports.attendance.days_recorded', ['count' => number_format($report['attendance']['days_recorded'])]) }}</p>
-            </div>
-
-            <div class="mb-4">
-                <div class="rounded-2xl border border-white/8 bg-white/4 p-4">
+            <div class="mb-4 flex items-start justify-between gap-4">
+                <div>
+                    <div class="eyebrow">{{ __('reports.attendance.eyebrow') }}</div>
+                    <h2 class="font-display mt-3 text-2xl text-white">{{ __('reports.attendance.title') }}</h2>
+                    <p class="mt-3 text-sm leading-7 text-neutral-300">{{ __('reports.attendance.days_recorded', ['count' => number_format($report['attendance']['days_recorded'])]) }}</p>
+                </div>
+                <div class="flex aspect-square w-28 shrink-0 flex-col items-center justify-center rounded-2xl border border-white/8 bg-white/4 p-3 text-center">
                     <div class="kpi-label">{{ __('reports.attendance.average_present') }}</div>
-                    <div class="mt-3 text-2xl font-semibold text-white">{{ number_format($report['attendance']['average_present_per_day']) }}</div>
+                    <div class="mt-2 text-2xl font-semibold text-white">{{ number_format($report['attendance']['average_present_per_day']) }}</div>
                 </div>
             </div>
 
-            <div class="space-y-3">
+            <div class="grid grid-cols-2 gap-3">
                 @foreach ($report['attendance']['breakdown'] as $status)
                     <div class="flex items-center justify-between rounded-2xl border border-white/8 bg-white/4 px-4 py-3 text-sm">
                         <span class="text-neutral-200">{{ $status['name'] }}</span>

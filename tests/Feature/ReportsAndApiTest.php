@@ -67,6 +67,11 @@ class ReportsAndApiTest extends TestCase
             ->get(route('reports.index', absolute: false))
             ->assertOk()
             ->assertSee('Reports')
+            ->assertDontSee('Reports and exports')
+            ->assertDontSee('Scope the dataset')
+            ->assertDontSee('Use academic, group, and date filters')
+            ->assertSee('grid grid-cols-2 gap-3', false)
+            ->assertSee('aspect-square w-28', false)
             ->assertDontSee('Students in scope');
 
         $this->actingAs($manager)

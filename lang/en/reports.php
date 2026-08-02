@@ -15,7 +15,7 @@ return [
     ],
     'hero' => [
         'eyebrow' => 'Reporting cockpit',
-        'title' => 'Reports and exports',
+        'title' => 'Reports',
         'subtitle' => 'Review attendance, memorization, assessments, and points from one high-density workspace without leaving the operational data flow.',
     ],
     'filters' => [
