@@ -6,6 +6,7 @@ use App\Models\AttendanceStatus;
 use App\Models\Group;
 use App\Models\Teacher;
 use App\Models\TeacherAttendanceDay;
+use App\Models\TeacherAttendanceExclusion;
 use App\Models\TeacherAttendanceRecord;
 use App\Services\TeacherAttendanceDayService;
 use Illuminate\Database\Eloquent\Builder;
@@ -219,6 +220,7 @@ new class extends Component {
             Teacher::query()
                 ->whereIn('status', ['active', 'inactive'])
                 ->whereIn('id', $teacherIds)
+                ->whereNotIn('id', TeacherAttendanceExclusion::query()->select('teacher_id'))
                 ->orderBy('first_name')
                 ->orderBy('last_name')
         )->get();

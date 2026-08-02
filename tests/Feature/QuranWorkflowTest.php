@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\AcademicYear;
 use App\Models\AttendanceStatus;
 use App\Models\Course;
 use App\Models\Enrollment;
@@ -15,15 +16,15 @@ use App\Models\QuranFinalTest;
 use App\Models\QuranJuz;
 use App\Models\QuranPartialTest;
 use App\Models\QuranPartialTestPart;
-use App\Models\QuranTest;
 use App\Models\QuranTestType;
 use App\Models\Student;
 use App\Models\StudentPageAchievement;
 use App\Models\Teacher;
 use App\Models\TeacherAttendanceDay;
 use App\Models\User;
-use App\Services\QuranProgressionService;
 use App\Services\MemorizationService;
+use App\Services\PointLedgerService;
+use App\Services\QuranProgressionService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Livewire\Volt\Volt;
@@ -126,7 +127,7 @@ class QuranWorkflowTest extends TestCase
 
         $group = Group::create([
             'course_id' => $course->id,
-            'academic_year_id' => \App\Models\AcademicYear::query()->where('is_current', true)->value('id'),
+            'academic_year_id' => AcademicYear::query()->where('is_current', true)->value('id'),
             'teacher_id' => $scheduledTeacher->id,
             'name' => 'Teacher Attendance Group',
             'capacity' => 12,
@@ -173,6 +174,61 @@ class QuranWorkflowTest extends TestCase
             'teacher_id' => $extraTeacher->id,
             'attendance_status_id' => $present->id,
         ]);
+
+        Volt::test('teachers.attendance-show', ['teacherAttendanceDay' => $day])
+            ->call('removeTeacher', $scheduledTeacher->id)
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('teacher_attendance_exclusions', [
+            'teacher_id' => $scheduledTeacher->id,
+            'excluded_by' => $manager->id,
+        ]);
+        $this->assertDatabaseMissing('teacher_attendance_records', [
+            'teacher_attendance_day_id' => $day->id,
+            'teacher_id' => $scheduledTeacher->id,
+        ]);
+
+        $nextDate = Carbon::parse($attendanceDate)->addWeek()->toDateString();
+        Volt::test('teachers.attendance')
+            ->call('openCreateModal')
+            ->set('attendance_date', $nextDate)
+            ->set('day_status', 'open')
+            ->set('default_attendance_status_id', (string) $present->id)
+            ->call('saveDay')
+            ->assertHasNoErrors();
+
+        $nextDay = TeacherAttendanceDay::query()->whereDate('attendance_date', $nextDate)->firstOrFail();
+        $this->assertDatabaseMissing('teacher_attendance_records', [
+            'teacher_attendance_day_id' => $nextDay->id,
+            'teacher_id' => $scheduledTeacher->id,
+        ]);
+
+        Volt::test('teachers.attendance-show', ['teacherAttendanceDay' => $nextDay])
+            ->call('openManualTeacherModal')
+            ->set('manual_teacher_id', (string) $scheduledTeacher->id)
+            ->call('addManualTeacher')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseMissing('teacher_attendance_exclusions', ['teacher_id' => $scheduledTeacher->id]);
+        $this->assertDatabaseHas('teacher_attendance_records', [
+            'teacher_attendance_day_id' => $nextDay->id,
+            'teacher_id' => $scheduledTeacher->id,
+        ]);
+
+        $laterDate = Carbon::parse($attendanceDate)->addWeeks(2)->toDateString();
+        Volt::test('teachers.attendance')
+            ->call('openCreateModal')
+            ->set('attendance_date', $laterDate)
+            ->set('day_status', 'open')
+            ->set('default_attendance_status_id', (string) $present->id)
+            ->call('saveDay')
+            ->assertHasNoErrors();
+
+        $laterDay = TeacherAttendanceDay::query()->whereDate('attendance_date', $laterDate)->firstOrFail();
+        $this->assertDatabaseHas('teacher_attendance_records', [
+            'teacher_attendance_day_id' => $laterDay->id,
+            'teacher_id' => $scheduledTeacher->id,
+        ]);
     }
 
     public function test_teacher_attendance_preloads_unassigned_helping_teachers(): void
@@ -217,7 +273,7 @@ class QuranWorkflowTest extends TestCase
 
         $group = Group::create([
             'course_id' => $course->id,
-            'academic_year_id' => \App\Models\AcademicYear::query()->where('is_current', true)->value('id'),
+            'academic_year_id' => AcademicYear::query()->where('is_current', true)->value('id'),
             'teacher_id' => $scheduledTeacher->id,
             'assistant_teacher_id' => $assignedHelpingTeacher->id,
             'name' => 'Teacher Attendance Helper Group',
@@ -633,7 +689,7 @@ class QuranWorkflowTest extends TestCase
             'notes' => 'Course activation test',
         ]);
 
-        app(\App\Services\PointLedgerService::class)->syncEnrollmentCaches($enrollment->fresh(['student']));
+        app(PointLedgerService::class)->syncEnrollmentCaches($enrollment->fresh(['student']));
 
         $this->assertSame(5, $enrollment->fresh()->final_points_cached);
         $this->assertTrue($transaction->fresh()->isEffectivelyActive());
@@ -692,7 +748,7 @@ class QuranWorkflowTest extends TestCase
             'status' => 'active',
         ]);
 
-        $yearId = \App\Models\AcademicYear::query()->where('is_current', true)->value('id');
+        $yearId = AcademicYear::query()->where('is_current', true)->value('id');
 
         $assignedGroup = Group::create([
             'course_id' => $course->id,
@@ -788,7 +844,7 @@ class QuranWorkflowTest extends TestCase
             'status' => 'active',
         ]);
 
-        $yearId = \App\Models\AcademicYear::query()->where('is_current', true)->value('id');
+        $yearId = AcademicYear::query()->where('is_current', true)->value('id');
 
         $group = Group::create([
             'course_id' => $course->id,

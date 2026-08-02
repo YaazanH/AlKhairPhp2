@@ -17,6 +17,8 @@ use App\Models\Teacher;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Volt\Volt;
+use Mpdf\Mpdf;
+use setasign\Fpdi\PdfParser\StreamReader;
 use Tests\TestCase;
 
 class AssessmentWorkflowTest extends TestCase
@@ -31,6 +33,7 @@ class AssessmentWorkflowTest extends TestCase
             route('assessments.index', absolute: false),
             route('assessments.bands', absolute: false),
             route('assessments.results', $assessment, absolute: false),
+            route('assessments.results.pdf', $assessment, absolute: false),
         ] as $path) {
             $this->get($path)->assertRedirect('/login');
         }
@@ -56,7 +59,6 @@ class AssessmentWorkflowTest extends TestCase
         Volt::test('assessments.results', ['assessment' => $assessment])
             ->set('result_scores.'.$enrollment->id, '100')
             ->set('result_statuses.'.$enrollment->id, 'passed')
-            ->set('result_attempts.'.$enrollment->id, '1')
             ->call('saveResults')
             ->assertHasNoErrors();
 
@@ -77,7 +79,6 @@ class AssessmentWorkflowTest extends TestCase
         Volt::test('assessments.results', ['assessment' => $assessment])
             ->set('result_scores.'.$enrollment->id, '70')
             ->set('result_statuses.'.$enrollment->id, 'passed')
-            ->set('result_attempts.'.$enrollment->id, '2')
             ->call('saveResults')
             ->assertHasNoErrors();
 
@@ -96,7 +97,8 @@ class AssessmentWorkflowTest extends TestCase
 
         Volt::test('assessments.results', ['assessment' => $assessment])
             ->assertSet('selectedGroupId', $enrollment->group_id)
-            ->assertSet('result_attempts.'.$enrollment->id, 1)
+            ->assertDontSee('assessment-student-attempt')
+            ->assertDontSee('assessment-student-notes')
             ->set('result_scores.'.$enrollment->id, '85')
             ->call('saveEnrollmentResult', $enrollment->id)
             ->assertHasNoErrors();
@@ -240,7 +242,6 @@ class AssessmentWorkflowTest extends TestCase
             ->assertSee('Assessment Group')
             ->assertSee('Second Assessment Group')
             ->assertSet('selectedGroupId', null)
-            ->assertSet('quick_attempt', 1)
             ->set('quick_enrollment_id', (string) $firstEnrollment->id)
             ->set('quick_score', '80')
             ->call('saveQuickResult')
@@ -249,7 +250,6 @@ class AssessmentWorkflowTest extends TestCase
         $resultsComponent
             ->call('selectGroup', $secondGroup->id)
             ->set('result_scores.'.$secondEnrollment->id, '40')
-            ->set('result_attempts.'.$secondEnrollment->id, '1')
             ->call('saveResults')
             ->assertHasNoErrors();
 
@@ -263,6 +263,14 @@ class AssessmentWorkflowTest extends TestCase
             'enrollment_id' => $secondEnrollment->id,
             'status' => 'failed',
         ]);
+
+        $pdfResponse = $this->get(route('assessments.results.pdf', $assessment, absolute: false))
+            ->assertOk()
+            ->assertHeader('content-type', 'application/pdf');
+        $this->assertStringStartsWith('%PDF', $pdfResponse->getContent());
+
+        $pdfInspector = new Mpdf(['tempDir' => storage_path('app/mpdf')]);
+        $this->assertSame(2, $pdfInspector->setSourceFile(StreamReader::createByString($pdfResponse->getContent())));
     }
 
     public function test_teacher_assessment_access_is_restricted_to_assigned_groups(): void

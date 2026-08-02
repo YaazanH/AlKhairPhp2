@@ -1527,6 +1527,31 @@ html:not(.dark) .app-pagination__page--dots {
     transform-origin: center;
 }
 
+.dashboard-line-point {
+    cursor: pointer;
+    outline: none;
+}
+
+.dashboard-line-point .dashboard-chart-point {
+    transition: transform 150ms ease;
+}
+
+.dashboard-line-point:hover .dashboard-chart-point,
+.dashboard-line-point:focus .dashboard-chart-point {
+    transform: scale(1.45);
+}
+
+.dashboard-line-point__tooltip {
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 150ms ease;
+}
+
+.dashboard-line-point:hover .dashboard-line-point__tooltip,
+.dashboard-line-point:focus .dashboard-line-point__tooltip {
+    opacity: 1;
+}
+
 .dashboard-leaderboard {
     direction: ltr;
 }

@@ -618,7 +618,7 @@ new class extends Component {
             @php
                 $pieTotal = (int) $groupDistribution->sum('students');
                 $pieOffset = 0.0;
-                $chartColors = ['#34d399', '#60a5fa', '#fbbf24', '#f87171', '#a78bfa', '#22d3ee', '#fb7185', '#c084fc', '#2dd4bf', '#f97316', '#84cc16', '#06b6d4', '#e879f9', '#facc15', '#4ade80', '#818cf8', '#fb923c', '#38bdf8', '#e11d48', '#14b8a6'];
+                $chartColor = fn (int $index) => sprintf('hsl(%.1f 72%% 58%%)', fmod(145 + ($index * 137.508), 360));
                 $trendMax = max(1, (int) $dailyTrend->max(fn (array $day) => max($day['pages'], $day['attendance'])));
                 $trendX = fn (int $index) => 58 + ($index * (332 / max($dailyTrend->count() - 1, 1)));
                 $trendY = fn (int $value) => 178 - (($value / $trendMax) * 128);
@@ -633,22 +633,22 @@ new class extends Component {
                     <div class="eyebrow">{{ __('dashboard.manager.analytics.groups_eyebrow') }}</div>
                     <h2 class="font-display mt-2 text-2xl text-white">{{ __('dashboard.manager.analytics.group_distribution') }}</h2>
                     @if ($pieTotal > 0)
-                        <div class="mt-6 grid items-center gap-6 sm:grid-cols-[14rem_1fr]">
-                            <svg viewBox="0 0 42 42" class="mx-auto h-56 w-56 -rotate-90 overflow-visible" role="img" aria-label="{{ __('dashboard.manager.analytics.group_distribution') }}">
+                        <div class="mt-6 grid items-center gap-6 lg:grid-cols-[18rem_1fr]">
+                            <svg viewBox="0 0 42 42" class="mx-auto h-64 w-64 -rotate-90 overflow-visible lg:h-72 lg:w-72" role="img" aria-label="{{ __('dashboard.manager.analytics.group_distribution') }}">
                                 @foreach ($groupDistribution as $index => $group)
                                     @php($portion = ($group['students'] / $pieTotal) * 100)
                                     @if ($portion > 0)
-                                        <circle cx="21" cy="21" r="15.9155" fill="transparent" stroke="{{ $chartColors[$index % count($chartColors)] }}" stroke-width="8" stroke-dasharray="{{ $portion }} {{ 100 - $portion }}" stroke-dashoffset="{{ -$pieOffset }}" class="dashboard-chart-segment origin-center transition-all duration-200 hover:scale-105 hover:stroke-[10]">
+                                        <circle cx="21" cy="21" r="15.9155" fill="transparent" stroke="{{ $chartColor($index) }}" stroke-width="8" stroke-dasharray="{{ $portion }} {{ 100 - $portion }}" stroke-dashoffset="{{ -$pieOffset }}" class="dashboard-chart-segment origin-center transition-all duration-200 hover:scale-105 hover:stroke-[10]">
                                             <title>{{ $group['name'] }} · {{ trans_choice('dashboard.manager.analytics.students_count', $group['students'], ['count' => number_format($group['students'])]) }} · {{ number_format($portion, 1) }}%</title>
                                         </circle>
                                     @endif
                                     @php($pieOffset += $portion)
                                 @endforeach
                             </svg>
-                            <div class="space-y-3">
+                            <div class="grid grid-cols-2 gap-x-4 gap-y-3">
                                 @foreach ($groupDistribution as $index => $group)
                                     <div class="flex items-center justify-between gap-3 text-sm">
-                                        <span class="flex min-w-0 items-center gap-2"><i class="h-3 w-3 shrink-0 rounded-full" style="background: {{ $chartColors[$index % count($chartColors)] }}"></i><span class="truncate">{{ $group['name'] }}</span></span>
+                                        <span class="flex min-w-0 items-center gap-2"><i class="h-3 w-3 shrink-0 rounded-full" style="background: {{ $chartColor($index) }}"></i><span class="truncate">{{ $group['name'] }}</span></span>
                                         <strong class="text-white">{{ number_format($group['students']) }}</strong>
                                     </div>
                                 @endforeach
@@ -666,7 +666,7 @@ new class extends Component {
                         <span class="flex items-center gap-2"><i class="h-2.5 w-6 rounded-full bg-emerald-400"></i>{{ __('dashboard.manager.analytics.memorized_pages') }}</span>
                         <span class="flex items-center gap-2"><i class="h-2.5 w-6 rounded-full bg-sky-400"></i>{{ __('dashboard.manager.analytics.students_attended') }}</span>
                     </div>
-                    <svg viewBox="0 0 440 220" class="mt-3 h-64 w-full overflow-visible" role="img" aria-label="{{ __('dashboard.manager.analytics.daily_activity') }}">
+                    <svg viewBox="0 0 440 220" class="mt-3 h-80 w-full overflow-visible lg:h-96" role="img" aria-label="{{ __('dashboard.manager.analytics.daily_activity') }}">
                         <line x1="58" y1="42" x2="58" y2="178" stroke="rgba(255,255,255,.3)" stroke-width="1.5" />
                         <line x1="58" y1="178" x2="400" y2="178" stroke="rgba(255,255,255,.3)" stroke-width="1.5" />
                         @foreach ([0, .25, .5, .75, 1] as $ratio)
@@ -677,8 +677,20 @@ new class extends Component {
                         <polyline points="{{ $pagesLine }}" fill="none" stroke="#34d399" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
                         <polyline points="{{ $attendanceLine }}" fill="none" stroke="#38bdf8" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
                         @foreach ($dailyTrend as $index => $day)
-                            <circle cx="{{ $trendX($index) }}" cy="{{ $trendY($day['pages']) }}" r="5" fill="#34d399" class="dashboard-chart-point origin-center transition-transform hover:scale-150"><title>{{ $day['label'] }} · {{ __('dashboard.manager.analytics.memorized_pages') }}: {{ number_format($day['pages']) }}</title></circle>
-                            <circle cx="{{ $trendX($index) }}" cy="{{ $trendY($day['attendance']) }}" r="5" fill="#38bdf8" class="dashboard-chart-point origin-center transition-transform hover:scale-150"><title>{{ $day['label'] }} · {{ __('dashboard.manager.analytics.students_attended') }}: {{ number_format($day['attendance']) }}</title></circle>
+                            <g class="dashboard-line-point" tabindex="0">
+                                <circle cx="{{ $trendX($index) }}" cy="{{ $trendY($day['pages']) }}" r="6" fill="#34d399" class="dashboard-chart-point origin-center" />
+                                <g class="dashboard-line-point__tooltip" transform="translate({{ $trendX($index) }}, {{ max(18, $trendY($day['pages']) - 13) }})">
+                                    <rect x="-68" y="-25" width="136" height="25" rx="6" fill="rgba(10,10,10,.96)" stroke="rgba(255,255,255,.18)" />
+                                    <text x="0" y="-9" text-anchor="middle" fill="white" font-size="9">{{ $day['label'] }} · {{ __('dashboard.manager.analytics.memorized_pages') }}: {{ number_format($day['pages']) }}</text>
+                                </g>
+                            </g>
+                            <g class="dashboard-line-point" tabindex="0">
+                                <circle cx="{{ $trendX($index) }}" cy="{{ $trendY($day['attendance']) }}" r="6" fill="#38bdf8" class="dashboard-chart-point origin-center" />
+                                <g class="dashboard-line-point__tooltip" transform="translate({{ $trendX($index) }}, {{ min(210, $trendY($day['attendance']) + 38) }})">
+                                    <rect x="-68" y="-25" width="136" height="25" rx="6" fill="rgba(10,10,10,.96)" stroke="rgba(255,255,255,.18)" />
+                                    <text x="0" y="-9" text-anchor="middle" fill="white" font-size="9">{{ $day['label'] }} · {{ __('dashboard.manager.analytics.students_attended') }}: {{ number_format($day['attendance']) }}</text>
+                                </g>
+                            </g>
                             <text x="{{ $trendX($index) }}" y="202" text-anchor="middle" fill="#a3a3a3" font-size="11">{{ $day['label'] }}</text>
                         @endforeach
                         <text x="20" y="110" text-anchor="middle" fill="#a3a3a3" font-size="10" transform="rotate(-90 20 110)">{{ __('dashboard.manager.analytics.count_axis') }}</text>
@@ -715,18 +727,24 @@ new class extends Component {
                     @else
                         <div class="mt-8 grid grid-cols-[3rem_minmax(0,1fr)] gap-2">
                             <div class="flex h-64 flex-col justify-between border-r border-white/20 pr-2 text-right text-[10px] text-neutral-400"><span>{{ number_format($barMax) }}</span><span>{{ number_format($barMax * .75) }}</span><span>{{ number_format($barMax * .5) }}</span><span>{{ number_format($barMax * .25) }}</span><span>0</span></div>
+                        <div>
                         <div class="dashboard-bar-chart grid h-64 grid-cols-4 items-end gap-4 border-b border-white/20 px-3">
                             @foreach ($groupPageTotals as $index => $group)
                                 @php($barHeight = max(3, ($group['pages'] / $barMax) * 100))
                                 <div class="flex h-full min-w-0 flex-col justify-end text-center">
                                     <div class="mb-2 text-sm font-semibold text-white">{{ number_format($group['pages']) }}</div>
-                                    <div class="dashboard-bar-chart__bar mx-auto w-full max-w-16 rounded-t-xl transition-transform duration-200 hover:scale-x-110" style="height: {{ $barHeight }}%; background: {{ $chartColors[$index % count($chartColors)] }}">
+                                    <div class="dashboard-bar-chart__bar mx-auto w-full max-w-16 rounded-t-xl transition-transform duration-200 hover:scale-x-110" style="height: {{ $barHeight }}%; background: {{ $chartColor($index) }}">
                                         <span class="sr-only">{{ $group['name'] }}: {{ trans_choice('dashboard.manager.analytics.pages_count', $group['pages'], ['count' => number_format($group['pages'])]) }}</span>
                                         <span class="dashboard-chart-tooltip">{{ $group['name'] }} · {{ trans_choice('dashboard.manager.analytics.pages_count', $group['pages'], ['count' => number_format($group['pages'])]) }}</span>
                                     </div>
-                                    <div class="mt-3 truncate text-xs text-neutral-300" title="{{ $group['name'] }}">{{ $group['name'] }}</div>
                                 </div>
                             @endforeach
+                        </div>
+                        <div class="grid grid-cols-4 gap-4 px-3 pt-3">
+                            @foreach ($groupPageTotals as $group)
+                                <div class="truncate text-center text-xs text-neutral-300" title="{{ $group['name'] }}">{{ $group['name'] }}</div>
+                            @endforeach
+                        </div>
                         </div>
                         <div></div><div class="pt-2 text-center text-xs text-neutral-400">{{ __('dashboard.manager.analytics.groups_axis') }}</div>
                         </div>

@@ -6,9 +6,11 @@ use App\Models\AttendanceStatus;
 use App\Models\Group;
 use App\Models\Teacher;
 use App\Models\TeacherAttendanceDay;
+use App\Models\TeacherAttendanceExclusion;
 use App\Models\TeacherAttendanceRecord;
 use App\Services\TeacherAttendanceDayService;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Livewire\Volt\Component;
 
 new class extends Component {
@@ -215,19 +217,51 @@ new class extends Component {
             return;
         }
 
-        app(TeacherAttendanceDayService::class)->createOrSyncDay(
-            $this->currentDay->attendance_date->format('Y-m-d'),
-            collect([$teacher]),
-            auth()->user(),
-            $this->notes,
-            $this->day_status,
-            $this->defaultTeacherAttendanceStatusId(),
-        );
+        DB::transaction(function () use ($teacher): void {
+            TeacherAttendanceExclusion::query()->where('teacher_id', $teacher->id)->delete();
+
+            app(TeacherAttendanceDayService::class)->createOrSyncDay(
+                $this->currentDay->attendance_date->format('Y-m-d'),
+                collect([$teacher]),
+                auth()->user(),
+                $this->notes,
+                $this->day_status,
+                $this->defaultTeacherAttendanceStatusId(),
+            );
+        });
 
         $this->loadDay();
         $this->closeManualTeacherModal();
 
         session()->flash('status', __('workflow.teacher_attendance.day_details.manual_add.messages.added'));
+    }
+
+    public function removeTeacher(int $teacherId): void
+    {
+        $this->authorizePermission('attendance.teacher.take');
+
+        $record = $this->scopeTeacherAttendanceRecordsQuery(
+            TeacherAttendanceRecord::query()->where('teacher_attendance_day_id', $this->currentDay->id)
+        )->where('teacher_id', $teacherId)->firstOrFail();
+        $teacher = $this->availableTeachersScopeQuery()->findOrFail($teacherId);
+        $this->authorizeScopedTeacherAccess($teacher);
+
+        DB::transaction(function () use ($teacher): void {
+            TeacherAttendanceExclusion::query()->updateOrCreate(
+                ['teacher_id' => $teacher->id],
+                ['excluded_by' => auth()->id(), 'excluded_at' => now()],
+            );
+
+            $this->scopeTeacherAttendanceRecordsQuery(
+                TeacherAttendanceRecord::query()
+                    ->where('teacher_id', $teacher->id)
+                    ->whereHas('attendanceDay', fn ($query) => $query->whereDate('attendance_date', '>=', $this->currentDay->attendance_date))
+            )->delete();
+        });
+
+        unset($this->selected_statuses[$teacherId]);
+        $this->loadDay();
+        session()->flash('status', __('workflow.teacher_attendance.messages.teacher_removed'));
     }
 
     public function deleteDay(): void
@@ -435,6 +469,7 @@ new class extends Component {
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.teachers.table.headers.access_role') }}</th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.teacher_attendance.table.headers.status') }}</th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.teacher_attendance.table.headers.attendance') }}</th>
+                            @can('attendance.teacher.take')<th class="px-5 py-4 text-right lg:px-6">{{ __('workflow.teacher_attendance.table.headers.actions') }}</th>@endcan
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-white/6">
@@ -479,6 +514,9 @@ new class extends Component {
                                         @endforeach
                                     </select>
                                 </td>
+                                @can('attendance.teacher.take')
+                                    <td class="px-5 py-4 text-right lg:px-6"><button type="button" wire:click="removeTeacher({{ $record->teacher_id }})" wire:confirm="{{ __('workflow.teacher_attendance.messages.confirm_remove_teacher') }}" class="pill-link pill-link--compact border-red-400/25 text-red-200">{{ __('workflow.teacher_attendance.table.remove_teacher') }}</button></td>
+                                @endcan
                             </tr>
                         @endforeach
                     </tbody>

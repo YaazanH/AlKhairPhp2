@@ -17,20 +17,15 @@ new class extends Component {
     public Assessment $currentAssessment;
     public array $result_scores = [];
     public array $result_statuses = [];
-    public array $result_attempts = [];
-    public array $result_notes = [];
     public string $search = '';
     public string $resultStatusFilter = 'all';
     public ?int $selectedGroupId = null;
     public string $quick_enrollment_id = '';
     public string $quick_score = '';
-    public int $quick_attempt = 1;
-    public string $quick_notes = '';
     public string $sortField = 'student';
     public string $sortDirection = 'asc';
 
     protected array $sortableFields = [
-        'attempt',
         'score',
         'status',
         'student',
@@ -135,7 +130,6 @@ new class extends Component {
         $this->authorizeTeacherGroupAccess($group);
 
         $this->selectedGroupId = $groupId;
-        $this->ensureDefaultAttempts($groupId);
         $this->search = '';
         $this->resultStatusFilter = 'all';
         $this->resetValidation();
@@ -174,10 +168,6 @@ new class extends Component {
         $validated = $this->validate([
             'result_scores' => ['array'],
             'result_scores.*' => ['nullable', 'numeric', 'min:0', 'max:'.$maxMark],
-            'result_attempts' => ['array'],
-            'result_attempts.*' => ['nullable', 'integer', 'min:1'],
-            'result_notes' => ['array'],
-            'result_notes.*' => ['nullable', 'string'],
         ]);
 
         $teacherId = auth()->user()?->teacherProfile?->id ?: $this->currentAssessment->group?->teacher_id;
@@ -193,10 +183,7 @@ new class extends Component {
             $score = $validated['result_scores'][$enrollment->id] ?? null;
             $numericScore = ($score === null || $score === '') ? null : (float) $score;
             $status = $this->statusForScore($numericScore);
-            $attempt = (int) ($validated['result_attempts'][$enrollment->id] ?? 1);
-            $notes = $validated['result_notes'][$enrollment->id] ?? null;
-
-            if (($score === null || $score === '') && $status === 'pending' && blank($notes)) {
+            if ($score === null || $score === '') {
                 continue;
             }
 
@@ -210,8 +197,8 @@ new class extends Component {
                     'teacher_id' => $teacherId,
                     'score' => $numericScore,
                     'status' => $status,
-                    'attempt_no' => $attempt,
-                    'notes' => blank($notes) ? null : $notes,
+                    'attempt_no' => 1,
+                    'notes' => null,
                 ],
             );
 
@@ -236,8 +223,6 @@ new class extends Component {
         $maxMark = $this->currentAssessment->total_mark !== null ? (float) $this->currentAssessment->total_mark : 100;
         $validated = $this->validate([
             'result_scores.'.$enrollmentId => ['required', 'numeric', 'min:0', 'max:'.$maxMark],
-            'result_attempts.'.$enrollmentId => ['nullable', 'integer', 'min:1'],
-            'result_notes.'.$enrollmentId => ['nullable', 'string'],
         ]);
 
         $enrollment = Enrollment::query()
@@ -261,8 +246,8 @@ new class extends Component {
                 'teacher_id' => $teacherId,
                 'score' => $numericScore,
                 'status' => $this->statusForScore($numericScore),
-                'attempt_no' => (int) ($validated['result_attempts'][$enrollmentId] ?? 1),
-                'notes' => blank($validated['result_notes'][$enrollmentId] ?? null) ? null : $validated['result_notes'][$enrollmentId],
+                'attempt_no' => 1,
+                'notes' => null,
             ],
         );
 
@@ -275,9 +260,7 @@ new class extends Component {
     public function updatedQuickEnrollmentId($enrollmentId): void
     {
         $this->quick_score = '';
-        $this->quick_attempt = 1;
-        $this->quick_notes = '';
-        $this->resetValidation(['quick_enrollment_id', 'quick_score', 'quick_attempt', 'quick_notes']);
+        $this->resetValidation(['quick_enrollment_id', 'quick_score']);
 
         if (blank($enrollmentId)) {
             return;
@@ -299,8 +282,6 @@ new class extends Component {
 
         if ($result) {
             $this->quick_score = $result->score !== null ? number_format((float) $result->score, 2, '.', '') : '';
-            $this->quick_attempt = $result->attempt_no ?: 1;
-            $this->quick_notes = $result->notes ?? '';
         }
     }
 
@@ -313,8 +294,6 @@ new class extends Component {
         $validated = $this->validate([
             'quick_enrollment_id' => ['required', 'integer', 'exists:enrollments,id'],
             'quick_score' => ['required', 'numeric', 'min:0', 'max:'.$maxMark],
-            'quick_attempt' => ['required', 'integer', 'min:1'],
-            'quick_notes' => ['nullable', 'string'],
         ]);
 
         $enrollment = Enrollment::query()
@@ -336,8 +315,8 @@ new class extends Component {
                 'teacher_id' => $teacherId,
                 'score' => $numericScore,
                 'status' => $this->statusForScore($numericScore),
-                'attempt_no' => (int) $validated['quick_attempt'],
-                'notes' => blank($validated['quick_notes'] ?? null) ? null : $validated['quick_notes'],
+                'attempt_no' => 1,
+                'notes' => null,
             ],
         );
 
@@ -345,8 +324,6 @@ new class extends Component {
 
         $this->quick_enrollment_id = '';
         $this->quick_score = '';
-        $this->quick_attempt = 1;
-        $this->quick_notes = '';
         $this->loadResults();
         session()->flash('status', __('workflow.assessments.results.messages.quick_saved'));
     }
@@ -359,25 +336,6 @@ new class extends Component {
 
         $this->result_scores = $results->mapWithKeys(fn (AssessmentResult $result) => [$result->enrollment_id => $result->score !== null ? number_format((float) $result->score, 2, '.', '') : ''])->toArray();
         $this->result_statuses = $results->mapWithKeys(fn (AssessmentResult $result) => [$result->enrollment_id => $result->status])->toArray();
-        $this->result_attempts = $results->mapWithKeys(fn (AssessmentResult $result) => [$result->enrollment_id => $result->attempt_no])->toArray();
-        $this->result_notes = $results->mapWithKeys(fn (AssessmentResult $result) => [$result->enrollment_id => $result->notes ?? ''])->toArray();
-
-        if ($this->selectedGroupId) {
-            $this->ensureDefaultAttempts($this->selectedGroupId);
-        }
-    }
-
-    protected function ensureDefaultAttempts(int $groupId): void
-    {
-        Enrollment::query()
-            ->where('group_id', $groupId)
-            ->where('status', 'active')
-            ->pluck('id')
-            ->each(function ($enrollmentId): void {
-                if (! array_key_exists($enrollmentId, $this->result_attempts) || blank($this->result_attempts[$enrollmentId])) {
-                    $this->result_attempts[$enrollmentId] = 1;
-                }
-            });
     }
 
     public function displayStatusForEnrollment(int $enrollmentId): string
@@ -483,7 +441,6 @@ new class extends Component {
                 $rightResult = $right->assessmentResults->first();
 
                 $comparison = match ($field) {
-                    'attempt' => (int) ($leftResult?->attempt_no ?? 0) <=> (int) ($rightResult?->attempt_no ?? 0),
                     'score' => (float) ($leftResult?->score ?? -1) <=> (float) ($rightResult?->score ?? -1),
                     'status' => strnatcasecmp($this->displayStatusForEnrollment($left->id), $this->displayStatusForEnrollment($right->id)),
                     default => strnatcasecmp((string) ($left->student?->full_name ?? ''), (string) ($right->student?->full_name ?? '')),
@@ -526,6 +483,7 @@ new class extends Component {
                         : ($assessmentRecord->group?->name ?: __('workflow.common.not_available')) }}
                 </div>
                 <div class="mt-1 text-sm text-neutral-400">{{ __('workflow.common.labels.total', ['value' => $assessmentRecord->total_mark !== null ? number_format((float) $assessmentRecord->total_mark, 2) : __('workflow.common.not_available')]) }} | {{ __('workflow.common.labels.pass', ['value' => $assessmentRecord->pass_mark !== null ? number_format((float) $assessmentRecord->pass_mark, 2) : __('workflow.common.not_available')]) }}</div>
+                <a href="{{ route('assessments.results.pdf', $assessmentRecord) }}" target="_blank" rel="noopener" class="pill-link pill-link--compact mt-3">{{ __('workflow.assessments.results.pdf_export') }}</a>
             </div>
         </div>
     </section>
@@ -544,7 +502,7 @@ new class extends Component {
                 <span class="badge-soft badge-soft--emerald">{{ __('workflow.assessments.results.student_entry.all_groups') }}</span>
             </div>
 
-            <form wire:submit="saveQuickResult" class="mt-5 grid gap-4 lg:grid-cols-[minmax(18rem,2fr)_8rem_7rem_minmax(12rem,1fr)_auto] lg:items-end" data-searchable-refresh>
+            <form wire:submit="saveQuickResult" class="mt-5 grid gap-4 lg:grid-cols-[minmax(18rem,1fr)_10rem_auto] lg:items-end" data-searchable-refresh>
                 <div>
                     <label for="assessment-student-entry" class="mb-1 block text-sm font-medium">{{ __('workflow.assessments.results.quick_entry.student') }}</label>
                     <select
@@ -560,9 +518,6 @@ new class extends Component {
                                 data-search="{{ trim(implode(' ', array_filter([$enrollment->student?->student_number, $enrollment->student?->first_name, $enrollment->student?->last_name, $enrollment->group?->name, $enrollment->group?->course?->name]))) }}"
                             >
                                 {{ $enrollment->student?->full_name }}
-                                @if ($enrollment->student?->student_number)
-                                    - {{ $enrollment->student->student_number }}
-                                @endif
                                 · {{ $enrollment->group?->name }}
                             </option>
                         @endforeach
@@ -574,18 +529,6 @@ new class extends Component {
                     <label for="assessment-student-score" class="mb-1 block text-sm font-medium">{{ __('workflow.assessments.results.quick_entry.score') }}</label>
                     <input id="assessment-student-score" wire:model="quick_score" type="number" min="0" max="{{ $assessmentRecord->total_mark !== null ? (float) $assessmentRecord->total_mark : 100 }}" step="0.01" class="w-full rounded-xl px-4 py-3 text-sm">
                     @error('quick_score') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
-                </div>
-
-                <div>
-                    <label for="assessment-student-attempt" class="mb-1 block text-sm font-medium">{{ __('workflow.assessments.results.table.headers.attempt') }}</label>
-                    <input id="assessment-student-attempt" wire:model="quick_attempt" type="number" min="1" class="w-full rounded-xl px-4 py-3 text-sm">
-                    @error('quick_attempt') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
-                </div>
-
-                <div>
-                    <label for="assessment-student-notes" class="mb-1 block text-sm font-medium">{{ __('workflow.assessments.results.table.headers.notes') }}</label>
-                    <input id="assessment-student-notes" wire:model="quick_notes" type="text" class="w-full rounded-xl px-4 py-3 text-sm" placeholder="{{ __('workflow.assessments.results.table.notes_optional') }}">
-                    @error('quick_notes') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
                 </div>
 
                 <button type="submit" class="pill-link pill-link--accent justify-center lg:mb-px">
@@ -702,12 +645,6 @@ new class extends Component {
                                 {{ __('workflow.assessments.results.table.headers.status') }} <span>{{ $this->sortIndicator('status') }}</span>
                             </button>
                         </th>
-                        <th class="px-5 py-3 text-left font-medium">
-                            <button type="button" wire:click="sortBy('attempt')" class="inline-flex items-center gap-2 font-medium text-inherit">
-                                {{ __('workflow.assessments.results.table.headers.attempt') }} <span>{{ $this->sortIndicator('attempt') }}</span>
-                            </button>
-                        </th>
-                        <th class="px-5 py-3 text-left font-medium">{{ __('workflow.assessments.results.table.headers.notes') }}</th>
                         <th class="px-5 py-3 text-left font-medium">{{ __('workflow.assessments.results.table.headers.cached_points') }}</th>
                         @can('assessment-results.record')
                             <th class="px-5 py-3 text-right font-medium">{{ __('workflow.assessments.results.table.headers.actions') }}</th>
@@ -738,12 +675,6 @@ new class extends Component {
                                     {{ __('workflow.common.result_status.'.$displayStatus) }}
                                 </span>
                             </td>
-                            <td class="px-5 py-3">
-                                <input wire:model="result_attempts.{{ $enrollment->id }}" type="number" min="1" class="w-20 rounded-xl px-3 py-2 text-sm">
-                            </td>
-                            <td class="px-5 py-3">
-                                <input wire:model="result_notes.{{ $enrollment->id }}" type="text" class="w-full min-w-48 rounded-xl px-3 py-2 text-sm" placeholder="{{ __('workflow.assessments.results.table.notes_optional') }}">
-                            </td>
                             <td class="px-5 py-3"><span class="status-chip status-chip--slate">{{ $assessmentPointsByEnrollment[$enrollment->id] ?? 0 }}</span></td>
                             @can('assessment-results.record')
                                 <td class="px-5 py-3 text-right">
@@ -755,7 +686,7 @@ new class extends Component {
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="7" class="px-5 py-10 text-center text-sm text-neutral-500">{{ __('workflow.assessments.results.table.empty') }}</td>
+                            <td colspan="5" class="px-5 py-10 text-center text-sm text-neutral-500">{{ __('workflow.assessments.results.table.empty') }}</td>
                         </tr>
                     @endforelse
                 </tbody>

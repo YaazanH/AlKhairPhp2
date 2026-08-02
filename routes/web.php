@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AdminExportController;
+use App\Http\Controllers\AssessmentResultPdfController;
 use App\Http\Controllers\BarcodeActionPrintController;
 use App\Http\Controllers\FinanceInvoicePrintController;
 use App\Http\Controllers\FinanceRequestPrintController;
@@ -109,6 +110,7 @@ Route::middleware(['auth'])->group(function () {
     Volt::route('assessments', 'assessments.index')->middleware('permission:assessments.view')->name('assessments.index');
     Volt::route('assessments/bands', 'assessments.bands')->middleware('permission:assessment-score-bands.view')->name('assessments.bands');
     Volt::route('assessments/{assessment}/results', 'assessments.results')->middleware('permission:assessment-results.view')->name('assessments.results');
+    Route::get('assessments/{assessment}/results/pdf', AssessmentResultPdfController::class)->middleware('permission:assessment-results.view')->name('assessments.results.pdf');
     Volt::route('student-notes', 'student-notes.index')->middleware('permission:student-notes.view')->name('student-notes.index');
     Volt::route('memorization/quick-entry', 'memorization.quick-entry')->middleware('permission:memorization.record')->name('memorization.quick-entry');
     Volt::route('memorization', 'memorization.index')->middleware('permission:memorization.view')->name('memorization.index');

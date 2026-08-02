@@ -649,6 +649,7 @@ new class extends Component {
                                         <div class="admin-action-cluster admin-action-cluster--end">
                                             @can('assessment-results.view')
                                                 <a href="{{ route('assessments.results', $assessment) }}" wire:navigate class="pill-link pill-link--compact">{{ __('workflow.common.actions.results') }}</a>
+                                                <a href="{{ route('assessments.results.pdf', $assessment) }}" target="_blank" rel="noopener" class="pill-link pill-link--compact">{{ __('workflow.assessments.results.pdf_export') }}</a>
                                             @endcan
                                             @can('assessments.update')
                                                 <button type="button" wire:click="edit({{ $assessment->id }})" class="pill-link pill-link--compact">{{ __('crud.common.actions.edit') }}</button>

@@ -318,6 +318,8 @@ return [
         'messages' => [
             'saved' => 'Teacher attendance saved successfully.',
             'deleted' => 'Teacher attendance day deleted successfully.',
+            'teacher_removed' => 'Teacher removed from this and future attendance lists. Add the teacher manually to include them again.',
+            'confirm_remove_teacher' => 'Remove this teacher from this and future attendance lists?',
             'default_status_note' => 'Default teacher attendance status applied during day creation: :status',
         ],
         'errors' => [
@@ -345,7 +347,9 @@ return [
                 'job_title' => 'Job title',
                 'status' => 'Status',
                 'attendance' => 'Attendance',
+                'actions' => 'Actions',
             ],
+            'remove_teacher' => 'Remove teacher',
             'not_marked' => 'Not marked',
             'empty' => 'No teachers are available yet.',
         ],
@@ -1070,6 +1074,12 @@ return [
         'results' => [
             'title' => 'Assessment Results',
             'subtitle' => 'Choose a group, find students by name, and enter scores from one quick roster.',
+            'pdf_export' => 'Export PDF',
+            'pdf' => [
+                'due_date' => 'Due date',
+                'average_mark' => 'Average mark',
+                'number' => '#',
+            ],
             'stats' => [
                 'groups' => 'Groups',
             ],

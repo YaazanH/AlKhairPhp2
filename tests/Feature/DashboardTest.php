@@ -168,6 +168,10 @@ class DashboardTest extends TestCase
             ->assertSee('Boys A')
             ->assertSee('Memorized pages: 5')
             ->assertSee('Students attended: 1')
+            ->assertSee('dashboard-line-point__tooltip', false)
+            ->assertSee('h-80 w-full overflow-visible lg:h-96', false)
+            ->assertSee('grid grid-cols-2 gap-x-4 gap-y-3', false)
+            ->assertSee('h-64 w-64 -rotate-90 overflow-visible lg:h-72 lg:w-72', false)
             ->assertDontSee('Recent Groups')
             ->assertDontSee('Students with an active enrollment in the default course')
             ->assertDontSee('Excluded Group');
