@@ -16,7 +16,7 @@
     $qrSvg = (new \Mpdf\QrCode\Output\Svg())->output(
         new \Mpdf\QrCode\QrCode($qrPayload, \Mpdf\QrCode\QrCode::ERROR_CORRECTION_MEDIUM),
         120,
-        'white',
+        'transparent',
         'black'
     );
     $qrImage = 'data:image/svg+xml;base64,'.base64_encode($qrSvg);
@@ -34,16 +34,16 @@
         .first-header-table, .meta-table, .ledger-table, .summary-table, .footer-table { border-collapse: collapse; width: 100%; }
         .first-header-table td { border: 0; vertical-align: middle; }
         .logo-cell { text-align: right; width: 25%; }
-        .logo-cell img { max-height: 22mm; max-width: 42mm; }
+        .logo-cell img { height: 14mm; object-fit: contain; width: 28mm; }
         .title-cell { text-align: center; width: 50%; }
         .title-cell h1 { color: #123d22; font-size: 25px; margin: 0; }
         .security-notice { color: #c62828; font-size: 12px; font-weight: bold; margin-top: 2mm; }
-        .meta-box { background: rgba(255,255,255,.88); border: 1px solid #b8cfbb; padding: 3mm; }
+        .meta-box { background: transparent; border: 1px solid #b8cfbb; padding: 3mm; }
         .meta-table td { border: 0; padding: 1.2mm 2mm; vertical-align: middle; }
         .meta-label { color: #3f6849; font-weight: bold; width: 17%; }
         .meta-value { color: #102c18; font-weight: bold; width: 24%; }
         .qr-cell { text-align: center; width: 18%; }
-        .ledger-table { background: rgba(255,255,255,.91); }
+        .ledger-table { background: transparent; }
         .ledger-table th { background: #dcefdc; border: 1px solid #9fbea5; color: #214c2c; font-size: 10px; padding: 2.4mm 2mm; text-align: center; }
         .ledger-table td { border: 1px solid #bfd1c1; font-size: 9px; padding: 2.2mm 2mm; vertical-align: top; }
         .ledger-table .date { text-align: center; white-space: nowrap; width: 16%; }
@@ -53,7 +53,7 @@
         .description { color: #647168; font-size: 8px; margin-top: 1mm; }
         .empty { color: #68756b; padding: 12mm !important; text-align: center; }
         .summary-title { color: #173f23; font-size: 20px; margin: 8mm 0 5mm; text-align: center; }
-        .summary-table { background: rgba(255,255,255,.92); }
+        .summary-table { background: transparent; margin-top: 6mm; }
         .summary-table td { border: 1px solid #aac3ae; font-size: 11px; padding: 4mm; vertical-align: top; width: 50%; }
         .summary-label { color: #41694a; display: block; font-size: 9px; font-weight: bold; margin-bottom: 1.5mm; }
         .signature-space { height: 38mm; }
@@ -90,14 +90,10 @@
                 @endforelse
             </tbody>
         </table>
-        <pagebreak />
+        @if (! $loop->last)<pagebreak />@endif
     @endforeach
 
     <section>
-        <div class="meta-box">
-            @include('reports.partials.finance-ledger-meta', ['qrImage' => $qrImage, 'report' => $report])
-        </div>
-        <h2 class="summary-title">ملخص التقرير المالي</h2>
         <table class="summary-table">
             <tr><td><span class="summary-label">المسؤول المالي</span>{{ $report['issuer_name'] ?: '-' }}</td><td><span class="summary-label">إجمالي المصروفات</span><span dir="ltr">{{ data_get($report, 'formatted.expense') }}</span></td></tr>
             <tr><td><span class="summary-label">الرصيد الختامي</span><span dir="ltr">{{ data_get($report, 'formatted.closing_balance') }}</span></td><td><span class="summary-label">إجمالي الإيرادات</span><span dir="ltr">{{ data_get($report, 'formatted.income') }}</span></td></tr>

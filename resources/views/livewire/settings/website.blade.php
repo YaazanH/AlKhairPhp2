@@ -3,6 +3,7 @@
 use App\Livewire\Concerns\AuthorizesPermissions;
 use App\Models\AppSetting;
 use App\Models\WebsitePage;
+use App\Support\PhoneNumberFormatter;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Volt\Component;
 use Livewire\WithFileUploads;
@@ -310,7 +311,7 @@ new class extends Component {
         AppSetting::storeValue('website', 'site_name', $validated['site_name']);
         AppSetting::storeValue('website', 'site_tagline', ['en' => $validated['site_tagline_en'], 'ar' => $validated['site_tagline_ar']], 'array');
         AppSetting::storeValue('website', 'site_description', ['en' => $validated['site_description_en'], 'ar' => $validated['site_description_ar']], 'array');
-        AppSetting::storeValue('website', 'contact_phone', $validated['contact_phone']);
+        AppSetting::storeValue('website', 'contact_phone', PhoneNumberFormatter::format($validated['contact_phone']));
         AppSetting::storeValue('website', 'contact_email', $validated['contact_email']);
         AppSetting::storeValue('website', 'contact_address', ['en' => $validated['contact_address_en'], 'ar' => $validated['contact_address_ar']], 'array');
         AppSetting::storeValue('website', 'maps_url', $validated['maps_url']);

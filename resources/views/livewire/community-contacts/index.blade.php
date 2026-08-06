@@ -3,6 +3,7 @@
 use App\Livewire\Concerns\AuthorizesPermissions;
 use App\Livewire\Concerns\SupportsCreateAndNew;
 use App\Models\CommunityContact;
+use App\Support\PhoneNumberFormatter;
 use Livewire\Volt\Component;
 use Livewire\WithPagination;
 
@@ -37,13 +38,17 @@ new class extends Component {
         $baseQuery = CommunityContact::query();
         $filteredQuery = CommunityContact::query()
             ->when(filled($this->search), function ($query) {
-                $query->where(function ($builder) {
+                $normalizedPhone = PhoneNumberFormatter::normalize($this->search);
+                $query->where(function ($builder) use ($normalizedPhone) {
                     $builder
                         ->where('name', 'like', '%'.$this->search.'%')
                         ->orWhere('category', 'like', '%'.$this->search.'%')
                         ->orWhere('organization', 'like', '%'.$this->search.'%')
                         ->orWhere('phone', 'like', '%'.$this->search.'%')
                         ->orWhere('secondary_phone', 'like', '%'.$this->search.'%')
+                        ->when($normalizedPhone, fn ($query) => $query
+                            ->orWhere('phone', 'like', '%'.$normalizedPhone.'%')
+                            ->orWhere('secondary_phone', 'like', '%'.$normalizedPhone.'%'))
                         ->orWhere('email', 'like', '%'.$this->search.'%')
                         ->orWhere('address', 'like', '%'.$this->search.'%')
                         ->orWhere('notes', 'like', '%'.$this->search.'%');
@@ -135,6 +140,9 @@ new class extends Component {
     public function save(): void
     {
         $this->authorizePermission($this->editingId ? 'community-contacts.update' : 'community-contacts.create');
+
+        $this->phone = PhoneNumberFormatter::normalize($this->phone) ?? '';
+        $this->secondary_phone = PhoneNumberFormatter::normalize($this->secondary_phone) ?? '';
 
         $validated = $this->validate();
 

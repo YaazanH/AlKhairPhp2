@@ -44,6 +44,7 @@ return [
             'meta' => 'Rewards',
             'title' => 'Points',
         ],
+        'barcodes' => ['meta' => 'Automation', 'title' => 'Action barcodes'],
         'finance' => [
             'meta' => 'Billing',
             'title' => 'Finance',

@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Services\AccessScopeService;
 use App\Services\ManagedUserService;
 use App\Support\RoleRegistry;
+use App\Support\PhoneNumberFormatter;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -79,12 +80,14 @@ new class extends Component
         $filteredQuery = User::query()
             ->with(['roles', 'permissions', 'teacherProfile', 'parentProfile', 'studentProfile', 'scopeOverrides'])
             ->when(filled($this->search), function ($query) {
-                $query->where(function ($builder) {
+                $normalizedPhone = PhoneNumberFormatter::normalize($this->search);
+                $query->where(function ($builder) use ($normalizedPhone) {
                     $builder
                         ->where('name', 'like', '%'.$this->search.'%')
                         ->orWhere('username', 'like', '%'.$this->search.'%')
                         ->orWhere('email', 'like', '%'.$this->search.'%')
-                        ->orWhere('phone', 'like', '%'.$this->search.'%');
+                        ->orWhere('phone', 'like', '%'.$this->search.'%')
+                        ->when($normalizedPhone, fn ($query) => $query->orWhere('phone', 'like', '%'.$normalizedPhone.'%'));
                 });
             })
             ->when($this->roleFilter !== 'all', fn ($query) => $query->role($this->roleFilter))
@@ -159,6 +162,7 @@ new class extends Component
     public function save(): void
     {
         $this->authorizePermission($this->editingId ? 'users.update' : 'users.create');
+        $this->phone = PhoneNumberFormatter::normalize($this->phone) ?? '';
 
         $validated = $this->validate();
         $accountService = app(ManagedUserService::class);

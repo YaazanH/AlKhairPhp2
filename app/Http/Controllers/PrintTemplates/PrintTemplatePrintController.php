@@ -224,11 +224,14 @@ class PrintTemplatePrintController extends Controller
 
     protected function buildSetupView(bool $studentCardMode): View
     {
+        $courseId = request()->integer('course_id') ?: null;
         $entities = collect($this->fieldRegistry->entities())
             ->mapWithKeys(fn (array $definition, string $entity) => [
                 $entity => [
                     'label' => $definition['label'],
-                    'options' => $this->fieldRegistry->optionsFor($entity),
+                    'options' => collect($this->fieldRegistry->optionsFor($entity))
+                        ->when($courseId && $entity === 'course_student', fn ($options) => $options->where('meta.course_id', $courseId))
+                        ->values()->all(),
                 ],
             ])
             ->all();

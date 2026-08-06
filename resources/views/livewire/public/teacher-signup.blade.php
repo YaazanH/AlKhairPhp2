@@ -3,6 +3,7 @@
 use App\Models\AppSetting;
 use App\Models\Teacher;
 use App\Services\ManagedUserService;
+use App\Support\PhoneNumberFormatter;
 use Illuminate\Validation\Rule;
 use Livewire\Attributes\Layout;
 use Livewire\Volt\Component;
@@ -26,6 +27,7 @@ new #[Layout('components.layouts.auth')] class extends Component {
     public function submit(): void
     {
         $this->ensureSignupEnabled();
+        $this->phone = PhoneNumberFormatter::normalize($this->phone) ?? '';
 
         $validated = $this->validate([
             'first_name' => ['required', 'string', 'max:255'],

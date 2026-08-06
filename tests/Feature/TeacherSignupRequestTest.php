@@ -40,7 +40,7 @@ class TeacherSignupRequestTest extends TestCase
         $this->assertSame('Ahmad', $teacher->first_name);
         $this->assertSame('Darwish', $teacher->last_name);
         $this->assertSame('pending', $teacher->status);
-        $this->assertSame('0944000100', $teacher->phone);
+        $this->assertSame('+963 944 000 100', $teacher->phone);
         $this->assertFalse($teacher->user->is_active);
         $this->assertTrue($teacher->user->hasRole('teacher'));
         $this->assertSame('ahmad-darwish', $teacher->user->username);
@@ -121,7 +121,7 @@ class TeacherSignupRequestTest extends TestCase
 
         $this->assertSame('Approved', $teacher->first_name);
         $this->assertSame('active', $teacher->status);
-        $this->assertSame('0944000200', $teacher->phone);
+        $this->assertSame('+963 944 000 200', $teacher->phone);
         $this->assertSame('2026-05-03', $teacher->hired_at?->format('Y-m-d'));
         $this->assertTrue($teacher->is_helping);
         $this->assertSame($accessRole->id, $teacher->access_role_id);

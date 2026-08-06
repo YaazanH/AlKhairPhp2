@@ -379,7 +379,7 @@ class ManagementCrudTest extends TestCase
         $this->assertNotNull($parent->user_id);
         $this->assertSame('Legacy Parent Updated', $parent->father_name);
         $this->assertSame($parent->parent_number, $parent->user->username);
-        $this->assertSame('0944999001', $parent->user->phone);
+        $this->assertSame('+963 944 999 001', $parent->user->phone);
         $this->assertTrue($parent->user->hasRole('parent'));
     }
 
@@ -487,7 +487,7 @@ class ManagementCrudTest extends TestCase
         $this->assertNotNull($student->user_id);
         $this->assertTrue($student->user->hasRole('student'));
         $this->assertSame($student->student_number, $student->user->username);
-        $this->assertSame('0944999911', $student->user->phone);
+        $this->assertSame('+963 944 999 911', $student->user->phone);
 
         Volt::test('groups.index')
             ->set('course_id', $course->id)
@@ -856,12 +856,12 @@ class ManagementCrudTest extends TestCase
         Volt::test('groups.index')
             ->call('openRosterModal', $group->id)
             ->assertSee($student->student_number)
-            ->assertSee('0999000003')
+            ->assertSee('+963 999 000 003')
             ->assertSee('Grade 7')
             ->assertSee($parent->parent_number)
             ->assertSee('Fares Hamdan')
             ->assertSee('Mona Hamdan')
-            ->assertSee('0999000001');
+            ->assertSee('+963 999 000 001');
     }
 
     public function test_group_quick_summary_shows_attendance_and_memorized_pages_for_the_selected_date(): void

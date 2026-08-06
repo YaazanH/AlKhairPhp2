@@ -4,6 +4,8 @@ namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use App\Support\AvatarDefaults;
+use App\Support\PhoneNumberFormatter;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -60,6 +62,14 @@ class User extends Authenticatable // implements MustVerifyEmail
             'issued_password' => 'encrypted',
             'password' => 'hashed',
         ];
+    }
+
+    protected function phone(): Attribute
+    {
+        return Attribute::make(
+            get: fn (?string $value): ?string => PhoneNumberFormatter::format($value),
+            set: fn (mixed $value): ?string => PhoneNumberFormatter::normalizeOrOriginal($value),
+        );
     }
 
     /**

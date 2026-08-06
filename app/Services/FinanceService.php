@@ -170,7 +170,7 @@ class FinanceService
                     $request,
                     FinanceRequest::TYPE_RETURN,
                     $remainingAmount,
-                    __('finance.descriptions.pull_request_return', ['request' => $request->request_no]),
+                    $request->requested_reason ?: __('finance.transaction_types.return'),
                     $user,
                 );
 
@@ -576,7 +576,7 @@ class FinanceService
                 $transaction = $request->postedTransaction ?: FinanceTransaction::query()
                     ->where('source_type', FinanceRequest::class)
                     ->where('source_id', $request->id)
-                    ->where('type', FinanceRequest::TYPE_EXPENSE.'_request')
+                    ->where('type', 'expense')
                     ->latest('id')
                     ->first();
 
@@ -651,7 +651,7 @@ class FinanceService
                 FinanceRequest::class,
                 $request->id,
                 $user,
-                $reason ?: __('finance.descriptions.request_deleted', ['request' => $request->request_no]),
+                $reason ?: __('finance.descriptions.request_deleted_plain'),
             );
 
             $request->delete();
@@ -843,7 +843,7 @@ class FinanceService
             'finance_request_id' => $payload['finance_request_id'] ?? null,
             'source_type' => $payload['source_type'] ?? null,
             'source_id' => $payload['source_id'] ?? null,
-            'type' => $payload['type'],
+            'type' => $this->normalizeTransactionType((string) $payload['type'], $direction),
             'direction' => $direction,
             'amount' => $amount,
             'signed_amount' => $signedAmount,
@@ -884,7 +884,7 @@ class FinanceService
                 'rate_to_base' => $snapshot['rate_to_base'],
                 'signed_amount' => $signedAmount,
                 'transaction_date' => $payload['transaction_date'],
-                'type' => $payload['type'],
+                'type' => $this->normalizeTransactionType((string) $payload['type'], $direction),
                 'metadata' => array_merge($transaction->metadata ?? [], [
                     'edited_at' => now()->toISOString(),
                     'edited_by' => $user?->id,
@@ -948,7 +948,7 @@ class FinanceService
             return;
         }
 
-        if (FinanceTransaction::query()->where('source_type', ActivityExpense::class)->where('source_id', $expense->id)->where('type', 'activity_expense')->exists()) {
+        if (FinanceTransaction::query()->where('source_type', ActivityExpense::class)->where('source_id', $expense->id)->where('type', 'expense')->exists()) {
             return;
         }
 
@@ -969,7 +969,7 @@ class FinanceService
 
     public function recordActivityPayment(ActivityPayment $payment): void
     {
-        if ($payment->voided_at || FinanceTransaction::query()->where('source_type', ActivityPayment::class)->where('source_id', $payment->id)->where('type', 'activity_payment')->exists()) {
+        if ($payment->voided_at || FinanceTransaction::query()->where('source_type', ActivityPayment::class)->where('source_id', $payment->id)->where('type', 'income')->exists()) {
             return;
         }
 
@@ -1457,6 +1457,21 @@ class FinanceService
             ->value('transaction_no');
 
         return $this->sequencedNumber($prefix, $lastTransactionNo, 8);
+    }
+
+    protected function normalizeTransactionType(string $type, string $direction): string
+    {
+        if (str_contains($type, 'exchange')) {
+            return 'exchange';
+        }
+        if (str_contains($type, 'transfer')) {
+            return 'transfer';
+        }
+        if (str_contains($type, 'return')) {
+            return 'return';
+        }
+
+        return $direction === 'out' ? 'expense' : 'income';
     }
 
     protected function requestNumberPrefix(string $type): string

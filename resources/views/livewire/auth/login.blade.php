@@ -2,6 +2,7 @@
 
 use App\Models\User;
 use App\Services\SuperAdminRecoveryPassword;
+use App\Support\PhoneNumberFormatter;
 use Illuminate\Auth\Events\Lockout;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
@@ -27,13 +28,14 @@ new #[Layout('components.layouts.auth')] class extends Component {
         $this->validate();
 
         $this->ensureIsNotRateLimited();
+        $normalizedPhone = PhoneNumberFormatter::normalize($this->login);
 
         $user = User::query()
-            ->where(function ($query): void {
+            ->where(function ($query) use ($normalizedPhone): void {
                 $query
                     ->where('email', $this->login)
                     ->orWhere('username', $this->login)
-                    ->orWhere('phone', $this->login);
+                    ->when($normalizedPhone, fn ($query) => $query->orWhere('phone', $normalizedPhone));
             })
             ->first();
 

@@ -124,6 +124,7 @@ return [
         'rate_updated' => 'آخر تحديث',
     ],
     'fields' => [
+        'signature' => 'التوقيع',
         'report_no' => 'رقم التقرير',
         'activity' => 'النشاط',
         'amount' => 'المبلغ',
@@ -204,6 +205,7 @@ return [
         'users' => 'المستخدمون',
     ],
     'descriptions' => [
+        'request_deleted_plain' => 'طلب مالي محذوف',
         'generated_from_pull' => 'تم إنشاؤه من طلب السحب :request.',
         'invoice_from_pull' => 'تم إنشاؤها من طلب السحب :request.',
         'invoice_pull_closing' => 'إغلاق مبلغ إضافي للفاتورة :invoice وطلب السحب :request.',
@@ -275,11 +277,13 @@ return [
         'invoice' => 'فاتورة',
     ],
     'category_types' => [
+        'income' => 'إيراد',
         'expense' => 'مصروف',
         'management' => 'إداري',
         'return' => 'إرجاع',
         'revenue' => 'إيراد',
     ],
+    'category_modes' => ['count' => 'عدّ', 'invoice' => 'فاتورة', 'return' => 'إرجاع', 'income' => 'دخل', 'donation' => 'تبرع'],
     'pull_requests' => [
         'title' => 'طلبات السحب',
         'subtitle' => 'يطلب الأساتذة سحب مبالغ بالعملة المحلية. ويمكن لإدارة المالية إنشاء طلب لأستاذ وقبول مبلغ مختلف واختيار صندوق الدفع.',
@@ -475,6 +479,11 @@ return [
         'revenue' => 'إيراد',
     ],
     'transaction_types' => [
+        'expense' => 'مصروف',
+        'income' => 'دخل',
+        'return' => 'إرجاع',
+        'transfer' => 'تحويل',
+        'exchange' => 'تصريف',
         'activity_expense' => 'مصروف نشاط',
         'activity_expense_adjustment' => 'تعديل مصروف نشاط',
         'activity_payment' => 'دفعة نشاط',

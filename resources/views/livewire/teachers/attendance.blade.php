@@ -29,11 +29,16 @@ new class extends Component {
     public string $statusFilter = 'all';
     public int $perPage = 15;
     public bool $showFormModal = false;
+    public bool $showExportModal = false;
+    public string $export_date_from = '';
+    public string $export_date_to = '';
 
     public function mount(): void
     {
         $this->authorizePermission('attendance.teacher.view');
         $this->attendance_date = now()->toDateString();
+        $this->export_date_from = now()->startOfMonth()->toDateString();
+        $this->export_date_to = now()->toDateString();
     }
 
     public function with(): array
@@ -102,6 +107,11 @@ new class extends Component {
     {
         $this->showFormModal = false;
         $this->resetValidation();
+    }
+
+    public function closeExportModal(): void
+    {
+        $this->showExportModal = false;
     }
 
     public function saveDay()
@@ -266,6 +276,7 @@ new class extends Component {
                 </div>
 
                 <div class="admin-toolbar__actions">
+                    <button type="button" wire:click="$set('showExportModal', true)" class="pill-link">{{ __('workflow.teacher_attendance.export.action') }}</button>
                     @can('attendance.teacher.take')
                         <button type="button" wire:click="openCreateModal" class="pill-link pill-link--accent">{{ __('workflow.teacher_attendance.days.create') }}</button>
                     @endcan
@@ -398,5 +409,13 @@ new class extends Component {
                 <button type="button" wire:click="closeCreateModal" class="pill-link">{{ __('crud.common.actions.close') }}</button>
             </div>
         </form>
+    </x-admin.modal>
+
+    <x-admin.modal :show="$showExportModal" :title="__('workflow.teacher_attendance.export.title')" close-method="closeExportModal" max-width="2xl">
+        <div class="grid gap-4 sm:grid-cols-2">
+            <div><label class="mb-1 block text-sm font-medium">{{ __('workflow.teacher_attendance.export.from') }}</label><input wire:model="export_date_from" type="date" class="w-full rounded-xl px-4 py-3"></div>
+            <div><label class="mb-1 block text-sm font-medium">{{ __('workflow.teacher_attendance.export.to') }}</label><input wire:model="export_date_to" type="date" class="w-full rounded-xl px-4 py-3"></div>
+        </div>
+        <div class="mt-5 flex justify-end"><a href="{{ route('teachers.attendance.export', ['date_from' => $export_date_from, 'date_to' => $export_date_to]) }}" target="_blank" class="pill-link pill-link--accent">{{ __('workflow.teacher_attendance.export.action') }}</a></div>
     </x-admin.modal>
 </div>

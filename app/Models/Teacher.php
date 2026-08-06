@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Support\PhoneNumberFormatter;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -36,6 +38,18 @@ class Teacher extends Model
             'hired_at' => 'date',
             'is_helping' => 'boolean',
         ];
+    }
+
+    protected function phone(): Attribute
+    {
+        return Attribute::make(
+            get: fn (?string $value): ?string => filled($value)
+                ? PhoneNumberFormatter::format($value)
+                : (string) $value,
+            set: fn (mixed $value): ?string => filled($value)
+                ? PhoneNumberFormatter::normalizeOrOriginal($value)
+                : (string) $value,
+        );
     }
 
     protected static function booted(): void

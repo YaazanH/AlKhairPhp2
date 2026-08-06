@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Services\SuperAdminRecoveryPassword;
+use App\Support\PhoneNumberFormatter;
 use Illuminate\Auth\Events\Lockout;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -34,13 +35,14 @@ class AuthenticatedSessionController extends Controller
         ]);
 
         $this->ensureIsNotRateLimited($request, $validated['login']);
+        $normalizedPhone = PhoneNumberFormatter::normalize($validated['login']);
 
         $user = User::query()
-            ->where(function ($query) use ($validated): void {
+            ->where(function ($query) use ($validated, $normalizedPhone): void {
                 $query
                     ->where('email', $validated['login'])
                     ->orWhere('username', $validated['login'])
-                    ->orWhere('phone', $validated['login']);
+                    ->when($normalizedPhone, fn ($query) => $query->orWhere('phone', $normalizedPhone));
             })
             ->first();
 

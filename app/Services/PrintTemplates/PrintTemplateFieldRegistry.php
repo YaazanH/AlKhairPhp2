@@ -27,6 +27,11 @@ class PrintTemplateFieldRegistry
                 'model' => Student::class,
                 'relations' => ['user', 'parentProfile', 'gradeLevel', 'enrollments.group', 'latestStudentCardPrint'],
             ],
+            'course_student' => [
+                'label' => __('print_templates.entities.course_student'),
+                'model' => Enrollment::class,
+                'relations' => ['student.user', 'student.parentProfile', 'student.gradeLevel', 'group.course', 'group.teacher', 'memorizationSessions.pages', 'studentAttendanceRecords.status', 'quranFinalTests.juz', 'quranFinalTests.attempts'],
+            ],
             'teacher' => [
                 'label' => __('print_templates.entities.teacher'),
                 'model' => Teacher::class,
@@ -73,6 +78,33 @@ class PrintTemplateFieldRegistry
                 'username' => $this->field('username', ['text', 'barcode'], fn (Student $student) => $student->user?->username ?: __('print_templates.common.not_available')),
                 'password' => $this->field('password', ['text'], fn (Student $student) => $student->user?->issued_password ?: __('print_templates.common.not_available')),
                 'photo' => $this->field('photo', ['image'], fn (Student $student) => $this->storageUrl($student->photo_path) ?: AvatarDefaults::url('student')),
+            ],
+            'course_student' => [
+                'full_name' => $this->field('full_name', ['text', 'barcode'], fn (Enrollment $enrollment) => $enrollment->student?->full_name),
+                'student_number' => $this->field('student_number', ['text', 'barcode'], fn (Enrollment $enrollment) => (string) ($enrollment->student?->student_number ?: $enrollment->student_id)),
+                'course_name' => $this->field('course_name', ['text'], fn (Enrollment $enrollment) => $enrollment->group?->course?->name),
+                'group_name' => $this->field('group_name', ['text'], fn (Enrollment $enrollment) => $enrollment->group?->name),
+                'teacher_name' => $this->field('teacher_name', ['text'], fn (Enrollment $enrollment) => trim(($enrollment->group?->teacher?->first_name ?? '').' '.($enrollment->group?->teacher?->last_name ?? ''))),
+                'parent_name' => $this->field('parent_name', ['text'], fn (Enrollment $enrollment) => $enrollment->student?->parentProfile?->father_name),
+                'grade_level' => $this->field('grade_level', ['text'], fn (Enrollment $enrollment) => $enrollment->student?->gradeLevel?->name),
+                'birth_date' => $this->field('birth_date', ['text'], fn (Enrollment $enrollment) => $enrollment->student?->birth_date?->format('d-m-Y')),
+                'school_name' => $this->field('school_name', ['text'], fn (Enrollment $enrollment) => $enrollment->student?->school_name),
+                'enrolled_at' => $this->field('enrolled_at', ['text'], fn (Enrollment $enrollment) => $enrollment->enrolled_at?->format('d-m-Y')),
+                'enrollment_status' => $this->field('enrollment_status', ['text'], fn (Enrollment $enrollment) => __('crud.common.status_options.'.$enrollment->status)),
+                'course_starts_on' => $this->field('course_starts_on', ['text'], fn (Enrollment $enrollment) => $enrollment->group?->course?->starts_on?->format('d-m-Y')),
+                'course_ends_on' => $this->field('course_ends_on', ['text'], fn (Enrollment $enrollment) => $enrollment->group?->course?->ends_on?->format('d-m-Y')),
+                'points_before_rules' => $this->field('points_before_rules', ['text'], fn (Enrollment $enrollment) => data_get($this->courseEndRow($enrollment), 'points_before', 0)),
+                'points_after_rules' => $this->field('points_after_rules', ['text'], fn (Enrollment $enrollment) => data_get($this->courseEndRow($enrollment), 'points_after', 0)),
+                'days_attended' => $this->field('days_attended', ['text'], fn (Enrollment $enrollment) => data_get($this->courseEndRow($enrollment), 'days_attended', 0)),
+                'days_absent' => $this->field('days_absent', ['text'], fn (Enrollment $enrollment) => data_get($this->courseEndRow($enrollment), 'days_absent', 0)),
+                'memorized_pages' => $this->field('memorized_pages', ['text'], fn (Enrollment $enrollment) => data_get($this->courseEndRow($enrollment), 'memorized_pages', 0)),
+                'final_tested_juz' => $this->field('final_tested_juz', ['text'], fn (Enrollment $enrollment) => data_get($this->courseEndRow($enrollment), 'final_tests', 0)),
+                'final_test_score' => $this->field('final_test_score', ['text'], fn (Enrollment $enrollment) => data_get($this->courseEndRow($enrollment), 'final_score', __('print_templates.common.not_available'))),
+                'final_juzs' => $this->field('final_juzs', ['text'], fn (Enrollment $enrollment) => data_get($this->courseEndRow($enrollment), 'final_juzs')),
+                'final_marks' => $this->field('final_marks', ['text'], fn (Enrollment $enrollment) => data_get($this->courseEndRow($enrollment), 'final_marks')),
+                'assessment_count' => $this->field('assessment_count', ['text'], fn (Enrollment $enrollment) => data_get($this->courseEndRow($enrollment), 'assessment_count', 0)),
+                'assessment_average' => $this->field('assessment_average', ['text'], fn (Enrollment $enrollment) => data_get($this->courseEndRow($enrollment), 'assessment_average', __('print_templates.common.not_available'))),
+                'photo' => $this->field('photo', ['image'], fn (Enrollment $enrollment) => $this->storageUrl($enrollment->student?->photo_path) ?: AvatarDefaults::url('student')),
             ],
             'teacher' => [
                 'full_name' => $this->field('full_name', ['text', 'barcode'], fn (Teacher $teacher) => trim($teacher->first_name.' '.$teacher->last_name)),
@@ -196,6 +228,7 @@ class PrintTemplateFieldRegistry
 
         return $model::query()
             ->with($definition['relations'])
+            ->when($entity === 'course_student', fn (Builder $query) => $query->whereHas('quranFinalTests', fn (Builder $tests) => $tests->where('status', 'passed')))
             ->when($entity === 'revenue', fn (Builder $query) => $query
                 ->whereIn('type', [FinanceRequest::TYPE_REVENUE, FinanceRequest::TYPE_RETURN])
                 ->whereIn('status', [FinanceRequest::STATUS_ACCEPTED, FinanceRequest::STATUS_SETTLED]));
@@ -309,6 +342,7 @@ class PrintTemplateFieldRegistry
     {
         return match ($entity) {
             'student' => trim($model->first_name.' '.$model->last_name).' #'.($model->student_number ?: $model->id),
+            'course_student' => trim(($model->student?->full_name ?? '').' · '.($model->group?->course?->name ?? '').' · '.($model->group?->name ?? '')),
             'teacher' => trim($model->first_name.' '.$model->last_name),
             'parent' => (string) $model->father_name,
             'user' => trim($model->name.' '.($model->username ? '('.$model->username.')' : '')),
@@ -323,6 +357,7 @@ class PrintTemplateFieldRegistry
     {
         return match ($entity) {
             'student' => trim($model->full_name.' '.$model->student_number.' '.$model->parentProfile?->father_name),
+            'course_student' => trim(($model->student?->full_name ?? '').' '.($model->student?->student_number ?? '').' '.($model->group?->course?->name ?? '').' '.($model->group?->name ?? '')),
             'teacher' => trim($model->first_name.' '.$model->last_name.' '.$model->phone.' '.$model->user?->username),
             'parent' => trim($model->father_name.' '.$model->mother_name.' '.$model->father_phone.' '.$model->user?->username),
             'user' => trim($model->name.' '.$model->username.' '.$model->email.' '.$model->phone),
@@ -346,6 +381,7 @@ class PrintTemplateFieldRegistry
                 'card_printed' => $this->studentCardPrinted($model),
                 'card_last_printed_at' => $this->studentCardLastPrintedAt($model),
             ],
+            'course_student' => ['student_ids' => [(int) $model->student_id], 'group_ids' => [(int) $model->group_id], 'course_id' => (int) $model->group?->course_id],
             'teacher' => [
                 'activity_ids' => $this->teacherActivityIds($model),
                 'group_ids' => $this->teacherGroupIds($model),
@@ -557,5 +593,12 @@ class PrintTemplateFieldRegistry
     protected function storageUrl(?string $path): ?string
     {
         return $path ? '/storage/'.ltrim($path, '/') : null;
+    }
+
+    protected function courseEndRow(Enrollment $enrollment): array
+    {
+        return app(\App\Services\CourseEndService::class)
+            ->studentRows($enrollment->group->course)
+            ->firstWhere('enrollment_id', $enrollment->id) ?? [];
     }
 }

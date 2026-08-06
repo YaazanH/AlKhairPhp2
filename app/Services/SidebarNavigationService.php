@@ -71,7 +71,6 @@ class SidebarNavigationService
 
             'print_templates' => $this->item('ui.nav.print_templates', 'document-duplicate', 'print-templates.templates.index', ['print-templates.*'], 'identity_tools', 10, ['id-cards.view']),
             'id_card_print' => $this->item('ui.nav.id_card_print', 'printer', 'id-cards.print.create', ['id-cards.print.*'], 'identity_tools', 20, ['id-cards.print']),
-            'action_barcodes' => $this->item('ui.nav.action_barcodes', 'qr-code', 'barcode-actions.index', ['barcode-actions.index', 'barcode-actions.print.*'], 'identity_tools', 40, ['barcode-actions.view']),
         ];
     }
 

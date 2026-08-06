@@ -85,6 +85,7 @@ new class extends Component {
     public function saveAttendance(): void
     {
         $this->authorizePermission('attendance.teacher.take');
+        abort_if($this->currentDay->fresh()->status === 'closed', 409, __('workflow.teacher_attendance.errors.day_closed'));
 
         $validated = $this->validate([
             'day_status' => ['required', 'in:open,closed'],
@@ -149,6 +150,7 @@ new class extends Component {
     public function saveTeacherStatus(int $teacherId): void
     {
         $this->authorizePermission('attendance.teacher.take');
+        abort_if($this->currentDay->fresh()->status === 'closed', 409, __('workflow.teacher_attendance.errors.day_closed'));
 
         $this->validate([
             'selected_statuses.'.$teacherId => ['nullable', 'exists:attendance_statuses,id'],
@@ -184,6 +186,7 @@ new class extends Component {
     public function openManualTeacherModal(): void
     {
         $this->authorizePermission('attendance.teacher.take');
+        abort_if($this->currentDay->fresh()->status === 'closed', 409, __('workflow.teacher_attendance.errors.day_closed'));
 
         $this->manual_teacher_id = '';
         $this->showManualTeacherModal = true;
@@ -200,6 +203,7 @@ new class extends Component {
     public function addManualTeacher(): void
     {
         $this->authorizePermission('attendance.teacher.take');
+        abort_if($this->currentDay->fresh()->status === 'closed', 409, __('workflow.teacher_attendance.errors.day_closed'));
 
         $validated = $this->validate(
             ['manual_teacher_id' => ['required', 'integer', 'exists:teachers,id']],
@@ -239,6 +243,7 @@ new class extends Component {
     public function removeTeacher(int $teacherId): void
     {
         $this->authorizePermission('attendance.teacher.take');
+        abort_if($this->currentDay->fresh()->status === 'closed', 409, __('workflow.teacher_attendance.errors.day_closed'));
 
         $record = $this->scopeTeacherAttendanceRecordsQuery(
             TeacherAttendanceRecord::query()->where('teacher_attendance_day_id', $this->currentDay->id)
@@ -369,7 +374,7 @@ new class extends Component {
                 </div>
 
                 <div class="admin-toolbar__actions">
-                    <button type="button" wire:click="openManualTeacherModal" class="pill-link pill-link--accent" @disabled($availableExtraTeachers->isEmpty())>
+                    <button type="button" wire:click="openManualTeacherModal" class="pill-link pill-link--accent" @disabled($availableExtraTeachers->isEmpty() || $dayRecord->status === 'closed')>
                         {{ __('workflow.teacher_attendance.day_details.manual_add.action') }}
                     </button>
                 </div>
@@ -507,6 +512,7 @@ new class extends Component {
                                         wire:change="saveTeacherStatus({{ $record->teacher_id }})"
                                         class="w-full rounded-xl px-4 py-3 text-sm"
                                         data-searchable="false"
+                                        @disabled($dayRecord->status === 'closed')
                                     >
                                         <option value="">{{ __('workflow.teacher_attendance.table.not_marked') }}</option>
                                         @foreach ($statuses as $attendanceStatus)
@@ -515,7 +521,7 @@ new class extends Component {
                                     </select>
                                 </td>
                                 @can('attendance.teacher.take')
-                                    <td class="px-5 py-4 text-right lg:px-6"><button type="button" wire:click="removeTeacher({{ $record->teacher_id }})" wire:confirm="{{ __('workflow.teacher_attendance.messages.confirm_remove_teacher') }}" class="pill-link pill-link--compact border-red-400/25 text-red-200">{{ __('workflow.teacher_attendance.table.remove_teacher') }}</button></td>
+                                    <td class="px-5 py-4 text-right lg:px-6"><button type="button" wire:click="removeTeacher({{ $record->teacher_id }})" wire:confirm="{{ __('workflow.teacher_attendance.messages.confirm_remove_teacher') }}" class="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-red-400/25 text-red-200" title="{{ __('workflow.teacher_attendance.table.remove_teacher') }}" aria-label="{{ __('workflow.teacher_attendance.table.remove_teacher') }}" @disabled($dayRecord->status === 'closed')><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="h-4 w-4" aria-hidden="true"><path stroke-linecap="round" d="M6 7h12M10 11v6m4-6v6M9 7l1-2h4l1 2m-8 0 1 13h8l1-13"/></svg></button></td>
                                 @endcan
                             </tr>
                         @endforeach

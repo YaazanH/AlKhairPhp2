@@ -70,6 +70,7 @@ new class extends Component {
     public string $finance_category_name = '';
     public string $finance_category_code = '';
     public string $finance_category_type = 'expense';
+    public string $finance_category_mode = 'count';
     public bool $finance_category_is_active = true;
     public bool $finance_category_is_donation = false;
     public bool $showFinanceCategoryModal = false;
@@ -244,7 +245,8 @@ new class extends Component {
         $this->finance_category_editing_id = $category->id;
         $this->finance_category_name = $category->name;
         $this->finance_category_code = $category->code;
-        $this->finance_category_type = $category->type;
+        $this->finance_category_type = $category->categoryType();
+        $this->finance_category_mode = $category->categoryMode();
         $this->finance_category_is_active = $category->is_active;
         $this->finance_category_is_donation = $category->is_donation;
         $this->showFinanceCategoryModal = true;
@@ -514,6 +516,7 @@ new class extends Component {
             'finance_category_is_donation' => ['boolean'],
             'finance_category_name' => ['required', 'string', 'max:255'],
             'finance_category_type' => ['required', Rule::in(FinanceCategory::TYPES)],
+            'finance_category_mode' => ['required', Rule::in($this->finance_category_type === 'expense' ? FinanceCategory::EXPENSE_MODES : FinanceCategory::INCOME_MODES)],
         ]);
 
         FinanceCategory::query()->updateOrCreate(
@@ -521,14 +524,23 @@ new class extends Component {
             [
                 'code' => $validated['finance_category_code'],
                 'is_active' => $validated['finance_category_is_active'],
-                'is_donation' => $validated['finance_category_type'] === FinanceRequest::TYPE_REVENUE && $validated['finance_category_is_donation'],
+                'is_donation' => $validated['finance_category_type'] === 'income' && $validated['finance_category_mode'] === 'donation',
                 'name' => $validated['finance_category_name'],
-                'type' => $validated['finance_category_type'],
+                'type' => FinanceCategory::storageType($validated['finance_category_type'], $validated['finance_category_mode']),
+                'mode' => $validated['finance_category_mode'],
             ],
         );
 
         $this->cancelFinanceCategory();
         session()->flash('status', 'Finance category saved.');
+    }
+
+    public function updatedFinanceCategoryType(): void
+    {
+        $allowedModes = $this->finance_category_type === 'expense' ? FinanceCategory::EXPENSE_MODES : FinanceCategory::INCOME_MODES;
+        if (! in_array($this->finance_category_mode, $allowedModes, true)) {
+            $this->finance_category_mode = $allowedModes[0];
+        }
     }
 
     public function savePullKind(): void
@@ -798,6 +810,7 @@ new class extends Component {
         $this->finance_category_name = '';
         $this->finance_category_code = '';
         $this->finance_category_type = 'expense';
+        $this->finance_category_mode = 'count';
         $this->finance_category_is_active = true;
         $this->finance_category_is_donation = false;
         $this->showFinanceCategoryModal = false;
@@ -1097,7 +1110,7 @@ new class extends Component {
             @endcan
         </div>
             @error('financeCategoryDelete') <div class="mx-5 mb-4 rounded-2xl border border-red-500/25 bg-red-500/10 px-3 py-2 text-sm text-red-200">{{ $message }}</div> @enderror
-            <div class="overflow-x-auto"><table class="text-sm"><thead><tr><th class="px-5 py-3 text-left">{{ __('finance.fields.name') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.type') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.state') }}</th><th class="px-5 py-3 text-right">{{ __('finance.actions.actions') }}</th></tr></thead><tbody class="divide-y divide-white/6">@foreach ($financeCategories as $category)<tr><td class="px-5 py-3"><div class="font-medium text-white">{{ $category->name }}</div><div class="text-xs text-neutral-500">{{ $category->code }}</div></td><td class="px-5 py-3">{{ __('finance.category_types.'.$category->type) }}</td><td class="px-5 py-3">{{ $category->is_active ? __('finance.common.active') : __('finance.common.inactive') }}</td><td class="px-5 py-3"><div class="admin-action-cluster admin-action-cluster--end"><button type="button" wire:click="editFinanceCategory({{ $category->id }})" class="pill-link pill-link--compact">{{ __('finance.actions.edit') }}</button><button type="button" wire:click="deleteFinanceCategory({{ $category->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link pill-link--compact border-red-400/25 text-red-200">{{ __('finance.actions.delete') }}</button></div></td></tr>@endforeach</tbody></table></div>
+            <div class="overflow-x-auto"><table class="text-sm"><thead><tr><th class="px-5 py-3 text-left">{{ __('finance.fields.name') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.type') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.mode') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.state') }}</th><th class="px-5 py-3 text-right">{{ __('finance.actions.actions') }}</th></tr></thead><tbody class="divide-y divide-white/6">@foreach ($financeCategories as $category)<tr><td class="px-5 py-3"><div class="font-medium text-white">{{ $category->name }}</div><div class="text-xs text-neutral-500">{{ $category->code }}</div></td><td class="px-5 py-3">{{ __('finance.category_types.'.$category->categoryType()) }}</td><td class="px-5 py-3">{{ __('finance.category_modes.'.$category->categoryMode()) }}</td><td class="px-5 py-3">{{ $category->is_active ? __('finance.common.active') : __('finance.common.inactive') }}</td><td class="px-5 py-3"><div class="admin-action-cluster admin-action-cluster--end"><button type="button" wire:click="editFinanceCategory({{ $category->id }})" class="pill-link pill-link--compact">{{ __('finance.actions.edit') }}</button><button type="button" wire:click="deleteFinanceCategory({{ $category->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link pill-link--compact border-red-400/25 text-red-200">{{ __('finance.actions.delete') }}</button></div></td></tr>@endforeach</tbody></table></div>
     </section>
 
     <section id="finance-request-kinds" class="surface-table">
@@ -1252,7 +1265,8 @@ new class extends Component {
                 <div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.name') }}</label><input wire:model="finance_category_name" type="text" class="w-full rounded-xl px-4 py-3 text-sm">@error('finance_category_name') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
                 <div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.code') }}</label><input wire:model="finance_category_code" type="text" class="w-full rounded-xl px-4 py-3 text-sm">@error('finance_category_code') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
             </div>
-            <div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.type') }}</label><select wire:model="finance_category_type" class="w-full rounded-xl px-4 py-3 text-sm">@foreach (\App\Models\FinanceCategory::TYPES as $type)<option value="{{ $type }}">{{ __('finance.category_types.'.$type) }}</option>@endforeach</select></div>
+            <div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.type') }}</label><select wire:model.live="finance_category_type" class="w-full rounded-xl px-4 py-3 text-sm">@foreach (\App\Models\FinanceCategory::TYPES as $type)<option value="{{ $type }}">{{ __('finance.category_types.'.$type) }}</option>@endforeach</select></div>
+            <div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.mode') }}</label><select wire:model="finance_category_mode" class="w-full rounded-xl px-4 py-3 text-sm">@foreach ($finance_category_type === 'expense' ? \App\Models\FinanceCategory::EXPENSE_MODES : \App\Models\FinanceCategory::INCOME_MODES as $mode)<option value="{{ $mode }}">{{ __('finance.category_modes.'.$mode) }}</option>@endforeach</select></div>
             <div class="flex flex-wrap gap-6"><label class="flex items-center gap-3 text-sm"><input wire:model="finance_category_is_active" type="checkbox" class="rounded"> {{ __('finance.common.active') }}</label>@if ($finance_category_type === 'revenue')<label class="flex items-center gap-3 text-sm"><input wire:model="finance_category_is_donation" type="checkbox" class="rounded"> {{ __('finance.settings.donation_category') }}</label>@endif</div>
             <div class="flex justify-end gap-3">
                 <button type="button" wire:click="closeFinanceCategoryModal" class="pill-link">{{ __('finance.actions.cancel') }}</button>

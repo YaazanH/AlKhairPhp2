@@ -254,6 +254,7 @@ return [
         ],
     ],
     'courses' => [
+        'actions' => ['end_course' => 'End of course'],
         'title' => 'Courses',
         'subtitle' => 'Manage the course catalog used to build student groups.',
         'stats' => [

@@ -107,18 +107,18 @@
         text-align: end;
     }
     .ledger-report-doc__logo {
-        background: rgba(255, 255, 255, 0.92);
-        border: 1px solid #dce6db;
-        border-radius: 20px;
+        background: transparent;
+        border: 0;
         display: inline-flex;
         justify-content: center;
-        max-width: 180px;
-        padding: 10px;
+        height: 48px;
+        padding: 0;
+        width: 120px;
     }
     .ledger-report-doc__logo img {
         display: block;
-        height: 72px;
-        max-width: 100%;
+        height: 48px;
+        width: 120px;
         object-fit: contain;
     }
     .ledger-report-doc__meta-grid,
@@ -130,7 +130,7 @@
     }
     .ledger-report-doc__meta-card,
     .ledger-report-doc__summary-card {
-        background: #f4f8f1;
+        background: transparent;
         border: 1px solid #dce6db;
         border-radius: 18px;
         padding: 14px 16px;
@@ -303,29 +303,6 @@
                 @endif
             </section>
 
-            <section class="ledger-report-doc__summary-grid">
-                @if ($template['include_opening_balance'] ?? false)
-                    <div class="ledger-report-doc__summary-card">
-                        <span class="ledger-report-doc__meta-label">{{ $service->bilingual('Opening balance', 'الرصيد الافتتاحي', $language) }}</span>
-                        <strong>{{ data_get($report, 'formatted.opening_balance') }}</strong>
-                    </div>
-                @endif
-                <div class="ledger-report-doc__summary-card">
-                    <span class="ledger-report-doc__meta-label">{{ $service->bilingual('Income', 'الإيرادات', $language) }}</span>
-                    <strong>{{ data_get($report, 'formatted.income') }}</strong>
-                </div>
-                <div class="ledger-report-doc__summary-card">
-                    <span class="ledger-report-doc__meta-label">{{ $service->bilingual('Expense', 'المصاريف', $language) }}</span>
-                    <strong>{{ data_get($report, 'formatted.expense') }}</strong>
-                </div>
-                @if ($template['include_closing_balance'] ?? false)
-                    <div class="ledger-report-doc__summary-card">
-                        <span class="ledger-report-doc__meta-label">{{ $service->bilingual('Closing balance', 'الرصيد الختامي', $language) }}</span>
-                        <strong>{{ data_get($report, 'formatted.closing_balance') }}</strong>
-                    </div>
-                @endif
-            </section>
-
             @if (! empty($template['custom_text']))
                 <section class="ledger-report-doc__custom-text">{{ $template['custom_text'] }}</section>
             @endif
@@ -353,6 +330,13 @@
                         @endforelse
                     </tbody>
                 </table>
+            </section>
+
+            <section class="ledger-report-doc__summary-grid">
+                @if ($template['include_opening_balance'] ?? false)<div class="ledger-report-doc__summary-card"><span class="ledger-report-doc__meta-label">{{ $service->bilingual('Opening balance', 'الرصيد الافتتاحي', $language) }}</span><strong>{{ data_get($report, 'formatted.opening_balance') }}</strong></div>@endif
+                <div class="ledger-report-doc__summary-card"><span class="ledger-report-doc__meta-label">{{ $service->bilingual('Income', 'الإيرادات', $language) }}</span><strong>{{ data_get($report, 'formatted.income') }}</strong></div>
+                <div class="ledger-report-doc__summary-card"><span class="ledger-report-doc__meta-label">{{ $service->bilingual('Expense', 'المصاريف', $language) }}</span><strong>{{ data_get($report, 'formatted.expense') }}</strong></div>
+                @if ($template['include_closing_balance'] ?? false)<div class="ledger-report-doc__summary-card"><span class="ledger-report-doc__meta-label">{{ $service->bilingual('Closing balance', 'الرصيد الختامي', $language) }}</span><strong>{{ data_get($report, 'formatted.closing_balance') }}</strong></div>@endif
             </section>
 
             @if (! empty($template['footer_text']) || ($template['show_page_numbers'] ?? false))

@@ -35,13 +35,14 @@ class PrintTemplateController extends Controller
 
     public function create(): View
     {
+        $courseReport = request()->boolean('course_report');
         $template = new PrintTemplate([
             'name' => __('print_templates.templates.defaults.name'),
             'width_mm' => 85.6,
             'height_mm' => 53.98,
-            'data_sources' => [
-                ['key' => 'student', 'entity' => 'student', 'mode' => 'multiple'],
-            ],
+            'data_sources' => $courseReport
+                ? [['key' => 'course_student', 'entity' => 'course_student', 'mode' => 'multiple']]
+                : [['key' => 'student', 'entity' => 'student', 'mode' => 'multiple']],
             'layout_json' => $this->defaultLayout(),
             'is_active' => true,
             'is_student_card' => request()->boolean('student_card'),

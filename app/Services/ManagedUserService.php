@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\AppSetting;
 use App\Models\User;
+use App\Support\PhoneNumberFormatter;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use function random_int;
@@ -168,12 +169,6 @@ class ManagedUserService
 
     protected function normalizePhone(mixed $value): ?string
     {
-        if (! filled($value)) {
-            return null;
-        }
-
-        $phone = trim((string) $value);
-
-        return $phone !== '' ? $phone : null;
+        return PhoneNumberFormatter::normalize($value);
     }
 }

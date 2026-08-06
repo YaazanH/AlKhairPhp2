@@ -7,6 +7,7 @@ use App\Models\Course;
 use App\Models\Teacher;
 use App\Services\ManagedUserService;
 use App\Support\RoleRegistry;
+use App\Support\PhoneNumberFormatter;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Livewire\Volt\Component;
@@ -59,11 +60,13 @@ new class extends Component {
         $filteredQuery = $this->scopeTeachersQuery(Teacher::query())
             ->with(['accessRole', 'course', 'user'])
             ->when(filled($this->search), function ($query) {
-                $query->where(function ($builder) {
+                $normalizedPhone = PhoneNumberFormatter::normalize($this->search);
+                $query->where(function ($builder) use ($normalizedPhone) {
                     $builder
                         ->where('first_name', 'like', '%'.$this->search.'%')
                         ->orWhere('last_name', 'like', '%'.$this->search.'%')
                         ->orWhere('phone', 'like', '%'.$this->search.'%')
+                        ->when($normalizedPhone, fn ($query) => $query->orWhere('phone', 'like', '%'.$normalizedPhone.'%'))
                         ->orWhereHas('user', fn ($userQuery) => $userQuery->where('username', 'like', '%'.$this->search.'%'))
                         ->orWhereHas('accessRole', fn ($roleQuery) => $roleQuery->where('name', 'like', '%'.$this->search.'%'))
                         ->orWhereHas('course', fn ($courseQuery) => $courseQuery->where('name', 'like', '%'.$this->search.'%'));
@@ -170,6 +173,7 @@ new class extends Component {
             $this->authorizeScopedTeacherAccess(Teacher::query()->findOrFail($this->editingId));
         }
 
+        $this->phone = PhoneNumberFormatter::normalize($this->phone) ?? '';
         $validated = $this->validate();
         $existingTeacher = $this->editingId
             ? Teacher::query()->with('accessRole')->findOrFail($this->editingId)

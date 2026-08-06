@@ -17,6 +17,7 @@ use App\Services\ParentNumberService;
 use App\Services\StudentGradePromotionService;
 use App\Services\StudentNumberService;
 use App\Support\AvatarDefaults;
+use App\Support\PhoneNumberFormatter;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -708,6 +709,7 @@ new class extends Component {
         $validated['student_number_length'] = $studentNumberLength;
         $validated['parent_number_prefix'] = $parentNumberPrefix;
         $validated['parent_number_length'] = $parentNumberLength;
+        $validated['school_phone'] = PhoneNumberFormatter::format($validated['school_phone']);
         $studentNumberFormatChanged = $studentNumberPrefix !== trim((string) ($generalSettings->get('student_number_prefix') ?? ''))
             || $studentNumberLength !== (is_numeric($generalSettings->get('student_number_length')) ? (int) $generalSettings->get('student_number_length') : 0);
         $currentParentNumberPrefix = $generalSettings->has('parent_number_prefix')

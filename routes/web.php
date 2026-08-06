@@ -3,6 +3,8 @@
 use App\Http\Controllers\AdminExportController;
 use App\Http\Controllers\AssessmentResultPdfController;
 use App\Http\Controllers\BarcodeActionPrintController;
+use App\Http\Controllers\CourseEndExportController;
+use App\Http\Controllers\TeacherAttendanceExportController;
 use App\Http\Controllers\FinanceInvoicePrintController;
 use App\Http\Controllers\FinanceRequestPrintController;
 use App\Http\Controllers\IdCards\IdCardBarcodePreviewController;
@@ -85,6 +87,7 @@ Route::middleware(['auth'])->group(function () {
     Volt::route('parents', 'parents.index')->middleware('permission:parents.view')->name('parents.index');
     Route::get('parents/export', [AdminExportController::class, 'parents'])->middleware('permission:parents.view')->name('parents.export');
     Volt::route('teachers/attendance', 'teachers.attendance')->middleware('permission:attendance.teacher.view')->name('teachers.attendance');
+    Route::get('teachers/attendance/export/pdf', TeacherAttendanceExportController::class)->middleware('permission:attendance.teacher.view')->name('teachers.attendance.export');
     Volt::route('teachers/attendance/days/{teacherAttendanceDay}', 'teachers.attendance-show')->middleware('permission:attendance.teacher.view')->name('teachers.attendance.show');
     Volt::route('teachers', 'teachers.index')->middleware('permission:teachers.view')->name('teachers.index');
     Route::get('teachers/export', [AdminExportController::class, 'teachers'])->middleware('permission:teachers.view')->name('teachers.export');
@@ -94,6 +97,9 @@ Route::middleware(['auth'])->group(function () {
     Volt::route('students/progress/{student?}', 'students.progress')->middleware('permission:students.view')->name('students.progress');
     Volt::route('students/{student}/files', 'students.files')->middleware('permission:students.view')->name('students.files');
     Volt::route('courses', 'courses.index')->middleware('permission:courses.view')->name('courses.index');
+    Volt::route('courses/{course}/end', 'courses.end')->middleware('permission:courses.view')->name('courses.end');
+    Route::get('courses/{course}/end/students.xlsx', [CourseEndExportController::class, 'students'])->middleware('permission:courses.view')->name('courses.end.students.xlsx');
+    Route::get('courses/{course}/end/final-tests.pdf', [CourseEndExportController::class, 'finalTests'])->middleware('permission:courses.view')->name('courses.end.final-tests.pdf');
     Route::get('courses/export', [AdminExportController::class, 'courses'])->middleware('permission:courses.view')->name('courses.export');
     Volt::route('groups/{group}/attendance', 'groups.attendance')->middleware('permission:attendance.student.view')->name('groups.attendance');
     Volt::route('student-attendance', 'student-attendance.index')->middleware('permission:attendance.student.view')->name('student-attendance.index');

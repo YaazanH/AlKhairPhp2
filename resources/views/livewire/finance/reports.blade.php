@@ -18,6 +18,7 @@ new class extends Component {
     public int $ledger_year;
     public string $ledger_quarter = '';
     public string $ledger_cash_box_id = '';
+    public array $ledger_cash_box_ids = [];
     public string $ledger_currency_id = '';
     public string $ledger_date_from = '';
     public string $ledger_date_to = '';
@@ -40,6 +41,13 @@ new class extends Component {
 
     public function updatedLedgerCashBoxId(): void
     {
+        $this->selectDefaultLedgerCurrency();
+    }
+
+    public function updatedLedgerCashBoxIds(): void
+    {
+        $this->ledger_cash_box_ids = collect($this->ledger_cash_box_ids)->map(fn ($id) => (string) $id)->filter()->unique()->values()->all();
+        $this->ledger_cash_box_id = (string) ($this->ledger_cash_box_ids[0] ?? '');
         $this->selectDefaultLedgerCurrency();
     }
 
@@ -155,6 +163,7 @@ new class extends Component {
         $cashBox = app(FinanceService::class)->defaultCashBoxForUser(auth()->user());
 
         $this->ledger_cash_box_id = $cashBox ? (string) $cashBox->id : '';
+        $this->ledger_cash_box_ids = $this->ledger_cash_box_id !== '' ? [$this->ledger_cash_box_id] : [];
         $this->selectDefaultLedgerCurrency();
     }
 
@@ -276,6 +285,7 @@ new class extends Component {
             $ledgerReady = $ledger_cash_box_id !== '' && $ledger_currency_id !== '' && $ledger_date_from !== '' && $ledger_date_to !== '';
             $ledgerQuery = [
                 'cash_box_id' => $ledger_cash_box_id,
+                'cash_box_ids' => $ledger_cash_box_ids,
                 'currency_id' => $ledger_currency_id,
                 'date_from' => $ledger_date_from,
                 'date_to' => $ledger_date_to,
@@ -299,7 +309,7 @@ new class extends Component {
             <div class="mt-5 grid gap-4">
                 <div>
                     <label class="mb-1 block text-sm font-medium">{{ __('finance.fields.cash_box') }}</label>
-                    <select wire:model.live="ledger_cash_box_id" class="w-full rounded-xl px-4 py-3 text-sm">
+                    <select wire:model.live="ledger_cash_box_ids" multiple size="5" class="w-full rounded-xl px-4 py-3 text-sm">
                         @forelse ($ledgerCashBoxes as $cashBox)
                             <option value="{{ $cashBox->id }}">{{ $cashBox->name }}</option>
                         @empty

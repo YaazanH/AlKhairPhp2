@@ -37,7 +37,7 @@ class AssessmentResultPdfController extends Controller
                     ->values());
 
                 $group->setAttribute('average_mark', $group->enrollments
-                    ->map(fn ($enrollment) => $enrollment->assessmentResults->first()?->score)
+                    ->map(fn ($enrollment) => ($result = $enrollment->assessmentResults->first()) && $result->status !== 'absent' ? $result->score : null)
                     ->filter(fn ($score) => $score !== null)
                     ->avg());
 

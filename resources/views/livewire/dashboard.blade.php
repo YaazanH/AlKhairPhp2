@@ -618,9 +618,11 @@ new class extends Component {
             @php
                 $pieTotal = (int) $groupDistribution->sum('students');
                 $pieOffset = 0.0;
-                $chartColor = fn (int $index) => sprintf('hsl(%.1f 72%% 58%%)', fmod(145 + ($index * 137.508), 360));
+                $chartColor = fn (int $index) => sprintf('hsl(%.1f 42%% 57%%)', fmod(24 + ($index * 137.508), 360));
                 $trendMax = max(1, (int) $dailyTrend->max(fn (array $day) => max($day['pages'], $day['attendance'])));
-                $trendX = fn (int $index) => 58 + ($index * (332 / max($dailyTrend->count() - 1, 1)));
+                $trendX = fn (int $index) => app()->isLocale('ar')
+                    ? 390 - ($index * (332 / max($dailyTrend->count() - 1, 1)))
+                    : 58 + ($index * (332 / max($dailyTrend->count() - 1, 1)));
                 $trendY = fn (int $value) => 178 - (($value / $trendMax) * 128);
                 $pagesLine = $dailyTrend->values()->map(fn (array $day, int $index) => $trendX($index).','.$trendY($day['pages']))->implode(' ');
                 $attendanceLine = $dailyTrend->values()->map(fn (array $day, int $index) => $trendX($index).','.$trendY($day['attendance']))->implode(' ');
@@ -633,8 +635,8 @@ new class extends Component {
                     <div class="eyebrow">{{ __('dashboard.manager.analytics.groups_eyebrow') }}</div>
                     <h2 class="font-display mt-2 text-2xl text-white">{{ __('dashboard.manager.analytics.group_distribution') }}</h2>
                     @if ($pieTotal > 0)
-                        <div class="mt-6 grid items-center gap-6 lg:grid-cols-[18rem_1fr]">
-                            <svg viewBox="0 0 42 42" class="mx-auto h-64 w-64 -rotate-90 overflow-visible lg:h-72 lg:w-72" role="img" aria-label="{{ __('dashboard.manager.analytics.group_distribution') }}">
+                        <div class="mt-4 grid items-center gap-4 lg:grid-cols-[15rem_1fr]">
+                            <svg viewBox="0 0 42 42" class="mx-auto h-52 w-52 -rotate-90 overflow-visible lg:h-56 lg:w-56" role="img" aria-label="{{ __('dashboard.manager.analytics.group_distribution') }}">
                                 @foreach ($groupDistribution as $index => $group)
                                     @php($portion = ($group['students'] / $pieTotal) * 100)
                                     @if ($portion > 0)
@@ -660,13 +662,14 @@ new class extends Component {
                 </article>
 
                 <article class="surface-panel p-5 lg:p-6">
-                    <div class="eyebrow">{{ __('dashboard.manager.analytics.last_five_attendance_days') }}</div>
-                    <h2 class="font-display mt-2 text-2xl text-white">{{ __('dashboard.manager.analytics.daily_activity') }}</h2>
-                    <div class="mt-4 flex flex-wrap gap-4 text-xs text-neutral-300">
-                        <span class="flex items-center gap-2"><i class="h-2.5 w-6 rounded-full bg-emerald-400"></i>{{ __('dashboard.manager.analytics.memorized_pages') }}</span>
-                        <span class="flex items-center gap-2"><i class="h-2.5 w-6 rounded-full bg-sky-400"></i>{{ __('dashboard.manager.analytics.students_attended') }}</span>
+                    <div class="flex flex-wrap items-end justify-between gap-4">
+                        <div><div class="eyebrow">{{ __('dashboard.manager.analytics.last_five_attendance_days') }}</div><h2 class="font-display mt-2 text-2xl text-white">{{ __('dashboard.manager.analytics.daily_activity') }}</h2></div>
+                        <div class="flex flex-wrap gap-4 text-xs text-neutral-300">
+                            <span class="flex items-center gap-2"><i class="h-2.5 w-6 rounded-full bg-emerald-400"></i>{{ __('dashboard.manager.analytics.memorized_pages') }}</span>
+                            <span class="flex items-center gap-2"><i class="h-2.5 w-6 rounded-full bg-sky-400"></i>{{ __('dashboard.manager.analytics.students_attended') }}</span>
+                        </div>
                     </div>
-                    <svg viewBox="0 0 440 220" class="mt-3 h-80 w-full overflow-visible lg:h-96" role="img" aria-label="{{ __('dashboard.manager.analytics.daily_activity') }}">
+                    <svg viewBox="0 0 440 220" class="mt-2 h-64 w-full overflow-visible lg:h-72" role="img" aria-label="{{ __('dashboard.manager.analytics.daily_activity') }}">
                         <line x1="58" y1="42" x2="58" y2="178" stroke="rgba(255,255,255,.3)" stroke-width="1.5" />
                         <line x1="58" y1="178" x2="400" y2="178" stroke="rgba(255,255,255,.3)" stroke-width="1.5" />
                         @foreach ([0, .25, .5, .75, 1] as $ratio)
@@ -726,7 +729,7 @@ new class extends Component {
                         <div class="admin-empty-state mt-5">{{ __('dashboard.manager.analytics.no_groups') }}</div>
                     @else
                         <div class="mt-8 grid grid-cols-[3rem_minmax(0,1fr)] gap-2">
-                            <div class="flex h-64 flex-col justify-between border-r border-white/20 pr-2 text-right text-[10px] text-neutral-400"><span>{{ number_format($barMax) }}</span><span>{{ number_format($barMax * .75) }}</span><span>{{ number_format($barMax * .5) }}</span><span>{{ number_format($barMax * .25) }}</span><span>0</span></div>
+                            <div class="flex h-64 flex-col justify-between border-e border-white/20 pe-2 text-end text-[10px] text-neutral-400"><span>{{ number_format($barMax) }}</span><span>{{ number_format($barMax * .75) }}</span><span>{{ number_format($barMax * .5) }}</span><span>{{ number_format($barMax * .25) }}</span><span>0</span></div>
                         <div>
                         <div class="dashboard-bar-chart grid h-64 grid-cols-4 items-end gap-4 border-b border-white/20 px-3">
                             @foreach ($groupPageTotals as $index => $group)

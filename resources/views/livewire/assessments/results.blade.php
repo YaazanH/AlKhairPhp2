@@ -181,11 +181,9 @@ new class extends Component {
 
         foreach ($enrollments as $enrollment) {
             $score = $validated['result_scores'][$enrollment->id] ?? null;
-            $numericScore = ($score === null || $score === '') ? null : (float) $score;
-            $status = $this->statusForScore($numericScore);
-            if ($score === null || $score === '') {
-                continue;
-            }
+            $didNotAttend = $score === null || $score === '';
+            $numericScore = $didNotAttend ? 0.0 : (float) $score;
+            $status = $didNotAttend ? 'absent' : $this->statusForScore($numericScore);
 
             $result = AssessmentResult::query()->updateOrCreate(
                 [
@@ -346,7 +344,7 @@ new class extends Component {
             return $this->statusForScore((float) $score);
         }
 
-        return $this->result_statuses[$enrollmentId] ?? 'pending';
+        return $this->result_statuses[$enrollmentId] ?? 'absent';
     }
 
     public function resultStatusClass(string $status): string
@@ -611,7 +609,7 @@ new class extends Component {
                     <label for="assessment-result-status-filter">{{ __('workflow.assessments.results.filters.status') }}</label>
                     <select id="assessment-result-status-filter" wire:model.live="resultStatusFilter">
                         <option value="all">{{ __('workflow.assessments.results.filters.all_statuses') }}</option>
-                        <option value="pending">{{ __('workflow.common.result_status.pending') }}</option>
+                        <option value="absent">{{ __('workflow.common.result_status.absent') }}</option>
                         <option value="passed">{{ __('workflow.common.result_status.passed') }}</option>
                         <option value="failed">{{ __('workflow.common.result_status.failed') }}</option>
                         <option value="absent">{{ __('workflow.common.result_status.absent') }}</option>
@@ -667,7 +665,7 @@ new class extends Component {
                                 </div>
                             </td>
                             <td class="px-5 py-3">
-                                <input wire:model.live.debounce.300ms="result_scores.{{ $enrollment->id }}" wire:keydown.enter="saveEnrollmentResult({{ $enrollment->id }})" type="number" min="0" max="{{ $assessmentRecord->total_mark !== null ? (float) $assessmentRecord->total_mark : 100 }}" step="0.01" class="w-28 rounded-xl px-3 py-2 text-sm">
+                                <input wire:model.live.debounce.300ms="result_scores.{{ $enrollment->id }}" wire:keydown.enter="saveEnrollmentResult({{ $enrollment->id }})" type="number" min="0" max="{{ $assessmentRecord->total_mark !== null ? (float) $assessmentRecord->total_mark : 100 }}" step="0.01" placeholder="0" class="w-28 rounded-xl px-3 py-2 text-sm">
                                 @error('result_scores.'.$enrollment->id) <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
                             </td>
                             <td class="px-5 py-3">

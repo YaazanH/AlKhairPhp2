@@ -2,23 +2,49 @@
 
 namespace Tests\Feature;
 
+use App\Models\ParentProfile;
+use App\Models\User;
 use App\Support\PhoneCountries;
+use App\Support\PhoneNumberFormatter;
 use Illuminate\Support\Facades\Blade;
 use Tests\TestCase;
 
 class PhoneInputTest extends TestCase
 {
-    public function test_phone_input_offers_country_flags_and_defaults_to_syria(): void
+    public function test_phone_input_shows_only_the_selected_code_until_the_country_menu_is_opened(): void
     {
         $syria = PhoneCountries::options()->firstWhere('region', 'SY');
 
         $this->assertSame('+963', $syria['dial_code']);
         $this->assertSame('🇸🇾', $syria['flag']);
+        $this->assertNotEmpty($syria['pattern']);
 
-        $html = Blade::render('<x-phone-input model="phone" value="" />');
+        $html = Blade::render('<x-phone-input model="phone" value="+12025550123" />');
 
-        $this->assertStringContainsString("regionDial: 'SY|+963'", $html);
-        $this->assertStringContainsString('SY|+963', $html);
-        $this->assertStringContainsString('🇸🇾', $html);
+        $this->assertStringContainsString("region: 'US'", $html);
+        $this->assertStringContainsString('x-text="selectedDial"', $html);
+        $this->assertStringContainsString('x-text="country.flag"', $html);
+        $this->assertStringContainsString('x-text="country.name"', $html);
+        $this->assertStringContainsString('x-text="country.region"', $html);
+        $this->assertStringNotContainsString('<select', $html);
+    }
+
+    public function test_phone_numbers_are_normalized_and_formatted_by_country(): void
+    {
+        $this->assertSame('+963933333333', PhoneNumberFormatter::normalize('0933 333 333'));
+        $this->assertSame('+963 933 333 333', PhoneNumberFormatter::format('0933 333 333'));
+        $this->assertSame('+1 (202) 555-0123', PhoneNumberFormatter::format('+1 202 555 0123'));
+        $this->assertSame('+49 1512 3456789', PhoneNumberFormatter::format('0049 1512 3456789'));
+    }
+
+    public function test_phone_model_attributes_store_e164_and_display_official_formatting(): void
+    {
+        $user = new User(['phone' => '0933 333 333']);
+        $parent = new ParentProfile(['father_phone' => '٠٩٤٤٥٥٥٠٠٠']);
+
+        $this->assertSame('+963933333333', $user->getAttributes()['phone']);
+        $this->assertSame('+963 933 333 333', $user->phone);
+        $this->assertSame('+963944555000', $parent->getAttributes()['father_phone']);
+        $this->assertSame('+963 944 555 000', $parent->father_phone);
     }
 }

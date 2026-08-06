@@ -415,6 +415,9 @@ new class extends Component {
                                 </td>
                                 <td class="px-5 py-4 lg:px-6">
                                     <div class="flex flex-wrap justify-end gap-2">
+                                        @if ($course->is_active)
+                                            <a href="{{ route('courses.end', $course) }}" wire:navigate class="pill-link pill-link--compact pill-link--accent">{{ __('crud.courses.actions.end_course') }}</a>
+                                        @endif
                                         @can('courses.update')
                                             <button type="button" wire:click="edit({{ $course->id }})" class="pill-link pill-link--compact">{{ __('crud.common.actions.edit') }}</button>
                                             @if ($course->is_active)

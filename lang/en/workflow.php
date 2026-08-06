@@ -20,7 +20,7 @@ return [
             'failed' => 'Failed',
             'cancelled' => 'Cancelled',
             'pending' => 'Pending',
-            'absent' => 'Absent',
+            'absent' => 'Did not attend',
         ],
         'entry_type' => [
             'new' => 'New',
@@ -253,6 +253,10 @@ return [
         ],
     ],
     'teacher_attendance' => [
+        'export' => [
+            'title' => 'Export teacher attendance', 'action' => 'Export attendance', 'from' => 'Date from', 'to' => 'Date to',
+            'role' => 'Role', 'percentage' => 'Attendance percentage',
+        ],
         'title' => 'Teacher Attendance',
         'subtitle' => 'Create or reopen one teacher attendance day, preload teachers who have scheduled groups on that date, auto-include helping teachers who are not assigned to active groups, then add extra teachers manually when needed.',
         'days' => [
@@ -323,6 +327,7 @@ return [
             'default_status_note' => 'Default teacher attendance status applied during day creation: :status',
         ],
         'errors' => [
+            'day_closed' => 'Attendance cannot be changed while this day is closed. Reopen it first.',
             'teacher_not_helping' => 'Only teachers available in your current scope can be added to teacher attendance.',
         ],
         'form' => [
@@ -1214,10 +1219,10 @@ return [
             'no_missing_pages' => 'No missing pages in this juz.',
             'headers' => [
                 'actions' => 'Actions',
-                'final_test' => 'Final test',
+                'final_test' => 'Final',
                 'juz' => 'Juz',
                 'pages' => 'Pages',
-                'partial_tests' => 'Partial tests',
+                'partial_tests' => 'Partial',
                 'status' => 'Status',
             ],
             'statuses' => [

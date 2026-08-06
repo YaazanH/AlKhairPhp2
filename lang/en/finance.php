@@ -124,6 +124,7 @@ return [
         'rate_updated' => 'Updated',
     ],
     'fields' => [
+        'signature' => 'Signature',
         'report_no' => 'Report number',
         'activity' => 'Activity',
         'amount' => 'Amount',
@@ -204,6 +205,7 @@ return [
         'users' => 'Users',
     ],
     'descriptions' => [
+        'request_deleted_plain' => 'Deleted finance request',
         'generated_from_pull' => 'Generated from withdrawal request :request.',
         'invoice_from_pull' => 'Created from withdrawal request :request.',
         'invoice_pull_closing' => 'Closing extra amount for invoice :invoice and withdrawal request :request.',
@@ -275,11 +277,13 @@ return [
         'invoice' => 'Invoice',
     ],
     'category_types' => [
+        'income' => 'Income',
         'expense' => 'Expense',
         'management' => 'Management',
         'return' => 'Return',
         'revenue' => 'Income',
     ],
+    'category_modes' => ['count' => 'Count', 'invoice' => 'Invoice', 'return' => 'Return', 'income' => 'Income', 'donation' => 'Donation'],
     'pull_requests' => [
         'title' => 'Withdrawal Requests',
         'subtitle' => 'Submit a withdrawal request and follow its review and finalisation status.',
@@ -475,6 +479,11 @@ return [
         'revenue' => 'Income',
     ],
     'transaction_types' => [
+        'expense' => 'Expense',
+        'income' => 'Income',
+        'return' => 'Return',
+        'transfer' => 'Transfer',
+        'exchange' => 'Exchange',
         'activity_expense' => 'Activity expense',
         'activity_expense_adjustment' => 'Activity expense adjustment',
         'activity_payment' => 'Activity payment',

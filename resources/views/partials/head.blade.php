@@ -41,14 +41,15 @@
 
 <title>{{ $pageTitle }}</title>
 
+<link rel="preconnect" href="https://fonts.bunny.net">
+<link href="https://fonts.bunny.net/css?family=fraunces:600,700" rel="stylesheet" />
+
 @if ($faviconImage)
 <link rel="icon" href="{{ $faviconImage }}" />
 <link rel="shortcut icon" href="{{ $faviconImage }}" />
 <link rel="apple-touch-icon" href="{{ $faviconImage }}" />
 @endif
 
-<link rel="preconnect" href="https://fonts.bunny.net">
-<link href="https://fonts.bunny.net/css?family=cairo:400,500,600,700|fraunces:600,700|plus-jakarta-sans:400,500,600,700" rel="stylesheet" />
 
 @vite(['resources/css/app.css', 'resources/js/app.js'])
 @fluxAppearance

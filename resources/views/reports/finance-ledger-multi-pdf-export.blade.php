@@ -1,0 +1,3 @@
+<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><style>@page{size:A4 landscape;margin:10mm}body{font-family:dejavusans,sans-serif}.fund-statement{page-break-after:always}.fund-statement:last-child{page-break-after:auto}.fund-title{font-size:20px;margin:0 0 8px;text-align:center}thead{display:table-header-group}</style></head><body>
+@foreach($reports as $report)<section class="fund-statement"><h1 class="fund-title">{{ data_get($report, 'cash_box.name') }}</h1>@include('reports.partials.finance-ledger-document', ['previewMode' => false, 'report' => $report, 'service' => $reportService])</section>@endforeach
+</body></html>

@@ -19,6 +19,7 @@ use App\Services\ManagedUserService;
 use App\Services\MemorizationService;
 use App\Services\StudentNumberService;
 use App\Support\ArabicSearch;
+use App\Support\PhoneNumberFormatter;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -392,6 +393,7 @@ new class extends Component {
             $this->authorizeScopedStudentAccess(Student::query()->findOrFail($this->editingId));
         }
 
+        $this->student_phone = PhoneNumberFormatter::normalize($this->student_phone) ?? '';
         $validated = $this->validate();
         $this->authorizeScopedParentAccess(ParentProfile::query()->findOrFail($validated['parent_id']));
 
@@ -536,6 +538,10 @@ new class extends Component {
     public function saveQuickParent(): void
     {
         $this->authorizePermission('parents.create');
+
+        foreach (['quick_parent_father_phone', 'quick_parent_mother_phone', 'quick_parent_home_phone'] as $phoneField) {
+            $this->{$phoneField} = PhoneNumberFormatter::normalize($this->{$phoneField}) ?? '';
+        }
 
         $validated = $this->validate([
             'quick_parent_father_name' => ['required', 'string', 'max:255'],

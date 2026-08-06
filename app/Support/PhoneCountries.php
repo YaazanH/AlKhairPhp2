@@ -4,7 +4,9 @@ namespace App\Support;
 
 use Giggsey\Locale\Locale;
 use Illuminate\Support\Collection;
+use libphonenumber\PhoneNumberFormat;
 use libphonenumber\PhoneNumberUtil;
+use libphonenumber\PhoneNumberType;
 
 class PhoneCountries
 {
@@ -24,11 +26,21 @@ class PhoneCountries
         return $options[$locale] = collect($phoneUtil->getSupportedRegions())
             ->map(function (string $region) use ($locale, $phoneUtil): array {
                 $name = Locale::getDisplayRegion('-'.$region, $locale) ?: $region;
+                $example = $phoneUtil->getExampleNumberForType($region, PhoneNumberType::MOBILE)
+                    ?: $phoneUtil->getExampleNumber($region);
+                $formattedExample = $example
+                    ? PhoneNumberFormatter::format($phoneUtil->format($example, PhoneNumberFormat::E164), $region)
+                    : null;
+                $dialCode = '+'.$phoneUtil->getCountryCodeForRegion($region);
+                $nationalPattern = $formattedExample
+                    ? trim((string) preg_replace('/^'.preg_quote($dialCode, '/').'\s*/', '', $formattedExample))
+                    : '##########';
 
                 return [
-                    'dial_code' => '+'.$phoneUtil->getCountryCodeForRegion($region),
+                    'dial_code' => $dialCode,
                     'flag' => self::flag($region),
                     'name' => $name,
+                    'pattern' => preg_replace('/\d/u', '#', $nationalPattern),
                     'region' => $region,
                 ];
             })

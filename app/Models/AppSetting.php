@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\PhoneNumberFormatter;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
@@ -28,6 +29,10 @@ class AppSetting extends Model
 
     public static function storeValue(string $group, string $key, mixed $value, string $type = 'string'): self
     {
+        if ($type === 'string' && str_ends_with($key, 'phone')) {
+            $value = PhoneNumberFormatter::format($value);
+        }
+
         return static::query()->updateOrCreate(
             ['group' => $group, 'key' => $key],
             [

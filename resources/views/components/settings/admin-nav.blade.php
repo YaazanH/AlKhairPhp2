@@ -44,6 +44,12 @@
                     <span class="settings-tab__meta">{{ __('settings.navigation.points.meta') }}</span>
                     <span class="settings-tab__title">{{ __('settings.navigation.points.title') }}</span>
                 </a>
+                @can('barcode-actions.view')
+                    <a href="{{ route('barcode-actions.index') }}" wire:navigate class="settings-tab {{ $resolvedCurrent === 'barcode-actions.index' ? 'is-active' : '' }}">
+                        <span class="settings-tab__meta">{{ __('settings.navigation.barcodes.meta') }}</span>
+                        <span class="settings-tab__title">{{ __('ui.nav.action_barcodes') }}</span>
+                    </a>
+                @endcan
                 @can('roles.manage')
                     <a href="{{ route('settings.access-control') }}" wire:navigate class="settings-tab {{ $resolvedCurrent === 'settings.access-control' ? 'is-active' : '' }}">
                         <span class="settings-tab__meta">{{ __('settings.navigation.access.meta') }}</span>

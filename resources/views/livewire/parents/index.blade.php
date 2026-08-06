@@ -9,6 +9,7 @@ use App\Models\Student;
 use App\Services\ManagedUserService;
 use App\Services\ParentNumberService;
 use App\Support\ArabicSearch;
+use App\Support\PhoneNumberFormatter;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
@@ -65,14 +66,19 @@ new class extends Component {
         $baseQuery = $this->scopeParentsQuery(ParentProfile::query());
         $filteredQuery = $this->scopeParentsQuery(ParentProfile::query())
             ->when(filled($this->search), function ($query) {
-                $query->where(function ($builder) {
+                $normalizedPhone = PhoneNumberFormatter::normalize($this->search);
+                $query->where(function ($builder) use ($normalizedPhone) {
                     $builder
                         ->where('parent_number', 'like', '%'.$this->search.'%')
                         ->orWhere('father_name', 'like', '%'.$this->search.'%')
                         ->orWhere('mother_name', 'like', '%'.$this->search.'%')
                         ->orWhere('father_phone', 'like', '%'.$this->search.'%')
                         ->orWhere('mother_phone', 'like', '%'.$this->search.'%')
-                        ->orWhere('home_phone', 'like', '%'.$this->search.'%');
+                        ->orWhere('home_phone', 'like', '%'.$this->search.'%')
+                        ->when($normalizedPhone, fn ($query) => $query
+                            ->orWhere('father_phone', 'like', '%'.$normalizedPhone.'%')
+                            ->orWhere('mother_phone', 'like', '%'.$normalizedPhone.'%')
+                            ->orWhere('home_phone', 'like', '%'.$normalizedPhone.'%'));
                 });
             })
             ->when(in_array($this->statusFilter, ['active', 'inactive'], true), fn ($query) => $query->where('is_active', $this->statusFilter === 'active'))
@@ -239,6 +245,9 @@ new class extends Component {
             $this->authorizeScopedParentAccess(ParentProfile::query()->findOrFail($this->editingId));
         }
 
+        foreach (['father_phone', 'mother_phone', 'home_phone'] as $phoneField) {
+            $this->{$phoneField} = PhoneNumberFormatter::normalize($this->{$phoneField}) ?? '';
+        }
         $validated = $this->validate();
 
         if ($duplicate = $this->findDuplicateParent($validated)) {

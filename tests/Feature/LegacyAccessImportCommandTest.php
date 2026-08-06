@@ -96,7 +96,7 @@ class LegacyAccessImportCommandTest extends TestCase
         $student = Student::query()->sole();
 
         $this->assertSame('عبد الكريم الحسن', $parent->father_name);
-        $this->assertSame('0944512429', $parent->father_phone);
+        $this->assertSame('+963 944 512 429', $parent->father_phone);
         $this->assertNull($parent->father_work);
         $this->assertNull($parent->home_phone);
         $this->assertNull($parent->address);

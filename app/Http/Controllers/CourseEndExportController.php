@@ -1,0 +1,48 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\Course;
+use App\Services\CourseEndService;
+use App\Services\XlsxExportService;
+use Mpdf\Mpdf;
+use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpFoundation\StreamedResponse;
+
+class CourseEndExportController extends Controller
+{
+    public function students(Course $course, CourseEndService $service, XlsxExportService $xlsx): StreamedResponse
+    {
+        $rows = $service->studentRows($course)->values()->map(fn (array $row, int $index) => [
+            $index + 1, $row['name'], $row['group'], $row['points_after'], $row['days_attended'],
+            $row['memorized_pages'], $row['final_tests'], $row['final_score'],
+        ])->all();
+
+        return $xlsx->download('course-end-'.$course->id, [
+            '#', __('course_end.table.name'), __('course_end.table.group'), __('course_end.table.points_after'),
+            __('course_end.table.days_attended'), __('course_end.table.pages'), __('course_end.table.final_tests'), __('course_end.table.final_score'),
+        ], $rows);
+    }
+
+    public function finalTests(Course $course, CourseEndService $service): Response
+    {
+        $rows = $service->finalTestRows($course);
+        $mpdf = new Mpdf([
+            'format' => 'A4',
+            'orientation' => 'P',
+            'mode' => 'utf-8',
+            'default_font' => 'dejavusans',
+            'margin_top' => 14,
+            'margin_right' => 14,
+            'margin_bottom' => 14,
+            'margin_left' => 14,
+        ]);
+        $mpdf->SetDirectionality('rtl');
+        $mpdf->WriteHTML(view('reports.course-final-tests', compact('course', 'rows'))->render());
+
+        return response($mpdf->Output('', 'S'), 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="course-final-tests-'.$course->id.'.pdf"',
+        ]);
+    }
+}

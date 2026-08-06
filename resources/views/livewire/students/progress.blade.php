@@ -482,8 +482,8 @@ new class extends Component {
                 <div class="overflow-x-auto"><table class="text-sm"><thead><tr>
                     <th class="px-5 py-4 text-left">{{ __('workflow.student_progress.juz_progress.headers.juz') }}</th>
                     <th class="px-5 py-4 text-left">{{ __('workflow.student_progress.juz_progress.headers.pages') }}</th>
-                    <th class="px-5 py-4 text-left">{{ __('workflow.student_progress.juz_progress.headers.partial_tests') }}</th>
-                    <th class="px-5 py-4 text-left">{{ __('workflow.student_progress.juz_progress.headers.final_test') }}</th>
+                    <th class="w-28 px-5 py-4 text-left">{{ __('workflow.student_progress.juz_progress.headers.partial_tests') }}</th>
+                    <th class="w-28 px-5 py-4 text-left">{{ __('workflow.student_progress.juz_progress.headers.final_test') }}</th>
                     <th class="px-5 py-4 text-left">{{ __('workflow.student_progress.juz_progress.headers.status') }}</th>
                     <th class="px-5 py-4 text-right">{{ __('workflow.student_progress.juz_progress.headers.actions') }}</th>
                 </tr></thead><tbody class="divide-y divide-white/6">
@@ -492,20 +492,15 @@ new class extends Component {
                         <td class="px-5 py-4">{{ number_format($row->memorized_pages) }}</td>
                         <td class="px-5 py-4">@if ($row->partial_test_created)<bdi dir="ltr">{{ number_format($row->passed_parts) }}/4</bdi>@endif</td>
                         <td class="px-5 py-4">{{ $row->latest_final_score !== null ? number_format((float) $row->latest_final_score, 2) : '' }}</td>
-                        <td class="px-5 py-4"><span class="status-chip {{ $statusClass($row->status) }}">{{ __('workflow.student_progress.juz_progress.statuses.'.$row->status) }}</span></td>
+                        <td class="px-5 py-4"><span class="status-chip {{ $statusClass($row->status) }}">{{ $row->status === 'missing' ? __('workflow.student_progress.juz_progress.incomplete', ['count' => number_format($row->missing_pages->count())]) : __('workflow.student_progress.juz_progress.statuses.'.$row->status) }}</span></td>
                         <td class="px-5 py-4 text-right">
                             @php($showMissingPagesAction = $row->status !== 'finished' && $row->missing_pages->isNotEmpty())
                             @php($showAwqafAction = $row->enrollment && $row->final_made && ! $row->awqaf_passed && (auth()->user()->can('quran-awqaf-tests.record') || auth()->user()->can('quran-tests.record')))
                             @if ($showMissingPagesAction || $showAwqafAction)
-                                <select
-                                    aria-label="{{ __('workflow.student_progress.juz_progress.headers.actions') }}"
-                                    class="h-8 w-12 rounded-lg border border-white/10 bg-white/5 px-1 text-sm text-neutral-200"
-                                    x-on:change="if ($event.target.value === 'missing') { $wire.showMissingPages({{ $row->juz->id }}) } if ($event.target.value === 'awqaf') { $wire.openAwqafTest({{ $row->enrollment?->id ?: 0 }}, {{ $row->juz->id }}) } $event.target.value = ''"
-                                >
-                                    <option value="">•••</option>
-                                    @if ($showMissingPagesAction)<option value="missing">{{ __('workflow.student_progress.juz_progress.show_missing') }}</option>@endif
-                                    @if ($showAwqafAction)<option value="awqaf">{{ __('workflow.student_progress.juz_progress.add_awqaf_test') }}</option>@endif
-                                </select>
+                                <div class="flex flex-wrap justify-end gap-2">
+                                    @if ($showMissingPagesAction)<button type="button" wire:click="showMissingPages({{ $row->juz->id }})" class="pill-link pill-link--compact">{{ __('workflow.student_progress.juz_progress.show_missing') }}</button>@endif
+                                    @if ($showAwqafAction)<button type="button" wire:click="openAwqafTest({{ $row->enrollment?->id ?: 0 }}, {{ $row->juz->id }})" class="pill-link pill-link--compact">{{ __('workflow.student_progress.juz_progress.add_awqaf_test') }}</button>@endif
+                                </div>
                             @else
                                 <span class="text-neutral-600">-</span>
                             @endif

@@ -1,6 +1,11 @@
 @import 'tailwindcss';
 @import '../../vendor/livewire/flux/dist/flux.css';
 
+@font-face { font-family: 'Dubai'; src: url('/fonts/dubai/Dubai-Light.ttf') format('truetype'); font-style: normal; font-weight: 300; font-display: swap; }
+@font-face { font-family: 'Dubai'; src: url('/fonts/dubai/Dubai-Regular.ttf') format('truetype'); font-style: normal; font-weight: 400; font-display: swap; }
+@font-face { font-family: 'Dubai'; src: url('/fonts/dubai/Dubai-Medium.ttf') format('truetype'); font-style: normal; font-weight: 500 600; font-display: swap; }
+@font-face { font-family: 'Dubai'; src: url('/fonts/dubai/Dubai-Bold.ttf') format('truetype'); font-style: normal; font-weight: 700 900; font-display: swap; }
+
 @source "../views";
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
 @source '../../vendor/livewire/flux-pro/stubs/**/*.blade.php';
@@ -9,9 +14,10 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
-    --font-sans: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
-    --font-display: 'Fraunces', Georgia, serif;
-    --font-arabic: 'Cairo', 'Tahoma', sans-serif;
+    --font-sans: 'Dubai', ui-sans-serif, system-ui, sans-serif;
+    --font-display: 'Dubai', ui-sans-serif, system-ui, sans-serif;
+    --font-arabic: 'Dubai', 'Tahoma', sans-serif;
+    --font-metric: 'Fraunces', Georgia, serif;
 
     --color-zinc-50: #f8f3eb;
     --color-zinc-100: #ebe2d5;
@@ -2157,7 +2163,7 @@ html:not(.dark) .admin-modal [class*='border-emerald'] {
 
 .metric-value {
     color: #f2fff5;
-    font-family: var(--font-display);
+    font-family: var(--font-metric);
     font-size: clamp(2.15rem, 4vw, 3.35rem);
     line-height: 0.95;
     letter-spacing: -0.05em;

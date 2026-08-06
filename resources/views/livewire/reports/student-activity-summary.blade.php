@@ -2,7 +2,7 @@
 
 use App\Livewire\Concerns\AuthorizesPermissions;
 use App\Livewire\Concerns\AuthorizesTeacherAssignments;
-use App\Models\AcademicYear;
+use App\Models\Course;
 use App\Models\Group;
 use App\Services\ReportingService;
 use Livewire\Volt\Component;
@@ -12,7 +12,7 @@ new class extends Component
     use AuthorizesPermissions;
     use AuthorizesTeacherAssignments;
 
-    public mixed $academic_year_id = null;
+    public mixed $course_id = null;
 
     public mixed $group_id = null;
 
@@ -36,10 +36,10 @@ new class extends Component
     public function mount(): void
     {
         $this->authorizePermission('reports.view');
-        $this->academic_year_id = $this->currentAcademicYearId();
+        $this->course_id = Course::query()->where('is_default', true)->value('id');
     }
 
-    public function updatedAcademicYearId(): void
+    public function updatedCourseId(): void
     {
         $this->normalizeFilters();
 
@@ -49,7 +49,7 @@ new class extends Component
 
         $groupExists = $this->scopeGroupsQuery(Group::query())
             ->whereKey($this->group_id)
-            ->when($this->academic_year_id, fn ($query) => $query->where('academic_year_id', $this->academic_year_id))
+            ->when($this->course_id, fn ($query) => $query->where('course_id', $this->course_id))
             ->exists();
 
         if (! $groupExists) {
@@ -59,7 +59,7 @@ new class extends Component
 
     public function clearFilters(): void
     {
-        $this->academic_year_id = $this->currentAcademicYearId();
+        $this->course_id = Course::query()->where('is_default', true)->value('id');
         $this->group_id = null;
         $this->date_from = '';
         $this->date_to = '';
@@ -88,11 +88,11 @@ new class extends Component
         $rows = $this->sortedRows(app(ReportingService::class)->studentActivitySummary($this->filters()));
 
         return [
-            'academicYears' => AcademicYear::query()->where('is_active', true)->orderByDesc('starts_on')->get(['id', 'name']),
+            'courses' => Course::query()->orderByDesc('is_active')->orderBy('name')->get(['id', 'name']),
             'groups' => $this->scopeGroupsQuery(
                 Group::query()
                     ->with(['course', 'academicYear'])
-                    ->when($this->academic_year_id, fn ($query) => $query->where('academic_year_id', $this->academic_year_id))
+                    ->when($this->course_id, fn ($query) => $query->where('course_id', $this->course_id))
                     ->orderBy('name')
             )->get(),
             'rows' => $rows,
@@ -111,7 +111,7 @@ new class extends Component
         $this->normalizeFilters();
 
         return [
-            'academic_year_id' => $this->academic_year_id,
+            'course_id' => $this->course_id,
             'date_from' => $this->date_from,
             'date_to' => $this->date_to,
             'group_id' => $this->group_id,
@@ -153,7 +153,7 @@ new class extends Component
 
     protected function normalizeFilters(): void
     {
-        $this->academic_year_id = $this->normalizeSelectValue($this->academic_year_id);
+        $this->course_id = $this->normalizeSelectValue($this->course_id);
         $this->group_id = $this->normalizeSelectValue($this->group_id);
 
         if ($this->date_from !== '' && $this->date_to !== '' && $this->date_from > $this->date_to) {
@@ -176,13 +176,6 @@ new class extends Component
         return (int) $value;
     }
 
-    protected function currentAcademicYearId(): ?int
-    {
-        return AcademicYear::query()
-            ->where('is_current', true)
-            ->where('is_active', true)
-            ->value('id');
-    }
 }; ?>
 
 <div class="page-stack">
@@ -212,11 +205,11 @@ new class extends Component
 
             <div class="grid gap-4">
                 <div>
-                    <label class="report-field-label mb-2 block text-sm font-medium">{{ __('reports.filters.academic_year') }}</label>
-                    <select wire:model.live="academic_year_id" class="report-control w-full rounded-xl px-3 py-2.5 text-sm">
-                        <option value="">{{ __('reports.filters.all_academic_years') }}</option>
-                        @foreach ($academicYears as $academicYear)
-                            <option value="{{ $academicYear->id }}">{{ $academicYear->name }}</option>
+                    <label class="report-field-label mb-2 block text-sm font-medium">{{ __('reports.filters.course') }}</label>
+                    <select wire:model.live="course_id" class="report-control w-full rounded-xl px-3 py-2.5 text-sm">
+                        <option value="">{{ __('reports.filters.all_courses') }}</option>
+                        @foreach ($courses as $course)
+                            <option value="{{ $course->id }}">{{ $course->name }}</option>
                         @endforeach
                     </select>
                 </div>
@@ -243,7 +236,7 @@ new class extends Component
             </div>
 
             <div class="mt-5 grid gap-3">
-                <a href="{{ route('reports.exports.student-activity-summary', ['academic_year_id' => $academic_year_id, 'group_id' => $group_id, 'date_from' => $date_from, 'date_to' => $date_to]) }}" class="pill-link pill-link--accent justify-center">
+                <a href="{{ route('reports.exports.student-activity-summary', ['course_id' => $course_id, 'group_id' => $group_id, 'date_from' => $date_from, 'date_to' => $date_to]) }}" class="pill-link pill-link--accent justify-center">
                     {{ __('reports.student_activity.export') }}
                 </a>
                 <button type="button" wire:click="clearFilters" class="pill-link justify-center">

@@ -99,6 +99,8 @@ new class extends Component {
         </div>
     </section>
 
+    <x-settings.admin-nav section="dashboard" current="barcode-actions.index" />
+
     @if (session('status'))
         <div class="flash-success px-4 py-3 text-sm">{{ session('status') }}</div>
     @endif

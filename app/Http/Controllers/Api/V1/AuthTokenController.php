@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Support\PhoneNumberFormatter;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
@@ -21,12 +22,13 @@ class AuthTokenController extends Controller
             'password' => ['required', 'string'],
         ]);
 
+        $normalizedPhone = PhoneNumberFormatter::normalize($validated['login']);
         $user = User::query()
-            ->where(function ($query) use ($validated) {
+            ->where(function ($query) use ($validated, $normalizedPhone) {
                 $query
                     ->where('username', $validated['login'])
                     ->orWhere('email', $validated['login'])
-                    ->orWhere('phone', $validated['login']);
+                    ->when($normalizedPhone, fn ($query) => $query->orWhere('phone', $normalizedPhone));
             })
             ->first();
 

@@ -190,8 +190,9 @@ class CourseCompletionRuleService
             ->when($filters['enrollment_status'] !== 'all', fn (Builder $query) => $query->where('status', $filters['enrollment_status']));
     }
 
-    protected function criteriaForEnrollment(Enrollment $enrollment, array $settings): array
+    public function criteriaForEnrollment(Enrollment $enrollment, ?array $settings = null): array
     {
+        $settings ??= $this->settings();
         $passedFinalTests = QuranFinalTest::query()
             ->where('enrollment_id', $enrollment->id)
             ->where('status', 'passed')

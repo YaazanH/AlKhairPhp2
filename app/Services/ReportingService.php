@@ -236,7 +236,7 @@ class ReportingService
             'results_recorded' => (clone $resultsQuery)->count(),
             'passed' => (clone $resultsQuery)->where('status', 'passed')->count(),
             'failed' => (clone $resultsQuery)->where('status', 'failed')->count(),
-            'average_score' => $this->decimal((clone $resultsQuery)->avg('score')),
+            'average_score' => $this->decimal((clone $resultsQuery)->where('status', '!=', 'absent')->avg('score')),
         ];
     }
 

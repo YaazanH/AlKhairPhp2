@@ -13,6 +13,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\StreamedResponse;
+use Mpdf\Mpdf;
 
 class ReportExportController extends Controller
 {
@@ -78,7 +79,9 @@ class ReportExportController extends Controller
         abort_unless($request->user()?->can('finance.reports.export'), 403);
 
         $validated = $request->validate([
-            'cash_box_id' => ['required', 'integer', 'exists:finance_cash_boxes,id'],
+            'cash_box_id' => ['nullable', 'integer', 'exists:finance_cash_boxes,id'],
+            'cash_box_ids' => ['nullable', 'array', 'min:1'],
+            'cash_box_ids.*' => ['integer', 'distinct', 'exists:finance_cash_boxes,id'],
             'currency_id' => ['required', 'integer', 'exists:finance_currencies,id'],
             'date_from' => ['required', 'date'],
             'date_to' => ['required', 'date', 'after_or_equal:date_from'],
@@ -89,10 +92,23 @@ class ReportExportController extends Controller
         $financeService = app(FinanceService::class);
         $reportService = app(FinanceReportService::class);
         $template = $reportService->defaultLedgerTemplate();
-        $cashBox = $financeService->cashBoxForUser((int) $validated['cash_box_id'], $request->user());
+        $cashBoxIds = collect($validated['cash_box_ids'] ?? [($validated['cash_box_id'] ?? null)])->filter()->map(fn ($id) => (int) $id)->unique()->values();
+        abort_if($cashBoxIds->isEmpty(), 422);
+        $cashBox = $financeService->cashBoxForUser($cashBoxIds->first(), $request->user());
         $currency = $financeService->currenciesForCashBox($cashBox->id)
             ->whereKey((int) $validated['currency_id'])
             ->firstOrFail();
+        if ($cashBoxIds->count() > 1) {
+            $reports = $cashBoxIds->map(function (int $cashBoxId) use ($financeService, $reportService, $template, $currency, $validated, $request) {
+                $box = $financeService->cashBoxForUser($cashBoxId, $request->user());
+                abort_unless($financeService->currenciesForCashBox($box->id)->whereKey($currency->id)->exists(), 422);
+                return $reportService->ledgerReport($template, $box, $currency, $validated['date_from'], $validated['date_to'], $request->user(), $validated['ledger_notes'] ?? null);
+            });
+            $mpdf = new Mpdf(['format' => 'A4-L', 'mode' => 'utf-8', 'default_font' => 'dejavusans', 'margin_top' => 10, 'margin_right' => 10, 'margin_bottom' => 10, 'margin_left' => 10]);
+            $mpdf->WriteHTML(view('reports.finance-ledger-multi-pdf-export', compact('reports', 'reportService'))->render());
+            return response($mpdf->Output('', 'S'), 200, ['Content-Disposition' => 'inline; filename="finance-ledgers.pdf"', 'Content-Type' => 'application/pdf']);
+        }
+
         $report = $reportService->ledgerReport($template, $cashBox, $currency, $validated['date_from'], $validated['date_to'], $request->user(), $validated['ledger_notes'] ?? null);
         $generatedReport = $reportService->storeGeneratedLedgerReport($report, $validated, $request->user());
 
