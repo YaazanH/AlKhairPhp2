@@ -283,7 +283,7 @@ new class extends Component {
         $finalTests = auth()->user()->can('quran-final-tests.view')
             ? $this->scopeQuranFinalTestsQuery(
                 QuranFinalTest::query()
-                    ->with(['attempts', 'enrollment.course'])
+                    ->with(['attempts', 'enrollment.group.course'])
                     ->where('student_id', $studentRecord->id)
                     ->when($enrollmentIds === [], fn ($query) => $query->whereRaw('1 = 0'), fn ($query) => $query->whereIn('enrollment_id', $enrollmentIds))
             )->get()
@@ -336,7 +336,7 @@ new class extends Component {
                     'partial_test_created' => $juzPartialTests->isNotEmpty(),
                     'latest_final_score' => $latestFinalAttempt?->score,
                     'latest_final_date' => $latestFinalAttempt?->tested_on,
-                    'latest_final_course' => $juzFinalTests->first()?->enrollment?->course?->name,
+                    'latest_final_course' => $juzFinalTests->first()?->enrollment?->group?->course?->name,
                     'final_made' => $finalMade,
                     'awqaf_passed' => $latestAwqafTest !== null,
                     'awqaf_passed_on' => $latestAwqafTest?->tested_on,
