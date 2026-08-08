@@ -33,7 +33,10 @@ return new class extends Migration {
         DB::table('finance_transactions')->orderBy('id')->get(['id', 'type', 'description', 'source_type', 'source_id'])->each(function (object $transaction): void {
             $description = trim((string) $transaction->description);
             $description = trim((string) preg_replace('/\b(?:FIN|EXP|REV|RET|PUL|INV|TRSF|EXCH|TXN)[-_]?\d+\b/iu', '', $description));
-            $description = trim((string) preg_replace('/\s{2,}/u', ' ', $description), " -–—|\t\n\r\0\x0B");
+            $description = (string) preg_replace('/\s{2,}/u', ' ', $description);
+            // PHP trim() treats the character mask as bytes. Keep this mask ASCII-only
+            // so trailing Arabic characters can never be split into invalid UTF-8.
+            $description = trim($description, " -|\t\n\r\0\x0B");
 
             if ($transaction->type === 'return') {
                 $description = 'إرجاع متبق من فاتورة';
