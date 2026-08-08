@@ -46,6 +46,7 @@ class PrintTemplateController extends Controller
             'layout_json' => $this->defaultLayout(),
             'is_active' => true,
             'is_student_card' => request()->boolean('student_card'),
+            'is_report_card' => $courseReport,
         ]);
 
         return view('print-templates.templates.form', $this->formPayload($template));
@@ -97,6 +98,8 @@ class PrintTemplateController extends Controller
     {
         $duplicate = $template->replicate();
         $duplicate->name = $template->name.' '.__('print_templates.templates.copy_suffix');
+        // A copied template is a draft variant, not a second report-card template.
+        $duplicate->is_report_card = false;
         $duplicate->background_image = $this->duplicateStorageFile($template->background_image, 'print-templates/backgrounds');
         $duplicate->layout_json = $this->duplicateStaticImageLayout($template->layout_json ?? []);
         $duplicate->push();
@@ -132,6 +135,7 @@ class PrintTemplateController extends Controller
             'remove_background_image' => ['nullable', 'boolean'],
             'is_active' => ['nullable', 'boolean'],
             'is_student_card' => ['nullable', 'boolean'],
+            'is_report_card' => ['nullable', 'boolean'],
         ]);
 
         $dataSources = $this->dataSourceService->normalize(
@@ -139,6 +143,11 @@ class PrintTemplateController extends Controller
         );
 
         $isStudentCard = (bool) ($validated['is_student_card'] ?? false);
+        $isReportCard = (bool) ($validated['is_report_card'] ?? false);
+
+        if ($isReportCard && PrintTemplate::query()->where('is_report_card', true)->when($template->exists, fn ($query) => $query->whereKeyNot($template->id))->exists()) {
+            throw ValidationException::withMessages(['is_report_card' => __('print_templates.templates.validation.only_one_report_card')]);
+        }
 
         if ($isStudentCard && ! collect($dataSources)->contains(fn (array $source) => $source['entity'] === 'student' && $source['mode'] === 'multiple')) {
             throw ValidationException::withMessages([
@@ -179,6 +188,7 @@ class PrintTemplateController extends Controller
             'layout_json' => $layout,
             'is_active' => (bool) ($validated['is_active'] ?? false),
             'is_student_card' => $isStudentCard,
+            'is_report_card' => $isReportCard,
         ];
     }
 

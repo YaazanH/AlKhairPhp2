@@ -35,7 +35,7 @@ new class extends Component {
     public string $capacity = '0';
     public bool $is_active = true;
     public string $search = '';
-    public string $statusFilter = 'all';
+    public string $statusFilter = 'active';
     public string $courseFilter = 'all';
     public int $perPage = 15;
     public bool $showFormModal = false;
@@ -53,7 +53,7 @@ new class extends Component {
     public function mount(): void
     {
         $this->authorizePermission('groups.view');
-        $this->courseFilter = (string) (Course::query()->where('is_default', true)->where('is_active', true)->value('id') ?? 'all');
+        $this->courseFilter = 'all';
         $this->resetForm();
         $this->quickSummaryDate = now()->toDateString();
     }

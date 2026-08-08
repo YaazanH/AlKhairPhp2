@@ -41,9 +41,6 @@
 
 <title>{{ $pageTitle }}</title>
 
-<link rel="preconnect" href="https://fonts.bunny.net">
-<link href="https://fonts.bunny.net/css?family=fraunces:600,700" rel="stylesheet" />
-
 @if ($faviconImage)
 <link rel="icon" href="{{ $faviconImage }}" />
 <link rel="shortcut icon" href="{{ $faviconImage }}" />

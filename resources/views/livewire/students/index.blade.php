@@ -489,17 +489,18 @@ new class extends Component {
 
     public function openQuickParentForm(): void
     {
-        $this->authorizePermission('parents.create');
+        $this->authorizeAnyPermission(['parents.create', 'parents.update']);
 
         $this->showQuickParentForm = true;
-        $this->quick_parent_father_name = '';
-        $this->quick_parent_father_work = '';
+        $parent = $this->parent_id ? ParentProfile::query()->find($this->parent_id) : null;
+        $this->quick_parent_father_name = $parent?->father_name ?? '';
+        $this->quick_parent_father_work = $parent?->father_work ?? '';
         $this->quick_parent_new_father_work = '';
-        $this->quick_parent_father_phone = '';
-        $this->quick_parent_mother_name = '';
-        $this->quick_parent_mother_phone = '';
-        $this->quick_parent_home_phone = '';
-        $this->quick_parent_address = '';
+        $this->quick_parent_father_phone = $parent?->father_phone ?? '';
+        $this->quick_parent_mother_name = $parent?->mother_name ?? '';
+        $this->quick_parent_mother_phone = $parent?->mother_phone ?? '';
+        $this->quick_parent_home_phone = $parent?->home_phone ?? '';
+        $this->quick_parent_address = $parent?->address ?? '';
         $this->resetValidation([
             'quick_parent_father_name',
             'quick_parent_father_work',
@@ -537,7 +538,8 @@ new class extends Component {
 
     public function saveQuickParent(): void
     {
-        $this->authorizePermission('parents.create');
+        $updatingParent = $this->editingId && $this->parent_id;
+        $this->authorizePermission($updatingParent ? 'parents.update' : 'parents.create');
 
         foreach (['quick_parent_father_phone', 'quick_parent_mother_phone', 'quick_parent_home_phone'] as $phoneField) {
             $this->{$phoneField} = PhoneNumberFormatter::normalize($this->{$phoneField}) ?? '';
@@ -563,7 +565,7 @@ new class extends Component {
             'quick_parent_address' => __('crud.parents.form.fields.address'),
         ]);
 
-        if ($duplicate = $this->findDuplicateParent([
+        if (! $updatingParent && $duplicate = $this->findDuplicateParent([
             'father_name' => $validated['quick_parent_father_name'],
             'father_phone' => $validated['quick_parent_father_phone'],
             'mother_name' => $validated['quick_parent_mother_name'],
@@ -578,7 +580,7 @@ new class extends Component {
             return;
         }
 
-        $parent = ParentProfile::query()->create([
+        $parent = ParentProfile::query()->updateOrCreate(['id' => $updatingParent ? $this->parent_id : null], [
             'father_name' => $validated['quick_parent_father_name'],
             'father_work' => ($validated['quick_parent_new_father_work'] ?: $validated['quick_parent_father_work']) ?: null,
             'father_phone' => $validated['quick_parent_father_phone'] ?: null,
@@ -814,6 +816,7 @@ new class extends Component {
     public function createSchoolShortcut(): void
     {
         $this->authorizePermission('students.create');
+        $this->new_school_name = trim($this->school_name);
 
         $validated = $this->validate([
             'new_school_name' => ['required', 'string', 'max:255', Rule::unique('schools', 'name')],
@@ -834,6 +837,7 @@ new class extends Component {
     public function createQuickFatherJobShortcut(): void
     {
         $this->authorizePermission('parents.create');
+        $this->quick_parent_new_father_work = trim($this->quick_parent_father_work);
 
         $validated = $this->validate([
             'quick_parent_new_father_work' => ['required', 'string', 'max:255', Rule::unique('father_jobs', 'name')],
@@ -1337,8 +1341,6 @@ new class extends Component {
 
                 <div class="admin-toolbar__actions">
                     @can('students.update')
-                        <a href="{{ route('students.bulk-photos') }}" wire:navigate class="pill-link">{{ __('ui.nav.bulk_student_photos') }}</a>
-                        <button type="button" wire:click="openBulkStatusModal" class="pill-link">{{ __('crud.common.actions.bulk_status') }}</button>
                     @endcan
                     @can('students.create')
                         <button type="button" wire:click="openCreateModal" class="pill-link pill-link--accent">{{ __('crud.common.actions.create') }}</button>
@@ -1644,7 +1646,7 @@ new class extends Component {
             <div>
                 <div class="mb-1 flex flex-wrap items-center justify-between gap-3">
                     <label for="student-parent" class="block text-sm font-medium">{{ __('crud.students.form.fields.parent') }}</label>
-                    @can('parents.create')
+                    @canany(['parents.create', 'parents.update'])
                         <button type="button" wire:click="{{ $showQuickParentForm ? 'closeQuickParentForm' : 'openQuickParentForm' }}" class="pill-link pill-link--compact">
                             {{ $showQuickParentForm ? __('crud.students.form.parent_shortcut.cancel') : __('crud.students.form.parent_shortcut.action') }}
                         </button>
@@ -1706,16 +1708,17 @@ new class extends Component {
                     <div class="mt-4 grid gap-4 md:grid-cols-2">
                         <div>
                             <label class="mb-1 block text-sm font-medium">{{ __('crud.parents.form.fields.father_work') }}</label>
-                            <select wire:model="quick_parent_father_work" class="w-full rounded-xl px-4 py-3 text-sm">
-                                <option value="">{{ __('crud.common.not_available') }}</option>
+                            <div class="flex gap-2">
+                                <input wire:model.live.debounce.300ms="quick_parent_father_work" list="father-job-options" class="min-w-0 flex-1 rounded-xl px-4 py-3 text-sm" placeholder="{{ __('crud.parents.form.placeholders.new_father_work') }}">
+                                @if (filled($quick_parent_father_work) && ! $fatherJobs->contains(fn ($job) => strcasecmp($job->name, trim($quick_parent_father_work)) === 0))
+                                    <button type="button" wire:click="createQuickFatherJobShortcut" class="pill-link pill-link--compact" title="{{ __('crud.common.actions.create') }}" aria-label="{{ __('crud.common.actions.create') }}">+</button>
+                                @endif
+                            </div>
+                            <datalist id="father-job-options">
                                 @foreach ($fatherJobs as $fatherJob)
                                     <option value="{{ $fatherJob->name }}">{{ $fatherJob->name }}</option>
                                 @endforeach
-                            </select>
-                            <div class="mt-2 flex gap-2">
-                                <input wire:model="quick_parent_new_father_work" type="text" placeholder="{{ __('crud.parents.form.placeholders.new_father_work') }}" class="min-w-0 flex-1 rounded-xl px-4 py-2 text-sm">
-                                <button type="button" wire:click="createQuickFatherJobShortcut" class="pill-link pill-link--compact">{{ __('crud.common.actions.create') }}</button>
-                            </div>
+                            </datalist>
                             @error('quick_parent_father_work')
                                 <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                             @enderror
@@ -1799,16 +1802,17 @@ new class extends Component {
             <div class="grid gap-4 md:grid-cols-2">
                 <div>
                     <label for="student-school" class="mb-1 block text-sm font-medium">{{ __('crud.students.form.fields.school') }}</label>
-                    <select id="student-school" wire:model="school_name" class="w-full rounded-xl px-4 py-3 text-sm">
-                        <option value="">{{ __('crud.students.form.placeholders.select_school') }}</option>
+                    <div class="flex gap-2">
+                        <input id="student-school" wire:model.live.debounce.300ms="school_name" list="student-school-options" class="min-w-0 flex-1 rounded-xl px-4 py-3 text-sm" placeholder="{{ __('crud.students.form.placeholders.select_school') }}">
+                        @if (filled($school_name) && ! $schools->contains(fn ($school) => strcasecmp($school->name, trim($school_name)) === 0))
+                            <button type="button" wire:click="createSchoolShortcut" class="pill-link pill-link--compact" title="{{ __('crud.common.actions.create') }}" aria-label="{{ __('crud.common.actions.create') }}">+</button>
+                        @endif
+                    </div>
+                    <datalist id="student-school-options">
                         @foreach ($schools as $school)
                             <option value="{{ $school->name }}">{{ $school->name }}</option>
                         @endforeach
-                    </select>
-                    <div class="mt-2 flex gap-2">
-                        <input wire:model="new_school_name" type="text" placeholder="{{ __('crud.students.form.placeholders.new_school') }}" class="min-w-0 flex-1 rounded-xl px-4 py-2 text-sm">
-                        <button type="button" wire:click="createSchoolShortcut" class="pill-link pill-link--compact">{{ __('crud.common.actions.create') }}</button>
-                    </div>
+                    </datalist>
                     @error('school_name')
                         <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                     @enderror
@@ -1887,33 +1891,18 @@ new class extends Component {
                 @endif
             </div>
 
-            <div>
-                <label for="student-external-juzs" class="mb-1 block text-sm font-medium">{{ __('crud.students.form.fields.external_memorized_juzs') }}</label>
-                <select id="student-external-juzs" wire:model="external_memorized_juz_ids" multiple size="8" class="w-full rounded-xl px-4 py-3 text-sm">
+            <details class="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                <summary class="cursor-pointer text-sm font-medium">{{ __('crud.students.form.fields.external_memorized_juzs') }} · {{ collect($juzs)->whereIn('id', array_map('intval', $external_memorized_juz_ids))->pluck('juz_number')->sort()->implode(', ') ?: __('crud.common.not_available') }}</summary>
+                <div class="mt-4 grid max-h-72 gap-2 overflow-y-auto sm:grid-cols-3">
                     @foreach ($juzs as $juz)
-                        <option value="{{ $juz->id }}">
-                            {{ __('crud.students.labels.juz_number', ['number' => $juz->juz_number]) }}
-                            ({{ $juz->from_page }}-{{ $juz->to_page }})
-                        </option>
+                        <label class="flex items-center gap-2 rounded-xl border border-white/8 px-3 py-2 text-sm"><input type="checkbox" wire:model.live="external_memorized_juz_ids" value="{{ $juz->id }}" class="rounded"><span>{{ __('crud.students.labels.juz_number', ['number' => $juz->juz_number]) }}</span></label>
                     @endforeach
-                </select>
+                </div>
                 <p class="mt-2 text-xs text-neutral-400">{{ __('crud.students.form.external_memorized_juzs_help') }}</p>
                 @error('external_memorized_juz_ids.*')
                     <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                 @enderror
-            </div>
-
-            @if ($editingId)
-                <div class="grid gap-4 md:grid-cols-2">
-                    <div>
-                        <label for="student-joined-at" class="mb-1 block text-sm font-medium">{{ __('crud.students.form.fields.joined_at') }}</label>
-                        <input id="student-joined-at" wire:model="joined_at" type="date" class="w-full rounded-xl px-4 py-3 text-sm">
-                        @error('joined_at')
-                            <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
-                        @enderror
-                    </div>
-                </div>
-            @endif
+            </details>
 
             <div class="flex flex-wrap items-center gap-3">
                 <button type="submit" class="pill-link pill-link--accent">
@@ -1949,7 +1938,7 @@ new class extends Component {
 
                     <div>
                         <label class="mb-1 block text-sm font-medium">{{ __('access.profile_accounts.fields.email') }}</label>
-                        <input wire:model="account_email" type="email" class="w-full rounded-xl px-4 py-3 text-sm">
+                        <input wire:model="account_email" type="email" readonly class="w-full rounded-xl px-4 py-3 text-sm opacity-75">
                         @error('account_email')
                             <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                         @enderror

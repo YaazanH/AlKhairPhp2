@@ -12,6 +12,7 @@ class StudentCardPrint extends Model
 
     protected $fillable = [
         'student_id',
+        'course_id',
         'print_template_id',
         'printed_by',
         'printed_at',
@@ -27,6 +28,11 @@ class StudentCardPrint extends Model
     public function printedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'printed_by');
+    }
+
+    public function course(): BelongsTo
+    {
+        return $this->belongsTo(Course::class);
     }
 
     public function student(): BelongsTo

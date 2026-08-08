@@ -2,7 +2,7 @@
 
 return [
     'app' => [
-        'name' => 'AlKhair',
+        'name' => 'AlKhair Mosque',
         'quran_course' => 'Quran Course',
         'short_tagline' => 'Learning Hub',
         'workspace_tagline' => 'Quran tracking, school operations, finance, and reporting connected in one workspace.',
@@ -75,7 +75,7 @@ return [
         'action_barcodes' => 'Action Barcodes',
         'scanner_import' => 'Scanner Import',
         'configuration' => 'Configuration',
-        'dashboard_settings' => 'Dashboard Settings',
+        'dashboard_settings' => 'Settings',
         'public_website_settings' => 'Public Website Settings',
         'organization' => 'Organization',
         'tracking_rules' => 'Tracking Rules',

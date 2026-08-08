@@ -37,6 +37,7 @@ new class extends Component {
 
         return [
             'courses' => Course::query()
+                ->where('is_active', true)
                 ->whereHas('groups', function (Builder $query) {
                     $this->scopeGroupsQuery($query->where('is_active', true));
                 })

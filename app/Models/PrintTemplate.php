@@ -19,6 +19,7 @@ class PrintTemplate extends Model
         'layout_json',
         'is_active',
         'is_student_card',
+        'is_report_card',
     ];
 
     protected function casts(): array
@@ -30,6 +31,7 @@ class PrintTemplate extends Model
             'layout_json' => 'array',
             'is_active' => 'boolean',
             'is_student_card' => 'boolean',
+            'is_report_card' => 'boolean',
         ];
     }
 

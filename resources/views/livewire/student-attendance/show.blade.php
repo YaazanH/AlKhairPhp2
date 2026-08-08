@@ -3,9 +3,12 @@
 use App\Livewire\Concerns\AuthorizesPermissions;
 use App\Livewire\Concerns\AuthorizesTeacherAssignments;
 use App\Models\AttendanceStatus;
+use App\Models\Enrollment;
 use App\Models\Group;
 use App\Models\StudentAttendanceDay;
+use App\Services\PointLedgerService;
 use App\Services\StudentAttendanceDayService;
+use Illuminate\Support\Facades\DB;
 use Livewire\Volt\Component;
 
 new class extends Component
@@ -79,6 +82,36 @@ new class extends Component
                 ? __('workflow.student_attendance.day_details.messages.closed')
                 : __('workflow.student_attendance.day_details.messages.reopened')
         );
+    }
+
+    public function deleteDay(): void
+    {
+        $this->authorizePermission('attendance.student.take');
+
+        $day = $this->currentDay->fresh(['groupAttendanceDays.records']);
+        $enrollmentIds = collect();
+
+        DB::transaction(function () use ($day, &$enrollmentIds): void {
+            foreach ($day->groupAttendanceDays as $groupDay) {
+                foreach ($groupDay->records as $record) {
+                    $enrollmentIds->push($record->enrollment_id);
+                    app(PointLedgerService::class)->voidSourceTransactions(
+                        'student_attendance_record',
+                        $record->id,
+                        __('workflow.student_attendance.messages.deleted_void_reason'),
+                    );
+                }
+                $groupDay->records()->delete();
+                $groupDay->delete();
+            }
+            $day->delete();
+        });
+
+        Enrollment::query()->with('student')->whereKey($enrollmentIds->filter()->unique()->values())->get()
+            ->each(fn (Enrollment $enrollment) => app(PointLedgerService::class)->syncEnrollmentCaches($enrollment));
+
+        session()->flash('status', __('workflow.student_attendance.days.messages.deleted'));
+        $this->redirect(route('student-attendance.index'), navigate: true);
     }
 
     protected function dayGroupAttendanceDaysQuery($query)
@@ -241,6 +274,11 @@ new class extends Component
                                 : __('workflow.student_attendance.day_details.controls.close_day') }}
                         </button>
                     @endif
+                    @can('attendance.student.take')
+                        <button type="button" wire:click="deleteDay" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link border-red-400/25 text-red-200 hover:border-red-300/35 hover:bg-red-500/12">
+                            {{ __('crud.common.actions.delete') }}
+                        </button>
+                    @endcan
                 </div>
             </div>
 

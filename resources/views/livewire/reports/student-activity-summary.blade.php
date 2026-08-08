@@ -36,7 +36,7 @@ new class extends Component
     public function mount(): void
     {
         $this->authorizePermission('reports.view');
-        $this->course_id = Course::query()->where('is_default', true)->value('id');
+        $this->course_id = Course::query()->where('is_default', true)->where('is_active', true)->value('id');
     }
 
     public function updatedCourseId(): void
@@ -59,7 +59,7 @@ new class extends Component
 
     public function clearFilters(): void
     {
-        $this->course_id = Course::query()->where('is_default', true)->value('id');
+        $this->course_id = Course::query()->where('is_default', true)->where('is_active', true)->value('id');
         $this->group_id = null;
         $this->date_from = '';
         $this->date_to = '';
@@ -88,10 +88,12 @@ new class extends Component
         $rows = $this->sortedRows(app(ReportingService::class)->studentActivitySummary($this->filters()));
 
         return [
-            'courses' => Course::query()->orderByDesc('is_active')->orderBy('name')->get(['id', 'name']),
+            'courses' => Course::query()->where('is_active', true)->orderBy('name')->get(['id', 'name']),
             'groups' => $this->scopeGroupsQuery(
                 Group::query()
                     ->with(['course', 'academicYear'])
+                    ->where('is_active', true)
+                    ->whereHas('course', fn ($query) => $query->where('is_active', true))
                     ->when($this->course_id, fn ($query) => $query->where('course_id', $this->course_id))
                     ->orderBy('name')
             )->get(),

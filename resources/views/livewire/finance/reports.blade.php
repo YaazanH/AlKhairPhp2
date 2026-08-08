@@ -194,13 +194,17 @@ new class extends Component {
 
     protected function ledgerCurrencies(): Collection
     {
-        if ($this->ledger_cash_box_id === '') {
+        $cashBoxIds = collect($this->ledger_cash_box_ids)->filter()->map(fn ($id) => (int) $id)->values();
+        if ($cashBoxIds->isEmpty()) {
             return collect();
         }
 
-        return app(FinanceService::class)
-            ->currenciesForCashBox((int) $this->ledger_cash_box_id)
-            ->get();
+        $service = app(FinanceService::class);
+        $currencies = $service->currenciesForCashBox($cashBoxIds->first())->get();
+
+        return $currencies->filter(fn ($currency) => $cashBoxIds->every(
+            fn (int $cashBoxId) => $service->currenciesForCashBox($cashBoxId)->whereKey($currency->id)->exists()
+        ))->values();
     }
 }; ?>
 
@@ -293,29 +297,24 @@ new class extends Component {
             ];
         @endphp
         <section class="surface-panel p-5 lg:p-6" style="order: 3">
-            <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
                 <div class="w-full sm:max-w-md">
                     <div class="eyebrow">{{ __('finance.reports.ledger_export') }}</div>
                     <h2 class="font-display mt-3 text-2xl text-white">{{ __('finance.reports.ledger_export_title') }}</h2>
                     <p class="mt-2 text-sm leading-6 text-neutral-300">{{ __('finance.reports.ledger_export_subtitle') }}</p>
-                </div>
-                <div class="w-full sm:max-w-md">
-                    <label class="mb-1 block text-sm font-medium">{{ __('finance.reports.report_notes') }}</label>
-                    <textarea wire:model="report_notes" rows="3" maxlength="4000" class="w-full rounded-xl px-4 py-3 text-sm"></textarea>
-                    <p class="mt-1 text-xs text-neutral-400">{{ __('finance.reports.report_notes_help') }}</p>
                 </div>
             </div>
 
             <div class="mt-5 grid gap-4">
                 <div>
                     <label class="mb-1 block text-sm font-medium">{{ __('finance.fields.cash_box') }}</label>
-                    <select wire:model.live="ledger_cash_box_ids" multiple size="5" class="w-full rounded-xl px-4 py-3 text-sm">
+                    <div class="grid gap-2 sm:grid-cols-2">
                         @forelse ($ledgerCashBoxes as $cashBox)
-                            <option value="{{ $cashBox->id }}">{{ $cashBox->name }}</option>
+                            <label class="flex items-center gap-3 rounded-xl border border-white/10 px-4 py-3 text-sm"><input type="checkbox" wire:model.live="ledger_cash_box_ids" value="{{ $cashBox->id }}" class="rounded"><span>{{ $cashBox->name }}</span></label>
                         @empty
-                            <option value="">{{ __('finance.empty.no_cash_boxes') }}</option>
+                            <span>{{ __('finance.empty.no_cash_boxes') }}</span>
                         @endforelse
-                    </select>
+                    </div>
                 </div>
                 <div>
                     <label class="mb-1 block text-sm font-medium">{{ __('finance.common.currency') }}</label>
@@ -355,6 +354,12 @@ new class extends Component {
                         </div>
                     @endif
                 </div>
+            </div>
+
+            <div class="mt-5">
+                <label class="mb-1 block text-sm font-medium">{{ __('finance.reports.report_notes') }}</label>
+                <textarea wire:model.live="report_notes" rows="3" maxlength="4000" class="w-full rounded-xl px-4 py-3 text-sm"></textarea>
+                <p class="mt-1 text-xs text-neutral-400">{{ __('finance.reports.report_notes_help') }}</p>
             </div>
 
             <div class="mt-5 flex flex-wrap gap-3">

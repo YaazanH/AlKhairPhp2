@@ -97,7 +97,7 @@ new class extends Component {
                     ->whereNotIn('name', RoleRegistry::actorRoles())
                     ->get()
             ),
-            'courses' => Course::query()->orderByDesc('is_active')->orderBy('name')->get(),
+            'courses' => Course::query()->where('is_active', true)->orderBy('name')->get(),
         ];
     }
 
@@ -114,6 +114,13 @@ new class extends Component {
     public function updatedHelpingFilter(): void
     {
         $this->resetPage();
+    }
+
+    public function updatedAccountUsername(string $value): void
+    {
+        $this->account_email = filled($value)
+            ? app(ManagedUserService::class)->uniqueEmail(null, trim($value), $this->linkedUserId())
+            : '';
     }
 
     public function rules(): array
@@ -140,7 +147,7 @@ new class extends Component {
             'phone' => ['required', 'string', 'max:30'],
             'access_role_id' => ['nullable', 'integer', Rule::exists('roles', 'id')],
             'course_id' => ['nullable', 'integer', Rule::exists('courses', 'id')],
-            'hired_at' => ['required', 'date'],
+            'hired_at' => ['nullable', 'date'],
             'is_helping' => ['boolean'],
             'photo_upload' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
             'notes' => ['nullable', 'string'],
@@ -922,13 +929,6 @@ new class extends Component {
             </div>
 
             <div class="grid gap-4 md:grid-cols-2">
-                <div>
-                    <label for="teacher-hired-at" class="mb-1 block text-sm font-medium">{{ __('crud.teachers.form.fields.hired_at') }}</label>
-                    <input id="teacher-hired-at" wire:model="hired_at" type="date" class="w-full rounded-xl px-4 py-3 text-sm">
-                    @error('hired_at')
-                        <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
-                    @enderror
-                </div>
             </div>
 
             @if ($editingId)
@@ -971,7 +971,7 @@ new class extends Component {
                 <div class="mt-4 grid gap-4 md:grid-cols-2">
                     <div>
                         <label class="mb-1 block text-sm font-medium">{{ __('access.profile_accounts.fields.username') }}</label>
-                        <input wire:model="account_username" type="text" class="w-full rounded-xl px-4 py-3 text-sm">
+                        <input wire:model.live.debounce.300ms="account_username" type="text" class="w-full rounded-xl px-4 py-3 text-sm">
                         @error('account_username')
                             <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                         @enderror
@@ -980,7 +980,7 @@ new class extends Component {
 
                     <div>
                         <label class="mb-1 block text-sm font-medium">{{ __('access.profile_accounts.fields.email') }}</label>
-                        <input wire:model="account_email" type="email" class="w-full rounded-xl px-4 py-3 text-sm">
+                        <input wire:model="account_email" type="email" readonly class="w-full rounded-xl px-4 py-3 text-sm opacity-75">
                         @error('account_email')
                             <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                         @enderror
@@ -1122,13 +1122,6 @@ new class extends Component {
                     @enderror
                 </div>
 
-                <div>
-                    <label for="review-teacher-hired-at" class="mb-1 block text-sm font-medium">{{ __('crud.teachers.form.fields.hired_at') }}</label>
-                    <input id="review-teacher-hired-at" wire:model="hired_at" type="date" class="w-full rounded-xl px-4 py-3 text-sm">
-                    @error('hired_at')
-                        <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
-                    @enderror
-                </div>
             </div>
 
             <label class="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm">

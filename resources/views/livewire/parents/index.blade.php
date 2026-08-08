@@ -716,7 +716,6 @@ new class extends Component {
 
                 <div class="admin-toolbar__actions">
                     @can('parents.update')
-                        <button type="button" wire:click="openBulkStatusModal" class="pill-link">{{ __('crud.common.actions.bulk_status') }}</button>
                     @endcan
                     @can('parents.create')
                         <button type="button" wire:click="openCreateModal" class="pill-link pill-link--accent">{{ __('crud.common.actions.create') }}</button>
@@ -1052,7 +1051,7 @@ new class extends Component {
 
                     <div>
                         <label class="mb-1 block text-sm font-medium">{{ __('access.profile_accounts.fields.email') }}</label>
-                        <input wire:model="account_email" type="email" class="w-full rounded-xl px-4 py-3 text-sm">
+                        <input wire:model="account_email" type="email" readonly class="w-full rounded-xl px-4 py-3 text-sm opacity-75">
                         @error('account_email')
                             <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                         @enderror

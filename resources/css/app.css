@@ -17,7 +17,7 @@
     --font-sans: 'Dubai', ui-sans-serif, system-ui, sans-serif;
     --font-display: 'Dubai', ui-sans-serif, system-ui, sans-serif;
     --font-arabic: 'Dubai', 'Tahoma', sans-serif;
-    --font-metric: 'Fraunces', Georgia, serif;
+    --font-metric: 'Dubai', ui-sans-serif, system-ui, sans-serif;
 
     --color-zinc-50: #f8f3eb;
     --color-zinc-100: #ebe2d5;
@@ -94,11 +94,20 @@
     }
 
     body {
+        font-weight: 400;
         color: var(--app-text);
         background:
             radial-gradient(circle at top left, rgba(11, 143, 67, 0.14), transparent 24rem),
             radial-gradient(circle at top right, rgba(196, 146, 64, 0.12), transparent 20rem),
             linear-gradient(180deg, #fbf7ef 0%, var(--app-bg) 100%);
+    }
+
+    h1, h2, h3, h4, h5, h6, strong, b {
+        font-weight: 700;
+    }
+
+    small, .text-xs {
+        font-weight: 300;
     }
 
     *,
@@ -2166,7 +2175,9 @@ html:not(.dark) .admin-modal [class*='border-emerald'] {
     font-family: var(--font-metric);
     font-size: clamp(2.15rem, 4vw, 3.35rem);
     line-height: 0.95;
-    letter-spacing: -0.05em;
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+    letter-spacing: -0.02em;
 }
 
 .stat-card {

@@ -29,6 +29,7 @@ return [
         'find' => 'Find',
         'print_a5' => 'Print',
         'view_invoice' => 'View invoice',
+        'edit_invoice' => 'Edit invoice',
         'view_original' => 'View original',
         'review_request' => 'Review request',
         'review' => 'Review',

@@ -17,7 +17,13 @@ class TeacherAttendanceExportController extends Controller
         $days = TeacherAttendanceDay::query()->whereBetween('attendance_date', [$validated['date_from'], $validated['date_to']])->count();
         $teachers = Teacher::query()->with(['accessRole', 'jobTitle'])->where('is_helping', true)->get()->sortBy('first_name')->map(function (Teacher $teacher) use ($validated, $days): array {
             $present = $teacher->attendanceRecords()->whereHas('attendanceDay', fn ($query) => $query->whereBetween('attendance_date', [$validated['date_from'], $validated['date_to']]))->whereHas('status', fn ($query) => $query->where('is_present', true))->count();
-            return ['name' => trim($teacher->first_name.' '.$teacher->last_name), 'role' => $teacher->accessRole?->name ?: $teacher->jobTitle?->name ?: $teacher->job_title, 'percentage' => $days > 0 ? (int) ceil(($present / $days) * 100) : 0];
+            $role = $teacher->accessRole?->name ?: $teacher->jobTitle?->name ?: $teacher->job_title;
+            $translatedRole = $role ? __('ui.roles.'.$role) : '';
+            if ($role && $translatedRole === 'ui.roles.'.$role) {
+                $translatedRole = str_replace(['_', '-'], ' ', $role);
+            }
+
+            return ['name' => trim($teacher->first_name.' '.$teacher->last_name), 'role' => $translatedRole, 'percentage' => $days > 0 ? (int) ceil(($present / $days) * 100) : 0];
         })->sortBy(fn (array $row) => mb_strtolower($row['name']))->values();
         $course = Course::query()->where('is_default', true)->first();
         $html = view('reports.teacher-attendance', compact('teachers', 'course', 'validated'))->render();

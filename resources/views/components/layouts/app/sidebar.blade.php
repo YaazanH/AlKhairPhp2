@@ -18,9 +18,11 @@
     </head>
     <body class="app-body">
         @php
-            $roleLabel = auth()->user()->getRoleNames()
-                ->map(fn (string $role) => __('ui.roles.'.$role))
-                ->implode(' · ');
+            $primaryRole = auth()->user()->getRoleNames()->first();
+            $roleLabel = $primaryRole ? __('ui.roles.'.$primaryRole) : null;
+            if ($primaryRole && $roleLabel === 'ui.roles.'.$primaryRole) {
+                $roleLabel = \Illuminate\Support\Str::of($primaryRole)->replace(['_', '-'], ' ')->headline()->toString();
+            }
         @endphp
 
         <div class="app-backdrop">

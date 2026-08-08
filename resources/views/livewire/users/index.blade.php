@@ -126,6 +126,13 @@ new class extends Component
         $this->resetPage();
     }
 
+    public function updatedUsername(string $value): void
+    {
+        $this->email = filled($value)
+            ? app(ManagedUserService::class)->uniqueEmail(null, trim($value), $this->editingId)
+            : '';
+    }
+
     public function rules(): array
     {
         return [
@@ -170,9 +177,7 @@ new class extends Component
         $username = filled($validated['username'] ?? null)
             ? $accountService->uniqueUsername((string) $validated['username'], $validated['name'], $this->editingId)
             : ($existingUser?->username ?: $accountService->uniqueUsername('', $validated['name'], $this->editingId));
-        $email = filled($validated['email'] ?? null)
-            ? $accountService->uniqueEmail((string) $validated['email'], $username, $this->editingId)
-            : ($existingUser?->email ?: $accountService->uniqueEmail(null, $username, $this->editingId));
+        $email = $accountService->uniqueEmail(null, $username, $this->editingId);
         $plainPassword = filled($validated['password'] ?? null)
             ? (string) $validated['password']
             : ($this->editingId ? null : $accountService->generatePassword());
@@ -564,7 +569,7 @@ new class extends Component
 
                     <div class="admin-form-field">
                         <label class="mb-1 block text-sm font-medium">{{ __('access.users.fields.username') }}</label>
-                        <input wire:model="username" type="text" class="w-full rounded-xl px-4 py-3 text-sm">
+                        <input wire:model.live.debounce.300ms="username" type="text" class="w-full rounded-xl px-4 py-3 text-sm">
                         @error('username')
                             <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                         @enderror
@@ -572,7 +577,7 @@ new class extends Component
 
                     <div class="admin-form-field">
                         <label class="mb-1 block text-sm font-medium">{{ __('access.users.fields.email') }}</label>
-                        <input wire:model="email" type="email" class="w-full rounded-xl px-4 py-3 text-sm">
+                        <input wire:model="email" type="email" readonly class="w-full rounded-xl px-4 py-3 text-sm opacity-75">
                         @error('email')
                             <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                         @enderror

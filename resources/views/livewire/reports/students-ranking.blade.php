@@ -73,6 +73,8 @@ new class extends Component {
             'groups' => $this->scopeGroupsQuery(
                 Group::query()
                     ->with(['course', 'academicYear'])
+                    ->where('is_active', true)
+                    ->whereHas('course', fn ($query) => $query->where('is_active', true))
                     ->when($this->academic_year_id, fn ($query) => $query->where('academic_year_id', $this->academic_year_id))
                     ->orderBy('name')
             )->get(),

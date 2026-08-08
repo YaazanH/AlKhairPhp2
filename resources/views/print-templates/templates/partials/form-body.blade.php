@@ -39,6 +39,10 @@
                     <input type="checkbox" name="is_student_card" value="1" @checked(old('is_student_card', $template->is_student_card))>
                     <span>{{ __('print_templates.templates.form.fields.is_student_card') }}</span>
                 </label>
+                <label class="admin-checkbox">
+                    <input type="checkbox" name="is_report_card" value="1" @checked(old('is_report_card', $template->is_report_card))>
+                    <span>{{ __('print_templates.templates.form.fields.is_report_card') }}</span>
+                </label>
             </div>
         </div>
 

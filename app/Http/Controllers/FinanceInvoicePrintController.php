@@ -12,8 +12,8 @@ class FinanceInvoicePrintController extends Controller
 {
     public function __invoke(Invoice $invoice): Response
     {
-        abort_unless(request()->user()?->can('finance.expense-requests.view'), 403);
-        abort_unless($invoice->invoice_type === 'finance' && $invoice->finalised_at, 404);
+        abort_unless(request()->user()?->can('finance.expense-requests.view') || request()->user()?->can('invoices.view'), 403);
+        abort_unless($invoice->invoice_type === 'finance', 404);
 
         $invoice->load(['items', 'financeRequest.acceptedCurrency', 'finalisedBy']);
         $fontDirectories = (new ConfigVariables())->getDefaults()['fontDir'];

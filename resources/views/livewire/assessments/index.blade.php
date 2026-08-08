@@ -23,7 +23,7 @@ new class extends Component {
     public ?int $editingId = null;
     public ?int $group_id = null;
     public array $group_ids = [];
-    public string $group_scope = 'single';
+    public string $group_scope = 'all';
     public ?int $assessment_type_id = null;
     public string $title = '';
     public string $description = '';
@@ -35,6 +35,7 @@ new class extends Component {
     public bool $is_active = true;
     public string $groupCourseFilter = 'all';
     public string $courseFilter = 'all';
+    public string $statusFilter = 'active';
     public int $perPage = 15;
     public bool $showForm = false;
 
@@ -44,12 +45,19 @@ new class extends Component {
         $defaultCourseId = Course::query()->where('is_default', true)->where('is_active', true)->value('id');
         $this->courseFilter = (string) ($defaultCourseId ?? 'all');
         $this->groupCourseFilter = (string) ($defaultCourseId ?? 'all');
+        if (request()->filled('edit')) {
+            $this->edit((int) request('edit'));
+        }
     }
 
     public function with(): array
     {
         $groupQuery = $this->scopeGroupsQuery(
-            Group::query()->with(['course', 'academicYear'])->orderBy('name')
+            Group::query()
+                ->with(['course', 'academicYear'])
+                ->where('is_active', true)
+                ->whereHas('course', fn ($query) => $query->where('is_active', true))
+                ->orderBy('name')
         );
         $allAvailableGroups = (clone $groupQuery)->get();
         $availableGroups = $allAvailableGroups
@@ -60,6 +68,7 @@ new class extends Component {
             Assessment::query()
                 ->with(['group.course', 'groups.course', 'type'])
                 ->withCount('results')
+                ->when($this->statusFilter === 'active', fn ($query) => $query->where('is_active', true))
                 ->when($this->courseFilter !== 'all', function ($query) {
                     $query->where(function ($builder) {
                         $builder
@@ -77,6 +86,7 @@ new class extends Component {
         return [
             'groups' => $availableGroups,
             'courses' => Course::query()
+                ->where('is_active', true)
                 ->whereIn('id', $courseIds)
                 ->orderBy('name')
                 ->get(['id', 'name']),
@@ -98,6 +108,11 @@ new class extends Component {
     }
 
     public function updatedCourseFilter(): void
+    {
+        $this->resetPage();
+    }
+
+    public function updatedStatusFilter(): void
     {
         $this->resetPage();
     }
@@ -181,8 +196,11 @@ new class extends Component {
         $this->authorizePermission('assessments.create');
 
         $this->cancel(closeForm: false);
-        $this->scheduled_at = now()->format('Y-m-d\TH:i');
-        $this->due_at = now()->addDays(7)->format('Y-m-d\TH:i');
+        $defaultCourseId = Course::query()->where('is_default', true)->where('is_active', true)->value('id');
+        $this->groupCourseFilter = (string) ($defaultCourseId ?? 'all');
+        $this->group_scope = 'all';
+        $this->scheduled_at = '';
+        $this->due_at = now()->addDays(7)->format('Y-m-d');
         $this->due_at_manually_changed = false;
         $this->showForm = true;
     }
@@ -251,8 +269,8 @@ new class extends Component {
         $this->assessment_type_id = $assessment->assessment_type_id;
         $this->title = $assessment->title;
         $this->description = $assessment->description ?? '';
-        $this->scheduled_at = $assessment->scheduled_at?->format('Y-m-d\TH:i') ?? '';
-        $this->due_at = $assessment->due_at?->format('Y-m-d\TH:i') ?? '';
+        $this->scheduled_at = $assessment->scheduled_at?->format('Y-m-d') ?? '';
+        $this->due_at = $assessment->due_at?->format('Y-m-d') ?? '';
         $this->due_at_manually_changed = true;
         $this->total_mark = $assessment->total_mark !== null ? number_format((float) $assessment->total_mark, 2, '.', '') : '';
         $this->pass_mark = $assessment->pass_mark !== null ? number_format((float) $assessment->pass_mark, 2, '.', '') : '';
@@ -267,7 +285,7 @@ new class extends Component {
         $this->editingId = null;
         $this->group_id = null;
         $this->group_ids = [];
-        $this->group_scope = 'single';
+        $this->group_scope = 'all';
         $this->assessment_type_id = null;
         $this->title = '';
         $this->description = '';
@@ -277,7 +295,7 @@ new class extends Component {
         $this->total_mark = '';
         $this->pass_mark = '';
         $this->is_active = true;
-        $this->groupCourseFilter = 'all';
+        $this->groupCourseFilter = (string) (Course::query()->where('is_default', true)->where('is_active', true)->value('id') ?? 'all');
 
         if ($closeForm) {
             $this->showForm = false;
@@ -353,6 +371,8 @@ new class extends Component {
         }
 
         return $this->scopeGroupsQuery(Group::query())
+            ->where('is_active', true)
+            ->whereHas('course', fn ($query) => $query->where('is_active', true))
             ->when($this->groupCourseFilter !== 'all', fn ($query) => $query->where('course_id', (int) $this->groupCourseFilter))
             ->pluck('id')
             ->map(fn ($id) => (int) $id)
@@ -521,15 +541,10 @@ new class extends Component {
                         @error('title') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
                     </div>
 
-                    <div class="grid gap-4 md:grid-cols-2">
-                        <div>
-                            <label class="mb-1 block text-sm font-medium">{{ __('workflow.assessments.index.form.scheduled_at') }}</label>
-                            <input wire:model="scheduled_at" type="datetime-local" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
-                            @error('scheduled_at') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
-                        </div>
+                    <div>
                         <div>
                             <label class="mb-1 block text-sm font-medium">{{ __('workflow.assessments.index.form.due_at') }}</label>
-                            <input wire:model="due_at" type="datetime-local" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                            <input wire:model="due_at" type="date" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
                             @error('due_at') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
                         </div>
                     </div>
@@ -593,6 +608,13 @@ new class extends Component {
                             @endforeach
                         </select>
                     </div>
+                    <div class="admin-filter-field">
+                        <label for="assessment-status-filter">{{ __('workflow.assessments.index.table.headers.status') }}</label>
+                        <select id="assessment-status-filter" wire:model.live="statusFilter">
+                            <option value="active">{{ __('crud.common.status_options.active') }}</option>
+                            <option value="all">{{ __('crud.common.filters.all_statuses') }}</option>
+                        </select>
+                    </div>
                     @can('assessments.create')
                         <button type="button" wire:click="create" class="pill-link pill-link--accent inline-flex min-w-40 justify-center text-center">
                             {{ __('workflow.assessments.index.form.create_title') }}
@@ -612,6 +634,7 @@ new class extends Component {
                                 <th class="px-5 py-3 text-left font-medium">{{ __('workflow.assessments.index.table.headers.schedule') }}</th>
                                 <th class="px-5 py-3 text-left font-medium">{{ __('workflow.assessments.index.table.headers.marks') }}</th>
                                 <th class="px-5 py-3 text-left font-medium">{{ __('workflow.assessments.index.table.headers.results') }}</th>
+                                <th class="px-5 py-3 text-left font-medium">{{ __('workflow.assessments.index.table.headers.status') }}</th>
                                 <th class="px-5 py-3 text-end font-medium">{{ __('workflow.assessments.index.table.headers.actions') }}</th>
                             </tr>
                         </thead>
@@ -626,36 +649,25 @@ new class extends Component {
                                     <td class="px-5 py-3">
                                         <div class="font-medium">{{ $assessment->title }}</div>
                                         <div class="text-xs text-neutral-500">
-                                            {{ $assessment->type?->name ?: __('workflow.common.not_available') }} |
-                                            {{ $assessmentGroups->pluck('name')->take(2)->implode(', ') ?: __('workflow.common.not_available') }}
-                                            @if ($assessmentGroups->count() > 2)
-                                                {{ __('workflow.assessments.index.table.more_groups', ['count' => $assessmentGroups->count() - 2]) }}
-                                            @endif
+                                            {{ $assessment->type?->name ?: __('workflow.common.not_available') }}
                                         </div>
                                         <div class="mt-1 text-xs text-neutral-500">
                                             {{ $assessmentGroups->pluck('course.name')->filter()->unique()->implode(', ') ?: __('workflow.common.not_available') }}
                                         </div>
                                     </td>
                                     <td class="px-5 py-3">
-                                        <div>{{ $assessment->scheduled_at?->format('d-m-Y H:i') ?: __('workflow.common.not_available') }}</div>
-                                        <div class="text-xs text-neutral-500">{{ __('workflow.common.labels.due', ['value' => $assessment->due_at?->format('d-m-Y H:i') ?: __('workflow.common.not_available')]) }}</div>
+                                        <div>{{ $assessment->due_at?->format('d-m-Y') ?: __('workflow.common.not_available') }}</div>
                                     </td>
                                     <td class="px-5 py-3">
                                         <div>{{ __('workflow.common.labels.total', ['value' => $assessment->total_mark !== null ? number_format((float) $assessment->total_mark, 2) : __('workflow.common.not_available')]) }}</div>
                                         <div class="text-xs text-neutral-500">{{ __('workflow.common.labels.pass', ['value' => $assessment->pass_mark !== null ? number_format((float) $assessment->pass_mark, 2) : __('workflow.common.not_available')]) }}</div>
                                     </td>
                                     <td class="px-5 py-3">{{ number_format($assessment->results_count) }}</td>
+                                    <td class="px-5 py-3"><span class="{{ $assessment->is_active ? 'status-chip status-chip--emerald' : 'status-chip status-chip--slate' }}">{{ __('crud.common.status_options.'.($assessment->is_active ? 'active' : 'inactive')) }}</span></td>
                                     <td class="px-5 py-3 text-end">
                                         <div class="admin-action-cluster admin-action-cluster--end">
                                             @can('assessment-results.view')
-                                                <a href="{{ route('assessments.results', $assessment) }}" wire:navigate class="pill-link pill-link--compact">{{ __('workflow.common.actions.results') }}</a>
-                                                <a href="{{ route('assessments.results.pdf', $assessment) }}" target="_blank" rel="noopener" class="pill-link pill-link--compact">{{ __('workflow.assessments.results.pdf_export') }}</a>
-                                            @endcan
-                                            @can('assessments.update')
-                                                <button type="button" wire:click="edit({{ $assessment->id }})" class="pill-link pill-link--compact">{{ __('crud.common.actions.edit') }}</button>
-                                            @endcan
-                                            @can('assessments.delete')
-                                                <button type="button" wire:click="delete({{ $assessment->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link pill-link--compact border-red-400/25 text-red-200 hover:border-red-300/35 hover:bg-red-500/12">{{ __('crud.common.actions.delete') }}</button>
+                                                <a href="{{ route('assessments.results', $assessment) }}" wire:navigate class="pill-link pill-link--compact">{{ app()->isLocale('ar') ? 'فتح' : 'Open' }}</a>
                                             @endcan
                                         </div>
                                     </td>

@@ -33,6 +33,7 @@
         @else
             <form method="POST" action="{{ $previewRoute }}" target="_blank" class="space-y-6">
                 @csrf
+                @if ($studentCardMode ?? false)<input type="hidden" name="course_id" value="{{ $selectedCourseId }}">@endif
 
                 <div class="website-workbench website-workbench--editor">
                     <section class="surface-panel p-5 lg:p-6">
@@ -44,6 +45,15 @@
                         </div>
 
                         <div class="mt-6 admin-form-grid">
+                            @if ($studentCardMode ?? false)
+                                <div class="admin-form-field admin-form-field--full rounded-2xl border border-white/10 p-4">
+                                    <label for="student-card-course">{{ __('crud.students.bulk_status.fields.course') }}</label>
+                                    <select id="student-card-course" onchange="window.location.href = `${window.location.pathname}?course_id=${this.value}`">
+                                        @foreach ($activeCourses as $course)<option value="{{ $course->id }}" @selected((int)$selectedCourseId === (int)$course->id)>{{ $course->name }}</option>@endforeach
+                                    </select>
+                                    <p class="mt-2 text-xs text-neutral-400">{{ __('print_templates.print.setup.fields.active_students') }} · {{ __('print_templates.print.setup.fields.not_printed_students') }}</p>
+                                </div>
+                            @endif
                             <div class="admin-form-field admin-form-field--full">
                                 <label for="print-template-print-template">{{ __('print_templates.print.setup.fields.template') }}</label>
                                 <select id="print-template-print-template" name="template_id" data-print-template-select>
@@ -84,18 +94,11 @@
                                 <button
                                     type="button"
                                     class="pill-link"
-                                    data-mark-selected-printed
+                                    data-toggle-selected-print-status
                                     data-record-url="{{ route('id-cards.print.record') }}"
-                                >
-                                    {{ __('print_templates.print.setup.buttons.mark_printed') }}
-                                </button>
-                                <button
-                                    type="button"
-                                    class="pill-link"
-                                    data-mark-selected-unprinted
                                     data-clear-url="{{ route('id-cards.print.clear') }}"
                                 >
-                                    {{ __('print_templates.print.setup.buttons.mark_unprinted') }}
+                                    {{ __('print_templates.print.setup.buttons.mark_printed') }}
                                 </button>
                             @endif
                             <a href="{{ $cancelUrl }}" class="pill-link">{{ __('crud.common.actions.cancel') }}</a>
@@ -161,21 +164,13 @@
                                                             @endforeach
                                                         </select>
                                                     </div>
-                                                    <div class="admin-filter-field">
-                                                        <label>{{ __('print_templates.print.setup.fields.filter_status') }}</label>
-                                                        <select data-source-status-filter="{{ $entity }}">
-                                                            <option value="">{{ __('print_templates.print.setup.fields.all_students') }}</option>
-                                                            <option value="active">{{ __('print_templates.print.setup.fields.active_students') }}</option>
-                                                            <option value="not_active">{{ __('print_templates.print.setup.fields.non_active_students') }}</option>
-                                                        </select>
-                                                    </div>
+                                                    @unless ($studentCardMode ?? false)<div class="admin-filter-field"><label>{{ __('print_templates.print.setup.fields.filter_status') }}</label><select data-source-status-filter="{{ $entity }}"><option value="">{{ __('print_templates.print.setup.fields.all_students') }}</option><option value="active">{{ __('print_templates.print.setup.fields.active_students') }}</option><option value="not_active">{{ __('print_templates.print.setup.fields.non_active_students') }}</option></select></div>@endunless
                                                     @if ($studentCardMode ?? false)
                                                         <div class="admin-filter-field">
                                                             <label>{{ __('print_templates.print.setup.fields.filter_printed') }}</label>
                                                             <select data-source-printed-filter="{{ $entity }}">
-                                                                <option value="">{{ __('print_templates.print.setup.fields.all_print_states') }}</option>
                                                                 <option value="printed">{{ __('print_templates.print.setup.fields.printed_students') }}</option>
-                                                                <option value="not_printed">{{ __('print_templates.print.setup.fields.not_printed_students') }}</option>
+                                                                <option value="not_printed" selected>{{ __('print_templates.print.setup.fields.not_printed_students') }}</option>
                                                             </select>
                                                         </div>
                                                     @endif
@@ -245,8 +240,7 @@
             const templateSelect = document.querySelector('[data-print-template-select]');
             const pageSizeSelect = document.querySelector('[data-print-page-size-select]');
             const copyPanel = document.querySelector('[data-copy-count-panel]');
-            const markPrintedButton = document.querySelector('[data-mark-selected-printed]');
-            const markUnprintedButton = document.querySelector('[data-mark-selected-unprinted]');
+            const printStatusButton = document.querySelector('[data-toggle-selected-print-status]');
             const printStatusNotice = document.querySelector('[data-print-status-notice]');
 
             if (!templateSelect) {
@@ -267,6 +261,7 @@
             const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
                 || document.querySelector('input[name="_token"]')?.value
                 || '';
+            const selectedCourseId = document.querySelector('input[name="course_id"]')?.value || '';
 
             function applyPageSize() {
                 const layout = JSON.parse(pageSizeSelect?.selectedOptions?.[0]?.dataset.layout || '{}');
@@ -289,6 +284,7 @@
                 checkbox.checked = checked;
                 card.classList.toggle('is-selected', checked);
                 card.setAttribute('aria-checked', checked ? 'true' : 'false');
+                updatePrintStatusButton();
             }
 
             function relatedIds(element, entity) {
@@ -412,6 +408,19 @@
                     .filter((value) => Number.isInteger(value) && value > 0);
             }
 
+            function shouldClearSelectedPrints() {
+                const selectedCards = [...document.querySelectorAll('[data-source-card="student"]')]
+                    .filter((card) => card.querySelector('input[type="checkbox"]')?.checked);
+                const printedCount = selectedCards.filter((card) => card.dataset.cardPrinted === '1').length;
+
+                return printedCount > (selectedCards.length - printedCount);
+            }
+
+            function updatePrintStatusButton() {
+                if (!printStatusButton) return;
+                printStatusButton.textContent = shouldClearSelectedPrints() ? markUnprintedDefaultLabel : markPrintedDefaultLabel;
+            }
+
             function updateStudentPrintedState(studentIds, printedAtLabel = '') {
                 const selectedIds = new Set(studentIds.map((id) => String(id)));
 
@@ -526,7 +535,7 @@
                 });
             });
 
-            markPrintedButton?.addEventListener('click', async () => {
+            printStatusButton?.addEventListener('click', async () => {
                 const studentIds = selectedStudentIds();
 
                 if (studentIds.length === 0) {
@@ -535,12 +544,13 @@
                 }
 
                 setPrintStatusNotice('', 'neutral');
-                markPrintedButton.disabled = true;
-                markPrintedButton.textContent = markPrintedBusyLabel;
+                const clearPrints = shouldClearSelectedPrints();
+                printStatusButton.disabled = true;
+                printStatusButton.textContent = clearPrints ? markUnprintedBusyLabel : markPrintedBusyLabel;
 
                 try {
-                    const response = await fetch(markPrintedButton.dataset.recordUrl, {
-                        method: 'POST',
+                    const response = await fetch(clearPrints ? printStatusButton.dataset.clearUrl : printStatusButton.dataset.recordUrl, {
+                        method: clearPrints ? 'DELETE' : 'POST',
                         headers: {
                             'Accept': 'application/json',
                             'Content-Type': 'application/json',
@@ -550,6 +560,7 @@
                         body: JSON.stringify({
                             template_id: templateSelect.value,
                             student_ids: studentIds,
+                            course_id: selectedCourseId,
                         }),
                     });
 
@@ -558,62 +569,20 @@
                     }
 
                     const payload = await response.json();
-                    const printedAtLabel = payload.printed_at
-                        ? new Date(payload.printed_at).toLocaleString()
-                        : '';
-
-                    updateStudentPrintedState(studentIds, printedAtLabel);
-                    applySourceFilter('student');
-                    setPrintStatusNotice(markPrintedSuccessMessage, 'success');
-                } catch (error) {
-                    console.error(error);
-                    setPrintStatusNotice(markPrintedFailedMessage, 'error');
-                } finally {
-                    markPrintedButton.disabled = false;
-                    markPrintedButton.textContent = markPrintedDefaultLabel;
-                }
-            });
-
-            markUnprintedButton?.addEventListener('click', async () => {
-                const studentIds = selectedStudentIds();
-
-                if (studentIds.length === 0) {
-                    setPrintStatusNotice(markPrintedEmptyMessage, 'error');
-                    return;
-                }
-
-                setPrintStatusNotice('', 'neutral');
-                markUnprintedButton.disabled = true;
-                markUnprintedButton.textContent = markUnprintedBusyLabel;
-
-                try {
-                    const response = await fetch(markUnprintedButton.dataset.clearUrl, {
-                        method: 'DELETE',
-                        headers: {
-                            'Accept': 'application/json',
-                            'Content-Type': 'application/json',
-                            'X-CSRF-TOKEN': csrfToken,
-                            'X-Requested-With': 'XMLHttpRequest',
-                        },
-                        body: JSON.stringify({
-                            template_id: templateSelect.value,
-                            student_ids: studentIds,
-                        }),
-                    });
-
-                    if (!response.ok) {
-                        throw new Error(`Request failed with status ${response.status}`);
+                    if (clearPrints) {
+                        updateStudentUnprintedState(studentIds);
+                    } else {
+                        const printedAtLabel = payload.printed_at ? new Date(payload.printed_at).toLocaleString() : '';
+                        updateStudentPrintedState(studentIds, printedAtLabel);
                     }
-
-                    updateStudentUnprintedState(studentIds);
                     applySourceFilter('student');
-                    setPrintStatusNotice(markUnprintedSuccessMessage, 'success');
+                    setPrintStatusNotice(clearPrints ? markUnprintedSuccessMessage : markPrintedSuccessMessage, 'success');
                 } catch (error) {
                     console.error(error);
-                    setPrintStatusNotice(markUnprintedFailedMessage, 'error');
+                    setPrintStatusNotice(clearPrints ? markUnprintedFailedMessage : markPrintedFailedMessage, 'error');
                 } finally {
-                    markUnprintedButton.disabled = false;
-                    markUnprintedButton.textContent = markUnprintedDefaultLabel;
+                    printStatusButton.disabled = false;
+                    updatePrintStatusButton();
                 }
             });
 

@@ -31,7 +31,7 @@ class FinanceReportService
             ->get();
 
         $operatingTransactions = $transactions
-            ->reject(fn (FinanceTransaction $transaction) => in_array($transaction->type, ['cash_box_transfer', 'currency_exchange'], true));
+            ->reject(fn (FinanceTransaction $transaction) => in_array($transaction->type, ['transfer', 'exchange'], true));
 
         $income = (float) $operatingTransactions->where('local_amount', '>', 0)->sum('local_amount');
         $expense = abs((float) $operatingTransactions->where('local_amount', '<', 0)->sum('local_amount'));
@@ -701,7 +701,7 @@ class FinanceReportService
                 $comparisonRate = max((float) $comparisonCurrency->rate_to_base, 0.000000000001);
                 $transactions = FinanceTransaction::query()
                     ->whereBetween('transaction_date', [$start->toDateString(), $end->toDateString()])
-                    ->whereNotIn('type', ['cash_box_transfer', 'currency_exchange'])
+                    ->whereNotIn('type', ['transfer', 'exchange'])
                     ->get(['base_amount']);
                 $convertedAmounts = $transactions->map(fn (FinanceTransaction $transaction): float => round((float) $transaction->base_amount / $comparisonRate, 2));
 

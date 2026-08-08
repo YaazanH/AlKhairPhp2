@@ -95,7 +95,10 @@
             aria-haspopup="listbox"
             aria-label="{{ __('phone.country_code') }}"
         >
-            <span x-text="selectedDial"></span>
+            <span class="flex min-w-0 items-center gap-2">
+                <img x-bind:src="`https://flagcdn.com/24x18/${selectedCountry.region.toLowerCase()}.png`" x-bind:alt="selectedCountry.name" class="h-[18px] w-6 rounded-sm object-cover">
+                <span class="truncate" x-text="`${selectedCountry.name} ${selectedDial}`"></span>
+            </span>
             <svg class="h-4 w-4 text-neutral-400" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.168l3.71-3.938a.75.75 0 1 1 1.08 1.04l-4.25 4.5a.75.75 0 0 1-1.08 0l-4.25-4.5a.75.75 0 0 1 .02-1.06Z" clip-rule="evenodd" /></svg>
         </button>
 
@@ -108,7 +111,7 @@
             <div class="border-b border-neutral-700 p-2">
                 <input x-ref="countrySearch" x-model="search" type="search" class="w-full rounded-lg px-3 py-2 text-sm" placeholder="{{ __('phone.search_country') }}">
             </div>
-            <div class="max-h-72 overflow-y-auto py-1" role="listbox">
+            <div class="max-h-72 touch-pan-y overflow-y-auto overscroll-contain py-1" role="listbox">
                 <template x-for="country in filteredCountries" :key="country.region">
                     <button
                         type="button"
@@ -117,9 +120,8 @@
                         x-bind:class="country.region === region ? 'bg-white/10 text-emerald-300' : 'text-neutral-200'"
                         role="option"
                     >
-                        <span class="text-lg" x-text="country.flag"></span>
+                        <img x-bind:src="`https://flagcdn.com/24x18/${country.region.toLowerCase()}.png`" x-bind:alt="country.name" class="h-[18px] w-6 shrink-0 rounded-sm object-cover">
                         <span class="min-w-0 flex-1 truncate" x-text="country.name"></span>
-                        <span class="text-xs font-semibold text-neutral-400" x-text="country.region"></span>
                         <span class="text-xs text-neutral-400" x-text="country.dial_code"></span>
                     </button>
                 </template>

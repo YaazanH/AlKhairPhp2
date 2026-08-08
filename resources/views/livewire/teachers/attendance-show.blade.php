@@ -147,6 +147,15 @@ new class extends Component {
         $this->loadDay();
     }
 
+    public function toggleDayStatus(): void
+    {
+        $this->authorizePermission('attendance.teacher.take');
+
+        $this->day_status = $this->currentDay->fresh()->status === 'closed' ? 'open' : 'closed';
+        $this->currentDay->update(['status' => $this->day_status]);
+        $this->loadDay();
+    }
+
     public function saveTeacherStatus(int $teacherId): void
     {
         $this->authorizePermission('attendance.teacher.take');
@@ -422,23 +431,12 @@ new class extends Component {
             </div>
 
             <div class="admin-toolbar__controls">
-                <div class="admin-filter-field">
-                    <label for="teacher-attendance-status" class="mb-1 block text-sm font-medium">{{ __('workflow.teacher_attendance.form.day_status') }}</label>
-                    <select id="teacher-attendance-status" wire:model.live="day_status" wire:change="saveDaySummary" data-searchable="false">
-                        <option value="open">{{ __('workflow.common.day_status.open') }}</option>
-                        <option value="closed">{{ __('workflow.common.day_status.closed') }}</option>
-                    </select>
-                </div>
-
-                <div class="admin-filter-field">
-                    <label for="teacher-attendance-notes" class="mb-1 block text-sm font-medium">{{ __('workflow.teacher_attendance.form.notes') }}</label>
-                    <input id="teacher-attendance-notes" wire:model.live.debounce.800ms="notes" wire:change="saveDaySummary" type="text">
-                </div>
-
                 <div class="admin-toolbar__actions">
                     @can('attendance.teacher.take')
-                        <button wire:click="saveAttendance" type="button" class="pill-link pill-link--accent">
-                            {{ __('workflow.common.actions.save_teacher_attendance') }}
+                        <button wire:click="toggleDayStatus" type="button" class="pill-link">
+                            {{ $dayRecord->status === 'closed'
+                                ? __('workflow.student_attendance.day_details.controls.reopen_day')
+                                : __('workflow.student_attendance.day_details.controls.close_day') }}
                         </button>
                         <button wire:click="deleteDay" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" type="button" class="pill-link border-red-400/25 text-red-200 hover:border-red-300/35 hover:bg-red-500/12">
                             {{ __('crud.common.actions.delete') }}

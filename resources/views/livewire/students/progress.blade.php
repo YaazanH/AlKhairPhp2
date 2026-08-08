@@ -270,7 +270,7 @@ new class extends Component {
                     ->when($enrollmentIds === [], fn ($query) => $query->whereRaw('1 = 0'), fn ($query) => $query->whereIn('enrollment_id', $enrollmentIds))
             )->orderByDesc('tested_on')->orderByDesc('id')->get()
             : collect();
-        $passedAwqafJuzIds = $awqafTests->where('status', 'passed')->pluck('juz_id')->map(fn ($id) => (int) $id)->unique();
+        $passedAwqafTestsByJuz = $awqafTests->where('status', 'passed')->groupBy('juz_id');
 
         $partialTests = auth()->user()->can('quran-partial-tests.view')
             ? $this->scopeQuranPartialTestsQuery(
@@ -283,7 +283,7 @@ new class extends Component {
         $finalTests = auth()->user()->can('quran-final-tests.view')
             ? $this->scopeQuranFinalTestsQuery(
                 QuranFinalTest::query()
-                    ->with(['attempts', 'enrollment'])
+                    ->with(['attempts', 'enrollment.course'])
                     ->where('student_id', $studentRecord->id)
                     ->when($enrollmentIds === [], fn ($query) => $query->whereRaw('1 = 0'), fn ($query) => $query->whereIn('enrollment_id', $enrollmentIds))
             )->get()
@@ -315,7 +315,7 @@ new class extends Component {
 
         $pageSet = $generalPages->flip();
         $quranJuzProgress = QuranJuz::query()->orderBy('juz_number')->get()
-            ->map(function (QuranJuz $juz) use ($pageSet, $partialTests, $finalTests, $enrollments, $passedAwqafJuzIds) {
+            ->map(function (QuranJuz $juz) use ($pageSet, $partialTests, $finalTests, $enrollments, $passedAwqafTestsByJuz) {
                 $pages = collect(range((int) $juz->from_page, (int) $juz->to_page));
                 $missingPages = $pages->reject(fn (int $page) => $pageSet->has($page))->values();
                 $juzPartialTests = $partialTests->where('juz_id', $juz->id);
@@ -324,6 +324,7 @@ new class extends Component {
                 $latestFinalAttempt = $juzFinalTests->flatMap->attempts
                     ->sortByDesc(fn ($attempt) => sprintf('%010d-%010d', $attempt->tested_on?->timestamp ?? 0, $attempt->id))
                     ->first();
+                $latestAwqafTest = $passedAwqafTestsByJuz->get($juz->id, collect())->sortByDesc('tested_on')->first();
                 $finalMade = $latestFinalAttempt !== null;
                 $status = $finalMade ? 'finished' : ($missingPages->isNotEmpty() ? 'missing' : 'awaiting');
 
@@ -334,8 +335,11 @@ new class extends Component {
                     'passed_parts' => $passedParts,
                     'partial_test_created' => $juzPartialTests->isNotEmpty(),
                     'latest_final_score' => $latestFinalAttempt?->score,
+                    'latest_final_date' => $latestFinalAttempt?->tested_on,
+                    'latest_final_course' => $juzFinalTests->first()?->enrollment?->course?->name,
                     'final_made' => $finalMade,
-                    'awqaf_passed' => $passedAwqafJuzIds->contains((int) $juz->id),
+                    'awqaf_passed' => $latestAwqafTest !== null,
+                    'awqaf_passed_on' => $latestAwqafTest?->tested_on,
                     'status' => $status,
                     'enrollment' => $juzFinalTests->first()?->enrollment ?: $juzPartialTests->first()?->enrollment ?: $enrollments->first(),
                 ];
@@ -479,11 +483,11 @@ new class extends Component {
         <section class="surface-table">
             <div class="admin-grid-meta"><div><div class="admin-grid-meta__title">{{ __('workflow.student_progress.juz_progress.title') }}</div><div class="admin-grid-meta__summary">{{ __('workflow.student_progress.juz_progress.summary', ['count' => number_format($quranJuzProgress->where('status', 'finished')->count())]) }}</div></div></div>
             @if ($quranJuzProgress->isEmpty())<div class="admin-empty-state">{{ __('workflow.student_progress.juz_progress.empty') }}</div>@else
-                <div class="overflow-x-auto"><table class="text-sm"><thead><tr>
+                <div class="overflow-x-auto"><table class="w-full table-fixed text-sm"><thead><tr>
                     <th class="px-5 py-4 text-left">{{ __('workflow.student_progress.juz_progress.headers.juz') }}</th>
                     <th class="px-5 py-4 text-left">{{ __('workflow.student_progress.juz_progress.headers.pages') }}</th>
-                    <th class="w-28 px-5 py-4 text-left">{{ __('workflow.student_progress.juz_progress.headers.partial_tests') }}</th>
-                    <th class="w-28 px-5 py-4 text-left">{{ __('workflow.student_progress.juz_progress.headers.final_test') }}</th>
+                    <th class="px-5 py-4 text-left">{{ __('workflow.student_progress.juz_progress.headers.partial_tests') }}</th>
+                    <th class="px-5 py-4 text-left">{{ __('workflow.student_progress.juz_progress.headers.final_test') }}</th>
                     <th class="px-5 py-4 text-left">{{ __('workflow.student_progress.juz_progress.headers.status') }}</th>
                     <th class="px-5 py-4 text-right">{{ __('workflow.student_progress.juz_progress.headers.actions') }}</th>
                 </tr></thead><tbody class="divide-y divide-white/6">
@@ -491,12 +495,14 @@ new class extends Component {
                         <td class="px-5 py-4 text-white">{{ __('workflow.common.labels.juz_number', ['number' => $row->juz->juz_number]) }}</td>
                         <td class="px-5 py-4">{{ number_format($row->memorized_pages) }}</td>
                         <td class="px-5 py-4">@if ($row->partial_test_created)<bdi dir="ltr">{{ number_format($row->passed_parts) }}/4</bdi>@endif</td>
-                        <td class="px-5 py-4">{{ $row->latest_final_score !== null ? number_format((float) $row->latest_final_score, 2) : '' }}</td>
+                        <td class="px-5 py-4" @if($row->latest_final_score !== null) title="{{ trim(($row->latest_final_date?->format('d-m-Y') ?? '').' · '.($row->latest_final_course ?? '')) }}" @endif>{{ $row->latest_final_score !== null ? number_format((float) $row->latest_final_score, 2) : '' }}</td>
                         <td class="px-5 py-4"><span class="status-chip {{ $statusClass($row->status) }}">{{ $row->status === 'missing' ? __('workflow.student_progress.juz_progress.incomplete', ['count' => number_format($row->missing_pages->count())]) : __('workflow.student_progress.juz_progress.statuses.'.$row->status) }}</span></td>
                         <td class="px-5 py-4 text-right">
                             @php($showMissingPagesAction = $row->status !== 'finished' && $row->missing_pages->isNotEmpty())
                             @php($showAwqafAction = $row->enrollment && $row->final_made && ! $row->awqaf_passed && (auth()->user()->can('quran-awqaf-tests.record') || auth()->user()->can('quran-tests.record')))
-                            @if ($showMissingPagesAction || $showAwqafAction)
+                            @if ($row->awqaf_passed)
+                                <span class="text-sm text-emerald-300">تم سبره بالأوقاف{{ $row->awqaf_passed_on ? ' · '.$row->awqaf_passed_on->format('d-m-Y') : '' }}</span>
+                            @elseif ($showMissingPagesAction || $showAwqafAction)
                                 <div class="flex flex-wrap justify-end gap-2">
                                     @if ($showMissingPagesAction)<button type="button" wire:click="showMissingPages({{ $row->juz->id }})" class="pill-link pill-link--compact">{{ __('workflow.student_progress.juz_progress.show_missing') }}</button>@endif
                                     @if ($showAwqafAction)<button type="button" wire:click="openAwqafTest({{ $row->enrollment?->id ?: 0 }}, {{ $row->juz->id }})" class="pill-link pill-link--compact">{{ __('workflow.student_progress.juz_progress.add_awqaf_test') }}</button>@endif

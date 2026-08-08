@@ -93,6 +93,7 @@
                         body: JSON.stringify({
                             template_id: payload.template_id,
                             student_ids: payload.student_ids,
+                            course_id: payload.course_id,
                         }),
                     }).catch(() => {
                         didRecord = false;

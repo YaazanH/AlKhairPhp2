@@ -29,6 +29,7 @@ return [
         'find' => 'بحث',
         'print_a5' => 'طباعة',
         'view_invoice' => 'عرض الفاتورة',
+        'edit_invoice' => 'تعديل الفاتورة',
         'view_original' => 'عرض الأصل',
         'review_request' => 'مراجعة الطلب',
         'review' => 'مراجعة',

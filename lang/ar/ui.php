@@ -2,7 +2,7 @@
 
 return [
     'app' => [
-        'name' => 'الخير',
+        'name' => 'جامع الخير',
         'quran_course' => 'دورة القران الكريم',
         'short_tagline' => 'منصة التعلم',
         'workspace_tagline' => 'متابعة القرآن وإدارة المدرسة والمالية والتقارير ضمن مساحة عمل واحدة.',
@@ -74,7 +74,7 @@ return [
         'action_barcodes' => 'باركود الإجراءات',
         'scanner_import' => 'استيراد الماسح',
         'configuration' => 'الإعدادات',
-        'dashboard_settings' => 'إعدادات الصفحة الرئيسية',
+        'dashboard_settings' => 'الإعدادات',
         'public_website_settings' => 'إعدادات الموقع العام',
         'organization' => 'الهيكل',
         'tracking_rules' => 'قواعد المتابعة',

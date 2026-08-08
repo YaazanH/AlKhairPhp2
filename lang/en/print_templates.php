@@ -125,6 +125,7 @@ return [
                 'remove_background_image' => 'Remove current background',
                 'is_active' => 'Active',
                 'is_student_card' => 'Use this as a student card template',
+                'is_report_card' => 'Use this as the report card template',
             ],
             'data_sources_help' => 'Choose the records this template needs. Use “multiple” for the source that creates one printed item per selected record.',
             'student_card_help' => 'Student card templates appear on the student-card printing page and must use students as the repeating source.',
@@ -232,6 +233,7 @@ return [
         ],
         'validation' => [
             'student_card_requires_students' => 'Student card templates must use students as the repeating data source.',
+            'only_one_report_card' => 'Only one report card template can be created.',
         ],
     ],
     'builder' => [

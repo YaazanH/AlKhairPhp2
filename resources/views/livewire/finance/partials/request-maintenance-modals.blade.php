@@ -70,6 +70,10 @@
         </div>
 
         <div class="flex flex-wrap justify-end gap-3">
+            @php($editableInvoice = $editingFinanceRequestId ? \App\Models\FinanceRequest::query()->find($editingFinanceRequestId)?->invoice : null)
+            @if ($editableInvoice && auth()->user()?->can('invoices.update'))
+                <a href="{{ route('invoices.payments', $editableInvoice) }}" wire:navigate class="pill-link">{{ __('finance.actions.edit_invoice') }}</a>
+            @endif
             <button type="button" wire:click="closeFinanceRequestEditModal" class="pill-link">{{ __('crud.common.actions.cancel') }}</button>
             <button type="submit" class="pill-link pill-link--accent">{{ __('crud.common.actions.save') }}</button>
         </div>

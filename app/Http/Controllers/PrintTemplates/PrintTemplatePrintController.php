@@ -4,6 +4,8 @@ namespace App\Http\Controllers\PrintTemplates;
 
 use App\Http\Controllers\Controller;
 use App\Models\FinanceRequest;
+use App\Models\Course;
+use App\Models\Enrollment;
 use App\Models\Group;
 use App\Models\PrintPageSize;
 use App\Models\PrintTemplate;
@@ -68,6 +70,7 @@ class PrintTemplatePrintController extends Controller
                 ->values()
                 ->map(fn (int $studentId) => [
                     'student_id' => $studentId,
+                    'course_id' => $validated['course_id'],
                     'print_template_id' => $template->id,
                     'printed_by' => $request->user()?->id,
                     'printed_at' => $printedAt,
@@ -100,6 +103,7 @@ class PrintTemplatePrintController extends Controller
 
         StudentCardPrint::query()
             ->whereIn('student_id', $studentIds)
+            ->where('course_id', $validated['course_id'])
             ->delete();
 
         return response()->json([
@@ -131,11 +135,17 @@ class PrintTemplatePrintController extends Controller
 
     protected function validateStudentCardPrintRequest(Request $request): array
     {
-        return $request->validate([
+        $validated = $request->validate([
             'template_id' => ['required', 'exists:print_templates,id'],
             'student_ids' => ['required', 'array', 'min:1'],
             'student_ids.*' => ['integer', 'exists:students,id'],
+            'course_id' => ['nullable', 'integer', 'exists:courses,id'],
         ]);
+
+        $validated['course_id'] = $validated['course_id']
+            ?? Course::query()->where('is_default', true)->where('is_active', true)->value('id');
+
+        return $validated;
     }
 
     protected function contextsFromRequest(Request $request, array $sources, int $copyCount): Collection|RedirectResponse
@@ -224,13 +234,32 @@ class PrintTemplatePrintController extends Controller
 
     protected function buildSetupView(bool $studentCardMode): View
     {
-        $courseId = request()->integer('course_id') ?: null;
+        $courseId = request()->integer('course_id') ?: Course::query()->where('is_default', true)->where('is_active', true)->value('id');
+        $courseReportMode = ! $studentCardMode && request()->filled('course_id');
+        $courseStudentIds = $studentCardMode && $courseId
+            ? Enrollment::query()
+                ->where('status', 'active')
+                ->whereHas('group', fn ($query) => $query->where('course_id', $courseId)->where('is_active', true))
+                ->pluck('student_id')
+                ->map(fn ($id) => (int) $id)
+            : collect();
         $entities = collect($this->fieldRegistry->entities())
             ->mapWithKeys(fn (array $definition, string $entity) => [
                 $entity => [
                     'label' => $definition['label'],
                     'options' => collect($this->fieldRegistry->optionsFor($entity))
                         ->when($courseId && $entity === 'course_student', fn ($options) => $options->where('meta.course_id', $courseId))
+                        ->when($studentCardMode && $entity === 'student', fn ($options) => $options
+                            ->where('meta.status', 'active')
+                            ->filter(fn (array $option) => $courseStudentIds->contains((int) $option['id'])))
+                        ->when($studentCardMode && $courseId && in_array($entity, ['student', 'course_student'], true), function ($options) use ($courseId) {
+                            $printedStudentIds = StudentCardPrint::query()->where('course_id', $courseId)->pluck('student_id')->map(fn ($id) => (int) $id);
+                            return $options->map(function (array $option) use ($printedStudentIds): array {
+                                $studentId = (int) ($option['meta']['student_ids'][0] ?? $option['id']);
+                                $option['meta']['card_printed'] = $printedStudentIds->contains($studentId);
+                                return $option;
+                            });
+                        })
                         ->values()->all(),
                 ],
             ])
@@ -239,6 +268,7 @@ class PrintTemplatePrintController extends Controller
         $templates = PrintTemplate::query()
             ->where('is_active', true)
             ->where('is_student_card', $studentCardMode)
+            ->when($courseReportMode, fn ($query) => $query->where('is_report_card', true))
             ->orderBy('name')
             ->get()
             ->filter(fn (PrintTemplate $template) => ! $studentCardMode || $this->hasStudentRepeatingSource($template))
@@ -261,6 +291,8 @@ class PrintTemplatePrintController extends Controller
             'pageSubtitle' => $studentCardMode ? __('id_cards.print.subtitle') : __('print_templates.print.subtitle'),
             'previewRoute' => $studentCardMode ? route('id-cards.print.preview') : route('print-templates.print.preview'),
             'studentCardMode' => $studentCardMode,
+            'selectedCourseId' => $courseId,
+            'activeCourses' => Course::query()->where('is_active', true)->orderByDesc('is_default')->orderBy('name')->get(['id', 'name']),
             'studentFilters' => [
                 'groups' => Group::query()
                     ->where('is_active', true)
@@ -292,7 +324,13 @@ class PrintTemplatePrintController extends Controller
             'gap_x_mm' => ['required', 'numeric', 'min:0', 'max:30'],
             'gap_y_mm' => ['required', 'numeric', 'min:0', 'max:30'],
             'print_page_size_id' => ['nullable', 'exists:print_page_sizes,id'],
+            'course_id' => ['nullable', 'integer', 'exists:courses,id'],
         ]);
+
+        if ($studentCardMode) {
+            $validated['course_id'] = $validated['course_id']
+                ?? Course::query()->where('is_default', true)->where('is_active', true)->value('id');
+        }
 
         $template = PrintTemplate::query()->findOrFail($validated['template_id']);
         $sources = $this->dataSourceService->normalize($template->data_sources ?? []);
@@ -359,6 +397,7 @@ class PrintTemplatePrintController extends Controller
                 'route' => route('id-cards.print.record'),
                 'student_ids' => $studentIds,
                 'template_id' => $template->id,
+                'course_id' => $validated['course_id'],
             ] : null,
             'summaryLabels' => $studentCardMode
                 ? [

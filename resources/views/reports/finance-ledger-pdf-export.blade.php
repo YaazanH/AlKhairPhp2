@@ -34,7 +34,7 @@
         .first-header-table, .meta-table, .ledger-table, .summary-table, .footer-table { border-collapse: collapse; width: 100%; }
         .first-header-table td { border: 0; vertical-align: middle; }
         .logo-cell { text-align: right; width: 25%; }
-        .logo-cell img { height: 14mm; object-fit: contain; width: 28mm; }
+        .logo-cell img { height: 8mm; object-fit: contain; width: 18mm; }
         .title-cell { text-align: center; width: 50%; }
         .title-cell h1 { color: #123d22; font-size: 25px; margin: 0; }
         .security-notice { color: #c62828; font-size: 12px; font-weight: bold; margin-top: 2mm; }
@@ -60,13 +60,13 @@
         .signature-line { border-bottom: 1px solid #263e2d; display: inline-block; margin-top: 25mm; width: 70mm; }
         .footer-table { background: #dcefdc; border-top: 1px solid #a9c9ae; color: #173f23; }
         .footer-table td { border: 0; height: 12mm; padding: 1.5mm 5mm; vertical-align: middle; width: 33.33%; }
-        .footer-barcode { direction: ltr; text-align: right; }
+        .footer-barcode { background: transparent; direction: ltr; text-align: right; }
         .footer-page { font-size: 10px; font-weight: bold; text-align: center; }
     </style>
 </head>
 <body>
     <htmlpagefooter name="ledgerFooter">
-        <table class="footer-table" dir="ltr"><tr><td></td><td class="footer-page" dir="rtl">صفحة {PAGENO} من {nbpg}</td><td class="footer-barcode"><barcode code="{{ $reportNumber }}" type="C39" size="0.75" height="0.8" /></td></tr></table>
+        <table class="footer-table" dir="ltr"><tr><td></td><td class="footer-page" dir="rtl">صفحة {PAGENO} من {nbpg}</td><td class="footer-barcode"><barcode code="{{ $reportNumber }}" type="C39" size="0.75" height="0.8" bgcolor="transparent" /></td></tr></table>
     </htmlpagefooter>
     <sethtmlpagefooter name="ledgerFooter" value="on" />
 

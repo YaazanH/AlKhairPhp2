@@ -328,11 +328,6 @@ new class extends Component {
                                         <a href="{{ route('teachers.attendance.show', $day) }}" wire:navigate class="pill-link pill-link--compact">
                                             {{ __('workflow.teacher_attendance.days.table.view') }}
                                         </a>
-                                        @can('attendance.teacher.take')
-                                            <button type="button" wire:click="deleteDay({{ $day->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link pill-link--compact border-red-400/25 text-red-200 hover:border-red-300/35 hover:bg-red-500/12">
-                                                {{ __('crud.common.actions.delete') }}
-                                            </button>
-                                        @endcan
                                     </div>
                                 </td>
                             </tr>
@@ -396,14 +391,6 @@ new class extends Component {
                 {{ __('workflow.teacher_attendance.days.form.scheduled_teachers_help', ['count' => number_format($scheduledTeacherCount)]) }}
             </div>
 
-            <div>
-                <label for="teacher-attendance-day-notes" class="mb-1 block text-sm font-medium">{{ __('workflow.teacher_attendance.days.form.notes') }}</label>
-                <textarea id="teacher-attendance-day-notes" wire:model="notes" rows="4" class="w-full rounded-xl px-4 py-3 text-sm"></textarea>
-                @error('notes')
-                    <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
-                @enderror
-            </div>
-
             <div class="flex flex-wrap items-center gap-3">
                 <button type="submit" class="pill-link pill-link--accent">{{ __('workflow.teacher_attendance.days.create') }}</button>
                 <button type="button" wire:click="closeCreateModal" class="pill-link">{{ __('crud.common.actions.close') }}</button>
@@ -413,8 +400,8 @@ new class extends Component {
 
     <x-admin.modal :show="$showExportModal" :title="__('workflow.teacher_attendance.export.title')" close-method="closeExportModal" max-width="2xl">
         <div class="grid gap-4 sm:grid-cols-2">
-            <div><label class="mb-1 block text-sm font-medium">{{ __('workflow.teacher_attendance.export.from') }}</label><input wire:model="export_date_from" type="date" class="w-full rounded-xl px-4 py-3"></div>
-            <div><label class="mb-1 block text-sm font-medium">{{ __('workflow.teacher_attendance.export.to') }}</label><input wire:model="export_date_to" type="date" class="w-full rounded-xl px-4 py-3"></div>
+            <div><label class="mb-1 block text-sm font-medium">{{ __('workflow.teacher_attendance.export.from') }}</label><input wire:model.live="export_date_from" type="date" class="w-full rounded-xl px-4 py-3"></div>
+            <div><label class="mb-1 block text-sm font-medium">{{ __('workflow.teacher_attendance.export.to') }}</label><input wire:model.live="export_date_to" type="date" class="w-full rounded-xl px-4 py-3"></div>
         </div>
         <div class="mt-5 flex justify-end"><a href="{{ route('teachers.attendance.export', ['date_from' => $export_date_from, 'date_to' => $export_date_to]) }}" target="_blank" class="pill-link pill-link--accent">{{ __('workflow.teacher_attendance.export.action') }}</a></div>
     </x-admin.modal>

@@ -8,6 +8,8 @@ use App\Models\Enrollment;
 use App\Models\Group;
 use App\Models\PointTransaction;
 use App\Services\AssessmentService;
+use App\Services\PointLedgerService;
+use Illuminate\Support\Facades\DB;
 use Livewire\Volt\Component;
 
 new class extends Component {
@@ -47,6 +49,32 @@ new class extends Component {
         }
 
         $this->loadResults();
+    }
+
+    public function deleteAssessment(): void
+    {
+        $this->authorizePermission('assessments.delete');
+        $assessment = $this->currentAssessment->fresh(['results.enrollment.student', 'groupDetails']);
+        $this->authorizeTeacherAssessmentAccess($assessment);
+
+        DB::transaction(function () use ($assessment): void {
+            $ledger = app(PointLedgerService::class);
+            $enrollments = $assessment->results->pluck('enrollment')->filter()->unique('id');
+            foreach ($assessment->results as $result) {
+                $ledger->voidSourceTransactions('assessment_result', $result->id, __('workflow.assessments.index.messages.deleted_void_reason'));
+            }
+            $assessment->results()->delete();
+            $assessment->groupDetails()->delete();
+            $assessment->delete();
+            foreach ($enrollments as $enrollment) {
+                if ($freshEnrollment = $enrollment->fresh(['student'])) {
+                    $ledger->syncEnrollmentCaches($freshEnrollment);
+                }
+            }
+        });
+
+        session()->flash('status', __('workflow.assessments.index.messages.deleted'));
+        $this->redirect(route('assessments.index'), navigate: true);
     }
 
     public function with(): array
@@ -468,7 +496,7 @@ new class extends Component {
         <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
                 <a href="{{ route('assessments.index') }}" wire:navigate class="text-sm font-medium text-neutral-200/80 hover:text-white">{{ __('workflow.common.back_to_assessments') }}</a>
-                <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('workflow.assessments.results.title') }}</h1>
+                <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ $assessmentRecord->title }}</h1>
                 <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ __('workflow.assessments.results.subtitle') }}</p>
             </div>
 
@@ -481,7 +509,11 @@ new class extends Component {
                         : ($assessmentRecord->group?->name ?: __('workflow.common.not_available')) }}
                 </div>
                 <div class="mt-1 text-sm text-neutral-400">{{ __('workflow.common.labels.total', ['value' => $assessmentRecord->total_mark !== null ? number_format((float) $assessmentRecord->total_mark, 2) : __('workflow.common.not_available')]) }} | {{ __('workflow.common.labels.pass', ['value' => $assessmentRecord->pass_mark !== null ? number_format((float) $assessmentRecord->pass_mark, 2) : __('workflow.common.not_available')]) }}</div>
-                <a href="{{ route('assessments.results.pdf', $assessmentRecord) }}" target="_blank" rel="noopener" class="pill-link pill-link--compact mt-3">{{ __('workflow.assessments.results.pdf_export') }}</a>
+                <div class="mt-3 flex flex-wrap gap-2">
+                    <a href="{{ route('assessments.results.pdf', $assessmentRecord) }}" target="_blank" rel="noopener" class="pill-link pill-link--compact">{{ __('workflow.assessments.results.pdf_export') }}</a>
+                    @can('assessments.update')<a href="{{ route('assessments.index', ['edit' => $assessmentRecord->id]) }}" wire:navigate class="pill-link pill-link--compact">{{ __('crud.common.actions.edit') }}</a>@endcan
+                    @can('assessments.delete')<button type="button" wire:click="deleteAssessment" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link pill-link--compact border-red-400/25 text-red-200">{{ __('crud.common.actions.delete') }}</button>@endcan
+                </div>
             </div>
         </div>
     </section>
@@ -544,10 +576,6 @@ new class extends Component {
         <article class="stat-card">
             <div class="kpi-label">{{ __('workflow.assessments.index.table.headers.results') }}</div>
             <div class="metric-value mt-3">{{ number_format($totalSavedResults) }}</div>
-        </article>
-        <article class="stat-card">
-            <div class="kpi-label">{{ __('workflow.assessments.index.form.total_mark') }}</div>
-            <div class="metric-value mt-3">{{ $assessmentRecord->total_mark !== null ? number_format((float) $assessmentRecord->total_mark, 2) : __('workflow.common.not_available') }}</div>
         </article>
         <article class="stat-card">
             <div class="kpi-label">{{ __('workflow.assessments.results.stats.groups') }}</div>

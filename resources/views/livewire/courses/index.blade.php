@@ -3,6 +3,7 @@
 use App\Livewire\Concerns\AuthorizesPermissions;
 use App\Livewire\Concerns\SupportsCreateAndNew;
 use App\Models\Course;
+use App\Models\Assessment;
 use App\Models\Enrollment;
 use App\Models\Group;
 use Illuminate\Validation\Rule;
@@ -24,7 +25,7 @@ new class extends Component {
     public bool $is_default = false;
     public bool $awards_points = true;
     public string $search = '';
-    public string $statusFilter = 'all';
+    public string $statusFilter = 'active';
     public int $perPage = 15;
     public bool $showFormModal = false;
 
@@ -199,7 +200,7 @@ new class extends Component {
         $this->authorizePermission('courses.create');
 
         $source = Course::query()
-            ->with(['groups.enrollments', 'groups.schedules'])
+            ->with(['groups'])
             ->findOrFail($courseId);
 
         DB::transaction(function () use ($source): void {
@@ -217,24 +218,6 @@ new class extends Component {
                 $newGroup->is_active = false;
                 $newGroup->save();
 
-                foreach ($group->schedules as $schedule) {
-                    $newSchedule = $schedule->replicate(['group_id']);
-                    $newSchedule->group_id = $newGroup->id;
-                    $newSchedule->save();
-                }
-
-                foreach ($group->enrollments->where('status', 'active') as $enrollment) {
-                    Enrollment::query()->create([
-                        'student_id' => $enrollment->student_id,
-                        'group_id' => $newGroup->id,
-                        'enrolled_at' => now()->toDateString(),
-                        'status' => 'cancelled',
-                        'left_at' => null,
-                        'final_points_cached' => 0,
-                        'memorized_pages_cached' => 0,
-                        'notes' => null,
-                    ]);
-                }
             }
         });
 
@@ -289,7 +272,15 @@ new class extends Component {
 
             Enrollment::query()
                 ->whereIn('group_id', $groupIds)
-                ->update(['status' => 'cancelled']);
+                ->where('status', 'active')
+                ->update(['status' => 'completed', 'left_at' => now()->toDateString()]);
+
+            Assessment::query()
+                ->where(function ($query) use ($groupIds) {
+                    $query->whereIn('group_id', $groupIds)
+                        ->orWhereHas('groups', fn ($groups) => $groups->whereIn('groups.id', $groupIds));
+                })
+                ->update(['is_active' => false]);
 
             if ($wasDefault) {
                 Course::query()
@@ -407,7 +398,7 @@ new class extends Component {
                                 </td>
                                 <td class="px-5 py-4 lg:px-6">
                                     <span class="{{ $course->is_active ? 'status-chip status-chip--emerald' : 'status-chip status-chip--slate' }}">
-                                        {{ $course->is_active ? __('crud.common.status_options.active') : __('crud.common.status_options.inactive') }}
+                                        {{ $course->is_active ? __('crud.common.status_options.active') : (app()->isLocale('ar') ? 'منتهية' : 'Finished') }}
                                     </span>
                                     @if ($course->is_default)
                                         <span class="status-chip status-chip--gold">{{ __('crud.courses.table.default') }}</span>
@@ -420,15 +411,9 @@ new class extends Component {
                                         @endif
                                         @can('courses.update')
                                             <button type="button" wire:click="edit({{ $course->id }})" class="pill-link pill-link--compact">{{ __('crud.common.actions.edit') }}</button>
-                                            @if ($course->is_active)
-                                                <button type="button" wire:click="deactivate({{ $course->id }})" wire:confirm="{{ __('crud.courses.confirm_deactivate') }}" class="pill-link pill-link--compact border-amber-300/30 bg-amber-400/10 text-amber-100 hover:border-amber-200/45 hover:bg-amber-400/15">{{ __('crud.common.actions.deactivate') }}</button>
-                                            @endif
-                                        @endcan
-                                        @can('courses.create')
-                                            <button type="button" wire:click="duplicate({{ $course->id }})" wire:confirm="{{ __('crud.courses.copy.confirm') }}" class="pill-link pill-link--compact border-sky-300/30 bg-sky-400/10 text-sky-100 hover:border-sky-200/45 hover:bg-sky-400/15">{{ __('crud.common.actions.copy') }}</button>
                                         @endcan
                                         @can('courses.delete')
-                                            <button type="button" wire:click="delete({{ $course->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link pill-link--compact border-red-400/25 text-red-200 hover:border-red-300/35 hover:bg-red-500/12">{{ __('crud.common.actions.delete') }}</button>
+                                            @if ($course->groups_count === 0)<button type="button" wire:click="delete({{ $course->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link pill-link--compact border-red-400/25 text-red-200 hover:border-red-300/35 hover:bg-red-500/12">{{ __('crud.common.actions.delete') }}</button>@endif
                                         @endcan
                                     </div>
                                 </td>
@@ -503,6 +488,10 @@ new class extends Component {
                 <button type="button" wire:click="cancel" class="pill-link">
                     {{ __('crud.common.actions.close') }}
                 </button>
+                @if ($editingId)
+                    @if ($is_active)<button type="button" wire:click="deactivate({{ $editingId }})" wire:confirm="{{ __('crud.courses.confirm_deactivate') }}" class="pill-link border-amber-300/30 bg-amber-400/10 text-amber-100">{{ app()->isLocale('ar') ? 'إنهاء' : 'Finish' }}</button>@endif
+                    @can('courses.create')<button type="button" wire:click="duplicate({{ $editingId }})" wire:confirm="{{ __('crud.courses.copy.confirm') }}" class="pill-link border-sky-300/30 bg-sky-400/10 text-sky-100">{{ __('crud.common.actions.copy') }}</button>@endcan
+                @endif
             </div>
         </form>
     </x-admin.modal>

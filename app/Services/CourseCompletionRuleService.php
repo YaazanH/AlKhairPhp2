@@ -160,7 +160,7 @@ class CourseCompletionRuleService
     {
         return [
             'academicYears' => AcademicYear::query()->where('is_active', true)->orderByDesc('starts_on')->get(['id', 'name']),
-            'courses' => Course::query()->orderByDesc('is_active')->orderBy('name')->get(['id', 'name', 'is_active']),
+            'courses' => Course::query()->where('is_active', true)->orderBy('name')->get(['id', 'name', 'is_active']),
         ];
     }
 

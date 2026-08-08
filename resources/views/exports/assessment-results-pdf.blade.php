@@ -41,8 +41,8 @@
             <tr>
                 <td class="number">{{ $loop->iteration }}</td>
                 <td>{{ $enrollment->student?->full_name }}</td>
-                <td class="score">{{ $result?->score !== null ? number_format((float) $result->score, 2) : '—' }}</td>
-                <td class="status">{{ __('workflow.common.result_status.'.($result?->status ?? 'pending')) }}</td>
+                <td class="score">{{ number_format((float) ($result?->score ?? 0), 2) }}</td>
+                <td class="status">{{ __('workflow.common.result_status.'.($result?->status ?? 'absent')) }}</td>
             </tr>
         @empty
             <tr><td colspan="4" class="empty">{{ __('workflow.assessments.results.table.empty') }}</td></tr>

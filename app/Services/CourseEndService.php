@@ -41,9 +41,12 @@ class CourseEndService
                     ->sum('points');
                 $pointsAfter = $this->calculatedPoints($pointsBefore, $criteria['passed'], $settings);
                 $finals = $enrollment->quranFinalTests->filter(fn ($test) => $test->attempts->isNotEmpty());
-                $scores = $finals->map(fn ($test) => ($test->attempts->firstWhere('status', 'passed') ?: $test->attempts->last())?->score)->filter(fn ($score) => $score !== null);
+                $scores = $finals->map(fn ($test) => $test->attempts->firstWhere('status', 'passed')?->score)->filter(fn ($score) => $score !== null);
                 $attendance = $enrollment->studentAttendanceRecords;
                 $assessmentScores = $enrollment->assessmentResults->where('status', '!=', 'absent')->pluck('score')->filter(fn ($score) => $score !== null);
+                $finalExamScores = $enrollment->assessmentResults
+                    ->filter(fn ($result) => in_array($result->assessment?->type?->code, ['final', 'final_exam'], true))
+                    ->pluck('score')->filter(fn ($score) => $score !== null);
 
                 return [
                     'enrollment_id' => $enrollment->id,
@@ -56,7 +59,7 @@ class CourseEndService
                     'days_absent' => $attendance->filter(fn ($record) => $record->status && ! $record->status->is_present)->count(),
                     'memorized_pages' => $enrollment->memorizationSessions->flatMap->pages->pluck('page_no')->unique()->count(),
                     'final_tests' => $finals->count(),
-                    'final_score' => $scores->isEmpty() ? null : round((float) $scores->average(), 2),
+                    'final_score' => $finalExamScores->isEmpty() ? null : round((float) $finalExamScores->average(), 2),
                     'final_juzs' => $finals->pluck('juz.juz_number')->filter()->sort()->implode(', '),
                     'final_marks' => $scores->map(fn ($score) => number_format((float) $score, 2))->implode(', '),
                     'assessment_count' => $enrollment->assessmentResults->count(),
@@ -72,9 +75,9 @@ class CourseEndService
     {
         return $this->enrollments($course)
             ->flatMap(fn (Enrollment $enrollment) => $enrollment->quranFinalTests
-                ->filter(fn ($test) => $test->attempts->isNotEmpty())
+                ->filter(fn ($test) => $test->attempts->contains('status', 'passed'))
                 ->map(function ($test) use ($enrollment): array {
-                    $attempt = $test->attempts->firstWhere('status', 'passed') ?: $test->attempts->last();
+                    $attempt = $test->attempts->firstWhere('status', 'passed');
 
                     return [
                         'name' => $enrollment->student?->full_name ?? '',
@@ -97,7 +100,7 @@ class CourseEndService
                 'studentAttendanceRecords.status',
                 'quranFinalTests.juz',
                 'quranFinalTests.attempts',
-                'assessmentResults',
+                'assessmentResults.assessment.type',
             ])
             ->whereHas('group', fn ($query) => $query->where('course_id', $course->id))
             ->whereIn('status', ['active', 'completed'])
@@ -106,12 +109,14 @@ class CourseEndService
 
     protected function calculatedPoints(int $basePoints, bool $passed, array $settings): int
     {
-        if ($passed || $basePoints <= 0) {
-            return $basePoints;
+        if ($basePoints <= 0) {
+            return 0;
         }
 
-        $retained = (int) ($basePoints * (((int) $settings['retain_percentage']) / 100));
+        $target = $passed
+            ? $basePoints
+            : min($basePoints, max((int) ($basePoints * (((int) $settings['retain_percentage']) / 100)), (int) $settings['minimum_points']));
 
-        return min($basePoints, max($retained, (int) $settings['minimum_points']));
+        return max(200, (int) (ceil($target / 100) * 100));
     }
 }

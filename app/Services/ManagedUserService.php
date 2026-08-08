@@ -24,9 +24,7 @@ class ManagedUserService
         $username = filled($attributes['username'] ?? null)
             ? $this->uniqueUsername((string) $attributes['username'], $name, $user?->id)
             : ($user?->username ?: $this->uniqueUsername('', $name, $user?->id));
-        $email = filled($attributes['email'] ?? null)
-            ? $this->uniqueEmail(trim((string) $attributes['email']), $username, $user?->id)
-            : ($user?->email ?: $this->uniqueEmail(null, $username, $user?->id));
+        $email = $this->uniqueEmail(null, $username, $user?->id);
 
         $plainPassword = filled($attributes['password'] ?? null)
             ? (string) $attributes['password']
