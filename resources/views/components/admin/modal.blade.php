@@ -8,6 +8,7 @@
 
 @php
     $widthClass = match ($maxWidth) {
+        'xl' => 'admin-modal__dialog--xl',
         '2xl' => 'admin-modal__dialog--2xl',
         '3xl' => 'admin-modal__dialog--3xl',
         '5xl' => 'admin-modal__dialog--5xl',

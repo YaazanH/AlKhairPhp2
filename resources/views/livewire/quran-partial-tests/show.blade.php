@@ -19,6 +19,7 @@ new class extends Component {
     public string $mistake_count = '';
     public string $notes = '';
     public bool $showAttemptModal = false;
+    public ?int $editingAttemptId = null;
 
     public function mount(QuranPartialTest $partialTest): void
     {
@@ -69,6 +70,7 @@ new class extends Component {
         $this->tested_on = now()->toDateString();
         $this->mistake_count = '';
         $this->notes = '';
+        $this->editingAttemptId = null;
         $this->showAttemptModal = true;
         $this->resetValidation();
     }
@@ -80,6 +82,7 @@ new class extends Component {
         $this->tested_on = now()->toDateString();
         $this->mistake_count = '';
         $this->notes = '';
+        $this->editingAttemptId = null;
         $this->showAttemptModal = false;
         $this->resetValidation();
     }
@@ -103,21 +106,50 @@ new class extends Component {
         $teacher = Teacher::query()->findOrFail($teacherId);
         abort_unless($this->currentTeacher() || $this->availableRecordingTeachers()->contains('id', $teacher->id), 403);
 
+        $isEditing = $this->editingAttemptId !== null;
+        abort_unless(! $isEditing || auth()->user()?->hasRole('super_admin'), 403);
         try {
-            app(QuranPartialTestService::class)->recordAttempt($part, $teacher, [
-                'mistake_count' => $validated['mistake_count'],
-                'notes' => $validated['notes'] ?? null,
-                'tested_on' => $validated['tested_on'],
-            ]);
+            if ($isEditing) {
+                app(QuranPartialTestService::class)->updateAttempt(
+                    $part->attempts()->findOrFail($this->editingAttemptId),
+                    $teacher,
+                    [
+                        'mistake_count' => $validated['mistake_count'],
+                        'notes' => $validated['notes'] ?? null,
+                        'tested_on' => $validated['tested_on'],
+                    ],
+                );
+            } else {
+                app(QuranPartialTestService::class)->recordAttempt($part, $teacher, [
+                    'mistake_count' => $validated['mistake_count'],
+                    'notes' => $validated['notes'] ?? null,
+                    'tested_on' => $validated['tested_on'],
+                ]);
+            }
         } catch (\LogicException $exception) {
             $this->addError('attempt', $exception->getMessage());
 
             return;
         }
 
-        session()->flash('status', __('workflow.quran_partial_tests.messages.attempt_saved'));
+        session()->flash('status', __($isEditing ? 'workflow.quran_partial_tests.messages.attempt_updated' : 'workflow.quran_partial_tests.messages.attempt_saved'));
         $this->partialTest = $this->partialTest->fresh();
         $this->closeAttemptModal();
+    }
+
+    public function openEditAttempt(int $attemptId): void
+    {
+        abort_unless(auth()->user()?->hasRole('super_admin'), 403);
+        $attempt = $this->partialTest->parts()->whereHas('attempts', fn ($query) => $query->whereKey($attemptId))->firstOrFail()
+            ->attempts()->findOrFail($attemptId);
+        $this->editingAttemptId = $attempt->id;
+        $this->selectedPartId = $attempt->quran_partial_test_part_id;
+        $this->teacher_id = $attempt->teacher_id;
+        $this->tested_on = $attempt->tested_on?->toDateString() ?: now()->toDateString();
+        $this->mistake_count = (string) $attempt->mistake_count;
+        $this->notes = $attempt->notes ?: '';
+        $this->showAttemptModal = true;
+        $this->resetValidation();
     }
 
     protected function currentTeacher(): ?Teacher
@@ -135,8 +167,10 @@ new class extends Component {
             return collect();
         }
 
-        return Teacher::query()->with('user')->where('status', 'active')->orderBy('first_name')->orderBy('last_name')->get()
-            ->filter(fn (Teacher $teacher) => $teacher->user?->can('quran-partial-tests.record'))->values();
+        return Teacher::query()->with('user')->where(function ($query) {
+            $query->where('status', 'active')->orWhere('teachers.id', $this->teacher_id);
+        })->orderBy('first_name')->orderBy('last_name')->get()
+            ->filter(fn (Teacher $teacher) => $teacher->id === $this->teacher_id || $teacher->user?->can('quran-partial-tests.record'))->values();
     }
 }; ?>
 
@@ -201,6 +235,7 @@ new class extends Component {
                                     <th class="px-4 py-3 text-left">{{ __('workflow.quran_partial_tests.attempts.headers.teacher') }}</th>
                                     <th class="px-4 py-3 text-left">{{ __('workflow.quran_partial_tests.attempts.headers.mistake_count') }}</th>
                                     <th class="px-4 py-3 text-left">{{ __('workflow.quran_partial_tests.attempts.headers.status') }}</th>
+                                    @if (auth()->user()?->hasRole('super_admin'))<th class="px-4 py-3 text-right">{{ __('crud.common.actions.actions') }}</th>@endif
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-white/6">
@@ -219,10 +254,11 @@ new class extends Component {
                                             @endif
                                         </td>
                                         <td class="px-4 py-3">{{ __('workflow.common.result_status.'.$attempt->status) }}</td>
+                                        @if (auth()->user()?->hasRole('super_admin'))<td class="px-4 py-3 text-right"><button type="button" wire:click="openEditAttempt({{ $attempt->id }})" class="pill-link pill-link--compact">{{ __('crud.common.actions.edit') }}</button></td>@endif
                                     </tr>
                                     @if ($attempt->notes)
                                         <tr>
-                                            <td class="px-4 pb-3 text-xs text-neutral-400" colspan="5">{{ $attempt->notes }}</td>
+                                            <td class="px-4 pb-3 text-xs text-neutral-400" colspan="{{ auth()->user()?->hasRole('super_admin') ? 6 : 5 }}">{{ $attempt->notes }}</td>
                                         </tr>
                                     @endif
                                 @endforeach
@@ -234,7 +270,7 @@ new class extends Component {
         @endforeach
     </div>
 
-    <x-admin.modal :show="$showAttemptModal" :title="__('workflow.quran_partial_tests.attempts.title')" :description="__('workflow.quran_partial_tests.attempts.copy')" close-method="closeAttemptModal" max-width="3xl">
+    <x-admin.modal :show="$showAttemptModal" :title="__($editingAttemptId ? 'workflow.quran_partial_tests.attempts.edit_title' : 'workflow.quran_partial_tests.attempts.title')" :description="__('workflow.quran_partial_tests.attempts.copy')" close-method="closeAttemptModal" max-width="3xl">
         <form wire:submit="saveAttempt" class="space-y-4">
             @if ($currentTeacher)
                 <div class="soft-callout px-4 py-4 text-sm leading-6">
@@ -285,7 +321,7 @@ new class extends Component {
 
             <div class="flex justify-end gap-3">
                 <button type="button" wire:click="closeAttemptModal" class="pill-link">{{ __('crud.common.actions.cancel') }}</button>
-                <button type="submit" class="pill-link pill-link--accent">{{ __('workflow.quran_partial_tests.actions.save_attempt') }}</button>
+                <button type="submit" class="pill-link pill-link--accent">{{ __($editingAttemptId ? 'crud.common.actions.save' : 'workflow.quran_partial_tests.actions.save_attempt') }}</button>
             </div>
         </form>
     </x-admin.modal>

@@ -166,7 +166,7 @@ class FinanceReportService
             ->sum('signed_amount'), 2);
 
         $transactions = FinanceTransaction::query()
-            ->with(['cashBox', 'category', 'currency', 'enteredBy', 'financeRequest'])
+            ->with(['cashBox', 'category', 'currency', 'enteredBy', 'financeRequest.category', 'financeRequest.pullRequestKind'])
             ->where('cash_box_id', $cashBox->id)
             ->where('currency_id', $currency->id)
             ->whereBetween('transaction_date', [$start->toDateString(), $end->toDateString()])
@@ -214,7 +214,7 @@ class FinanceReportService
             ->sum('local_amount'), 2);
 
         $transactions = FinanceTransaction::query()
-            ->with(['cashBox', 'category', 'currency', 'enteredBy', 'financeRequest'])
+            ->with(['cashBox', 'category', 'currency', 'enteredBy', 'financeRequest.category', 'financeRequest.pullRequestKind'])
             ->where('cash_box_id', $cashBox->id)
             ->whereBetween('transaction_date', [$start->toDateString(), $end->toDateString()])
             ->orderBy('transaction_date')
@@ -383,7 +383,7 @@ class FinanceReportService
 
         $generationKey = hash('sha256', json_encode([
             $user?->id,
-            data_get($report, 'cash_box.name'),
+            $filters['cash_box_ids'] ?? data_get($report, 'cash_box.name'),
             data_get($report, 'start'),
             data_get($report, 'end'),
             $filters['ledger_notes'] ?? null,
@@ -393,6 +393,7 @@ class FinanceReportService
             'report_type' => 'ledger',
             'filters' => [
                 'cash_box_id' => (int) ($filters['cash_box_id'] ?? 0),
+                'cash_box_ids' => array_values(array_map('intval', $filters['cash_box_ids'] ?? [])),
                 'cash_box_name' => data_get($report, 'cash_box.name'),
                 'currency_id' => (int) ($filters['currency_id'] ?? 0),
                 'currency_code' => data_get($report, 'currency.code'),
@@ -416,6 +417,13 @@ class FinanceReportService
         $report['issuer_name'] = $report['issuer_name'] ?? ($generatedReport->generatedBy?->name ?: null);
         $report['page_number'] = (int) ($report['page_number'] ?? 1);
         $report['rows'] = is_array($report['rows'] ?? null) ? $report['rows'] : [];
+        if (is_array($report['fund_reports'] ?? null)) {
+            $report['fund_reports'] = collect($report['fund_reports'])->map(function (array $fundReport) use ($report): array {
+                $fundReport['template'] = $this->normalizeLedgerTemplateSnapshot(array_merge($report['template'], $fundReport['template'] ?? []));
+                $fundReport['rows'] = is_array($fundReport['rows'] ?? null) ? $fundReport['rows'] : [];
+                return $fundReport;
+            })->values()->all();
+        }
 
         return $report;
     }
@@ -472,12 +480,14 @@ class FinanceReportService
         $mpdf = new Mpdf([
             'default_font' => $defaultFont,
             'fontDir' => array_merge((new \Mpdf\Config\ConfigVariables())->getDefaults()['fontDir'], [public_path('fonts/dubai')]),
-            'fontdata' => (new \Mpdf\Config\FontVariables())->getDefaults()['fontdata'] + ['dubai' => ['R' => 'Dubai-Regular.ttf', 'M' => 'Dubai-Medium.ttf', 'B' => 'Dubai-Bold.ttf', 'L' => 'Dubai-Light.ttf']],
+            'fontdata' => (new \Mpdf\Config\FontVariables())->getDefaults()['fontdata'] + ['dubai' => ['R' => 'Dubai-Regular.ttf', 'M' => 'Dubai-Medium.ttf', 'B' => 'Dubai-Bold.ttf', 'L' => 'Dubai-Light.ttf', 'useOTL' => 0xFF, 'useKashida' => 75]],
             'format' => 'A4',
             'margin_bottom' => 18,
             'margin_left' => 12,
             'margin_right' => 12,
             'margin_top' => 45,
+            'margin_header' => 0,
+            'margin_footer' => 0,
             'mode' => 'utf-8',
             'tempDir' => $tempDir,
         ]);
@@ -494,13 +504,17 @@ class FinanceReportService
             $mpdf->showWatermarkImage = true;
         }
 
-        $html = view('reports.finance-ledger-pdf-export', [
-            'generatedReport' => $generatedReport,
-            'report' => $report,
-            'service' => $this,
-        ])->render();
-
-        $mpdf->WriteHTML($html);
+        $fundReports = is_array($report['fund_reports'] ?? null) ? $report['fund_reports'] : [$report];
+        foreach ($fundReports as $index => $fundReport) {
+            if ($index > 0) {
+                $mpdf->AddPage();
+            }
+            $mpdf->WriteHTML(view('reports.finance-ledger-pdf-export', [
+                'generatedReport' => $generatedReport,
+                'report' => $fundReport,
+                'service' => $this,
+            ])->render());
+        }
 
         return $mpdf->Output('', Destination::STRING_RETURN);
     }
@@ -596,7 +610,9 @@ class FinanceReportService
         return match ($column) {
             'amount' => $this->formatMoney((float) $transaction->amount, $transaction->currency),
             'cash_box' => (string) ($transaction->cashBox?->name ?: ''),
-            'category' => (string) ($transaction->category?->name ?: ''),
+            'category' => (string) ($transaction->category?->name
+                ?: ($transaction->financeRequest?->category?->name
+                    ?: $transaction->financeRequest?->pullRequestKind?->name)),
             'currency' => (string) ($transaction->currency?->code ?: ''),
             'description' => (string) ($transaction->description ?: ''),
             'direction' => __('finance.options.'.$transaction->direction),
@@ -842,7 +858,7 @@ class FinanceReportService
 
     protected function ledgerPdfRendererVersion(): string
     {
-        return 'mpdf-fixed-ledger-v5';
+        return 'mpdf-fixed-ledger-v6';
     }
 
     protected function normalizeLedgerTemplateSnapshot(array $template): array

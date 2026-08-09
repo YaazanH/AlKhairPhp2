@@ -315,8 +315,38 @@ new class extends Component {
     </section>
 
     <section class="grid gap-6 xl:grid-cols-2">
-        <div class="surface-panel p-5 lg:p-6"><div class="eyebrow">{{ __('finance.dashboard.expense_categories') }}</div><h2 class="font-display mt-2 text-2xl text-white">{{ __('finance.dashboard.expense_chart') }}</h2>
-            @if ($pieTotal > 0)<div class="mt-6 grid items-center gap-6 sm:grid-cols-[14rem_1fr]"><svg viewBox="0 0 42 42" class="mx-auto h-56 w-56 -rotate-90 overflow-visible" role="img">@foreach ($report['category_totals'] as $index => $row)@php($portion = ((float) $row['expense'] / $pieTotal) * 100)<circle cx="21" cy="21" r="15.9155" fill="transparent" stroke="{{ $pieColors[$index % count($pieColors)] }}" stroke-width="8" stroke-dasharray="{{ $portion }} {{ 100 - $portion }}" stroke-dashoffset="{{ -$pieOffset }}" class="origin-center transition-all duration-200 hover:scale-105 hover:stroke-[10]"><title>{{ $row['category'] }}: {{ number_format($portion, 1) }}% · {{ app(FinanceService::class)->formatCurrencyAmount($row['expense'], $report['summary']['local_currency']) }}</title></circle>@php($pieOffset += $portion)@endforeach</svg><div class="space-y-3">@foreach ($report['category_totals'] as $index => $row)<div class="flex items-center justify-between gap-3 text-sm"><span class="flex items-center gap-2"><i class="h-3 w-3 rounded-full" style="background: {{ $pieColors[$index % count($pieColors)] }}"></i>{{ $row['category'] }}</span><bdi dir="ltr" class="font-semibold text-white">{{ app(FinanceService::class)->formatCurrencyAmount($row['expense'], $report['summary']['local_currency']) }}</bdi></div>@endforeach</div></div>@else<div class="admin-empty-state mt-5">{{ __('finance.dashboard.no_expenses') }}</div>@endif
+        <div class="surface-panel p-5 lg:p-6">
+            @if ($pieTotal > 0)
+                <div class="grid min-w-0 gap-5 lg:grid-cols-[minmax(0,.8fr)_minmax(17rem,1.2fr)] lg:items-center">
+                    <div class="min-w-0 self-start">
+                        <div class="eyebrow">{{ __('finance.dashboard.expense_categories') }}</div>
+                        <h2 class="font-display mt-2 text-2xl text-white">{{ __('finance.dashboard.expense_chart') }}</h2>
+                        <div class="mt-4 max-h-72 space-y-2 overflow-y-auto pe-1">
+                            @foreach ($report['category_totals'] as $index => $row)
+                                <div class="flex min-w-0 items-center justify-between gap-2 text-xs">
+                                    <span class="flex min-w-0 items-center gap-2">
+                                        <i class="h-2.5 w-2.5 shrink-0 rounded-full" style="background: {{ $pieColors[$index % count($pieColors)] }}"></i>
+                                        <span class="truncate">{{ $row['category'] }}</span>
+                                    </span>
+                                    <bdi dir="ltr" class="shrink-0 text-[11px] font-medium text-white">{{ app(FinanceService::class)->formatCurrencyAmount($row['expense'], $report['summary']['local_currency']) }}</bdi>
+                                </div>
+                            @endforeach
+                        </div>
+                    </div>
+
+                    <svg viewBox="0 0 42 42" class="mx-auto h-72 w-72 max-w-full -rotate-90 overflow-visible lg:h-80 lg:w-80 xl:h-[22rem] xl:w-[22rem]" role="img" aria-label="{{ __('finance.dashboard.expense_chart') }}">
+                        @foreach ($report['category_totals'] as $index => $row)
+                            @php($portion = ((float) $row['expense'] / $pieTotal) * 100)
+                            <circle cx="21" cy="21" r="15.9155" fill="transparent" stroke="{{ $pieColors[$index % count($pieColors)] }}" stroke-width="8" stroke-dasharray="{{ $portion }} {{ 100 - $portion }}" stroke-dashoffset="{{ -$pieOffset }}" class="origin-center transition-all duration-200 hover:scale-105 hover:stroke-[10]"><title>{{ $row['category'] }}: {{ number_format($portion, 1) }}% · {{ app(FinanceService::class)->formatCurrencyAmount($row['expense'], $report['summary']['local_currency']) }}</title></circle>
+                            @php($pieOffset += $portion)
+                        @endforeach
+                    </svg>
+                </div>
+            @else
+                <div class="eyebrow">{{ __('finance.dashboard.expense_categories') }}</div>
+                <h2 class="font-display mt-2 text-2xl text-white">{{ __('finance.dashboard.expense_chart') }}</h2>
+                <div class="admin-empty-state mt-5">{{ __('finance.dashboard.no_expenses') }}</div>
+            @endif
         </div>
 
         <div class="surface-table"><div class="admin-grid-meta"><div><div class="admin-grid-meta__title">{{ __('finance.dashboard.pending_withdrawals') }}</div><div class="admin-grid-meta__summary">{{ __('finance.dashboard.pending_withdrawals_help') }}</div></div><div class="flex gap-2"><button wire:click="$set('showRequestHistoryModal', true)" class="pill-link pill-link--compact">{{ __('finance.dashboard.previous_requests') }}</button><button wire:click="$set('showCreateRequestModal', true)" class="pill-link pill-link--compact pill-link--accent">{{ __('finance.actions.add') }}</button></div></div><div class="overflow-x-auto"><table class="text-sm"><thead><tr><th class="px-4 py-3 text-left">{{ __('finance.common.request') }}</th><th class="px-4 py-3 text-left">{{ __('finance.fields.requester') }}</th><th class="px-4 py-3 text-left">{{ __('finance.fields.category') }}</th><th class="px-4 py-3 text-left">{{ __('finance.fields.amount') }}</th><th></th></tr></thead><tbody>@forelse ($pendingRequests as $request)<tr><td class="px-4 py-3">{{ $request->request_no }}</td><td class="px-4 py-3">{{ $request->teacher ? trim($request->teacher->first_name.' '.$request->teacher->last_name) : ($request->requestedBy?->name ?: '-') }}</td><td class="px-4 py-3">{{ $request->pullRequestKind?->name ?: '-' }}</td><td class="px-4 py-3"><bdi dir="ltr">{{ app(FinanceService::class)->formatCurrencyAmount($request->requested_amount, $request->requestedCurrency) }}</bdi></td><td class="px-4 py-3 text-right"><button wire:click="openReviewModal({{ $request->id }})" class="pill-link pill-link--compact">{{ __('finance.actions.review') }}</button></td></tr>@empty<tr><td colspan="5" class="px-5 py-10 text-center text-neutral-500">{{ __('finance.empty.no_pending_pull_requests') }}</td></tr>@endforelse</tbody></table></div></div>

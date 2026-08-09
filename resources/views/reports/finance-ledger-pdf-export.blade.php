@@ -23,7 +23,7 @@
         .title { color: #164d27; font-size: 18pt; font-weight: bold; text-align: center; width: 56%; }
         .notice { color: #a52323; font-size: 8pt; font-weight: bold; margin-top: .5mm; }
         .report-no { color: #355f3e; direction: ltr; text-align: left; width: 22%; }
-        .meta-wrap { background: #f8fcf8; border-bottom: 1px solid #bad1be; padding: 2mm 12mm 2.5mm; }
+        .meta-wrap { background: transparent; border-bottom: 1px solid #bad1be; padding: 2mm 12mm 2.5mm; }
         .meta-table td { border: 0; padding: .7mm 1.2mm; text-align: right; vertical-align: middle; }
         .meta-label { color: #58715e; font-size: 7.8pt; font-weight: bold; white-space: nowrap; width: 13%; }
         .meta-value { color: #173b20; font-weight: bold; padding-right: 2.5mm !important; width: 20%; }
@@ -33,7 +33,7 @@
         .footer-table td { background: #dcefdc; border: 0; height: 8mm; padding: 0 2mm; vertical-align: middle; width: 33.33%; }
         .footer-page { font-weight: bold; text-align: center; }
         .footer-code { background: #dcefdc; direction: ltr; text-align: left; }
-        .statement-gap { height: 2.5mm; }
+        .statement-gap { height: 5mm; }
         .ledger { page-break-inside: auto; }
         .ledger thead { display: table-header-group; }
         .ledger tr { page-break-inside: avoid; }

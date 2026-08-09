@@ -158,7 +158,7 @@ class AssessmentWorkflowTest extends TestCase
         [$existingAssessment, $firstEnrollment] = $this->assessmentContext();
         $quizType = AssessmentType::query()->where('code', 'quiz')->firstOrFail();
         $course = Course::query()->where('name', 'Assessment Course')->firstOrFail();
-        $teacher = Teacher::query()->where('phone', '0944000201')->firstOrFail();
+        $teacher = Teacher::query()->where('first_name', 'Assessment')->where('last_name', 'Teacher')->firstOrFail();
         $yearId = AcademicYear::query()->where('is_current', true)->value('id');
 
         $secondParent = ParentProfile::create([
@@ -218,17 +218,19 @@ class AssessmentWorkflowTest extends TestCase
                 (string) max($firstEnrollment->group_id, $secondGroup->id),
             ])
             ->set('assessment_type_id', $quizType->id)
+            ->assertSet('total_mark', '100')
+            ->assertSet('pass_mark', '60')
             ->set('title', 'Shared Quiz')
             ->set('scheduled_at', '2026-10-01T10:00')
             ->assertSet('due_at', '2026-10-08T10:00')
-            ->set('total_mark', '100')
-            ->set('pass_mark', '60')
             ->call('save')
             ->assertHasNoErrors();
 
         $assessment = Assessment::query()->where('title', 'Shared Quiz')->firstOrFail();
 
         $this->assertSame(1, Assessment::query()->count());
+        $this->assertSame('100.00', $assessment->total_mark);
+        $this->assertSame('60.00', $assessment->pass_mark);
         $this->assertDatabaseHas('assessment_groups', [
             'assessment_id' => $assessment->id,
             'group_id' => $firstEnrollment->group_id,
@@ -271,6 +273,31 @@ class AssessmentWorkflowTest extends TestCase
 
         $pdfInspector = new Mpdf(['tempDir' => storage_path('app/mpdf')]);
         $this->assertSame(2, $pdfInspector->setSourceFile(StreamReader::createByString($pdfResponse->getContent())));
+    }
+
+    public function test_assessments_are_sorted_by_due_date_descending_with_undated_records_last(): void
+    {
+        [$undatedAssessment, $enrollment] = $this->assessmentContext();
+
+        foreach ([
+            ['title' => 'Earlier Due Assessment', 'due_at' => '2026-10-10'],
+            ['title' => 'Later Due Assessment', 'due_at' => '2026-10-20'],
+        ] as $data) {
+            Assessment::create([
+                'group_id' => $enrollment->group_id,
+                'assessment_type_id' => $undatedAssessment->assessment_type_id,
+                'title' => $data['title'],
+                'due_at' => $data['due_at'],
+                'total_mark' => 100,
+                'pass_mark' => 60,
+                'is_active' => true,
+                'created_by' => auth()->id(),
+            ]);
+        }
+
+        Volt::test('assessments.index')
+            ->set('courseFilter', 'all')
+            ->assertSeeInOrder(['Later Due Assessment', 'Earlier Due Assessment', $undatedAssessment->title]);
     }
 
     public function test_teacher_assessment_access_is_restricted_to_assigned_groups(): void

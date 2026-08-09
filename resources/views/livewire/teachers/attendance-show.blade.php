@@ -375,25 +375,6 @@ new class extends Component {
     @endif
 
     @can('attendance.teacher.take')
-        <section class="surface-panel p-5 lg:p-6">
-            <div class="admin-toolbar">
-                <div>
-                    <div class="admin-toolbar__title">{{ __('workflow.teacher_attendance.day_details.manual_add.title') }}</div>
-                    <p class="admin-toolbar__subtitle">{{ __('workflow.teacher_attendance.day_details.manual_add.help') }}</p>
-                </div>
-
-                <div class="admin-toolbar__actions">
-                    <button type="button" wire:click="openManualTeacherModal" class="pill-link pill-link--accent" @disabled($availableExtraTeachers->isEmpty() || $dayRecord->status === 'closed')>
-                        {{ __('workflow.teacher_attendance.day_details.manual_add.action') }}
-                    </button>
-                </div>
-            </div>
-
-            @if ($availableExtraTeachers->isEmpty())
-                <div class="mt-4 text-sm text-neutral-400">{{ __('workflow.teacher_attendance.day_details.manual_add.empty') }}</div>
-            @endif
-        </section>
-
         <x-admin.modal
             :show="$showManualTeacherModal"
             :title="__('workflow.teacher_attendance.day_details.manual_add.title')"
@@ -438,6 +419,11 @@ new class extends Component {
                                 ? __('workflow.student_attendance.day_details.controls.reopen_day')
                                 : __('workflow.student_attendance.day_details.controls.close_day') }}
                         </button>
+                        @if ($dayRecord->status !== 'closed')
+                            <button type="button" wire:click="openManualTeacherModal" class="pill-link pill-link--accent" @disabled($availableExtraTeachers->isEmpty())>
+                                {{ __('workflow.teacher_attendance.day_details.manual_add.action') }}
+                            </button>
+                        @endif
                         <button wire:click="deleteDay" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" type="button" class="pill-link border-red-400/25 text-red-200 hover:border-red-300/35 hover:bg-red-500/12">
                             {{ __('crud.common.actions.delete') }}
                         </button>
@@ -503,23 +489,26 @@ new class extends Component {
                                     </span>
                                 </td>
                                 <td class="px-5 py-4 lg:px-6">
-                                    <select
-                                        id="teacher-attendance-record-{{ $record->teacher_id }}"
-                                        wire:key="teacher-attendance-select-{{ $record->id }}-{{ $record->teacher_id }}"
-                                        wire:model="selected_statuses.{{ $record->teacher_id }}"
-                                        wire:change="saveTeacherStatus({{ $record->teacher_id }})"
-                                        class="w-full rounded-xl px-4 py-3 text-sm"
-                                        data-searchable="false"
-                                        @disabled($dayRecord->status === 'closed')
-                                    >
-                                        <option value="">{{ __('workflow.teacher_attendance.table.not_marked') }}</option>
-                                        @foreach ($statuses as $attendanceStatus)
-                                            <option value="{{ $attendanceStatus->id }}">{{ $attendanceStatus->name }}</option>
-                                        @endforeach
-                                    </select>
+                                    @if ($dayRecord->status === 'closed')
+                                        <span class="text-neutral-200">{{ $statuses->firstWhere('id', (int) ($selected_statuses[$record->teacher_id] ?? 0))?->name ?: __('workflow.teacher_attendance.table.not_marked') }}</span>
+                                    @else
+                                        <select
+                                            id="teacher-attendance-record-{{ $record->teacher_id }}"
+                                            wire:key="teacher-attendance-select-{{ $record->id }}-{{ $record->teacher_id }}"
+                                            wire:model="selected_statuses.{{ $record->teacher_id }}"
+                                            wire:change="saveTeacherStatus({{ $record->teacher_id }})"
+                                            class="w-full rounded-xl px-4 py-3 text-sm"
+                                            data-searchable="false"
+                                        >
+                                            <option value="">{{ __('workflow.teacher_attendance.table.not_marked') }}</option>
+                                            @foreach ($statuses as $attendanceStatus)
+                                                <option value="{{ $attendanceStatus->id }}">{{ $attendanceStatus->name }}</option>
+                                            @endforeach
+                                        </select>
+                                    @endif
                                 </td>
                                 @can('attendance.teacher.take')
-                                    <td class="px-5 py-4 text-right lg:px-6"><button type="button" wire:click="removeTeacher({{ $record->teacher_id }})" wire:confirm="{{ __('workflow.teacher_attendance.messages.confirm_remove_teacher') }}" class="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-red-400/25 text-red-200" title="{{ __('workflow.teacher_attendance.table.remove_teacher') }}" aria-label="{{ __('workflow.teacher_attendance.table.remove_teacher') }}" @disabled($dayRecord->status === 'closed')><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="h-4 w-4" aria-hidden="true"><path stroke-linecap="round" d="M6 7h12M10 11v6m4-6v6M9 7l1-2h4l1 2m-8 0 1 13h8l1-13"/></svg></button></td>
+                                    <td class="px-5 py-4 text-right lg:px-6">@if ($dayRecord->status !== 'closed')<button type="button" wire:click="removeTeacher({{ $record->teacher_id }})" wire:confirm="{{ __('workflow.teacher_attendance.messages.confirm_remove_teacher') }}" class="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-red-400/25 text-red-200" title="{{ __('workflow.teacher_attendance.table.remove_teacher') }}" aria-label="{{ __('workflow.teacher_attendance.table.remove_teacher') }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="h-4 w-4" aria-hidden="true"><path stroke-linecap="round" d="M6 7h12M10 11v6m4-6v6M9 7l1-2h4l1 2m-8 0 1 13h8l1-13"/></svg></button>@endif</td>
                                 @endcan
                             </tr>
                         @endforeach

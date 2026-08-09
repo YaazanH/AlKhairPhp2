@@ -61,7 +61,7 @@ class CourseEndService
                     'final_tests' => $finals->count(),
                     'final_score' => $finalExamScores->isEmpty() ? null : round((float) $finalExamScores->average(), 2),
                     'final_juzs' => $finals->pluck('juz.juz_number')->filter()->sort()->implode(', '),
-                    'final_marks' => $scores->map(fn ($score) => number_format((float) $score, 2))->implode(', '),
+                    'final_marks' => $scores->map(fn ($score) => \App\Support\PercentageFormatter::format($score))->implode(', '),
                     'assessment_count' => $enrollment->assessmentResults->count(),
                     'assessment_average' => $assessmentScores->isEmpty() ? null : round((float) $assessmentScores->average(), 2),
                     'passed_rules' => (bool) $criteria['passed'],

@@ -380,18 +380,22 @@ new class extends Component
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $enrollment->enrolled_at?->format('d-m-Y') }}</td>
                                 <td class="px-5 py-4 text-white lg:px-6">{{ $enrollment->final_points_cached }}</td>
                                 <td class="px-5 py-4 lg:px-6">
-                                    <select
-                                        wire:model="selected_statuses.{{ $enrollment->id }}"
-                                        wire:change="saveEnrollmentStatus({{ $enrollment->id }})"
-                                        @disabled(! auth()->user()->can('attendance.student.take') || $isDayClosed)
-                                        data-searchable="false"
-                                        class="w-full rounded-xl px-4 py-3 text-sm"
-                                    >
-                                        <option value="">{{ __('workflow.student_attendance.table.not_marked') }}</option>
-                                        @foreach ($statuses as $status)
-                                            <option value="{{ $status->id }}">{{ $status->name }}</option>
-                                        @endforeach
-                                    </select>
+                                    @if ($isDayClosed)
+                                        <span class="text-neutral-200">{{ $statuses->firstWhere('id', (int) ($selected_statuses[$enrollment->id] ?? 0))?->name ?: __('workflow.student_attendance.table.not_marked') }}</span>
+                                    @else
+                                        <select
+                                            wire:model="selected_statuses.{{ $enrollment->id }}"
+                                            wire:change="saveEnrollmentStatus({{ $enrollment->id }})"
+                                            @disabled(! auth()->user()->can('attendance.student.take'))
+                                            data-searchable="false"
+                                            class="w-full rounded-xl px-4 py-3 text-sm"
+                                        >
+                                            <option value="">{{ __('workflow.student_attendance.table.not_marked') }}</option>
+                                            @foreach ($statuses as $status)
+                                                <option value="{{ $status->id }}">{{ $status->name }}</option>
+                                            @endforeach
+                                        </select>
+                                    @endif
                                     @error('selected_statuses.'.$enrollment->id)
                                         <div class="mt-1 text-xs text-red-400">{{ $message }}</div>
                                     @enderror

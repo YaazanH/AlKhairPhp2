@@ -8,6 +8,7 @@ use App\Models\AssessmentResult;
 use App\Models\AssessmentType;
 use App\Models\Course;
 use App\Models\Group;
+use App\Services\AssessmentService;
 use App\Services\PointLedgerService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -76,7 +77,8 @@ new class extends Component {
                             ->orWhereHas('groups', fn ($groupQuery) => $groupQuery->where('course_id', (int) $this->courseFilter));
                     });
                 })
-                ->latest('scheduled_at')
+                ->orderByRaw('CASE WHEN due_at IS NULL THEN 1 ELSE 0 END')
+                ->orderByDesc('due_at')
                 ->latest('id')
         );
 
@@ -138,6 +140,11 @@ new class extends Component {
         $this->due_at_manually_changed = true;
     }
 
+    public function updatedAssessmentTypeId(): void
+    {
+        $this->syncMarksFromScoreBands();
+    }
+
     public function toggleGroup(int $groupId): void
     {
         if ($this->group_scope !== 'multiple') {
@@ -174,8 +181,6 @@ new class extends Component {
             'description' => ['nullable', 'string'],
             'scheduled_at' => ['nullable', 'date'],
             'due_at' => ['nullable', 'date', 'after_or_equal:scheduled_at'],
-            'total_mark' => ['nullable', 'numeric', 'gt:0'],
-            'pass_mark' => ['nullable', 'numeric', 'min:0', 'lte:total_mark'],
             'is_active' => ['boolean'],
         ];
 
@@ -211,6 +216,7 @@ new class extends Component {
 
         $validated = $this->validate();
         $groupIds = $this->selectedGroupIds();
+        $marks = app(AssessmentService::class)->markRangeForType((int) $validated['assessment_type_id']);
 
         if ($groupIds === []) {
             $this->addError('group_id', __('workflow.assessments.index.errors.no_groups_selected'));
@@ -231,8 +237,8 @@ new class extends Component {
             'description' => $validated['description'] ?: null,
             'scheduled_at' => $validated['scheduled_at'] ?: null,
             'due_at' => $validated['due_at'] ?: null,
-            'total_mark' => $validated['total_mark'] !== '' ? $validated['total_mark'] : null,
-            'pass_mark' => $validated['pass_mark'] !== '' ? $validated['pass_mark'] : null,
+            'total_mark' => $marks['total_mark'],
+            'pass_mark' => $marks['pass_mark'],
             'is_active' => $validated['is_active'],
         ];
 
@@ -272,8 +278,7 @@ new class extends Component {
         $this->scheduled_at = $assessment->scheduled_at?->format('Y-m-d') ?? '';
         $this->due_at = $assessment->due_at?->format('Y-m-d') ?? '';
         $this->due_at_manually_changed = true;
-        $this->total_mark = $assessment->total_mark !== null ? number_format((float) $assessment->total_mark, 2, '.', '') : '';
-        $this->pass_mark = $assessment->pass_mark !== null ? number_format((float) $assessment->pass_mark, 2, '.', '') : '';
+        $this->syncMarksFromScoreBands();
         $this->is_active = $assessment->is_active;
         $this->showForm = true;
 
@@ -340,6 +345,18 @@ new class extends Component {
         }
 
         session()->flash('status', __('workflow.assessments.index.messages.deleted'));
+    }
+
+    protected function syncMarksFromScoreBands(): void
+    {
+        $marks = app(AssessmentService::class)->markRangeForType($this->assessment_type_id);
+        $this->total_mark = $this->formatDerivedMark($marks['total_mark']);
+        $this->pass_mark = $this->formatDerivedMark($marks['pass_mark']);
+    }
+
+    protected function formatDerivedMark(?float $mark): string
+    {
+        return $mark === null ? '' : rtrim(rtrim(number_format($mark, 2, '.', ''), '0'), '.');
     }
 
     protected function defaultDueAtFor(string $scheduledAt): string
@@ -526,7 +543,7 @@ new class extends Component {
 
                     <div>
                         <label class="mb-1 block text-sm font-medium">{{ __('workflow.assessments.index.form.assessment_type') }}</label>
-                        <select wire:model="assessment_type_id" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                        <select wire:model.live="assessment_type_id" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
                             <option value="">{{ __('workflow.assessments.index.form.select_type') }}</option>
                             @foreach ($types as $type)
                                 <option value="{{ $type->id }}">{{ $type->name }}</option>
@@ -552,14 +569,13 @@ new class extends Component {
                     <div class="grid gap-4 md:grid-cols-2">
                         <div>
                             <label class="mb-1 block text-sm font-medium">{{ __('workflow.assessments.index.form.total_mark') }}</label>
-                            <input wire:model="total_mark" type="number" min="0" step="0.01" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
-                            @error('total_mark') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+                            <input wire:model="total_mark" type="number" readonly aria-readonly="true" class="w-full cursor-not-allowed rounded-lg border border-neutral-300 bg-neutral-100 px-3 py-2 text-sm text-neutral-500 dark:border-neutral-700 dark:bg-neutral-900/60">
                         </div>
                         <div>
                             <label class="mb-1 block text-sm font-medium">{{ __('workflow.assessments.index.form.pass_mark') }}</label>
-                            <input wire:model="pass_mark" type="number" min="0" step="0.01" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
-                            @error('pass_mark') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+                            <input wire:model="pass_mark" type="number" readonly aria-readonly="true" class="w-full cursor-not-allowed rounded-lg border border-neutral-300 bg-neutral-100 px-3 py-2 text-sm text-neutral-500 dark:border-neutral-700 dark:bg-neutral-900/60">
                         </div>
+                        <p class="text-xs text-neutral-500 md:col-span-2">{{ __('workflow.assessments.index.form.marks_from_bands') }}</p>
                     </div>
 
                     <div>

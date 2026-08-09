@@ -76,7 +76,8 @@ class RecordsController extends Controller
             ->when(array_key_exists('is_active', $validated), fn (Builder $builder) => $builder->where('is_active', (bool) $validated['is_active']))
             ->when($validated['assessment_type_id'] ?? null, fn (Builder $builder, int $typeId) => $builder->where('assessment_type_id', $typeId))
             ->when($validated['group_id'] ?? null, fn (Builder $builder, int $groupId) => $builder->where('group_id', $groupId))
-            ->orderByDesc('scheduled_at')
+            ->orderByRaw('CASE WHEN due_at IS NULL THEN 1 ELSE 0 END')
+            ->orderByDesc('due_at')
             ->orderByDesc('id');
 
         return $query->paginate($validated['per_page'] ?? 15)

@@ -197,15 +197,15 @@ new class extends Component
         </div>
     </section>
 
-    <div class="grid gap-6 xl:grid-cols-[22rem_minmax(0,1fr)]">
-        <section class="surface-panel report-panel min-w-0 p-5 lg:p-6">
+    <div class="grid gap-6">
+        <section class="order-2 surface-panel report-panel min-w-0 p-5 lg:p-6">
             <div class="mb-5">
                 <div class="eyebrow">{{ __('reports.filters.eyebrow') }}</div>
                 <h2 class="font-display mt-3 text-2xl text-white">{{ __('reports.student_activity.filters_title') }}</h2>
                 <p class="mt-3 text-sm leading-7 text-neutral-300">{{ __('reports.student_activity.filters_subtitle') }}</p>
             </div>
 
-            <div class="grid gap-4">
+            <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                 <div>
                     <label class="report-field-label mb-2 block text-sm font-medium">{{ __('reports.filters.course') }}</label>
                     <select wire:model.live="course_id" class="report-control w-full rounded-xl px-3 py-2.5 text-sm">
@@ -237,7 +237,7 @@ new class extends Component
                 </div>
             </div>
 
-            <div class="mt-5 grid gap-3">
+            <div class="mt-5 flex flex-wrap justify-end gap-3">
                 <a href="{{ route('reports.exports.student-activity-summary', ['course_id' => $course_id, 'group_id' => $group_id, 'date_from' => $date_from, 'date_to' => $date_to]) }}" class="pill-link pill-link--accent justify-center">
                     {{ __('reports.student_activity.export') }}
                 </a>
@@ -247,8 +247,8 @@ new class extends Component
             </div>
         </section>
 
-        <div class="grid gap-6">
-            <section class="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+        <div class="contents">
+            <section class="order-1 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
                 <article class="surface-panel report-kpi-card p-5">
                     <div class="kpi-label report-kpi-label">{{ __('reports.student_activity.students') }}</div>
                     <div class="metric-value report-kpi-value mt-5">{{ number_format($totals['students']) }}</div>
@@ -271,7 +271,7 @@ new class extends Component
                 </article>
             </section>
 
-            <section class="surface-table">
+            <section class="order-3 surface-table">
                 <div class="soft-keyline border-b px-5 py-5 lg:px-6">
                     <div class="eyebrow">{{ __('reports.student_activity.table_eyebrow') }}</div>
                     <h2 class="font-display mt-3 text-2xl text-white">{{ __('reports.student_activity.table_title') }}</h2>

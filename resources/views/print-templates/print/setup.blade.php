@@ -151,7 +151,7 @@
                                     </div>
 
                                     <div data-source-multiple="{{ $entity }}" hidden>
-                                        <div class="admin-toolbar print-template-source-toolbar print-template-source-toolbar--stacked mt-4">
+                                        <div class="admin-toolbar print-template-source-toolbar mt-4 rounded-2xl border border-white/10 bg-white/5 p-4">
                                             <div class="admin-toolbar__controls">
                                                 <div class="admin-filter-field">
                                                     <label>{{ __('crud.common.filters.search') }}</label>

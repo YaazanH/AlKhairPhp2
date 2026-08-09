@@ -45,13 +45,15 @@ class FinanceService
 
     public function transactionCategoryLabel(FinanceTransaction $transaction): string
     {
-        $transaction->loadMissing(['category', 'financeRequest.pullRequestKind']);
+        $transaction->loadMissing(['category', 'financeRequest.category', 'financeRequest.pullRequestKind']);
 
-        if ($transaction->financeRequest?->pullRequestKind) {
-            return $transaction->financeRequest->pullRequestKind->name;
+        if ($transaction->category) {
+            return $transaction->category->name;
         }
 
-        return $transaction->category?->name ?: __('finance.options.uncategorized');
+        return $transaction->financeRequest?->category?->name
+            ?: $transaction->financeRequest?->pullRequestKind?->name
+            ?: __('finance.options.uncategorized');
     }
 
     public function accessibleCashBoxes(?User $user, bool $activeOnly = true): Builder
@@ -817,14 +819,19 @@ class FinanceService
         $signedAmount = $direction === 'out' ? -$amount : $amount;
         $snapshot = $this->amountSnapshot($currency, $signedAmount);
         $specialTransactionNo = $payload['special_transaction_no'] ?? null;
-        $description = $this->cleanTransactionDescription($payload['description'] ?? null);
+        $financeRequest = ! empty($payload['finance_request_id'])
+            ? FinanceRequest::query()->find((int) $payload['finance_request_id'])
+            : null;
 
-        if (! $specialTransactionNo && ! empty($payload['finance_request_id'])) {
-            $financeRequest = FinanceRequest::query()->find((int) $payload['finance_request_id']);
+        if (! $specialTransactionNo && $financeRequest) {
             $specialTransactionNo = $financeRequest?->expense_no ?: $financeRequest?->request_no;
-            if ($description === null) {
-                $description = $this->cleanTransactionDescription($financeRequest?->requested_reason);
-            }
+        }
+
+        $normalizedType = $this->normalizeTransactionType((string) $payload['type'], $direction);
+        $references = array_filter([$specialTransactionNo, $financeRequest?->expense_no, $financeRequest?->request_no]);
+        $description = $this->cleanTransactionDescription($payload['description'] ?? null, $references);
+        if ($description === null && $normalizedType !== 'exchange') {
+            $description = $this->cleanTransactionDescription($financeRequest?->requested_reason, $references);
         }
 
         $this->ensureCashBoxSupportsCurrency($cashBox, $currency);
@@ -841,7 +848,7 @@ class FinanceService
             'finance_request_id' => $payload['finance_request_id'] ?? null,
             'source_type' => $payload['source_type'] ?? null,
             'source_id' => $payload['source_id'] ?? null,
-            'type' => $this->normalizeTransactionType((string) $payload['type'], $direction),
+            'type' => $normalizedType,
             'direction' => $direction,
             'amount' => $amount,
             'signed_amount' => $signedAmount,
@@ -869,12 +876,24 @@ class FinanceService
             $this->ensureCashBoxSupportsCurrency($cashBox, $currency);
             $this->ensureNonNegativeReplacementBalance($cashBox, $currency, $signedAmount, $transaction);
 
+            $transaction->loadMissing('financeRequest');
+            $normalizedType = $this->normalizeTransactionType((string) $payload['type'], $direction);
+            $references = array_filter([
+                $transaction->special_transaction_no,
+                $transaction->financeRequest?->expense_no,
+                $transaction->financeRequest?->request_no,
+            ]);
+            $description = $this->cleanTransactionDescription($payload['description'] ?? null, $references);
+            if ($description === null && $normalizedType !== 'exchange') {
+                $description = $this->cleanTransactionDescription($transaction->financeRequest?->requested_reason, $references);
+            }
+
             $transaction->update([
                 'amount' => $amount,
                 'base_amount' => $snapshot['base_amount'],
                 'cash_box_id' => $cashBox->id,
                 'currency_id' => $currency->id,
-                'description' => $this->cleanTransactionDescription($payload['description'] ?? null),
+                'description' => $description,
                 'direction' => $direction,
                 'entered_by' => $payload['entered_by'] ?? $user?->id ?? $transaction->entered_by,
                 'finance_category_id' => $payload['finance_category_id'] ?: null,
@@ -882,7 +901,7 @@ class FinanceService
                 'rate_to_base' => $snapshot['rate_to_base'],
                 'signed_amount' => $signedAmount,
                 'transaction_date' => $payload['transaction_date'],
-                'type' => $this->normalizeTransactionType((string) $payload['type'], $direction),
+                'type' => $normalizedType,
                 'metadata' => array_merge($transaction->metadata ?? [], [
                     'edited_at' => now()->toISOString(),
                     'edited_by' => $user?->id,
@@ -1097,7 +1116,7 @@ class FinanceService
 
     public function recordInvoicePayment(Payment $payment): void
     {
-        if ($payment->voided_at || FinanceTransaction::query()->where('source_type', Payment::class)->where('source_id', $payment->id)->where('type', 'invoice_payment')->exists()) {
+        if ($payment->voided_at || FinanceTransaction::query()->where('source_type', Payment::class)->where('source_id', $payment->id)->whereNull('metadata->reversal_of')->exists()) {
             return;
         }
 
@@ -1120,14 +1139,17 @@ class FinanceService
         $transactions = FinanceTransaction::query()
             ->where('source_type', $sourceType)
             ->where('source_id', $sourceId)
-            ->where('type', 'not like', '%_reversal')
+            ->whereNull('metadata->reversal_of')
             ->get();
 
         foreach ($transactions as $transaction) {
+            $reverseDirection = $transaction->direction === 'out' ? 'in' : 'out';
+            $reverseType = $this->normalizeTransactionType($transaction->type.'_reversal', $reverseDirection);
+
             if (FinanceTransaction::query()
                 ->where('source_type', $sourceType)
                 ->where('source_id', $sourceId)
-                ->where('type', $transaction->type.'_reversal')
+                ->where('type', $reverseType)
                 ->where('metadata->reversal_of', $transaction->id)
                 ->exists()) {
                 continue;
@@ -1142,8 +1164,8 @@ class FinanceService
                 'finance_request_id' => $transaction->finance_request_id,
                 'source_type' => $sourceType,
                 'source_id' => $sourceId,
-                'type' => $transaction->type.'_reversal',
-                'direction' => $transaction->direction === 'out' ? 'in' : 'out',
+                'type' => $reverseType,
+                'direction' => $reverseDirection,
                 'amount' => (float) $transaction->amount,
                 'transaction_date' => now()->toDateString(),
                 'description' => $reason,
@@ -1490,13 +1512,20 @@ class FinanceService
         return $direction === 'out' ? 'expense' : 'income';
     }
 
-    protected function cleanTransactionDescription(?string $description): ?string
+    protected function cleanTransactionDescription(?string $description, array $references = []): ?string
     {
         $description = trim((string) $description);
-        $description = (string) preg_replace('/\b(?:FIN|EXP|REV|RET|PUL|INV|TRSF|EXCH|EXC|TX)[-_]?\d+\b/iu', '', $description);
+        foreach (array_unique(array_filter(array_map(fn ($reference) => trim((string) $reference), $references))) as $reference) {
+            $description = str_ireplace($reference, '', $description);
+        }
+        $description = (string) preg_replace('/\b(?:FIN|EXP|REV|RET|PUL|INV|TRSF|EXCH|EXC|TX|DBIT|CRDT|RTRN|XCHG)[-_]?\d+\b/iu', '', $description);
         $description = trim((string) preg_replace('/\s{2,}/u', ' ', $description), " -|,.;:\t\n\r\0\x0B");
 
-        return $description !== '' ? $description : null;
+        if ($description === '' || preg_match('/^[\p{P}\p{S}\s]+$/u', $description)) {
+            return null;
+        }
+
+        return $description;
     }
 
     protected function requestNumberPrefix(string $type): string

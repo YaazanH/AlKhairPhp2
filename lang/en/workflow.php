@@ -643,6 +643,8 @@ return [
         'messages' => [
             'created' => 'Partial test created successfully.',
             'attempt_saved' => 'Partial test attempt saved successfully.',
+            'attempt_updated' => 'Partial test attempt updated successfully.',
+            'edited_void_reason' => 'Partial test attempt edited.',
             'deleted' => 'Partial test deleted successfully.',
             'deleted_void_reason' => 'Partial test deleted.',
         ],
@@ -678,6 +680,7 @@ return [
             'no_attempts' => 'No attempts have been recorded for this part yet.',
         ],
         'attempts' => [
+            'edit_title' => 'Edit part attempt',
             'title' => 'Record part attempt',
             'copy' => 'Save the testing day, teacher, and number of mistakes for one part. The part fails automatically when the mistake count reaches the configured threshold.',
             'teacher_locked' => 'Your linked teacher account will be saved automatically for this attempt.',
@@ -748,6 +751,8 @@ return [
         'messages' => [
             'created' => 'Final test created successfully.',
             'attempt_saved' => 'Final test attempt saved successfully.',
+            'attempt_updated' => 'Final test attempt updated successfully.',
+            'edited_void_reason' => 'Final test attempt edited.',
             'deleted' => 'Final test deleted successfully.',
             'deleted_void_reason' => 'Final test deleted.',
         ],
@@ -779,6 +784,7 @@ return [
             'attempts' => ':count attempts recorded',
         ],
         'attempts' => [
+            'edit_title' => 'Edit final-test attempt',
             'title' => 'Record final attempt',
             'table' => 'Final attempt history',
             'copy' => 'Save the testing day, teacher, and score for each final attempt. The passed or failed result is derived automatically from the configured score ranges.',
@@ -1008,6 +1014,7 @@ return [
                 'due_at' => 'Due at',
                 'total_mark' => 'Total mark',
                 'pass_mark' => 'Pass mark',
+                'marks_from_bands' => 'The total and passing marks are calculated automatically from the active score-band ranges for the selected assessment type.',
                 'description' => 'Description',
                 'select_group' => 'Select group',
                 'select_type' => 'Select type',

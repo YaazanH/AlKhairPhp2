@@ -21,7 +21,7 @@ class FinanceInvoicePrintController extends Controller
         $mpdf = new Mpdf([
             'format' => 'A5', 'orientation' => 'P', 'mode' => 'utf-8', 'default_font' => 'dubai',
             'fontDir' => array_merge($fontDirectories, [public_path('fonts/dubai')]),
-            'fontdata' => $fontData + ['dubai' => ['R' => 'Dubai-Regular.ttf', 'M' => 'Dubai-Medium.ttf', 'B' => 'Dubai-Bold.ttf', 'L' => 'Dubai-Light.ttf']],
+            'fontdata' => $fontData + ['dubai' => ['R' => 'Dubai-Regular.ttf', 'M' => 'Dubai-Medium.ttf', 'B' => 'Dubai-Bold.ttf', 'L' => 'Dubai-Light.ttf', 'useOTL' => 0xFF, 'useKashida' => 75]],
             'margin_top' => 12, 'margin_right' => 12, 'margin_bottom' => 12, 'margin_left' => 12,
         ]);
         $mpdf->SetDirectionality('rtl');

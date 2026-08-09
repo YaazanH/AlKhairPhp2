@@ -143,4 +143,39 @@ class QuranFinalTestService
             return $attempt->fresh(['finalTest', 'teacher']);
         });
     }
+
+    public function updateAttempt(QuranFinalTestAttempt $attempt, Teacher $teacher, array $data): QuranFinalTestAttempt
+    {
+        return DB::transaction(function () use ($attempt, $teacher, $data): QuranFinalTestAttempt {
+            $score = (float) $data['score'];
+            $status = app(QuranFinalTestRuleService::class)->statusForScore($score);
+            if (! $status) {
+                throw new LogicException(__('workflow.quran_final_tests.errors.score_not_in_range'));
+            }
+
+            $attempt->update([
+                'notes' => blank($data['notes'] ?? null) ? null : $data['notes'],
+                'score' => $score,
+                'status' => $status,
+                'teacher_id' => $teacher->id,
+                'tested_on' => $data['tested_on'],
+            ]);
+
+            $finalTest = $attempt->finalTest()->with(['attempts', 'enrollment.student.gradeLevel', 'student'])->firstOrFail();
+            $passedAttempt = $finalTest->attempts->where('status', 'passed')->sortBy([['tested_on', 'asc'], ['id', 'asc']])->first();
+            $finalTest->update([
+                'passed_on' => $passedAttempt?->tested_on,
+                'status' => $passedAttempt ? 'passed' : 'in_progress',
+            ]);
+
+            $ledger = app(PointLedgerService::class);
+            $ledger->voidSourceTransactions('quran_final_test', $finalTest->id, __('workflow.quran_final_tests.messages.edited_void_reason'));
+            if ($passedAttempt) {
+                $ledger->recordQuranFinalTestPoints($finalTest->fresh(['enrollment.student.gradeLevel', 'student']), (float) $passedAttempt->score);
+            }
+            $ledger->syncEnrollmentCaches($finalTest->enrollment);
+
+            return $attempt->fresh(['finalTest', 'teacher']);
+        });
+    }
 }

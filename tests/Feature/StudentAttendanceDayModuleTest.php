@@ -293,12 +293,20 @@ class StudentAttendanceDayModuleTest extends TestCase
         $this->assertSame('closed', $day->fresh()->status);
         $this->assertSame('closed', $groupDay->fresh()->status);
 
+        $closedGroupAttendance = Volt::test('groups.attendance', ['group' => $enrollment->group])
+            ->set('attendance_date', '2026-10-08');
+        $this->assertStringNotContainsString('wire:model="selected_statuses.'.$enrollment->id.'"', $closedGroupAttendance->html());
+
         Volt::test('student-attendance.show', ['studentAttendanceDay' => $day->fresh()])
             ->call('toggleDayStatus')
             ->assertHasNoErrors();
 
         $this->assertSame('open', $day->fresh()->status);
         $this->assertSame('open', $groupDay->fresh()->status);
+
+        $openGroupAttendance = Volt::test('groups.attendance', ['group' => $enrollment->group])
+            ->set('attendance_date', '2026-10-08');
+        $this->assertStringContainsString('wire:model="selected_statuses.'.$enrollment->id.'"', $openGroupAttendance->html());
     }
 
     public function test_group_shortcut_links_to_parent_day_and_marking_updates_records_and_points(): void

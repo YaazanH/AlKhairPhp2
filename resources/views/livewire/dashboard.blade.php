@@ -616,9 +616,44 @@ new class extends Component {
     <div>
         @if ($dashboardRole === 'manager')
             @php
-                $pieTotal = (int) $groupDistribution->sum('students');
-                $pieOffset = 0.0;
+                $groupStudentTotal = (int) $groupDistribution->sum('students');
                 $chartColor = fn (int $index) => sprintf('hsl(%.1f 42%% 57%%)', fmod(24 + ($index * 137.508), 360));
+                $treemapRects = [];
+                $layoutTreemap = function (array $items, float $x, float $y, float $width, float $height) use (&$layoutTreemap, &$treemapRects): void {
+                    if ($items === []) {
+                        return;
+                    }
+
+                    if (count($items) === 1) {
+                        $treemapRects[] = [...$items[0], 'x' => $x, 'y' => $y, 'width' => $width, 'height' => $height];
+
+                        return;
+                    }
+
+                    $total = max(1, array_sum(array_column($items, 'students')));
+                    $firstItems = [];
+                    $firstTotal = 0;
+                    foreach ($items as $index => $item) {
+                        if ($index === count($items) - 1 || ($firstItems !== [] && $firstTotal >= $total / 2)) {
+                            break;
+                        }
+                        $firstItems[] = $item;
+                        $firstTotal += $item['students'];
+                    }
+                    $secondItems = array_slice($items, count($firstItems));
+                    $firstRatio = max(0.01, min(0.99, $firstTotal / $total));
+
+                    if ($width >= $height) {
+                        $firstWidth = $width * $firstRatio;
+                        $layoutTreemap($firstItems, $x, $y, $firstWidth, $height);
+                        $layoutTreemap($secondItems, $x + $firstWidth, $y, $width - $firstWidth, $height);
+                    } else {
+                        $firstHeight = $height * $firstRatio;
+                        $layoutTreemap($firstItems, $x, $y, $width, $firstHeight);
+                        $layoutTreemap($secondItems, $x, $y + $firstHeight, $width, $height - $firstHeight);
+                    }
+                };
+                $layoutTreemap($groupDistribution->where('students', '>', 0)->sortByDesc('students')->values()->all(), 0, 0, 100, 62);
                 $niceMaximum = function (int $value): float {
                     $value = max(1, $value);
                     $targetStep = $value / 4;
@@ -637,34 +672,35 @@ new class extends Component {
                 $pagesLine = $dailyTrend->values()->map(fn (array $day, int $index) => $trendX($index).','.$trendY($day['pages']))->implode(' ');
                 $attendanceLine = $dailyTrend->values()->map(fn (array $day, int $index) => $trendX($index).','.$trendY($day['attendance']))->implode(' ');
                 $podiumOrder = collect([3, 1, 2])->map(fn (int $rank) => $leaderboard->firstWhere('rank', $rank))->filter();
-                $barMax = $niceMaximum((int) $groupPageTotals->max('pages'));
+                $barHighest = max(1, (int) $groupPageTotals->max('pages'));
+                $barRawStep = $barHighest / 6;
+                $barMagnitude = 10 ** floor(log10($barRawStep));
+                $barNormalizedStep = $barRawStep / $barMagnitude;
+                $barNiceStep = ($barNormalizedStep <= 1 ? 1 : ($barNormalizedStep <= 2 ? 2 : ($barNormalizedStep <= 2.5 ? 2.5 : ($barNormalizedStep <= 5 ? 5 : 10)))) * $barMagnitude;
+                $barTicks = max(1, (int) ceil($barHighest / $barNiceStep));
+                $barMax = $barTicks * $barNiceStep;
             @endphp
 
             <section class="grid gap-6 xl:grid-cols-2">
                 <article class="surface-panel p-5 lg:p-6">
                     <div class="eyebrow">{{ __('dashboard.manager.analytics.groups_eyebrow') }}</div>
                     <h2 class="font-display mt-2 text-2xl text-white">{{ __('dashboard.manager.analytics.group_distribution') }}</h2>
-                    @if ($pieTotal > 0)
-                        <div class="mt-4 grid min-w-0 items-center gap-6 lg:grid-cols-[minmax(10rem,13rem)_minmax(0,1fr)]">
-                            <svg viewBox="0 0 42 42" class="mx-auto h-52 w-52 -rotate-90 overflow-visible" role="img" aria-label="{{ __('dashboard.manager.analytics.group_distribution') }}">
-                                @foreach ($groupDistribution as $index => $group)
-                                    @php($portion = ($group['students'] / $pieTotal) * 100)
-                                    @if ($portion > 0)
-                                        <circle cx="21" cy="21" r="15.9155" fill="transparent" stroke="{{ $chartColor($index) }}" stroke-width="8" stroke-dasharray="{{ $portion }} {{ 100 - $portion }}" stroke-dashoffset="{{ -$pieOffset }}" class="dashboard-chart-segment origin-center transition-all duration-200 hover:scale-105 hover:stroke-[10]">
-                                            <title>{{ $group['name'] }} · {{ trans_choice('dashboard.manager.analytics.students_count', $group['students'], ['count' => number_format($group['students'])]) }} · {{ number_format($portion, 1) }}%</title>
-                                        </circle>
-                                    @endif
-                                    @php($pieOffset += $portion)
-                                @endforeach
-                            </svg>
-                            <div class="grid min-w-0 grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2">
-                                @foreach ($groupDistribution as $index => $group)
-                                    <div class="flex items-center justify-between gap-3 text-sm">
-                                        <span class="flex min-w-0 items-center gap-2"><i class="h-3 w-3 shrink-0 rounded-full" style="background: {{ $chartColor($index) }}"></i><span class="truncate">{{ $group['name'] }}</span></span>
-                                        <strong class="text-white">{{ number_format($group['students']) }}</strong>
-                                    </div>
-                                @endforeach
-                            </div>
+                    @if ($groupStudentTotal > 0)
+                        <div class="dashboard-treemap relative mt-5 w-full overflow-hidden rounded-2xl border border-white/10" style="aspect-ratio: 100 / 62" role="img" aria-label="{{ __('dashboard.manager.analytics.group_distribution') }}">
+                            @foreach ($treemapRects as $index => $rect)
+                                @php
+                                    $showName = $rect['width'] >= 13 && $rect['height'] >= 11;
+                                    $showCount = $rect['width'] >= 7 && $rect['height'] >= 7;
+                                @endphp
+                                <div
+                                    class="dashboard-treemap__tile absolute overflow-hidden border border-neutral-950/25 p-2.5 text-white"
+                                    style="inset-inline-start: {{ $rect['x'] }}%; top: {{ ($rect['y'] / 62) * 100 }}%; width: {{ $rect['width'] }}%; height: {{ ($rect['height'] / 62) * 100 }}%; background: {{ $chartColor($index) }}"
+                                    title="{{ $rect['name'] }} · {{ trans_choice('dashboard.manager.analytics.students_count', $rect['students'], ['count' => number_format($rect['students'])]) }} · {{ number_format(($rect['students'] / $groupStudentTotal) * 100, 1) }}%"
+                                >
+                                    @if ($showName)<div class="truncate text-sm font-medium leading-tight">{{ $rect['name'] }}</div>@endif
+                                    @if ($showCount)<div class="mt-1 text-xs font-light text-white/90">{{ trans_choice('dashboard.manager.analytics.students_count', $rect['students'], ['count' => number_format($rect['students'])]) }}</div>@endif
+                                </div>
+                            @endforeach
                         </div>
                     @else
                         <div class="admin-empty-state mt-5">{{ __('dashboard.manager.analytics.no_group_students') }}</div>
@@ -679,13 +715,13 @@ new class extends Component {
                             <span class="flex items-center gap-2"><i class="h-2.5 w-6 rounded-full bg-sky-400"></i>{{ __('dashboard.manager.analytics.students_attended') }}</span>
                         </div>
                     </div>
-                    <svg viewBox="0 0 440 220" dir="ltr" class="mt-2 h-auto w-full overflow-hidden" role="img" aria-label="{{ __('dashboard.manager.analytics.daily_activity') }}">
+                    <svg viewBox="0 0 440 220" dir="ltr" class="dashboard-line-chart mx-auto mt-6 h-auto w-full max-w-2xl overflow-hidden" role="img" aria-label="{{ __('dashboard.manager.analytics.daily_activity') }}">
                         <line x1="{{ app()->isLocale('ar') ? 400 : 58 }}" y1="42" x2="{{ app()->isLocale('ar') ? 400 : 58 }}" y2="178" stroke="rgba(255,255,255,.3)" stroke-width="1.5" />
                         <line x1="58" y1="178" x2="400" y2="178" stroke="rgba(255,255,255,.3)" stroke-width="1.5" />
                         @foreach ([0, .25, .5, .75, 1] as $ratio)
                             @php($gridY = 178 - ($ratio * 128))
                             <line x1="58" y1="{{ $gridY }}" x2="400" y2="{{ $gridY }}" stroke="rgba(255,255,255,.09)" stroke-width="1" />
-                            <text x="{{ app()->isLocale('ar') ? 410 : 49 }}" y="{{ $gridY + 4 }}" text-anchor="{{ app()->isLocale('ar') ? 'start' : 'end' }}" fill="#a3a3a3" font-size="10">{{ $axisLabel($trendMax * $ratio) }}</text>
+                            <text x="{{ app()->isLocale('ar') ? 414 : 49 }}" y="{{ $gridY + 3 }}" text-anchor="{{ app()->isLocale('ar') ? 'start' : 'end' }}" fill="#a3a3a3" font-size="9">{{ $axisLabel($trendMax * $ratio) }}</text>
                         @endforeach
                         @foreach ($dailyTrend as $index => $day)
                             <line x1="{{ $trendX($index) }}" y1="50" x2="{{ $trendX($index) }}" y2="178" stroke="rgba(255,255,255,.09)" stroke-width="1" />
@@ -707,7 +743,7 @@ new class extends Component {
                                     <text x="0" y="-9" text-anchor="middle" fill="white" font-size="9">{{ $day['label'] }} · {{ __('dashboard.manager.analytics.students_attended') }}: {{ number_format($day['attendance']) }}</text>
                                 </g>
                             </g>
-                            <text x="{{ $trendX($index) }}" y="202" text-anchor="middle" fill="#a3a3a3" font-size="11">{{ $day['label'] }}</text>
+                            <text x="{{ $trendX($index) }}" y="202" text-anchor="middle" fill="#a3a3a3" font-size="9">{{ $day['label'] }}</text>
                         @endforeach
                         <text x="{{ app()->isLocale('ar') ? 428 : 20 }}" y="110" text-anchor="middle" fill="#a3a3a3" font-size="10" transform="rotate({{ app()->isLocale('ar') ? 90 : -90 }} {{ app()->isLocale('ar') ? 428 : 20 }} 110)">{{ __('dashboard.manager.analytics.count_axis') }}</text>
                     </svg>
@@ -741,11 +777,13 @@ new class extends Component {
                     @if ($groupPageTotals->isEmpty())
                         <div class="admin-empty-state mt-5">{{ __('dashboard.manager.analytics.no_groups') }}</div>
                     @else
-                        <div class="mt-8 grid grid-cols-[3rem_minmax(0,1fr)] gap-0">
-                            <div class="flex h-64 flex-col justify-between border-e border-white/20 pe-2 text-end text-[10px] text-neutral-400"><span>{{ $axisLabel($barMax) }}</span><span>{{ $axisLabel($barMax * .75) }}</span><span>{{ $axisLabel($barMax * .5) }}</span><span>{{ $axisLabel($barMax * .25) }}</span><span>0</span></div>
+                        <div class="mx-auto mt-8 grid w-full max-w-xl grid-cols-[3rem_minmax(0,1fr)] gap-0">
+                            <div class="flex h-64 flex-col justify-between border-e border-white/20 pe-2 text-end text-[10px] font-light text-neutral-400">
+                                @foreach (range($barTicks, 0) as $tick)<span>{{ $axisLabel($barNiceStep * $tick) }}</span>@endforeach
+                            </div>
                         <div class="relative">
                         <div class="pointer-events-none absolute inset-x-0 top-0 flex h-64 flex-col justify-between" aria-hidden="true">
-                            @foreach ([0, 1, 2, 3, 4] as $gridLine)
+                            @foreach (range($barTicks, 0) as $gridLine)
                                 <span class="block border-t border-white/10"></span>
                             @endforeach
                         </div>

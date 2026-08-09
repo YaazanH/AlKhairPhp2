@@ -5,9 +5,33 @@ namespace App\Services;
 use App\Models\Assessment;
 use App\Models\AssessmentResult;
 use App\Models\AssessmentScoreBand;
+use App\Models\AssessmentType;
 
 class AssessmentService
 {
+    public function markRangeForType(int|AssessmentType|null $assessmentType): array
+    {
+        $type = $assessmentType instanceof AssessmentType
+            ? $assessmentType
+            : AssessmentType::query()->find($assessmentType);
+
+        if (! $type?->is_scored) {
+            return ['total_mark' => null, 'pass_mark' => null];
+        }
+
+        $bands = AssessmentScoreBand::query()
+            ->where('assessment_type_id', $type->id)
+            ->where('is_active', true)
+            ->get(['from_mark', 'to_mark', 'is_fail']);
+
+        return [
+            'total_mark' => $bands->isEmpty() ? null : (float) $bands->max('to_mark'),
+            'pass_mark' => $bands->where('is_fail', false)->isEmpty()
+                ? null
+                : (float) $bands->where('is_fail', false)->min('from_mark'),
+        ];
+    }
+
     public function effectiveBandPoints(AssessmentScoreBand $band): int
     {
         if ($band->points !== null) {

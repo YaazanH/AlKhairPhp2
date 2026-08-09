@@ -637,12 +637,18 @@ new class extends Component {
             return;
         }
 
+        $transaction->loadMissing('financeRequest');
+        $requestCategoryId = $transaction->financeRequest?->finance_category_id;
+        if (! $requestCategoryId && $transaction->source_type === FinanceRequest::class && $transaction->source_id) {
+            $requestCategoryId = FinanceRequest::query()->whereKey($transaction->source_id)->value('finance_category_id');
+        }
+
         $this->maintaining_transaction_id = $transaction->id;
         $this->maintaining_transaction_deleted = $transaction->trashed();
         $this->maint_transaction_date = $transaction->transaction_date?->toDateString() ?: '';
         $this->maint_cash_box_id = $transaction->cash_box_id;
         $this->maint_currency_id = $transaction->currency_id;
-        $this->maint_category_id = $transaction->finance_category_id;
+        $this->maint_category_id = $transaction->finance_category_id ?: $requestCategoryId;
         $this->maint_type = $transaction->type;
         $this->maint_direction = $transaction->direction;
         $this->maint_amount = $this->formatFinanceNumberForInput($transaction->amount);

@@ -7,6 +7,7 @@ use App\Models\QuranFinalTest;
 use App\Models\QuranPartialTest;
 use App\Models\QuranTest;
 use App\Models\QuranTestType;
+use App\Models\Student;
 use Illuminate\Support\Collection;
 
 class QuranProgressionService
@@ -33,6 +34,9 @@ class QuranProgressionService
         }
 
         if ($testType->code === 'awqaf') {
+            $memorizedExternally = Student::query()->whereKey($enrollment->student_id)
+                ->whereHas('externalMemorizedJuzs', fn ($query) => $query->whereKey($juzId))
+                ->exists();
             $passedFinal = QuranFinalTest::query()
                 ->where('student_id', $enrollment->student_id)
                 ->where('juz_id', $juzId)
@@ -46,7 +50,7 @@ class QuranProgressionService
                 ->where('status', 'passed')
                 ->exists();
 
-            if (! $passedFinal && ! $legacyPassedFinal) {
+            if (! $memorizedExternally && ! $passedFinal && ! $legacyPassedFinal) {
                 return __('workflow.quran_tests.errors.awqaf_requires_final');
             }
 
@@ -80,6 +84,9 @@ class QuranProgressionService
             ->pluck('juz_id')
             ->map(fn ($id) => (int) $id);
 
+        $externalJuzIds = Student::query()->find($studentId)?->externalMemorizedJuzs()
+            ->pluck('quran_juzs.id')->map(fn ($id) => (int) $id) ?? collect();
+
         $recordedAwqafJuzIds = QuranTest::query()
             ->where('student_id', $studentId)
             ->whereHas('type', fn ($query) => $query->where('code', 'awqaf'))
@@ -89,6 +96,7 @@ class QuranProgressionService
 
         return $passedFinalJuzIds
             ->merge($legacyPassedFinalJuzIds)
+            ->merge($externalJuzIds)
             ->unique()
             ->values()
             ->diff($recordedAwqafJuzIds)

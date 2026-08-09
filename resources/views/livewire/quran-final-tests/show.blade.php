@@ -3,11 +3,13 @@
 use App\Livewire\Concerns\AuthorizesPermissions;
 use App\Livewire\Concerns\AuthorizesTeacherAssignments;
 use App\Models\QuranFinalTest;
+use App\Models\QuranTest;
 use App\Models\QuranJuz;
 use App\Models\Teacher;
 use App\Services\QuranFinalTestRuleService;
 use App\Services\QuranFinalTestService;
 use Livewire\Volt\Component;
+use Illuminate\Validation\Rule;
 
 new class extends Component {
     use AuthorizesPermissions;
@@ -19,6 +21,7 @@ new class extends Component {
     public string $score = '';
     public string $notes = '';
     public bool $showAttemptModal = false;
+    public ?int $editingAttemptId = null;
     public bool $showCurrentJuzModal = false;
     public ?int $newCurrentJuzId = null;
 
@@ -51,7 +54,7 @@ new class extends Component {
             ]),
             'scoreRules' => app(QuranFinalTestRuleService::class)->ranges(),
             'teachers' => $this->availableRecordingTeachers(),
-            'availableCurrentJuzs' => QuranJuz::query()->whereKeyNot($this->finalTest->juz_id)->orderBy('juz_number')->get(),
+            'availableCurrentJuzs' => $this->availableCurrentJuzs(),
         ];
     }
 
@@ -69,6 +72,7 @@ new class extends Component {
         $this->tested_on = now()->toDateString();
         $this->score = '';
         $this->notes = '';
+        $this->editingAttemptId = null;
         $this->showAttemptModal = true;
         $this->resetValidation();
     }
@@ -79,6 +83,7 @@ new class extends Component {
         $this->tested_on = now()->toDateString();
         $this->score = '';
         $this->notes = '';
+        $this->editingAttemptId = null;
         $this->showAttemptModal = false;
         $this->resetValidation();
     }
@@ -98,30 +103,55 @@ new class extends Component {
         $teacher = Teacher::query()->findOrFail($teacherId);
         abort_unless($this->currentTeacher() || $this->availableRecordingTeachers()->contains('id', $teacher->id), 403);
 
+        $isEditing = $this->editingAttemptId !== null;
+        abort_unless(! $isEditing || auth()->user()?->hasRole('super_admin'), 403);
         try {
-            $attempt = app(QuranFinalTestService::class)->recordAttempt($this->finalTest, $teacher, [
-                'notes' => $validated['notes'] ?? null,
-                'score' => $validated['score'] ?? null,
-                'tested_on' => $validated['tested_on'],
-            ]);
+            $attempt = $isEditing
+                ? app(QuranFinalTestService::class)->updateAttempt(
+                    $this->finalTest->attempts()->findOrFail($this->editingAttemptId),
+                    $teacher,
+                    [
+                        'notes' => $validated['notes'] ?? null,
+                        'score' => $validated['score'] ?? null,
+                        'tested_on' => $validated['tested_on'],
+                    ],
+                )
+                : app(QuranFinalTestService::class)->recordAttempt($this->finalTest, $teacher, [
+                    'notes' => $validated['notes'] ?? null,
+                    'score' => $validated['score'] ?? null,
+                    'tested_on' => $validated['tested_on'],
+                ]);
         } catch (\LogicException $exception) {
             $this->addError('attempt', $exception->getMessage());
 
             return;
         }
 
-        session()->flash('status', __('workflow.quran_final_tests.messages.attempt_saved'));
+        session()->flash('status', __($isEditing ? 'workflow.quran_final_tests.messages.attempt_updated' : 'workflow.quran_final_tests.messages.attempt_saved'));
         $this->finalTest = $this->finalTest->fresh();
         $this->closeAttemptModal();
-        if ($attempt->status === 'passed') {
+        if (! $isEditing && $attempt->status === 'passed') {
             $this->showCurrentJuzModal = true;
         }
+    }
+
+    public function openEditAttempt(int $attemptId): void
+    {
+        abort_unless(auth()->user()?->hasRole('super_admin'), 403);
+        $attempt = $this->finalTest->attempts()->findOrFail($attemptId);
+        $this->editingAttemptId = $attempt->id;
+        $this->teacher_id = $attempt->teacher_id;
+        $this->tested_on = $attempt->tested_on?->toDateString() ?: now()->toDateString();
+        $this->score = rtrim(rtrim(number_format((float) $attempt->score, 2, '.', ''), '0'), '.');
+        $this->notes = $attempt->notes ?: '';
+        $this->showAttemptModal = true;
+        $this->resetValidation();
     }
 
     public function saveCurrentJuz(): void
     {
         $this->authorizePermission('quran-final-tests.record');
-        $validated = $this->validate(['newCurrentJuzId' => ['required', 'exists:quran_juzs,id', 'not_in:'.$this->finalTest->juz_id]]);
+        $validated = $this->validate(['newCurrentJuzId' => ['required', Rule::in($this->availableCurrentJuzs()->pluck('id')->all())]]);
         $this->finalTest->student()->update(['quran_current_juz_id' => (int) $validated['newCurrentJuzId']]);
         $this->showCurrentJuzModal = false;
         $this->newCurrentJuzId = null;
@@ -141,8 +171,22 @@ new class extends Component {
             return collect();
         }
 
-        return Teacher::query()->with('user')->where('status', 'active')->orderBy('first_name')->orderBy('last_name')->get()
-            ->filter(fn (Teacher $teacher) => $teacher->user?->can('quran-final-tests.record'))->values();
+        return Teacher::query()->with('user')->where(function ($query) {
+            $query->where('status', 'active')->orWhere('teachers.id', $this->teacher_id);
+        })->orderBy('first_name')->orderBy('last_name')->get()
+            ->filter(fn (Teacher $teacher) => $teacher->id === $this->teacher_id || $teacher->user?->can('quran-final-tests.record'))->values();
+    }
+
+    protected function availableCurrentJuzs()
+    {
+        $student = $this->finalTest->student;
+        $blockedJuzIds = collect([$this->finalTest->juz_id])
+            ->merge($student?->externalMemorizedJuzs()->pluck('quran_juzs.id') ?? collect())
+            ->merge(QuranFinalTest::query()->where('student_id', $this->finalTest->student_id)->where('status', 'passed')->pluck('juz_id'))
+            ->merge(QuranTest::query()->where('student_id', $this->finalTest->student_id)->where('status', 'passed')->whereHas('type', fn ($query) => $query->where('code', 'final'))->pluck('juz_id'))
+            ->filter()->unique()->all();
+
+        return QuranJuz::query()->whereNotIn('id', $blockedJuzIds)->orderBy('juz_number')->get();
     }
 
     protected function currentTeacher(): ?Teacher
@@ -212,6 +256,7 @@ new class extends Component {
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.quran_final_tests.attempts.headers.teacher') }}</th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.quran_final_tests.attempts.headers.score') }}</th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.quran_final_tests.attempts.headers.status') }}</th>
+                            @if (auth()->user()?->hasRole('super_admin'))<th class="px-5 py-4 text-right lg:px-6">{{ __('crud.common.actions.actions') }}</th>@endif
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-white/6">
@@ -220,12 +265,13 @@ new class extends Component {
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $attempt->attempt_no }}</td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $attempt->tested_on?->format('d-m-Y') }}</td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $attempt->teacher?->first_name }} {{ $attempt->teacher?->last_name }}</td>
-                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $attempt->score !== null ? $attempt->score : __('workflow.common.not_available') }}</td>
+                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ \App\Support\PercentageFormatter::format($attempt->score, __('workflow.common.not_available')) }}</td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ __('workflow.common.result_status.'.$attempt->status) }}</td>
+                                @if (auth()->user()?->hasRole('super_admin'))<td class="px-5 py-4 text-right lg:px-6"><button type="button" wire:click="openEditAttempt({{ $attempt->id }})" class="pill-link pill-link--compact">{{ __('crud.common.actions.edit') }}</button></td>@endif
                             </tr>
                             @if ($attempt->notes)
                                 <tr>
-                                    <td class="px-5 pb-4 text-xs text-neutral-400 lg:px-6" colspan="5">{{ $attempt->notes }}</td>
+                                    <td class="px-5 pb-4 text-xs text-neutral-400 lg:px-6" colspan="{{ auth()->user()?->hasRole('super_admin') ? 6 : 5 }}">{{ $attempt->notes }}</td>
                                 </tr>
                             @endif
                         @endforeach
@@ -235,7 +281,7 @@ new class extends Component {
         @endif
     </section>
 
-    <x-admin.modal :show="$showAttemptModal" :title="__('workflow.quran_final_tests.attempts.title')" :description="__('workflow.quran_final_tests.attempts.copy')" close-method="closeAttemptModal" max-width="3xl">
+    <x-admin.modal :show="$showAttemptModal" :title="__($editingAttemptId ? 'workflow.quran_final_tests.attempts.edit_title' : 'workflow.quran_final_tests.attempts.title')" :description="__('workflow.quran_final_tests.attempts.copy')" close-method="closeAttemptModal" max-width="3xl">
         <form wire:submit="saveAttempt" class="space-y-4">
             @if ($currentTeacher)
                 <div class="soft-callout px-4 py-4 text-sm leading-6">
@@ -268,8 +314,8 @@ new class extends Component {
                     <label for="final-attempt-score" class="mb-1 block text-sm font-medium">{{ __('workflow.quran_tests.form.score') }}</label>
                     <input id="final-attempt-score" wire:model="score" type="number" min="0" max="100" step="0.01" class="w-full rounded-xl px-4 py-3 text-sm">
                     <div class="mt-2 flex flex-wrap gap-2 text-xs text-neutral-300">
-                        <span class="badge-soft badge-soft--emerald">{{ __('workflow.quran_final_tests.attempts.range_passed', ['from' => $scoreRules['passed']['from'], 'to' => $scoreRules['passed']['to']]) }}</span>
-                        <span class="badge-soft">{{ __('workflow.quran_final_tests.attempts.range_failed', ['from' => $scoreRules['failed']['from'], 'to' => $scoreRules['failed']['to']]) }}</span>
+                        <span class="badge-soft badge-soft--emerald">{{ __('workflow.quran_final_tests.attempts.range_passed', ['from' => \App\Support\PercentageFormatter::format($scoreRules['passed']['from']), 'to' => \App\Support\PercentageFormatter::format($scoreRules['passed']['to'])]) }}</span>
+                        <span class="badge-soft">{{ __('workflow.quran_final_tests.attempts.range_failed', ['from' => \App\Support\PercentageFormatter::format($scoreRules['failed']['from']), 'to' => \App\Support\PercentageFormatter::format($scoreRules['failed']['to'])]) }}</span>
                     </div>
                     @error('score') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
                 </div>
@@ -287,13 +333,13 @@ new class extends Component {
 
             <div class="flex justify-end gap-3">
                 <button type="button" wire:click="closeAttemptModal" class="pill-link">{{ __('crud.common.actions.cancel') }}</button>
-                <button type="submit" class="pill-link pill-link--accent">{{ __('workflow.quran_final_tests.actions.save_attempt') }}</button>
+                <button type="submit" class="pill-link pill-link--accent">{{ __($editingAttemptId ? 'crud.common.actions.save' : 'workflow.quran_final_tests.actions.save_attempt') }}</button>
             </div>
         </form>
     </x-admin.modal>
 
-    <x-admin.modal :show="$showCurrentJuzModal" :title="__('workflow.quran_final_tests.current_juz.title')" :description="__('workflow.quran_final_tests.current_juz.tested', ['juz' => $finalTestRecord->juz?->juz_number])" close-method="closeCurrentJuzModal" max-width="lg">
-        <form wire:submit="saveCurrentJuz" class="space-y-4">
+    <x-admin.modal :show="$showCurrentJuzModal" :title="__('workflow.quran_final_tests.current_juz.title')" :description="__('workflow.quran_final_tests.current_juz.tested', ['juz' => $finalTestRecord->juz?->juz_number])" close-method="closeCurrentJuzModal" max-width="xl">
+        <form wire:submit="saveCurrentJuz" class="space-y-3">
             <div>
                 <label for="new-current-juz" class="mb-1 block text-sm font-medium">{{ __('workflow.quran_final_tests.current_juz.select') }}</label>
                 <select id="new-current-juz" wire:model="newCurrentJuzId" class="w-full rounded-xl px-4 py-3 text-sm">

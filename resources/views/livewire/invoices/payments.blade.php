@@ -21,6 +21,7 @@ new class extends Component {
     public string $item_name = '';
     public string $item_quantity = '1';
     public string $item_unit_price = '0';
+    public string $invoice_deduction = '0';
     public ?int $payment_method_id = null;
     public string $paid_at = '';
     public string $payment_amount = '';
@@ -33,6 +34,7 @@ new class extends Component {
         $this->currentInvoice = Invoice::query()->with(['parentProfile'])->findOrFail($invoice->id);
         $this->authorizeScopedInvoiceAccess($this->currentInvoice);
         $this->paid_at = now()->toDateString();
+        $this->invoice_deduction = $this->formatFinanceNumberForInput($this->currentInvoice->discount);
     }
 
     public function with(): array
@@ -76,6 +78,24 @@ new class extends Component {
         app(FinanceService::class)->syncInvoiceTotals($item->invoice->fresh());
         session()->flash('status', $this->editingItemId ? __('invoices.detail.item_form.messages.updated') : __('invoices.detail.item_form.messages.created'));
         $this->cancelItem();
+    }
+
+    public function saveDeduction(): void
+    {
+        $this->authorizePermission('invoices.update');
+        $this->normalizeFinanceNumberProperty('invoice_deduction');
+        $validated = $this->validate(['invoice_deduction' => ['required', 'numeric', 'min:0']]);
+        $subtotal = (float) InvoiceItem::query()->where('invoice_id', $this->currentInvoice->id)->sum('amount');
+        $deduction = round((float) $validated['invoice_deduction'], 2);
+
+        if ($deduction > $subtotal) {
+            $this->addError('invoice_deduction', __('finance.validation.deduction_exceeds_subtotal'));
+            return;
+        }
+
+        $this->currentInvoice->update(['discount' => $deduction]);
+        app(FinanceService::class)->syncInvoiceTotals($this->currentInvoice->fresh());
+        session()->flash('status', __('invoices.index.messages.updated'));
     }
 
     public function editItem(int $itemId): void
@@ -250,6 +270,15 @@ new class extends Component {
                             <button type="button" wire:click="cancelItem" class="pill-link">{{ __('crud.common.actions.cancel') }}</button>
                         @endif
                     </div>
+                </form>
+            </div>
+
+            <div class="surface-panel p-5 lg:p-6">
+                <div class="admin-section-card__title">{{ __('finance.fields.deduction') }}</div>
+                <form wire:submit="saveDeduction" class="mt-4 space-y-3">
+                    <input wire:model="invoice_deduction" type="text" inputmode="decimal" data-thousand-separator class="w-full rounded-xl px-4 py-3 text-sm">
+                    @error('invoice_deduction') <div class="text-sm text-red-400">{{ $message }}</div> @enderror
+                    <button type="submit" class="pill-link pill-link--accent">{{ __('crud.common.actions.save') }}</button>
                 </form>
             </div>
 

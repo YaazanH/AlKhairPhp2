@@ -160,4 +160,45 @@ class QuranPartialTestService
             return $attempt->fresh(['part.partialTest', 'teacher']);
         });
     }
+
+    public function updateAttempt(QuranPartialTestAttempt $attempt, Teacher $teacher, array $data): QuranPartialTestAttempt
+    {
+        return DB::transaction(function () use ($attempt, $teacher, $data): QuranPartialTestAttempt {
+            $mistakeCount = (int) $data['mistake_count'];
+            $attempt->update([
+                'mistake_count' => $mistakeCount,
+                'notes' => blank($data['notes'] ?? null) ? null : $data['notes'],
+                'status' => app(QuranPartialTestRuleService::class)->statusForMistakeCount($mistakeCount),
+                'teacher_id' => $teacher->id,
+                'tested_on' => $data['tested_on'],
+            ]);
+
+            $part = $attempt->part()->with(['attempts', 'partialTest.parts.attempts', 'partialTest.enrollment.student.gradeLevel'])->firstOrFail();
+            $passedAttempt = $part->attempts->where('status', 'passed')->sortBy([['tested_on', 'asc'], ['id', 'asc']])->first();
+            $part->update([
+                'passed_on' => $passedAttempt?->tested_on,
+                'status' => $passedAttempt ? 'passed' : 'pending',
+            ]);
+
+            $partialTest = $part->partialTest()->with(['parts', 'enrollment.student.gradeLevel'])->firstOrFail();
+            $allPartsPassed = $partialTest->parts->every(fn (QuranPartialTestPart $testPart) => $testPart->status === 'passed');
+            $partialTest->update([
+                'passed_on' => $allPartsPassed ? $partialTest->parts->max('passed_on') : null,
+                'status' => $allPartsPassed ? 'passed' : 'in_progress',
+            ]);
+
+            $ledger = app(PointLedgerService::class);
+            $ledger->voidSourceTransactions('quran_partial_test_part', $part->id, __('workflow.quran_partial_tests.messages.edited_void_reason'));
+            if ($passedAttempt) {
+                $ledger->recordQuranPartialTestPartPoints($part->fresh(['partialTest.enrollment.student.gradeLevel']), (float) $passedAttempt->mistake_count);
+            }
+            $ledger->voidSourceTransactions('quran_partial_test', $partialTest->id, __('workflow.quran_partial_tests.messages.edited_void_reason'));
+            if ($allPartsPassed) {
+                $ledger->recordQuranPartialTestPoints($partialTest->fresh(['enrollment.student.gradeLevel', 'student']));
+            }
+            $ledger->syncEnrollmentCaches($partialTest->enrollment);
+
+            return $attempt->fresh(['part.partialTest', 'teacher']);
+        });
+    }
 }

@@ -171,9 +171,17 @@ class FinanceAndActivitiesTest extends TestCase
         $this->assertSame('issued', $invoice->status);
 
         Volt::test('invoices.payments', ['invoice' => $invoice])
+            ->set('invoice_deduction', '10')
+            ->call('saveDeduction')
+            ->assertHasNoErrors();
+
+        $this->assertSame('10.00', $invoice->fresh()->discount);
+        $this->assertSame('20.00', $invoice->fresh()->total);
+
+        Volt::test('invoices.payments', ['invoice' => $invoice])
             ->set('payment_method_id', $paymentMethod->id)
             ->set('paid_at', '2026-11-03')
-            ->set('payment_amount', '25')
+            ->set('payment_amount', '20')
             ->call('savePayment')
             ->assertHasNoErrors();
 
@@ -182,8 +190,8 @@ class FinanceAndActivitiesTest extends TestCase
         $this->assertSame('paid', $invoice->status);
         $this->assertDatabaseHas('finance_transactions', [
             'source_type' => Payment::class,
-            'type' => 'invoice_payment',
-            'signed_amount' => 25,
+            'type' => 'income',
+            'signed_amount' => 20,
         ]);
 
         $payment = Payment::query()->firstOrFail();
@@ -196,8 +204,8 @@ class FinanceAndActivitiesTest extends TestCase
         $this->assertDatabaseHas('finance_transactions', [
             'source_type' => Payment::class,
             'source_id' => $payment->id,
-            'type' => 'invoice_payment_reversal',
-            'signed_amount' => -25,
+            'type' => 'expense',
+            'signed_amount' => -20,
         ]);
     }
 
@@ -1325,7 +1333,7 @@ class FinanceAndActivitiesTest extends TestCase
         $this->assertStringStartsWith('%PDF', (string) $savedPdfResponse->getContent());
         $this->assertGreaterThan(1000, strlen((string) $savedPdfResponse->getContent()));
         $this->assertNotSame('legacy-pdf', Storage::disk('local')->get($generatedReport->pdf_path));
-        $this->assertSame('mpdf-fixed-ledger-v5', FinanceGeneratedReport::query()->findOrFail($generatedReport->id)->report_data['pdf_renderer']);
+        $this->assertSame('mpdf-fixed-ledger-v6', FinanceGeneratedReport::query()->findOrFail($generatedReport->id)->report_data['pdf_renderer']);
 
         $this->get(route('finance.reports.generated.show', ['generatedReport' => $generatedReport, 'format' => 'xlsx']))
             ->assertOk()
@@ -1374,6 +1382,33 @@ class FinanceAndActivitiesTest extends TestCase
 
         $this->get(route('finance.reports.generated.show', 1))
             ->assertNotFound();
+    }
+
+    public function test_multi_fund_ledger_is_saved_and_can_be_reopened(): void
+    {
+        $this->signIn();
+        Storage::fake('local');
+
+        $firstFund = FinanceCashBox::query()->firstOrFail();
+        $secondFund = FinanceCashBox::query()->create(['name' => 'Second report fund', 'code' => 'RPT-SECOND', 'is_active' => true]);
+
+        $response = $this->get(route('finance.reports.ledger.export', [
+            'cash_box_ids' => [$firstFund->id, $secondFund->id],
+            'date_from' => '2026-01-01',
+            'date_to' => '2026-12-31',
+            'format' => 'pdf',
+        ]));
+
+        $response->assertOk()->assertHeader('content-type', 'application/pdf');
+        $this->assertStringStartsWith('%PDF', (string) $response->getContent());
+
+        $generated = FinanceGeneratedReport::query()->latest('id')->firstOrFail();
+        $this->assertCount(2, $generated->report_data['fund_reports']);
+        $this->assertSame([$firstFund->id, $secondFund->id], $generated->filters['cash_box_ids']);
+        $this->assertNotNull($generated->pdf_path);
+        Storage::disk('local')->assertExists($generated->pdf_path);
+
+        $this->get(route('finance.reports.generated.show', $generated))->assertOk()->assertHeader('content-type', 'application/pdf');
     }
 
     public function test_finance_generated_report_can_only_be_deleted_from_finance_settings(): void
@@ -1822,7 +1857,9 @@ class FinanceAndActivitiesTest extends TestCase
         $this->assertCount(4, $report['previous_year_quarter_totals']);
 
         Volt::test('finance.dashboard')
-            ->assertSee('% ·', false);
+            ->assertSee('% ·', false)
+            ->assertSee('lg:grid-cols-[minmax(0,.8fr)_minmax(17rem,1.2fr)]', false)
+            ->assertSee('xl:h-[22rem] xl:w-[22rem]', false);
     }
 
     public function test_count_expense_finalisation_edits_the_original_expense_without_posting_income(): void
@@ -1953,6 +1990,98 @@ class FinanceAndActivitiesTest extends TestCase
         $managerItems = collect(app(SidebarNavigationService::class)->sidebarFor($manager))->pluck('items')->flatten(1);
         $this->assertFalse($managerItems->contains(fn (array $item) => $item['key'] === 'finance_pull_requests'));
         $this->assertTrue($managerItems->contains(fn (array $item) => $item['key'] === 'finance_dashboard'));
+    }
+
+    public function test_historical_finance_transactions_are_cleaned_categorized_and_renumbered(): void
+    {
+        $this->signIn();
+
+        $cashBox = FinanceCashBox::query()->firstOrFail();
+        $currency = FinanceCurrency::query()->firstOrFail();
+        $expenseCategory = FinanceCategory::query()->where('type', 'expense')->firstOrFail();
+        $exchangeCategory = FinanceCategory::query()->where('code', 'currency-exchange')->firstOrFail();
+        $request = FinanceRequest::query()->create([
+            'request_no' => 'PUL-000099',
+            'expense_no' => 'DBIT-000777',
+            'type' => FinanceRequest::TYPE_PULL,
+            'status' => FinanceRequest::STATUS_ACCEPTED,
+            'requested_currency_id' => $currency->id,
+            'requested_amount' => 25,
+            'accepted_currency_id' => $currency->id,
+            'accepted_amount' => 25,
+            'cash_box_id' => $cashBox->id,
+            'finance_category_id' => $expenseCategory->id,
+            'requested_reason' => 'Books for students',
+        ]);
+
+        $base = [
+            'cash_box_id' => $cashBox->id,
+            'currency_id' => $currency->id,
+            'amount' => 25,
+            'rate_to_base' => 1,
+            'base_amount' => 25,
+            'local_amount' => 25,
+            'transaction_date' => '2026-08-01',
+        ];
+        $expense = FinanceTransaction::query()->create($base + [
+            'transaction_no' => 'OLD-900',
+            'special_transaction_no' => 'DBIT-000777',
+            'finance_request_id' => $request->id,
+            'source_type' => FinanceRequest::class,
+            'source_id' => $request->id,
+            'type' => 'expense',
+            'direction' => 'out',
+            'signed_amount' => -25,
+            'description' => '(DBIT-000777) / [PUL-000099]',
+        ]);
+        $exchange = FinanceTransaction::query()->create($base + [
+            'transaction_no' => 'OLD-901',
+            'special_transaction_no' => 'EXC-000002',
+            'type' => 'exchange',
+            'direction' => 'in',
+            'signed_amount' => 25,
+            'description' => 'EXC-000002',
+            'metadata' => ['exchange_no' => 'EXC-000002'],
+        ]);
+        $income = FinanceTransaction::query()->create($base + [
+            'transaction_no' => 'OLD-902',
+            'special_transaction_no' => 'CRDT-000010',
+            'type' => 'income',
+            'direction' => 'in',
+            'signed_amount' => 25,
+            'description' => 'CRDT-000010 Donation',
+        ]);
+
+        AppSetting::storeValue('finance', 'transaction_prefix', 'GEN');
+        $migration = require database_path('migrations/2026_08_09_010000_repair_historical_finance_transactions.php');
+        $migration->up();
+
+        $this->assertSame($expenseCategory->id, $expense->fresh()->finance_category_id);
+        $this->assertSame('Books for students', $expense->fresh()->description);
+        $this->assertSame($exchangeCategory->id, $exchange->fresh()->finance_category_id);
+        $this->assertNull($exchange->fresh()->description);
+        $this->assertSame('Donation', $income->fresh()->description);
+        $this->assertSame(
+            ['GEN-00000001', 'GEN-00000002', 'GEN-00000003'],
+            FinanceTransaction::query()->orderBy('id')->pluck('transaction_no')->all(),
+        );
+
+        $newTransaction = app(FinanceService::class)->postTransaction([
+            'cash_box_id' => $cashBox->id,
+            'currency_id' => $currency->id,
+            'finance_category_id' => $expenseCategory->id,
+            'finance_request_id' => $request->id,
+            'source_type' => FinanceRequest::class,
+            'source_id' => $request->id,
+            'type' => 'expense',
+            'direction' => 'out',
+            'amount' => 5,
+            'special_transaction_no' => 'DBIT-000777',
+            'description' => '[DBIT-000777]',
+        ]);
+
+        $this->assertSame('GEN-00000004', $newTransaction->transaction_no);
+        $this->assertSame('Books for students', $newTransaction->description);
     }
 
     private function financeContext(): array

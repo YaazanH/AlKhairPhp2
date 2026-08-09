@@ -818,6 +818,19 @@ html:not(.dark) .app-sidebar-toggle-button span {
     backdrop-filter: blur(22px);
 }
 
+.dashboard-line-chart text {
+    font-weight: 300;
+}
+
+.dashboard-treemap__tile {
+    transition: filter 180ms ease, transform 180ms ease;
+}
+
+.dashboard-treemap__tile:hover {
+    z-index: 1;
+    filter: brightness(1.08) saturate(1.08);
+}
+
 .app-brand-card,
 .app-sidebar-footer,
 .surface-panel,
@@ -1974,6 +1987,7 @@ html:not(.dark) .admin-modal__dialog {
     box-shadow: 0 2.4rem 4.5rem rgba(43, 62, 47, 0.22);
 }
 
+.admin-modal__dialog--xl { max-width: 34rem; }
 .admin-modal__dialog--2xl { max-width: 44rem; }
 .admin-modal__dialog--3xl { max-width: 52rem; }
 .admin-modal__dialog--4xl { max-width: 64rem; }
@@ -2199,7 +2213,7 @@ html:not(.dark) .admin-modal [class*='border-emerald'] {
 
 .dashboard-manager-highlights .metric-value {
     font-size: clamp(1.7rem, 2.5vw, 2.35rem);
-    font-weight: 300;
+    font-weight: 700;
     letter-spacing: 0;
 }
 
@@ -2628,28 +2642,6 @@ html:not(.dark) .print-template-layer-toggle span {
 .print-template-placeholder-palette .pill-link {
     padding: 0.45rem 0.7rem;
     font-size: 0.74rem;
-}
-
-.print-template-source-toolbar--stacked {
-    align-items: stretch;
-    flex-direction: column;
-}
-
-.print-template-source-toolbar--stacked .admin-toolbar__controls {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    width: 100%;
-}
-
-.print-template-source-toolbar--stacked .admin-toolbar__actions {
-    justify-content: flex-start;
-    width: 100%;
-}
-
-@media (max-width: 767px) {
-    .print-template-source-toolbar--stacked .admin-toolbar__controls {
-        grid-template-columns: 1fr;
-    }
 }
 
 .print-template-placeholder-palette {
@@ -4599,7 +4591,13 @@ html:not(.dark) .public-gallery-slider {
 .print-template-source-toolbar .admin-toolbar__controls {
     min-width: 0;
     grid-auto-flow: row;
-    grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+@media (max-width: 767px) {
+    .print-template-source-toolbar .admin-toolbar__controls {
+        grid-template-columns: 1fr;
+    }
 }
 
 .print-template-source-toolbar__actions {

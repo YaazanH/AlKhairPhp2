@@ -197,7 +197,6 @@ class ReportsAndApiTest extends TestCase
         $this->assertSame(4, $rows[0]['points']);
 
         Volt::test('reports.student-activity-summary')
-            ->set('academic_year_id', $group->academic_year_id)
             ->set('group_id', $group->id)
             ->set('date_from', '2026-09-01')
             ->set('date_to', '2026-09-30')
@@ -257,7 +256,6 @@ class ReportsAndApiTest extends TestCase
         ]);
 
         Volt::test('reports.student-activity-summary')
-            ->set('academic_year_id', $group->academic_year_id)
             ->set('group_id', $group->id)
             ->set('date_from', '2026-09-01')
             ->set('date_to', '2026-09-30')

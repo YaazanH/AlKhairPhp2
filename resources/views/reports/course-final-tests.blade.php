@@ -5,5 +5,5 @@ body{font-family:dubai,sans-serif;color:#17231b;font-size:11px;font-weight:400}h
 <h1>بيان الأجزاء المسبورة</h1><h2>{{ $course->name }}</h2>
 <div class="meta">{{ now()->format('d-m-Y') }} — {{ __('course_end.highlights.final_tests') }}: {{ number_format($rows->count()) }}</div>
 <table><thead><tr><th>#</th><th>{{ __('course_end.table.name') }}</th><th>{{ __('course_end.table.juz') }}</th><th>{{ __('course_end.table.mark') }}</th></tr></thead><tbody>
-@foreach($rows as $row)<tr><td>{{ $loop->iteration }}</td><td>{{ $row['name'] }}</td><td>{{ $row['juz'] }}</td><td>{{ $row['mark'] !== null ? number_format((float)$row['mark'], 2) : '-' }}</td></tr>@endforeach
+@foreach($rows as $row)<tr><td>{{ $loop->iteration }}</td><td>{{ $row['name'] }}</td><td>{{ $row['juz'] }}</td><td>{{ \App\Support\PercentageFormatter::format($row['mark']) }}</td></tr>@endforeach
 </tbody></table></body></html>

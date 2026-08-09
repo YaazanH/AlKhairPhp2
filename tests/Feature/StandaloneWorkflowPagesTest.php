@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\AcademicYear;
 use App\Models\Course;
 use App\Models\Enrollment;
 use App\Models\Group;
@@ -16,8 +17,9 @@ use App\Models\QuranPartialTest;
 use App\Models\QuranPartialTestAttempt;
 use App\Models\QuranPartialTestPart;
 use App\Models\QuranTest;
-use App\Models\StudentPageAchievement;
+use App\Models\QuranTestType;
 use App\Models\Student;
+use App\Models\StudentPageAchievement;
 use App\Models\Teacher;
 use App\Models\User;
 use App\Services\QuranFinalTestService;
@@ -228,6 +230,65 @@ class StandaloneWorkflowPagesTest extends TestCase
             'id' => $finalTest->id,
             'status' => 'passed',
         ]);
+    }
+
+    public function test_super_admin_can_edit_partial_and_final_test_attempts(): void
+    {
+        [$teacher, $enrollment] = $this->teacherContext();
+        auth()->user()->syncRoles(['super_admin']);
+        $juz = QuranJuz::query()->where('juz_number', 1)->firstOrFail();
+
+        $partialTest = QuranPartialTest::query()->create([
+            'created_by' => auth()->id(),
+            'enrollment_id' => $enrollment->id,
+            'juz_id' => $juz->id,
+            'status' => 'in_progress',
+            'student_id' => $enrollment->student_id,
+        ]);
+        $part = $partialTest->parts()->create(['part_number' => 1, 'status' => 'pending']);
+        foreach (range(2, 4) as $partNumber) {
+            $partialTest->parts()->create(['part_number' => $partNumber, 'status' => 'pending']);
+        }
+        $partialAttempt = $part->attempts()->create([
+            'attempt_no' => 1,
+            'mistake_count' => 5,
+            'status' => 'failed',
+            'teacher_id' => $teacher->id,
+            'tested_on' => '2026-09-10',
+        ]);
+
+        Volt::test('quran-partial-tests.show', ['partialTest' => $partialTest])
+            ->call('openEditAttempt', $partialAttempt->id)
+            ->set('mistake_count', '2')
+            ->call('saveAttempt')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('quran_partial_test_attempts', ['id' => $partialAttempt->id, 'mistake_count' => 2, 'status' => 'passed']);
+        $this->assertDatabaseHas('quran_partial_test_parts', ['id' => $part->id, 'status' => 'passed']);
+
+        $finalTest = QuranFinalTest::query()->create([
+            'created_by' => auth()->id(),
+            'enrollment_id' => $enrollment->id,
+            'juz_id' => $juz->id,
+            'status' => 'in_progress',
+            'student_id' => $enrollment->student_id,
+        ]);
+        $finalAttempt = $finalTest->attempts()->create([
+            'attempt_no' => 1,
+            'score' => 60,
+            'status' => 'failed',
+            'teacher_id' => $teacher->id,
+            'tested_on' => '2026-09-11',
+        ]);
+
+        Volt::test('quran-final-tests.show', ['finalTest' => $finalTest])
+            ->call('openEditAttempt', $finalAttempt->id)
+            ->set('score', '95.5')
+            ->call('saveAttempt')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('quran_final_test_attempts', ['id' => $finalAttempt->id, 'score' => 95.5, 'status' => 'passed']);
+        $this->assertDatabaseHas('quran_final_tests', ['id' => $finalTest->id, 'status' => 'passed']);
     }
 
     public function test_final_test_workbench_warns_when_same_juz_already_has_an_open_cycle(): void
@@ -513,7 +574,7 @@ class StandaloneWorkflowPagesTest extends TestCase
         $secondEnrollment = $this->makeEnrollment($teacher->id, 'Awqaf Filter Beta');
         $this->actingAs($managerUser);
 
-        $awqafType = \App\Models\QuranTestType::query()->where('code', 'awqaf')->firstOrFail();
+        $awqafType = QuranTestType::query()->where('code', 'awqaf')->firstOrFail();
         $juzs = QuranJuz::query()
             ->whereIn('juz_number', [1, 2])
             ->orderBy('juz_number')
@@ -596,7 +657,7 @@ class StandaloneWorkflowPagesTest extends TestCase
             'student_id' => $secondEnrollment->student_id,
         ]);
 
-        $awqafType = \App\Models\QuranTestType::query()->where('code', 'awqaf')->firstOrFail();
+        $awqafType = QuranTestType::query()->where('code', 'awqaf')->firstOrFail();
 
         QuranTest::query()->create([
             'enrollment_id' => $secondEnrollment->id,
@@ -688,7 +749,7 @@ class StandaloneWorkflowPagesTest extends TestCase
             'is_active' => true,
         ]);
 
-        $yearId = \App\Models\AcademicYear::query()->where('is_current', true)->value('id');
+        $yearId = AcademicYear::query()->where('is_current', true)->value('id');
 
         $group = Group::create([
             'course_id' => $course->id,

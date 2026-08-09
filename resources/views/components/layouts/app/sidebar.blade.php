@@ -54,7 +54,7 @@
                 <flux:spacer />
 
                 <div class="mt-4">
-                    <flux:dropdown position="bottom" align="{{ $desktopDropdownAlign }}">
+                    <flux:dropdown position="top" align="{{ $desktopDropdownAlign }}">
                         <flux:profile
                             :name="auth()->user()->name"
                             :avatar="auth()->user()->profilePhotoUrl()"

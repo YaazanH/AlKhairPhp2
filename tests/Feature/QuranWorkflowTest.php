@@ -155,9 +155,14 @@ class QuranWorkflowTest extends TestCase
 
         $day = TeacherAttendanceDay::query()->whereDate('attendance_date', $attendanceDate)->firstOrFail();
 
-        Volt::test('teachers.attendance-show', ['teacherAttendanceDay' => $day])
+        $openDayComponent = Volt::test('teachers.attendance-show', ['teacherAttendanceDay' => $day])
             ->assertSee($scheduledTeacher->first_name.' '.$scheduledTeacher->last_name)
-            ->assertSee(__('workflow.teacher_attendance.day_details.stats.scheduled'))
+            ->assertSee(__('workflow.teacher_attendance.day_details.stats.scheduled'));
+        $openDayHtml = $openDayComponent->html();
+        $this->assertLessThan(strpos($openDayHtml, 'wire:click="openManualTeacherModal"'), strpos($openDayHtml, 'wire:click="toggleDayStatus"'));
+        $this->assertLessThan(strpos($openDayHtml, 'wire:click="deleteDay"'), strpos($openDayHtml, 'wire:click="openManualTeacherModal"'));
+
+        $openDayComponent
             ->call('openManualTeacherModal')
             ->set('manual_teacher_id', (string) $extraTeacher->id)
             ->call('addManualTeacher')
@@ -229,6 +234,17 @@ class QuranWorkflowTest extends TestCase
             'teacher_attendance_day_id' => $laterDay->id,
             'teacher_id' => $scheduledTeacher->id,
         ]);
+
+        $laterDayComponent = Volt::test('teachers.attendance-show', ['teacherAttendanceDay' => $laterDay]);
+        $this->assertStringContainsString('teacher-attendance-record-'.$scheduledTeacher->id, $laterDayComponent->html());
+        $laterDayComponent->call('toggleDayStatus')->assertHasNoErrors();
+        $this->assertStringNotContainsString('teacher-attendance-record-'.$scheduledTeacher->id, $laterDayComponent->html());
+        $this->assertStringNotContainsString('wire:click="removeTeacher('.$scheduledTeacher->id.')"', $laterDayComponent->html());
+        $this->assertStringNotContainsString('wire:click="openManualTeacherModal"', $laterDayComponent->html());
+        $this->assertStringContainsString($present->name, $laterDayComponent->html());
+        $laterDayComponent->call('toggleDayStatus')->assertHasNoErrors();
+        $this->assertStringContainsString('teacher-attendance-record-'.$scheduledTeacher->id, $laterDayComponent->html());
+        $this->assertStringContainsString('wire:click="openManualTeacherModal"', $laterDayComponent->html());
     }
 
     public function test_teacher_attendance_preloads_unassigned_helping_teachers(): void
@@ -469,6 +485,11 @@ class QuranWorkflowTest extends TestCase
         $this->assertSame($candidatePages, $duplicates);
         $this->assertDatabaseCount('student_page_achievements', 0);
         $this->assertDatabaseMissing('point_transactions', ['voided_at' => null]);
+
+        $awqafType = QuranTestType::query()->where('code', 'awqaf')->firstOrFail();
+        $progression = app(QuranProgressionService::class);
+        $this->assertNull($progression->validate($enrollment, $juz->id, $awqafType));
+        $this->assertTrue($progression->eligibleAwqafJuzIdsForStudent($enrollment->student_id)->contains($juz->id));
     }
 
     public function test_adding_a_new_memorization_day_does_not_recalculate_historical_points(): void
@@ -551,9 +572,24 @@ class QuranWorkflowTest extends TestCase
 
         $finalTest = QuranFinalTest::query()->firstOrFail();
 
-        $newCurrentJuz = QuranJuz::query()->whereKeyNot($juz->id)->orderBy('juz_number')->firstOrFail();
+        $otherJuzs = QuranJuz::query()->whereKeyNot($juz->id)->orderBy('juz_number')->take(3)->get();
+        $externallyMemorizedJuz = $otherJuzs->shift();
+        $alreadyPassedJuz = $otherJuzs->shift();
+        $newCurrentJuz = $otherJuzs->shift();
+        $enrollment->student->externalMemorizedJuzs()->attach($externallyMemorizedJuz->id);
+        QuranFinalTest::query()->create([
+            'created_by' => auth()->id(),
+            'enrollment_id' => $enrollment->id,
+            'juz_id' => $alreadyPassedJuz->id,
+            'passed_on' => '2026-09-08',
+            'status' => 'passed',
+            'student_id' => $enrollment->student_id,
+        ]);
 
         Volt::test('quran-final-tests.show', ['finalTest' => $finalTest])
+            ->assertViewHas('availableCurrentJuzs', fn ($juzs) => ! $juzs->contains('id', $externallyMemorizedJuz->id)
+                && ! $juzs->contains('id', $alreadyPassedJuz->id)
+                && $juzs->contains('id', $newCurrentJuz->id))
             ->set('tested_on', '2026-09-09')
             ->set('score', '94')
             ->call('saveAttempt')

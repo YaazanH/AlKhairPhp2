@@ -202,7 +202,7 @@ class StudentProgressPageTest extends TestCase
         $parentDetails = Volt::test('students.progress', ['student' => $ownStudent])
             ->assertDontSeeText(__('workflow.student_progress.selection.change_student'))
             ->call('showDetails', 'parent')
-            ->assertSeeText('0999555111')
+            ->assertSeeText('+963 999 555 111')
             ->assertSeeText('Scoped Mother')
             ->assertSeeText('Scoped Address');
 
@@ -232,7 +232,7 @@ class StudentProgressPageTest extends TestCase
             ->assertSeeText('اختر طالباً من الأعلى لعرض صفحة التقدم الكاملة.');
     }
 
-    public function test_finished_juz_uses_quick_awqaf_action_and_hides_completed_actions(): void
+    public function test_juz_is_only_finished_after_the_final_test_is_passed(): void
     {
         $this->seed(RoleSeeder::class);
         [, $student] = $this->makeScopedProgressData();
@@ -260,9 +260,17 @@ class StudentProgressPageTest extends TestCase
             'attempt_no' => 1,
         ]);
 
-        Volt::test('students.progress', ['student' => $student])
-            ->assertSeeText(__('workflow.student_progress.juz_progress.statuses.finished'))
-            ->assertDontSeeText('0/4')
+        $component = Volt::test('students.progress', ['student' => $student])
+            ->assertViewHas('quranJuzProgress', fn ($rows) => $rows->first()?->status === 'missing')
+            ->assertSeeText(__('workflow.student_progress.juz_progress.show_missing'))
+            ->assertDontSeeText(__('workflow.student_progress.juz_progress.add_awqaf_test'));
+
+        $finalTest->update(['status' => 'passed', 'passed_on' => '2026-09-16']);
+        $finalTest->attempts()->firstOrFail()->update(['status' => 'passed']);
+
+        $component
+            ->call('$refresh')
+            ->assertViewHas('quranJuzProgress', fn ($rows) => $rows->first()?->status === 'finished')
             ->assertDontSeeText(__('workflow.student_progress.juz_progress.show_missing'))
             ->assertSeeText(__('workflow.student_progress.juz_progress.add_awqaf_test'))
             ->call('openAwqafTest', $enrollment->id, $juz->id)

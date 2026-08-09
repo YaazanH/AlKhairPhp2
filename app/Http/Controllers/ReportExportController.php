@@ -13,7 +13,6 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\StreamedResponse;
-use Mpdf\Mpdf;
 
 class ReportExportController extends Controller
 {
@@ -99,14 +98,13 @@ class ReportExportController extends Controller
                 $box = $financeService->cashBoxForUser($cashBoxId, $request->user());
                 return $reportService->localCurrencyLedgerReport($template, $box, $validated['date_from'], $validated['date_to'], $request->user(), $validated['ledger_notes'] ?? null);
             });
-            $mpdf = new Mpdf(['format' => 'A4', 'mode' => 'utf-8', 'default_font' => 'dubai', 'fontDir' => array_merge((new \Mpdf\Config\ConfigVariables())->getDefaults()['fontDir'], [public_path('fonts/dubai')]), 'fontdata' => (new \Mpdf\Config\FontVariables())->getDefaults()['fontdata'] + ['dubai' => ['R' => 'Dubai-Regular.ttf', 'M' => 'Dubai-Medium.ttf', 'B' => 'Dubai-Bold.ttf']], 'margin_top' => 45, 'margin_right' => 12, 'margin_bottom' => 18, 'margin_left' => 12]);
-            foreach ($reports as $index => $report) {
-                if ($index > 0) {
-                    $mpdf->AddPage();
-                }
-                $mpdf->WriteHTML(view('reports.finance-ledger-pdf-export', ['generatedReport' => null, 'report' => $report, 'service' => $reportService])->render());
-            }
-            return response($mpdf->Output('', 'S'), 200, ['Content-Disposition' => 'inline; filename="finance-ledgers.pdf"', 'Content-Type' => 'application/pdf']);
+            $report = $reports->first();
+            $report['cash_box']['name'] = $reports->pluck('cash_box.name')->implode('، ');
+            $report['fund_reports'] = $reports->values()->all();
+            $report['rows'] = [];
+            $generatedReport = $reportService->storeGeneratedLedgerReport($report, $validated, $request->user());
+
+            return $this->ledgerPdfResponse($reportService, $report, $generatedReport);
         }
 
         $report = $reportService->localCurrencyLedgerReport($template, $cashBox, $validated['date_from'], $validated['date_to'], $request->user(), $validated['ledger_notes'] ?? null);
