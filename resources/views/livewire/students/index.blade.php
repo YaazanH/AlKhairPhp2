@@ -489,7 +489,7 @@ new class extends Component {
 
     public function openQuickParentForm(): void
     {
-        $this->authorizeAnyPermission(['parents.create', 'parents.update']);
+        abort_unless($this->canPermission('parents.create') || $this->canPermission('parents.update'), 403);
 
         $this->showQuickParentForm = true;
         $parent = $this->parent_id ? ParentProfile::query()->find($this->parent_id) : null;
@@ -1802,17 +1802,12 @@ new class extends Component {
             <div class="grid gap-4 md:grid-cols-2">
                 <div>
                     <label for="student-school" class="mb-1 block text-sm font-medium">{{ __('crud.students.form.fields.school') }}</label>
-                    <div class="flex gap-2">
-                        <input id="student-school" wire:model.live.debounce.300ms="school_name" list="student-school-options" class="min-w-0 flex-1 rounded-xl px-4 py-3 text-sm" placeholder="{{ __('crud.students.form.placeholders.select_school') }}">
-                        @if (filled($school_name) && ! $schools->contains(fn ($school) => strcasecmp($school->name, trim($school_name)) === 0))
-                            <button type="button" wire:click="createSchoolShortcut" class="pill-link pill-link--compact" title="{{ __('crud.common.actions.create') }}" aria-label="{{ __('crud.common.actions.create') }}">+</button>
-                        @endif
-                    </div>
-                    <datalist id="student-school-options">
+                    <select id="student-school" wire:model="school_name" class="w-full rounded-xl px-4 py-3 text-sm">
+                        <option value="">{{ __('crud.students.form.placeholders.select_school') }}</option>
                         @foreach ($schools as $school)
                             <option value="{{ $school->name }}">{{ $school->name }}</option>
                         @endforeach
-                    </datalist>
+                    </select>
                     @error('school_name')
                         <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                     @enderror
@@ -1865,7 +1860,7 @@ new class extends Component {
             <div class="grid gap-4 md:grid-cols-2">
                 <div>
                     <label for="student-juz" class="mb-1 block text-sm font-medium">{{ __('crud.students.form.fields.current_juz') }}</label>
-                    <select id="student-juz" wire:model="quran_current_juz_id" class="w-full rounded-xl px-4 py-3 text-sm">
+                    <select id="student-juz" wire:model="quran_current_juz_id" class="searchable-select w-full rounded-xl px-4 py-3 text-sm">
                         <option value="">{{ __('crud.students.form.placeholders.select_juz') }}</option>
                         @foreach ($juzs as $juz)
                             <option value="{{ $juz->id }}">{{ __('crud.students.labels.juz_number', ['number' => $juz->juz_number]) }}</option>

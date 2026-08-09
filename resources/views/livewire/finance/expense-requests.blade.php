@@ -12,6 +12,7 @@ use App\Models\Invoice;
 use App\Models\InvoiceItem;
 use App\Services\FinanceService;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Livewire\Volt\Component;
 use Livewire\WithFileUploads;
@@ -111,7 +112,7 @@ new class extends Component {
             'attachments.*' => ['file', 'max:4096', 'mimes:jpg,jpeg,png,webp,pdf'],
             'cash_box_id' => [$canReview ? 'required' : 'nullable', 'exists:finance_cash_boxes,id'],
             'currency_id' => ['required', 'exists:finance_currencies,id'],
-            'finance_pull_request_kind_id' => ['required', 'exists:finance_pull_request_kinds,id'],
+            'finance_pull_request_kind_id' => ['required', Rule::exists('finance_categories', 'id')->where('type', 'expense')->where('is_active', true)],
             'request_date' => [auth()->user()?->can('finance.entries.update') ? 'required' : 'nullable', 'date'],
             'requested_reason' => ['nullable', 'string', 'max:2000'],
         ]);
@@ -121,6 +122,7 @@ new class extends Component {
             'type' => FinanceRequest::TYPE_EXPENSE,
             'status' => FinanceRequest::STATUS_PENDING,
             'finance_pull_request_kind_id' => $validated['finance_pull_request_kind_id'],
+            'finance_category_id' => $validated['finance_pull_request_kind_id'],
             'requested_currency_id' => $validated['currency_id'],
             'requested_amount' => $validated['amount'],
             'requested_by' => auth()->id(),

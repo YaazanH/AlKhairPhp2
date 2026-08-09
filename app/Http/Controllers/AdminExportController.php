@@ -14,6 +14,7 @@ use App\Models\User;
 use App\Services\AccessScopeService;
 use App\Services\QuranProgressionService;
 use App\Services\XlsxExportService;
+use App\Support\PdfOptions;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Mpdf\Mpdf;
@@ -276,19 +277,17 @@ class AdminExportController extends Controller
             mkdir($tempDir, 0775, true);
         }
 
-        $mpdf = new Mpdf([
-            'autoLangToFont' => true,
-            'autoScriptToLang' => true,
-            'default_font' => 'dejavusanscondensed',
+        $mpdf = new Mpdf(PdfOptions::make([
+            'autoLangToFont' => false,
+            'autoScriptToLang' => false,
             'format' => 'A4',
             'margin_bottom' => 10,
             'margin_left' => 8,
             'margin_right' => 8,
             'margin_top' => 8,
-            'tempDir' => $tempDir,
-        ]);
-        $mpdf->autoLangToFont = true;
-        $mpdf->autoScriptToLang = true;
+        ]));
+        $mpdf->autoLangToFont = false;
+        $mpdf->autoScriptToLang = false;
         $mpdf->useSubstitutions = true;
         $mpdf->SetDirectionality('rtl');
         $mpdf->WriteHTML(view('exports.group-roster-pdf', [

@@ -44,6 +44,7 @@ new class extends Component {
     public string $default_return_print_template_id = '';
     public bool $cash_box_manual_adjustment_enabled = true;
     public bool $cash_box_transfer_enabled = true;
+    public bool $withdrawal_requests_enabled = true;
 
     public ?int $currency_editing_id = null;
     public string $currency_code = '';
@@ -516,7 +517,7 @@ new class extends Component {
             'finance_category_is_donation' => ['boolean'],
             'finance_category_name' => ['required', 'string', 'max:255'],
             'finance_category_type' => ['required', Rule::in(FinanceCategory::TYPES)],
-            'finance_category_mode' => ['required', Rule::in($this->finance_category_type === 'expense' ? FinanceCategory::EXPENSE_MODES : FinanceCategory::INCOME_MODES)],
+            'finance_category_mode' => ['required', Rule::in(FinanceCategory::modesForType($this->finance_category_type))],
         ]);
 
         FinanceCategory::query()->updateOrCreate(
@@ -537,7 +538,7 @@ new class extends Component {
 
     public function updatedFinanceCategoryType(): void
     {
-        $allowedModes = $this->finance_category_type === 'expense' ? FinanceCategory::EXPENSE_MODES : FinanceCategory::INCOME_MODES;
+        $allowedModes = FinanceCategory::modesForType($this->finance_category_type);
         if (! in_array($this->finance_category_mode, $allowedModes, true)) {
             $this->finance_category_mode = $allowedModes[0];
         }
@@ -548,7 +549,7 @@ new class extends Component {
         $this->authorizePermission('finance.settings.manage');
 
         $validated = $this->validate([
-            'pull_kind_code' => ['required', 'string', 'max:50', Rule::unique('finance_pull_request_kinds', 'code')->ignore($this->pull_kind_editing_id)],
+            'pull_kind_code' => ['required', 'string', 'max:50', Rule::unique('finance_categories', 'code')->ignore($this->pull_kind_editing_id)],
             'pull_kind_is_active' => ['boolean'],
             'pull_kind_mode' => ['required', Rule::in(FinancePullRequestKind::MODES)],
             'pull_kind_name' => ['required', 'string', 'max:255'],
@@ -584,7 +585,7 @@ new class extends Component {
             'report_prefix' => ['required', 'string', 'max:20', 'regex:/^[A-Za-z0-9 -]+$/'],
             'request_terms' => ['nullable', 'string'],
             'default_cash_box_id' => ['nullable', 'integer', Rule::exists('finance_cash_boxes', 'id')->where('is_active', true)],
-            'default_pull_request_kind_id' => ['nullable', 'integer', Rule::exists('finance_pull_request_kinds', 'id')->where('is_active', true)],
+            'default_pull_request_kind_id' => ['nullable', 'integer', Rule::exists('finance_categories', 'id')->where('type', 'expense')->where('is_active', true)],
             'default_revenue_category_id' => [
                 'nullable',
                 'integer',
@@ -598,6 +599,7 @@ new class extends Component {
             'default_return_print_template_id' => ['nullable', 'integer', 'exists:print_templates,id'],
             'cash_box_manual_adjustment_enabled' => ['boolean'],
             'cash_box_transfer_enabled' => ['boolean'],
+            'withdrawal_requests_enabled' => ['boolean'],
         ]);
 
         AppSetting::storeValue('finance', 'invoice_prefix', $this->normalizedFinancePrefix($validated['invoice_prefix'], 'INV'));
@@ -619,6 +621,7 @@ new class extends Component {
         AppSetting::storeValue('finance', 'default_return_print_template_id', $validated['default_return_print_template_id'] ?: null, 'integer');
         AppSetting::storeValue('finance', 'cash_box_manual_adjustment_enabled', $validated['cash_box_manual_adjustment_enabled'], 'boolean');
         AppSetting::storeValue('finance', 'cash_box_transfer_enabled', $validated['cash_box_transfer_enabled'], 'boolean');
+        AppSetting::storeValue('finance', 'withdrawal_requests_enabled', $validated['withdrawal_requests_enabled'], 'boolean');
 
         session()->flash('status', __('settings.finance.messages.settings_saved'));
     }
@@ -662,7 +665,7 @@ new class extends Component {
             'maint_direction' => ['required', 'in:in,out'],
             'maint_entered_by' => ['nullable', 'exists:users,id'],
             'maint_transaction_date' => ['required', 'date'],
-            'maint_type' => ['required', 'string', 'max:50'],
+            'maint_type' => ['required', Rule::in(['income', 'expense', 'return', 'exchange', 'transfer'])],
         ]);
         $transaction = FinanceTransaction::withTrashed()->findOrFail($this->maintaining_transaction_id);
         abort_if($transaction->trashed(), 422);
@@ -861,6 +864,7 @@ new class extends Component {
         $this->default_return_print_template_id = (string) ($settings->get('default_return_print_template_id') ?: '');
         $this->cash_box_manual_adjustment_enabled = $settings->has('cash_box_manual_adjustment_enabled') ? (bool) $settings->get('cash_box_manual_adjustment_enabled') : true;
         $this->cash_box_transfer_enabled = $settings->has('cash_box_transfer_enabled') ? (bool) $settings->get('cash_box_transfer_enabled') : true;
+        $this->withdrawal_requests_enabled = $settings->has('withdrawal_requests_enabled') ? (bool) $settings->get('withdrawal_requests_enabled') : true;
     }
 
     protected function normalizedFinancePrefix(string $value, string $fallback): string
@@ -895,7 +899,6 @@ new class extends Component {
             <a href="#finance-currencies" class="pill-link pill-link--compact">{{ __('finance.settings.currencies') }}</a>
             <a href="#finance-cash-boxes" class="pill-link pill-link--compact">{{ __('finance.settings.cash_boxes') }}</a>
             <a href="#finance-categories" class="pill-link pill-link--compact">{{ __('finance.settings.categories') }}</a>
-            <a href="#finance-request-kinds" class="pill-link pill-link--compact">{{ __('finance.settings.request_kinds') }}</a>
             <a href="#finance-generated-reports" class="pill-link pill-link--compact">{{ __('finance.settings.generated_report_maintenance') }}</a>
             <a href="#finance-legacy" class="pill-link pill-link--compact">{{ __('finance.settings.payment_setup') }}</a>
         </div>
@@ -1041,6 +1044,16 @@ new class extends Component {
             </div>
 
             <div>
+                <div class="mb-3">
+                    <div class="admin-section-card__title">{{ __('finance.settings.features') }}</div>
+                </div>
+                <label class="flex items-center justify-between gap-4 rounded-xl border border-white/10 px-4 py-3 text-sm">
+                    <span><strong class="block text-white">{{ __('finance.settings.withdrawal_requests_enabled') }}</strong><small class="text-neutral-400">{{ __('finance.settings.withdrawal_requests_enabled_help') }}</small></span>
+                    <input wire:model="withdrawal_requests_enabled" type="checkbox" class="rounded">
+                </label>
+            </div>
+
+            <div>
                 <button type="submit" class="pill-link pill-link--accent">{{ __('settings.finance.actions.save_settings') }}</button>
             </div>
         </form>
@@ -1113,20 +1126,6 @@ new class extends Component {
             <div class="overflow-x-auto"><table class="text-sm"><thead><tr><th class="px-5 py-3 text-left">{{ __('finance.fields.name') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.type') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.mode') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.state') }}</th><th class="px-5 py-3 text-right">{{ __('finance.actions.actions') }}</th></tr></thead><tbody class="divide-y divide-white/6">@foreach ($financeCategories as $category)<tr><td class="px-5 py-3"><div class="font-medium text-white">{{ $category->name }}</div><div class="text-xs text-neutral-500">{{ $category->code }}</div></td><td class="px-5 py-3">{{ __('finance.category_types.'.$category->categoryType()) }}</td><td class="px-5 py-3">{{ __('finance.category_modes.'.$category->categoryMode()) }}</td><td class="px-5 py-3">{{ $category->is_active ? __('finance.common.active') : __('finance.common.inactive') }}</td><td class="px-5 py-3"><div class="admin-action-cluster admin-action-cluster--end"><button type="button" wire:click="editFinanceCategory({{ $category->id }})" class="pill-link pill-link--compact">{{ __('finance.actions.edit') }}</button><button type="button" wire:click="deleteFinanceCategory({{ $category->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link pill-link--compact border-red-400/25 text-red-200">{{ __('finance.actions.delete') }}</button></div></td></tr>@endforeach</tbody></table></div>
     </section>
 
-    <section id="finance-request-kinds" class="surface-table">
-        <div class="admin-grid-meta">
-            <div>
-                <div class="admin-grid-meta__title">{{ __('finance.settings.pull_request_kinds') }}</div>
-                <div class="admin-grid-meta__summary">{{ __('finance.settings.pull_request_kinds_subtitle') }}</div>
-            </div>
-            @can('finance.settings.manage')
-                <button type="button" wire:click="openPullKindModal" class="pill-link pill-link--accent">{{ __('finance.actions.create_pull_kind') }}</button>
-            @endcan
-        </div>
-        @error('pullKindDelete') <div class="mx-5 mb-4 rounded-2xl border border-red-500/25 bg-red-500/10 px-3 py-2 text-sm text-red-200">{{ $message }}</div> @enderror
-        <div class="overflow-x-auto"><table class="text-sm"><thead><tr><th class="px-5 py-3 text-left">{{ __('finance.fields.name') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.mode') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.state') }}</th><th class="px-5 py-3 text-right">{{ __('finance.actions.actions') }}</th></tr></thead><tbody class="divide-y divide-white/6">@foreach ($pullRequestKinds as $kind)<tr><td class="px-5 py-3"><div class="font-medium text-white">{{ $kind->name }}</div><div class="text-xs text-neutral-500">{{ $kind->code }}</div></td><td class="px-5 py-3">{{ __('finance.pull_modes.'.$kind->mode) }}</td><td class="px-5 py-3">{{ $kind->is_active ? __('finance.common.active') : __('finance.common.inactive') }}</td><td class="px-5 py-3"><div class="admin-action-cluster admin-action-cluster--end"><button type="button" wire:click="editPullKind({{ $kind->id }})" class="pill-link pill-link--compact">{{ __('finance.actions.edit') }}</button><button type="button" wire:click="deletePullKind({{ $kind->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link pill-link--compact border-red-400/25 text-red-200">{{ __('finance.actions.delete') }}</button></div></td></tr>@endforeach</tbody></table></div>
-    </section>
-
     <section id="finance-legacy" class="surface-table">
         <div class="admin-grid-meta">
             <div><div class="admin-grid-meta__title">{{ __('settings.finance.sections.payment_method.table') }}</div></div>
@@ -1151,7 +1150,7 @@ new class extends Component {
                 <div><label class="mb-1 block text-sm">{{ __('finance.fields.cash_box') }}</label><select wire:model="maint_cash_box_id" class="w-full rounded-xl px-4 py-3">@foreach ($cashBoxes as $fund)<option value="{{ $fund->id }}">{{ $fund->name }}</option>@endforeach</select></div>
                 <div><label class="mb-1 block text-sm">{{ __('finance.common.currency') }}</label><select wire:model="maint_currency_id" class="w-full rounded-xl px-4 py-3">@foreach ($currencies as $currency)<option value="{{ $currency->id }}">{{ $currency->code }}</option>@endforeach</select></div>
                 <div><label class="mb-1 block text-sm">{{ __('finance.fields.category') }}</label><select wire:model="maint_category_id" class="w-full rounded-xl px-4 py-3"><option value="">-</option>@foreach ($financeCategories as $category)<option value="{{ $category->id }}">{{ $category->name }}</option>@endforeach</select></div>
-                <div><label class="mb-1 block text-sm">{{ __('finance.fields.type') }}</label><input wire:model="maint_type" class="w-full rounded-xl px-4 py-3"></div>
+                <div><label class="mb-1 block text-sm">{{ __('finance.fields.type') }}</label><select wire:model="maint_type" class="w-full rounded-xl px-4 py-3">@foreach (['income', 'expense', 'return', 'exchange', 'transfer'] as $transactionType)<option value="{{ $transactionType }}">{{ app(\App\Services\FinanceService::class)->transactionTypeLabel($transactionType) }}</option>@endforeach</select></div>
                 <div><label class="mb-1 block text-sm">{{ __('finance.fields.direction') }}</label><select wire:model="maint_direction" class="w-full rounded-xl px-4 py-3"><option value="in">{{ __('finance.options.in') }}</option><option value="out">{{ __('finance.options.out') }}</option></select></div>
                 <div><label class="mb-1 block text-sm">{{ __('finance.fields.amount') }}</label><input wire:model="maint_amount" data-thousand-separator class="w-full rounded-xl px-4 py-3"></div>
                 <div><label class="mb-1 block text-sm">{{ __('finance.fields.user') }}</label><select wire:model="maint_entered_by" class="w-full rounded-xl px-4 py-3"><option value="">-</option>@foreach ($users as $user)<option value="{{ $user->id }}">{{ $user->name }}</option>@endforeach</select></div>
@@ -1160,6 +1159,10 @@ new class extends Component {
                     <div class="flex items-end justify-end"><button class="pill-link pill-link--accent">{{ __('crud.common.actions.save') }}</button></div>
                 @endunless
             </form>
+            @php($maintainingInvoice = $maintaining_transaction_id ? \App\Models\FinanceTransaction::withTrashed()->with('financeRequest.invoice')->find($maintaining_transaction_id)?->financeRequest?->invoice : null)
+            @if ($maintainingInvoice && auth()->user()?->can('invoices.view'))
+                <div class="mt-4 flex justify-end"><a href="{{ route('invoices.payments', $maintainingInvoice) }}" wire:navigate class="pill-link">{{ __('finance.actions.edit_invoice') }}</a></div>
+            @endif
             @unless ($maintaining_transaction_deleted)
                 @can('finance.entries.delete')
                     <div class="mt-5 border-t border-white/10 pt-5"><label class="mb-1 block text-sm">{{ __('finance.fields.deletion_reason') }}</label><div class="flex flex-col gap-3 sm:flex-row"><textarea wire:model="maint_delete_reason" class="min-w-0 flex-1 rounded-xl px-4 py-3"></textarea><button wire:click="deleteTransactionMaintenance" wire:confirm="{{ __('finance.messages.transaction_delete_warning') }}" type="button" class="pill-link pill-link--danger">{{ __('finance.actions.delete') }}</button></div>@error('maint_delete_reason')<div class="text-sm text-red-400">{{ $message }}</div>@enderror</div>
@@ -1266,7 +1269,7 @@ new class extends Component {
                 <div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.code') }}</label><input wire:model="finance_category_code" type="text" class="w-full rounded-xl px-4 py-3 text-sm">@error('finance_category_code') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
             </div>
             <div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.type') }}</label><select wire:model.live="finance_category_type" class="w-full rounded-xl px-4 py-3 text-sm">@foreach (\App\Models\FinanceCategory::TYPES as $type)<option value="{{ $type }}">{{ __('finance.category_types.'.$type) }}</option>@endforeach</select></div>
-            <div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.mode') }}</label><select wire:model="finance_category_mode" class="w-full rounded-xl px-4 py-3 text-sm">@foreach ($finance_category_type === 'expense' ? \App\Models\FinanceCategory::EXPENSE_MODES : \App\Models\FinanceCategory::INCOME_MODES as $mode)<option value="{{ $mode }}">{{ __('finance.category_modes.'.$mode) }}</option>@endforeach</select></div>
+            <div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.mode') }}</label><select wire:model="finance_category_mode" class="w-full rounded-xl px-4 py-3 text-sm">@foreach (\App\Models\FinanceCategory::modesForType($finance_category_type) as $mode)<option value="{{ $mode }}">{{ __('finance.category_modes.'.$mode) }}</option>@endforeach</select></div>
             <div class="flex flex-wrap gap-6"><label class="flex items-center gap-3 text-sm"><input wire:model="finance_category_is_active" type="checkbox" class="rounded"> {{ __('finance.common.active') }}</label>@if ($finance_category_type === 'revenue')<label class="flex items-center gap-3 text-sm"><input wire:model="finance_category_is_donation" type="checkbox" class="rounded"> {{ __('finance.settings.donation_category') }}</label>@endif</div>
             <div class="flex justify-end gap-3">
                 <button type="button" wire:click="closeFinanceCategoryModal" class="pill-link">{{ __('finance.actions.cancel') }}</button>

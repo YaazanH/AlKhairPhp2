@@ -12,6 +12,7 @@ use App\Models\FinanceRequest;
 use App\Models\FinanceTransaction;
 use App\Models\User;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Mpdf\Mpdf;
@@ -202,6 +203,67 @@ class FinanceReportService
         );
     }
 
+    public function localCurrencyLedgerReport(FinanceReportTemplate $template, FinanceCashBox $cashBox, string $startDate, string $endDate, ?User $issuer = null, ?string $notes = null): array
+    {
+        $start = Carbon::parse($startDate)->startOfDay();
+        $end = Carbon::parse($endDate)->endOfDay();
+        $localCurrency = app(FinanceService::class)->localCurrency();
+        $openingBalance = round((float) FinanceTransaction::query()
+            ->where('cash_box_id', $cashBox->id)
+            ->whereDate('transaction_date', '<', $start->toDateString())
+            ->sum('local_amount'), 2);
+
+        $transactions = FinanceTransaction::query()
+            ->with(['cashBox', 'category', 'currency', 'enteredBy', 'financeRequest'])
+            ->where('cash_box_id', $cashBox->id)
+            ->whereBetween('transaction_date', [$start->toDateString(), $end->toDateString()])
+            ->orderBy('transaction_date')
+            ->orderBy('id')
+            ->get();
+
+        $runningBalance = $openingBalance;
+        $rows = $transactions->map(function (FinanceTransaction $transaction) use (&$runningBalance, $localCurrency): array {
+            $signedAmount = (float) $transaction->local_amount;
+            $income = $signedAmount > 0 ? $signedAmount : 0.0;
+            $expense = $signedAmount < 0 ? abs($signedAmount) : 0.0;
+            $runningBalance = round($runningBalance + $signedAmount, 2);
+            $row = $this->ledgerRowFromTransaction($transaction, $income, $expense, $runningBalance);
+            $row['amount'] = $this->formatMoney(abs($signedAmount), $localCurrency);
+            $row['expense'] = $expense > 0 ? $this->formatMoney($expense, $localCurrency) : '';
+            $row['income'] = $income > 0 ? $this->formatMoney($income, $localCurrency) : '';
+            $row['running_balance'] = $this->formatMoney($runningBalance, $localCurrency);
+            if (in_array($transaction->type, ['exchange', 'transfer'], true)) {
+                $row['_expense_raw'] = 0.0;
+                $row['_income_raw'] = 0.0;
+            }
+
+            return $row;
+        })->values()->all();
+
+        $income = round((float) collect($rows)->sum('_income_raw'), 2);
+        $expense = round((float) collect($rows)->sum('_expense_raw'), 2);
+
+        $report = $this->buildLedgerReportArray(
+            $template,
+            $cashBox->name,
+            $this->currencySnapshot($localCurrency),
+            $start,
+            $end,
+            $openingBalance,
+            $income,
+            $expense,
+            $rows,
+            now(),
+            $issuer,
+            $notes,
+        );
+
+        $report['closing_balance'] = $runningBalance;
+        $report['formatted']['closing_balance'] = $this->formatMoney($runningBalance, $localCurrency);
+
+        return $report;
+    }
+
     public function reportPrefix(): string
     {
         $configured = AppSetting::groupValues('finance')->get('report_prefix');
@@ -319,7 +381,15 @@ class FinanceReportService
             return null;
         }
 
-        return FinanceGeneratedReport::query()->create([
+        $generationKey = hash('sha256', json_encode([
+            $user?->id,
+            data_get($report, 'cash_box.name'),
+            data_get($report, 'start'),
+            data_get($report, 'end'),
+            $filters['ledger_notes'] ?? null,
+        ]));
+
+        return Cache::remember('finance-ledger-generation:'.$generationKey, now()->addSeconds(15), fn () => FinanceGeneratedReport::query()->create([
             'report_type' => 'ledger',
             'filters' => [
                 'cash_box_id' => (int) ($filters['cash_box_id'] ?? 0),
@@ -331,7 +401,7 @@ class FinanceReportService
             ],
             'report_data' => $report,
             'generated_by' => $user?->id,
-        ]);
+        ]));
     }
 
     public function generatedLedgerReport(FinanceGeneratedReport $generatedReport): array
@@ -392,9 +462,7 @@ class FinanceReportService
     public function renderLedgerPdf(array $report, ?FinanceGeneratedReport $generatedReport = null): string
     {
         $templateLanguage = (string) data_get($report, 'template.language', FinanceReportTemplate::LANGUAGE_BOTH);
-        $defaultFont = $templateLanguage === FinanceReportTemplate::LANGUAGE_EN
-            ? 'sans'
-            : 'dejavusanscondensed';
+        $defaultFont = 'dubai';
         $tempDir = storage_path('app/mpdf');
 
         if (! is_dir($tempDir)) {
@@ -403,16 +471,18 @@ class FinanceReportService
 
         $mpdf = new Mpdf([
             'default_font' => $defaultFont,
+            'fontDir' => array_merge((new \Mpdf\Config\ConfigVariables())->getDefaults()['fontDir'], [public_path('fonts/dubai')]),
+            'fontdata' => (new \Mpdf\Config\FontVariables())->getDefaults()['fontdata'] + ['dubai' => ['R' => 'Dubai-Regular.ttf', 'M' => 'Dubai-Medium.ttf', 'B' => 'Dubai-Bold.ttf', 'L' => 'Dubai-Light.ttf']],
             'format' => 'A4',
-            'margin_bottom' => 20,
+            'margin_bottom' => 18,
             'margin_left' => 12,
             'margin_right' => 12,
-            'margin_top' => 12,
+            'margin_top' => 45,
             'mode' => 'utf-8',
             'tempDir' => $tempDir,
         ]);
-        $mpdf->autoLangToFont = true;
-        $mpdf->autoScriptToLang = true;
+        $mpdf->autoLangToFont = false;
+        $mpdf->autoScriptToLang = false;
         $mpdf->useSubstitutions = true;
         $mpdf->SetDirectionality('rtl');
 

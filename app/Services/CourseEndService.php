@@ -110,7 +110,7 @@ class CourseEndService
     protected function calculatedPoints(int $basePoints, bool $passed, array $settings): int
     {
         if ($basePoints <= 0) {
-            return 0;
+            return 200;
         }
 
         $target = $passed

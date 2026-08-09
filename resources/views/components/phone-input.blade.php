@@ -14,7 +14,7 @@
 
 <div
     wire:key="phone-input-{{ $inputId }}-{{ md5((string) $value) }}"
-    class="grid grid-cols-[minmax(7rem,0.55fr)_minmax(0,1.45fr)] gap-2"
+    class="grid grid-cols-[minmax(5.5rem,0.4fr)_minmax(0,1.6fr)] gap-2"
     dir="ltr"
     x-data="{
         open: false,
@@ -96,8 +96,7 @@
             aria-label="{{ __('phone.country_code') }}"
         >
             <span class="flex min-w-0 items-center gap-2">
-                <img x-bind:src="`https://flagcdn.com/24x18/${selectedCountry.region.toLowerCase()}.png`" x-bind:alt="selectedCountry.name" class="h-[18px] w-6 rounded-sm object-cover">
-                <span class="truncate" x-text="`${selectedCountry.name} ${selectedDial}`"></span>
+                <span class="truncate" x-text="selectedDial"></span>
             </span>
             <svg class="h-4 w-4 text-neutral-400" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.168l3.71-3.938a.75.75 0 1 1 1.08 1.04l-4.25 4.5a.75.75 0 0 1-1.08 0l-4.25-4.5a.75.75 0 0 1 .02-1.06Z" clip-rule="evenodd" /></svg>
         </button>

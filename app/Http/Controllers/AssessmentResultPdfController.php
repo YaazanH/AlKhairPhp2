@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Assessment;
 use App\Models\Group;
 use App\Services\AccessScopeService;
+use App\Support\PdfOptions;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Mpdf\Mpdf;
@@ -49,20 +50,18 @@ class AssessmentResultPdfController extends Controller
             mkdir($tempDir, 0775, true);
         }
 
-        $mpdf = new Mpdf([
-            'autoLangToFont' => true,
-            'autoScriptToLang' => true,
-            'default_font' => 'dejavusanscondensed',
+        $mpdf = new Mpdf(PdfOptions::make([
+            'autoLangToFont' => false,
+            'autoScriptToLang' => false,
             'format' => 'A4',
             'orientation' => 'P',
             'margin_bottom' => 12,
             'margin_left' => 10,
             'margin_right' => 10,
             'margin_top' => 12,
-            'tempDir' => $tempDir,
-        ]);
-        $mpdf->autoLangToFont = true;
-        $mpdf->autoScriptToLang = true;
+        ]));
+        $mpdf->autoLangToFont = false;
+        $mpdf->autoScriptToLang = false;
         $mpdf->useSubstitutions = true;
         $mpdf->SetDirectionality(app()->isLocale('ar') ? 'rtl' : 'ltr');
         $mpdf->WriteHTML(view('exports.assessment-results-pdf', [

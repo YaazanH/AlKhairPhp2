@@ -18,6 +18,17 @@ class FinancePullRequestKind extends Model
         self::MODE_INVOICE,
     ];
 
+    protected $table = 'finance_categories';
+
+    protected static function booted(): void
+    {
+        static::addGlobalScope('expense_categories', fn ($query) => $query->where('type', 'expense'));
+        static::creating(function (self $category): void {
+            $category->type = 'expense';
+            $category->is_donation = false;
+        });
+    }
+
     protected $fillable = [
         'name',
         'code',

@@ -10,9 +10,11 @@ class FinanceCategory extends Model
 {
     use HasFactory;
 
-    public const TYPES = ['expense', 'income'];
+    public const TYPES = ['expense', 'income', 'exchange', 'transfer'];
     public const EXPENSE_MODES = ['count', 'invoice'];
     public const INCOME_MODES = ['return', 'income', 'donation'];
+    public const EXCHANGE_MODES = ['exchange'];
+    public const TRANSFER_MODES = ['transfer'];
 
     protected $fillable = [
         'name',
@@ -43,7 +45,11 @@ class FinanceCategory extends Model
 
     public function categoryType(): string
     {
-        return in_array($this->type, ['expense', 'management'], true) ? 'expense' : 'income';
+        return match ($this->type) {
+            'management' => 'expense',
+            'revenue', 'return' => 'income',
+            default => in_array($this->type, self::TYPES, true) ? $this->type : 'expense',
+        };
     }
 
     public function categoryMode(): string
@@ -62,10 +68,19 @@ class FinanceCategory extends Model
 
     public static function storageType(string $type, string $mode): string
     {
-        if ($type === 'expense') {
-            return 'expense';
-        }
+        return match ($type) {
+            'income' => $mode === 'return' ? 'return' : 'revenue',
+            default => $type,
+        };
+    }
 
-        return $mode === 'return' ? 'return' : 'revenue';
+    public static function modesForType(string $type): array
+    {
+        return match ($type) {
+            'income' => self::INCOME_MODES,
+            'exchange' => self::EXCHANGE_MODES,
+            'transfer' => self::TRANSFER_MODES,
+            default => self::EXPENSE_MODES,
+        };
     }
 }

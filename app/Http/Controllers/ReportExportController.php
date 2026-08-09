@@ -82,7 +82,6 @@ class ReportExportController extends Controller
             'cash_box_id' => ['nullable', 'integer', 'exists:finance_cash_boxes,id'],
             'cash_box_ids' => ['nullable', 'array', 'min:1'],
             'cash_box_ids.*' => ['integer', 'distinct', 'exists:finance_cash_boxes,id'],
-            'currency_id' => ['required', 'integer', 'exists:finance_currencies,id'],
             'date_from' => ['required', 'date'],
             'date_to' => ['required', 'date', 'after_or_equal:date_from'],
             'ledger_notes' => ['nullable', 'string', 'max:4000'],
@@ -95,21 +94,22 @@ class ReportExportController extends Controller
         $cashBoxIds = collect($validated['cash_box_ids'] ?? [($validated['cash_box_id'] ?? null)])->filter()->map(fn ($id) => (int) $id)->unique()->values();
         abort_if($cashBoxIds->isEmpty(), 422);
         $cashBox = $financeService->cashBoxForUser($cashBoxIds->first(), $request->user());
-        $currency = $financeService->currenciesForCashBox($cashBox->id)
-            ->whereKey((int) $validated['currency_id'])
-            ->firstOrFail();
         if ($cashBoxIds->count() > 1) {
-            $reports = $cashBoxIds->map(function (int $cashBoxId) use ($financeService, $reportService, $template, $currency, $validated, $request) {
+            $reports = $cashBoxIds->map(function (int $cashBoxId) use ($financeService, $reportService, $template, $validated, $request) {
                 $box = $financeService->cashBoxForUser($cashBoxId, $request->user());
-                abort_unless($financeService->currenciesForCashBox($box->id)->whereKey($currency->id)->exists(), 422);
-                return $reportService->ledgerReport($template, $box, $currency, $validated['date_from'], $validated['date_to'], $request->user(), $validated['ledger_notes'] ?? null);
+                return $reportService->localCurrencyLedgerReport($template, $box, $validated['date_from'], $validated['date_to'], $request->user(), $validated['ledger_notes'] ?? null);
             });
-            $mpdf = new Mpdf(['format' => 'A4-L', 'mode' => 'utf-8', 'default_font' => 'dejavusans', 'margin_top' => 10, 'margin_right' => 10, 'margin_bottom' => 10, 'margin_left' => 10]);
-            $mpdf->WriteHTML(view('reports.finance-ledger-multi-pdf-export', compact('reports', 'reportService'))->render());
+            $mpdf = new Mpdf(['format' => 'A4', 'mode' => 'utf-8', 'default_font' => 'dubai', 'fontDir' => array_merge((new \Mpdf\Config\ConfigVariables())->getDefaults()['fontDir'], [public_path('fonts/dubai')]), 'fontdata' => (new \Mpdf\Config\FontVariables())->getDefaults()['fontdata'] + ['dubai' => ['R' => 'Dubai-Regular.ttf', 'M' => 'Dubai-Medium.ttf', 'B' => 'Dubai-Bold.ttf']], 'margin_top' => 45, 'margin_right' => 12, 'margin_bottom' => 18, 'margin_left' => 12]);
+            foreach ($reports as $index => $report) {
+                if ($index > 0) {
+                    $mpdf->AddPage();
+                }
+                $mpdf->WriteHTML(view('reports.finance-ledger-pdf-export', ['generatedReport' => null, 'report' => $report, 'service' => $reportService])->render());
+            }
             return response($mpdf->Output('', 'S'), 200, ['Content-Disposition' => 'inline; filename="finance-ledgers.pdf"', 'Content-Type' => 'application/pdf']);
         }
 
-        $report = $reportService->ledgerReport($template, $cashBox, $currency, $validated['date_from'], $validated['date_to'], $request->user(), $validated['ledger_notes'] ?? null);
+        $report = $reportService->localCurrencyLedgerReport($template, $cashBox, $validated['date_from'], $validated['date_to'], $request->user(), $validated['ledger_notes'] ?? null);
         $generatedReport = $reportService->storeGeneratedLedgerReport($report, $validated, $request->user());
 
         return $this->ledgerPdfResponse($reportService, $report, $generatedReport);

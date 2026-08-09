@@ -2,104 +2,89 @@
     $template = $report['template'];
     $logoImage = $template['logo_image_pdf_src'] ?? null;
     $reportNumber = $service->reportNumber($generatedReport, $report);
-    $rows = collect($report['rows'] ?? []);
-    $dataPages = $rows->isEmpty() ? collect([collect()]) : $rows->chunk(12)->values();
-    $qrPayload = json_encode([
-        'report_no' => $reportNumber,
-        'fund' => data_get($report, 'cash_box.name'),
-        'currency' => data_get($report, 'currency.code'),
-        'from' => $report['start'] ?? null,
-        'to' => $report['end'] ?? null,
-        'opening_balance' => $report['opening_balance'] ?? null,
-        'ending_balance' => $report['closing_balance'] ?? null,
-    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-    $qrSvg = (new \Mpdf\QrCode\Output\Svg())->output(
-        new \Mpdf\QrCode\QrCode($qrPayload, \Mpdf\QrCode\QrCode::ERROR_CORRECTION_MEDIUM),
-        120,
-        'transparent',
-        'black'
-    );
-    $qrImage = 'data:image/svg+xml;base64,'.base64_encode($qrSvg);
     $exportedAt = ! empty($report['exported_at']) ? \Illuminate\Support\Carbon::parse($report['exported_at'])->format('d-m-Y H:i') : '-';
+    $qrSvg = (new \Mpdf\QrCode\Output\Svg())->output(new \Mpdf\QrCode\QrCode(json_encode(['report' => $reportNumber, 'fund' => data_get($report, 'cash_box.name'), 'from' => $report['start'] ?? null, 'to' => $report['end'] ?? null], JSON_UNESCAPED_UNICODE)), 80, 'transparent', 'black');
+    $qrImage = 'data:image/svg+xml;base64,'.base64_encode($qrSvg);
 @endphp
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="utf-8">
     <title>تقرير مالي</title>
     <style>
-        @page { margin: 12mm 12mm 20mm; }
-        body { color: #14261a; direction: rtl; font-family: dejavusanscondensed; font-size: 10px; margin: 0; }
-        .first-header { background: #dcefdc; border-bottom: 1px solid #a9c9ae; margin: -12mm -12mm 5mm; padding: 8mm 12mm 5mm; }
-        .first-header-table, .meta-table, .ledger-table, .summary-table, .footer-table { border-collapse: collapse; width: 100%; }
-        .first-header-table td { border: 0; vertical-align: middle; }
-        .logo-cell { text-align: right; width: 25%; }
-        .logo-cell img { height: 8mm; object-fit: contain; width: 18mm; }
-        .title-cell { text-align: center; width: 50%; }
-        .title-cell h1 { color: #123d22; font-size: 25px; margin: 0; }
-        .security-notice { color: #c62828; font-size: 12px; font-weight: bold; margin-top: 2mm; }
-        .meta-box { background: transparent; border: 1px solid #b8cfbb; padding: 3mm; }
-        .meta-table td { border: 0; padding: 1.2mm 2mm; vertical-align: middle; }
-        .meta-label { color: #3f6849; font-weight: bold; width: 17%; }
-        .meta-value { color: #102c18; font-weight: bold; width: 24%; }
-        .qr-cell { text-align: center; width: 18%; }
-        .ledger-table { background: transparent; }
-        .ledger-table th { background: #dcefdc; border: 1px solid #9fbea5; color: #214c2c; font-size: 10px; padding: 2.4mm 2mm; text-align: center; }
-        .ledger-table td { border: 1px solid #bfd1c1; font-size: 9px; padding: 2.2mm 2mm; vertical-align: top; }
-        .ledger-table .date { text-align: center; white-space: nowrap; width: 16%; }
-        .ledger-table .category { width: 38%; }
-        .ledger-table .money { direction: ltr; text-align: center; white-space: nowrap; width: 15%; }
-        .category-name { color: #193d23; font-weight: bold; }
-        .description { color: #647168; font-size: 8px; margin-top: 1mm; }
-        .empty { color: #68756b; padding: 12mm !important; text-align: center; }
-        .summary-title { color: #173f23; font-size: 20px; margin: 8mm 0 5mm; text-align: center; }
-        .summary-table { background: transparent; margin-top: 6mm; }
-        .summary-table td { border: 1px solid #aac3ae; font-size: 11px; padding: 4mm; vertical-align: top; width: 50%; }
-        .summary-label { color: #41694a; display: block; font-size: 9px; font-weight: bold; margin-bottom: 1.5mm; }
-        .signature-space { height: 38mm; }
-        .signature-line { border-bottom: 1px solid #263e2d; display: inline-block; margin-top: 25mm; width: 70mm; }
-        .footer-table { background: #dcefdc; border-top: 1px solid #a9c9ae; color: #173f23; }
-        .footer-table td { border: 0; height: 12mm; padding: 1.5mm 5mm; vertical-align: middle; width: 33.33%; }
-        .footer-barcode { background: transparent; direction: ltr; text-align: right; }
-        .footer-page { font-size: 10px; font-weight: bold; text-align: center; }
+        @page { margin: 45mm 12mm 18mm; header: ledgerHeader; footer: ledgerFooter; }
+        body { color: #18351f; direction: rtl; font-family: dubai, sans-serif; font-size: 9pt; margin: 0; }
+        .header-wrap { margin: 0 -12mm; }
+        .header-bar { background: #dcefdc; border-bottom: 1px solid #9fc2a5; padding: 3mm 12mm 2.5mm; }
+        .header-table, .meta-table, .ledger, .summary, .footer-table { border-collapse: collapse; width: 100%; }
+        .header-table td { border: 0; padding: 0; vertical-align: middle; }
+        .logo { width: 22%; }
+        .logo img { height: 9mm; max-width: 32mm; }
+        .title { color: #164d27; font-size: 18pt; font-weight: bold; text-align: center; width: 56%; }
+        .notice { color: #a52323; font-size: 8pt; font-weight: bold; margin-top: .5mm; }
+        .report-no { color: #355f3e; direction: ltr; text-align: left; width: 22%; }
+        .meta-wrap { background: #f8fcf8; border-bottom: 1px solid #bad1be; padding: 2mm 12mm 2.5mm; }
+        .meta-table td { border: 0; padding: .7mm 1.2mm; text-align: right; vertical-align: middle; }
+        .meta-label { color: #58715e; font-size: 7.8pt; font-weight: bold; white-space: nowrap; width: 13%; }
+        .meta-value { color: #173b20; font-weight: bold; padding-right: 2.5mm !important; width: 20%; }
+        .meta-qr { text-align: left !important; width: 10mm; }
+        .meta-qr img { height: 9mm; width: 9mm; }
+        .footer { background: #dcefdc; border-top: 1px solid #9fc2a5; margin: 0 -12mm; padding: 1.5mm 12mm; }
+        .footer-table td { background: #dcefdc; border: 0; height: 8mm; padding: 0 2mm; vertical-align: middle; width: 33.33%; }
+        .footer-page { font-weight: bold; text-align: center; }
+        .footer-code { background: #dcefdc; direction: ltr; text-align: left; }
+        .statement-gap { height: 2.5mm; }
+        .ledger { page-break-inside: auto; }
+        .ledger thead { display: table-header-group; }
+        .ledger tr { page-break-inside: avoid; }
+        .ledger th { background: #dcefdc; border: 1px solid #9fbea5; color: #214c2c; font-size: 8.5pt; padding: 2mm 1.5mm; text-align: center; }
+        .ledger td { border: 1px solid #bfd1c1; font-size: 8.2pt; padding: 1.8mm 1.5mm; vertical-align: top; }
+        .date { text-align: center; white-space: nowrap; width: 13%; }
+        .category { width: 39%; }
+        .money { direction: ltr; text-align: right; white-space: nowrap; width: 16%; }
+        .category-name { font-weight: bold; }
+        .description { color: #637267; font-size: 7.5pt; margin-top: .4mm; }
+        .empty { color: #68756b; padding: 10mm !important; text-align: center; }
+        .summary { margin-top: 4mm; page-break-inside: avoid; }
+        .summary-title { color: #164d27; font-size: 12pt; font-weight: bold; margin: 4mm 0 1.5mm; text-align: center; }
+        .summary td { border: 1px solid #aac3ae; padding: 2.4mm 3mm; text-align: right; vertical-align: middle; width: 50%; }
+        .summary-label { color: #58715e; display: inline-block; font-size: 8pt; font-weight: bold; min-width: 34mm; }
+        .summary-value { direction: ltr; display: inline-block; font-weight: bold; margin-right: 3mm; text-align: right; }
+        .signature { height: 18mm; vertical-align: top !important; }
     </style>
 </head>
 <body>
-    <htmlpagefooter name="ledgerFooter">
-        <table class="footer-table" dir="ltr"><tr><td></td><td class="footer-page" dir="rtl">صفحة {PAGENO} من {nbpg}</td><td class="footer-barcode"><barcode code="{{ $reportNumber }}" type="C39" size="0.75" height="0.8" bgcolor="transparent" /></td></tr></table>
-    </htmlpagefooter>
-    <sethtmlpagefooter name="ledgerFooter" value="on" />
+<htmlpageheader name="ledgerHeader">
+    <div class="header-wrap">
+        <div class="header-bar"><table class="header-table" dir="ltr"><tr><td class="report-no">{{ $reportNumber }}</td><td class="title" dir="rtl">تقرير مالي<div class="notice">سري وهام - غير معد للمداولة</div></td><td class="logo" dir="rtl">@if ($logoImage)<img src="{{ $logoImage }}" alt="">@endif</td></tr></table></div>
+        <div class="meta-wrap"><table class="meta-table">
+            <tr><td class="meta-label">العام الدراسي</td><td class="meta-value">{{ $report['academic_year'] ?? '-' }}</td><td class="meta-label">الصندوق</td><td class="meta-value">{{ data_get($report, 'cash_box.name') }}</td><td class="meta-label">المسؤول المالي</td><td class="meta-value">{{ $report['issuer_name'] ?: '-' }}</td><td class="meta-qr" rowspan="2"><img src="{{ $qrImage }}" alt=""></td></tr>
+            <tr><td class="meta-label">تاريخ البداية</td><td class="meta-value">{{ \Illuminate\Support\Carbon::parse($report['start'])->format('d-m-Y') }}</td><td class="meta-label">تاريخ النهاية</td><td class="meta-value">{{ \Illuminate\Support\Carbon::parse($report['end'])->format('d-m-Y') }}</td><td class="meta-label">الرصيد الافتتاحي</td><td class="meta-value" dir="ltr">{{ data_get($report, 'formatted.opening_balance') }}</td></tr>
+        </table></div>
+    </div>
+</htmlpageheader>
+<htmlpagefooter name="ledgerFooter">
+    <div class="footer"><table class="footer-table" dir="ltr"><tr><td class="footer-code"><barcode code="{{ $reportNumber }}" type="C39" size="0.62" height="0.7" bgcolor="#dcefdc" /></td><td class="footer-page" dir="rtl">صفحة {PAGENO} من {nbpg}</td><td></td></tr></table></div>
+</htmlpagefooter>
 
-    @foreach ($dataPages as $pageIndex => $pageRows)
-        @if ($pageIndex === 0)
-            <header class="first-header">
-                <table class="first-header-table" dir="ltr"><tr><td style="width:25%"></td><td class="title-cell" dir="rtl"><h1>تقرير مالي</h1><div class="security-notice">سري وهام - غير معد للمداولة</div></td><td class="logo-cell">@if ($logoImage)<img src="{{ $logoImage }}" alt="">@endif</td></tr></table>
-            </header>
-        @endif
+<div class="statement-gap"></div>
+<table class="ledger">
+    <thead><tr><th>التاريخ</th><th>التصنيف والوصف</th><th>مصروف</th><th>دخل</th><th>الرصيد</th></tr></thead>
+    <tbody>
+    @forelse (($report['rows'] ?? []) as $row)
+        <tr><td class="date">{{ $row['transaction_date'] }}</td><td class="category"><div class="category-name">{{ $row['category'] ?: '-' }}</div>@if($row['description'])<div class="description">{{ $row['description'] }}</div>@endif</td><td class="money">{{ $row['expense'] ?: '-' }}</td><td class="money">{{ $row['income'] ?: '-' }}</td><td class="money">{{ $row['running_balance'] }}</td></tr>
+    @empty
+        <tr><td colspan="5" class="empty">{{ __('finance.empty.no_transactions') }}</td></tr>
+    @endforelse
+    </tbody>
+</table>
 
-        <div class="meta-box">
-            @include('reports.partials.finance-ledger-meta', ['qrImage' => $qrImage, 'report' => $report])
-        </div>
-        <table class="ledger-table">
-            <thead><tr><th>التاريخ</th><th>التصنيف والوصف</th><th>مدين</th><th>دائن</th><th>الرصيد</th></tr></thead>
-            <tbody>
-                @forelse ($pageRows as $row)
-                    <tr><td class="date">{{ $row['transaction_date'] }}</td><td class="category"><div class="category-name">{{ $row['category'] ?: '-' }}</div><div class="description">{{ $row['description'] ?: '-' }}</div></td><td class="money">{{ $row['expense'] ?: '-' }}</td><td class="money">{{ $row['income'] ?: '-' }}</td><td class="money">{{ $row['running_balance'] }}</td></tr>
-                @empty
-                    <tr><td colspan="5" class="empty">{{ __('finance.empty.no_transactions') }}</td></tr>
-                @endforelse
-            </tbody>
-        </table>
-        @if (! $loop->last)<pagebreak />@endif
-    @endforeach
-
-    <section>
-        <table class="summary-table">
-            <tr><td><span class="summary-label">المسؤول المالي</span>{{ $report['issuer_name'] ?: '-' }}</td><td><span class="summary-label">إجمالي المصروفات</span><span dir="ltr">{{ data_get($report, 'formatted.expense') }}</span></td></tr>
-            <tr><td><span class="summary-label">الرصيد الختامي</span><span dir="ltr">{{ data_get($report, 'formatted.closing_balance') }}</span></td><td><span class="summary-label">إجمالي الإيرادات</span><span dir="ltr">{{ data_get($report, 'formatted.income') }}</span></td></tr>
-            <tr><td><span class="summary-label">تاريخ التصدير</span>{{ $exportedAt }}</td><td><span class="summary-label">ملاحظات</span>{!! nl2br(e(($report['notes'] ?? null) ?: '-')) !!}</td></tr>
-            <tr><td colspan="2" class="signature-space"><span class="summary-label">التوقيع</span><span class="signature-line"></span></td></tr>
-        </table>
-    </section>
+<div class="summary-title">ملخص التقرير المالي</div>
+<table class="summary">
+    <tr><td><span class="summary-label">إجمالي المصروفات</span><span class="summary-value">{{ data_get($report, 'formatted.expense') }}</span></td><td><span class="summary-label">إجمالي الإيرادات</span><span class="summary-value">{{ data_get($report, 'formatted.income') }}</span></td></tr>
+    <tr><td><span class="summary-label">الرصيد الختامي</span><span class="summary-value">{{ data_get($report, 'formatted.closing_balance') }}</span></td><td><span class="summary-label">تاريخ التصدير</span><span class="summary-value">{{ $exportedAt }}</span></td></tr>
+    <tr><td colspan="2"><span class="summary-label">ملاحظات</span>{{ ($report['notes'] ?? null) ?: '-' }}</td></tr>
+    <tr><td colspan="2" class="signature"><span class="summary-label">التوقيع</span></td></tr>
+</table>
 </body>
 </html>

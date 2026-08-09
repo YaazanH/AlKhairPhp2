@@ -27,6 +27,11 @@ class MemorizationService
     ): MemorizationSession {
         return DB::transaction(function () use ($enrollment, $validated, $session, $skipDuplicatePages): MemorizationSession {
             $isEditing = $session !== null;
+            $previousPages = $session?->pages()->pluck('page_no')->map(fn ($page) => (int) $page)->all() ?? [];
+            $previousRewardKey = $session ? [$session->enrollment_id, $session->recorded_on?->toDateString()] : null;
+            $previousEntryType = $session?->entry_type;
+            $previousEnrollmentId = $session?->enrollment_id;
+            $previousRecordedOn = $session?->recorded_on?->toDateString();
             $recordedByUserId = $validated['recorded_by_user_id'] ?? $session?->recorded_by_user_id ?? auth()->id();
             $pageNumbers = range((int) $validated['from_page'], (int) $validated['to_page']);
             $duplicatePages = $this->findDuplicatePages($enrollment, $pageNumbers, $validated['entry_type'], $session);
@@ -58,12 +63,12 @@ class MemorizationService
 
             if ($session) {
                 $session->update($payload);
-                $session->pages()->delete();
+                $session->pages()->whereNotIn('page_no', $pageNumbers)->delete();
             } else {
                 $session = MemorizationSession::query()->create($payload);
             }
 
-            MemorizationSessionPage::query()->insert(
+            MemorizationSessionPage::query()->insertOrIgnore(
                 collect($pageNumbers)->map(fn (int $pageNo) => [
                     'memorization_session_id' => $session->id,
                     'page_no' => $pageNo,
@@ -75,13 +80,96 @@ class MemorizationService
             $student = $enrollment->student()->firstOrFail();
 
             if ($isEditing) {
-                $this->rebuildStudentAchievementsAndPoints($student);
+                $achievementPages = $previousEntryType !== $session->entry_type
+                    || (int) $previousEnrollmentId !== (int) $session->enrollment_id
+                    || $previousRecordedOn !== $session->recorded_on?->toDateString()
+                        ? array_values(array_unique([...$previousPages, ...$pageNumbers]))
+                        : array_values(array_merge(array_diff($previousPages, $pageNumbers), array_diff($pageNumbers, $previousPages)));
+                $this->reconcileAffectedPagesAndRewards(
+                    $student,
+                    $achievementPages,
+                    array_filter([$previousRewardKey, [$enrollment->id, $session->recorded_on?->toDateString()]]),
+                );
             } else {
                 $this->recordNewSessionAchievementsAndPoints($enrollment, $session, $student, $pageNumbers);
             }
 
             return $session->fresh(['pages', 'teacher']);
         });
+    }
+
+    public function deleteSession(MemorizationSession $session): void
+    {
+        DB::transaction(function () use ($session): void {
+            $session->loadMissing(['pages', 'student']);
+            $student = $session->student;
+            $pages = $session->pages->pluck('page_no')->map(fn ($page) => (int) $page)->all();
+            $rewardKeys = [[$session->enrollment_id, $session->recorded_on?->toDateString()]];
+
+            $session->pages()->delete();
+            $session->delete();
+
+            if ($student) {
+                $this->reconcileAffectedPagesAndRewards($student, $pages, $rewardKeys);
+            }
+        });
+    }
+
+    protected function reconcileAffectedPagesAndRewards(Student $student, array $pageNumbers, array $rewardKeys): void
+    {
+        $pageNumbers = collect($pageNumbers)->map(fn ($page) => (int) $page)->unique()->values();
+        $previousAchievements = StudentPageAchievement::query()
+            ->where('student_id', $student->id)
+            ->whereIn('page_no', $pageNumbers)
+            ->get(['first_enrollment_id', 'first_recorded_on']);
+
+        StudentPageAchievement::query()
+            ->where('student_id', $student->id)
+            ->whereIn('page_no', $pageNumbers)
+            ->delete();
+
+        $externalPages = $student->externalMemorizedJuzs()->get(['from_page', 'to_page'])
+            ->flatMap(fn (QuranJuz $juz) => range($juz->from_page, $juz->to_page))->flip();
+
+        foreach ($pageNumbers as $pageNo) {
+            if ($externalPages->has($pageNo)) {
+                continue;
+            }
+
+            $firstSession = MemorizationSession::query()
+                ->where('student_id', $student->id)
+                ->where('entry_type', '!=', 'review')
+                ->whereHas('pages', fn ($query) => $query->where('page_no', $pageNo))
+                ->orderBy('recorded_on')->orderBy('id')->first();
+
+            if (! $firstSession) {
+                continue;
+            }
+
+            StudentPageAchievement::query()->create([
+                'student_id' => $student->id,
+                'page_no' => $pageNo,
+                'first_enrollment_id' => $firstSession->enrollment_id,
+                'first_session_id' => $firstSession->id,
+                'first_recorded_on' => $firstSession->recorded_on,
+            ]);
+            $rewardKeys[] = [$firstSession->enrollment_id, $firstSession->recorded_on?->toDateString()];
+        }
+
+        foreach ($previousAchievements as $achievement) {
+            $rewardKeys[] = [$achievement->first_enrollment_id, $achievement->first_recorded_on?->toDateString()];
+        }
+
+        collect($rewardKeys)->filter(fn ($key) => filled($key[0] ?? null) && filled($key[1] ?? null))->unique(fn ($key) => $key[0].'|'.$key[1])
+            ->each(function ($key) use ($student): void {
+                $enrollment = Enrollment::query()->with('student')->find($key[0]);
+                if ($enrollment) {
+                    $this->recalculateDailyReward($enrollment, $student, $key[1]);
+                }
+            });
+
+        Enrollment::query()->with('student')->where('student_id', $student->id)->get()
+            ->each(fn (Enrollment $enrollment) => $this->ledger->syncEnrollmentCaches($enrollment));
     }
 
     public function findDuplicatePages(Enrollment $enrollment, array $pageNumbers, string $entryType, ?MemorizationSession $session = null): array

@@ -17,6 +17,8 @@ new class extends Component {
     public ?int $selectedEnrollmentId = null;
     public string $from_page = '';
     public string $to_page = '';
+    public ?int $teacher_id = null;
+    public bool $toPageManuallyEdited = false;
     public bool $showDuplicateModal = false;
     public array $duplicatePages = [];
     public array $uniquePages = [];
@@ -46,6 +48,7 @@ new class extends Component {
             'currentUser' => auth()->user(),
             'selectedEnrollment' => $selectedEnrollment,
             'selectedTeacher' => $selectedEnrollment ? $this->resolveQuickEntryTeacher($selectedEnrollment) : null,
+            'teacherOptions' => $this->availableRecordingTeachers(),
         ];
     }
 
@@ -65,6 +68,18 @@ new class extends Component {
         }
     }
 
+    public function updatedFromPage($value): void
+    {
+        if (! $this->toPageManuallyEdited || blank($this->to_page)) {
+            $this->to_page = (string) $value;
+        }
+    }
+
+    public function updatedToPage(): void
+    {
+        $this->toPageManuallyEdited = true;
+    }
+
     public function save(): void
     {
         $this->authorizePermission('memorization.record');
@@ -74,6 +89,7 @@ new class extends Component {
             'selectedEnrollmentId' => ['nullable', 'exists:enrollments,id'],
             'from_page' => ['required', 'integer', 'between:1,604'],
             'to_page' => ['required', 'integer', 'between:1,604', 'gte:from_page'],
+            'teacher_id' => [auth()->user()?->hasRole('super_admin') ? 'required' : 'nullable', 'exists:teachers,id'],
         ], [], [
             'selectedStudentId' => __('workflow.memorization.quick_entry.form.student'),
             'selectedEnrollmentId' => __('workflow.memorization.workbench.form.group'),
@@ -95,7 +111,9 @@ new class extends Component {
             return;
         }
 
-        $teacher = $this->resolveQuickEntryTeacher($enrollment);
+        $teacher = auth()->user()?->hasRole('super_admin')
+            ? $this->availableRecordingTeachers()->firstWhere('id', (int) $validated['teacher_id'])
+            : $this->resolveQuickEntryTeacher($enrollment);
 
         if (! $teacher) {
             $this->addError('selectedEnrollmentId', __('workflow.memorization.quick_entry.errors.no_assigned_teacher'));
@@ -129,7 +147,7 @@ new class extends Component {
 
         session()->flash('status', __('workflow.memorization.quick_entry.messages.saved'));
 
-        $this->reset(['selectedStudentId', 'selectedEnrollmentId', 'from_page', 'to_page']);
+        $this->reset(['selectedStudentId', 'selectedEnrollmentId', 'from_page', 'to_page', 'teacher_id', 'toPageManuallyEdited']);
         $this->resetValidation();
     }
 
@@ -164,13 +182,27 @@ new class extends Component {
         );
 
         $this->closeDuplicateModal();
-        $this->reset(['selectedStudentId', 'selectedEnrollmentId', 'from_page', 'to_page']);
+        $this->reset(['selectedStudentId', 'selectedEnrollmentId', 'from_page', 'to_page', 'teacher_id', 'toPageManuallyEdited']);
         $this->resetValidation();
     }
 
     protected function currentTeacher(): ?\App\Models\Teacher
     {
+        if (auth()->user()?->hasRole('super_admin')) {
+            return null;
+        }
+
         return auth()->user()?->teacherProfile;
+    }
+
+    protected function availableRecordingTeachers()
+    {
+        if (! auth()->user()?->hasRole('super_admin')) {
+            return collect();
+        }
+
+        return Teacher::query()->with('user')->where('status', 'active')->orderBy('first_name')->orderBy('last_name')->get()
+            ->filter(fn (Teacher $teacher) => $teacher->user?->can('memorization.record'))->values();
     }
 
     protected function quickEntryStudentsQuery(): Builder
@@ -370,7 +402,7 @@ new class extends Component {
             <div class="grid gap-4 md:grid-cols-2">
                 <div class="admin-form-field">
                     <label for="quick-memorization-from">{{ __('workflow.memorization.form.from_page') }}</label>
-                    <input id="quick-memorization-from" wire:model="from_page" type="number" min="1" max="604" inputmode="numeric" class="px-5 py-4 text-base">
+                    <input id="quick-memorization-from" wire:model.live="from_page" type="number" min="1" max="604" inputmode="numeric" class="w-full rounded-xl px-5 py-4 text-base">
                     @error('from_page')
                         <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                     @enderror
@@ -378,12 +410,25 @@ new class extends Component {
 
                 <div class="admin-form-field">
                     <label for="quick-memorization-to">{{ __('workflow.memorization.form.to_page') }}</label>
-                    <input id="quick-memorization-to" wire:model="to_page" type="number" min="1" max="604" inputmode="numeric" class="px-5 py-4 text-base">
+                    <input id="quick-memorization-to" wire:model.live="to_page" type="number" min="1" max="604" inputmode="numeric" class="w-full rounded-xl px-5 py-4 text-base">
                     @error('to_page')
                         <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                     @enderror
                 </div>
             </div>
+
+            @if (auth()->user()?->hasRole('super_admin'))
+                <div class="admin-form-field">
+                    <label for="quick-memorization-teacher">{{ __('workflow.quran_tests.form.teacher') }}</label>
+                    <select id="quick-memorization-teacher" wire:model="teacher_id" class="w-full rounded-xl px-4 py-3 text-sm">
+                        <option value="">{{ __('workflow.quran_tests.form.select_teacher') }}</option>
+                        @foreach ($teacherOptions as $teacher)
+                            <option value="{{ $teacher->id }}">{{ $teacher->first_name }} {{ $teacher->last_name }}</option>
+                        @endforeach
+                    </select>
+                    @error('teacher_id') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
+                </div>
+            @endif
 
             <div class="admin-action-cluster admin-action-cluster--end">
                 <button type="submit" class="pill-link pill-link--accent">{{ __('workflow.memorization.quick_entry.form.save') }}</button>

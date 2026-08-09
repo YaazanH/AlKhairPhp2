@@ -73,11 +73,7 @@ new class extends Component {
             'transferFromCashBoxes' => $financeService->accessibleCashBoxesForCurrency(auth()->user(), $this->transfer_currency_id)->get(),
             'transferToCashBoxes' => $financeService->accessibleCashBoxesForCurrency(auth()->user(), $this->transfer_currency_id)->get(),
             'transferCurrencies' => $financeService->currenciesForCashBox($this->transfer_from_cash_box_id)->get(),
-            'transactionTypes' => FinanceTransaction::query()
-                ->whereIn('cash_box_id', $cashBoxIds)
-                ->distinct()
-                ->orderBy('type')
-                ->pluck('type'),
+            'transactionTypes' => collect(['income', 'expense', 'return', 'exchange', 'transfer']),
             'transactions' => $transactionsQuery->paginate($this->perPage),
         ];
     }

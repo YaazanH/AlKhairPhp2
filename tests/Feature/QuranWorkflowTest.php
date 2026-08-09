@@ -347,6 +347,9 @@ class QuranWorkflowTest extends TestCase
             'points' => 40,
         ]);
 
+        $unchangedSessionPageId = $session->pages()->where('page_no', 6)->value('id');
+        $unchangedAchievementId = StudentPageAchievement::query()->where('student_id', $enrollment->student_id)->where('page_no', 6)->value('id');
+
         Volt::test('enrollments.memorization', ['enrollment' => $enrollment])
             ->call('editSession', $session->id)
             ->set('to_page', '6')
@@ -354,6 +357,8 @@ class QuranWorkflowTest extends TestCase
             ->assertHasNoErrors();
 
         $this->assertSame(2, $session->fresh()->pages_count);
+        $this->assertSame($unchangedSessionPageId, $session->pages()->where('page_no', 6)->value('id'));
+        $this->assertSame($unchangedAchievementId, StudentPageAchievement::query()->where('student_id', $enrollment->student_id)->where('page_no', 6)->value('id'));
         $this->assertSame(2, StudentPageAchievement::query()->where('student_id', $enrollment->student_id)->count());
         $this->assertSame(2, $enrollment->fresh()->memorized_pages_cached);
 
@@ -546,11 +551,18 @@ class QuranWorkflowTest extends TestCase
 
         $finalTest = QuranFinalTest::query()->firstOrFail();
 
+        $newCurrentJuz = QuranJuz::query()->whereKeyNot($juz->id)->orderBy('juz_number')->firstOrFail();
+
         Volt::test('quran-final-tests.show', ['finalTest' => $finalTest])
             ->set('tested_on', '2026-09-09')
             ->set('score', '94')
             ->call('saveAttempt')
-            ->assertHasNoErrors();
+            ->assertHasNoErrors()
+            ->assertSet('showCurrentJuzModal', true)
+            ->set('newCurrentJuzId', $newCurrentJuz->id)
+            ->call('saveCurrentJuz')
+            ->assertHasNoErrors()
+            ->assertSet('showCurrentJuzModal', false);
 
         $this->assertDatabaseHas('quran_final_tests', [
             'id' => $finalTest->id,
@@ -563,6 +575,7 @@ class QuranWorkflowTest extends TestCase
             'status' => 'passed',
             'teacher_id' => $enrollment->group->teacher_id,
         ]);
+        $this->assertSame($newCurrentJuz->id, $enrollment->student->fresh()->quran_current_juz_id);
     }
 
     public function test_awqaf_test_progression_blocks_until_final_cycle_passes(): void

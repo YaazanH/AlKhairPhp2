@@ -286,11 +286,10 @@ new class extends Component {
 
     @can('finance.reports.export')
         @php
-            $ledgerReady = $ledger_cash_box_id !== '' && $ledger_currency_id !== '' && $ledger_date_from !== '' && $ledger_date_to !== '';
+            $ledgerReady = $ledger_cash_box_id !== '' && $ledger_date_from !== '' && $ledger_date_to !== '';
             $ledgerQuery = [
                 'cash_box_id' => $ledger_cash_box_id,
                 'cash_box_ids' => $ledger_cash_box_ids,
-                'currency_id' => $ledger_currency_id,
                 'date_from' => $ledger_date_from,
                 'date_to' => $ledger_date_to,
                 'ledger_notes' => $report_notes,
@@ -315,16 +314,6 @@ new class extends Component {
                             <span>{{ __('finance.empty.no_cash_boxes') }}</span>
                         @endforelse
                     </div>
-                </div>
-                <div>
-                    <label class="mb-1 block text-sm font-medium">{{ __('finance.common.currency') }}</label>
-                    <select wire:model.live="ledger_currency_id" class="w-full rounded-xl px-4 py-3 text-sm">
-                        @forelse ($ledgerCurrencies as $currency)
-                            <option value="{{ $currency->id }}">{{ $currency->code }} - {{ $currency->name }}</option>
-                        @empty
-                            <option value="">{{ __('finance.empty.no_cash_box_currencies') }}</option>
-                        @endforelse
-                    </select>
                 </div>
                 <div class="grid gap-4 md:grid-cols-3">
                     <div>

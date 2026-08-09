@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Course;
 use App\Services\CourseEndService;
 use App\Services\XlsxExportService;
+use App\Support\PdfOptions;
 use Mpdf\Mpdf;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -27,16 +28,14 @@ class CourseEndExportController extends Controller
     public function finalTests(Course $course, CourseEndService $service): Response
     {
         $rows = $service->finalTestRows($course);
-        $mpdf = new Mpdf([
+        $mpdf = new Mpdf(PdfOptions::make([
             'format' => 'A4',
             'orientation' => 'P',
-            'mode' => 'utf-8',
-            'default_font' => 'dejavusans',
             'margin_top' => 14,
             'margin_right' => 14,
             'margin_bottom' => 14,
             'margin_left' => 14,
-        ]);
+        ]));
         $mpdf->SetDirectionality('rtl');
         $mpdf->WriteHTML(view('reports.course-final-tests', compact('course', 'rows'))->render());
 

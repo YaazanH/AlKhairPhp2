@@ -5,6 +5,7 @@ namespace App\Livewire\Concerns;
 use App\Models\FinanceRequest;
 use App\Services\FinanceService;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 trait HandlesFinanceRequestMaintenance
@@ -90,7 +91,7 @@ trait HandlesFinanceRequestMaintenance
             'edit_cash_box_id' => $expenseRules ? ['required', 'exists:finance_cash_boxes,id'] : ['nullable'],
             'edit_counterparty_name' => ['nullable', 'string', 'max:255'],
             'edit_currency_id' => $expenseRules ? ['required', 'exists:finance_currencies,id'] : ['nullable'],
-            'edit_finance_pull_request_kind_id' => $expenseRules ? ['required', 'exists:finance_pull_request_kinds,id'] : ['nullable'],
+            'edit_finance_pull_request_kind_id' => $expenseRules ? ['required', Rule::exists('finance_categories', 'id')->where('type', 'expense')->where('is_active', true)] : ['nullable'],
             'edit_request_date' => ['required', 'date'],
             'edit_requested_reason' => ['nullable', 'string', 'max:2000'],
         ]);

@@ -585,7 +585,7 @@ new class extends Component {
                                             <button type="button" wire:click="editManual({{ $transaction->id }})" class="pill-link pill-link--compact">{{ __('workflow.common.actions.edit') }}</button>
                                         @endif
                                         @if (auth()->user()->can('points.void') && ! $transaction->voided_at)
-                                            <button type="button" wire:click="openVoidModal({{ $transaction->id }})" class="pill-link pill-link--compact border-red-500/50 bg-red-500/15 text-red-200 hover:bg-red-500/25">{{ __('crud.common.actions.delete') }}</button>
+                                            <button type="button" wire:click="openVoidModal({{ $transaction->id }})" class="pill-link pill-link--compact pill-link--danger">{{ __('crud.common.actions.delete') }}</button>
                                         @endif
                                     </div>
                                 </td>
@@ -697,7 +697,7 @@ new class extends Component {
             </div>
 
             <div class="flex flex-wrap items-center gap-3">
-                <button type="submit" wire:loading.attr="disabled" wire:target="voidSelected" class="pill-link border-red-400/25 text-red-200 hover:border-red-300/35 hover:bg-red-500/12">
+                <button type="submit" wire:loading.attr="disabled" wire:target="voidSelected" class="pill-link pill-link--danger">
                     {{ __('crud.common.actions.delete') }}
                 </button>
                 <button type="button" wire:click="closeVoidModal" class="pill-link">

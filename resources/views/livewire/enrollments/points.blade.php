@@ -343,7 +343,7 @@ new class extends Component {
                                             <button type="button" wire:click="editManual({{ $transaction->id }})" class="pill-link pill-link--compact">{{ __('workflow.common.actions.edit') }}</button>
                                         @endif
                                         @if (auth()->user()->can('points.void') && ! $transaction->voided_at)
-                                            <button type="button" wire:click="void({{ $transaction->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link pill-link--compact border-red-400/25 text-red-200 hover:border-red-300/35 hover:bg-red-500/12">{{ __('workflow.common.actions.void') }}</button>
+                                            <button type="button" wire:click="void({{ $transaction->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link pill-link--compact pill-link--danger">{{ __('workflow.common.actions.void') }}</button>
                                         @endif
                                     </div>
                                 </td>

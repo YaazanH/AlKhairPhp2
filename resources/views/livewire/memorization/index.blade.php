@@ -364,14 +364,7 @@ new class extends Component {
 
         $student = $session->student;
 
-        DB::transaction(function () use ($session, $student): void {
-            $session->pages()->delete();
-            $session->delete();
-
-            if ($student) {
-                app(MemorizationService::class)->rebuildStudentAchievementsAndPoints($student);
-            }
-        });
+        app(MemorizationService::class)->deleteSession($session);
 
         if ($this->editingSessionId === $sessionId) {
             $this->closeFormModal();

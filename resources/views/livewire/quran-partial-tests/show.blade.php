@@ -48,13 +48,7 @@ new class extends Component {
             ]),
             'currentTeacher' => $this->currentTeacher(),
             'failThreshold' => app(QuranPartialTestRuleService::class)->failThreshold(),
-            'teachers' => $this->currentTeacher()
-                ? collect()
-                : Teacher::query()
-                    ->whereIn('status', ['active', 'inactive'])
-                    ->orderBy('first_name')
-                    ->orderBy('last_name')
-                    ->get(),
+            'teachers' => $this->availableRecordingTeachers(),
         ];
     }
 
@@ -107,6 +101,7 @@ new class extends Component {
         $part = $this->partialTest->parts()->findOrFail((int) $validated['selectedPartId']);
         $teacherId = $this->currentTeacher()?->id ?: (int) $validated['teacher_id'];
         $teacher = Teacher::query()->findOrFail($teacherId);
+        abort_unless($this->currentTeacher() || $this->availableRecordingTeachers()->contains('id', $teacher->id), 403);
 
         try {
             app(QuranPartialTestService::class)->recordAttempt($part, $teacher, [
@@ -127,7 +122,21 @@ new class extends Component {
 
     protected function currentTeacher(): ?Teacher
     {
+        if (auth()->user()?->hasRole('super_admin')) {
+            return null;
+        }
+
         return $this->linkedTeacherForPermission('quran-partial-tests.record-linked-teacher');
+    }
+
+    protected function availableRecordingTeachers()
+    {
+        if ($this->currentTeacher()) {
+            return collect();
+        }
+
+        return Teacher::query()->with('user')->where('status', 'active')->orderBy('first_name')->orderBy('last_name')->get()
+            ->filter(fn (Teacher $teacher) => $teacher->user?->can('quran-partial-tests.record'))->values();
     }
 }; ?>
 

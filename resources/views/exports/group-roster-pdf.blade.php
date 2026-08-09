@@ -15,7 +15,7 @@
         body {
             color: #000;
             direction: rtl;
-            font-family: dejavusanscondensed, sans-serif;
+            font-family: dubai, sans-serif;
             font-size: 11px;
             line-height: 1.35;
         }

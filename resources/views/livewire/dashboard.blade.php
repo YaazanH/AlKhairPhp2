@@ -619,13 +619,25 @@ new class extends Component {
                 $pieTotal = (int) $groupDistribution->sum('students');
                 $pieOffset = 0.0;
                 $chartColor = fn (int $index) => sprintf('hsl(%.1f 42%% 57%%)', fmod(24 + ($index * 137.508), 360));
-                $trendMax = max(1, (int) $dailyTrend->max(fn (array $day) => max($day['pages'], $day['attendance'])));
-                $trendX = fn (int $index) => 58 + ($index * (332 / max($dailyTrend->count() - 1, 1)));
+                $niceMaximum = function (int $value): float {
+                    $value = max(1, $value);
+                    $targetStep = $value / 4;
+                    $magnitude = 10 ** floor(log10($targetStep));
+                    $normalized = $targetStep / $magnitude;
+                    $niceStep = $normalized <= 1 ? 1 : ($normalized <= 2 ? 2 : ($normalized <= 2.5 ? 2.5 : ($normalized <= 5 ? 5 : 10)));
+
+                    return $niceStep * $magnitude * 4;
+                };
+                $axisLabel = fn (float $value) => number_format($value, floor($value) === $value ? 0 : 1);
+                $trendMax = $niceMaximum((int) $dailyTrend->max(fn (array $day) => max($day['pages'], $day['attendance'])));
+                $trendX = fn (int $index) => app()->isLocale('ar')
+                    ? 400 - ($index * (342 / max($dailyTrend->count() - 1, 1)))
+                    : 58 + ($index * (342 / max($dailyTrend->count() - 1, 1)));
                 $trendY = fn (int $value) => 178 - (($value / $trendMax) * 128);
                 $pagesLine = $dailyTrend->values()->map(fn (array $day, int $index) => $trendX($index).','.$trendY($day['pages']))->implode(' ');
                 $attendanceLine = $dailyTrend->values()->map(fn (array $day, int $index) => $trendX($index).','.$trendY($day['attendance']))->implode(' ');
                 $podiumOrder = collect([3, 1, 2])->map(fn (int $rank) => $leaderboard->firstWhere('rank', $rank))->filter();
-                $barMax = max(1, (int) $groupPageTotals->max('pages'));
+                $barMax = $niceMaximum((int) $groupPageTotals->max('pages'));
             @endphp
 
             <section class="grid gap-6 xl:grid-cols-2">
@@ -633,8 +645,8 @@ new class extends Component {
                     <div class="eyebrow">{{ __('dashboard.manager.analytics.groups_eyebrow') }}</div>
                     <h2 class="font-display mt-2 text-2xl text-white">{{ __('dashboard.manager.analytics.group_distribution') }}</h2>
                     @if ($pieTotal > 0)
-                        <div class="mt-4 grid items-center gap-4 lg:grid-cols-[15rem_1fr]">
-                            <svg viewBox="0 0 42 42" class="mx-auto h-64 w-64 -rotate-90 overflow-visible lg:h-72 lg:w-72" role="img" aria-label="{{ __('dashboard.manager.analytics.group_distribution') }}">
+                        <div class="mt-4 grid min-w-0 items-center gap-6 lg:grid-cols-[minmax(10rem,13rem)_minmax(0,1fr)]">
+                            <svg viewBox="0 0 42 42" class="mx-auto h-52 w-52 -rotate-90 overflow-visible" role="img" aria-label="{{ __('dashboard.manager.analytics.group_distribution') }}">
                                 @foreach ($groupDistribution as $index => $group)
                                     @php($portion = ($group['students'] / $pieTotal) * 100)
                                     @if ($portion > 0)
@@ -645,7 +657,7 @@ new class extends Component {
                                     @php($pieOffset += $portion)
                                 @endforeach
                             </svg>
-                            <div class="grid grid-cols-2 gap-x-4 gap-y-3">
+                            <div class="grid min-w-0 grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2">
                                 @foreach ($groupDistribution as $index => $group)
                                     <div class="flex items-center justify-between gap-3 text-sm">
                                         <span class="flex min-w-0 items-center gap-2"><i class="h-3 w-3 shrink-0 rounded-full" style="background: {{ $chartColor($index) }}"></i><span class="truncate">{{ $group['name'] }}</span></span>
@@ -667,13 +679,13 @@ new class extends Component {
                             <span class="flex items-center gap-2"><i class="h-2.5 w-6 rounded-full bg-sky-400"></i>{{ __('dashboard.manager.analytics.students_attended') }}</span>
                         </div>
                     </div>
-                    <svg viewBox="0 0 440 220" dir="ltr" class="mt-2 h-80 w-full overflow-visible lg:h-96" role="img" aria-label="{{ __('dashboard.manager.analytics.daily_activity') }}">
-                        <line x1="58" y1="42" x2="58" y2="178" stroke="rgba(255,255,255,.3)" stroke-width="1.5" />
+                    <svg viewBox="0 0 440 220" dir="ltr" class="mt-2 h-auto w-full overflow-hidden" role="img" aria-label="{{ __('dashboard.manager.analytics.daily_activity') }}">
+                        <line x1="{{ app()->isLocale('ar') ? 400 : 58 }}" y1="42" x2="{{ app()->isLocale('ar') ? 400 : 58 }}" y2="178" stroke="rgba(255,255,255,.3)" stroke-width="1.5" />
                         <line x1="58" y1="178" x2="400" y2="178" stroke="rgba(255,255,255,.3)" stroke-width="1.5" />
                         @foreach ([0, .25, .5, .75, 1] as $ratio)
                             @php($gridY = 178 - ($ratio * 128))
                             <line x1="58" y1="{{ $gridY }}" x2="400" y2="{{ $gridY }}" stroke="rgba(255,255,255,.09)" stroke-width="1" />
-                            <text x="49" y="{{ $gridY + 4 }}" text-anchor="end" fill="#a3a3a3" font-size="10">{{ number_format($trendMax * $ratio) }}</text>
+                            <text x="{{ app()->isLocale('ar') ? 410 : 49 }}" y="{{ $gridY + 4 }}" text-anchor="{{ app()->isLocale('ar') ? 'start' : 'end' }}" fill="#a3a3a3" font-size="10">{{ $axisLabel($trendMax * $ratio) }}</text>
                         @endforeach
                         @foreach ($dailyTrend as $index => $day)
                             <line x1="{{ $trendX($index) }}" y1="50" x2="{{ $trendX($index) }}" y2="178" stroke="rgba(255,255,255,.09)" stroke-width="1" />
@@ -697,7 +709,7 @@ new class extends Component {
                             </g>
                             <text x="{{ $trendX($index) }}" y="202" text-anchor="middle" fill="#a3a3a3" font-size="11">{{ $day['label'] }}</text>
                         @endforeach
-                        <text x="20" y="110" text-anchor="middle" fill="#a3a3a3" font-size="10" transform="rotate(-90 20 110)">{{ __('dashboard.manager.analytics.count_axis') }}</text>
+                        <text x="{{ app()->isLocale('ar') ? 428 : 20 }}" y="110" text-anchor="middle" fill="#a3a3a3" font-size="10" transform="rotate({{ app()->isLocale('ar') ? 90 : -90 }} {{ app()->isLocale('ar') ? 428 : 20 }} 110)">{{ __('dashboard.manager.analytics.count_axis') }}</text>
                     </svg>
                 </article>
             </section>
@@ -730,7 +742,7 @@ new class extends Component {
                         <div class="admin-empty-state mt-5">{{ __('dashboard.manager.analytics.no_groups') }}</div>
                     @else
                         <div class="mt-8 grid grid-cols-[3rem_minmax(0,1fr)] gap-0">
-                            <div class="flex h-64 flex-col justify-between border-e border-white/20 pe-2 text-end text-[10px] text-neutral-400"><span>{{ number_format($barMax) }}</span><span>{{ number_format($barMax * .75) }}</span><span>{{ number_format($barMax * .5) }}</span><span>{{ number_format($barMax * .25) }}</span><span>0</span></div>
+                            <div class="flex h-64 flex-col justify-between border-e border-white/20 pe-2 text-end text-[10px] text-neutral-400"><span>{{ $axisLabel($barMax) }}</span><span>{{ $axisLabel($barMax * .75) }}</span><span>{{ $axisLabel($barMax * .5) }}</span><span>{{ $axisLabel($barMax * .25) }}</span><span>0</span></div>
                         <div class="relative">
                         <div class="pointer-events-none absolute inset-x-0 top-0 flex h-64 flex-col justify-between" aria-hidden="true">
                             @foreach ([0, 1, 2, 3, 4] as $gridLine)
@@ -740,9 +752,9 @@ new class extends Component {
                         <div class="dashboard-bar-chart relative grid h-64 grid-cols-4 items-end gap-4 border-b border-white/20 px-3">
                             @foreach ($groupPageTotals as $index => $group)
                                 @php($barHeight = max(3, ($group['pages'] / $barMax) * 100))
-                                <div class="flex h-full min-w-0 flex-col justify-end text-center">
-                                    <div class="mb-2 text-sm font-semibold text-white">{{ number_format($group['pages']) }}</div>
-                                    <div class="dashboard-bar-chart__bar mx-auto w-full max-w-16 rounded-t-xl transition-transform duration-200 hover:scale-x-110" style="height: {{ $barHeight }}%; background: {{ $chartColor($index) }}">
+                                <div class="relative flex h-full min-w-0 flex-col justify-end text-center">
+                                    <div class="dashboard-bar-chart__bar mx-auto w-full max-w-16 shrink-0 rounded-t-xl transition-transform duration-200 hover:scale-x-110" style="height: {{ $barHeight }}%; background: {{ $chartColor($index) }}">
+                                        <div class="absolute inset-x-0 -top-6 text-sm font-semibold text-white">{{ number_format($group['pages']) }}</div>
                                         <span class="sr-only">{{ $group['name'] }}: {{ trans_choice('dashboard.manager.analytics.pages_count', $group['pages'], ['count' => number_format($group['pages'])]) }}</span>
                                         <span class="dashboard-chart-tooltip">{{ $group['name'] }} · {{ trans_choice('dashboard.manager.analytics.pages_count', $group['pages'], ['count' => number_format($group['pages'])]) }}</span>
                                     </div>

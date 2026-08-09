@@ -3,9 +3,21 @@
 
     <div class="page-stack">
         <section class="page-hero p-6 lg:p-8">
-            <div class="eyebrow">{{ __('ui.nav.identity_tools') }}</div>
-            <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ $pageTitle ?? __('print_templates.print.title') }}</h1>
-            <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ $pageSubtitle ?? __('print_templates.print.subtitle') }}</p>
+            <div class="flex flex-wrap items-start justify-between gap-5">
+                <div>
+                    <div class="eyebrow">{{ __('ui.nav.identity_tools') }}</div>
+                    <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ $pageTitle ?? __('print_templates.print.title') }}</h1>
+                    <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ $pageSubtitle ?? __('print_templates.print.subtitle') }}</p>
+                </div>
+                @if ($studentCardMode ?? false)
+                    <div class="admin-form-field min-w-64">
+                        <label for="student-card-course">{{ __('crud.students.bulk_status.fields.course') }}</label>
+                        <select id="student-card-course" onchange="window.location.href = `${window.location.pathname}?course_id=${this.value}`">
+                            @foreach ($activeCourses as $course)<option value="{{ $course->id }}" @selected((int)$selectedCourseId === (int)$course->id)>{{ $course->name }}</option>@endforeach
+                        </select>
+                    </div>
+                @endif
+            </div>
         </section>
 
         @if ($errors->any())
@@ -35,7 +47,7 @@
                 @csrf
                 @if ($studentCardMode ?? false)<input type="hidden" name="course_id" value="{{ $selectedCourseId }}">@endif
 
-                <div class="website-workbench website-workbench--editor">
+                <div class="grid gap-6">
                     <section class="surface-panel p-5 lg:p-6">
                         <div class="admin-builder-header">
                             <div>
@@ -45,15 +57,6 @@
                         </div>
 
                         <div class="mt-6 admin-form-grid">
-                            @if ($studentCardMode ?? false)
-                                <div class="admin-form-field admin-form-field--full rounded-2xl border border-white/10 p-4">
-                                    <label for="student-card-course">{{ __('crud.students.bulk_status.fields.course') }}</label>
-                                    <select id="student-card-course" onchange="window.location.href = `${window.location.pathname}?course_id=${this.value}`">
-                                        @foreach ($activeCourses as $course)<option value="{{ $course->id }}" @selected((int)$selectedCourseId === (int)$course->id)>{{ $course->name }}</option>@endforeach
-                                    </select>
-                                    <p class="mt-2 text-xs text-neutral-400">{{ __('print_templates.print.setup.fields.active_students') }} · {{ __('print_templates.print.setup.fields.not_printed_students') }}</p>
-                                </div>
-                            @endif
                             <div class="admin-form-field admin-form-field--full">
                                 <label for="print-template-print-template">{{ __('print_templates.print.setup.fields.template') }}</label>
                                 <select id="print-template-print-template" name="template_id" data-print-template-select>
@@ -148,7 +151,7 @@
                                     </div>
 
                                     <div data-source-multiple="{{ $entity }}" hidden>
-                                        <div class="admin-toolbar print-template-source-toolbar mt-4">
+                                        <div class="admin-toolbar print-template-source-toolbar print-template-source-toolbar--stacked mt-4">
                                             <div class="admin-toolbar__controls">
                                                 <div class="admin-filter-field">
                                                     <label>{{ __('crud.common.filters.search') }}</label>

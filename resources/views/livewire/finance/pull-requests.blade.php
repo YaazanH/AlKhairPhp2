@@ -10,6 +10,7 @@ use App\Models\FinanceRequest;
 use App\Models\Invoice;
 use App\Models\Teacher;
 use App\Services\FinanceService;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Livewire\Volt\Component;
 use Livewire\WithPagination;
@@ -100,7 +101,7 @@ new class extends Component {
 
         $rules = [
             'cash_box_id' => [$canReview ? 'required' : 'nullable', 'exists:finance_cash_boxes,id'],
-            'finance_pull_request_kind_id' => ['required', 'exists:finance_pull_request_kinds,id'],
+            'finance_pull_request_kind_id' => ['required', Rule::exists('finance_categories', 'id')->where('type', 'expense')->where('is_active', true)],
             'request_date' => [auth()->user()?->can('finance.entries.update') ? 'required' : 'nullable', 'date'],
             'requested_amount' => ['required', 'numeric', 'gt:0'],
             'requested_count' => [$kind->mode === FinancePullRequestKind::MODE_COUNT ? 'required' : 'nullable', 'integer', 'min:1'],
@@ -120,6 +121,7 @@ new class extends Component {
             'type' => FinanceRequest::TYPE_PULL,
             'status' => FinanceRequest::STATUS_PENDING,
             'finance_pull_request_kind_id' => $kind->id,
+            'finance_category_id' => $kind->id,
             'requested_currency_id' => $currency->id,
             'requested_amount' => $validated['requested_amount'],
             'requested_count' => $kind->mode === FinancePullRequestKind::MODE_COUNT ? (int) $validated['requested_count'] : null,

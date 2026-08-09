@@ -15,7 +15,7 @@
 <style>
     .ledger-report-doc {
         color: #102316;
-        font-family: "Segoe UI", Tahoma, Arial, sans-serif;
+        font-family: Dubai, sans-serif;
         line-height: 1.55;
     }
     .ledger-report-doc__page {

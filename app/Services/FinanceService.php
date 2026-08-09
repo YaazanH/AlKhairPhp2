@@ -38,13 +38,6 @@ class FinanceService
 
     public function transactionTypeLabel(string $type, ?FinanceTransaction $transaction = null): string
     {
-        if (
-            $transaction?->financeRequest
-            && in_array($transaction->financeRequest->type, [FinanceRequest::TYPE_PULL, FinanceRequest::TYPE_EXPENSE, FinanceRequest::TYPE_REVENUE, FinanceRequest::TYPE_RETURN], true)
-        ) {
-            return $this->financeRequestTypeLabel($transaction->financeRequest->type);
-        }
-
         $label = __('finance.transaction_types.'.$type);
 
         return $label === 'finance.transaction_types.'.$type ? Str::headline($type) : $label;
@@ -582,6 +575,7 @@ class FinanceService
 
                 $updates['cash_box_id'] = $cashBox->id;
                 $updates['finance_pull_request_kind_id'] = $payload['finance_pull_request_kind_id'] ?? $request->finance_pull_request_kind_id;
+                $updates['finance_category_id'] = $updates['finance_pull_request_kind_id'];
                 $updates['requested_amount'] = $amount;
                 $updates['requested_currency_id'] = $currency->id;
 
@@ -600,10 +594,10 @@ class FinanceService
                         'base_amount' => $snapshot['base_amount'],
                         'cash_box_id' => $cashBox->id,
                         'currency_id' => $currency->id,
-                        'description' => trim($this->financeRequestReference($request).' '.($requestedReason ?? '')),
+                        'description' => filled($requestedReason) ? trim((string) $requestedReason) : null,
                         'direction' => 'out',
                         'entered_by' => $user?->id ?: $transaction->entered_by,
-                        'finance_category_id' => $request->finance_category_id,
+                        'finance_category_id' => $updates['finance_category_id'],
                         'local_amount' => $snapshot['local_amount'],
                         'metadata' => array_merge($transaction->metadata ?? [], [
                             'edited_at' => now()->toISOString(),
@@ -823,10 +817,14 @@ class FinanceService
         $signedAmount = $direction === 'out' ? -$amount : $amount;
         $snapshot = $this->amountSnapshot($currency, $signedAmount);
         $specialTransactionNo = $payload['special_transaction_no'] ?? null;
+        $description = $this->cleanTransactionDescription($payload['description'] ?? null);
 
         if (! $specialTransactionNo && ! empty($payload['finance_request_id'])) {
             $financeRequest = FinanceRequest::query()->find((int) $payload['finance_request_id']);
             $specialTransactionNo = $financeRequest?->expense_no ?: $financeRequest?->request_no;
+            if ($description === null) {
+                $description = $this->cleanTransactionDescription($financeRequest?->requested_reason);
+            }
         }
 
         $this->ensureCashBoxSupportsCurrency($cashBox, $currency);
@@ -851,7 +849,7 @@ class FinanceService
             'base_amount' => $snapshot['base_amount'],
             'local_amount' => $snapshot['local_amount'],
             'transaction_date' => $payload['transaction_date'] ?? now()->toDateString(),
-            'description' => $payload['description'] ?? null,
+            'description' => $description,
             'entered_by' => $payload['entered_by'] ?? auth()->id(),
             'pair_uuid' => $payload['pair_uuid'] ?? null,
             'metadata' => $payload['metadata'] ?? null,
@@ -876,7 +874,7 @@ class FinanceService
                 'base_amount' => $snapshot['base_amount'],
                 'cash_box_id' => $cashBox->id,
                 'currency_id' => $currency->id,
-                'description' => $payload['description'] ?: null,
+                'description' => $this->cleanTransactionDescription($payload['description'] ?? null),
                 'direction' => $direction,
                 'entered_by' => $payload['entered_by'] ?? $user?->id ?? $transaction->entered_by,
                 'finance_category_id' => $payload['finance_category_id'] ?: null,
@@ -1215,6 +1213,24 @@ class FinanceService
             'total' => $total,
             'status' => $this->determineInvoiceStatus($invoice, $paid, $total),
         ]);
+
+        if ($invoice->invoice_type === 'finance') {
+            $request = $invoice->financeRequest()->with(['acceptedCurrency', 'postedTransaction'])->first();
+            $transaction = $request?->postedTransaction;
+
+            if ($request && $transaction && $request->acceptedCurrency && $request->status === FinanceRequest::STATUS_SETTLED) {
+                $signedAmount = $transaction->direction === 'out' ? -$total : $total;
+                $snapshot = $this->amountSnapshot($request->acceptedCurrency, $signedAmount);
+                $transaction->update([
+                    'amount' => abs($total),
+                    'signed_amount' => $signedAmount,
+                    'rate_to_base' => $snapshot['rate_to_base'],
+                    'base_amount' => $snapshot['base_amount'],
+                    'local_amount' => $snapshot['local_amount'],
+                ]);
+                $request->update(['accepted_amount' => $total]);
+            }
+        }
     }
 
     public function updateCurrencyRate(FinanceCurrency $currency, float $rateToBase, ?User $user = null, ?FinanceCurrency $referenceCurrency = null): FinanceCurrency
@@ -1472,6 +1488,15 @@ class FinanceService
         }
 
         return $direction === 'out' ? 'expense' : 'income';
+    }
+
+    protected function cleanTransactionDescription(?string $description): ?string
+    {
+        $description = trim((string) $description);
+        $description = (string) preg_replace('/\b(?:FIN|EXP|REV|RET|PUL|INV|TRSF|EXCH|EXC|TX)[-_]?\d+\b/iu', '', $description);
+        $description = trim((string) preg_replace('/\s{2,}/u', ' ', $description), " -|,.;:\t\n\r\0\x0B");
+
+        return $description !== '' ? $description : null;
     }
 
     protected function requestNumberPrefix(string $type): string

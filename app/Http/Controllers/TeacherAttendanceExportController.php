@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Course;
 use App\Models\Teacher;
 use App\Models\TeacherAttendanceDay;
+use App\Support\PdfOptions;
 use Illuminate\Http\Request;
 use Mpdf\Mpdf;
 use Symfony\Component\HttpFoundation\Response;
@@ -27,7 +28,7 @@ class TeacherAttendanceExportController extends Controller
         })->sortBy(fn (array $row) => mb_strtolower($row['name']))->values();
         $course = Course::query()->where('is_default', true)->first();
         $html = view('reports.teacher-attendance', compact('teachers', 'course', 'validated'))->render();
-        $mpdf = new Mpdf(['format' => 'A4', 'orientation' => 'P', 'mode' => 'utf-8', 'default_font' => 'dejavusans']);
+        $mpdf = new Mpdf(PdfOptions::make(['format' => 'A4', 'orientation' => 'P']));
         $mpdf->SetDirectionality('rtl'); $mpdf->WriteHTML($html);
         return response($mpdf->Output('', 'S'), 200, ['Content-Type' => 'application/pdf', 'Content-Disposition' => 'inline; filename="teacher-attendance.pdf"']);
     }

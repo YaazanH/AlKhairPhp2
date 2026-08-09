@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <style>
         @page { margin: 12mm 10mm; }
-        body { color: #172033; font-family: dejavusanscondensed, sans-serif; font-size: 11pt; }
+        body { color: #172033; font-family: dubai, sans-serif; font-size: 11pt; }
         h1 { font-size: 22pt; margin: 0 0 5mm; text-align: center; }
         h2 { color: #356b52; font-size: 16pt; margin: 0 0 3mm; text-align: center; }
         .meta { margin-bottom: 7mm; text-align: center; }

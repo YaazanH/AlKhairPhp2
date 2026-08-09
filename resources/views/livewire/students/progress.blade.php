@@ -192,7 +192,7 @@ new class extends Component {
             return ['studentOptions' => $studentOptions];
         }
 
-        $studentRecord = $this->currentStudent->fresh(['gradeLevel', 'parentProfile', 'quranCurrentJuz']);
+        $studentRecord = $this->currentStudent->fresh(['gradeLevel', 'parentProfile', 'quranCurrentJuz', 'externalMemorizedJuzs']);
         $enrollments = $this->scopeEnrollmentsQuery(
             Enrollment::query()
                 ->with(['group.course', 'group.teacher'])
@@ -314,8 +314,10 @@ new class extends Component {
             : 0;
 
         $pageSet = $generalPages->flip();
+        $externalJuzIds = $studentRecord->externalMemorizedJuzs->pluck('id')->map(fn ($id) => (int) $id)->all();
         $quranJuzProgress = QuranJuz::query()->orderBy('juz_number')->get()
-            ->map(function (QuranJuz $juz) use ($pageSet, $partialTests, $finalTests, $enrollments, $passedAwqafTestsByJuz) {
+            ->map(function (QuranJuz $juz) use ($pageSet, $partialTests, $finalTests, $enrollments, $passedAwqafTestsByJuz, $externalJuzIds) {
+                $memorizedExternally = in_array((int) $juz->id, $externalJuzIds, true);
                 $pages = collect(range((int) $juz->from_page, (int) $juz->to_page));
                 $missingPages = $pages->reject(fn (int $page) => $pageSet->has($page))->values();
                 $juzPartialTests = $partialTests->where('juz_id', $juz->id);
@@ -330,6 +332,7 @@ new class extends Component {
 
                 return (object) [
                     'juz' => $juz,
+                    'memorized_externally' => $memorizedExternally,
                     'memorized_pages' => $pages->count() - $missingPages->count(),
                     'missing_pages' => $missingPages,
                     'passed_parts' => $passedParts,
@@ -340,11 +343,11 @@ new class extends Component {
                     'final_made' => $finalMade,
                     'awqaf_passed' => $latestAwqafTest !== null,
                     'awqaf_passed_on' => $latestAwqafTest?->tested_on,
-                    'status' => $status,
+                    'status' => $memorizedExternally ? 'memorized_before' : $status,
                     'enrollment' => $juzFinalTests->first()?->enrollment ?: $juzPartialTests->first()?->enrollment ?: $enrollments->first(),
                 ];
             })
-            ->filter(fn ($row) => $row->memorized_pages > 0 || $row->passed_parts > 0 || $row->latest_final_score !== null)
+            ->filter(fn ($row) => $row->memorized_externally || $row->memorized_pages > 0 || $row->passed_parts > 0 || $row->latest_final_score !== null)
             ->values();
         $selectedMissingJuz = $this->missingJuzId
             ? $quranJuzProgress->first(fn ($row) => (int) $row->juz->id === (int) $this->missingJuzId)
@@ -464,6 +467,7 @@ new class extends Component {
                     <div class="rounded-2xl border border-white/8 bg-white/4 p-3"><div class="kpi-label">{{ __('workflow.student_progress.profile.grade') }}</div><div class="mt-2 text-sm font-semibold text-white">{{ $studentRecord->gradeLevel?->name ?: __('crud.common.not_available') }}</div></div>
                     <div class="rounded-2xl border border-white/8 bg-white/4 p-3"><div class="kpi-label">{{ __('workflow.student_progress.profile.school') }}</div><div class="mt-2 text-sm font-semibold text-white">{{ $studentRecord->school_name ?: __('crud.common.not_available') }}</div></div>
                     <div class="rounded-2xl border border-white/8 bg-white/4 p-3"><div class="kpi-label">{{ __('workflow.student_progress.profile.group') }}</div><div class="mt-2 text-sm font-semibold text-white">{{ $activeEnrollment?->group?->name ?: __('crud.common.not_available') }}</div></div>
+                    <div class="rounded-2xl border border-white/8 bg-white/4 p-3"><div class="kpi-label">{{ __('workflow.student_progress.profile.current_juz') }}</div><div class="mt-2 text-sm font-semibold text-white">{{ $studentRecord->quranCurrentJuz ? __('workflow.common.labels.juz_number', ['number' => $studentRecord->quranCurrentJuz->juz_number]) : __('crud.common.not_available') }}</div></div>
                 </div>
             </div>
         </section>
@@ -493,12 +497,12 @@ new class extends Component {
                 </tr></thead><tbody class="divide-y divide-white/6">
                     @foreach ($quranJuzProgress as $row)<tr>
                         <td class="px-5 py-4 text-white">{{ __('workflow.common.labels.juz_number', ['number' => $row->juz->juz_number]) }}</td>
-                        <td class="px-5 py-4">{{ number_format($row->memorized_pages) }}</td>
-                        <td class="px-5 py-4">@if ($row->partial_test_created)<bdi dir="ltr">{{ number_format($row->passed_parts) }}/4</bdi>@endif</td>
-                        <td class="px-5 py-4" @if($row->latest_final_score !== null) title="{{ trim(($row->latest_final_date?->format('d-m-Y') ?? '').' · '.($row->latest_final_course ?? '')) }}" @endif>{{ $row->latest_final_score !== null ? number_format((float) $row->latest_final_score, 2) : '' }}</td>
-                        <td class="px-5 py-4"><span class="status-chip {{ $statusClass($row->status) }}">{{ $row->status === 'missing' ? __('workflow.student_progress.juz_progress.incomplete', ['count' => number_format($row->missing_pages->count())]) : __('workflow.student_progress.juz_progress.statuses.'.$row->status) }}</span></td>
+                        <td class="px-5 py-4">{{ $row->memorized_externally ? '' : number_format($row->memorized_pages) }}</td>
+                        <td class="px-5 py-4">@if (! $row->memorized_externally && $row->partial_test_created)<bdi dir="ltr">{{ number_format($row->passed_parts) }}/4</bdi>@endif</td>
+                        <td class="px-5 py-4" @if($row->latest_final_score !== null) title="{{ trim(($row->latest_final_date?->format('d-m-Y') ?? '').' · '.($row->latest_final_course ?? '')) }}" @endif>{{ ! $row->memorized_externally && $row->latest_final_score !== null ? number_format((float) $row->latest_final_score, 2) : '' }}</td>
+                        <td class="px-5 py-4"><span class="status-chip {{ $row->memorized_externally ? 'border-lime-400/30 bg-lime-400/15 text-lime-300' : $statusClass($row->status) }}">{{ $row->memorized_externally ? __('workflow.student_progress.juz_progress.statuses.memorized_before') : ($row->status === 'missing' ? __('workflow.student_progress.juz_progress.incomplete', ['count' => number_format($row->missing_pages->count())]) : __('workflow.student_progress.juz_progress.statuses.'.$row->status)) }}</span></td>
                         <td class="px-5 py-4 text-right">
-                            @php($showMissingPagesAction = $row->status !== 'finished' && $row->missing_pages->isNotEmpty())
+                            @php($showMissingPagesAction = ! $row->memorized_externally && $row->status !== 'finished' && $row->missing_pages->isNotEmpty())
                             @php($showAwqafAction = $row->enrollment && $row->final_made && ! $row->awqaf_passed && (auth()->user()->can('quran-awqaf-tests.record') || auth()->user()->can('quran-tests.record')))
                             @if ($row->awqaf_passed)
                                 <span class="text-sm text-emerald-300">تم سبره بالأوقاف{{ $row->awqaf_passed_on ? ' · '.$row->awqaf_passed_on->format('d-m-Y') : '' }}</span>

@@ -703,6 +703,12 @@ return [
         ],
     ],
     'quran_final_tests' => [
+        'current_juz' => [
+            'title' => 'Select the new juz for the student',
+            'tested' => 'Tested juz: :juz',
+            'select' => 'Choose the new juz',
+            'updated' => 'The student current juz was updated.',
+        ],
         'title' => 'Final Tests',
         'subtitle' => 'Create one final-test cycle for a student and juz after the partial cycle passes, then keep the full retry history until the student passes.',
         'stats' => [
@@ -1231,6 +1237,7 @@ return [
                 'missing' => 'Missing pages',
                 'awaiting' => 'Awaiting test',
                 'finished' => 'Finished',
+                'memorized_before' => 'Memorized before',
             ],
         ],
         'partial_tests' => [

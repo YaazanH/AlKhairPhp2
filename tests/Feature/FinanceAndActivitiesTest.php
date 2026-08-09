@@ -1283,7 +1283,7 @@ class FinanceAndActivitiesTest extends TestCase
             ->assertSee(__('finance.reports.ledger_export_title'))
             ->assertSee(__('finance.reports.generated_reports'))
             ->assertSee($cashBox->name)
-            ->assertSee($currency->code);
+            ->assertDontSee('<select wire:model.live="ledger_currency_id"', false);
 
         $this->get(route('finance.reports.index'))
             ->assertOk()
@@ -1942,6 +1942,11 @@ class FinanceAndActivitiesTest extends TestCase
         $teacherItems = collect(app(SidebarNavigationService::class)->sidebarFor($teacherUser))->pluck('items')->flatten(1);
         $this->assertTrue($teacherItems->contains(fn (array $item) => $item['key'] === 'finance_pull_requests'));
         $this->assertFalse($teacherItems->contains(fn (array $item) => $item['key'] === 'finance_dashboard'));
+
+        AppSetting::storeValue('finance', 'withdrawal_requests_enabled', false, 'boolean');
+        $disabledTeacherItems = collect(app(SidebarNavigationService::class)->sidebarFor($teacherUser))->pluck('items')->flatten(1);
+        $this->assertFalse($disabledTeacherItems->contains(fn (array $item) => $item['key'] === 'finance_pull_requests'));
+        AppSetting::storeValue('finance', 'withdrawal_requests_enabled', true, 'boolean');
 
         $manager = User::factory()->create();
         $manager->assignRole('manager');

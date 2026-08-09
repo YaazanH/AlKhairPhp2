@@ -10,6 +10,7 @@ use App\Models\Teacher;
 use App\Services\FinanceReportService;
 use App\Services\FinanceService;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Livewire\Volt\Component;
 use Livewire\WithPagination;
@@ -103,7 +104,7 @@ new class extends Component {
             'requestKinds' => FinancePullRequestKind::query()->where('is_active', true)->orderBy('mode')->orderBy('name')->get(),
             'selectedRequestKind' => FinancePullRequestKind::query()->find($this->request_kind_id),
             'requestCashBoxes' => $service->accessibleCashBoxesForCurrency(auth()->user(), $this->request_currency_id)->get(),
-            'transactionTypes' => FinanceTransaction::query()->whereIn('cash_box_id', $cashBoxIds)->distinct()->orderBy('type')->pluck('type'),
+            'transactionTypes' => collect(['income', 'expense', 'return', 'exchange', 'transfer']),
             'transactions' => $transactions->paginate(25, pageName: 'transactionsPage'),
         ];
     }
@@ -168,7 +169,7 @@ new class extends Component {
         $kind = FinancePullRequestKind::query()->find($this->request_kind_id);
         $validated = $this->validate([
             'request_amount' => ['required', 'numeric', 'gt:0'],
-            'request_kind_id' => ['required', 'exists:finance_pull_request_kinds,id'],
+            'request_kind_id' => ['required', Rule::exists('finance_categories', 'id')->where('type', 'expense')->where('is_active', true)],
             'request_currency_id' => ['required', 'exists:finance_currencies,id'],
             'request_cash_box_id' => ['required', 'exists:finance_cash_boxes,id'],
             'request_count' => [$kind?->mode === FinancePullRequestKind::MODE_COUNT ? 'required' : 'nullable', 'integer', 'min:1'],
@@ -184,6 +185,7 @@ new class extends Component {
             'type' => FinanceRequest::TYPE_PULL,
             'status' => FinanceRequest::STATUS_PENDING,
             'finance_pull_request_kind_id' => $validated['request_kind_id'],
+            'finance_category_id' => $validated['request_kind_id'],
             'requested_currency_id' => $currency->id,
             'requested_amount' => $validated['request_amount'],
             'requested_count' => $kind->mode === FinancePullRequestKind::MODE_COUNT ? (int) ($validated['request_count'] ?: 0) : null,
@@ -295,12 +297,12 @@ new class extends Component {
 @endphp
 
 <div class="page-stack">
-    <section class="page-hero p-6 lg:p-8">
+    <section class="page-hero relative z-20 overflow-visible p-6 lg:p-8" style="overflow: visible">
         <div class="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
             <div><div class="eyebrow">{{ __('ui.nav.finance') }}</div><h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('ui.nav.finance_dashboard') }}</h1><p class="mt-4 max-w-3xl text-neutral-200">{{ __('finance.dashboard.subtitle') }}</p></div>
-            <div class="grid gap-3 sm:grid-cols-2">
+            <div class="relative z-30 grid gap-3 sm:grid-cols-2">
                 <div><label class="mb-1 block text-sm">{{ __('finance.fields.year') }}</label><input wire:model.live="year" type="number" min="2000" max="2100" class="w-full rounded-xl px-4 py-3 text-sm"></div>
-                <div><label class="mb-1 block text-sm">{{ __('finance.fields.quarter') }}</label><select wire:model.live="quarter" class="w-full rounded-xl px-4 py-3 text-sm"><option value="1">Q1</option><option value="2">Q2</option><option value="3">Q3</option><option value="4">Q4</option></select></div>
+                <div class="relative z-40"><label class="mb-1 block text-sm">{{ __('finance.fields.quarter') }}</label><select wire:model.live="quarter" class="relative z-50 w-full rounded-xl px-4 py-3 text-sm"><option value="1">Q1</option><option value="2">Q2</option><option value="3">Q3</option><option value="4">Q4</option></select></div>
             </div>
         </div>
     </section>
@@ -308,7 +310,7 @@ new class extends Component {
     @if (session('status')) <div class="flash-success px-4 py-3 text-sm">{{ session('status') }}</div> @endif
 
     <section class="surface-panel p-5 lg:p-6">
-        <div class="mb-5 flex items-center justify-between gap-3"><div><div class="eyebrow">{{ __('finance.dashboard.funds') }}</div><h2 class="font-display mt-2 text-2xl text-white">{{ __('finance.dashboard.fund_balances') }}</h2></div>@can('finance.cash-box.transfer')<button wire:click="openTransferModal" class="pill-link pill-link--accent">{{ __('finance.dashboard.move_money') }}</button>@endcan</div>
+        <div class="mb-5 flex items-center justify-between gap-3"><div><div class="eyebrow">{{ __('finance.dashboard.funds') }}</div><h2 class="font-display mt-2 text-2xl text-white">{{ __('finance.dashboard.fund_balances') }}</h2></div>@can('finance.cash-box.transfer')<button wire:click="openTransferModal" class="pill-link pill-link--accent" title="{{ __('finance.dashboard.move_money') }}" aria-label="{{ __('finance.dashboard.move_money') }}"><svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M7.5 7.5h11.25m0 0L15 3.75m3.75 3.75L15 11.25M16.5 16.5H5.25m0 0L9 20.25M5.25 16.5L9 12.75"/></svg></button>@endcan</div>
         <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">@foreach ($report['balances'] as $fund)<article class="stat-card"><div class="kpi-label">{{ $fund['cash_box']->name }}</div><div class="metric-value mt-3"><bdi dir="ltr">{{ app(FinanceService::class)->formatCurrencyAmount($fund['local_total'], $report['summary']['local_currency']) }}</bdi></div><div class="mt-3 space-y-1 text-sm text-neutral-300">@foreach ($fund['currencies'] as $row)<div class="flex justify-between gap-3"><span>{{ $row['currency']->code }}</span><bdi dir="ltr">{{ app(FinanceService::class)->formatCurrencyAmount($row['balance'], $row['currency']) }}</bdi></div>@endforeach</div></article>@endforeach</div>
     </section>
 

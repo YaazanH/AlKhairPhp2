@@ -246,6 +246,10 @@ class SidebarNavigationService
             $items = [];
 
             foreach ($this->defaultItems() as $itemKey => $itemDefinition) {
+                if ($itemKey === 'finance_pull_requests' && ! $this->withdrawalRequestsEnabled()) {
+                    continue;
+                }
+
                 $configuredGroupKey = $settings['items'][$itemKey]['group_key'] ?? $itemDefinition['group_key'];
 
                 if ($configuredGroupKey !== $groupKey || ! $this->userCanSeeItem($user, $itemDefinition)) {
@@ -334,5 +338,12 @@ class SidebarNavigationService
     {
         return str_starts_with($key, self::CUSTOM_GROUP_PREFIX)
             && (bool) preg_match('/^'.preg_quote(self::CUSTOM_GROUP_PREFIX, '/').'[a-z0-9_]+$/', $key);
+    }
+
+    protected function withdrawalRequestsEnabled(): bool
+    {
+        $settings = AppSetting::groupValues('finance');
+
+        return ! $settings->has('withdrawal_requests_enabled') || (bool) $settings->get('withdrawal_requests_enabled');
     }
 }

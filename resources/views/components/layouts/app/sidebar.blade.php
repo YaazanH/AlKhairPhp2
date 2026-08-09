@@ -107,7 +107,7 @@
                     <flux:sidebar.toggle class="lg:hidden" icon="bars-2" inset="{{ $sidebarToggleInset }}" />
 
                     <div class="{{ $mobileIdentitySpacingClass }} min-w-0">
-                        <div class="text-[0.68rem] font-semibold uppercase tracking-[0.28em] text-neutral-500">{{ __('ui.app.name') }}</div>
+                        <div class="text-[0.78rem] font-light tracking-normal text-neutral-400">{{ __('ui.app.name') }}</div>
                         <div class="truncate text-sm text-neutral-200">{{ $roleLabel ?: __('ui.common.workspace') }}</div>
                     </div>
 

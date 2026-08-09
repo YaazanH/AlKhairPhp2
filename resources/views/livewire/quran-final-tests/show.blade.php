@@ -3,6 +3,7 @@
 use App\Livewire\Concerns\AuthorizesPermissions;
 use App\Livewire\Concerns\AuthorizesTeacherAssignments;
 use App\Models\QuranFinalTest;
+use App\Models\QuranJuz;
 use App\Models\Teacher;
 use App\Services\QuranFinalTestRuleService;
 use App\Services\QuranFinalTestService;
@@ -18,6 +19,8 @@ new class extends Component {
     public string $score = '';
     public string $notes = '';
     public bool $showAttemptModal = false;
+    public bool $showCurrentJuzModal = false;
+    public ?int $newCurrentJuzId = null;
 
     public function mount(QuranFinalTest $finalTest): void
     {
@@ -47,13 +50,8 @@ new class extends Component {
                 'student.parentProfile',
             ]),
             'scoreRules' => app(QuranFinalTestRuleService::class)->ranges(),
-            'teachers' => $this->currentTeacher()
-                ? collect()
-                : Teacher::query()
-                    ->whereIn('status', ['active', 'inactive'])
-                    ->orderBy('first_name')
-                    ->orderBy('last_name')
-                    ->get(),
+            'teachers' => $this->availableRecordingTeachers(),
+            'availableCurrentJuzs' => QuranJuz::query()->whereKeyNot($this->finalTest->juz_id)->orderBy('juz_number')->get(),
         ];
     }
 
@@ -98,9 +96,10 @@ new class extends Component {
 
         $teacherId = $this->currentTeacher()?->id ?: (int) $validated['teacher_id'];
         $teacher = Teacher::query()->findOrFail($teacherId);
+        abort_unless($this->currentTeacher() || $this->availableRecordingTeachers()->contains('id', $teacher->id), 403);
 
         try {
-            app(QuranFinalTestService::class)->recordAttempt($this->finalTest, $teacher, [
+            $attempt = app(QuranFinalTestService::class)->recordAttempt($this->finalTest, $teacher, [
                 'notes' => $validated['notes'] ?? null,
                 'score' => $validated['score'] ?? null,
                 'tested_on' => $validated['tested_on'],
@@ -114,10 +113,44 @@ new class extends Component {
         session()->flash('status', __('workflow.quran_final_tests.messages.attempt_saved'));
         $this->finalTest = $this->finalTest->fresh();
         $this->closeAttemptModal();
+        if ($attempt->status === 'passed') {
+            $this->showCurrentJuzModal = true;
+        }
+    }
+
+    public function saveCurrentJuz(): void
+    {
+        $this->authorizePermission('quran-final-tests.record');
+        $validated = $this->validate(['newCurrentJuzId' => ['required', 'exists:quran_juzs,id', 'not_in:'.$this->finalTest->juz_id]]);
+        $this->finalTest->student()->update(['quran_current_juz_id' => (int) $validated['newCurrentJuzId']]);
+        $this->showCurrentJuzModal = false;
+        $this->newCurrentJuzId = null;
+        session()->flash('status', __('workflow.quran_final_tests.current_juz.updated'));
+    }
+
+    public function closeCurrentJuzModal(): void
+    {
+        $this->showCurrentJuzModal = false;
+        $this->newCurrentJuzId = null;
+        $this->resetValidation('newCurrentJuzId');
+    }
+
+    protected function availableRecordingTeachers()
+    {
+        if ($this->currentTeacher()) {
+            return collect();
+        }
+
+        return Teacher::query()->with('user')->where('status', 'active')->orderBy('first_name')->orderBy('last_name')->get()
+            ->filter(fn (Teacher $teacher) => $teacher->user?->can('quran-final-tests.record'))->values();
     }
 
     protected function currentTeacher(): ?Teacher
     {
+        if (auth()->user()?->hasRole('super_admin')) {
+            return null;
+        }
+
         return $this->linkedTeacherForPermission('quran-final-tests.record-linked-teacher');
     }
 }; ?>
@@ -256,6 +289,20 @@ new class extends Component {
                 <button type="button" wire:click="closeAttemptModal" class="pill-link">{{ __('crud.common.actions.cancel') }}</button>
                 <button type="submit" class="pill-link pill-link--accent">{{ __('workflow.quran_final_tests.actions.save_attempt') }}</button>
             </div>
+        </form>
+    </x-admin.modal>
+
+    <x-admin.modal :show="$showCurrentJuzModal" :title="__('workflow.quran_final_tests.current_juz.title')" :description="__('workflow.quran_final_tests.current_juz.tested', ['juz' => $finalTestRecord->juz?->juz_number])" close-method="closeCurrentJuzModal" max-width="lg">
+        <form wire:submit="saveCurrentJuz" class="space-y-4">
+            <div>
+                <label for="new-current-juz" class="mb-1 block text-sm font-medium">{{ __('workflow.quran_final_tests.current_juz.select') }}</label>
+                <select id="new-current-juz" wire:model="newCurrentJuzId" class="w-full rounded-xl px-4 py-3 text-sm">
+                    <option value="">{{ __('workflow.quran_final_tests.current_juz.select') }}</option>
+                    @foreach ($availableCurrentJuzs as $juz)<option value="{{ $juz->id }}">{{ __('workflow.common.labels.juz_number', ['number' => $juz->juz_number]) }}</option>@endforeach
+                </select>
+                @error('newCurrentJuzId') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
+            </div>
+            <div class="flex justify-end"><button type="submit" class="pill-link pill-link--accent">{{ __('crud.common.actions.save') }}</button></div>
         </form>
     </x-admin.modal>
 </div>

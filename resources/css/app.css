@@ -489,6 +489,8 @@ html:not(.dark) .searchable-select__option[aria-selected='true'] {
 
 .app-body {
     min-height: 100vh;
+    max-width: 100vw;
+    overflow-x: hidden;
     color: var(--app-text);
     background:
         radial-gradient(circle at top left, rgba(11, 143, 67, 0.18), transparent 24rem),
@@ -945,6 +947,8 @@ article[class*='rounded-2xl border border-neutral-200'] {
     z-index: 1;
     flex: 1;
     min-width: 0;
+    max-width: 100%;
+    overflow-x: clip;
 }
 
 .app-main-inner {
@@ -2195,6 +2199,14 @@ html:not(.dark) .admin-modal [class*='border-emerald'] {
 
 .dashboard-manager-highlights .metric-value {
     font-size: clamp(1.7rem, 2.5vw, 2.35rem);
+    font-weight: 300;
+    letter-spacing: 0;
+}
+
+.dashboard-manager-highlights .kpi-label {
+    font-weight: 300;
+    letter-spacing: 0;
+    text-transform: none;
 }
 
 .dashboard-manager-highlights .badge-soft {
@@ -2616,6 +2628,28 @@ html:not(.dark) .print-template-layer-toggle span {
 .print-template-placeholder-palette .pill-link {
     padding: 0.45rem 0.7rem;
     font-size: 0.74rem;
+}
+
+.print-template-source-toolbar--stacked {
+    align-items: stretch;
+    flex-direction: column;
+}
+
+.print-template-source-toolbar--stacked .admin-toolbar__controls {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    width: 100%;
+}
+
+.print-template-source-toolbar--stacked .admin-toolbar__actions {
+    justify-content: flex-start;
+    width: 100%;
+}
+
+@media (max-width: 767px) {
+    .print-template-source-toolbar--stacked .admin-toolbar__controls {
+        grid-template-columns: 1fr;
+    }
 }
 
 .print-template-placeholder-palette {
