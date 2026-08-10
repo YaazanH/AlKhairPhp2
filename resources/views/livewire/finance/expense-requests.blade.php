@@ -8,6 +8,7 @@ use App\Models\FinanceCurrency;
 use App\Models\FinancePullRequestKind;
 use App\Models\FinanceRequest;
 use App\Models\FinanceRequestAttachment;
+use App\Models\FinanceTransaction;
 use App\Models\Invoice;
 use App\Models\InvoiceItem;
 use App\Services\FinanceService;
@@ -60,6 +61,7 @@ new class extends Component {
     public function with(): array
     {
         $canReview = auth()->user()?->can('finance.expense-requests.review') ?? false;
+        $cashBoxes = app(FinanceService::class)->accessibleCashBoxes(auth()->user())->get();
 
         return [
             'cashBoxes' => app(FinanceService::class)->accessibleCashBoxesForCurrency(auth()->user(), $this->currency_id)->get(),
@@ -70,25 +72,27 @@ new class extends Component {
                 ->all(),
             'currencies' => app(FinanceService::class)->currenciesForCashBox($this->cash_box_id)->get(),
             'pullKinds' => FinancePullRequestKind::query()->where('is_active', true)->orderBy('mode')->orderBy('name')->get(),
-            'requests' => FinanceRequest::query()
-                ->with(['activity', 'cashBox', 'category', 'invoice.items', 'postedTransaction', 'pullRequestKind', 'requestedBy', 'reviewedBy', 'teacher', 'requestedCurrency', 'acceptedCurrency', 'attachments'])
-                ->where(function ($query): void {
-                    $query
-                        ->where('type', FinanceRequest::TYPE_EXPENSE)
-                        ->orWhere(function ($nested): void {
-                            $nested
-                                ->where('type', FinanceRequest::TYPE_PULL)
-                                ->whereIn('status', [FinanceRequest::STATUS_ACCEPTED, FinanceRequest::STATUS_SETTLED]);
-                        });
-                })
-                ->whereIn('status', [FinanceRequest::STATUS_ACCEPTED, FinanceRequest::STATUS_SETTLED])
-                ->whereHas('postedTransaction')
-                ->when(! $canReview, fn ($query) => $query->where(function ($builder) {
-                    $builder
-                        ->where('requested_by', auth()->id())
+            'expenses' => FinanceTransaction::query()
+                ->with([
+                    'cashBox',
+                    'category',
+                    'currency',
+                    'enteredBy',
+                    'financeRequest.category',
+                    'financeRequest.invoice.items',
+                    'financeRequest.pullRequestKind',
+                    'financeRequest.requestedBy',
+                    'financeRequest.reviewedBy',
+                    'financeRequest.teacher',
+                ])
+                ->where('type', 'expense')
+                ->whereIn('cash_box_id', $cashBoxes->pluck('id'))
+                ->when(! $canReview, fn ($query) => $query->whereHas('financeRequest', function ($builder): void {
+                    $builder->where('requested_by', auth()->id())
                         ->when(auth()->user()?->teacherProfile?->id, fn ($nested) => $nested->orWhere('teacher_id', auth()->user()->teacherProfile->id));
                 }))
-                ->latest()
+                ->latest('transaction_date')
+                ->latest('id')
                 ->paginate($this->perPage),
             'finalisingRequest' => $this->finalisingRequestId ? FinanceRequest::query()->with(['invoice.items', 'pullRequestKind', 'acceptedCurrency'])->find($this->finalisingRequestId) : null,
             'viewingInvoice' => $this->viewingInvoiceId ? Invoice::query()->with(['items', 'financeRequest.acceptedCurrency'])->find($this->viewingInvoiceId) : null,
@@ -457,11 +461,15 @@ new class extends Component {
     </x-admin.modal>
 
     <section class="surface-table">
-        <div class="admin-grid-meta"><div><div class="admin-grid-meta__title">{{ __('finance.expense_requests.title') }}</div><div class="admin-grid-meta__summary">{{ __('crud.common.badges.in_view', ['count' => number_format($requests->total())]) }}</div></div>@can('finance.expense-requests.create')<button wire:click="openCreateModal" class="pill-link pill-link--accent">{{ __('finance.expense_requests.new') }}</button>@endcan</div>
+        <div class="admin-grid-meta"><div><div class="admin-grid-meta__title">{{ __('finance.expense_requests.title') }}</div><div class="admin-grid-meta__summary">{{ __('crud.common.badges.in_view', ['count' => number_format($expenses->total())]) }}</div></div>@can('finance.expense-requests.create')<button wire:click="openCreateModal" class="pill-link pill-link--accent">{{ __('finance.expense_requests.new') }}</button>@endcan</div>
         <div class="overflow-x-auto"><table class="text-sm"><thead><tr><th class="px-4 py-3 text-left">{{ __('finance.fields.expense_no') }}</th><th class="px-4 py-3 text-left">{{ __('finance.fields.category') }}</th><th class="px-4 py-3 text-left">{{ __('finance.common.description') }}</th><th class="px-4 py-3 text-left">{{ __('finance.fields.amount') }}</th><th class="px-4 py-3 text-left">{{ __('finance.common.status') }}</th><th class="px-4 py-3 text-right">{{ __('finance.actions.actions') }}</th></tr></thead><tbody class="divide-y divide-white/6">
-            @forelse ($requests as $request)<tr><td class="px-4 py-3"><div class="font-semibold text-white">{{ $request->expense_no ?: $request->request_no }}</div><div class="text-xs text-neutral-500">{{ $request->postedTransaction?->transaction_date?->format('d-m-Y') }} · {{ $request->reviewedBy?->name ?: '-' }}</div></td><td class="px-4 py-3"><div>{{ $request->pullRequestKind?->name ?: '-' }}</div><div class="text-xs text-neutral-500">{{ $request->pullRequestKind ? __('finance.pull_modes.'.$request->pullRequestKind->mode) : '-' }}</div></td><td class="px-4 py-3"><div class="max-w-xs">{{ $request->requested_reason ?: '-' }}</div><div class="text-xs text-neutral-500">{{ $request->request_no }} · {{ $request->teacher ? trim($request->teacher->first_name.' '.$request->teacher->last_name) : ($request->requestedBy?->name ?: '-') }}</div></td><td class="px-4 py-3"><bdi dir="ltr" class="font-semibold text-white">{{ app(FinanceService::class)->formatCurrencyAmount($request->accepted_amount, $request->acceptedCurrency) }}</bdi></td><td class="px-4 py-3"><span class="status-chip {{ $request->status === 'settled' ? 'status-chip--emerald' : 'status-chip--amber' }}">{{ $request->status === 'settled' ? __('finance.statuses.settled') : __('finance.statuses.pending') }}</span></td><td class="px-4 py-3"><div class="admin-action-cluster admin-action-cluster--end">@if ($request->status === 'accepted')<button wire:click="openFinaliseModal({{ $request->id }})" class="pill-link pill-link--compact pill-link--accent">{{ __('finance.actions.finalise') }}</button>@endif @if ($request->invoice)<button wire:click="$set('viewingInvoiceId', {{ $request->invoice->id }})" class="pill-link pill-link--compact">{{ __('finance.actions.view_invoice') }}</button>@endif</div></td></tr>
+            @forelse ($expenses as $transaction)
+                @php($request = $transaction->financeRequest)
+                @php($category = $transaction->category ?: $request?->category ?: $request?->pullRequestKind)
+                @php($rowStatus = $request?->status ?: $transaction->status)
+                <tr><td class="px-4 py-3"><div class="font-semibold text-white">{{ $transaction->special_transaction_no ?: $transaction->transaction_no }}</div><div class="text-xs text-neutral-500">{{ $transaction->transaction_date?->format('d-m-Y') }} · {{ $transaction->enteredBy?->name ?: $request?->reviewedBy?->name ?: '-' }}</div></td><td class="px-4 py-3"><div>{{ $category?->name ?: '-' }}</div><div class="text-xs text-neutral-500">{{ $category?->mode ? __('finance.pull_modes.'.$category->mode) : '-' }}</div></td><td class="px-4 py-3"><div class="max-w-xs">{{ $transaction->description ?: '-' }}</div>@if ($request)<div class="text-xs text-neutral-500">{{ $request->teacher ? trim($request->teacher->first_name.' '.$request->teacher->last_name) : ($request->requestedBy?->name ?: '-') }}</div>@endif</td><td class="px-4 py-3"><bdi dir="ltr" class="font-semibold text-white">{{ app(FinanceService::class)->formatCurrencyAmount($transaction->amount, $transaction->currency) }}</bdi></td><td class="px-4 py-3"><span class="status-chip {{ in_array($rowStatus, ['active', 'settled'], true) ? 'status-chip--emerald' : 'status-chip--amber' }}">{{ $request ? __('finance.statuses.'.$rowStatus) : ($rowStatus === 'active' ? __('finance.common.active') : $rowStatus) }}</span></td><td class="px-4 py-3"><div class="admin-action-cluster admin-action-cluster--end">@if ($request?->status === 'accepted')<button wire:click="openFinaliseModal({{ $request->id }})" class="pill-link pill-link--compact pill-link--accent">{{ __('finance.actions.finalise') }}</button>@endif @if ($request?->invoice)<button wire:click="$set('viewingInvoiceId', {{ $request->invoice->id }})" class="pill-link pill-link--compact">{{ __('finance.actions.view_invoice') }}</button>@endif</div></td></tr>
             @empty<tr><td colspan="6" class="px-5 py-10 text-center text-neutral-500">{{ __('finance.empty.no_expenses') }}</td></tr>@endforelse
-        </tbody></table></div>@if ($requests->hasPages())<div class="border-t border-white/8 px-5 py-4">{{ $requests->links() }}</div>@endif
+        </tbody></table></div>@if ($expenses->hasPages())<div class="border-t border-white/8 px-5 py-4">{{ $expenses->links() }}</div>@endif
     </section>
 
     <x-admin.modal :show="$finalisingRequestId !== null" :title="__('finance.actions.finalise')" close-method="closeFinaliseModal" max-width="5xl">

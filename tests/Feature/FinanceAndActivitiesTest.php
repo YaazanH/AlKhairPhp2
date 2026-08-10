@@ -789,6 +789,22 @@ class FinanceAndActivitiesTest extends TestCase
             'signed_amount' => -60,
             'transaction_date' => '2026-02-10 00:00:00',
         ]);
+
+        $ledgerOnlyExpense = $service->postTransaction([
+            'amount' => 5,
+            'cash_box_id' => $cashBox->id,
+            'currency_id' => $currency->id,
+            'description' => 'Ledger-only expense',
+            'direction' => 'out',
+            'finance_category_id' => $pullKind->id,
+            'transaction_date' => '2026-02-11',
+            'type' => 'expense',
+        ]);
+
+        Volt::test('finance.expense-requests')
+            ->assertSee('Updated expense')
+            ->assertSee('Ledger-only expense')
+            ->assertSee($ledgerOnlyExpense->transaction_no);
     }
 
     public function test_finance_revenue_entries_can_be_named_edited_and_reversed(): void
