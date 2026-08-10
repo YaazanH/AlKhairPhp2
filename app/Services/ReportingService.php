@@ -15,7 +15,10 @@ use App\Models\InvoiceItem;
 use App\Models\MemorizationSession;
 use App\Models\Payment;
 use App\Models\PointTransaction;
+use App\Models\QuranFinalTest;
+use App\Models\QuranPartialTest;
 use App\Models\Student;
+use App\Models\StudentAttendanceRecord;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Cache;
 
@@ -60,7 +63,7 @@ class ReportingService
             )
             ->orderByDesc('student_attendance_records.id')
             ->get()
-            ->map(fn (\App\Models\StudentAttendanceRecord $record) => [
+            ->map(fn (StudentAttendanceRecord $record) => [
                 $record->attendanceDay?->attendance_date?->format('d-m-Y'),
                 $record->attendanceDay?->group?->academicYear?->name,
                 $record->attendanceDay?->group?->name,
@@ -221,6 +224,75 @@ class ReportingService
                 $row['points'],
                 $row['attended_days'],
                 $row['absent_days'],
+                $row['group'],
+                $row['course'],
+                $row['academic_year'],
+            ])
+            ->all();
+    }
+
+    public function studentQuranTestSummary(array $filters = []): array
+    {
+        $filters = $this->normalizeFilters($filters);
+        $enrollments = $this->scopedEnrollmentsQuery($filters)
+            ->with(['group.academicYear', 'group.course', 'student'])
+            ->orderBy(
+                Group::query()->select('name')->whereColumn('groups.id', 'enrollments.group_id')->limit(1),
+            )
+            ->orderBy(
+                Student::query()->select('first_name')->whereColumn('students.id', 'enrollments.student_id')->limit(1),
+            )
+            ->orderBy(
+                Student::query()->select('last_name')->whereColumn('students.id', 'enrollments.student_id')->limit(1),
+            )
+            ->get();
+
+        $enrollmentIds = $enrollments->pluck('id');
+        $accessScope = app(AccessScopeService::class);
+
+        $partialCounts = $accessScope
+            ->scopeQuranPartialTests(QuranPartialTest::query(), auth()->user())
+            ->whereIn('enrollment_id', $enrollmentIds)
+            ->whereHas('parts.attempts', fn (Builder $query) => $this->applyDateRange($query, 'tested_on', $filters))
+            ->selectRaw('enrollment_id, COUNT(*) as total_tests')
+            ->groupBy('enrollment_id')
+            ->pluck('total_tests', 'enrollment_id');
+
+        $finalCounts = $accessScope
+            ->scopeQuranFinalTests(QuranFinalTest::query(), auth()->user())
+            ->whereIn('enrollment_id', $enrollmentIds)
+            ->whereHas('attempts', fn (Builder $query) => $this->applyDateRange($query, 'tested_on', $filters))
+            ->selectRaw('enrollment_id, COUNT(*) as total_tests')
+            ->groupBy('enrollment_id')
+            ->pluck('total_tests', 'enrollment_id');
+
+        return $enrollments
+            ->map(function (Enrollment $enrollment) use ($finalCounts, $partialCounts): array {
+                $partialTests = (int) ($partialCounts[$enrollment->id] ?? 0);
+                $finalTests = (int) ($finalCounts[$enrollment->id] ?? 0);
+
+                return [
+                    'academic_year' => $enrollment->group?->academicYear?->name,
+                    'course' => $enrollment->group?->course?->name,
+                    'enrollment_id' => $enrollment->id,
+                    'final_tests' => $finalTests,
+                    'group' => $enrollment->group?->name,
+                    'partial_tests' => $partialTests,
+                    'student_id' => $enrollment->student_id,
+                    'student_name' => trim(($enrollment->student?->first_name ?? '').' '.($enrollment->student?->last_name ?? '')),
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
+    public function studentQuranTestSummaryRows(array $filters = []): array
+    {
+        return collect($this->studentQuranTestSummary($filters))
+            ->map(fn (array $row) => [
+                $row['student_name'],
+                $row['partial_tests'],
+                $row['final_tests'],
                 $row['group'],
                 $row['course'],
                 $row['academic_year'],
@@ -561,7 +633,7 @@ class ReportingService
 
     protected function scopedStudentAttendanceRecordsQuery(array $filters): Builder
     {
-        $query = app(AccessScopeService::class)->scopeStudentAttendanceRecords(\App\Models\StudentAttendanceRecord::query(), auth()->user());
+        $query = app(AccessScopeService::class)->scopeStudentAttendanceRecords(StudentAttendanceRecord::query(), auth()->user());
 
         $query->whereHas('attendanceDay', function (Builder $builder) use ($filters) {
             $this->applyDateRange($builder, 'attendance_date', $filters);

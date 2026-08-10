@@ -73,6 +73,15 @@ class ReportExportController extends Controller
         );
     }
 
+    public function studentQuranTestSummary(Request $request): StreamedResponse
+    {
+        return $this->xlsxDownload(
+            'student-quran-tests-report',
+            ['Student', 'Partial Tests', 'Final Tests', 'Group', 'Course', 'Academic Year'],
+            app(ReportingService::class)->studentQuranTestSummaryRows($this->validatedFilters($request)),
+        );
+    }
+
     public function financeLedger(Request $request)
     {
         abort_unless($request->user()?->can('finance.reports.export'), 403);
@@ -96,6 +105,7 @@ class ReportExportController extends Controller
         if ($cashBoxIds->count() > 1) {
             $reports = $cashBoxIds->map(function (int $cashBoxId) use ($financeService, $reportService, $template, $validated, $request) {
                 $box = $financeService->cashBoxForUser($cashBoxId, $request->user());
+
                 return $reportService->localCurrencyLedgerReport($template, $box, $validated['date_from'], $validated['date_to'], $request->user(), $validated['ledger_notes'] ?? null);
             });
             $report = $reports->first();

@@ -40,6 +40,7 @@ Volt::route('dashboard', 'dashboard')
 Route::middleware(['auth'])->group(function () {
     Volt::route('reports', 'reports.index')->middleware('permission:reports.view')->name('reports.index');
     Volt::route('reports/student-activity-summary', 'reports.student-activity-summary')->middleware('permission:reports.view')->name('reports.student-activity-summary');
+    Volt::route('reports/student-quran-tests', 'reports.student-quran-tests')->middleware('permission:reports.view')->name('reports.student-quran-tests');
     Volt::route('reports/rankings/groups', 'reports.groups-ranking')->middleware('permission:reports.view')->name('reports.rankings.groups');
     Volt::route('reports/rankings/students', 'reports.students-ranking')->middleware('permission:reports.view')->name('reports.rankings.students');
     Volt::route('reports/rankings', 'reports.rankings')->middleware('permission:reports.view')->name('reports.rankings');
@@ -73,6 +74,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('reports/export/memorization', [ReportExportController::class, 'memorization'])->middleware('permission:reports.view')->name('reports.exports.memorization');
     Route::get('reports/export/points', [ReportExportController::class, 'points'])->middleware('permission:reports.view')->name('reports.exports.points');
     Route::get('reports/export/student-activity-summary', [ReportExportController::class, 'studentActivitySummary'])->middleware('permission:reports.view')->name('reports.exports.student-activity-summary');
+    Route::get('reports/export/student-quran-tests', [ReportExportController::class, 'studentQuranTestSummary'])->middleware('permission:reports.view')->name('reports.exports.student-quran-tests');
     Route::get('reports/export/assessments', [ReportExportController::class, 'assessments'])->middleware('permission:reports.view')->name('reports.exports.assessments');
     Volt::route('settings/organization', 'settings.organization')->middleware('permission:settings.manage')->name('settings.organization');
     Volt::route('settings/tracking', 'settings.tracking')->middleware('permission:settings.manage')->name('settings.tracking');

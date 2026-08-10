@@ -72,6 +72,7 @@ class ReportsAndApiTest extends TestCase
             ->assertDontSee('Use academic, group, and date filters')
             ->assertSee('grid grid-cols-2 gap-3', false)
             ->assertSee('aspect-square w-28', false)
+            ->assertSee('Student Quran tests')
             ->assertDontSee('Students in scope');
 
         $this->actingAs($manager)
@@ -263,6 +264,87 @@ class ReportsAndApiTest extends TestCase
             ->assertSeeInOrder(['Zeta Student', 'Report Student'])
             ->call('sortBy', 'points')
             ->assertSeeInOrder(['Report Student', 'Zeta Student']);
+    }
+
+    public function test_student_quran_test_report_counts_partial_and_final_tests_in_the_selected_range(): void
+    {
+        [$manager, $group] = $this->reportingContext();
+
+        $this->actingAs($manager);
+
+        $enrollment = Enrollment::query()->where('group_id', $group->id)->firstOrFail();
+        $juz = QuranJuz::query()->firstOrFail();
+
+        $partialTest = QuranPartialTest::create([
+            'enrollment_id' => $enrollment->id,
+            'student_id' => $enrollment->student_id,
+            'juz_id' => $juz->id,
+            'status' => 'in_progress',
+            'created_by' => $manager->id,
+        ]);
+
+        $partialPart = QuranPartialTestPart::create([
+            'quran_partial_test_id' => $partialTest->id,
+            'part_number' => 1,
+            'status' => 'pending',
+        ]);
+
+        foreach ([1 => '2026-09-10', 2 => '2026-09-11'] as $attemptNo => $testedOn) {
+            QuranPartialTestAttempt::create([
+                'quran_partial_test_part_id' => $partialPart->id,
+                'teacher_id' => $group->teacher_id,
+                'tested_on' => $testedOn,
+                'score' => 70,
+                'status' => 'failed',
+                'attempt_no' => $attemptNo,
+            ]);
+        }
+
+        $finalTest = QuranFinalTest::create([
+            'enrollment_id' => $enrollment->id,
+            'student_id' => $enrollment->student_id,
+            'juz_id' => $juz->id,
+            'status' => 'passed',
+            'passed_on' => '2026-09-15',
+            'created_by' => $manager->id,
+        ]);
+
+        QuranFinalTestAttempt::create([
+            'quran_final_test_id' => $finalTest->id,
+            'teacher_id' => $group->teacher_id,
+            'tested_on' => '2026-09-15',
+            'score' => 90,
+            'status' => 'passed',
+            'attempt_no' => 1,
+        ]);
+
+        $filters = [
+            'course_id' => $group->course_id,
+            'group_id' => $group->id,
+            'date_from' => '2026-09-01',
+            'date_to' => '2026-09-30',
+        ];
+
+        $rows = app(ReportingService::class)->studentQuranTestSummary($filters);
+
+        $this->assertCount(1, $rows);
+        $this->assertSame('Report Student', $rows[0]['student_name']);
+        $this->assertSame(1, $rows[0]['partial_tests']);
+        $this->assertSame(1, $rows[0]['final_tests']);
+
+        Volt::test('reports.student-quran-tests')
+            ->set('course_id', $group->course_id)
+            ->set('group_id', $group->id)
+            ->set('date_from', '2026-09-01')
+            ->set('date_to', '2026-09-30')
+            ->assertSee('Student Quran tests')
+            ->assertSee('Report Student')
+            ->assertSee('Partial tests')
+            ->assertSee('Final tests');
+
+        $this->get(route('reports.exports.student-quran-tests', $filters, absolute: false))
+            ->assertOk()
+            ->assertHeader('content-disposition');
     }
 
     public function test_group_memorization_ranking_page_compares_two_ranges(): void
