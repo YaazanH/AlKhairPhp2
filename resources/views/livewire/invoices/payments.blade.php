@@ -215,6 +215,11 @@ new class extends Component {
             <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ __('invoices.detail.subheading') }}</p>
         </div>
         <div class="flex flex-col gap-3 lg:items-end">
+            @if ($invoiceRecord->original_image_path)
+                <a href="{{ asset('storage/'.$invoiceRecord->original_image_path) }}" target="_blank" class="pill-link">
+                    {{ __('finance.actions.view_original') }}
+                </a>
+            @endif
             <a href="{{ route('invoices.print', $invoiceRecord) }}" target="_blank" class="pill-link">
                 {{ __('invoices.detail.print') }}
             </a>

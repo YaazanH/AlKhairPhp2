@@ -63,7 +63,6 @@ new class extends Component {
     public string $cash_box_code = '';
     public bool $cash_box_is_active = true;
     public string $cash_box_notes = '';
-    public array $cash_box_user_ids = [];
     public array $cash_box_currency_ids = [];
     public bool $showCashBoxModal = false;
 
@@ -100,6 +99,7 @@ new class extends Component {
     public string $maint_direction = 'in';
     public string $maint_amount = '';
     public string $maint_description = '';
+    public string $maint_special_transaction_no = '';
     public ?int $maint_entered_by = null;
     public string $maint_delete_reason = '';
     public string $report_lookup_no = '';
@@ -213,7 +213,6 @@ new class extends Component {
         $this->cash_box_code = $cashBox->code;
         $this->cash_box_is_active = $cashBox->is_active;
         $this->cash_box_notes = $cashBox->notes ?? '';
-        $this->cash_box_user_ids = $cashBox->assignedUsers->pluck('id')->map(fn ($id) => (string) $id)->all();
         $this->cash_box_currency_ids = $cashBox->currencies->pluck('id')->map(fn ($id) => (string) $id)->all();
         $this->showCashBoxModal = true;
         $this->resetValidation();
@@ -352,8 +351,6 @@ new class extends Component {
             'cash_box_notes' => ['nullable', 'string'],
             'cash_box_currency_ids' => ['required', 'array', 'min:1'],
             'cash_box_currency_ids.*' => ['integer', 'exists:finance_currencies,id'],
-            'cash_box_user_ids' => ['array'],
-            'cash_box_user_ids.*' => ['integer', 'exists:users,id'],
         ]);
 
         if (! $validated['cash_box_is_active'] && $this->cash_box_editing_id && FinanceTransaction::query()
@@ -399,7 +396,6 @@ new class extends Component {
             ],
         );
 
-        $cashBox->assignedUsers()->sync(array_map('intval', $validated['cash_box_user_ids']));
         $cashBox->currencies()->sync(array_map('intval', $validated['cash_box_currency_ids']));
         $this->cancelCashBox();
         session()->flash('status', 'Cash box saved.');
@@ -630,7 +626,17 @@ new class extends Component {
     {
         $this->authorizePermission('finance.entries.update');
         $this->validate(['transaction_lookup_no' => ['required', 'string', 'max:100']]);
-        $transaction = FinanceTransaction::withTrashed()->where('transaction_no', trim($this->transaction_lookup_no))->first();
+        $lookup = trim($this->transaction_lookup_no);
+        $transaction = FinanceTransaction::withTrashed()
+            ->where(function ($query) use ($lookup) {
+                $query->where('transaction_no', $lookup)
+                    ->orWhere('special_transaction_no', $lookup)
+                    ->orWhereHas('financeRequest', fn ($requestQuery) => $requestQuery
+                        ->where('request_no', $lookup)
+                        ->orWhere('expense_no', $lookup));
+            })
+            ->orderBy('id')
+            ->first();
 
         if (! $transaction) {
             $this->addError('transaction_lookup_no', __('finance.validation.transaction_not_found'));
@@ -653,6 +659,7 @@ new class extends Component {
         $this->maint_direction = $transaction->direction;
         $this->maint_amount = $this->formatFinanceNumberForInput($transaction->amount);
         $this->maint_description = $transaction->description ?: '';
+        $this->maint_special_transaction_no = $transaction->special_transaction_no ?: '';
         $this->maint_entered_by = $transaction->entered_by;
         $this->maint_delete_reason = '';
         $this->resetValidation();
@@ -662,6 +669,7 @@ new class extends Component {
     {
         $this->authorizePermission('finance.entries.update');
         $this->normalizeFinanceNumberProperty('maint_amount');
+        $allowedPrefixes = app(FinanceService::class)->allowedSpecialReferencePrefixes();
         $validated = $this->validate([
             'maint_amount' => ['required', 'numeric', 'gt:0'],
             'maint_cash_box_id' => ['required', 'exists:finance_cash_boxes,id'],
@@ -670,6 +678,21 @@ new class extends Component {
             'maint_description' => ['nullable', 'string', 'max:2000'],
             'maint_direction' => ['required', 'in:in,out'],
             'maint_entered_by' => ['nullable', 'exists:users,id'],
+            'maint_special_transaction_no' => [
+                'nullable',
+                'string',
+                'max:100',
+                function (string $attribute, mixed $value, \Closure $fail) use ($allowedPrefixes): void {
+                    if (! filled($value)) {
+                        return;
+                    }
+
+                    $valid = collect($allowedPrefixes)->contains(fn (string $prefix) => preg_match('/^'.preg_quote($prefix, '/').'-?\d+$/i', trim((string) $value)) === 1);
+                    if (! $valid) {
+                        $fail(__('finance.validation.invalid_special_reference_prefix', ['prefixes' => implode(', ', $allowedPrefixes)]));
+                    }
+                },
+            ],
             'maint_transaction_date' => ['required', 'date'],
             'maint_type' => ['required', Rule::in(['income', 'expense', 'return', 'exchange', 'transfer'])],
         ]);
@@ -683,9 +706,14 @@ new class extends Component {
             'description' => $validated['maint_description'],
             'direction' => $validated['maint_direction'],
             'entered_by' => $validated['maint_entered_by'],
+            'special_transaction_no' => $validated['maint_special_transaction_no'] ?: null,
             'transaction_date' => $validated['maint_transaction_date'],
             'type' => $validated['maint_type'],
         ], auth()->user());
+        $this->maintaining_transaction_id = null;
+        $this->maintaining_transaction_deleted = false;
+        $this->transaction_lookup_no = '';
+        $this->maint_special_transaction_no = '';
         session()->flash('status', __('finance.messages.transaction_updated'));
     }
 
@@ -776,7 +804,7 @@ new class extends Component {
                 ->orderByRaw("case when type = 'revenue' then 0 else 1 end")
                 ->orderBy('name')
                 ->get(),
-            'financeCategories' => FinanceCategory::query()->orderBy('type')->orderBy('name')->get(),
+            'financeCategories' => FinanceCategory::query()->orderBy('type')->orderBy('mode')->orderBy('name')->get(),
             'financeRequestPrintTemplates' => $this->financeRequestPrintTemplates(),
             'paymentMethods' => PaymentMethod::query()->orderBy('name')->get(),
             'pullRequestKinds' => FinancePullRequestKind::query()->orderBy('mode')->orderBy('name')->get(),
@@ -791,7 +819,6 @@ new class extends Component {
         $this->cash_box_code = '';
         $this->cash_box_is_active = true;
         $this->cash_box_notes = '';
-        $this->cash_box_user_ids = [];
         $this->cash_box_currency_ids = FinanceCurrency::query()->where('is_active', true)->pluck('id')->map(fn ($id) => (string) $id)->all();
         $this->showCashBoxModal = false;
         $this->resetValidation();
@@ -1112,8 +1139,8 @@ new class extends Component {
             @error('cashBoxDelete') <div class="mx-5 mb-4 rounded-2xl border border-red-500/25 bg-red-500/10 px-3 py-2 text-sm text-red-200">{{ $message }}</div> @enderror
             <div class="overflow-x-auto">
                 <table class="text-sm">
-                    <thead><tr><th class="px-5 py-3 text-left">{{ __('finance.fields.cash_box') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.users') }}</th><th class="px-5 py-3 text-left">{{ __('finance.common.status') }}</th><th class="px-5 py-3 text-right">{{ __('finance.actions.actions') }}</th></tr></thead>
-                    <tbody class="divide-y divide-white/6">@foreach ($cashBoxes as $box)<tr><td class="px-5 py-3"><div class="font-medium text-white">{{ $box->name }}</div><div class="text-xs text-neutral-500">{{ $box->code }}</div></td><td class="px-5 py-3"><div>{{ $box->assignedUsers->pluck('name')->implode(', ') ?: '-' }}</div><div class="mt-1 text-xs text-neutral-500">{{ $box->currencies->pluck('code')->implode(', ') ?: '-' }}</div></td><td class="px-5 py-3">{{ $box->is_active ? __('finance.common.active') : __('finance.common.inactive') }}</td><td class="px-5 py-3"><div class="admin-action-cluster admin-action-cluster--end"><button type="button" wire:click="editCashBox({{ $box->id }})" class="pill-link pill-link--compact">{{ __('finance.actions.edit') }}</button><button type="button" wire:click="deleteCashBox({{ $box->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link pill-link--compact border-red-400/25 text-red-200">{{ __('finance.actions.delete') }}</button></div></td></tr>@endforeach</tbody>
+                    <thead><tr><th class="px-5 py-3 text-left">{{ __('finance.fields.cash_box') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.supported_currencies') }}</th><th class="px-5 py-3 text-left">{{ __('finance.common.status') }}</th><th class="px-5 py-3 text-right">{{ __('finance.actions.actions') }}</th></tr></thead>
+                    <tbody class="divide-y divide-white/6">@foreach ($cashBoxes as $box)<tr><td class="px-5 py-3"><div class="font-medium text-white">{{ $box->name }}</div><div class="text-xs text-neutral-500">{{ $box->code }}</div></td><td class="px-5 py-3">{{ $box->currencies->pluck('code')->implode(', ') ?: '-' }}</td><td class="px-5 py-3">{{ $box->is_active ? __('finance.common.active') : __('finance.common.inactive') }}</td><td class="px-5 py-3"><div class="admin-action-cluster admin-action-cluster--end"><button type="button" wire:click="editCashBox({{ $box->id }})" class="pill-link pill-link--compact">{{ __('finance.actions.edit') }}</button><button type="button" wire:click="deleteCashBox({{ $box->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link pill-link--compact border-red-400/25 text-red-200">{{ __('finance.actions.delete') }}</button></div></td></tr>@endforeach</tbody>
                 </table>
             </div>
     </section>
@@ -1132,6 +1159,7 @@ new class extends Component {
             <div class="overflow-x-auto"><table class="text-sm"><thead><tr><th class="px-5 py-3 text-left">{{ __('finance.fields.name') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.type') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.mode') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.state') }}</th><th class="px-5 py-3 text-right">{{ __('finance.actions.actions') }}</th></tr></thead><tbody class="divide-y divide-white/6">@foreach ($financeCategories as $category)<tr><td class="px-5 py-3"><div class="font-medium text-white">{{ $category->name }}</div><div class="text-xs text-neutral-500">{{ $category->code }}</div></td><td class="px-5 py-3">{{ __('finance.category_types.'.$category->categoryType()) }}</td><td class="px-5 py-3">{{ __('finance.category_modes.'.$category->categoryMode()) }}</td><td class="px-5 py-3">{{ $category->is_active ? __('finance.common.active') : __('finance.common.inactive') }}</td><td class="px-5 py-3"><div class="admin-action-cluster admin-action-cluster--end"><button type="button" wire:click="editFinanceCategory({{ $category->id }})" class="pill-link pill-link--compact">{{ __('finance.actions.edit') }}</button><button type="button" wire:click="deleteFinanceCategory({{ $category->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link pill-link--compact border-red-400/25 text-red-200">{{ __('finance.actions.delete') }}</button></div></td></tr>@endforeach</tbody></table></div>
     </section>
 
+    @if (false)
     <section id="finance-legacy" class="surface-table">
         <div class="admin-grid-meta">
             <div><div class="admin-grid-meta__title">{{ __('settings.finance.sections.payment_method.table') }}</div></div>
@@ -1142,10 +1170,11 @@ new class extends Component {
         @error('paymentMethodDelete') <div class="mx-5 mb-4 rounded-2xl border border-red-500/25 bg-red-500/10 px-3 py-2 text-sm text-red-200">{{ $message }}</div> @enderror
         <div class="overflow-x-auto"><table class="text-sm"><thead><tr><th class="px-5 py-3 text-left">{{ __('settings.finance.table.method') }}</th><th class="px-5 py-3 text-left">{{ __('settings.finance.table.state') }}</th><th class="px-5 py-3 text-right">{{ __('settings.finance.table.actions') }}</th></tr></thead><tbody class="divide-y divide-white/6">@foreach ($paymentMethods as $method)<tr><td class="px-5 py-3"><div class="font-medium text-white">{{ $method->name }}</div><div class="text-xs text-neutral-500">{{ $method->code }}</div></td><td class="px-5 py-3">{{ $method->is_active ? __('finance.common.active') : __('finance.common.inactive') }}</td><td class="px-5 py-3"><div class="admin-action-cluster admin-action-cluster--end"><button type="button" wire:click="editPaymentMethod({{ $method->id }})" class="pill-link pill-link--compact">{{ __('finance.actions.edit') }}</button><button type="button" wire:click="deletePaymentMethod({{ $method->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link pill-link--compact border-red-400/25 text-red-200">{{ __('finance.actions.delete') }}</button></div></td></tr>@endforeach</tbody></table></div>
     </section>
+    @endif
 
     <section class="surface-panel p-5 lg:p-6">
         <div class="admin-toolbar"><div><div class="admin-toolbar__title">{{ __('finance.settings.transaction_maintenance') }}</div><p class="admin-toolbar__subtitle">{{ __('finance.settings.transaction_maintenance_help') }}</p></div></div>
-        <form wire:submit="findTransaction" class="mt-5 flex flex-col gap-3 sm:flex-row"><input wire:model="transaction_lookup_no" placeholder="{{ __('finance.fields.general_transaction_no') }}" class="min-w-0 flex-1 rounded-xl px-4 py-3"> <button class="pill-link pill-link--accent">{{ __('finance.actions.find') }}</button></form>
+        <form wire:submit="findTransaction" class="mt-5 flex flex-col gap-3 sm:flex-row"><input wire:model="transaction_lookup_no" placeholder="{{ __('finance.fields.transaction_lookup') }}" class="min-w-0 flex-1 rounded-xl px-4 py-3"> <button class="pill-link pill-link--accent">{{ __('finance.actions.find') }}</button></form>
         @error('transaction_lookup_no')<div class="mt-2 text-sm text-red-400">{{ $message }}</div>@enderror
         @if ($maintaining_transaction_id)
             @if ($maintaining_transaction_deleted)
@@ -1159,6 +1188,7 @@ new class extends Component {
                 <div><label class="mb-1 block text-sm">{{ __('finance.fields.type') }}</label><select wire:model="maint_type" class="w-full rounded-xl px-4 py-3">@foreach (['income', 'expense', 'return', 'exchange', 'transfer'] as $transactionType)<option value="{{ $transactionType }}">{{ app(\App\Services\FinanceService::class)->transactionTypeLabel($transactionType) }}</option>@endforeach</select></div>
                 <div><label class="mb-1 block text-sm">{{ __('finance.fields.direction') }}</label><select wire:model="maint_direction" class="w-full rounded-xl px-4 py-3"><option value="in">{{ __('finance.options.in') }}</option><option value="out">{{ __('finance.options.out') }}</option></select></div>
                 <div><label class="mb-1 block text-sm">{{ __('finance.fields.amount') }}</label><input wire:model="maint_amount" data-thousand-separator class="w-full rounded-xl px-4 py-3"></div>
+                <div><label class="mb-1 block text-sm">{{ __('finance.fields.special_transaction_no') }}</label><input wire:model="maint_special_transaction_no" dir="ltr" class="w-full rounded-xl px-4 py-3">@error('maint_special_transaction_no')<div class="mt-1 text-sm text-red-400">{{ $message }}</div>@enderror</div>
                 <div><label class="mb-1 block text-sm">{{ __('finance.fields.user') }}</label><select wire:model="maint_entered_by" class="w-full rounded-xl px-4 py-3"><option value="">-</option>@foreach ($users as $user)<option value="{{ $user->id }}">{{ $user->name }}</option>@endforeach</select></div>
                 <div class="md:col-span-2 xl:col-span-3"><label class="mb-1 block text-sm">{{ __('finance.common.description') }}</label><textarea wire:model="maint_description" class="w-full rounded-xl px-4 py-3"></textarea></div>
                 @unless ($maintaining_transaction_deleted)
@@ -1254,9 +1284,14 @@ new class extends Component {
                 <div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.name') }}</label><input wire:model="cash_box_name" type="text" class="w-full rounded-xl px-4 py-3 text-sm">@error('cash_box_name') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
                 <div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.code') }}</label><input wire:model="cash_box_code" type="text" class="w-full rounded-xl px-4 py-3 text-sm">@error('cash_box_code') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
             </div>
-            <div class="grid gap-4 md:grid-cols-2">
-                <div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.supported_currencies') }}</label><select wire:model="cash_box_currency_ids" multiple size="6" class="w-full rounded-xl px-4 py-3 text-sm">@foreach ($currencies as $currency)<option value="{{ $currency->id }}">{{ $currency->code }} - {{ $currency->name }}</option>@endforeach</select>@error('cash_box_currency_ids') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
-                <div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.users') }}</label><select wire:model="cash_box_user_ids" multiple size="6" class="w-full rounded-xl px-4 py-3 text-sm">@foreach ($users as $user)<option value="{{ $user->id }}">{{ $user->name }} {{ $user->username ? '('.$user->username.')' : '' }}</option>@endforeach</select></div>
+            <div>
+                <label class="mb-2 block text-sm font-medium">{{ __('finance.fields.supported_currencies') }}</label>
+                <div class="grid gap-2 sm:grid-cols-2 md:grid-cols-3">
+                    @foreach ($currencies as $currency)
+                        <label class="flex items-center gap-3 rounded-xl border border-white/10 px-4 py-3 text-sm"><input wire:model="cash_box_currency_ids" value="{{ $currency->id }}" type="checkbox" class="rounded"><span>{{ $currency->code }} - {{ $currency->name }}</span></label>
+                    @endforeach
+                </div>
+                @error('cash_box_currency_ids') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
             </div>
             <div><label class="mb-1 block text-sm font-medium">{{ __('finance.common.notes') }}</label><textarea wire:model="cash_box_notes" rows="2" class="w-full rounded-xl px-4 py-3 text-sm"></textarea></div>
             <label class="flex items-center gap-3 text-sm"><input wire:model="cash_box_is_active" type="checkbox" class="rounded"> {{ __('finance.common.active') }}</label>
@@ -1299,6 +1334,7 @@ new class extends Component {
         </form>
     </x-admin.modal>
 
+    @if (false)
     <x-admin.modal :show="$showPaymentMethodModal" :title="$payment_method_editing_id ? __('settings.finance.sections.payment_method.edit') : __('settings.finance.sections.payment_method.create')" :description="__('settings.finance.sections.payment_method.copy')" close-method="closePaymentMethodModal" max-width="3xl">
         <form wire:submit="savePaymentMethod" class="space-y-4">
             <div><label class="mb-1 block text-sm font-medium">{{ __('settings.finance.fields.name') }}</label><input wire:model="payment_method_name" type="text" class="w-full rounded-xl px-4 py-3 text-sm">@error('payment_method_name') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
@@ -1310,5 +1346,6 @@ new class extends Component {
             </div>
         </form>
     </x-admin.modal>
+    @endif
 
 </div>

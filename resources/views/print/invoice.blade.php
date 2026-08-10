@@ -6,6 +6,9 @@
         ?: (trans()->has('print.invoice.types.'.$invoice->invoice_type)
             ? __('print.invoice.types.'.$invoice->invoice_type)
             : \Illuminate\Support\Str::headline((string) $invoice->invoice_type));
+    $printNotes = preg_match('/^(?:Created from withdrawal request|تم إنشاؤها من طلب السحب)/u', (string) $invoice->notes)
+        ? null
+        : $invoice->notes;
 @endphp
 
 <x-print.layout :title="__('print.invoice.title').' '.$invoice->invoice_no">
@@ -32,11 +35,10 @@
         </div>
     </div>
 
-    <div class="section meta-grid">
+    <div class="section meta-grid" style="margin-top: 24px;">
         <div class="meta-card">
             <span class="meta-label">{{ __('finance.fields.invoicer_name') }}</span>
             <div class="meta-value">{{ $invoice->invoicer_name ?: ($invoice->parentProfile?->father_name ?: '-') }}</div>
-            <div class="subtitle">{{ $invoice->financeRequest?->request_no ?: '' }}</div>
         </div>
         <div class="meta-card">
             <span class="meta-label">{{ __('print.invoice.dates') }}</span>
@@ -120,10 +122,10 @@
         </div>
     </div>
 
-    @if ($invoice->notes)
+    @if ($printNotes)
         <div class="section">
             <h2>{{ __('print.invoice.notes') }}</h2>
-            <div class="note-box">{{ $invoice->notes }}</div>
+            <div class="note-box">{{ $printNotes }}</div>
         </div>
     @endif
 </x-print.layout>

@@ -279,26 +279,60 @@ class ReportsAndApiTest extends TestCase
             'enrollment_id' => $enrollment->id,
             'student_id' => $enrollment->student_id,
             'juz_id' => $juz->id,
+            'status' => 'passed',
+            'passed_on' => '2026-09-12',
+            'created_by' => $manager->id,
+        ]);
+
+        foreach (range(1, 4) as $partNumber) {
+            $partialPart = QuranPartialTestPart::create([
+                'quran_partial_test_id' => $partialTest->id,
+                'part_number' => $partNumber,
+                'status' => 'passed',
+                'passed_on' => '2026-09-12',
+            ]);
+
+            QuranPartialTestAttempt::create([
+                'quran_partial_test_part_id' => $partialPart->id,
+                'teacher_id' => $group->teacher_id,
+                'tested_on' => '2026-09-12',
+                'score' => 90,
+                'status' => 'passed',
+                'attempt_no' => 1,
+            ]);
+        }
+
+        $unfinishedPartialTest = QuranPartialTest::create([
+            'enrollment_id' => $enrollment->id,
+            'student_id' => $enrollment->student_id,
+            'juz_id' => QuranJuz::query()->where('id', '!=', $juz->id)->value('id'),
             'status' => 'in_progress',
             'created_by' => $manager->id,
         ]);
 
-        $partialPart = QuranPartialTestPart::create([
-            'quran_partial_test_id' => $partialTest->id,
+        QuranPartialTestPart::create([
+            'quran_partial_test_id' => $unfinishedPartialTest->id,
             'part_number' => 1,
-            'status' => 'pending',
+            'status' => 'passed',
+            'passed_on' => '2026-09-13',
         ]);
 
-        foreach ([1 => '2026-09-10', 2 => '2026-09-11'] as $attemptNo => $testedOn) {
-            QuranPartialTestAttempt::create([
-                'quran_partial_test_part_id' => $partialPart->id,
-                'teacher_id' => $group->teacher_id,
-                'tested_on' => $testedOn,
-                'score' => 70,
-                'status' => 'failed',
-                'attempt_no' => $attemptNo,
-            ]);
-        }
+        $failedFinalTest = QuranFinalTest::create([
+            'enrollment_id' => $enrollment->id,
+            'student_id' => $enrollment->student_id,
+            'juz_id' => $unfinishedPartialTest->juz_id,
+            'status' => 'in_progress',
+            'created_by' => $manager->id,
+        ]);
+
+        QuranFinalTestAttempt::create([
+            'quran_final_test_id' => $failedFinalTest->id,
+            'teacher_id' => $group->teacher_id,
+            'tested_on' => '2026-09-14',
+            'score' => 70,
+            'status' => 'failed',
+            'attempt_no' => 1,
+        ]);
 
         $finalTest = QuranFinalTest::create([
             'enrollment_id' => $enrollment->id,

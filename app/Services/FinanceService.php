@@ -64,13 +64,7 @@ class FinanceService
             $query->where('is_active', true);
         }
 
-        if (! $user || $user->can('finance.cash-box.manage')) {
-            return $query->orderBy('name');
-        }
-
-        return $query
-            ->whereHas('assignedUsers', fn (Builder $builder) => $builder->whereKey($user->id))
-            ->orderBy('name');
+        return $query->orderBy('name');
     }
 
     public function accessibleCashBoxesForCurrency(?User $user, ?int $currencyId = null, bool $activeOnly = true): Builder
@@ -878,14 +872,21 @@ class FinanceService
 
             $transaction->loadMissing('financeRequest');
             $normalizedType = $this->normalizeTransactionType((string) $payload['type'], $direction);
+            $oldSpecialTransactionNo = $transaction->special_transaction_no;
+            $specialTransactionNo = filled($payload['special_transaction_no'] ?? null)
+                ? trim((string) $payload['special_transaction_no'])
+                : null;
             $references = array_filter([
-                $transaction->special_transaction_no,
+                $oldSpecialTransactionNo,
                 $transaction->financeRequest?->expense_no,
                 $transaction->financeRequest?->request_no,
             ]);
             $description = $this->cleanTransactionDescription($payload['description'] ?? null, $references);
             if ($description === null && $normalizedType !== 'exchange') {
                 $description = $this->cleanTransactionDescription($transaction->financeRequest?->requested_reason, $references);
+            }
+            if ($normalizedType === 'exchange') {
+                $description = $this->exchangeDescription($direction, $description);
             }
 
             $transaction->update([
@@ -900,16 +901,39 @@ class FinanceService
                 'local_amount' => $snapshot['local_amount'],
                 'rate_to_base' => $snapshot['rate_to_base'],
                 'signed_amount' => $signedAmount,
+                'special_transaction_no' => $specialTransactionNo,
                 'transaction_date' => $payload['transaction_date'],
                 'type' => $normalizedType,
                 'metadata' => array_merge($transaction->metadata ?? [], [
                     'edited_at' => now()->toISOString(),
                     'edited_by' => $user?->id,
+                    'reference' => $specialTransactionNo,
                 ]),
             ]);
 
+            $this->syncTransactionSource($transaction->fresh(), $oldSpecialTransactionNo, $user);
+
             return $transaction->fresh();
         });
+    }
+
+    public function allowedSpecialReferencePrefixes(): array
+    {
+        $settings = AppSetting::groupValues('finance');
+
+        return collect([
+            $settings->get('pull_request_prefix', 'PUL'),
+            $settings->get('expense_request_prefix', 'EXP'),
+            $settings->get('revenue_request_prefix', 'REV'),
+            $settings->get('return_request_prefix', 'RET'),
+            $settings->get('exchange_prefix', 'EXC'),
+            $settings->get('transfer_prefix', 'TRSF'),
+            $settings->get('invoice_prefix', 'INV'),
+        ])->map(fn ($prefix) => $this->normalizeNumberPrefix((string) $prefix, ''))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
     }
 
     public function deleteTransactionRecord(FinanceTransaction $transaction, ?User $user = null, ?string $reason = null): int
@@ -1052,7 +1076,6 @@ class FinanceService
             $pairUuid = (string) Str::uuid();
             $fromSnapshot = $this->amountSnapshot($fromCurrency, $fromAmount);
             $exchangeNo = $this->nextExchangeNumber();
-            $description = $notes;
 
             $exchange = FinanceCurrencyExchange::query()->create([
                 'pair_uuid' => $pairUuid,
@@ -1082,7 +1105,7 @@ class FinanceService
                 'direction' => 'out',
                 'amount' => $fromAmount,
                 'transaction_date' => $date,
-                'description' => $description,
+                'description' => $this->exchangeDescription('out', $notes),
                 'entered_by' => $user?->id,
                 'pair_uuid' => $pairUuid,
                 'metadata' => [
@@ -1101,7 +1124,7 @@ class FinanceService
                 'direction' => 'in',
                 'amount' => $toAmount,
                 'transaction_date' => $date,
-                'description' => $description,
+                'description' => $this->exchangeDescription('in', $notes),
                 'entered_by' => $user?->id,
                 'pair_uuid' => $pairUuid,
                 'metadata' => [
@@ -1526,6 +1549,166 @@ class FinanceService
         }
 
         return $description;
+    }
+
+    protected function exchangeDescription(string $direction, ?string $description): string
+    {
+        $description = trim((string) $description);
+        $description = preg_replace('/^\[(?:داخل|خارج)\]\s*/u', '', $description) ?? $description;
+        $marker = $direction === 'out' ? '[خارج]' : '[داخل]';
+
+        return trim($marker.' '.$description);
+    }
+
+    protected function syncTransactionSource(FinanceTransaction $transaction, ?string $oldSpecialTransactionNo, ?User $user): void
+    {
+        $request = $transaction->financeRequest;
+        if (! $request && $transaction->source_type === FinanceRequest::class && $transaction->source_id) {
+            $request = FinanceRequest::query()->find($transaction->source_id);
+        }
+
+        if ($request) {
+            $updates = [
+                'cash_box_id' => $transaction->cash_box_id,
+                'finance_category_id' => $transaction->finance_category_id,
+                'posted_transaction_id' => $request->posted_transaction_id ?: $transaction->id,
+                'requested_amount' => $transaction->amount,
+                'requested_currency_id' => $transaction->currency_id,
+                'requested_reason' => $this->descriptionWithoutExchangeMarker($transaction->description),
+            ];
+            if ($request->accepted_amount !== null) {
+                $updates['accepted_amount'] = $transaction->amount;
+            }
+            if ($request->accepted_currency_id) {
+                $updates['accepted_currency_id'] = $transaction->currency_id;
+            }
+
+            if ($transaction->special_transaction_no && $transaction->special_transaction_no !== $oldSpecialTransactionNo) {
+                if (in_array($request->type, [FinanceRequest::TYPE_PULL, FinanceRequest::TYPE_EXPENSE], true)) {
+                    $updates['expense_no'] = $transaction->special_transaction_no;
+                } else {
+                    $updates['request_no'] = $transaction->special_transaction_no;
+                }
+            }
+
+            if ($request->accepted_at) {
+                $updates['accepted_at'] = Carbon::parse($transaction->transaction_date)->setTimeFrom($request->accepted_at);
+            }
+            if ($request->settled_at) {
+                $updates['settled_at'] = Carbon::parse($transaction->transaction_date)->setTimeFrom($request->settled_at);
+            }
+
+            $request->update($updates);
+        }
+
+        if ($transaction->source_type === FinanceCurrencyExchange::class && $transaction->source_id) {
+            $this->syncCurrencyExchangeFromLedger($transaction, $user);
+        }
+
+        if ($transaction->source_type === FinanceCashBoxTransfer::class && $transaction->source_id) {
+            $this->syncCashBoxTransferFromLedger($transaction, $user);
+        }
+    }
+
+    protected function syncCurrencyExchangeFromLedger(FinanceTransaction $transaction, ?User $user): void
+    {
+        $exchange = FinanceCurrencyExchange::query()->find($transaction->source_id);
+        if (! $exchange) {
+            return;
+        }
+
+        $pair = FinanceTransaction::query()
+            ->where(fn (Builder $query) => $transaction->pair_uuid
+                ? $query->where('pair_uuid', $transaction->pair_uuid)
+                : $query->where('source_type', FinanceCurrencyExchange::class)->where('source_id', $exchange->id))
+            ->get();
+        $notes = $this->descriptionWithoutExchangeMarker($transaction->description);
+
+        foreach ($pair as $side) {
+            $side->update([
+                'description' => $this->exchangeDescription($side->direction, $notes),
+                'metadata' => array_merge($side->metadata ?? [], [
+                    'exchange_no' => $transaction->special_transaction_no,
+                    'reference' => $transaction->special_transaction_no,
+                ]),
+                'special_transaction_no' => $transaction->special_transaction_no,
+                'transaction_date' => $transaction->transaction_date,
+            ]);
+        }
+
+        $out = $pair->firstWhere('direction', 'out');
+        $in = $pair->firstWhere('direction', 'in');
+        $exchange->update([
+            'exchange_no' => $transaction->special_transaction_no ?: $exchange->exchange_no,
+            'exchange_date' => $transaction->transaction_date,
+            'from_amount' => $out?->amount ?: $exchange->from_amount,
+            'from_cash_box_id' => $out?->cash_box_id ?: $exchange->from_cash_box_id,
+            'from_currency_id' => $out?->currency_id ?: $exchange->from_currency_id,
+            'from_rate_to_base' => $out?->rate_to_base ?: $exchange->from_rate_to_base,
+            'to_amount' => $in?->amount ?: $exchange->to_amount,
+            'to_cash_box_id' => $in?->cash_box_id ?: $exchange->to_cash_box_id,
+            'to_currency_id' => $in?->currency_id ?: $exchange->to_currency_id,
+            'to_rate_to_base' => $in?->rate_to_base ?: $exchange->to_rate_to_base,
+            'entered_by' => $user?->id ?: $exchange->entered_by,
+            'notes' => $notes,
+        ]);
+    }
+
+    protected function syncCashBoxTransferFromLedger(FinanceTransaction $transaction, ?User $user): void
+    {
+        $transfer = FinanceCashBoxTransfer::query()->find($transaction->source_id);
+        if (! $transfer) {
+            return;
+        }
+
+        $pair = FinanceTransaction::query()
+            ->where(fn (Builder $query) => $transaction->pair_uuid
+                ? $query->where('pair_uuid', $transaction->pair_uuid)
+                : $query->where('source_type', FinanceCashBoxTransfer::class)->where('source_id', $transfer->id))
+            ->get();
+
+        foreach ($pair as $side) {
+            if ($side->isNot($transaction)) {
+                $signedAmount = $side->direction === 'out' ? -(float) $transaction->amount : (float) $transaction->amount;
+                $snapshot = $this->amountSnapshot($transaction->currency, $signedAmount);
+                $this->ensureNonNegativeReplacementBalance($side->cashBox, $transaction->currency, $signedAmount, $side);
+                $side->update([
+                    'amount' => $transaction->amount,
+                    'base_amount' => $snapshot['base_amount'],
+                    'currency_id' => $transaction->currency_id,
+                    'local_amount' => $snapshot['local_amount'],
+                    'rate_to_base' => $snapshot['rate_to_base'],
+                    'signed_amount' => $signedAmount,
+                ]);
+            }
+            $side->update([
+                'description' => $transaction->description,
+                'metadata' => array_merge($side->metadata ?? [], ['reference' => $transaction->special_transaction_no]),
+                'special_transaction_no' => $transaction->special_transaction_no,
+                'transaction_date' => $transaction->transaction_date,
+            ]);
+        }
+
+        $out = $pair->firstWhere('direction', 'out');
+        $in = $pair->firstWhere('direction', 'in');
+        $transfer->update([
+            'amount' => $transaction->amount,
+            'currency_id' => $transaction->currency_id,
+            'entered_by' => $user?->id ?: $transfer->entered_by,
+            'from_cash_box_id' => $out?->cash_box_id ?: $transfer->from_cash_box_id,
+            'notes' => $transaction->description,
+            'to_cash_box_id' => $in?->cash_box_id ?: $transfer->to_cash_box_id,
+            'transfer_date' => $transaction->transaction_date,
+            'transfer_no' => $transaction->special_transaction_no ?: $transfer->transfer_no,
+        ]);
+    }
+
+    protected function descriptionWithoutExchangeMarker(?string $description): ?string
+    {
+        $description = trim((string) $description);
+        $description = trim((string) preg_replace('/^\[(?:داخل|خارج)\]\s*/u', '', $description));
+
+        return $description !== '' ? $description : null;
     }
 
     protected function requestNumberPrefix(string $type): string

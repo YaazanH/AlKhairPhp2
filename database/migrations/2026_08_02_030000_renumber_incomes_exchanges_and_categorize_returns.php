@@ -126,7 +126,7 @@ return new class extends Migration
 
             DB::table('finance_transactions')
                 ->where('pair_uuid', $exchange->pair_uuid)
-                ->where('type', 'currency_exchange')
+                ->whereIn('type', ['currency_exchange', 'exchange'])
                 ->get(['id', 'metadata'])
                 ->each(function (object $transaction) use ($exchangeNumber): void {
                     $metadata = json_decode((string) $transaction->metadata, true);

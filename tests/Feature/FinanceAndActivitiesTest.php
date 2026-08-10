@@ -103,12 +103,12 @@ class FinanceAndActivitiesTest extends TestCase
         $this->assertDatabaseHas('finance_transactions', [
             'activity_id' => $activity->id,
             'source_type' => ActivityPayment::class,
-            'type' => 'activity_payment',
+            'type' => 'income',
             'signed_amount' => 20,
         ]);
         $this->assertDatabaseHas('finance_transactions', [
             'activity_id' => $activity->id,
-            'type' => 'activity_expense',
+            'type' => 'expense',
             'signed_amount' => -8,
         ]);
 
@@ -130,7 +130,7 @@ class FinanceAndActivitiesTest extends TestCase
         $this->assertDatabaseHas('finance_transactions', [
             'source_type' => ActivityPayment::class,
             'source_id' => $payment->id,
-            'type' => 'activity_payment_reversal',
+            'type' => 'expense',
             'signed_amount' => -20,
         ]);
     }
@@ -295,7 +295,7 @@ class FinanceAndActivitiesTest extends TestCase
         $this->assertDatabaseHas('finance_transactions', [
             'finance_request_id' => $request->id,
             'cash_box_id' => $cashBox->id,
-            'type' => 'pull_request',
+            'type' => 'expense',
             'special_transaction_no' => 'DBIT-000001',
             'description' => 'Class materials',
             'signed_amount' => -1075,
@@ -656,19 +656,17 @@ class FinanceAndActivitiesTest extends TestCase
         $this->assertSame(7, $request->final_count);
         $this->assertSame('15.00', $request->remaining_amount);
         $returnRequest = FinanceRequest::query()
-            ->where('type', FinanceRequest::TYPE_RETURN)
-            ->where('requested_reason', 'like', '%'.$request->request_no.'%')
+            ->where('posted_transaction_id', $request->return_transaction_id)
             ->firstOrFail();
 
         $this->assertDatabaseHas('finance_transactions', [
             'finance_request_id' => $returnRequest->id,
-            'type' => 'pull_request_return',
+            'type' => 'return',
             'signed_amount' => 15,
         ]);
 
         Volt::test('finance.revenue-requests')
-            ->assertSee($returnRequest->request_no)
-            ->assertSee($request->request_no);
+            ->assertSee($returnRequest->request_no);
     }
 
     public function test_revenue_requests_support_configurable_revenue_categories(): void
@@ -701,7 +699,7 @@ class FinanceAndActivitiesTest extends TestCase
             'finance_category_id' => $category->id,
             'finance_request_id' => $request->id,
             'signed_amount' => 45,
-            'type' => 'revenue_request',
+            'type' => 'income',
         ]);
     }
 
@@ -867,7 +865,7 @@ class FinanceAndActivitiesTest extends TestCase
         $this->assertDatabaseHas('finance_transactions', [
             'source_type' => FinanceRequest::class,
             'source_id' => $request->id,
-            'type' => 'revenue_request_reversal',
+            'type' => 'expense',
             'signed_amount' => -75,
         ]);
     }
@@ -930,7 +928,7 @@ class FinanceAndActivitiesTest extends TestCase
         $this->assertDatabaseHas('finance_transactions', [
             'finance_request_id' => $returnRequest->id,
             'source_type' => FinanceRequest::class,
-            'type' => 'invoice_pull_return',
+            'type' => 'return',
             'signed_amount' => 20,
         ]);
 
@@ -992,7 +990,7 @@ class FinanceAndActivitiesTest extends TestCase
         $this->assertDatabaseHas('finance_transactions', [
             'finance_request_id' => $expenseRequest->id,
             'source_type' => FinanceRequest::class,
-            'type' => 'invoice_pull_closing_expense',
+            'type' => 'expense',
             'signed_amount' => -20,
         ]);
 
@@ -1141,17 +1139,17 @@ class FinanceAndActivitiesTest extends TestCase
             ->get();
         $this->assertSame('EXC-000001', data_get($exchangeTransactions[0]->metadata, 'reference'));
         $this->assertSame('EXC-000001', $exchangeTransactions[0]->special_transaction_no);
-        $this->assertSame('Test exchange', $exchangeTransactions[0]->description);
+        $this->assertSame('[خارج] Test exchange', $exchangeTransactions[0]->description);
         $this->assertDatabaseHas('finance_transactions', [
             'cash_box_id' => $mainBox->id,
             'currency_id' => $usd->id,
-            'type' => 'currency_exchange',
+            'type' => 'exchange',
             'signed_amount' => -10,
         ]);
         $this->assertDatabaseHas('finance_transactions', [
             'cash_box_id' => $secondBox->id,
             'currency_id' => $syp->id,
-            'type' => 'currency_exchange',
+            'type' => 'exchange',
             'signed_amount' => $toAmount,
         ]);
 
@@ -1333,7 +1331,7 @@ class FinanceAndActivitiesTest extends TestCase
         $this->assertStringStartsWith('%PDF', (string) $savedPdfResponse->getContent());
         $this->assertGreaterThan(1000, strlen((string) $savedPdfResponse->getContent()));
         $this->assertNotSame('legacy-pdf', Storage::disk('local')->get($generatedReport->pdf_path));
-        $this->assertSame('mpdf-fixed-ledger-v6', FinanceGeneratedReport::query()->findOrFail($generatedReport->id)->report_data['pdf_renderer']);
+        $this->assertSame('mpdf-fixed-ledger-v7', FinanceGeneratedReport::query()->findOrFail($generatedReport->id)->report_data['pdf_renderer']);
 
         $this->get(route('finance.reports.generated.show', ['generatedReport' => $generatedReport, 'format' => 'xlsx']))
             ->assertOk()
@@ -1403,7 +1401,9 @@ class FinanceAndActivitiesTest extends TestCase
         $this->assertStringStartsWith('%PDF', (string) $response->getContent());
 
         $generated = FinanceGeneratedReport::query()->latest('id')->firstOrFail();
-        $this->assertCount(2, $generated->report_data['fund_reports']);
+        $expectedStatements = max(1, $firstFund->currencies()->count()) + max(1, $secondFund->currencies()->count());
+        $this->assertCount($expectedStatements, $generated->report_data['fund_reports']);
+        $this->assertCount($expectedStatements, collect($generated->report_data['fund_reports'])->unique(fn (array $statement) => data_get($statement, 'cash_box.name').'|'.data_get($statement, 'currency.code')));
         $this->assertSame([$firstFund->id, $secondFund->id], $generated->filters['cash_box_ids']);
         $this->assertNotNull($generated->pdf_path);
         Storage::disk('local')->assertExists($generated->pdf_path);
@@ -1679,6 +1679,204 @@ class FinanceAndActivitiesTest extends TestCase
         $this->assertSame($beforeTransfer['expense'], $report['summary']['expense']);
         $this->assertSame($beforeTransfer['income'], $report['summary']['income']);
         $this->assertSame(2, FinanceTransaction::query()->where('special_transaction_no', $transfer->transfer_no)->count());
+
+        $out = FinanceTransaction::query()->where('pair_uuid', $transfer->pair_uuid)->where('direction', 'out')->firstOrFail();
+        $service->updateTransaction($out, [
+            'amount' => 30,
+            'cash_box_id' => $from->id,
+            'currency_id' => $currency->id,
+            'finance_category_id' => $out->finance_category_id,
+            'description' => 'Updated transfer',
+            'direction' => 'out',
+            'entered_by' => auth()->id(),
+            'special_transaction_no' => 'MOVE-000009',
+            'transaction_date' => now()->toDateString(),
+            'type' => 'transfer',
+        ], auth()->user());
+
+        $this->assertSame('30.00', $transfer->fresh()->amount);
+        $this->assertSame('MOVE-000009', $transfer->fresh()->transfer_no);
+        $this->assertTrue(FinanceTransaction::query()->where('pair_uuid', $transfer->pair_uuid)->get()->every(
+            fn (FinanceTransaction $transaction) => $transaction->amount === '30.00' && $transaction->special_transaction_no === 'MOVE-000009'
+        ));
+    }
+
+    public function test_exchange_ledger_rows_use_direction_markers_and_edits_sync_to_the_exchange(): void
+    {
+        $this->signIn();
+
+        $service = app(FinanceService::class);
+        $fromCurrency = $service->baseCurrency();
+        $toCurrency = $service->localCurrency();
+        $fund = FinanceCashBox::query()->firstOrFail();
+        $fund->currencies()->syncWithoutDetaching([$fromCurrency->id, $toCurrency->id]);
+        $service->postTransaction([
+            'cash_box_id' => $fund->id,
+            'currency_id' => $fromCurrency->id,
+            'type' => 'income',
+            'direction' => 'in',
+            'amount' => 100,
+        ]);
+
+        $exchange = $service->recordCurrencyExchange(
+            $fund,
+            $fromCurrency,
+            10,
+            $fund,
+            $toCurrency,
+            $service->calculateExchangeToAmount($fromCurrency, $toCurrency, 10),
+            '2026-08-10',
+            auth()->user(),
+            'Test exchange',
+        );
+        $out = FinanceTransaction::query()->where('pair_uuid', $exchange->pair_uuid)->where('direction', 'out')->firstOrFail();
+        $in = FinanceTransaction::query()->where('pair_uuid', $exchange->pair_uuid)->where('direction', 'in')->firstOrFail();
+
+        $this->assertSame('[خارج] Test exchange', $out->description);
+        $this->assertSame('[داخل] Test exchange', $in->description);
+
+        $service->updateTransaction($out, [
+            'amount' => 12,
+            'cash_box_id' => $fund->id,
+            'currency_id' => $fromCurrency->id,
+            'finance_category_id' => $out->finance_category_id,
+            'description' => 'Updated exchange',
+            'direction' => 'out',
+            'entered_by' => auth()->id(),
+            'special_transaction_no' => $exchange->exchange_no,
+            'transaction_date' => '2026-08-11',
+            'type' => 'exchange',
+        ], auth()->user());
+
+        $this->assertSame('12.00', $exchange->fresh()->from_amount);
+        $this->assertSame('Updated exchange', $exchange->fresh()->notes);
+        $this->assertSame('[داخل] Updated exchange', $in->fresh()->description);
+        $this->assertSame('2026-08-11', $exchange->fresh()->exchange_date?->toDateString());
+    }
+
+    public function test_transaction_maintenance_finds_withdrawal_number_and_syncs_the_expense_source(): void
+    {
+        $this->signIn();
+
+        $service = app(FinanceService::class);
+        $currency = $service->localCurrency();
+        $fund = FinanceCashBox::query()->firstOrFail();
+        $category = FinanceCategory::query()->where('type', 'expense')->firstOrFail();
+        $service->postTransaction(['cash_box_id' => $fund->id, 'currency_id' => $currency->id, 'type' => 'income', 'direction' => 'in', 'amount' => 100]);
+        $request = FinanceRequest::query()->create([
+            'request_no' => $service->nextRequestNumber(FinanceRequest::TYPE_PULL),
+            'type' => FinanceRequest::TYPE_PULL,
+            'status' => FinanceRequest::STATUS_PENDING,
+            'finance_pull_request_kind_id' => $category->id,
+            'finance_category_id' => $category->id,
+            'requested_currency_id' => $currency->id,
+            'requested_amount' => 20,
+            'requested_reason' => 'Original reason',
+            'requested_by' => auth()->id(),
+        ]);
+        $request = $service->acceptRequest($request, 20, $fund, auth()->user(), null, 1, '2026-08-01');
+
+        Volt::test('settings.finance')
+            ->set('transaction_lookup_no', $request->request_no)
+            ->call('findTransaction')
+            ->assertSet('maintaining_transaction_id', $request->posted_transaction_id)
+            ->set('maint_amount', '25')
+            ->set('maint_description', 'Updated reason')
+            ->set('maint_special_transaction_no', 'EXP-000999')
+            ->set('maint_transaction_date', '2026-08-02')
+            ->call('saveTransactionMaintenance')
+            ->assertHasNoErrors()
+            ->assertSet('maintaining_transaction_id', null)
+            ->assertSee(__('finance.messages.transaction_updated'));
+
+        $request->refresh();
+        $this->assertSame('25.00', $request->accepted_amount);
+        $this->assertSame('25.00', $request->requested_amount);
+        $this->assertSame('EXP-000999', $request->expense_no);
+        $this->assertSame('Updated reason', $request->requested_reason);
+        $this->assertSame('EXP-000999', $request->postedTransaction->fresh()->special_transaction_no);
+    }
+
+    public function test_historical_finance_source_repair_uses_the_ledger_as_its_base(): void
+    {
+        $this->signIn();
+
+        $service = app(FinanceService::class);
+        $currency = $service->localCurrency();
+        $fund = FinanceCashBox::query()->firstOrFail();
+        $category = FinanceCategory::query()->where('type', 'expense')->firstOrFail();
+        $service->postTransaction(['cash_box_id' => $fund->id, 'currency_id' => $currency->id, 'type' => 'income', 'direction' => 'in', 'amount' => 100]);
+        $request = FinanceRequest::query()->create([
+            'request_no' => 'PUL-HISTORICAL-1',
+            'expense_no' => 'EXP-HISTORICAL-1',
+            'type' => FinanceRequest::TYPE_PULL,
+            'status' => FinanceRequest::STATUS_ACCEPTED,
+            'finance_pull_request_kind_id' => $category->id,
+            'finance_category_id' => $category->id,
+            'requested_currency_id' => $currency->id,
+            'requested_amount' => 10,
+            'accepted_currency_id' => $currency->id,
+            'accepted_amount' => 10,
+            'cash_box_id' => $fund->id,
+            'requested_reason' => 'Stale source reason',
+        ]);
+        $transaction = $service->postTransaction([
+            'cash_box_id' => $fund->id,
+            'currency_id' => $currency->id,
+            'finance_category_id' => $category->id,
+            'finance_request_id' => $request->id,
+            'source_type' => FinanceRequest::class,
+            'source_id' => $request->id,
+            'type' => 'expense',
+            'direction' => 'out',
+            'amount' => 18,
+            'special_transaction_no' => 'EXP-000888',
+            'description' => 'Correct ledger reason',
+        ]);
+        $request->update(['posted_transaction_id' => $transaction->id]);
+
+        $migration = require database_path('migrations/2026_08_10_000000_sync_finance_sources_from_ledger.php');
+        $migration->up();
+
+        $request->refresh();
+        $this->assertSame('18.00', $request->requested_amount);
+        $this->assertSame('18.00', $request->accepted_amount);
+        $this->assertSame('EXP-000888', $request->expense_no);
+        $this->assertSame('Correct ledger reason', $request->requested_reason);
+        $this->assertSame($transaction->id, $request->posted_transaction_id);
+    }
+
+    public function test_invoice_scan_and_editable_reference_fields_are_saved(): void
+    {
+        $this->signIn();
+        Storage::fake('public');
+
+        Volt::test('invoices.index')
+            ->set('invoice_no', 'INV-CUSTOM-1')
+            ->set('original_invoice_no', 'PAPER-44')
+            ->set('invoicer_name', 'Original issuer')
+            ->set('issue_date', '2026-08-10')
+            ->set('status', 'draft')
+            ->set('discount', '0')
+            ->set('invoice_scan', UploadedFile::fake()->image('invoice-scan.jpg'))
+            ->call('save')
+            ->assertHasNoErrors();
+
+        $invoice = Invoice::query()->where('invoice_no', 'INV-CUSTOM-1')->firstOrFail();
+        Storage::disk('public')->assertExists($invoice->original_image_path);
+
+        Volt::test('invoices.index')
+            ->call('edit', $invoice->id)
+            ->set('invoice_no', 'INV-CUSTOM-2')
+            ->set('original_invoice_no', 'PAPER-45')
+            ->set('invoicer_name', 'Updated issuer')
+            ->call('save')
+            ->assertHasNoErrors();
+
+        $invoice->refresh();
+        $this->assertSame('INV-CUSTOM-2', $invoice->invoice_no);
+        $this->assertSame('PAPER-45', $invoice->original_invoice_no);
+        $this->assertSame('Updated issuer', $invoice->invoicer_name);
     }
 
     public function test_legacy_expenses_are_finalised_and_renumbered_with_the_configured_prefix(): void
@@ -1956,10 +2154,10 @@ class FinanceAndActivitiesTest extends TestCase
         $this->assertSame('issued', $invoice->fresh()->status);
         $this->assertNotNull($invoice->fresh()->finalised_at);
         $this->assertDatabaseHas('finance_transactions', ['id' => $request->posted_transaction_id, 'signed_amount' => -50]);
-        $this->get(route('finance.invoices.print', $invoice))
+        $response = $this->get(route('finance.invoices.print', $invoice))
             ->assertOk()
-            ->assertSee(__('finance.fields.deduction'))
-            ->assertSee(__('finance.fields.grand_total'));
+            ->assertHeader('content-type', 'application/pdf');
+        $this->assertStringStartsWith('%PDF', $response->getContent());
     }
 
     public function test_withdrawal_navigation_is_available_to_teachers_but_hidden_from_finance_admins(): void

@@ -2,8 +2,8 @@
 
 namespace App\Services;
 
-use App\Models\AcademicYear;
 use App\Models\AppSetting;
+use App\Models\Course;
 use App\Models\FinanceCashBox;
 use App\Models\FinanceCurrency;
 use App\Models\FinanceGeneratedReport;
@@ -15,6 +15,8 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Mpdf\Config\ConfigVariables;
+use Mpdf\Config\FontVariables;
 use Mpdf\Mpdf;
 use Mpdf\Output\Destination;
 
@@ -131,7 +133,7 @@ class FinanceReportService
             'type' => ['en' => 'Type', 'ar' => 'النوع'],
             'category' => ['en' => 'Category', 'ar' => 'التصنيف'],
             'income' => ['en' => 'Income', 'ar' => 'الإيراد'],
-            'expense' => ['en' => 'Expense', 'ar' => 'المصروف'],
+            'expense' => ['en' => 'Expense', 'ar' => 'مصاريف'],
             'running_balance' => ['en' => 'Balance', 'ar' => 'الرصيد'],
             'amount' => ['en' => 'Amount', 'ar' => 'المبلغ'],
             'direction' => ['en' => 'Direction', 'ar' => 'الاتجاه'],
@@ -414,13 +416,16 @@ class FinanceReportService
             array_merge($this->templateSnapshot($this->defaultLedgerTemplate()), is_array($template) ? $template : [])
         );
         $report['generated_report_id'] = $generatedReport->id;
+        $report['default_course'] = $report['default_course'] ?? $this->defaultCourseName();
         $report['issuer_name'] = $report['issuer_name'] ?? ($generatedReport->generatedBy?->name ?: null);
         $report['page_number'] = (int) ($report['page_number'] ?? 1);
         $report['rows'] = is_array($report['rows'] ?? null) ? $report['rows'] : [];
         if (is_array($report['fund_reports'] ?? null)) {
             $report['fund_reports'] = collect($report['fund_reports'])->map(function (array $fundReport) use ($report): array {
+                $fundReport['default_course'] = $fundReport['default_course'] ?? $report['default_course'];
                 $fundReport['template'] = $this->normalizeLedgerTemplateSnapshot(array_merge($report['template'], $fundReport['template'] ?? []));
                 $fundReport['rows'] = is_array($fundReport['rows'] ?? null) ? $fundReport['rows'] : [];
+
                 return $fundReport;
             })->values()->all();
         }
@@ -479,8 +484,8 @@ class FinanceReportService
 
         $mpdf = new Mpdf([
             'default_font' => $defaultFont,
-            'fontDir' => array_merge((new \Mpdf\Config\ConfigVariables())->getDefaults()['fontDir'], [public_path('fonts/dubai')]),
-            'fontdata' => (new \Mpdf\Config\FontVariables())->getDefaults()['fontdata'] + ['dubai' => ['R' => 'Dubai-Regular.ttf', 'M' => 'Dubai-Medium.ttf', 'B' => 'Dubai-Bold.ttf', 'L' => 'Dubai-Light.ttf', 'useOTL' => 0xFF, 'useKashida' => 75]],
+            'fontDir' => array_merge((new ConfigVariables)->getDefaults()['fontDir'], [public_path('fonts/dubai')]),
+            'fontdata' => (new FontVariables)->getDefaults()['fontdata'] + ['dubai' => ['R' => 'Dubai-Regular.ttf', 'M' => 'Dubai-Medium.ttf', 'B' => 'Dubai-Bold.ttf', 'L' => 'Dubai-Light.ttf', 'useOTL' => 0xFF, 'useKashida' => 75]],
             'format' => 'A4',
             'margin_bottom' => 18,
             'margin_left' => 12,
@@ -565,7 +570,7 @@ class FinanceReportService
         }
 
         if (! empty($template['include_exported_at']) && ! empty($report['exported_at'])) {
-            $rows[] = [$this->bilingual('Export date', 'تاريخ التصدير', $language), Carbon::parse($report['exported_at'])->format('Y-m-d H:i')];
+            $rows[] = [$this->bilingual('Export date', 'تاريخ التصدير', $language), Carbon::parse($report['exported_at'])->format('Y-m-d')];
         }
 
         $rows[] = [];
@@ -689,10 +694,7 @@ class FinanceReportService
                 'opening_balance' => $this->formatMoney($openingBalance, $currency),
             ],
             'income' => $income,
-            'academic_year' => AcademicYear::query()
-                ->whereDate('starts_on', '<=', $start->toDateString())
-                ->whereDate('ends_on', '>=', $start->toDateString())
-                ->value('name') ?: AcademicYear::query()->where('is_current', true)->value('name'),
+            'default_course' => $this->defaultCourseName(),
             'issuer_name' => $issuer?->name ?: auth()->user()?->name,
             'net' => round($income - $expense, 2),
             'notes' => filled($notes) ? trim($notes) : null,
@@ -718,6 +720,14 @@ class FinanceReportService
         ];
     }
 
+    protected function defaultCourseName(): ?string
+    {
+        return Course::query()
+            ->where('is_default', true)
+            ->where('is_active', true)
+            ->value('name') ?: Course::query()->where('is_active', true)->orderBy('name')->value('name');
+    }
+
     protected function formatMoney(float $amount, FinanceCurrency|array|null $currency): string
     {
         if ($currency instanceof FinanceCurrency || $currency === null) {
@@ -739,7 +749,10 @@ class FinanceReportService
         return [
             'amount' => $this->formatMoney((float) $transaction->amount, $currency),
             'cash_box' => (string) ($transaction->cashBox?->name ?: ''),
-            'category' => (string) ($transaction->category?->name ?: ''),
+            'category' => (string) ($transaction->category?->name
+                ?: $transaction->financeRequest?->category?->name
+                ?: $transaction->financeRequest?->pullRequestKind?->name
+                ?: ''),
             'currency' => (string) ($currency?->code ?: ''),
             'description' => (string) ($transaction->description ?: ''),
             'direction' => __('finance.options.'.$transaction->direction),
@@ -858,7 +871,7 @@ class FinanceReportService
 
     protected function ledgerPdfRendererVersion(): string
     {
-        return 'mpdf-fixed-ledger-v6';
+        return 'mpdf-fixed-ledger-v7';
     }
 
     protected function normalizeLedgerTemplateSnapshot(array $template): array

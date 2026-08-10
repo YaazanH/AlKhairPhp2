@@ -101,23 +101,31 @@ class ReportExportController extends Controller
         $template = $reportService->defaultLedgerTemplate();
         $cashBoxIds = collect($validated['cash_box_ids'] ?? [($validated['cash_box_id'] ?? null)])->filter()->map(fn ($id) => (int) $id)->unique()->values();
         abort_if($cashBoxIds->isEmpty(), 422);
-        $cashBox = $financeService->cashBoxForUser($cashBoxIds->first(), $request->user());
-        if ($cashBoxIds->count() > 1) {
-            $reports = $cashBoxIds->map(function (int $cashBoxId) use ($financeService, $reportService, $template, $validated, $request) {
-                $box = $financeService->cashBoxForUser($cashBoxId, $request->user());
+        $reports = $cashBoxIds->flatMap(function (int $cashBoxId) use ($financeService, $reportService, $template, $validated, $request) {
+            $box = $financeService->cashBoxForUser($cashBoxId, $request->user());
+            $currencies = $financeService->currenciesForCashBox($box->id)->get();
+            if ($currencies->isEmpty()) {
+                $currencies = collect([$financeService->localCurrency()]);
+            }
 
-                return $reportService->localCurrencyLedgerReport($template, $box, $validated['date_from'], $validated['date_to'], $request->user(), $validated['ledger_notes'] ?? null);
-            });
-            $report = $reports->first();
-            $report['cash_box']['name'] = $reports->pluck('cash_box.name')->implode('، ');
-            $report['fund_reports'] = $reports->values()->all();
+            return $currencies->map(fn ($currency) => $reportService->ledgerReport(
+                $template,
+                $box,
+                $currency,
+                $validated['date_from'],
+                $validated['date_to'],
+                $request->user(),
+                $validated['ledger_notes'] ?? null,
+            ));
+        })->values();
+        abort_if($reports->isEmpty(), 422);
+
+        $report = $reports->first();
+        if ($reports->count() > 1) {
+            $report['cash_box']['name'] = $reports->pluck('cash_box.name')->unique()->implode('، ');
+            $report['fund_reports'] = $reports->all();
             $report['rows'] = [];
-            $generatedReport = $reportService->storeGeneratedLedgerReport($report, $validated, $request->user());
-
-            return $this->ledgerPdfResponse($reportService, $report, $generatedReport);
         }
-
-        $report = $reportService->localCurrencyLedgerReport($template, $cashBox, $validated['date_from'], $validated['date_to'], $request->user(), $validated['ledger_notes'] ?? null);
         $generatedReport = $reportService->storeGeneratedLedgerReport($report, $validated, $request->user());
 
         return $this->ledgerPdfResponse($reportService, $report, $generatedReport);

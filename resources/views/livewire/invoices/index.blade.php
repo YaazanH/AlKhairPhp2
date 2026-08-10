@@ -5,8 +5,12 @@ use App\Livewire\Concerns\AuthorizesTeacherAssignments;
 use App\Livewire\Concerns\FormatsFinanceNumbers;
 use App\Livewire\Concerns\SupportsCreateAndNew;
 use App\Models\Invoice;
+use App\Models\FinanceInvoiceKind;
 use App\Services\FinanceService;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
 use Livewire\Volt\Component;
+use Livewire\WithFileUploads;
 use Livewire\WithPagination;
 
 new class extends Component {
@@ -14,9 +18,12 @@ new class extends Component {
     use AuthorizesTeacherAssignments;
     use FormatsFinanceNumbers;
     use SupportsCreateAndNew;
+    use WithFileUploads;
     use WithPagination;
 
     public ?int $editingId = null;
+    public string $invoice_no = '';
+    public string $original_invoice_no = '';
     public string $invoicer_name = '';
     public ?int $finance_invoice_kind_id = null;
     public string $invoice_type = 'finance';
@@ -25,12 +32,15 @@ new class extends Component {
     public string $status = 'draft';
     public string $discount = '0';
     public string $notes = '';
+    public $invoice_scan = null;
+    public bool $remove_invoice_scan = false;
     public int $perPage = 15;
     public bool $showForm = false;
 
     public function mount(): void
     {
         $this->authorizePermission('invoices.view');
+        $this->invoice_no = app(FinanceService::class)->nextInvoiceNumber();
         $this->issue_date = now()->toDateString();
         $this->finance_invoice_kind_id = app(FinanceService::class)->defaultInvoiceKindId();
     }
@@ -48,6 +58,7 @@ new class extends Component {
 
         return [
             'invoices' => $invoiceQuery->paginate($this->perPage),
+            'invoiceKinds' => FinanceInvoiceKind::query()->where('is_active', true)->orderBy('name')->get(),
             'totals' => [
                 'all' => $this->scopeInvoicesQuery(Invoice::query())->count(),
                 'open' => $this->scopeInvoicesQuery(Invoice::query()->whereIn('status', ['issued', 'partial']))->count(),
@@ -65,6 +76,8 @@ new class extends Component {
     {
         return [
             'finance_invoice_kind_id' => ['nullable', 'exists:finance_invoice_kinds,id'],
+            'invoice_no' => ['required', 'string', 'max:255', Rule::unique('invoices', 'invoice_no')->ignore($this->editingId)],
+            'original_invoice_no' => ['nullable', 'string', 'max:255'],
             'invoicer_name' => ['required', 'string', 'max:255'],
             'invoice_type' => ['required', 'string', 'max:50'],
             'issue_date' => ['required', 'date'],
@@ -72,6 +85,8 @@ new class extends Component {
             'status' => ['required', 'in:draft,issued,partial,paid,cancelled'],
             'discount' => ['required', 'numeric', 'min:0'],
             'notes' => ['nullable', 'string'],
+            'invoice_scan' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png,webp', 'max:10240'],
+            'remove_invoice_scan' => ['boolean'],
         ];
     }
 
@@ -80,6 +95,7 @@ new class extends Component {
         $this->authorizePermission('invoices.create');
 
         $this->cancel(closeForm: false);
+        $this->invoice_no = app(FinanceService::class)->nextInvoiceNumber();
         $this->showForm = true;
     }
 
@@ -92,12 +108,23 @@ new class extends Component {
         $existingInvoice = $this->editingId ? Invoice::query()->findOrFail($this->editingId) : null;
         $canUpdateEntryDate = auth()->user()?->can('finance.entries.update') ?? false;
 
+        $scanPath = $existingInvoice?->original_image_path;
+        if ($validated['remove_invoice_scan'] && $scanPath) {
+            Storage::disk('public')->delete($scanPath);
+            $scanPath = null;
+        }
+        if ($validated['invoice_scan'] ?? null) {
+            if ($scanPath) {
+                Storage::disk('public')->delete($scanPath);
+            }
+            $scanPath = $validated['invoice_scan']->store('finance/invoices/scans', 'public');
+        }
+
         $invoice = Invoice::query()->updateOrCreate(
             ['id' => $this->editingId],
             [
-                'invoice_no' => $this->editingId
-                    ? $existingInvoice->invoice_no
-                    : app(FinanceService::class)->nextInvoiceNumber(),
+                'invoice_no' => $validated['invoice_no'],
+                'original_invoice_no' => $validated['original_invoice_no'] ?: null,
                 'invoicer_name' => $validated['invoicer_name'],
                 'invoice_type' => $validated['invoice_type'],
                 'finance_invoice_kind_id' => $validated['finance_invoice_kind_id'] ?: app(FinanceService::class)->defaultInvoiceKindId(),
@@ -108,6 +135,7 @@ new class extends Component {
                 'status' => $validated['status'],
                 'discount' => $validated['discount'],
                 'notes' => $validated['notes'] ?: null,
+                'original_image_path' => $scanPath,
             ],
         );
 
@@ -129,6 +157,8 @@ new class extends Component {
         $this->authorizeScopedInvoiceAccess($invoice);
 
         $this->editingId = $invoice->id;
+        $this->invoice_no = $invoice->invoice_no;
+        $this->original_invoice_no = $invoice->original_invoice_no ?? '';
         $this->invoicer_name = $invoice->invoicer_name ?? '';
         $this->finance_invoice_kind_id = $invoice->finance_invoice_kind_id;
         $this->invoice_type = $invoice->invoice_type;
@@ -137,6 +167,8 @@ new class extends Component {
         $this->status = $invoice->status;
         $this->discount = $this->formatFinanceNumberForInput($invoice->discount);
         $this->notes = $invoice->notes ?? '';
+        $this->invoice_scan = null;
+        $this->remove_invoice_scan = false;
         $this->showForm = true;
 
         $this->resetValidation();
@@ -145,6 +177,8 @@ new class extends Component {
     public function cancel(bool $closeForm = true): void
     {
         $this->editingId = null;
+        $this->invoice_no = '';
+        $this->original_invoice_no = '';
         $this->invoicer_name = '';
         $this->finance_invoice_kind_id = app(FinanceService::class)->defaultInvoiceKindId();
         $this->invoice_type = 'finance';
@@ -153,6 +187,8 @@ new class extends Component {
         $this->status = 'draft';
         $this->discount = '0';
         $this->notes = '';
+        $this->invoice_scan = null;
+        $this->remove_invoice_scan = false;
 
         if ($closeForm) {
             $this->showForm = false;
@@ -176,6 +212,9 @@ new class extends Component {
             return;
         }
 
+        if ($invoice->original_image_path) {
+            Storage::disk('public')->delete($invoice->original_image_path);
+        }
         $invoice->delete();
 
         if ($this->editingId === $invoiceId) {
@@ -247,6 +286,24 @@ new class extends Component {
                             <input wire:model="invoicer_name" type="text" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
                             @error('invoicer_name') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
                         </div>
+                        <div>
+                            <label class="mb-1 block text-sm font-medium">{{ __('finance.fields.invoice_no') }}</label>
+                            <input wire:model="invoice_no" type="text" dir="ltr" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                            @error('invoice_no') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+                        </div>
+                    </div>
+
+                    <div class="grid gap-4 md:grid-cols-2">
+                        <div>
+                            <label class="mb-1 block text-sm font-medium">{{ __('finance.fields.original_invoice_no') }}</label>
+                            <input wire:model="original_invoice_no" type="text" dir="ltr" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                            @error('original_invoice_no') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+                        </div>
+                        <div>
+                            <label class="mb-1 block text-sm font-medium">{{ __('finance.fields.invoice_kind') }}</label>
+                            <select wire:model="finance_invoice_kind_id" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">@foreach ($invoiceKinds as $kind)<option value="{{ $kind->id }}">{{ $kind->name }}</option>@endforeach</select>
+                            @error('finance_invoice_kind_id') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+                        </div>
                     </div>
 
                     <div class="grid gap-4 md:grid-cols-2">
@@ -261,6 +318,15 @@ new class extends Component {
                             </select>
                             @error('status') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
                         </div>
+                    </div>
+
+                    <div>
+                        <label class="mb-1 block text-sm font-medium">{{ __('finance.fields.invoice_scan') }}</label>
+                        <input wire:model="invoice_scan" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                        @error('invoice_scan') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+                        @if ($editingId && ($existingScan = \App\Models\Invoice::query()->find($editingId)?->original_image_path))
+                            <div class="mt-2 flex flex-wrap items-center gap-3"><a href="{{ asset('storage/'.$existingScan) }}" target="_blank" class="pill-link pill-link--compact">{{ __('finance.actions.view_original') }}</a><label class="flex items-center gap-2 text-sm text-red-300"><input wire:model="remove_invoice_scan" type="checkbox" class="rounded">{{ __('finance.actions.remove_scan') }}</label></div>
+                        @endif
                     </div>
 
                     <div class="grid gap-4 md:grid-cols-2">
@@ -367,6 +433,9 @@ new class extends Component {
                                             @can('invoices.view')
                                                 <a href="{{ route('invoices.print', $invoice) }}" target="_blank" class="pill-link pill-link--compact">{{ __('invoices.index.table.actions.print') }}</a>
                                             @endcan
+                                            @if ($invoice->original_image_path)
+                                                <a href="{{ asset('storage/'.$invoice->original_image_path) }}" target="_blank" class="pill-link pill-link--compact">{{ __('finance.actions.view_original') }}</a>
+                                            @endif
                                             @can('invoices.update')
                                                 <button type="button" wire:click="edit({{ $invoice->id }})" class="pill-link pill-link--compact">{{ __('crud.common.actions.edit') }}</button>
                                             @endcan

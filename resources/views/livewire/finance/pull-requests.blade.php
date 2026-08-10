@@ -342,7 +342,6 @@ new class extends Component {
             'issue_date' => now()->toDateString(),
             'status' => 'draft',
             'discount' => 0,
-            'notes' => __('finance.descriptions.invoice_from_pull', ['request' => $request->request_no]),
         ]);
 
         $request->update(['invoice_id' => $invoice->id]);

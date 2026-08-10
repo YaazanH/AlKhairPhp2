@@ -165,9 +165,9 @@ return [
     'quran_tests' => [
         'eyebrow' => 'Quran testing summary',
         'title' => 'Student Quran tests',
-        'subtitle' => 'See how many distinct partial and final Quran tests each student took during the selected date range.',
+        'subtitle' => 'See how many four-part partial tests each student completed and final tests they passed during the selected date range.',
         'filters_title' => 'Choose course, group, and dates',
-        'filters_subtitle' => 'A test is counted once when it has at least one recorded attempt within the selected date range.',
+        'filters_subtitle' => 'Partial tests count after all four parts are passed; final tests count only after they are passed.',
         'export' => 'Export Quran test summary',
         'students' => 'Students',
         'partial_tests' => 'Partial tests',

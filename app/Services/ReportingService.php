@@ -253,7 +253,10 @@ class ReportingService
         $partialCounts = $accessScope
             ->scopeQuranPartialTests(QuranPartialTest::query(), auth()->user())
             ->whereIn('enrollment_id', $enrollmentIds)
-            ->whereHas('parts.attempts', fn (Builder $query) => $this->applyDateRange($query, 'tested_on', $filters))
+            ->where('status', 'passed')
+            ->has('parts', '=', 4)
+            ->whereDoesntHave('parts', fn (Builder $query) => $query->where('status', '!=', 'passed'))
+            ->tap(fn (Builder $query) => $this->applyDateRange($query, 'passed_on', $filters))
             ->selectRaw('enrollment_id, COUNT(*) as total_tests')
             ->groupBy('enrollment_id')
             ->pluck('total_tests', 'enrollment_id');
@@ -261,7 +264,8 @@ class ReportingService
         $finalCounts = $accessScope
             ->scopeQuranFinalTests(QuranFinalTest::query(), auth()->user())
             ->whereIn('enrollment_id', $enrollmentIds)
-            ->whereHas('attempts', fn (Builder $query) => $this->applyDateRange($query, 'tested_on', $filters))
+            ->where('status', 'passed')
+            ->tap(fn (Builder $query) => $this->applyDateRange($query, 'passed_on', $filters))
             ->selectRaw('enrollment_id, COUNT(*) as total_tests')
             ->groupBy('enrollment_id')
             ->pluck('total_tests', 'enrollment_id');

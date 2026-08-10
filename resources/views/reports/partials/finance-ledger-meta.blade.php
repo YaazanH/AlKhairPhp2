@@ -1,7 +1,7 @@
 <table class="meta-table">
     <tr>
-        <td class="meta-label">العام الدراسي</td>
-        <td class="meta-value">{{ $report['academic_year'] ?? '-' }}</td>
+        <td class="meta-label">الدورة الافتراضية</td>
+        <td class="meta-value">{{ $report['default_course'] ?? '-' }}</td>
         <td class="meta-label">تاريخ بداية التقرير</td>
         <td class="meta-value">{{ \Illuminate\Support\Carbon::parse($report['start'])->format('d-m-Y') }}</td>
         <td class="qr-cell" rowspan="2"><img src="{{ $qrImage }}" alt="" style="height: 23mm; width: 23mm;"></td>

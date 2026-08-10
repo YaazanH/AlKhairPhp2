@@ -1,3 +1,4 @@
+@php($printNotes = preg_match('/^(?:Created from withdrawal request|تم إنشاؤها من طلب السحب)/u', (string) $invoice->notes) ? null : $invoice->notes)
 <!doctype html>
 <html lang="{{ app()->getLocale() }}" dir="{{ app()->getLocale() === 'ar' ? 'rtl' : 'ltr' }}">
 <head>
@@ -14,7 +15,7 @@
         .footer { background: #dff1e2; border-top: 1px solid #9fc6a8; color: #315b3b; padding: 2.5mm 10mm; }
         .footer td { width: 50%; }
         .page { text-align: end; }
-        .meta { margin: 2mm 0 5mm; }
+        .meta { margin: 7mm 0 5mm; }
         .meta td { border-bottom: 1px solid #d9e7dc; padding: 2.2mm 2mm; }
         .label { color: #5d7663; font-size: 8pt; font-weight: bold; width: 23%; }
         .value { font-weight: bold; width: 27%; }
@@ -70,7 +71,7 @@
     <tr class="grand"><th>{{ __('finance.fields.grand_total') }}</th><td>{{ app(\App\Services\FinanceService::class)->formatCurrencyAmount($invoice->total, $invoice->financeRequest?->acceptedCurrency) }}</td></tr>
 </table>
 
-@if ($invoice->notes)<div class="notes">{{ $invoice->notes }}</div>@endif
+@if ($printNotes)<div class="notes">{{ $printNotes }}</div>@endif
 <div class="signature"><div class="signature-line">{{ __('finance.fields.signature') }}</div><small>{{ $invoice->finalisedBy?->name }}</small></div>
 @unless($isPdf ?? false)<script>window.addEventListener('load', () => window.print());</script>@endunless
 </body>
