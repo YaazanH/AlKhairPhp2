@@ -8,6 +8,7 @@
     style="
         width: {{ number_format($template->width_mm, 2, '.', '') }}mm;
         height: {{ number_format($template->height_mm, 2, '.', '') }}mm;
+        border-radius: {{ $template->rounded_corners ? '2.2mm' : '0' }};
         @if($backgroundImageUrl)
             background-image: url('{{ $backgroundImageUrl }}');
         @endif

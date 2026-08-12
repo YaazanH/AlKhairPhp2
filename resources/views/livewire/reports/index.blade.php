@@ -313,26 +313,26 @@ new class extends Component {
         </section>
     </div>
 
-    <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        <a href="{{ route('reports.student-activity-summary') }}" class="surface-panel report-panel report-nav-card min-w-0 p-5 lg:p-6">
+    <div class="grid gap-3 lg:grid-cols-3">
+        <a href="{{ route('reports.student-activity-summary') }}" class="surface-panel report-panel report-nav-card min-w-0 p-4">
             <div class="eyebrow">{{ __('reports.navigation.eyebrow') }}</div>
-            <h2 class="font-display mt-3 text-2xl text-white">{{ __('reports.navigation.student_activity_title') }}</h2>
-            <p class="mt-3 text-sm leading-7 text-neutral-300">{{ __('reports.navigation.student_activity_subtitle') }}</p>
-            <span class="pill-link report-nav-card__cta mt-5 inline-flex">{{ __('reports.navigation.open') }}</span>
+            <h2 class="font-display mt-2 text-xl text-white">{{ __('reports.navigation.student_activity_title') }}</h2>
+            <p class="mt-2 line-clamp-2 text-xs leading-5 text-neutral-300">{{ __('reports.navigation.student_activity_subtitle') }}</p>
+            <span class="pill-link pill-link--compact report-nav-card__cta mt-3 inline-flex">{{ __('reports.navigation.open') }}</span>
         </a>
 
-        <a href="{{ route('reports.student-quran-tests') }}" class="surface-panel report-panel report-nav-card min-w-0 p-5 lg:p-6">
+        <a href="{{ route('reports.student-quran-tests') }}" class="surface-panel report-panel report-nav-card min-w-0 p-4">
             <div class="eyebrow">{{ __('reports.navigation.eyebrow') }}</div>
-            <h2 class="font-display mt-3 text-2xl text-white">{{ __('reports.navigation.quran_tests_title') }}</h2>
-            <p class="mt-3 text-sm leading-7 text-neutral-300">{{ __('reports.navigation.quran_tests_subtitle') }}</p>
-            <span class="pill-link report-nav-card__cta mt-5 inline-flex">{{ __('reports.navigation.open') }}</span>
+            <h2 class="font-display mt-2 text-xl text-white">{{ __('reports.navigation.quran_tests_title') }}</h2>
+            <p class="mt-2 line-clamp-2 text-xs leading-5 text-neutral-300">{{ __('reports.navigation.quran_tests_subtitle') }}</p>
+            <span class="pill-link pill-link--compact report-nav-card__cta mt-3 inline-flex">{{ __('reports.navigation.open') }}</span>
         </a>
 
-        <a href="{{ route('reports.rankings') }}" class="surface-panel report-panel report-nav-card min-w-0 p-5 lg:p-6">
+        <a href="{{ route('reports.rankings') }}" class="surface-panel report-panel report-nav-card min-w-0 p-4">
             <div class="eyebrow">{{ __('reports.navigation.eyebrow') }}</div>
-            <h2 class="font-display mt-3 text-2xl text-white">{{ __('reports.rankings.combined_title') }}</h2>
-            <p class="mt-3 text-sm leading-7 text-neutral-300">{{ __('reports.rankings.combined_subtitle') }}</p>
-            <span class="pill-link report-nav-card__cta mt-5 inline-flex">{{ __('reports.navigation.open') }}</span>
+            <h2 class="font-display mt-2 text-xl text-white">{{ __('reports.rankings.combined_title') }}</h2>
+            <p class="mt-2 line-clamp-2 text-xs leading-5 text-neutral-300">{{ __('reports.rankings.combined_subtitle') }}</p>
+            <span class="pill-link pill-link--compact report-nav-card__cta mt-3 inline-flex">{{ __('reports.navigation.open') }}</span>
         </a>
     </div>
 

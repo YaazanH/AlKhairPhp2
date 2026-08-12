@@ -218,6 +218,9 @@ return [
         'student-notes' => 'ملاحظات الطلاب',
     ],
     'permissions' => [
+        'curricula.view' => 'عرض المناهج',
+        'curricula.manage' => 'إدارة المناهج والمواد والمراجع والدروس',
+        'curricula.record' => 'تسجيل تقدم دروس المنهاج',
         'course-completion-rules.manage' => 'إدارة قواعد إتمام الدورة وتطبيق تعديلات النقاط',
         'sidebar-navigation.manage' => 'إدارة تجميع الشريط الجانبي وتوزيع الصفحات داخله',
         'community-contacts.view' => 'عرض الجهات المساعدة',

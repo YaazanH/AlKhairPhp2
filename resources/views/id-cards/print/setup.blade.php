@@ -21,7 +21,7 @@
 
             <div class="website-workbench website-workbench--editor">
                 <section class="surface-panel p-5 lg:p-6">
-                    <div class="admin-builder-header">
+                    <div class="admin-builder-header text-start">
                         <div>
                             <div class="eyebrow">{{ __('id_cards.print.setup.sections.template') }}</div>
                             <h2 class="font-display mt-3 text-2xl text-white">{{ __('id_cards.print.setup.sections.template') }}</h2>
@@ -48,7 +48,7 @@
                 </section>
 
                 <section class="surface-panel p-5 lg:p-6">
-                    <div class="admin-builder-header">
+                    <div class="admin-builder-header text-start">
                         <div>
                             <div class="eyebrow">{{ __('id_cards.print.setup.sections.students') }}</div>
                             <h2 class="font-display mt-3 text-2xl text-white">{{ __('id_cards.print.setup.sections.students') }}</h2>
@@ -62,10 +62,10 @@
                                 <label for="id-card-student-search">{{ __('id_cards.print.setup.fields.search') }}</label>
                                 <input id="id-card-student-search" type="search" placeholder="{{ __('id_cards.print.setup.placeholders.search') }}" data-id-card-student-search>
                             </div>
-                        </div>
-                        <div class="admin-toolbar__actions">
-                            <button type="button" class="pill-link pill-link--compact" data-id-card-select-visible>{{ __('id_cards.print.setup.buttons.select_all') }}</button>
-                            <button type="button" class="pill-link pill-link--compact" data-id-card-clear-selection>{{ __('id_cards.print.setup.buttons.clear') }}</button>
+                            <div class="admin-toolbar__actions">
+                                <button type="button" class="pill-link pill-link--compact" data-id-card-select-visible>{{ __('id_cards.print.setup.buttons.select_all') }}</button>
+                                <button type="button" class="pill-link pill-link--compact" data-id-card-clear-selection>{{ __('id_cards.print.setup.buttons.clear') }}</button>
+                            </div>
                         </div>
                     </div>
 
@@ -74,7 +74,7 @@
                     @else
                         <div class="mt-6 id-card-student-grid">
                             @foreach ($students as $student)
-                                <label class="id-card-student-card" data-student-card data-search="{{ strtolower($student->full_name.' '.($student->student_number ?? '').' '.($student->parentProfile?->father_name ?? '')) }}">
+                                <label class="id-card-student-card text-start" data-student-card data-search="{{ strtolower($student->full_name.' '.($student->student_number ?? '').' '.($student->parentProfile?->father_name ?? '')) }}">
                                     <input type="checkbox" name="student_ids[]" value="{{ $student->id }}" class="sr-only" data-id-card-student-checkbox>
                                     <div class="student-inline">
                                         <x-student-avatar :student="$student" size="sm" />

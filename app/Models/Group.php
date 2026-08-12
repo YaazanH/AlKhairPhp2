@@ -29,6 +29,7 @@ class Group extends Model
         'teacher_id',
         'assistant_teacher_id',
         'grade_level_id',
+        'curriculum_id',
         'name',
         'capacity',
         'starts_on',
@@ -71,6 +72,21 @@ class Group extends Model
     public function course(): BelongsTo
     {
         return $this->belongsTo(Course::class);
+    }
+
+    public function curriculum(): BelongsTo
+    {
+        return $this->belongsTo(Curriculum::class);
+    }
+
+    public function curriculumProgresses(): HasMany
+    {
+        return $this->hasMany(GroupCurriculumLessonProgress::class);
+    }
+
+    public function customCurriculumLessons(): HasMany
+    {
+        return $this->hasMany(GroupCustomCurriculumLesson::class);
     }
 
     public function activities(): HasMany

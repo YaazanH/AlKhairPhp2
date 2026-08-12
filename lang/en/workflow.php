@@ -644,6 +644,7 @@ return [
             'created' => 'Partial test created successfully.',
             'attempt_saved' => 'Partial test attempt saved successfully.',
             'attempt_updated' => 'Partial test attempt updated successfully.',
+            'attempt_deleted' => 'Partial test attempt deleted successfully.',
             'edited_void_reason' => 'Partial test attempt edited.',
             'deleted' => 'Partial test deleted successfully.',
             'deleted_void_reason' => 'Partial test deleted.',
@@ -752,6 +753,7 @@ return [
             'created' => 'Final test created successfully.',
             'attempt_saved' => 'Final test attempt saved successfully.',
             'attempt_updated' => 'Final test attempt updated successfully.',
+            'attempt_deleted' => 'Final test attempt deleted successfully.',
             'edited_void_reason' => 'Final test attempt edited.',
             'deleted' => 'Final test deleted successfully.',
             'deleted_void_reason' => 'Final test deleted.',
@@ -1096,8 +1098,8 @@ return [
             'subtitle' => 'Choose a group, find students by name, and enter scores from one quick roster.',
             'pdf_export' => 'Export PDF',
             'pdf' => [
-                'due_date' => 'Due date',
-                'average_mark' => 'Average mark',
+                'due_date' => 'Date',
+                'average_mark' => 'Average marks',
                 'number' => '#',
             ],
             'stats' => [

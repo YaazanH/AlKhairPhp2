@@ -871,7 +871,11 @@ class FinanceService
             $this->ensureNonNegativeReplacementBalance($cashBox, $currency, $signedAmount, $transaction);
 
             $transaction->loadMissing('financeRequest');
-            $normalizedType = $this->normalizeTransactionType((string) $payload['type'], $direction);
+            $normalizedType = match ($transaction->source_type) {
+                FinanceCurrencyExchange::class => 'exchange',
+                FinanceCashBoxTransfer::class => 'transfer',
+                default => $this->normalizeTransactionType((string) $payload['type'], $direction),
+            };
             $oldSpecialTransactionNo = $transaction->special_transaction_no;
             $specialTransactionNo = filled($payload['special_transaction_no'] ?? null)
                 ? trim((string) $payload['special_transaction_no'])
@@ -887,6 +891,8 @@ class FinanceService
             }
             if ($normalizedType === 'exchange') {
                 $description = $this->exchangeDescription($direction, $description);
+            } elseif ($normalizedType === 'transfer') {
+                $description = $this->transferDescription($direction, $description);
             }
 
             $transaction->update([
@@ -1060,7 +1066,7 @@ class FinanceService
                     'direction' => $side['direction'],
                     'amount' => $amount,
                     'transaction_date' => $date,
-                    'description' => $notes,
+                    'description' => $this->transferDescription($side['direction'], $notes),
                     'entered_by' => $user?->id,
                     'pair_uuid' => $pairUuid,
                 ]);
@@ -1280,6 +1286,8 @@ class FinanceService
 
     public function updateCurrencyRate(FinanceCurrency $currency, float $rateToBase, ?User $user = null, ?FinanceCurrency $referenceCurrency = null): FinanceCurrency
     {
+        $oldRateToBase = (float) $currency->rate_to_base;
+
         $currency->update([
             'rate_to_base' => $currency->is_base ? 1 : $rateToBase,
             'rate_reference_currency_id' => $currency->is_base ? null : $referenceCurrency?->id,
@@ -1287,7 +1295,36 @@ class FinanceService
             'rate_updated_at' => now(),
         ]);
 
+        $this->preserveReferencedCurrencyQuotes($currency->fresh(), $oldRateToBase);
+
         return $currency->fresh();
+    }
+
+    public function preserveReferencedCurrencyQuotes(FinanceCurrency $referenceCurrency, float $oldReferenceRate, array $visited = []): void
+    {
+        if ($oldReferenceRate <= 0 || (float) $referenceCurrency->rate_to_base <= 0 || in_array($referenceCurrency->id, $visited, true)) {
+            return;
+        }
+        $visited[] = $referenceCurrency->id;
+
+        FinanceCurrency::query()
+            ->where('rate_reference_currency_id', $referenceCurrency->id)
+            ->whereKeyNot($referenceCurrency->id)
+            ->whereNotIn('id', $visited)
+            ->get()
+            ->each(function (FinanceCurrency $currency) use ($oldReferenceRate, $referenceCurrency, $visited): void {
+                $oldCurrencyRate = (float) $currency->rate_to_base;
+                if ($oldCurrencyRate <= 0) {
+                    return;
+                }
+
+                $directQuote = $oldReferenceRate / $oldCurrencyRate;
+                $currency->update([
+                    'rate_to_base' => (float) $referenceCurrency->rate_to_base / $directQuote,
+                ]);
+
+                $this->preserveReferencedCurrencyQuotes($currency->fresh(), $oldCurrencyRate, $visited);
+            });
     }
 
     protected function currencyReferenceQuoteAmount(FinanceCurrency $currency, ?FinanceCurrency $referenceCurrency = null): float
@@ -1560,6 +1597,11 @@ class FinanceService
         return trim($marker.' '.$description);
     }
 
+    protected function transferDescription(string $direction, ?string $description): string
+    {
+        return $this->exchangeDescription($direction, $description);
+    }
+
     protected function syncTransactionSource(FinanceTransaction $transaction, ?string $oldSpecialTransactionNo, ?User $user): void
     {
         $request = $transaction->financeRequest;
@@ -1666,6 +1708,7 @@ class FinanceService
                 ? $query->where('pair_uuid', $transaction->pair_uuid)
                 : $query->where('source_type', FinanceCashBoxTransfer::class)->where('source_id', $transfer->id))
             ->get();
+        $notes = $this->descriptionWithoutExchangeMarker($transaction->description);
 
         foreach ($pair as $side) {
             if ($side->isNot($transaction)) {
@@ -1682,7 +1725,7 @@ class FinanceService
                 ]);
             }
             $side->update([
-                'description' => $transaction->description,
+                'description' => $this->transferDescription($side->direction, $notes),
                 'metadata' => array_merge($side->metadata ?? [], ['reference' => $transaction->special_transaction_no]),
                 'special_transaction_no' => $transaction->special_transaction_no,
                 'transaction_date' => $transaction->transaction_date,
@@ -1696,7 +1739,7 @@ class FinanceService
             'currency_id' => $transaction->currency_id,
             'entered_by' => $user?->id ?: $transfer->entered_by,
             'from_cash_box_id' => $out?->cash_box_id ?: $transfer->from_cash_box_id,
-            'notes' => $transaction->description,
+            'notes' => $notes,
             'to_cash_box_id' => $in?->cash_box_id ?: $transfer->to_cash_box_id,
             'transfer_date' => $transaction->transaction_date,
             'transfer_no' => $transaction->special_transaction_no ?: $transfer->transfer_no,

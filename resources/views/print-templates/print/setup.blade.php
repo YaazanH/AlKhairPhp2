@@ -2,7 +2,7 @@
     @php($filterMetaKeys = ['activity_ids', 'finance_request_ids', 'group_ids', 'parent_ids', 'student_ids', 'teacher_ids', 'user_ids'])
 
     <div class="page-stack">
-        <section class="page-hero p-6 lg:p-8">
+        <section class="page-hero !overflow-visible p-6 lg:p-8">
             <div class="flex flex-wrap items-start justify-between gap-5">
                 <div>
                     <div class="eyebrow">{{ __('ui.nav.identity_tools') }}</div>
@@ -10,9 +10,9 @@
                     <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ $pageSubtitle ?? __('print_templates.print.subtitle') }}</p>
                 </div>
                 @if ($studentCardMode ?? false)
-                    <div class="admin-form-field min-w-64">
+                    <div class="admin-form-field relative z-20 min-w-64 overflow-visible">
                         <label for="student-card-course">{{ __('crud.students.bulk_status.fields.course') }}</label>
-                        <select id="student-card-course" onchange="window.location.href = `${window.location.pathname}?course_id=${this.value}`">
+                        <select id="student-card-course" class="relative z-30" onchange="window.location.href = `${window.location.pathname}?course_id=${this.value}`">
                             @foreach ($activeCourses as $course)<option value="{{ $course->id }}" @selected((int)$selectedCourseId === (int)$course->id)>{{ $course->name }}</option>@endforeach
                         </select>
                     </div>
@@ -45,7 +45,7 @@
         @else
             <form method="POST" action="{{ $previewRoute }}" target="_blank" class="space-y-6">
                 @csrf
-                @if ($studentCardMode ?? false)<input type="hidden" name="course_id" value="{{ $selectedCourseId }}">@endif
+                @if (($studentCardMode ?? false) || ($courseReportMode ?? false))<input type="hidden" name="course_id" value="{{ $selectedCourseId }}">@endif
 
                 <div class="grid gap-6">
                     <section class="surface-panel p-5 lg:p-6">
@@ -72,18 +72,8 @@
                             </div>
 
                             <div class="admin-form-field admin-form-field--full">
-                                <label for="print-template-page-size">{{ __('settings.organization.sections.print_page_size.table') }}</label>
-                                <select id="print-template-page-size" name="print_page_size_id" data-print-page-size-select>
-                                    @foreach ($pageSizes as $pageSize)
-                                        <option
-                                            value="{{ $pageSize->id }}"
-                                            data-layout='@json($pageSize->layoutConfig())'
-                                            @selected((string) old('print_page_size_id', $defaultPageSize?->id) === (string) $pageSize->id)
-                                        >
-                                            {{ $pageSize->name }} | {{ number_format($pageSize->page_width_mm, 1) }} × {{ number_format($pageSize->page_height_mm, 1) }} mm
-                                        </option>
-                                    @endforeach
-                                </select>
+                                <label>{{ __('print_templates.templates.form.fields.paper_size') }}</label>
+                                <div class="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-neutral-200" data-template-paper-label></div>
                             </div>
 
                             @foreach (['page_width_mm', 'page_height_mm', 'margin_top_mm', 'margin_right_mm', 'margin_bottom_mm', 'margin_left_mm', 'gap_x_mm', 'gap_y_mm'] as $field)
@@ -119,9 +109,7 @@
                             </div>
                         </div>
 
-                        <p class="mt-4 text-sm leading-7 text-neutral-300">{{ __('print_templates.print.setup.sources_help') }}</p>
-
-                        <div class="mt-6 grid gap-5">
+                        <div class="mt-4 grid gap-5">
                             @foreach ($entities as $entity => $payload)
                                 <section class="admin-section-card" data-source-panel="{{ $entity }}" hidden>
                                     <div class="admin-builder-header">
@@ -178,17 +166,17 @@
                                                         </div>
                                                     @endif
                                                 @endif
-                                            </div>
-                                            <div class="admin-toolbar__actions print-template-source-toolbar__actions">
-                                                <button type="button" class="pill-link pill-link--compact" data-source-select-visible="{{ $entity }}">{{ __('print_templates.print.setup.buttons.select_visible') }}</button>
-                                                <button type="button" class="pill-link pill-link--compact" data-source-clear="{{ $entity }}">{{ __('print_templates.print.setup.buttons.clear') }}</button>
+                                                <div class="admin-toolbar__actions print-template-source-toolbar__actions">
+                                                    <button type="button" class="pill-link pill-link--compact" data-source-select-visible="{{ $entity }}">{{ __('print_templates.print.setup.buttons.select_visible') }}</button>
+                                                    <button type="button" class="pill-link pill-link--compact" data-source-clear="{{ $entity }}">{{ __('print_templates.print.setup.buttons.clear') }}</button>
+                                                </div>
                                             </div>
                                         </div>
 
                                         <div class="mt-4 id-card-student-grid">
                                             @foreach ($payload['options'] as $option)
                                                 <div
-                                                    class="id-card-student-card print-template-student-card"
+                                                    class="id-card-student-card print-template-student-card {{ ($courseReportMode ?? false) && $entity === 'course_student' ? 'is-selected' : '' }}"
                                                     data-source-card="{{ $entity }}"
                                                     data-search="{{ $option['search'] }}"
                                                     data-record-id="{{ $option['id'] }}"
@@ -205,9 +193,9 @@
                                                     @endif
                                                     role="checkbox"
                                                     tabindex="0"
-                                                    aria-checked="false"
+                                                    aria-checked="{{ ($courseReportMode ?? false) && $entity === 'course_student' ? 'true' : 'false' }}"
                                                 >
-                                                    <input type="checkbox" name="sources[{{ $entity }}][multiple][]" value="{{ $option['id'] }}" class="sr-only" data-source-checkbox="{{ $entity }}">
+                                                    <input type="checkbox" name="sources[{{ $entity }}][multiple][]" value="{{ $option['id'] }}" class="{{ ($courseReportMode ?? false) && $entity === 'course_student' ? 'h-4 w-4 shrink-0 rounded border-neutral-300' : 'sr-only' }}" data-source-checkbox="{{ $entity }}" @checked(($courseReportMode ?? false) && $entity === 'course_student')>
                                                     <div class="student-inline print-template-student-card__content">
                                                         <div class="student-inline__body">
                                                             <div class="student-inline__name">{{ $option['label'] }}</div>
@@ -220,6 +208,12 @@
                                                                         | {{ $option['meta']['card_last_printed_at'] }}
                                                                     @endif
                                                                 </div>
+                                                            @endif
+                                                            @if (($courseReportMode ?? false) && $entity === 'course_student')
+                                                                <label class="mt-3 block text-xs text-neutral-300">
+                                                                    <span>{{ __('print_templates.fields.special_note') }}</span>
+                                                                    <textarea name="special_notes[{{ $option['id'] }}]" rows="2" class="mt-1 w-full rounded-lg" placeholder="{{ __('print_templates.fields.special_note') }}">{{ old('special_notes.'.$option['id']) }}</textarea>
+                                                                </label>
                                                             @endif
                                                         </div>
                                                     </div>
@@ -241,7 +235,7 @@
         (() => {
             const configs = JSON.parse(document.getElementById('print-template-configs-json').textContent);
             const templateSelect = document.querySelector('[data-print-template-select]');
-            const pageSizeSelect = document.querySelector('[data-print-page-size-select]');
+            const paperLabel = document.querySelector('[data-template-paper-label]');
             const copyPanel = document.querySelector('[data-copy-count-panel]');
             const printStatusButton = document.querySelector('[data-toggle-selected-print-status]');
             const printStatusNotice = document.querySelector('[data-print-status-notice]');
@@ -266,8 +260,9 @@
                 || '';
             const selectedCourseId = document.querySelector('input[name="course_id"]')?.value || '';
 
-            function applyPageSize() {
-                const layout = JSON.parse(pageSizeSelect?.selectedOptions?.[0]?.dataset.layout || '{}');
+            function applyTemplateLayout() {
+                const config = configs[templateSelect?.value || ''] || {};
+                const layout = config.layout || {};
 
                 Object.entries(layout).forEach(([field, value]) => {
                     const input = document.querySelector(`[data-page-layout-field="${field}"]`);
@@ -276,6 +271,10 @@
                         input.value = value;
                     }
                 });
+
+                if (paperLabel) {
+                    paperLabel.textContent = config.paper_label || '';
+                }
             }
 
             function activeSources() {
@@ -463,6 +462,7 @@
             }
 
             function updatePanels() {
+                applyTemplateLayout();
                 const sources = activeSources();
                 const active = sources.map((source) => source.entity);
 
@@ -489,7 +489,7 @@
             document.querySelectorAll('[data-source-card]').forEach((card) => {
                 const checkbox = card.querySelector('input[type="checkbox"]');
                 card.addEventListener('click', (event) => {
-                    if (event.target.matches('input')) {
+                    if (event.target.closest('input, textarea, select, label, button')) {
                         return;
                     }
 
@@ -590,7 +590,6 @@
             });
 
             templateSelect.addEventListener('change', updatePanels);
-            pageSizeSelect?.addEventListener('change', applyPageSize);
             updatePanels();
         })();
     </script>

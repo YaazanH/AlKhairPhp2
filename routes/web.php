@@ -113,6 +113,10 @@ Route::middleware(['auth'])->group(function () {
     Route::get('groups/export', [AdminExportController::class, 'groups'])->middleware('permission:groups.view')->name('groups.export');
     Route::get('groups/{group}/roster/export', [AdminExportController::class, 'groupRoster'])->middleware('permission:groups.view')->name('groups.roster.export');
     Route::get('groups/{group}/roster/pdf', [AdminExportController::class, 'groupRosterPdf'])->middleware('permission:groups.view')->name('groups.roster.pdf');
+    Volt::route('groups/{group}', 'groups.show')->middleware('permission:groups.view')->name('groups.show');
+    Volt::route('curricula', 'curricula.index')->name('curricula.index');
+    Volt::route('curricula/{curriculum}', 'curricula.show')->name('curricula.show');
+    Volt::route('settings/curriculum-subjects', 'settings.curriculum-subjects')->middleware('permission:curricula.manage')->name('settings.curriculum-subjects');
     Volt::route('enrollments', 'enrollments.index')->middleware('permission:enrollments.view')->name('enrollments.index');
     Route::get('enrollments/export', [AdminExportController::class, 'enrollments'])->middleware('permission:enrollments.view')->name('enrollments.export');
     Volt::route('assessments', 'assessments.index')->middleware('permission:assessments.view')->name('assessments.index');

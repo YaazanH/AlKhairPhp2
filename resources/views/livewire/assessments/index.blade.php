@@ -541,15 +541,26 @@ new class extends Component {
                         @endif
                     </div>
 
-                    <div>
-                        <label class="mb-1 block text-sm font-medium">{{ __('workflow.assessments.index.form.assessment_type') }}</label>
-                        <select wire:model.live="assessment_type_id" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
-                            <option value="">{{ __('workflow.assessments.index.form.select_type') }}</option>
-                            @foreach ($types as $type)
-                                <option value="{{ $type->id }}">{{ $type->name }}</option>
-                            @endforeach
-                        </select>
-                        @error('assessment_type_id') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+                    <div class="grid gap-4 md:grid-cols-[minmax(0,1fr)_auto_auto] md:items-end">
+                        <div>
+                            <label class="mb-1 block text-sm font-medium">{{ __('workflow.assessments.index.form.assessment_type') }}</label>
+                            <select wire:model.live="assessment_type_id" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                                <option value="">{{ __('workflow.assessments.index.form.select_type') }}</option>
+                                @foreach ($types as $type)
+                                    <option value="{{ $type->id }}">{{ $type->name }}</option>
+                                @endforeach
+                            </select>
+                            @error('assessment_type_id') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+                        </div>
+                        <div class="pb-2 text-sm">
+                            <span class="text-neutral-500">{{ __('workflow.assessments.index.form.total_mark') }}:</span>
+                            <span class="font-semibold text-white">{{ $total_mark !== '' ? $total_mark : '—' }}</span>
+                        </div>
+                        <div class="pb-2 text-sm">
+                            <span class="text-neutral-500">{{ __('workflow.assessments.index.form.pass_mark') }}:</span>
+                            <span class="font-semibold text-white">{{ $pass_mark !== '' ? $pass_mark : '—' }}</span>
+                        </div>
+                        <p class="text-xs text-neutral-500 md:col-span-3">{{ __('workflow.assessments.index.form.marks_from_bands') }}</p>
                     </div>
 
                     <div>
@@ -564,18 +575,6 @@ new class extends Component {
                             <input wire:model="due_at" type="date" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
                             @error('due_at') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
                         </div>
-                    </div>
-
-                    <div class="grid gap-4 md:grid-cols-2">
-                        <div>
-                            <label class="mb-1 block text-sm font-medium">{{ __('workflow.assessments.index.form.total_mark') }}</label>
-                            <input wire:model="total_mark" type="number" readonly aria-readonly="true" class="w-full cursor-not-allowed rounded-lg border border-neutral-300 bg-neutral-100 px-3 py-2 text-sm text-neutral-500 dark:border-neutral-700 dark:bg-neutral-900/60">
-                        </div>
-                        <div>
-                            <label class="mb-1 block text-sm font-medium">{{ __('workflow.assessments.index.form.pass_mark') }}</label>
-                            <input wire:model="pass_mark" type="number" readonly aria-readonly="true" class="w-full cursor-not-allowed rounded-lg border border-neutral-300 bg-neutral-100 px-3 py-2 text-sm text-neutral-500 dark:border-neutral-700 dark:bg-neutral-900/60">
-                        </div>
-                        <p class="text-xs text-neutral-500 md:col-span-2">{{ __('workflow.assessments.index.form.marks_from_bands') }}</p>
                     </div>
 
                     <div>

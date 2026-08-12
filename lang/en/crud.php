@@ -32,7 +32,14 @@ return [
             'tests' => 'Tests',
             'points' => 'Points',
             'progress' => 'Progress',
+            'open' => 'Open',
+            'back' => 'Back',
+            'update' => 'Update',
+            'add_and_new' => 'Add and new',
         ],
+        'fields' => ['date' => 'Date'],
+        'select' => 'Select',
+        'confirm_deactivate' => ['message' => 'Are you sure you want to deactivate this record?'],
         'badges' => [
             'in_view' => ':count in view',
         ],
@@ -487,6 +494,7 @@ return [
         ],
     ],
     'groups' => [
+        'actions' => ['schedule' => 'Schedule'],
         'hero' => [
             'eyebrow' => 'Academic operations',
             'title' => 'Groups',
@@ -519,6 +527,7 @@ return [
             'edit_title' => 'Edit group',
             'help' => 'Set the operational details that drive schedules, attendance, and enrollment. Course dates are managed from the course record.',
             'fields' => [
+                'name' => 'Group name',
                 'course' => 'Course',
                 'academic_year' => 'Academic year',
                 'teacher' => 'Teacher',
@@ -526,6 +535,9 @@ return [
                 'group_name' => 'Group name',
                 'grade_level' => 'Grade level',
                 'capacity' => 'Capacity',
+                'monthly_fee' => 'Monthly fee',
+                'starts_on' => 'Start date',
+                'ends_on' => 'End date',
             ],
             'placeholders' => [
                 'select_course' => 'Select course',
@@ -593,7 +605,9 @@ return [
             'empty_templates' => 'No active print templates are available yet.',
         ],
         'roster' => [
-            'title' => 'Group students: :group',
+            'add_student' => 'Add student',
+            'empty' => 'No students are enrolled in this group yet.',
+            'title' => 'Current roster',
             'help' => 'Manage the current student roster for this group without leaving the groups grid.',
             'summary' => [
                 'group' => 'Group',

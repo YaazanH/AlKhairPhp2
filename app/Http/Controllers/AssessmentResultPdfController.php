@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Assessment;
 use App\Models\Group;
 use App\Services\AccessScopeService;
+use App\Services\PdfBrandingService;
 use App\Support\PdfOptions;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -67,6 +68,7 @@ class AssessmentResultPdfController extends Controller
         $mpdf->WriteHTML(view('exports.assessment-results-pdf', [
             'assessment' => $assessment,
             'groups' => $groups,
+            'logo' => app(PdfBrandingService::class)->logoSource(),
         ])->render());
 
         return response($mpdf->Output('', Destination::STRING_RETURN), 200, [

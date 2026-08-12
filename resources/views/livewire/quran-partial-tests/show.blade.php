@@ -152,6 +152,27 @@ new class extends Component {
         $this->resetValidation();
     }
 
+    public function deleteAttempt(): void
+    {
+        abort_unless(auth()->user()?->hasRole('super_admin') && $this->editingAttemptId, 403);
+        $attempt = $this->partialTest->parts()
+            ->whereHas('attempts', fn ($query) => $query->whereKey($this->editingAttemptId))
+            ->firstOrFail()
+            ->attempts()->findOrFail($this->editingAttemptId);
+        app(QuranPartialTestService::class)->deleteAttempt($attempt);
+        session()->flash('status', __('workflow.quran_partial_tests.messages.attempt_deleted'));
+        $this->partialTest = $this->partialTest->fresh();
+        $this->closeAttemptModal();
+    }
+
+    public function deleteTest(): void
+    {
+        $this->authorizePermission('quran-partial-tests.delete');
+        app(QuranPartialTestService::class)->deleteTest($this->partialTest);
+        session()->flash('status', __('workflow.quran_partial_tests.messages.deleted'));
+        $this->redirect(route('quran-partial-tests.index'), navigate: true);
+    }
+
     protected function currentTeacher(): ?Teacher
     {
         if (auth()->user()?->hasRole('super_admin')) {
@@ -270,6 +291,14 @@ new class extends Component {
         @endforeach
     </div>
 
+    @can('quran-partial-tests.delete')
+        <section class="surface-panel border border-red-400/20 p-5 lg:p-6">
+            <div class="flex justify-end">
+                <button type="button" wire:click="deleteTest" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link border-red-400/25 text-red-200 hover:border-red-300/35 hover:bg-red-500/12">{{ __('crud.common.actions.delete') }}</button>
+            </div>
+        </section>
+    @endcan
+
     <x-admin.modal :show="$showAttemptModal" :title="__($editingAttemptId ? 'workflow.quran_partial_tests.attempts.edit_title' : 'workflow.quran_partial_tests.attempts.title')" :description="__('workflow.quran_partial_tests.attempts.copy')" close-method="closeAttemptModal" max-width="3xl">
         <form wire:submit="saveAttempt" class="space-y-4">
             @if ($currentTeacher)
@@ -320,6 +349,9 @@ new class extends Component {
             @enderror
 
             <div class="flex justify-end gap-3">
+                @if ($editingAttemptId)
+                    <button type="button" wire:click="deleteAttempt" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link me-auto border-red-400/25 text-red-200 hover:border-red-300/35 hover:bg-red-500/12">{{ __('crud.common.actions.delete') }}</button>
+                @endif
                 <button type="button" wire:click="closeAttemptModal" class="pill-link">{{ __('crud.common.actions.cancel') }}</button>
                 <button type="submit" class="pill-link pill-link--accent">{{ __($editingAttemptId ? 'crud.common.actions.save' : 'workflow.quran_partial_tests.actions.save_attempt') }}</button>
             </div>

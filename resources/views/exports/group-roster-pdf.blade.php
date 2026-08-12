@@ -1,5 +1,6 @@
 @php
     $logo = 'data:image/jpeg;base64,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';
+    $logo = $logoImage ?? $logo;
     $teacherName = $group->teacher ? trim($group->teacher->first_name.' '.$group->teacher->last_name) : null;
     $groupLine = trim(implode(' - ', array_filter([
         $group->name,
@@ -28,24 +29,25 @@
 
         .title-row {
             background: #c5e0b4;
-            min-height: 56px;
-            padding: 8px 72px 6px 12px;
+            min-height: 42px;
+            padding: 5px 72px 4px 12px;
             position: relative;
         }
 
         .logo {
-            background: #fff;
-            height: 82px;
+            height: 23mm;
             position: absolute;
             right: 0;
             top: 0;
-            width: 58px;
+            width: 23mm;
         }
 
         .logo img {
-            height: 78px;
-            margin: 2px 4px 0 0;
-            width: 50px;
+            height: auto;
+            margin: 1mm;
+            max-height: 23mm;
+            max-width: 21mm;
+            width: auto;
         }
 
         h1 {
@@ -79,7 +81,7 @@
             border-bottom: 1.5px solid #000;
             font-size: 11.5px;
             font-weight: bold;
-            padding: 6px 4px;
+            padding: 3px 4px;
             text-align: center;
         }
 
@@ -107,20 +109,22 @@
         }
 
         .footer {
+            background: #e6f3eb;
             color: #555;
             font-size: 9px;
-            margin-top: 8px;
+            padding: 2mm 0;
             text-align: center;
         }
     </style>
 </head>
 <body>
+    <htmlpagefooter name="roster-footer"><div class="footer">صفحة {PAGENO} من {nbpg}</div></htmlpagefooter>
+    <sethtmlpagefooter name="roster-footer" value="on" show-this-page="1" />
     <div class="page-header">
         <div class="title-row">
             <div class="logo"><img src="{{ $logo }}" alt=""></div>
             <h1>قائمة بيانات الطلاب</h1>
             <div class="group-line">
-                <span class="meta-label">اسم المجموعة:</span>
                 {{ $groupLine !== '' ? $groupLine : $group->name }}
             </div>
         </div>
@@ -162,6 +166,5 @@
         </tbody>
     </table>
 
-    <div class="footer">صفحة {PAGENO} من {nbpg}</div>
 </body>
 </html>

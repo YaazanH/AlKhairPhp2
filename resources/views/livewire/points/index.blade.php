@@ -147,9 +147,7 @@ new class extends Component {
             ->map(fn ($id) => (int) $id)
             ->all();
 
-        $this->selectedEnrollmentId = count($enrollmentIds) === 1
-            ? $enrollmentIds[0]
-            : null;
+        $this->selectedEnrollmentId = $enrollmentIds[0] ?? null;
 
         if ($this->editingTransactionId) {
             $this->editingTransactionId = null;
@@ -264,18 +262,8 @@ new class extends Component {
                 return;
             }
 
-            if (! $validated['selectedEnrollmentId']) {
-                if (count($availableEnrollmentIds) > 1) {
-                    $this->addError('selectedEnrollmentId', __('workflow.points.errors.select_group'));
-
-                    return;
-                }
-
-                $validated['selectedEnrollmentId'] = $availableEnrollmentIds[0];
-                $this->selectedEnrollmentId = $validated['selectedEnrollmentId'];
-            }
-
-            abort_unless(in_array((int) $validated['selectedEnrollmentId'], $availableEnrollmentIds, true), 403);
+            $validated['selectedEnrollmentId'] = $availableEnrollmentIds[0];
+            $this->selectedEnrollmentId = $validated['selectedEnrollmentId'];
 
             $enrollment = $this->scopeEnrollmentsQuery(Enrollment::query()->with(['student', 'group.course']))
                 ->findOrFail((int) $validated['selectedEnrollmentId']);
@@ -611,7 +599,7 @@ new class extends Component {
         max-width="5xl"
     >
         <form wire:submit="saveManual" class="space-y-4">
-            <div class="grid gap-4 md:grid-cols-2">
+            <div>
                 <div>
                     <label for="points-workbench-student" class="mb-1 block text-sm font-medium">{{ __('workflow.points.workbench.form.student') }}</label>
                     <select id="points-workbench-student" wire:model.live="selectedStudentId" class="w-full rounded-xl px-4 py-3 text-sm" @disabled($editingTransactionId !== null)>
@@ -633,26 +621,6 @@ new class extends Component {
                     @enderror
                 </div>
 
-                <div>
-                    <label for="points-workbench-enrollment" class="mb-1 block text-sm font-medium">{{ __('workflow.points.workbench.form.group') }}</label>
-                    <select id="points-workbench-enrollment" wire:model="selectedEnrollmentId" class="w-full rounded-xl px-4 py-3 text-sm" @disabled($enrollmentOptions->isEmpty() || $editingTransactionId !== null)>
-                        <option value="">{{ __('workflow.points.workbench.form.select_group') }}</option>
-                        @foreach ($enrollmentOptions as $enrollment)
-                            <option value="{{ $enrollment->id }}">
-                                {{ $enrollment->group?->name ?: __('workflow.common.no_group') }}
-                                @if ($enrollment->group?->course?->name)
-                                    - {{ $enrollment->group->course->name }}
-                                @endif
-                            </option>
-                        @endforeach
-                    </select>
-                    @if ($selectedStudentId && $enrollmentOptions->count() === 1 && ! $editingTransactionId)
-                        <div class="mt-1 text-xs text-neutral-500">{{ __('workflow.points.workbench.form.group_auto') }}</div>
-                    @endif
-                    @error('selectedEnrollmentId')
-                        <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
-                    @enderror
-                </div>
             </div>
 
             <div>

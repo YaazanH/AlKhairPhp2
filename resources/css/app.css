@@ -369,7 +369,7 @@ select:focus[data-flux-control] {
     position: relative;
     overflow: hidden;
     border: 0.2mm solid rgba(15, 36, 20, 0.12);
-    border-radius: 2.2mm;
+    border-radius: 0;
     background-color: #f7fbf8;
     background-position: center;
     background-repeat: no-repeat;
@@ -4591,7 +4591,8 @@ html:not(.dark) .public-gallery-slider {
 .print-template-source-toolbar .admin-toolbar__controls {
     min-width: 0;
     grid-auto-flow: row;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+    width: 100%;
 }
 
 @media (max-width: 767px) {
@@ -4603,6 +4604,13 @@ html:not(.dark) .public-gallery-slider {
 .print-template-source-toolbar__actions {
     min-width: 0;
     justify-content: flex-end;
+    flex-wrap: nowrap;
+}
+
+[dir='rtl'] .id-card-student-card,
+[dir='rtl'] .print-template-student-card__content,
+[dir='rtl'] .admin-builder-header {
+    text-align: right;
 }
 
 [dir='rtl'] .print-template-source-toolbar__actions {

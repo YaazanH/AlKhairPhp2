@@ -111,14 +111,16 @@
         border: 0;
         display: inline-flex;
         justify-content: center;
-        height: 48px;
+        max-height: 87px;
         padding: 0;
         width: 120px;
     }
     .ledger-report-doc__logo img {
         display: block;
-        height: 48px;
-        width: 120px;
+        height: auto;
+        max-height: 87px;
+        max-width: 120px;
+        width: auto;
         object-fit: contain;
     }
     .ledger-report-doc__meta-grid,

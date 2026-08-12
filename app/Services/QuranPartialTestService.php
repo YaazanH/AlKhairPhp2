@@ -201,4 +201,64 @@ class QuranPartialTestService
             return $attempt->fresh(['part.partialTest', 'teacher']);
         });
     }
+
+    public function deleteAttempt(QuranPartialTestAttempt $attempt): void
+    {
+        DB::transaction(function () use ($attempt): void {
+            $part = $attempt->part()->with(['partialTest.enrollment.student.gradeLevel'])->firstOrFail();
+            $attempt->delete();
+
+            $remainingAttempts = $part->attempts()->orderBy('attempt_no')->orderBy('id')->get();
+            foreach ($remainingAttempts as $remainingAttempt) {
+                $remainingAttempt->update(['attempt_no' => $remainingAttempt->attempt_no + 100000]);
+            }
+            foreach ($remainingAttempts->values() as $index => $remainingAttempt) {
+                $remainingAttempt->update(['attempt_no' => $index + 1]);
+            }
+
+            $part->load('attempts');
+            $passedAttempt = $part->attempts->where('status', 'passed')->sortBy([['tested_on', 'asc'], ['id', 'asc']])->first();
+            $part->update([
+                'passed_on' => $passedAttempt?->tested_on,
+                'status' => $passedAttempt ? 'passed' : 'pending',
+            ]);
+
+            $partialTest = $part->partialTest()->with(['parts', 'enrollment.student.gradeLevel', 'student'])->firstOrFail();
+            $allPartsPassed = $partialTest->parts->every(fn (QuranPartialTestPart $testPart) => $testPart->status === 'passed');
+            $partialTest->update([
+                'passed_on' => $allPartsPassed ? $partialTest->parts->max('passed_on') : null,
+                'status' => $allPartsPassed ? 'passed' : 'in_progress',
+            ]);
+
+            $ledger = app(PointLedgerService::class);
+            $reason = __('workflow.quran_partial_tests.messages.edited_void_reason');
+            $ledger->voidSourceTransactions('quran_partial_test_part', $part->id, $reason);
+            if ($passedAttempt) {
+                $ledger->recordQuranPartialTestPartPoints($part->fresh(['partialTest.enrollment.student.gradeLevel']), (float) $passedAttempt->mistake_count);
+            }
+            $ledger->voidSourceTransactions('quran_partial_test', $partialTest->id, $reason);
+            if ($allPartsPassed) {
+                $ledger->recordQuranPartialTestPoints($partialTest->fresh(['enrollment.student.gradeLevel', 'student']));
+            }
+            $ledger->syncEnrollmentCaches($partialTest->enrollment);
+        });
+    }
+
+    public function deleteTest(QuranPartialTest $partialTest): void
+    {
+        DB::transaction(function () use ($partialTest): void {
+            $partialTest->loadMissing(['parts', 'enrollment.student']);
+            $ledger = app(PointLedgerService::class);
+            $reason = __('workflow.quran_partial_tests.messages.deleted_void_reason');
+            foreach ($partialTest->parts as $part) {
+                $ledger->voidSourceTransactions('quran_partial_test_part', $part->id, $reason);
+            }
+            $ledger->voidSourceTransactions('quran_partial_test', $partialTest->id, $reason);
+            $enrollment = $partialTest->enrollment;
+            $partialTest->delete();
+            if ($enrollment) {
+                $ledger->syncEnrollmentCaches($enrollment->fresh(['student']));
+            }
+        });
+    }
 }

@@ -12,17 +12,19 @@
     <meta charset="utf-8">
     <title>تقرير مالي</title>
     <style>
-        @page { margin: 45mm 12mm 18mm; header: ledgerHeader; footer: ledgerFooter; }
+        @page { margin: 34mm 12mm 18mm; header: ledgerHeader; footer: ledgerFooter; }
+        @page :first { header: ledgerFirstHeader; }
         body { color: #18351f; direction: rtl; font-family: dubai, sans-serif; font-size: 9pt; margin: 0; }
         .header-wrap { margin: 0 -12mm; }
         .header-bar { background: #dcefdc; border-bottom: 1px solid #9fc2a5; padding: 3mm 12mm 2.5mm; }
         .header-table, .meta-table, .ledger, .summary, .footer-table { border-collapse: collapse; width: 100%; }
         .header-table td { border: 0; padding: 0; vertical-align: middle; }
         .logo { width: 22%; }
-        .logo img { height: 9mm; max-width: 32mm; }
+        .logo img { height: auto; max-height: 23mm; max-width: 42mm; width: auto; }
         .title { color: #164d27; font-size: 18pt; font-weight: bold; text-align: center; width: 56%; }
         .notice { color: #a52323; font-size: 8pt; font-weight: bold; margin-top: 2mm; }
         .report-no { color: #355f3e; direction: ltr; text-align: left; width: 22%; }
+        .continuation { color: #78907e; direction: rtl; font-size: 7pt; font-weight: normal; margin-top: .8mm; }
         .meta-wrap { background: transparent; border-bottom: 1px solid #bad1be; padding: 2mm 12mm 2.5mm; }
         .meta-table td { border: 0; padding: .7mm 1.2mm; text-align: right; vertical-align: middle; }
         .meta-label { color: #58715e; font-size: 7.8pt; font-weight: bold; white-space: nowrap; width: 13%; }
@@ -32,13 +34,14 @@
         .footer { background: #dcefdc; border-top: 1px solid #9fc2a5; margin: 0 -12mm; padding: 1.5mm 12mm; }
         .footer-table td { background: #dcefdc; border: 0; height: 8mm; padding: 0 2mm; vertical-align: middle; width: 33.33%; }
         .footer-page { font-weight: bold; text-align: center; }
-        .footer-code { background: transparent; direction: ltr; text-align: right; }
+        .footer-code { background: transparent !important; direction: ltr; font-family: code39; font-size: 20pt; line-height: 1; text-align: right; }
         .statement-gap { height: 5mm; }
         .ledger { page-break-inside: auto; }
         .ledger thead { display: table-header-group; }
         .ledger tr { page-break-inside: avoid; }
         .ledger th { background: #dcefdc; border: 1px solid #9fbea5; color: #214c2c; font-size: 8.5pt; padding: 2mm 1.5mm; text-align: center; }
         .ledger td { border: 1px solid #bfd1c1; font-size: 8.2pt; padding: 1.8mm 1.5mm; vertical-align: top; }
+        .ledger tbody tr:nth-child(even) td { background: #f1f7f2; }
         .date { text-align: center; white-space: nowrap; width: 13%; }
         .category { width: 39%; }
         .money { direction: ltr; text-align: right; white-space: nowrap; width: 16%; }
@@ -50,25 +53,31 @@
         .summary td { border: 1px solid #aac3ae; padding: 2.8mm 3.5mm; text-align: right; vertical-align: middle; width: 50%; }
         .summary-label { color: #58715e; display: inline-block; font-size: 8pt; font-weight: bold; min-width: 34mm; }
         .summary-value { direction: ltr; display: inline-block; font-weight: bold; margin-right: 7mm; text-align: right; }
+        .summary-notes { display: inline-block; margin-right: 7mm; }
         .signature { height: 23mm; text-align: right !important; vertical-align: top !important; }
         .signature-name { color: #637267; display: block; font-size: 7.5pt; margin-top: 2mm; }
     </style>
 </head>
 <body>
-<htmlpageheader name="ledgerHeader">
+<htmlpageheader name="ledgerFirstHeader">
     <div class="header-wrap">
         <div class="header-bar"><table class="header-table" dir="ltr"><tr><td class="report-no">{{ $reportNumber }}</td><td class="title" dir="rtl">تقرير مالي<div class="notice">سري وهام - غير معد للمداولة</div></td><td class="logo" dir="rtl">@if ($logoImage)<img src="{{ $logoImage }}" alt="">@endif</td></tr></table></div>
-        <div class="meta-wrap"><table class="meta-table">
-            <tr><td class="meta-label">الدورة الافتراضية</td><td class="meta-value">{{ $report['default_course'] ?? '-' }}</td><td class="meta-label">الصندوق</td><td class="meta-value">{{ data_get($report, 'cash_box.name') }}</td><td class="meta-label">العملة</td><td class="meta-value">{{ data_get($report, 'currency.code') }} - {{ data_get($report, 'currency.name') }}</td><td class="meta-qr" rowspan="2"><img src="{{ $qrImage }}" alt=""></td></tr>
-            <tr><td class="meta-label">تاريخ البداية</td><td class="meta-value">{{ \Illuminate\Support\Carbon::parse($report['start'])->format('d-m-Y') }}</td><td class="meta-label">تاريخ النهاية</td><td class="meta-value">{{ \Illuminate\Support\Carbon::parse($report['end'])->format('d-m-Y') }}</td><td class="meta-label">الرصيد الافتتاحي</td><td class="meta-value" dir="ltr">{{ data_get($report, 'formatted.opening_balance') }}</td></tr>
-        </table></div>
+    </div>
+</htmlpageheader>
+<htmlpageheader name="ledgerHeader">
+    <div class="header-wrap">
+        <div class="header-bar"><table class="header-table" dir="ltr"><tr><td class="report-no">{{ $reportNumber }}<div class="continuation">متابعة</div></td><td class="title" dir="rtl">تقرير مالي<div class="notice">سري وهام - غير معد للمداولة</div></td><td class="logo" dir="rtl">@if ($logoImage)<img src="{{ $logoImage }}" alt="">@endif</td></tr></table></div>
     </div>
 </htmlpageheader>
 <htmlpagefooter name="ledgerFooter">
-    <div class="footer"><table class="footer-table" dir="rtl"><tr><td class="footer-code"><barcode code="{{ $reportNumber }}" type="C39" size="0.62" height="0.7" /></td><td class="footer-page">صفحة {PAGENO} من {nbpg}</td><td></td></tr></table></div>
+    <div class="footer"><table class="footer-table" dir="rtl"><tr><td class="footer-code">*{{ $reportNumber }}*</td><td class="footer-page">صفحة {PAGENO} من {nbpg}</td><td></td></tr></table></div>
 </htmlpagefooter>
 
 <div class="statement-gap"></div>
+<div class="meta-wrap"><table class="meta-table">
+    <tr><td class="meta-label">الدورة</td><td class="meta-value">{{ $report['default_course'] ?? '-' }}</td><td class="meta-label">الصندوق</td><td class="meta-value">{{ data_get($report, 'cash_box.name') }}</td><td class="meta-label">العملة</td><td class="meta-value">{{ data_get($report, 'currency.code') }} - {{ data_get($report, 'currency.name') }}</td><td class="meta-qr" rowspan="2"><img src="{{ $qrImage }}" alt=""></td></tr>
+    <tr><td class="meta-label">تاريخ البداية</td><td class="meta-value">{{ \Illuminate\Support\Carbon::parse($report['start'])->format('d-m-Y') }}</td><td class="meta-label">تاريخ النهاية</td><td class="meta-value">{{ \Illuminate\Support\Carbon::parse($report['end'])->format('d-m-Y') }}</td><td class="meta-label">الرصيد الافتتاحي</td><td class="meta-value" dir="ltr">{{ data_get($report, 'formatted.opening_balance') }}</td></tr>
+</table></div>
 <table class="ledger">
     <thead><tr><th>التاريخ</th><th>التصنيف والوصف</th><th>مصاريف</th><th>دخل</th><th>الرصيد</th></tr></thead>
     <tbody>
@@ -84,7 +93,7 @@
 <table class="summary">
     <tr><td><span class="summary-label">إجمالي المصاريف</span><span class="summary-value">{{ data_get($report, 'formatted.expense') }}</span></td><td><span class="summary-label">إجمالي الإيرادات</span><span class="summary-value">{{ data_get($report, 'formatted.income') }}</span></td></tr>
     <tr><td><span class="summary-label">الرصيد الختامي</span><span class="summary-value">{{ data_get($report, 'formatted.closing_balance') }}</span></td><td><span class="summary-label">تاريخ التصدير</span><span class="summary-value">{{ $exportedAt }}</span></td></tr>
-    <tr><td colspan="2"><span class="summary-label">ملاحظات</span>{{ ($report['notes'] ?? null) ?: '-' }}</td></tr>
+    <tr><td colspan="2"><span class="summary-label">ملاحظات</span><span class="summary-notes">{{ ($report['notes'] ?? null) ?: '-' }}</span></td></tr>
     <tr><td colspan="2" class="signature"><span class="summary-label">التوقيع</span><span class="signature-name">{{ $report['issuer_name'] ?: '-' }}</span></td></tr>
 </table>
 </body>

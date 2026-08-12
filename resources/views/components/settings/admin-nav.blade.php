@@ -34,6 +34,12 @@
                         <span class="settings-tab__title">{{ __('settings.navigation.completion.title') }}</span>
                     </a>
                 @endcan
+                @can('curricula.manage')
+                    <a href="{{ route('settings.curriculum-subjects') }}" wire:navigate class="settings-tab {{ $resolvedCurrent === 'settings.curriculum-subjects' ? 'is-active' : '' }}">
+                        <span class="settings-tab__meta">{{ __('curricula.settings.meta') }}</span>
+                        <span class="settings-tab__title">{{ __('curricula.settings.title') }}</span>
+                    </a>
+                @endcan
                 @can('sidebar-navigation.manage')
                     <a href="{{ route('settings.sidebar-navigation') }}" wire:navigate class="settings-tab {{ $resolvedCurrent === 'settings.sidebar-navigation' ? 'is-active' : '' }}">
                         <span class="settings-tab__meta">{{ __('settings.navigation.sidebar.meta') }}</span>

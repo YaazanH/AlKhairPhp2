@@ -1280,7 +1280,9 @@ class FinanceAndActivitiesTest extends TestCase
         $this->assertStringContainsString('سري وهام - غير معد للمداولة', $rtlExportHtml);
         $this->assertStringContainsString('data:image/svg+xml;base64,', $rtlExportHtml);
         $this->assertStringNotContainsString('type="QR"', $rtlExportHtml);
-        $this->assertStringContainsString('type="C39"', $rtlExportHtml);
+        $this->assertStringContainsString('font-family: code39', $rtlExportHtml);
+        $this->assertStringContainsString('*RPT-000000*', $rtlExportHtml);
+        $this->assertStringNotContainsString('type="C39"', $rtlExportHtml);
         $this->assertStringContainsString('RPT-000000', $rtlExportHtml);
         $this->assertStringNotContainsString('background-image-resize', $rtlExportHtml);
 
@@ -1347,7 +1349,7 @@ class FinanceAndActivitiesTest extends TestCase
         $this->assertStringStartsWith('%PDF', (string) $savedPdfResponse->getContent());
         $this->assertGreaterThan(1000, strlen((string) $savedPdfResponse->getContent()));
         $this->assertNotSame('legacy-pdf', Storage::disk('local')->get($generatedReport->pdf_path));
-        $this->assertSame('mpdf-fixed-ledger-v7', FinanceGeneratedReport::query()->findOrFail($generatedReport->id)->report_data['pdf_renderer']);
+        $this->assertSame('mpdf-fixed-ledger-v8', FinanceGeneratedReport::query()->findOrFail($generatedReport->id)->report_data['pdf_renderer']);
 
         $this->get(route('finance.reports.generated.show', ['generatedReport' => $generatedReport, 'format' => 'xlsx']))
             ->assertOk()
@@ -1695,6 +1697,8 @@ class FinanceAndActivitiesTest extends TestCase
         $this->assertSame($beforeTransfer['expense'], $report['summary']['expense']);
         $this->assertSame($beforeTransfer['income'], $report['summary']['income']);
         $this->assertSame(2, FinanceTransaction::query()->where('special_transaction_no', $transfer->transfer_no)->count());
+        $this->assertSame('[خارج] Rebalance funds', FinanceTransaction::query()->where('pair_uuid', $transfer->pair_uuid)->where('direction', 'out')->value('description'));
+        $this->assertSame('[داخل] Rebalance funds', FinanceTransaction::query()->where('pair_uuid', $transfer->pair_uuid)->where('direction', 'in')->value('description'));
 
         $out = FinanceTransaction::query()->where('pair_uuid', $transfer->pair_uuid)->where('direction', 'out')->firstOrFail();
         $service->updateTransaction($out, [
@@ -1715,6 +1719,8 @@ class FinanceAndActivitiesTest extends TestCase
         $this->assertTrue(FinanceTransaction::query()->where('pair_uuid', $transfer->pair_uuid)->get()->every(
             fn (FinanceTransaction $transaction) => $transaction->amount === '30.00' && $transaction->special_transaction_no === 'MOVE-000009'
         ));
+        $this->assertSame('[خارج] Updated transfer', FinanceTransaction::query()->where('pair_uuid', $transfer->pair_uuid)->where('direction', 'out')->value('description'));
+        $this->assertSame('[داخل] Updated transfer', FinanceTransaction::query()->where('pair_uuid', $transfer->pair_uuid)->where('direction', 'in')->value('description'));
     }
 
     public function test_exchange_ledger_rows_use_direction_markers_and_edits_sync_to_the_exchange(): void
@@ -2129,6 +2135,7 @@ class FinanceAndActivitiesTest extends TestCase
     public function test_invoice_expense_finalisation_uses_the_locked_invoice_total(): void
     {
         $this->signIn();
+        Storage::fake('public');
 
         $service = app(FinanceService::class);
         $currency = $service->localCurrency();
@@ -2157,6 +2164,7 @@ class FinanceAndActivitiesTest extends TestCase
             ->set('invoice_date', now()->toDateString())
             ->set('invoice_items', [['item_name' => 'Supplies', 'quantity' => '1', 'unit_price' => '55']])
             ->set('invoice_deduction', '5')
+            ->set('invoice_image', UploadedFile::fake()->image('vendor-scan.jpg'))
             ->call('finaliseInvoiceExpense')
             ->assertHasNoErrors();
 
@@ -2169,7 +2177,29 @@ class FinanceAndActivitiesTest extends TestCase
         $this->assertSame('50.00', $invoice->total);
         $this->assertSame('issued', $invoice->fresh()->status);
         $this->assertNotNull($invoice->fresh()->finalised_at);
+        Storage::disk('public')->assertExists($invoice->original_image_path);
         $this->assertDatabaseHas('finance_transactions', ['id' => $request->posted_transaction_id, 'signed_amount' => -50]);
+
+        Volt::test('finance.expense-requests')
+            ->call('editInvoice', $invoice->id)
+            ->set('original_invoice_no', 'VENDOR-11')
+            ->set('invoice_issuer', 'Updated Vendor')
+            ->set('invoice_date', now()->subDay()->toDateString())
+            ->set('invoice_items', [['item_name' => 'Updated supplies', 'quantity' => '2', 'unit_price' => '20']])
+            ->set('invoice_deduction', '2')
+            ->set('invoice_notes', 'Updated notes')
+            ->set('invoice_image', UploadedFile::fake()->create('replacement.pdf', 20, 'application/pdf'))
+            ->call('saveInvoiceExpense')
+            ->assertHasNoErrors();
+
+        $invoice->refresh();
+        $this->assertSame('VENDOR-11', $invoice->original_invoice_no);
+        $this->assertSame('Updated Vendor', $invoice->invoicer_name);
+        $this->assertSame('38.00', $invoice->total);
+        $this->assertSame('Updated notes', $invoice->notes);
+        $this->assertSame($currency->id, $invoice->financeRequest->accepted_currency_id);
+        Storage::disk('public')->assertExists($invoice->original_image_path);
+        $this->assertDatabaseHas('finance_transactions', ['id' => $request->posted_transaction_id, 'signed_amount' => -38]);
         $response = $this->get(route('finance.invoices.print', $invoice))
             ->assertOk()
             ->assertHeader('content-type', 'application/pdf');

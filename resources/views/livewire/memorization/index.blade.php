@@ -617,7 +617,6 @@ new class extends Component {
                                     <td class="px-5 py-4 lg:px-6">
                                         <div class="flex flex-wrap justify-end gap-2">
                                             <button type="button" wire:click="editSession({{ $session->id }})" class="pill-link pill-link--compact">{{ __('workflow.common.actions.edit') }}</button>
-                                            <button type="button" wire:click="deleteSession({{ $session->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link pill-link--compact border-red-400/25 text-red-200 hover:border-red-300/35 hover:bg-red-500/12">{{ __('crud.common.actions.delete') }}</button>
                                         </div>
                                     </td>
                                 @endcan
@@ -763,6 +762,11 @@ new class extends Component {
                 <button type="button" wire:click="closeFormModal" class="pill-link">
                     {{ __('crud.common.actions.close') }}
                 </button>
+                @if ($editingSessionId)
+                    <button type="button" wire:click="deleteSession({{ $editingSessionId }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link ms-auto border-red-400/25 text-red-200 hover:border-red-300/35 hover:bg-red-500/12">
+                        {{ __('crud.common.actions.delete') }}
+                    </button>
+                @endif
             </div>
         </form>
     </x-admin.modal>

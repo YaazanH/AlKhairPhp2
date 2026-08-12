@@ -533,9 +533,6 @@ new class extends Component {
                                 <td class="px-5 py-4 text-right lg:px-6">
                                     <div class="flex flex-wrap justify-end gap-2">
                                         <a href="{{ route('quran-final-tests.show', $finalTest) }}" wire:navigate class="pill-link pill-link--compact">{{ __('workflow.quran_final_tests.actions.open') }}</a>
-                                        @can('quran-final-tests.delete')
-                                            <button type="button" wire:click="delete({{ $finalTest->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link pill-link--compact border-red-400/25 text-red-200 hover:border-red-300/35 hover:bg-red-500/12">{{ __('crud.common.actions.delete') }}</button>
-                                        @endcan
                                     </div>
                                 </td>
                             </tr>

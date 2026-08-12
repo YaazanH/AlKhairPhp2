@@ -470,6 +470,7 @@ new class extends Component {
     public function createFatherJobShortcut(): void
     {
         $this->authorizePermission('parents.create');
+        $this->new_father_work = trim($this->father_work);
 
         $validated = $this->validate([
             'new_father_work' => ['required', 'string', 'max:255', Rule::unique('father_jobs', 'name')],
@@ -883,16 +884,17 @@ new class extends Component {
             <div class="grid gap-4 md:grid-cols-2">
                 <div>
                     <label for="father-work" class="mb-1 block text-sm font-medium">{{ __('crud.parents.form.fields.father_work') }}</label>
-                    <select id="father-work" wire:model="father_work" class="w-full rounded-xl px-4 py-3 text-sm">
-                        <option value="">{{ __('crud.common.not_available') }}</option>
+                    <div class="flex gap-2">
+                        <input id="father-work" wire:model.live.debounce.300ms="father_work" list="father-work-options" class="min-w-0 flex-1 rounded-xl px-4 py-3 text-sm" placeholder="{{ __('crud.parents.form.placeholders.new_father_work') }}">
+                        @if (filled($father_work) && ! $fatherJobs->contains(fn ($fatherJob) => strcasecmp($fatherJob->name, trim($father_work)) === 0))
+                            <button type="button" wire:click="createFatherJobShortcut" class="pill-link pill-link--compact" title="{{ __('crud.common.actions.create') }}" aria-label="{{ __('crud.common.actions.create') }}">+</button>
+                        @endif
+                    </div>
+                    <datalist id="father-work-options">
                         @foreach ($fatherJobs as $fatherJob)
                             <option value="{{ $fatherJob->name }}">{{ $fatherJob->name }}</option>
                         @endforeach
-                    </select>
-                    <div class="mt-2 flex gap-2">
-                        <input wire:model="new_father_work" type="text" placeholder="{{ __('crud.parents.form.placeholders.new_father_work') }}" class="min-w-0 flex-1 rounded-xl px-4 py-2 text-sm">
-                        <button type="button" wire:click="createFatherJobShortcut" class="pill-link pill-link--compact">{{ __('crud.common.actions.create') }}</button>
-                    </div>
+                    </datalist>
                     @error('father_work')
                         <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                     @enderror

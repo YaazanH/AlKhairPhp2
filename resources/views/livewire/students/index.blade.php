@@ -1472,15 +1472,7 @@ new class extends Component {
                                 <td class="px-5 py-4 lg:px-6"><span class="{{ $studentStatusClass }}">{{ __('crud.common.status_options.'.$student->status) }}</span></td>
                                 @if (auth()->user()->can('students.view') || auth()->user()->can('students.update') || auth()->user()->can('students.delete'))
                                     <td class="px-5 py-4 lg:px-6">
-                                        <div class="flex flex-wrap justify-end gap-2">
-                                            <a href="{{ route('students.progress', $student) }}" wire:navigate class="pill-link pill-link--compact">
-                                                {{ __('crud.common.actions.progress') }}
-                                            </a>
-                                            @can('student-notes.view')
-                                                <a href="{{ route('student-notes.index', ['student' => $student->id]) }}" wire:navigate class="pill-link pill-link--compact">
-                                                    {{ __('crud.common.actions.notes') }}
-                                                </a>
-                                            @endcan
+                                        <div class="flex flex-nowrap justify-end gap-2 whitespace-nowrap">
                                             @can('students.update')
                                                 <button type="button" wire:click="openAccountModal({{ $student->id }})" class="pill-link pill-link--compact">
                                                     {{ __('crud.common.actions.account') }}
@@ -1492,11 +1484,6 @@ new class extends Component {
                                             @can('students.update')
                                                 <button type="button" wire:click="edit({{ $student->id }})" class="pill-link pill-link--compact">
                                                     {{ __('crud.common.actions.edit') }}
-                                                </button>
-                                            @endcan
-                                            @can('students.delete')
-                                                <button type="button" wire:click="delete({{ $student->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link pill-link--compact border-red-400/25 text-red-200 hover:border-red-300/35 hover:bg-red-500/12">
-                                                    {{ __('crud.common.actions.delete') }}
                                                 </button>
                                             @endcan
                                         </div>
@@ -1945,6 +1932,13 @@ new class extends Component {
             </details>
 
             <div class="flex flex-wrap items-center gap-3">
+                @if ($editingId)
+                    @can('students.delete')
+                        <button type="button" wire:click="delete({{ $editingId }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link border-red-400/25 text-red-200 hover:border-red-300/35 hover:bg-red-500/12">
+                            {{ __('crud.common.actions.delete') }}
+                        </button>
+                    @endcan
+                @endif
                 <button type="submit" class="pill-link pill-link--accent">
                     {{ $editingId ? __('crud.students.form.update_submit') : __('crud.students.form.create_submit') }}
                 </button>

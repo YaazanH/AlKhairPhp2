@@ -12,6 +12,7 @@ use App\Models\FinanceTransaction;
 use App\Models\Invoice;
 use App\Models\InvoiceItem;
 use App\Services\FinanceService;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -42,6 +43,7 @@ new class extends Component {
     public bool $showCreateModal = false;
     public ?int $finalisingRequestId = null;
     public ?int $viewingInvoiceId = null;
+    public ?int $editingInvoiceId = null;
     public string $final_count = '';
     public string $remaining_amount = '0';
     public string $original_invoice_no = '';
@@ -50,6 +52,7 @@ new class extends Component {
     public string $invoice_deduction = '0';
     public array $invoice_items = [];
     public mixed $invoice_image = null;
+    public string $invoice_notes = '';
     public bool $confirm_invoice_overage = false;
 
     public function mount(): void
@@ -277,17 +280,42 @@ new class extends Component {
         $this->authorizePermission('finance.expense-requests.review');
         $request = FinanceRequest::query()->with(['invoice.items', 'pullRequestKind'])->where('status', FinanceRequest::STATUS_ACCEPTED)->findOrFail($requestId);
         $this->finalisingRequestId = $request->id;
+        $this->editingInvoiceId = null;
         $this->final_count = (string) ($request->accepted_count ?: $request->requested_count ?: '');
         $this->remaining_amount = '0';
         $this->invoice_date = now()->toDateString();
         $this->invoice_deduction = '0';
         $this->invoice_items = [['item_name' => '', 'quantity' => '1', 'unit_price' => '']];
+        $this->invoice_notes = '';
+        $this->resetValidation();
+    }
+
+    public function editInvoice(int $invoiceId): void
+    {
+        $this->authorizePermission('finance.expense-requests.review');
+        $invoice = Invoice::query()->with(['items', 'financeRequest.acceptedCurrency'])->where('invoice_type', 'finance')->findOrFail($invoiceId);
+        abort_unless($invoice->financeRequest, 404);
+
+        $this->editingInvoiceId = $invoice->id;
+        $this->finalisingRequestId = $invoice->finance_request_id;
+        $this->original_invoice_no = (string) $invoice->original_invoice_no;
+        $this->invoice_issuer = (string) $invoice->invoicer_name;
+        $this->invoice_date = $invoice->issue_date?->toDateString() ?: now()->toDateString();
+        $this->invoice_deduction = $this->formatFinanceNumberForInput($invoice->discount);
+        $this->invoice_notes = (string) $invoice->notes;
+        $this->invoice_image = null;
+        $this->invoice_items = $invoice->items->sortBy('line_no')->map(fn (InvoiceItem $item) => [
+            'item_name' => $item->item_name,
+            'quantity' => $this->formatFinanceNumberForInput($item->quantity),
+            'unit_price' => $this->formatFinanceNumberForInput($item->unit_price),
+        ])->values()->all();
+        $this->viewingInvoiceId = null;
         $this->resetValidation();
     }
 
     public function closeFinaliseModal(): void
     {
-        $this->reset(['finalisingRequestId', 'final_count', 'remaining_amount', 'original_invoice_no', 'invoice_issuer', 'invoice_date', 'invoice_deduction', 'invoice_items', 'invoice_image', 'confirm_invoice_overage']);
+        $this->reset(['editingInvoiceId', 'finalisingRequestId', 'final_count', 'remaining_amount', 'original_invoice_no', 'invoice_issuer', 'invoice_date', 'invoice_deduction', 'invoice_items', 'invoice_image', 'invoice_notes', 'confirm_invoice_overage']);
         $this->resetValidation();
     }
 
@@ -358,7 +386,8 @@ new class extends Component {
             'invoice_items.*.item_name' => ['required', 'string', 'max:255'],
             'invoice_items.*.quantity' => ['required', 'numeric', 'gt:0'],
             'invoice_items.*.unit_price' => ['required', 'numeric', 'min:0'],
-            'invoice_image' => ['nullable', 'image', 'max:8192'],
+            'invoice_image' => ['nullable', 'file', 'max:8192', 'mimes:jpg,jpeg,png,webp,pdf'],
+            'invoice_notes' => ['nullable', 'string', 'max:4000'],
             'confirm_invoice_overage' => ['boolean'],
         ]);
         $request = FinanceRequest::query()->with('pullRequestKind')->where('status', FinanceRequest::STATUS_ACCEPTED)->findOrFail($this->finalisingRequestId);
@@ -391,6 +420,7 @@ new class extends Component {
             'discount' => $deduction,
             'total' => $total,
             'original_image_path' => $imagePath,
+            'notes' => $validated['invoice_notes'] ?: null,
         ]);
         foreach ($validated['invoice_items'] as $index => $item) {
             InvoiceItem::query()->create([
@@ -418,6 +448,86 @@ new class extends Component {
 
         $this->closeFinaliseModal();
         session()->flash('status', __('finance.messages.expense_finalised'));
+    }
+
+    public function saveInvoiceExpense(): void
+    {
+        if (! $this->editingInvoiceId) {
+            $this->finaliseInvoiceExpense();
+
+            return;
+        }
+
+        $this->authorizePermission('finance.expense-requests.review');
+        $this->normalizeFinanceNumberProperty('invoice_deduction');
+        foreach ($this->invoice_items as $index => $item) {
+            $this->invoice_items[$index]['quantity'] = str_replace(',', '', (string) ($item['quantity'] ?? ''));
+            $this->invoice_items[$index]['unit_price'] = str_replace(',', '', (string) ($item['unit_price'] ?? ''));
+        }
+
+        $validated = $this->validate([
+            'original_invoice_no' => ['required', 'string', 'max:255'],
+            'invoice_issuer' => ['required', 'string', 'max:255'],
+            'invoice_date' => ['required', 'date'],
+            'invoice_deduction' => ['required', 'numeric', 'min:0'],
+            'invoice_items' => ['required', 'array', 'min:1'],
+            'invoice_items.*.item_name' => ['required', 'string', 'max:255'],
+            'invoice_items.*.quantity' => ['required', 'numeric', 'gt:0'],
+            'invoice_items.*.unit_price' => ['required', 'numeric', 'min:0'],
+            'invoice_image' => ['nullable', 'file', 'max:8192', 'mimes:jpg,jpeg,png,webp,pdf'],
+            'invoice_notes' => ['nullable', 'string', 'max:4000'],
+        ]);
+        $subtotal = round(collect($validated['invoice_items'])->sum(fn (array $item) => (float) $item['quantity'] * (float) $item['unit_price']), 2);
+        $deduction = round((float) $validated['invoice_deduction'], 2);
+        if ($deduction >= $subtotal) {
+            $this->addError('invoice_deduction', __('finance.validation.deduction_exceeds_subtotal'));
+
+            return;
+        }
+
+        $invoice = Invoice::query()->with(['items', 'financeRequest.postedTransaction'])->where('invoice_type', 'finance')->findOrFail($this->editingInvoiceId);
+        $oldImagePath = $invoice->original_image_path;
+        $newImagePath = $validated['invoice_image'] ? $validated['invoice_image']->store('finance/invoices', 'public') : null;
+
+        try {
+            DB::transaction(function () use ($deduction, $invoice, $newImagePath, $subtotal, $validated): void {
+                $invoice->update([
+                    'original_invoice_no' => $validated['original_invoice_no'],
+                    'invoicer_name' => $validated['invoice_issuer'],
+                    'issue_date' => $validated['invoice_date'],
+                    'discount' => $deduction,
+                    'notes' => $validated['invoice_notes'] ?: null,
+                    'original_image_path' => $newImagePath ?: $invoice->original_image_path,
+                    'subtotal' => $subtotal,
+                    'total' => round($subtotal - $deduction, 2),
+                ]);
+                $invoice->items()->delete();
+                foreach ($validated['invoice_items'] as $index => $item) {
+                    $invoice->items()->create([
+                        'line_no' => $index + 1,
+                        'item_name' => $item['item_name'],
+                        'description' => $item['item_name'],
+                        'quantity' => $item['quantity'],
+                        'unit_price' => $item['unit_price'],
+                        'amount' => round((float) $item['quantity'] * (float) $item['unit_price'], 2),
+                    ]);
+                }
+                app(FinanceService::class)->syncInvoiceTotals($invoice->fresh());
+                $invoice->financeRequest?->postedTransaction?->update(['transaction_date' => $validated['invoice_date']]);
+            });
+        } catch (\Throwable $exception) {
+            if ($newImagePath) {
+                Storage::disk('public')->delete($newImagePath);
+            }
+            throw $exception;
+        }
+
+        if ($newImagePath && $oldImagePath && $oldImagePath !== $newImagePath) {
+            Storage::disk('public')->delete($oldImagePath);
+        }
+
+        $this->closeFinaliseModal();
+        session()->flash('status', __('finance.messages.invoice_updated'));
     }
 
     protected function financeRequestMaintenanceTypes(): array
@@ -467,7 +577,22 @@ new class extends Component {
                 @php($request = $transaction->financeRequest)
                 @php($category = $transaction->category ?: $request?->category ?: $request?->pullRequestKind)
                 @php($rowStatus = $request?->status ?: $transaction->status)
-                <tr><td class="px-4 py-3"><div class="font-semibold text-white">{{ $transaction->special_transaction_no ?: $transaction->transaction_no }}</div><div class="text-xs text-neutral-500">{{ $transaction->transaction_date?->format('d-m-Y') }} · {{ $transaction->enteredBy?->name ?: $request?->reviewedBy?->name ?: '-' }}</div></td><td class="px-4 py-3"><div>{{ $category?->name ?: '-' }}</div><div class="text-xs text-neutral-500">{{ $category?->mode ? __('finance.pull_modes.'.$category->mode) : '-' }}</div></td><td class="px-4 py-3"><div class="max-w-xs">{{ $transaction->description ?: '-' }}</div>@if ($request)<div class="text-xs text-neutral-500">{{ $request->teacher ? trim($request->teacher->first_name.' '.$request->teacher->last_name) : ($request->requestedBy?->name ?: '-') }}</div>@endif</td><td class="px-4 py-3"><bdi dir="ltr" class="font-semibold text-white">{{ app(FinanceService::class)->formatCurrencyAmount($transaction->amount, $transaction->currency) }}</bdi></td><td class="px-4 py-3"><span class="status-chip {{ in_array($rowStatus, ['active', 'settled'], true) ? 'status-chip--emerald' : 'status-chip--amber' }}">{{ $request ? __('finance.statuses.'.$rowStatus) : ($rowStatus === 'active' ? __('finance.common.active') : $rowStatus) }}</span></td><td class="px-4 py-3"><div class="admin-action-cluster admin-action-cluster--end">@if ($request?->status === 'accepted')<button wire:click="openFinaliseModal({{ $request->id }})" class="pill-link pill-link--compact pill-link--accent">{{ __('finance.actions.finalise') }}</button>@endif @if ($request?->invoice)<button wire:click="$set('viewingInvoiceId', {{ $request->invoice->id }})" class="pill-link pill-link--compact">{{ __('finance.actions.view_invoice') }}</button>@endif</div></td></tr>
+                <tr>
+                    <td class="px-4 py-3"><div class="font-semibold text-white">{{ $transaction->special_transaction_no ?: $transaction->transaction_no }}</div><div class="text-xs text-neutral-500">{{ $transaction->transaction_date?->format('d-m-Y') }} · {{ $transaction->enteredBy?->name ?: $request?->reviewedBy?->name ?: '-' }}</div></td>
+                    <td class="px-4 py-3"><div>{{ $category?->name ?: '-' }}</div><div class="text-xs text-neutral-500">{{ $category?->mode ? __('finance.pull_modes.'.$category->mode) : '-' }}</div></td>
+                    <td class="px-4 py-3"><div class="max-w-xs">{{ $transaction->description ?: '-' }}</div>@if ($request)<div class="text-xs text-neutral-500">{{ $request->request_no }} · {{ $request->teacher ? trim($request->teacher->first_name.' '.$request->teacher->last_name) : ($request->requestedBy?->name ?: '-') }}</div>@endif</td>
+                    <td class="px-4 py-3"><bdi dir="ltr" class="font-semibold text-white">{{ app(FinanceService::class)->formatCurrencyAmount($transaction->amount, $transaction->currency) }}</bdi></td>
+                    <td class="px-4 py-3"><span class="status-chip {{ in_array($rowStatus, ['active', 'settled'], true) ? 'status-chip--emerald' : 'status-chip--amber' }}">{{ $request ? __('finance.statuses.'.$rowStatus) : ($rowStatus === 'active' ? __('finance.common.active') : $rowStatus) }}</span></td>
+                    <td class="px-4 py-3"><div class="admin-action-cluster admin-action-cluster--end">
+                        @if ($request?->status === 'accepted')<button wire:click="openFinaliseModal({{ $request->id }})" class="pill-link pill-link--compact pill-link--accent">{{ __('finance.actions.finalise') }}</button>@endif
+                        @if ($request?->invoice)
+                            <button wire:click="$set('viewingInvoiceId', {{ $request->invoice->id }})" class="pill-link pill-link--compact">{{ __('finance.actions.view_invoice') }}</button>
+                            @can('finance.expense-requests.review')
+                                <button wire:click="editInvoice({{ $request->invoice->id }})" class="pill-link pill-link--compact">{{ __('finance.actions.edit_invoice') }}</button>
+                            @endcan
+                        @endif
+                    </div></td>
+                </tr>
             @empty<tr><td colspan="6" class="px-5 py-10 text-center text-neutral-500">{{ __('finance.empty.no_expenses') }}</td></tr>@endforelse
         </tbody></table></div>@if ($expenses->hasPages())<div class="border-t border-white/8 px-5 py-4">{{ $expenses->links() }}</div>@endif
     </section>
@@ -479,7 +604,7 @@ new class extends Component {
                 <form wire:submit="finaliseCountExpense" class="grid gap-4 md:grid-cols-2"><div><label class="mb-1 block text-sm">{{ __('finance.fields.final_count') }}</label><input wire:model="final_count" data-thousand-separator class="w-full rounded-xl px-4 py-3">@error('final_count')<div class="text-sm text-red-400">{{ $message }}</div>@enderror</div><div><label class="mb-1 block text-sm">{{ __('finance.fields.remaining_amount') }}</label><input wire:model="remaining_amount" data-thousand-separator class="w-full rounded-xl px-4 py-3">@error('remaining_amount')<div class="text-sm text-red-400">{{ $message }}</div>@enderror</div><div class="md:col-span-2 flex justify-end"><button class="pill-link pill-link--accent">{{ __('finance.actions.finalise') }}</button></div></form>
             @else
                 @php($invoiceTotals = $this->invoicePreviewTotals())
-                <form wire:submit="finaliseInvoiceExpense" class="space-y-5"><div class="grid gap-4 md:grid-cols-3"><div><label class="mb-1 block text-sm">{{ __('finance.fields.original_invoice_no') }}</label><input wire:model="original_invoice_no" class="w-full rounded-xl px-4 py-3"></div><div><label class="mb-1 block text-sm">{{ __('finance.fields.invoice_issuer') }}</label><input wire:model="invoice_issuer" class="w-full rounded-xl px-4 py-3"></div><div><label class="mb-1 block text-sm">{{ __('finance.common.date') }}</label><input wire:model="invoice_date" type="date" class="w-full rounded-xl px-4 py-3"></div></div><div class="space-y-3">@foreach ($invoice_items as $index => $item)<div class="grid gap-3 md:grid-cols-[1fr_9rem_11rem_auto]"><input wire:model="invoice_items.{{ $index }}.item_name" placeholder="{{ __('finance.fields.item_name') }}" class="rounded-xl px-4 py-3"><input wire:model.live.debounce.300ms="invoice_items.{{ $index }}.quantity" data-thousand-separator placeholder="{{ __('finance.fields.quantity') }}" class="rounded-xl px-4 py-3"><input wire:model.live.debounce.300ms="invoice_items.{{ $index }}.unit_price" data-thousand-separator placeholder="{{ __('finance.fields.unit_price') }}" class="rounded-xl px-4 py-3"><button type="button" wire:click="removeInvoiceItem({{ $index }})" class="pill-link pill-link--danger">×</button></div>@endforeach<button type="button" wire:click="addInvoiceItem" class="pill-link pill-link--compact">{{ __('finance.actions.add') }}</button></div><div class="grid gap-4 md:grid-cols-[minmax(0,1fr)_22rem]"><div><label class="mb-1 block text-sm">{{ __('finance.fields.original_invoice_image') }}</label><input wire:model="invoice_image" type="file" accept="image/*" class="w-full rounded-xl px-4 py-3"></div><div><label class="mb-1 block text-sm">{{ __('finance.fields.deduction') }}</label><input wire:model.live.debounce.300ms="invoice_deduction" data-thousand-separator class="w-full rounded-xl px-4 py-3">@error('invoice_deduction')<div class="mt-1 text-sm text-red-400">{{ $message }}</div>@enderror</div></div><div class="grid gap-3 sm:grid-cols-3"><div class="rounded-xl border border-white/8 bg-white/4 p-4"><div class="kpi-label">{{ __('finance.fields.subtotal') }}</div><bdi dir="ltr" class="mt-2 block font-semibold text-white">{{ app(FinanceService::class)->formatCurrencyAmount($invoiceTotals['subtotal'], $finalisingRequest->acceptedCurrency) }}</bdi></div><div class="rounded-xl border border-white/8 bg-white/4 p-4"><div class="kpi-label">{{ __('finance.fields.deduction') }}</div><bdi dir="ltr" class="mt-2 block font-semibold text-white">{{ app(FinanceService::class)->formatCurrencyAmount(-$invoiceTotals['deduction'], $finalisingRequest->acceptedCurrency) }}</bdi></div><div class="rounded-xl border border-emerald-400/20 bg-emerald-500/10 p-4"><div class="kpi-label">{{ __('finance.fields.grand_total') }}</div><bdi dir="ltr" class="mt-2 block font-semibold text-white">{{ app(FinanceService::class)->formatCurrencyAmount($invoiceTotals['grand_total'], $finalisingRequest->acceptedCurrency) }}</bdi></div></div>@error('invoice_items')<div class="text-sm text-red-400">{{ $message }}</div>@enderror @error('confirm_invoice_overage')<div class="rounded-xl border border-amber-400/20 bg-amber-500/10 p-4 text-sm text-amber-100">{{ $message }}<label class="mt-3 flex gap-2"><input wire:model="confirm_invoice_overage" type="checkbox">{{ __('finance.messages.use_invoice_total') }}</label></div>@enderror<div class="rounded-xl border border-amber-400/20 bg-amber-500/10 p-4 text-sm text-amber-100">{{ __('finance.messages.invoice_immutable_warning') }}</div><div class="flex justify-end"><button wire:confirm="{{ __('finance.messages.invoice_immutable_warning') }}" class="pill-link pill-link--accent">{{ __('finance.actions.finalise') }}</button></div></form>
+                <form wire:submit="saveInvoiceExpense" class="space-y-5"><div class="grid gap-4 md:grid-cols-3"><div><label class="mb-1 block text-sm">{{ __('finance.fields.original_invoice_no') }}</label><input wire:model="original_invoice_no" class="w-full rounded-xl px-4 py-3"></div><div><label class="mb-1 block text-sm">{{ __('finance.fields.invoice_issuer') }}</label><input wire:model="invoice_issuer" class="w-full rounded-xl px-4 py-3"></div><div><label class="mb-1 block text-sm">{{ __('finance.common.date') }}</label><input wire:model="invoice_date" type="date" class="w-full rounded-xl px-4 py-3"></div></div><div class="space-y-3">@foreach ($invoice_items as $index => $item)<div class="grid gap-3 md:grid-cols-[1fr_9rem_11rem_auto]"><input wire:model="invoice_items.{{ $index }}.item_name" placeholder="{{ __('finance.fields.item_name') }}" class="rounded-xl px-4 py-3"><input wire:model.live.debounce.300ms="invoice_items.{{ $index }}.quantity" data-thousand-separator placeholder="{{ __('finance.fields.quantity') }}" class="rounded-xl px-4 py-3"><input wire:model.live.debounce.300ms="invoice_items.{{ $index }}.unit_price" data-thousand-separator placeholder="{{ __('finance.fields.unit_price') }}" class="rounded-xl px-4 py-3"><button type="button" wire:click="removeInvoiceItem({{ $index }})" class="pill-link pill-link--danger">×</button></div>@endforeach<button type="button" wire:click="addInvoiceItem" class="pill-link pill-link--compact">{{ __('finance.actions.add') }}</button></div><div class="grid gap-4 md:grid-cols-[minmax(0,1fr)_22rem]"><div><label class="mb-1 block text-sm">{{ __('finance.fields.original_invoice_image') }}</label><input wire:model="invoice_image" type="file" accept="image/*,application/pdf" class="w-full rounded-xl px-4 py-3"></div><div><label class="mb-1 block text-sm">{{ __('finance.fields.deduction') }}</label><input wire:model.live.debounce.300ms="invoice_deduction" data-thousand-separator class="w-full rounded-xl px-4 py-3">@error('invoice_deduction')<div class="mt-1 text-sm text-red-400">{{ $message }}</div>@enderror</div></div><div><label class="mb-1 block text-sm">{{ __('finance.common.notes') }}</label><textarea wire:model="invoice_notes" class="w-full rounded-xl px-4 py-3"></textarea></div><div class="grid gap-3 sm:grid-cols-3"><div class="rounded-xl border border-white/8 bg-white/4 p-4"><div class="kpi-label">{{ __('finance.fields.subtotal') }}</div><bdi dir="ltr" class="mt-2 block font-semibold text-white">{{ app(FinanceService::class)->formatCurrencyAmount($invoiceTotals['subtotal'], $finalisingRequest->acceptedCurrency) }}</bdi></div><div class="rounded-xl border border-white/8 bg-white/4 p-4"><div class="kpi-label">{{ __('finance.fields.deduction') }}</div><bdi dir="ltr" class="mt-2 block font-semibold text-white">{{ app(FinanceService::class)->formatCurrencyAmount(-$invoiceTotals['deduction'], $finalisingRequest->acceptedCurrency) }}</bdi></div><div class="rounded-xl border border-emerald-400/20 bg-emerald-500/10 p-4"><div class="kpi-label">{{ __('finance.fields.grand_total') }}</div><bdi dir="ltr" class="mt-2 block font-semibold text-white">{{ app(FinanceService::class)->formatCurrencyAmount($invoiceTotals['grand_total'], $finalisingRequest->acceptedCurrency) }}</bdi></div></div>@error('invoice_items')<div class="text-sm text-red-400">{{ $message }}</div>@enderror @error('confirm_invoice_overage')<div class="rounded-xl border border-amber-400/20 bg-amber-500/10 p-4 text-sm text-amber-100">{{ $message }}<label class="mt-3 flex gap-2"><input wire:model="confirm_invoice_overage" type="checkbox">{{ __('finance.messages.use_invoice_total') }}</label></div>@enderror<div class="flex justify-end"><button class="pill-link pill-link--accent">{{ $editingInvoiceId ? __('crud.common.actions.save') : __('finance.actions.finalise') }}</button></div></form>
             @endif
         @endif
     </x-admin.modal>

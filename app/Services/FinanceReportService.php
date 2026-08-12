@@ -183,13 +183,19 @@ class FinanceReportService
             $expense = $signedAmount < 0 ? abs($signedAmount) : 0.0;
             $runningBalance = round($runningBalance + $signedAmount, 2);
 
-            return $this->ledgerRowFromTransaction($transaction, $income, $expense, $runningBalance);
+            $row = $this->ledgerRowFromTransaction($transaction, $income, $expense, $runningBalance);
+            if (in_array($transaction->type, ['exchange', 'transfer'], true)) {
+                $row['_expense_raw'] = 0.0;
+                $row['_income_raw'] = 0.0;
+            }
+
+            return $row;
         })->values()->all();
 
         $income = round((float) collect($rows)->sum('_income_raw'), 2);
         $expense = round((float) collect($rows)->sum('_expense_raw'), 2);
 
-        return $this->buildLedgerReportArray(
+        $report = $this->buildLedgerReportArray(
             $template,
             $cashBox->name,
             $this->currencySnapshot($currency),
@@ -203,6 +209,11 @@ class FinanceReportService
             $issuer,
             $notes,
         );
+
+        $report['closing_balance'] = $runningBalance;
+        $report['formatted']['closing_balance'] = $this->formatMoney($runningBalance, $currency);
+
+        return $report;
     }
 
     public function localCurrencyLedgerReport(FinanceReportTemplate $template, FinanceCashBox $cashBox, string $startDate, string $endDate, ?User $issuer = null, ?string $notes = null): array
@@ -484,8 +495,11 @@ class FinanceReportService
 
         $mpdf = new Mpdf([
             'default_font' => $defaultFont,
-            'fontDir' => array_merge((new ConfigVariables)->getDefaults()['fontDir'], [public_path('fonts/dubai')]),
-            'fontdata' => (new FontVariables)->getDefaults()['fontdata'] + ['dubai' => ['R' => 'Dubai-Regular.ttf', 'M' => 'Dubai-Medium.ttf', 'B' => 'Dubai-Bold.ttf', 'L' => 'Dubai-Light.ttf', 'useOTL' => 0xFF, 'useKashida' => 75]],
+            'fontDir' => array_merge((new ConfigVariables)->getDefaults()['fontDir'], [public_path('fonts/dubai'), public_path('fonts/barcode')]),
+            'fontdata' => (new FontVariables)->getDefaults()['fontdata'] + [
+                'dubai' => ['R' => 'Dubai-Regular.ttf', 'M' => 'Dubai-Medium.ttf', 'B' => 'Dubai-Bold.ttf', 'L' => 'Dubai-Light.ttf', 'useOTL' => 0xFF, 'useKashida' => 75],
+                'code39' => ['R' => '3OF9_NEW.TTF'],
+            ],
             'format' => 'A4',
             'margin_bottom' => 18,
             'margin_left' => 12,
@@ -871,7 +885,12 @@ class FinanceReportService
 
     protected function ledgerPdfRendererVersion(): string
     {
-        return 'mpdf-fixed-ledger-v7';
+        return 'mpdf-fixed-ledger-v8';
+    }
+
+    public function defaultReportLogoPdfSource(): ?string
+    {
+        return $this->pdfAssetSource($this->defaultLedgerTemplate()->logo_image_url);
     }
 
     protected function normalizeLedgerTemplateSnapshot(array $template): array

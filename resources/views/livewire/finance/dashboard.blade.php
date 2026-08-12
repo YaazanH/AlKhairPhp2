@@ -9,6 +9,7 @@ use App\Models\FinanceTransaction;
 use App\Models\Teacher;
 use App\Services\FinanceReportService;
 use App\Services\FinanceService;
+use App\Services\SpTodayExchangeRateService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -57,6 +58,7 @@ new class extends Component {
     public function mount(): void
     {
         $this->authorizePermission('finance.reports.view');
+        app(SpTodayExchangeRateService::class)->refreshUsdSypRate();
         $this->year = (int) now()->year;
         $this->quarter = (string) now()->quarter;
         $this->transfer_date = now()->toDateString();
@@ -321,7 +323,7 @@ new class extends Component {
                     <div class="min-w-0 self-start">
                         <div class="eyebrow">{{ __('finance.dashboard.expense_categories') }}</div>
                         <h2 class="font-display mt-2 text-2xl text-white">{{ __('finance.dashboard.expense_chart') }}</h2>
-                        <div class="mt-4 max-h-72 space-y-2 overflow-y-auto pe-1">
+                        <div class="mt-4 space-y-2 pe-1">
                             @foreach ($report['category_totals'] as $index => $row)
                                 <div class="flex min-w-0 items-center justify-between gap-2 text-xs">
                                     <span class="flex min-w-0 items-center gap-2">

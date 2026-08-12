@@ -1,6 +1,5 @@
 <?php
 
-use App\Models\AcademicYear;
 use App\Models\AppSetting;
 use App\Models\Course;
 use App\Models\Enrollment;
@@ -13,12 +12,19 @@ use App\Models\Student;
 use App\Models\StudentAttendanceRecord;
 use App\Services\PrintTemplates\PrintTemplateRenderService;
 use App\Services\AccessScopeService;
+use App\Services\CurriculumProgressService;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Volt\Component;
+use Livewire\WithPagination;
 
 new class extends Component {
+    use WithPagination;
+
     public ?int $selectedManagerStudentId = null;
+    public bool $showTeacherLeaderboardModal = false;
+    public bool $showTeacherMemorizationsModal = false;
 
     public function with(): array
     {
@@ -178,8 +184,18 @@ new class extends Component {
             }
         }
 
+        $curriculumProgress = Group::query()
+            ->where('is_active', true)
+            ->whereNotNull('curriculum_id')
+            ->when($courseId, fn ($query) => $query->where('course_id', $courseId), fn ($query) => $query->whereRaw('1 = 0'))
+            ->with(['curriculum.subjects.lessons', 'curriculumProgresses', 'customCurriculumLessons'])
+            ->orderBy('name')
+            ->get()
+            ->map(fn (Group $group) => ['group' => $group, ...app(CurriculumProgressService::class)->summary($group)]);
+
         return [
             'dashboardRole' => 'manager',
+            'teacherGroupDashboard' => false,
             'heading' => __('dashboard.manager.heading'),
             'subheading' => __('dashboard.manager.subheading'),
             'intro' => __('dashboard.manager.intro'),
@@ -224,6 +240,7 @@ new class extends Component {
             'leaderboard' => $leaderboard,
             'groupPageTotals' => $groupPageTotals,
             'selectedManagerStudent' => $selectedStudent,
+            'curriculumProgress' => $curriculumProgress,
         ];
     }
 
@@ -243,7 +260,7 @@ new class extends Component {
 
     protected function teacherData($user): array
     {
-        $teacher = $user->teacherProfile?->load('accessRole');
+        $teacher = $user->teacherProfile?->load(['accessRole', 'jobTitle']);
 
         if (! $teacher) {
             return $this->missingProfileData(
@@ -263,6 +280,10 @@ new class extends Component {
             ->take(8)
             ->get();
 
+        if ($this->usesGroupSupervisorDashboard($teacher)) {
+            return $this->teacherGroupData($user, $teacher, $groups);
+        }
+
         $groupIds = (clone $groupsQuery)->pluck('id');
         $allAssignedGroups = (clone $groupsQuery)->count();
         $activeAssignedGroups = (clone $groupsQuery)->where('is_active', true)->count();
@@ -279,12 +300,13 @@ new class extends Component {
 
         return [
             'dashboardRole' => 'teacher',
+            'teacherGroupDashboard' => false,
             'heading' => __('dashboard.teacher.heading'),
             'subheading' => __('dashboard.teacher.subheading'),
             'intro' => __('dashboard.teacher.intro'),
             'profileName' => $teacher->first_name.' '.$teacher->last_name,
             'profileJob' => $accessRoleLabel,
-            'currentAcademicYearName' => AcademicYear::query()->where('is_current', true)->value('name') ?: __('dashboard.manager.profile_meta_no_year'),
+            'currentAcademicYearName' => $this->dashboardCourseName(),
             'profileMeta' => $accessRoleLabel,
             'stats' => [
                 ['label' => __('dashboard.teacher.stats.assigned_groups.label'), 'value' => $allAssignedGroups, 'hint' => __('dashboard.teacher.stats.assigned_groups.hint')],
@@ -309,10 +331,209 @@ new class extends Component {
             'recordsEmpty' => __('dashboard.teacher.records.empty'),
             'records' => $groups->map(fn (Group $group) => [
                 'title' => $group->name,
-                'subtitle' => trim(($group->course?->name ?: __('dashboard.common.no_course')).' | '.($group->academicYear?->name ?: __('dashboard.common.no_year'))),
+                'subtitle' => $group->course?->name ?: __('dashboard.common.no_course'),
                 'meta' => __('dashboard.common.active_students', ['count' => $group->enrollments_count]),
             ]),
         ];
+    }
+
+    protected function usesGroupSupervisorDashboard($teacher): bool
+    {
+        $roleNames = collect([
+            $teacher->accessRole?->name,
+            $teacher->job_title,
+            $teacher->jobTitle?->name,
+        ])->filter()->map(fn (string $name) => Str::lower(Str::squish($name)));
+
+        return $roleNames->contains(fn (string $name) => in_array($name, [
+            'مشرف حلقة',
+            'مساعد مشرف حلقة',
+            'group supervisor',
+            'assistant group supervisor',
+            'group_supervisor',
+            'assistant_group_supervisor',
+            'halaqa supervisor',
+            'assistant halaqa supervisor',
+            'halaqa_supervisor',
+            'assistant_halaqa_supervisor',
+        ], true));
+    }
+
+    protected function teacherGroupData($user, $teacher, $groups): array
+    {
+        $group = $groups->where('is_active', true)->first() ?: $groups->first();
+        $groupId = $group?->id;
+        $enrollments = $groupId
+            ? Enrollment::query()
+                ->with([
+                    'student',
+                    'studentAttendanceRecords.status',
+                    'quranFinalTests',
+                    'assessmentResults.assessment.type',
+                ])
+                ->where('group_id', $groupId)
+                ->where('status', 'active')
+                ->get()
+            : collect();
+
+        $studentRows = $enrollments->map(function (Enrollment $enrollment): array {
+            $attendance = $enrollment->studentAttendanceRecords;
+            $daysAttended = $attendance
+                ->filter(fn (StudentAttendanceRecord $record) => (bool) $record->status?->is_present)
+                ->pluck('group_attendance_day_id')
+                ->unique()
+                ->count();
+            $finalScores = $enrollment->assessmentResults
+                ->filter(fn ($result) => $this->isFinalAssessmentResult($result))
+                ->pluck('score')
+                ->filter(fn ($score) => $score !== null);
+
+            return [
+                'student' => $enrollment->student,
+                'days_attended' => $daysAttended,
+                'points' => (int) $enrollment->final_points_cached,
+                'pages' => (int) $enrollment->memorized_pages_cached,
+                'final_tests' => $enrollment->quranFinalTests->where('status', 'passed')->count(),
+                'final_exam_score' => $finalScores->isEmpty() ? null : round((float) $finalScores->average(), 2),
+            ];
+        })->filter(fn (array $row) => $row['student'])->values();
+
+        $attendanceRecords = $enrollments->flatMap->studentAttendanceRecords;
+        $attendanceAverage = $attendanceRecords->isEmpty()
+            ? 0
+            : round(($attendanceRecords->filter(fn (StudentAttendanceRecord $record) => (bool) $record->status?->is_present)->count() / $attendanceRecords->count()) * 100, 1);
+
+        $trendDates = GroupAttendanceDay::query()
+            ->when($groupId, fn ($query) => $query->where('group_id', $groupId), fn ($query) => $query->whereRaw('1 = 0'))
+            ->select('attendance_date')
+            ->distinct()
+            ->orderByDesc('attendance_date')
+            ->limit(5)
+            ->pluck('attendance_date')
+            ->map(fn ($date) => Carbon::parse($date))
+            ->reverse()
+            ->values();
+        $trendStart = $trendDates->first()?->toDateString();
+        $trendFinish = $trendDates->last()?->toDateString();
+        $memorizedByDate = MemorizationSession::query()
+            ->where('entry_type', 'new')
+            ->when($groupId, fn ($query) => $query->whereHas('enrollment', fn ($enrollmentQuery) => $enrollmentQuery->where('group_id', $groupId)), fn ($query) => $query->whereRaw('1 = 0'))
+            ->when($trendStart, fn ($query) => $query->whereDate('recorded_on', '>=', $trendStart), fn ($query) => $query->whereRaw('1 = 0'))
+            ->when($trendFinish, fn ($query) => $query->whereDate('recorded_on', '<=', $trendFinish))
+            ->selectRaw('recorded_on as activity_date, SUM(pages_count) as total_pages')
+            ->groupBy('recorded_on')
+            ->get()
+            ->mapWithKeys(fn ($row) => [Carbon::parse($row->activity_date)->toDateString() => (int) $row->total_pages]);
+        $attendanceByDate = StudentAttendanceRecord::query()
+            ->whereHas('status', fn ($query) => $query->where('is_present', true))
+            ->whereHas('attendanceDay', fn ($query) => $query
+                ->when($groupId, fn ($dayQuery) => $dayQuery->where('group_id', $groupId), fn ($dayQuery) => $dayQuery->whereRaw('1 = 0'))
+                ->when($trendStart && $trendFinish, fn ($dayQuery) => $dayQuery->whereBetween('attendance_date', [$trendStart, $trendFinish]), fn ($dayQuery) => $dayQuery->whereRaw('1 = 0')))
+            ->with('attendanceDay:id,attendance_date')
+            ->get(['id', 'group_attendance_day_id', 'enrollment_id'])
+            ->groupBy(fn (StudentAttendanceRecord $record) => $record->attendanceDay?->attendance_date?->toDateString())
+            ->map(fn ($records) => $records->pluck('enrollment_id')->unique()->count());
+        $dailyTrend = $trendDates->map(fn (Carbon $date) => [
+            'date' => $date->toDateString(),
+            'label' => $date->format('d-m'),
+            'pages' => (int) ($memorizedByDate[$date->toDateString()] ?? 0),
+            'attendance' => (int) ($attendanceByDate[$date->toDateString()] ?? 0),
+        ]);
+
+        $rankedStudents = $studentRows->sortBy([
+            ['points', 'desc'],
+            ['pages', 'desc'],
+        ])->values();
+        $topMemorizingStudents = $studentRows->sortByDesc('pages')->take(5)->values();
+        $latestMemorizationsQuery = MemorizationSession::query()
+            ->with('student')
+            ->where('teacher_id', $teacher->id)
+            ->when($groupId, fn ($query) => $query->whereHas('enrollment', fn ($enrollmentQuery) => $enrollmentQuery->where('group_id', $groupId)), fn ($query) => $query->whereRaw('1 = 0'))
+            ->orderByDesc('recorded_on')
+            ->orderByDesc('id');
+        $latestFiveMemorizations = (clone $latestMemorizationsQuery)->limit(5)->get();
+        $latestMemorizations = $latestMemorizationsQuery->paginate(10, ['*'], 'teacherMemorizationPage');
+
+        $accessRoleName = $teacher->accessRole?->name;
+        $accessRoleLabel = $accessRoleName
+            ? ((__('ui.roles.'.$accessRoleName) === 'ui.roles.'.$accessRoleName) ? $accessRoleName : __('ui.roles.'.$accessRoleName))
+            : __('dashboard.roles.teacher');
+
+        $teacherCurriculumSummary = $group
+            ? app(CurriculumProgressService::class)->summary($group)
+            : ['total' => 0, 'completed' => 0, 'percentage' => 0];
+
+        return [
+            'dashboardRole' => 'teacher',
+            'teacherGroupDashboard' => true,
+            'heading' => __('dashboard.teacher.heading'),
+            'subheading' => __('dashboard.teacher.group_dashboard.subheading'),
+            'intro' => __('dashboard.teacher.intro'),
+            'profileName' => $teacher->first_name.' '.$teacher->last_name,
+            'profileJob' => $accessRoleLabel,
+            'currentAcademicYearName' => $group?->course?->name ?: $this->dashboardCourseName(),
+            'profileMeta' => $accessRoleLabel,
+            'stats' => [
+                ['label' => __('dashboard.teacher.group_dashboard.stats.group'), 'value' => $group?->name ?: __('dashboard.common.no_group')],
+                ['label' => __('dashboard.teacher.group_dashboard.stats.students'), 'value' => $enrollments->count()],
+                ['label' => __('dashboard.teacher.group_dashboard.stats.attendance_average'), 'value' => number_format($attendanceAverage, 1).'%'],
+                ['label' => __('dashboard.teacher.group_dashboard.stats.memorized_pages'), 'value' => (int) $enrollments->sum('memorized_pages_cached')],
+            ],
+            'cards' => collect(),
+            'recordsHeading' => __('dashboard.teacher.records.heading'),
+            'recordsEmpty' => __('dashboard.teacher.records.empty'),
+            'records' => collect(),
+            'teacherGroup' => $group,
+            'teacherDailyTrend' => $dailyTrend,
+            'teacherRankedStudents' => $rankedStudents,
+            'teacherTopStudents' => $rankedStudents->take(5),
+            'teacherTopMemorizingStudents' => $topMemorizingStudents,
+            'teacherLatestMemorizations' => $latestMemorizations,
+            'teacherLatestFiveMemorizations' => $latestFiveMemorizations,
+            'teacherCurriculumSummary' => $teacherCurriculumSummary,
+        ];
+    }
+
+    protected function isFinalAssessmentResult($result): bool
+    {
+        $assessment = $result->assessment;
+        $code = Str::lower((string) $assessment?->type?->code);
+        $name = Str::lower(Str::squish(($assessment?->type?->name ?? '').' '.($assessment?->title ?? '')));
+
+        return in_array($code, ['final', 'final_exam', 'final-exam'], true)
+            || Str::contains($name, ['final exam', 'final assessment', 'نهائي']);
+    }
+
+    public function openTeacherLeaderboard(): void
+    {
+        $teacher = Auth::user()?->teacherProfile?->load(['accessRole', 'jobTitle']);
+        abort_unless($teacher && $this->usesGroupSupervisorDashboard($teacher), 403);
+        $this->showTeacherLeaderboardModal = true;
+    }
+
+    public function closeTeacherLeaderboard(): void
+    {
+        $this->showTeacherLeaderboardModal = false;
+    }
+
+    public function openTeacherMemorizations(): void
+    {
+        $teacher = Auth::user()?->teacherProfile?->load(['accessRole', 'jobTitle']);
+        abort_unless($teacher && $this->usesGroupSupervisorDashboard($teacher), 403);
+        $this->resetPage('teacherMemorizationPage');
+        $this->showTeacherMemorizationsModal = true;
+    }
+
+    public function closeTeacherMemorizations(): void
+    {
+        $this->showTeacherMemorizationsModal = false;
+        $this->resetPage('teacherMemorizationPage');
+    }
+
+    protected function dashboardCourseName(): string
+    {
+        return Course::query()->where('is_default', true)->where('is_active', true)->value('name')
+            ?: __('dashboard.manager.profile_meta_no_course');
     }
 
     protected function parentData($user): array
@@ -346,12 +567,13 @@ new class extends Component {
 
         return [
             'dashboardRole' => 'parent',
+            'teacherGroupDashboard' => false,
             'heading' => __('dashboard.parent.heading'),
             'subheading' => __('dashboard.parent.subheading'),
             'intro' => __('dashboard.parent.intro'),
             'profileName' => $parent->father_name,
             'profileJob' => __('dashboard.roles.parent'),
-            'currentAcademicYearName' => AcademicYear::query()->where('is_current', true)->value('name') ?: __('dashboard.manager.profile_meta_no_year'),
+            'currentAcademicYearName' => $this->dashboardCourseName(),
             'profileMeta' => $parent->father_phone ?: ($parent->mother_phone ?: __('dashboard.parent.profile_meta_no_phone')),
             'stats' => [
                 ['label' => __('dashboard.parent.stats.students.label'), 'value' => $students->count(), 'hint' => __('dashboard.parent.stats.students.hint')],
@@ -410,12 +632,13 @@ new class extends Component {
 
         return [
             'dashboardRole' => 'student',
+            'teacherGroupDashboard' => false,
             'heading' => __('dashboard.student.heading'),
             'subheading' => __('dashboard.student.subheading'),
             'intro' => __('dashboard.student.intro'),
             'profileName' => $student->first_name.' '.$student->last_name,
             'profileJob' => $student->gradeLevel?->name ?: __('dashboard.roles.student'),
-            'currentAcademicYearName' => AcademicYear::query()->where('is_current', true)->value('name') ?: __('dashboard.manager.profile_meta_no_year'),
+            'currentAcademicYearName' => $this->dashboardCourseName(),
             'profileMeta' => $student->gradeLevel?->name ?: ($student->school_name ?: __('dashboard.student.profile_meta_no_grade')),
             'stats' => [
                 ['label' => __('dashboard.student.stats.enrollments.label'), 'value' => $allEnrollments->count(), 'hint' => __('dashboard.student.stats.enrollments.hint')],
@@ -526,12 +749,13 @@ new class extends Component {
     {
         return [
             'dashboardRole' => 'unassigned',
+            'teacherGroupDashboard' => false,
             'heading' => __('dashboard.unassigned.heading'),
             'subheading' => __('dashboard.unassigned.subheading'),
             'intro' => __('dashboard.unassigned.intro'),
             'profileName' => $user->name,
             'profileJob' => __('dashboard.roles.unassigned'),
-            'currentAcademicYearName' => AcademicYear::query()->where('is_current', true)->value('name') ?: __('dashboard.manager.profile_meta_no_year'),
+            'currentAcademicYearName' => $this->dashboardCourseName(),
             'profileMeta' => $user->email ?: ($user->username ?: __('dashboard.common.no_identifier')),
             'stats' => [],
             'cards' => [
@@ -551,12 +775,13 @@ new class extends Component {
     {
         return [
             'dashboardRole' => $role,
+            'teacherGroupDashboard' => false,
             'heading' => $heading,
             'subheading' => __('dashboard.missing_profile.subheading'),
             'intro' => $message,
             'profileName' => Auth::user()->name,
             'profileJob' => __('dashboard.roles.'.$role),
-            'currentAcademicYearName' => AcademicYear::query()->where('is_current', true)->value('name') ?: __('dashboard.manager.profile_meta_no_year'),
+            'currentAcademicYearName' => $this->dashboardCourseName(),
             'profileMeta' => Auth::user()->email ?: (Auth::user()->username ?: __('dashboard.common.no_identifier')),
             'stats' => [],
             'cards' => [
@@ -618,53 +843,28 @@ new class extends Component {
             @php
                 $groupStudentTotal = (int) $groupDistribution->sum('students');
                 $chartColor = fn (int $index) => sprintf('hsl(%.1f 42%% 57%%)', fmod(24 + ($index * 137.508), 360));
-                $treemapRects = [];
-                $layoutTreemap = function (array $items, float $x, float $y, float $width, float $height) use (&$layoutTreemap, &$treemapRects): void {
-                    if ($items === []) {
-                        return;
-                    }
-
-                    if (count($items) === 1) {
-                        $treemapRects[] = [...$items[0], 'x' => $x, 'y' => $y, 'width' => $width, 'height' => $height];
-
-                        return;
-                    }
-
-                    $total = max(1, array_sum(array_column($items, 'students')));
-                    $firstItems = [];
-                    $firstTotal = 0;
-                    foreach ($items as $index => $item) {
-                        if ($index === count($items) - 1 || ($firstItems !== [] && $firstTotal >= $total / 2)) {
-                            break;
-                        }
-                        $firstItems[] = $item;
-                        $firstTotal += $item['students'];
-                    }
-                    $secondItems = array_slice($items, count($firstItems));
-                    $firstRatio = max(0.01, min(0.99, $firstTotal / $total));
-
-                    if ($width >= $height) {
-                        $firstWidth = $width * $firstRatio;
-                        $layoutTreemap($firstItems, $x, $y, $firstWidth, $height);
-                        $layoutTreemap($secondItems, $x + $firstWidth, $y, $width - $firstWidth, $height);
-                    } else {
-                        $firstHeight = $height * $firstRatio;
-                        $layoutTreemap($firstItems, $x, $y, $width, $firstHeight);
-                        $layoutTreemap($secondItems, $x, $y + $firstHeight, $width, $height - $firstHeight);
-                    }
-                };
-                $layoutTreemap($groupDistribution->where('students', '>', 0)->sortByDesc('students')->values()->all(), 0, 0, 100, 62);
-                $niceMaximum = function (int $value): float {
+                $lollipopGroups = $groupDistribution->where('students', '>', 0)->sortByDesc('students')->values();
+                $lollipopMax = max(1, (int) $lollipopGroups->max('students'));
+                $niceScale = function (int $value): array {
                     $value = max(1, $value);
-                    $targetStep = $value / 4;
-                    $magnitude = 10 ** floor(log10($targetStep));
-                    $normalized = $targetStep / $magnitude;
-                    $niceStep = $normalized <= 1 ? 1 : ($normalized <= 2 ? 2 : ($normalized <= 2.5 ? 2.5 : ($normalized <= 5 ? 5 : 10)));
-
-                    return $niceStep * $magnitude * 4;
+                    $best = null;
+                    $magnitude = 10 ** floor(log10($value));
+                    foreach ([$magnitude / 10, $magnitude, $magnitude * 10] as $base) {
+                        foreach ([1, 2, 2.5, 5, 10] as $factor) {
+                            $step = $base * $factor;
+                            $ticks = (int) ceil($value / $step);
+                            if ($ticks < 4 || $ticks > 9) continue;
+                            $maximum = $ticks * $step;
+                            $score = (($maximum - $value) / $value) + (abs(6 - $ticks) * .015);
+                            if ($best === null || $score < $best['score']) $best = compact('step', 'ticks', 'maximum', 'score');
+                        }
+                    }
+                    return $best ?: ['step' => $value / 5, 'ticks' => 5, 'maximum' => $value, 'score' => 0];
                 };
                 $axisLabel = fn (float $value) => number_format($value, floor($value) === $value ? 0 : 1);
-                $trendMax = $niceMaximum((int) $dailyTrend->max(fn (array $day) => max($day['pages'], $day['attendance'])));
+                $trendScale = $niceScale((int) $dailyTrend->max(fn (array $day) => max($day['pages'], $day['attendance'])));
+                $trendMax = $trendScale['maximum'];
+                $trendTicks = $trendScale['ticks'];
                 $trendX = fn (int $index) => app()->isLocale('ar')
                     ? 400 - ($index * (342 / max($dailyTrend->count() - 1, 1)))
                     : 58 + ($index * (342 / max($dailyTrend->count() - 1, 1)));
@@ -686,19 +886,15 @@ new class extends Component {
                     <div class="eyebrow">{{ __('dashboard.manager.analytics.groups_eyebrow') }}</div>
                     <h2 class="font-display mt-2 text-2xl text-white">{{ __('dashboard.manager.analytics.group_distribution') }}</h2>
                     @if ($groupStudentTotal > 0)
-                        <div class="dashboard-treemap relative mt-5 w-full overflow-hidden rounded-2xl border border-white/10" style="aspect-ratio: 100 / 62" role="img" aria-label="{{ __('dashboard.manager.analytics.group_distribution') }}">
-                            @foreach ($treemapRects as $index => $rect)
-                                @php
-                                    $showName = $rect['width'] >= 13 && $rect['height'] >= 11;
-                                    $showCount = $rect['width'] >= 7 && $rect['height'] >= 7;
-                                @endphp
-                                <div
-                                    class="dashboard-treemap__tile absolute overflow-hidden border border-neutral-950/25 p-2.5 text-white"
-                                    style="inset-inline-start: {{ $rect['x'] }}%; top: {{ ($rect['y'] / 62) * 100 }}%; width: {{ $rect['width'] }}%; height: {{ ($rect['height'] / 62) * 100 }}%; background: {{ $chartColor($index) }}"
-                                    title="{{ $rect['name'] }} · {{ trans_choice('dashboard.manager.analytics.students_count', $rect['students'], ['count' => number_format($rect['students'])]) }} · {{ number_format(($rect['students'] / $groupStudentTotal) * 100, 1) }}%"
-                                >
-                                    @if ($showName)<div class="truncate text-sm font-medium leading-tight">{{ $rect['name'] }}</div>@endif
-                                    @if ($showCount)<div class="mt-1 text-xs font-light text-white/90">{{ trans_choice('dashboard.manager.analytics.students_count', $rect['students'], ['count' => number_format($rect['students'])]) }}</div>@endif
+                        <div class="dashboard-treemap mt-5 space-y-2.5" role="img" aria-label="{{ __('dashboard.manager.analytics.group_distribution') }}">
+                            @foreach ($lollipopGroups as $index => $group)
+                                <div class="grid grid-cols-[minmax(5rem,9rem)_minmax(0,1fr)_auto] items-center gap-3" title="{{ $group['name'] }} · {{ trans_choice('dashboard.manager.analytics.students_count', $group['students'], ['count' => number_format($group['students'])]) }}">
+                                    <div class="truncate text-xs text-neutral-300">{{ $group['name'] }}</div>
+                                    <div class="relative h-5">
+                                        <span class="absolute inset-y-1/2 start-0 h-px -translate-y-1/2 rounded-full opacity-70" style="width: {{ ($group['students'] / $lollipopMax) * 100 }}%; background: {{ $chartColor($index) }}"></span>
+                                        <span class="absolute top-1/2 h-3.5 w-3.5 -translate-y-1/2 translate-x-1/2 rounded-full border-2 border-neutral-950 shadow" style="inset-inline-start: calc({{ ($group['students'] / $lollipopMax) * 100 }}% - .875rem); background: {{ $chartColor($index) }}"></span>
+                                    </div>
+                                    <div class="min-w-8 text-end text-xs font-semibold text-white">{{ number_format($group['students']) }}</div>
                                 </div>
                             @endforeach
                         </div>
@@ -718,8 +914,11 @@ new class extends Component {
                     <svg viewBox="0 0 440 220" dir="ltr" class="dashboard-line-chart mx-auto mt-6 h-auto w-full max-w-2xl overflow-hidden" role="img" aria-label="{{ __('dashboard.manager.analytics.daily_activity') }}">
                         <line x1="{{ app()->isLocale('ar') ? 400 : 58 }}" y1="42" x2="{{ app()->isLocale('ar') ? 400 : 58 }}" y2="178" stroke="rgba(255,255,255,.3)" stroke-width="1.5" />
                         <line x1="58" y1="178" x2="400" y2="178" stroke="rgba(255,255,255,.3)" stroke-width="1.5" />
-                        @foreach ([0, .25, .5, .75, 1] as $ratio)
-                            @php($gridY = 178 - ($ratio * 128))
+                        @foreach (range(0, $trendTicks) as $tick)
+                            @php
+                                $ratio = $tick / $trendTicks;
+                                $gridY = 178 - ($ratio * 128);
+                            @endphp
                             <line x1="58" y1="{{ $gridY }}" x2="400" y2="{{ $gridY }}" stroke="rgba(255,255,255,.09)" stroke-width="1" />
                             <text x="{{ app()->isLocale('ar') ? 414 : 49 }}" y="{{ $gridY + 3 }}" text-anchor="{{ app()->isLocale('ar') ? 'start' : 'end' }}" fill="#a3a3a3" font-size="9">{{ $axisLabel($trendMax * $ratio) }}</text>
                         @endforeach
@@ -759,10 +958,12 @@ new class extends Component {
                     @else
                         <div class="dashboard-leaderboard mt-8 grid grid-cols-3 items-end gap-3">
                             @foreach ($podiumOrder as $entry)
-                                @php($rankStyle = [1 => 'gold', 2 => 'silver', 3 => 'bronze'][$entry['rank']])
+                                @php
+                                    $rankStyle = [1 => 'gold', 2 => 'silver', 3 => 'bronze'][$entry['rank']];
+                                @endphp
                                 <button type="button" wire:click="showManagerStudent({{ $entry['student']->id }})" class="dashboard-leaderboard__card dashboard-leaderboard__card--{{ $rankStyle }} dashboard-leaderboard__card--rank-{{ $entry['rank'] }} group">
                                     <span class="dashboard-leaderboard__rank">{{ $entry['rank'] }}</span>
-                                    <x-student-avatar :student="$entry['student']" size="lg" class="mx-auto transition-transform duration-200 group-hover:scale-110" />
+                                    <span class="mx-auto flex size-16 items-center justify-center rounded-2xl bg-white/10 text-xl font-semibold text-white transition-transform duration-200 group-hover:scale-110">{{ mb_substr($entry['student']->first_name, 0, 1) }}</span>
                                     <span class="mt-3 block line-clamp-2 font-semibold text-white">{{ $entry['student']->full_name }}</span>
                                     <span class="mt-2 block text-sm text-neutral-200">{{ number_format($entry['points']) }} {{ app()->isLocale('ar') ? ($entry['points'] > 10 ? 'نقطة' : 'نقاط') : __('dashboard.manager.analytics.points') }}</span>
                                 </button>
@@ -789,7 +990,9 @@ new class extends Component {
                         </div>
                         <div class="dashboard-bar-chart relative grid h-64 grid-cols-4 items-end gap-4 border-b border-white/20 px-3">
                             @foreach ($groupPageTotals as $index => $group)
-                                @php($barHeight = max(3, ($group['pages'] / $barMax) * 100))
+                                @php
+                                    $barHeight = max(3, ($group['pages'] / $barMax) * 100);
+                                @endphp
                                 <div class="relative flex h-full min-w-0 flex-col justify-end text-center">
                                     <div class="dashboard-bar-chart__bar mx-auto w-full max-w-16 shrink-0 rounded-t-xl transition-transform duration-200 hover:scale-x-110" style="height: {{ $barHeight }}%; background: {{ $chartColor($index) }}">
                                         <div class="absolute inset-x-0 -top-6 text-sm font-semibold text-white">{{ number_format($group['pages']) }}</div>
@@ -811,18 +1014,156 @@ new class extends Component {
                 </article>
             </section>
 
-            <x-admin.modal :show="$selectedManagerStudentId !== null" :title="__('dashboard.manager.analytics.student_highlights')" close-method="closeManagerStudent" max-width="3xl">
-                @if ($selectedManagerStudent)
-                    <div class="flex flex-col items-center gap-4 text-center sm:flex-row sm:text-start">
-                        <x-student-avatar :student="$selectedManagerStudent['student']" size="lg" />
-                        <div><h3 class="text-2xl font-semibold text-white">{{ $selectedManagerStudent['student']->full_name }}</h3><p class="mt-1 text-sm text-neutral-400">{{ $defaultCourse?->name }}</p></div>
-                    </div>
-                    <div class="mt-6 grid gap-4 sm:grid-cols-3">
-                        <div class="stat-card"><div class="kpi-label">{{ __('dashboard.manager.analytics.points') }}</div><div class="metric-value mt-4">{{ number_format($selectedManagerStudent['points']) }}</div></div>
-                        <div class="stat-card"><div class="kpi-label">{{ __('dashboard.manager.analytics.memorized_pages') }}</div><div class="metric-value mt-4">{{ number_format($selectedManagerStudent['pages']) }}</div></div>
-                        <div class="stat-card"><div class="kpi-label">{{ __('dashboard.manager.analytics.final_tests') }}</div><div class="metric-value mt-4">{{ number_format($selectedManagerStudent['final_tests']) }}</div></div>
+            <section class="surface-panel mt-6 p-5 lg:p-6">
+                <div class="eyebrow">{{ __('curricula.title') }}</div>
+                <h2 class="font-display mt-2 text-2xl text-white">{{ __('curricula.progress.title') }}</h2>
+                @if ($curriculumProgress->isEmpty())
+                    <div class="admin-empty-state mt-5">{{ __('curricula.progress.empty') }}</div>
+                @else
+                    <div class="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6">
+                        @foreach ($curriculumProgress as $row)
+                            <a href="{{ route('curricula.index') }}" wire:navigate class="text-center">
+                                <div class="mx-auto grid size-28 place-items-center rounded-full" style="background: conic-gradient(#9fbea9 {{ $row['percentage'] }}%, #c99b9b 0)">
+                                    <div class="grid size-20 place-items-center rounded-full bg-neutral-950 text-lg font-semibold text-white">{{ number_format($row['percentage'], 0) }}%</div>
+                                </div>
+                                <div class="mt-3 truncate text-sm font-semibold text-white">{{ $row['group']->name }}</div>
+                            </a>
+                        @endforeach
                     </div>
                 @endif
+            </section>
+
+        @endif
+
+        @include('livewire.partials.dashboard-manager-student-modal')
+
+        @if ($teacherGroupDashboard)
+            @php
+                $teacherNiceScale = function (int $value): array {
+                    $value = max(1, $value);
+                    $best = null;
+                    $magnitude = 10 ** floor(log10($value));
+                    foreach ([$magnitude / 10, $magnitude, $magnitude * 10] as $base) {
+                        foreach ([1, 2, 2.5, 5, 10] as $factor) {
+                            $step = $base * $factor;
+                            $ticks = (int) ceil($value / $step);
+                            if ($ticks < 4 || $ticks > 9) continue;
+                            $maximum = $ticks * $step;
+                            $score = (($maximum - $value) / $value) + (abs(6 - $ticks) * .015);
+                            if ($best === null || $score < $best['score']) $best = compact('step', 'ticks', 'maximum', 'score');
+                        }
+                    }
+                    return $best ?: ['step' => $value / 5, 'ticks' => 5, 'maximum' => $value, 'score' => 0];
+                };
+                $teacherAxisLabel = fn (float $value) => number_format($value, floor($value) === $value ? 0 : 1);
+                $teacherTrendScale = $teacherNiceScale((int) $teacherDailyTrend->max(fn (array $day) => max($day['pages'], $day['attendance'])));
+                $teacherTrendMax = $teacherTrendScale['maximum'];
+                $teacherTrendTicks = $teacherTrendScale['ticks'];
+                $teacherTrendX = fn (int $index) => app()->isLocale('ar')
+                    ? 400 - ($index * (342 / max($teacherDailyTrend->count() - 1, 1)))
+                    : 58 + ($index * (342 / max($teacherDailyTrend->count() - 1, 1)));
+                $teacherTrendY = fn (int $value) => 178 - (($value / $teacherTrendMax) * 128);
+                $teacherPagesLine = $teacherDailyTrend->values()->map(fn (array $day, int $index) => $teacherTrendX($index).','.$teacherTrendY($day['pages']))->implode(' ');
+                $teacherAttendanceLine = $teacherDailyTrend->values()->map(fn (array $day, int $index) => $teacherTrendX($index).','.$teacherTrendY($day['attendance']))->implode(' ');
+                $teacherLollipopMax = max(1, (int) $teacherTopMemorizingStudents->max('pages'));
+            @endphp
+
+            <section class="grid gap-6 xl:grid-cols-2">
+                <article class="surface-panel p-5 lg:p-6">
+                    <div class="flex flex-wrap items-end justify-between gap-4">
+                        <div><div class="eyebrow">{{ __('dashboard.manager.analytics.last_five_attendance_days') }}</div><h2 class="font-display mt-2 text-2xl text-white">{{ __('dashboard.manager.analytics.daily_activity') }}</h2></div>
+                        <div class="flex flex-wrap gap-4 text-xs text-neutral-300">
+                            <span class="flex items-center gap-2"><i class="h-2.5 w-6 rounded-full bg-emerald-400"></i>{{ __('dashboard.manager.analytics.memorized_pages') }}</span>
+                            <span class="flex items-center gap-2"><i class="h-2.5 w-6 rounded-full bg-sky-400"></i>{{ __('dashboard.manager.analytics.students_attended') }}</span>
+                        </div>
+                    </div>
+                    @if ($teacherDailyTrend->isEmpty())
+                        <div class="admin-empty-state mt-5">{{ __('dashboard.teacher.group_dashboard.empty_activity') }}</div>
+                    @else
+                        <svg viewBox="0 0 440 220" dir="ltr" class="dashboard-line-chart mx-auto mt-6 h-auto w-full max-w-2xl overflow-hidden" role="img" aria-label="{{ __('dashboard.manager.analytics.daily_activity') }}">
+                            <line x1="{{ app()->isLocale('ar') ? 400 : 58 }}" y1="42" x2="{{ app()->isLocale('ar') ? 400 : 58 }}" y2="178" stroke="rgba(255,255,255,.3)" stroke-width="1.5" />
+                            <line x1="58" y1="178" x2="400" y2="178" stroke="rgba(255,255,255,.3)" stroke-width="1.5" />
+                            @foreach (range(0, $teacherTrendTicks) as $tick)
+                                @php
+                                    $ratio = $tick / $teacherTrendTicks;
+                                    $gridY = 178 - ($ratio * 128);
+                                @endphp
+                                <line x1="58" y1="{{ $gridY }}" x2="400" y2="{{ $gridY }}" stroke="rgba(255,255,255,.09)" stroke-width="1" />
+                                <text x="{{ app()->isLocale('ar') ? 414 : 49 }}" y="{{ $gridY + 3 }}" text-anchor="{{ app()->isLocale('ar') ? 'start' : 'end' }}" fill="#a3a3a3" font-size="9">{{ $teacherAxisLabel($teacherTrendMax * $ratio) }}</text>
+                            @endforeach
+                            @foreach ($teacherDailyTrend as $index => $day)<line x1="{{ $teacherTrendX($index) }}" y1="50" x2="{{ $teacherTrendX($index) }}" y2="178" stroke="rgba(255,255,255,.09)" stroke-width="1" />@endforeach
+                            <polyline points="{{ $teacherPagesLine }}" fill="none" stroke="#34d399" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
+                            <polyline points="{{ $teacherAttendanceLine }}" fill="none" stroke="#38bdf8" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
+                            @foreach ($teacherDailyTrend as $index => $day)
+                                <g class="dashboard-line-point" tabindex="0"><circle cx="{{ $teacherTrendX($index) }}" cy="{{ $teacherTrendY($day['pages']) }}" r="6" fill="#34d399" class="dashboard-chart-point origin-center" /><title>{{ $day['label'] }} · {{ __('dashboard.manager.analytics.memorized_pages') }}: {{ number_format($day['pages']) }}</title></g>
+                                <g class="dashboard-line-point" tabindex="0"><circle cx="{{ $teacherTrendX($index) }}" cy="{{ $teacherTrendY($day['attendance']) }}" r="6" fill="#38bdf8" class="dashboard-chart-point origin-center" /><title>{{ $day['label'] }} · {{ __('dashboard.manager.analytics.students_attended') }}: {{ number_format($day['attendance']) }}</title></g>
+                                <text x="{{ $teacherTrendX($index) }}" y="202" text-anchor="middle" fill="#a3a3a3" font-size="9">{{ $day['label'] }}</text>
+                            @endforeach
+                        </svg>
+                    @endif
+                </article>
+
+                <article class="surface-panel p-5 lg:p-6">
+                    <div class="eyebrow">{{ __('dashboard.teacher.group_dashboard.memorization_ranking_eyebrow') }}</div>
+                    <h2 class="font-display mt-2 text-2xl text-white">{{ __('dashboard.teacher.group_dashboard.top_memorizing_students') }}</h2>
+                    @if ($teacherTopMemorizingStudents->isEmpty())
+                        <div class="admin-empty-state mt-5">{{ __('dashboard.teacher.group_dashboard.empty_students') }}</div>
+                    @else
+                        <div class="mt-6 space-y-3">
+                            @foreach ($teacherTopMemorizingStudents as $index => $row)
+                                <div class="grid grid-cols-[minmax(7rem,11rem)_minmax(0,1fr)_auto] items-center gap-3">
+                                    <div class="truncate text-sm text-neutral-200">{{ $row['student']->full_name }}</div>
+                                    <div class="relative h-5">
+                                        <span class="absolute inset-y-1/2 start-0 h-px -translate-y-1/2 rounded-full bg-emerald-400/75" style="width: {{ ($row['pages'] / $teacherLollipopMax) * 100 }}%"></span>
+                                        <span class="absolute top-1/2 h-3.5 w-3.5 -translate-y-1/2 translate-x-1/2 rounded-full border-2 border-neutral-950 bg-emerald-400 shadow" style="inset-inline-start: calc({{ ($row['pages'] / $teacherLollipopMax) * 100 }}% - .875rem)"></span>
+                                    </div>
+                                    <div class="min-w-10 text-end text-sm font-semibold text-white">{{ number_format($row['pages']) }}</div>
+                                </div>
+                            @endforeach
+                        </div>
+                    @endif
+                </article>
+            </section>
+
+            <section class="mt-6 grid gap-6 xl:grid-cols-2">
+                <article class="surface-table">
+                    <div class="admin-grid-meta">
+                        <div><div class="admin-grid-meta__title">{{ __('dashboard.teacher.group_dashboard.top_students_by_points') }}</div><div class="admin-grid-meta__summary">{{ __('dashboard.teacher.group_dashboard.top_five') }}</div></div>
+                        @if ($teacherRankedStudents->isNotEmpty())<button type="button" wire:click="openTeacherLeaderboard" class="pill-link pill-link--compact">{{ __('dashboard.teacher.group_dashboard.view_all') }}</button>@endif
+                    </div>
+                    @if ($teacherTopStudents->isEmpty())
+                        <div class="admin-empty-state">{{ __('dashboard.teacher.group_dashboard.empty_students') }}</div>
+                    @else
+                        <div class="overflow-x-auto"><table class="text-sm"><thead><tr>
+                            <th class="px-4 py-3 text-start">#</th><th class="px-4 py-3 text-start">{{ __('dashboard.teacher.group_dashboard.columns.student') }}</th><th class="px-4 py-3 text-start">{{ __('dashboard.teacher.group_dashboard.columns.points') }}</th><th class="px-4 py-3 text-start">{{ __('dashboard.teacher.group_dashboard.columns.pages') }}</th><th class="px-4 py-3 text-start">{{ __('dashboard.teacher.group_dashboard.columns.final_tests') }}</th>
+                        </tr></thead><tbody class="divide-y divide-white/6">@foreach ($teacherTopStudents as $row)<tr><td class="px-4 py-3">{{ $loop->iteration }}</td><td class="px-4 py-3 font-medium text-white">{{ $row['student']->full_name }}</td><td class="px-4 py-3">{{ number_format($row['points']) }}</td><td class="px-4 py-3">{{ number_format($row['pages']) }}</td><td class="px-4 py-3">{{ number_format($row['final_tests']) }}</td></tr>@endforeach</tbody></table></div>
+                    @endif
+                </article>
+
+                <article class="surface-panel grid place-items-center p-5 lg:p-6">
+                    <div class="text-center"><div class="eyebrow">{{ __('curricula.title') }}</div><h2 class="font-display mt-2 text-2xl text-white">{{ __('curricula.progress.title') }}</h2></div>
+                    @if (($teacherCurriculumSummary['total'] ?? 0) === 0)
+                        <div class="admin-empty-state mt-5">{{ __('curricula.progress.empty') }}</div>
+                    @else
+                        <a href="{{ route('curricula.index') }}" wire:navigate class="mt-6 text-center">
+                            <div class="mx-auto grid size-44 place-items-center rounded-full" style="background: conic-gradient(#9fbea9 {{ $teacherCurriculumSummary['percentage'] }}%, #c99b9b 0)">
+                                <div class="grid size-32 place-items-center rounded-full bg-neutral-950 text-3xl font-semibold text-white">{{ number_format($teacherCurriculumSummary['percentage'], 0) }}%</div>
+                            </div>
+                            <div class="mt-3 text-sm font-semibold text-white">{{ $teacherGroup?->name }}</div>
+                        </a>
+                    @endif
+                </article>
+            </section>
+
+            <x-admin.modal :show="$showTeacherLeaderboardModal" :title="__('dashboard.teacher.group_dashboard.all_students')" close-method="closeTeacherLeaderboard" max-width="5xl">
+                <div class="overflow-x-auto"><table class="text-sm"><thead><tr><th class="px-3 py-2 text-start">#</th><th class="px-3 py-2 text-start">{{ __('dashboard.teacher.group_dashboard.columns.student') }}</th><th class="px-3 py-2 text-start">{{ __('dashboard.teacher.group_dashboard.columns.days_attended') }}</th><th class="px-3 py-2 text-start">{{ __('dashboard.teacher.group_dashboard.columns.points') }}</th><th class="px-3 py-2 text-start">{{ __('dashboard.teacher.group_dashboard.columns.pages') }}</th><th class="px-3 py-2 text-start">{{ __('dashboard.teacher.group_dashboard.columns.final_tests') }}</th><th class="px-3 py-2 text-start">{{ __('dashboard.teacher.group_dashboard.columns.final_exam_score') }}</th></tr></thead><tbody class="divide-y divide-white/6">@foreach ($teacherRankedStudents as $row)<tr><td class="px-3 py-2">{{ $loop->iteration }}</td><td class="px-3 py-2 font-medium text-white">{{ $row['student']->full_name }}</td><td class="px-3 py-2">{{ number_format($row['days_attended']) }}</td><td class="px-3 py-2">{{ number_format($row['points']) }}</td><td class="px-3 py-2">{{ number_format($row['pages']) }}</td><td class="px-3 py-2">{{ number_format($row['final_tests']) }}</td><td class="px-3 py-2">{{ $row['final_exam_score'] === null ? '—' : \App\Support\PercentageFormatter::format($row['final_exam_score']) }}</td></tr>@endforeach</tbody></table></div>
+            </x-admin.modal>
+
+            <x-admin.modal :show="$showTeacherMemorizationsModal" :title="__('dashboard.teacher.group_dashboard.all_memorizations')" close-method="closeTeacherMemorizations" max-width="4xl">
+                <div class="space-y-3">
+                    <div class="overflow-x-auto"><table class="text-sm"><thead><tr><th class="px-3 py-2 text-start">{{ __('dashboard.teacher.group_dashboard.columns.student') }}</th><th class="px-3 py-2 text-start">{{ __('dashboard.teacher.group_dashboard.columns.page_number') }}</th><th class="px-3 py-2 text-start">{{ __('dashboard.teacher.group_dashboard.columns.date') }}</th></tr></thead><tbody class="divide-y divide-white/6">@foreach ($teacherLatestMemorizations as $session)<tr><td class="px-3 py-2 font-medium text-white">{{ $session->student?->full_name }}</td><td class="px-3 py-2"><span dir="ltr">{{ $session->from_page === $session->to_page ? $session->from_page : $session->from_page.'–'.$session->to_page }}</span></td><td class="px-3 py-2">{{ $session->recorded_on?->format('d-m-Y') }}</td></tr>@endforeach</tbody></table></div>
+                    @if ($teacherLatestMemorizations->hasPages())<div>{{ $teacherLatestMemorizations->links() }}</div>@endif
+                </div>
             </x-admin.modal>
         @endif
 
@@ -846,9 +1187,6 @@ new class extends Component {
                                         <div class="text-base font-semibold text-white">{{ $cardPreview['group']?->name ?: __('dashboard.common.no_group') }}</div>
                                         <div class="mt-1 text-sm text-neutral-300">
                                             {{ $cardPreview['group']?->course?->name ?: __('dashboard.common.no_course') }}
-                                            @if ($cardPreview['group']?->academicYear?->name)
-                                                <span class="text-neutral-500">|</span> {{ $cardPreview['group']->academicYear->name }}
-                                            @endif
                                         </div>
                                     </div>
                                     <span class="badge-soft badge-soft--emerald">{{ $cardPreview['template']->name }}</span>
@@ -864,7 +1202,7 @@ new class extends Component {
             </section>
         @endif
 
-        @if ($dashboardRole !== 'manager')
+        @if ($dashboardRole !== 'manager' && ! $teacherGroupDashboard)
         <section class="surface-table">
             <div class="soft-keyline border-b px-5 py-5 lg:px-6">
                 <div class="flex items-center justify-between gap-4">

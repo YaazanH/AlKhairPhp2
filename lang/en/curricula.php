@@ -1,0 +1,26 @@
+<?php
+
+return [
+    'title' => 'Curriculum',
+    'subtitle' => 'Plan course subjects and lessons, then follow each group’s teaching progress.',
+    'teacher_subtitle' => 'Track the curriculum assigned to your group and record taught lessons.',
+    'settings' => ['meta' => 'Learning content', 'title' => 'Subjects & resources', 'subtitle' => 'Create the reusable subjects and book resources used by curricula.'],
+    'actions' => [
+        'add_curriculum' => 'Add curriculum', 'edit' => 'Edit', 'open' => 'Open', 'save' => 'Save', 'delete' => 'Delete',
+        'add_subject' => 'Add subject', 'add_lesson' => 'Add lesson', 'add_custom_lesson' => 'Custom lesson',
+        'add_resource' => 'Add resource', 'record' => 'Record', 'update_progress' => 'Update progress', 'manage_subjects' => 'Subject settings',
+    ],
+    'fields' => [
+        'curriculum' => 'Curriculum', 'name' => 'Name', 'course' => 'Course', 'grade' => 'Grade', 'subject' => 'Subject',
+        'subjects' => 'Subjects', 'lessons' => 'Lessons', 'lesson' => 'Lesson', 'page_count' => 'Number of pages',
+        'importance' => 'Importance', 'resources' => 'Resources', 'book_name' => 'Book name', 'author' => 'Author',
+        'publisher' => 'Publisher', 'published_on' => 'Publishing date', 'date' => 'Date', 'teacher' => 'Teacher', 'status' => 'Status',
+    ],
+    'options' => ['no_curriculum' => 'No curriculum', 'all_grades' => 'No specific grade'],
+    'status' => ['untaught' => 'Untaught', 'partial' => 'Partially done', 'taught' => 'Taught'],
+    'progress' => ['title' => 'Curriculum progress', 'completed' => ':percent% completed', 'empty' => 'No curriculum is assigned.', 'group_details' => ':group curriculum'],
+    'table' => ['curricula' => 'Curricula', 'latest' => 'Last 5 lessons taught', 'empty' => 'No curricula found for this course.', 'no_lessons' => 'No lessons yet.'],
+    'form' => ['curriculum_title' => 'Curriculum details', 'subject_title' => 'Add subject', 'lesson_title' => 'Lesson details', 'progress_title' => 'Record lesson progress', 'custom_title' => 'Add custom lesson'],
+    'messages' => ['curriculum_saved' => 'Curriculum saved.', 'subject_added' => 'Subject added.', 'lesson_saved' => 'Lesson saved.', 'progress_saved' => 'Lesson progress saved.', 'custom_saved' => 'Custom lesson added.', 'subject_saved' => 'Subject saved.', 'resource_saved' => 'Resource saved.'],
+    'errors' => ['course_mismatch' => 'The selected curriculum belongs to another course.', 'no_group' => 'No accessible group has an assigned curriculum.', 'subject_used' => 'This subject is already used by a curriculum and cannot be deleted.', 'curriculum_used' => 'This curriculum is assigned to a group and cannot be deleted.'],
+];

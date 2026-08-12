@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Course;
 use App\Services\CourseEndService;
+use App\Services\PdfBrandingService;
 use App\Services\XlsxExportService;
 use App\Support\PdfOptions;
 use Mpdf\Mpdf;
@@ -37,7 +38,8 @@ class CourseEndExportController extends Controller
             'margin_left' => 14,
         ]));
         $mpdf->SetDirectionality('rtl');
-        $mpdf->WriteHTML(view('reports.course-final-tests', compact('course', 'rows'))->render());
+        $logo = app(PdfBrandingService::class)->logoSource();
+        $mpdf->WriteHTML(view('reports.course-final-tests', compact('course', 'rows', 'logo'))->render());
 
         return response($mpdf->Output('', 'S'), 200, [
             'Content-Type' => 'application/pdf',

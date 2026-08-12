@@ -38,6 +38,7 @@ return [
         'academics' => 'Academics',
         'courses' => 'Courses',
         'groups' => 'Groups',
+        'curricula' => 'Curriculum',
         'enrollments' => 'Enrollments',
         'assessments' => 'Assessments',
         'tracking' => 'Tracking',

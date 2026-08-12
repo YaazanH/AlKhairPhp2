@@ -148,6 +148,24 @@ new class extends Component {
         $this->resetValidation();
     }
 
+    public function deleteAttempt(): void
+    {
+        abort_unless(auth()->user()?->hasRole('super_admin') && $this->editingAttemptId, 403);
+        $attempt = $this->finalTest->attempts()->findOrFail($this->editingAttemptId);
+        app(QuranFinalTestService::class)->deleteAttempt($attempt);
+        session()->flash('status', __('workflow.quran_final_tests.messages.attempt_deleted'));
+        $this->finalTest = $this->finalTest->fresh();
+        $this->closeAttemptModal();
+    }
+
+    public function deleteTest(): void
+    {
+        $this->authorizePermission('quran-final-tests.delete');
+        app(QuranFinalTestService::class)->deleteTest($this->finalTest);
+        session()->flash('status', __('workflow.quran_final_tests.messages.deleted'));
+        $this->redirect(route('quran-final-tests.index'), navigate: true);
+    }
+
     public function saveCurrentJuz(): void
     {
         $this->authorizePermission('quran-final-tests.record');
@@ -281,6 +299,14 @@ new class extends Component {
         @endif
     </section>
 
+    @can('quran-final-tests.delete')
+        <section class="surface-panel border border-red-400/20 p-5 lg:p-6">
+            <div class="flex justify-end">
+                <button type="button" wire:click="deleteTest" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link border-red-400/25 text-red-200 hover:border-red-300/35 hover:bg-red-500/12">{{ __('crud.common.actions.delete') }}</button>
+            </div>
+        </section>
+    @endcan
+
     <x-admin.modal :show="$showAttemptModal" :title="__($editingAttemptId ? 'workflow.quran_final_tests.attempts.edit_title' : 'workflow.quran_final_tests.attempts.title')" :description="__('workflow.quran_final_tests.attempts.copy')" close-method="closeAttemptModal" max-width="3xl">
         <form wire:submit="saveAttempt" class="space-y-4">
             @if ($currentTeacher)
@@ -332,6 +358,9 @@ new class extends Component {
             @enderror
 
             <div class="flex justify-end gap-3">
+                @if ($editingAttemptId)
+                    <button type="button" wire:click="deleteAttempt" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link me-auto border-red-400/25 text-red-200 hover:border-red-300/35 hover:bg-red-500/12">{{ __('crud.common.actions.delete') }}</button>
+                @endif
                 <button type="button" wire:click="closeAttemptModal" class="pill-link">{{ __('crud.common.actions.cancel') }}</button>
                 <button type="submit" class="pill-link pill-link--accent">{{ __($editingAttemptId ? 'crud.common.actions.save' : 'workflow.quran_final_tests.actions.save_attempt') }}</button>
             </div>

@@ -15,6 +15,7 @@ use App\Models\StudentCardPrint;
 use App\Models\Teacher;
 use App\Models\User;
 use App\Services\ActivityAudienceService;
+use App\Services\PrintTemplates\PrintTemplateFieldRegistry;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -24,6 +25,41 @@ use Tests\TestCase;
 class IdCardBuilderTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_report_card_field_picker_includes_course_performance_metrics(): void
+    {
+        $courseStudentFields = collect(app(PrintTemplateFieldRegistry::class)->selectableFields('dynamic_text'))
+            ->firstWhere('entity', 'course_student')['fields'];
+        $fieldKeys = collect($courseStudentFields)->pluck('key');
+
+        $this->assertEqualsCanonicalizing([
+            'attendance_average',
+            'days_attended',
+            'memorized_pages',
+            'passed_final_juz_count',
+            'daily_memorization_average',
+            'weekly_memorization_average',
+            'worship_assessment_average',
+            'final_exam_score',
+            'total_points',
+            'cheques_count',
+            'leaderboard_count',
+            'special_note',
+        ], $fieldKeys->intersect([
+            'attendance_average',
+            'days_attended',
+            'memorized_pages',
+            'passed_final_juz_count',
+            'daily_memorization_average',
+            'weekly_memorization_average',
+            'worship_assessment_average',
+            'final_exam_score',
+            'total_points',
+            'cheques_count',
+            'leaderboard_count',
+            'special_note',
+        ])->values()->all());
+    }
 
     public function test_managers_can_create_id_card_templates(): void
     {

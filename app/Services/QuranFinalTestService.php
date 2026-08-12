@@ -178,4 +178,48 @@ class QuranFinalTestService
             return $attempt->fresh(['finalTest', 'teacher']);
         });
     }
+
+    public function deleteAttempt(QuranFinalTestAttempt $attempt): void
+    {
+        DB::transaction(function () use ($attempt): void {
+            $finalTest = $attempt->finalTest()->with(['enrollment.student.gradeLevel', 'student'])->firstOrFail();
+            $attempt->delete();
+
+            $remainingAttempts = $finalTest->attempts()->orderBy('attempt_no')->orderBy('id')->get();
+            foreach ($remainingAttempts as $remainingAttempt) {
+                $remainingAttempt->update(['attempt_no' => $remainingAttempt->attempt_no + 100000]);
+            }
+            foreach ($remainingAttempts->values() as $index => $remainingAttempt) {
+                $remainingAttempt->update(['attempt_no' => $index + 1]);
+            }
+
+            $finalTest->load('attempts');
+            $passedAttempt = $finalTest->attempts->where('status', 'passed')->sortBy([['tested_on', 'asc'], ['id', 'asc']])->first();
+            $finalTest->update([
+                'passed_on' => $passedAttempt?->tested_on,
+                'status' => $passedAttempt ? 'passed' : 'in_progress',
+            ]);
+
+            $ledger = app(PointLedgerService::class);
+            $ledger->voidSourceTransactions('quran_final_test', $finalTest->id, __('workflow.quran_final_tests.messages.edited_void_reason'));
+            if ($passedAttempt) {
+                $ledger->recordQuranFinalTestPoints($finalTest->fresh(['enrollment.student.gradeLevel', 'student']), (float) $passedAttempt->score);
+            }
+            $ledger->syncEnrollmentCaches($finalTest->enrollment);
+        });
+    }
+
+    public function deleteTest(QuranFinalTest $finalTest): void
+    {
+        DB::transaction(function () use ($finalTest): void {
+            $finalTest->loadMissing('enrollment.student');
+            $ledger = app(PointLedgerService::class);
+            $ledger->voidSourceTransactions('quran_final_test', $finalTest->id, __('workflow.quran_final_tests.messages.deleted_void_reason'));
+            $enrollment = $finalTest->enrollment;
+            $finalTest->delete();
+            if ($enrollment) {
+                $ledger->syncEnrollmentCaches($enrollment->fresh(['student']));
+            }
+        });
+    }
 }

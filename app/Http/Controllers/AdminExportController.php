@@ -12,6 +12,7 @@ use App\Models\Student;
 use App\Models\Teacher;
 use App\Models\User;
 use App\Services\AccessScopeService;
+use App\Services\PdfBrandingService;
 use App\Services\QuranProgressionService;
 use App\Services\XlsxExportService;
 use App\Support\PdfOptions;
@@ -281,7 +282,7 @@ class AdminExportController extends Controller
             'autoLangToFont' => false,
             'autoScriptToLang' => false,
             'format' => 'A4',
-            'margin_bottom' => 10,
+            'margin_bottom' => 18,
             'margin_left' => 8,
             'margin_right' => 8,
             'margin_top' => 8,
@@ -293,6 +294,7 @@ class AdminExportController extends Controller
         $mpdf->WriteHTML(view('exports.group-roster-pdf', [
             'enrollments' => $enrollments,
             'group' => $group,
+            'logoImage' => app(PdfBrandingService::class)->logoSource(),
         ])->render());
 
         return response($mpdf->Output('', Destination::STRING_RETURN), 200, [

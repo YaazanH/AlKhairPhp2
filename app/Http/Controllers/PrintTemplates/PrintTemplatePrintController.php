@@ -7,7 +7,6 @@ use App\Models\FinanceRequest;
 use App\Models\Course;
 use App\Models\Enrollment;
 use App\Models\Group;
-use App\Models\PrintPageSize;
 use App\Models\PrintTemplate;
 use App\Models\StudentCardPrint;
 use App\Services\IdCards\IdCardPrintLayoutService;
@@ -165,6 +164,13 @@ class PrintTemplatePrintController extends Controller
                 $ids = array_values((array) $request->input("sources.{$entity}.multiple", []));
                 $models = $this->fieldRegistry->findMany($entity, $ids);
 
+                if ($entity === 'course_student') {
+                    $notes = (array) $request->input('special_notes', []);
+                    foreach ($models as $model) {
+                        $model->setAttribute('report_card_special_note', trim((string) ($notes[$model->getKey()] ?? '')));
+                    }
+                }
+
                 if ($models === []) {
                     return back()
                         ->withErrors(["sources.{$entity}.multiple" => __('print_templates.print.errors.select_repeating', ['entity' => $this->fieldRegistry->entities()[$entity]['label']])])
@@ -223,15 +229,6 @@ class PrintTemplatePrintController extends Controller
             ->values();
     }
 
-    protected function defaultPageSize(): ?PrintPageSize
-    {
-        return PrintPageSize::query()
-            ->where('is_default', true)
-            ->orderBy('id')
-            ->first()
-            ?: PrintPageSize::query()->orderBy('id')->first();
-    }
-
     protected function buildSetupView(bool $studentCardMode): View
     {
         $courseId = request()->integer('course_id') ?: Course::query()->where('is_default', true)->where('is_active', true)->value('id');
@@ -276,8 +273,7 @@ class PrintTemplatePrintController extends Controller
 
         return view('print-templates.print.setup', [
             'cancelUrl' => route('print-templates.templates.index'),
-            'defaultPageSize' => $this->defaultPageSize(),
-            'defaults' => $this->defaultPageSize()?->layoutConfig() ?? $this->printLayoutService->defaults(),
+            'defaults' => $templates->first()?->printLayoutConfig() ?? $this->printLayoutService->defaults(),
             'emptyStateCreateUrl' => route('print-templates.templates.create', ['student_card' => $studentCardMode ? 1 : 0]),
             'emptyStateDescription' => $studentCardMode
                 ? __('print_templates.print.empty.student_cards_description')
@@ -286,7 +282,7 @@ class PrintTemplatePrintController extends Controller
                 ? __('print_templates.print.empty.student_cards_title')
                 : __('print_templates.print.empty.templates_title'),
             'entities' => $entities,
-            'pageSizes' => PrintPageSize::query()->orderByDesc('is_default')->orderBy('name')->get(),
+            'courseReportMode' => $courseReportMode,
             'pageTitle' => $studentCardMode ? __('id_cards.print.title') : __('print_templates.print.title'),
             'pageSubtitle' => $studentCardMode ? __('id_cards.print.subtitle') : __('print_templates.print.subtitle'),
             'previewRoute' => $studentCardMode ? route('id-cards.print.preview') : route('print-templates.print.preview'),
@@ -303,6 +299,8 @@ class PrintTemplatePrintController extends Controller
                 ->mapWithKeys(fn (PrintTemplate $template) => [
                     (string) $template->id => [
                         'sources' => $this->dataSourceService->normalize($template->data_sources ?? []),
+                        'layout' => $template->printLayoutConfig(),
+                        'paper_label' => __('print_templates.templates.form.paper_sizes.'.$template->paper_size).' · '.__('print_templates.templates.form.orientations.'.$template->orientation),
                     ],
                 ])
                 ->all(),
@@ -323,7 +321,6 @@ class PrintTemplatePrintController extends Controller
             'margin_left_mm' => ['required', 'numeric', 'min:0', 'max:40'],
             'gap_x_mm' => ['required', 'numeric', 'min:0', 'max:30'],
             'gap_y_mm' => ['required', 'numeric', 'min:0', 'max:30'],
-            'print_page_size_id' => ['nullable', 'exists:print_page_sizes,id'],
             'course_id' => ['nullable', 'integer', 'exists:courses,id'],
         ]);
 
@@ -333,6 +330,7 @@ class PrintTemplatePrintController extends Controller
         }
 
         $template = PrintTemplate::query()->findOrFail($validated['template_id']);
+        $validated = array_replace($validated, $template->printLayoutConfig());
         $sources = $this->dataSourceService->normalize($template->data_sources ?? []);
 
         abort_if($template->is_student_card !== $studentCardMode, 404);

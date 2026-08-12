@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class PrintTemplateController extends Controller
@@ -40,6 +41,15 @@ class PrintTemplateController extends Controller
             'name' => __('print_templates.templates.defaults.name'),
             'width_mm' => 85.6,
             'height_mm' => 53.98,
+            'paper_size' => 'a4',
+            'orientation' => 'portrait',
+            'margin_top_mm' => 10,
+            'margin_right_mm' => 10,
+            'margin_bottom_mm' => 10,
+            'margin_left_mm' => 10,
+            'gap_x_mm' => 6,
+            'gap_y_mm' => 6,
+            'rounded_corners' => false,
             'data_sources' => $courseReport
                 ? [['key' => 'course_student', 'entity' => 'course_student', 'mode' => 'multiple']]
                 : [['key' => 'student', 'entity' => 'student', 'mode' => 'multiple']],
@@ -116,6 +126,7 @@ class PrintTemplateController extends Controller
             'entityOptions' => $this->fieldRegistry->entityOptions(),
             'fieldOptions' => $this->renderService->fieldOptions(),
             'samplePayloads' => $this->renderService->samplePayloads(),
+            'paperSizes' => PrintTemplate::paperSizes(),
             'dataSourcesJson' => json_encode($template->data_sources ?: [], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE),
             'layoutJson' => json_encode($template->layout_json ?: $this->defaultLayout(), JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE),
         ];
@@ -127,9 +138,18 @@ class PrintTemplateController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'width_mm' => ['required', 'numeric', 'min:20', 'max:500'],
             'height_mm' => ['required', 'numeric', 'min:20', 'max:500'],
+            'paper_size' => ['nullable', Rule::in(array_keys(PrintTemplate::paperSizes()))],
+            'orientation' => ['nullable', Rule::in(['portrait', 'landscape'])],
+            'margin_top_mm' => ['nullable', 'numeric', 'min:0', 'max:40'],
+            'margin_right_mm' => ['nullable', 'numeric', 'min:0', 'max:40'],
+            'margin_bottom_mm' => ['nullable', 'numeric', 'min:0', 'max:40'],
+            'margin_left_mm' => ['nullable', 'numeric', 'min:0', 'max:40'],
+            'gap_x_mm' => ['nullable', 'numeric', 'min:0', 'max:30'],
+            'gap_y_mm' => ['nullable', 'numeric', 'min:0', 'max:30'],
+            'rounded_corners' => ['nullable', 'boolean'],
             'layout_json' => ['nullable', 'string'],
             'data_sources_json' => ['nullable', 'string'],
-            'background_image' => ['nullable', 'image', 'max:4096'],
+            'background_image' => ['nullable', 'image', 'max:10240'],
             'static_images' => ['nullable', 'array'],
             'static_images.*' => ['nullable', 'image', 'max:4096'],
             'remove_background_image' => ['nullable', 'boolean'],
@@ -183,6 +203,15 @@ class PrintTemplateController extends Controller
             'name' => $validated['name'],
             'width_mm' => (float) $validated['width_mm'],
             'height_mm' => (float) $validated['height_mm'],
+            'paper_size' => $validated['paper_size'] ?? $template->paper_size ?? 'a4',
+            'orientation' => $validated['orientation'] ?? $template->orientation ?? 'portrait',
+            'margin_top_mm' => (float) ($validated['margin_top_mm'] ?? $template->margin_top_mm ?? 10),
+            'margin_right_mm' => (float) ($validated['margin_right_mm'] ?? $template->margin_right_mm ?? 10),
+            'margin_bottom_mm' => (float) ($validated['margin_bottom_mm'] ?? $template->margin_bottom_mm ?? 10),
+            'margin_left_mm' => (float) ($validated['margin_left_mm'] ?? $template->margin_left_mm ?? 10),
+            'gap_x_mm' => (float) ($validated['gap_x_mm'] ?? $template->gap_x_mm ?? 6),
+            'gap_y_mm' => (float) ($validated['gap_y_mm'] ?? $template->gap_y_mm ?? 6),
+            'rounded_corners' => (bool) ($validated['rounded_corners'] ?? false),
             'background_image' => $template->background_image,
             'data_sources' => $dataSources,
             'layout_json' => $layout,

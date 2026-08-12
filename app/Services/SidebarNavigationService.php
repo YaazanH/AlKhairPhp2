@@ -40,6 +40,7 @@ class SidebarNavigationService
 
             'courses' => $this->item('ui.nav.courses', 'book-open', 'courses.index', ['courses.*'], 'academics', 10, ['courses.view']),
             'groups' => $this->item('ui.nav.groups', 'rectangle-group', 'groups.index', ['groups.*'], 'academics', 20, ['groups.view']),
+            'curricula' => $this->item('ui.nav.curricula', 'book-open-text', 'curricula.index', ['curricula.*'], 'academics', 25),
             'enrollments' => $this->item('ui.nav.enrollments', 'clipboard-document-list', 'enrollments.index', ['enrollments.*'], 'academics', 30, ['enrollments.view']),
 
             'student_attendance' => $this->item('ui.nav.student_attendance', 'calendar-days', 'student-attendance.index', ['student-attendance.*', 'groups.attendance', 'barcode-actions.import'], 'tracking_attendance', 10, ['attendance.student.view']),
@@ -313,6 +314,10 @@ class SidebarNavigationService
 
     protected function userCanSeeItem(User $user, array $itemDefinition): bool
     {
+        if (($itemDefinition['route_name'] ?? null) === 'curricula.index') {
+            return app(CurriculumAccessService::class)->canView($user);
+        }
+
         foreach ($itemDefinition['excluded_permissions'] ?? [] as $permission) {
             if ($user->can($permission)) {
                 return false;

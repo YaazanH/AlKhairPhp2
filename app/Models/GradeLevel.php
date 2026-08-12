@@ -29,6 +29,11 @@ class GradeLevel extends Model
         return $this->hasMany(Group::class);
     }
 
+    public function curricula(): HasMany
+    {
+        return $this->hasMany(Curriculum::class);
+    }
+
     public function pointPolicies(): HasMany
     {
         return $this->hasMany(PointPolicy::class);

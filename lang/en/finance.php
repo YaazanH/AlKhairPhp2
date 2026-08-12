@@ -227,6 +227,7 @@ return [
     'messages' => [
         'adjustment_posted' => 'Fund adjustment posted.',
         'exchange_posted' => 'Currency exchange posted.',
+        'invoice_updated' => 'Invoice updated.',
         'entry_delete_help' => 'Deleting a posted finance entry keeps the audit trail by posting a reversing ledger row, then hides this entry from the finance request grids.',
         'entry_delete_reversal_help' => 'Posted ledger rows remain auditable when a record is marked deleted.',
         'entry_deleted' => 'Finance entry deleted and reversed when needed.',

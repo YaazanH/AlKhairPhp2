@@ -192,6 +192,9 @@ return [
         'finance' => 'Finance',
     ],
     'permissions' => [
+        'curricula.view' => 'View curricula',
+        'curricula.manage' => 'Manage curricula, subjects, resources, and lessons',
+        'curricula.record' => 'Record curriculum lesson progress',
         'course-completion-rules.manage' => 'Manage course completion rules and apply point adjustments',
         'sidebar-navigation.manage' => 'Manage sidebar grouping and item placement',
         'community-contacts.view' => 'View community contacts',

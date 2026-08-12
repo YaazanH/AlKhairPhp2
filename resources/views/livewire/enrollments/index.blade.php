@@ -509,9 +509,9 @@ new class extends Component {
                                     {{ __('crud.enrollments.table.headers.status') }} <span>{{ $this->sortIndicator('status') }}</span>
                                 </button>
                             </th>
-                            @if (auth()->user()->can('memorization.view') || auth()->user()->can('quran-awqaf-tests.view') || auth()->user()->can('quran-tests.view') || auth()->user()->can('points.view') || auth()->user()->can('enrollments.update') || auth()->user()->can('enrollments.delete'))
+                            @can('enrollments.update')
                                 <th class="px-5 py-4 text-right lg:px-6">{{ __('crud.enrollments.table.headers.actions') }}</th>
-                            @endif
+                            @endcan
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-white/6">
@@ -540,37 +540,15 @@ new class extends Component {
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $enrollment->group?->course?->name ?: __('crud.common.not_available') }}</td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $enrollment->enrolled_at?->format('d-m-Y') }}</td>
                                 <td class="px-5 py-4 lg:px-6"><span class="{{ $enrollmentStatusClass }}">{{ __('crud.common.status_options.'.$enrollment->status) }}</span></td>
-                                @if (auth()->user()->can('memorization.view') || auth()->user()->can('quran-awqaf-tests.view') || auth()->user()->can('quran-tests.view') || auth()->user()->can('points.view') || auth()->user()->can('enrollments.update') || auth()->user()->can('enrollments.delete'))
+                                @can('enrollments.update')
                                     <td class="px-5 py-4 lg:px-6">
                                         <div class="flex flex-wrap justify-end gap-2">
-                                            @can('memorization.view')
-                                                <a href="{{ route('enrollments.memorization', $enrollment) }}" wire:navigate class="pill-link pill-link--compact">
-                                                    {{ __('crud.common.actions.memorization') }}
-                                                </a>
-                                            @endcan
-                                            @canany(['quran-awqaf-tests.view', 'quran-tests.view'])
-                                                <a href="{{ route('enrollments.quran-tests', $enrollment) }}" wire:navigate class="pill-link pill-link--compact">
-                                                    {{ __('crud.common.actions.tests') }}
-                                                </a>
-                                            @endcanany
-                                            @can('points.view')
-                                                <a href="{{ route('enrollments.points', $enrollment) }}" wire:navigate class="pill-link pill-link--compact">
-                                                    {{ __('crud.common.actions.points') }}
-                                                </a>
-                                            @endcan
-                                            @can('enrollments.update')
-                                                <button type="button" wire:click="edit({{ $enrollment->id }})" class="pill-link pill-link--compact">
-                                                    {{ __('crud.common.actions.edit') }}
-                                                </button>
-                                            @endcan
-                                            @can('enrollments.delete')
-                                                <button type="button" wire:click="delete({{ $enrollment->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link pill-link--compact border-red-400/25 text-red-200 hover:border-red-300/35 hover:bg-red-500/12">
-                                                    {{ __('crud.common.actions.delete') }}
-                                                </button>
-                                            @endcan
+                                            <button type="button" wire:click="edit({{ $enrollment->id }})" class="pill-link pill-link--compact">
+                                                {{ __('crud.common.actions.edit') }}
+                                            </button>
                                         </div>
                                     </td>
-                                @endif
+                                @endcan
                             </tr>
                         @endforeach
                     </tbody>
@@ -649,14 +627,6 @@ new class extends Component {
 
             @if ($editingId)
                 <div>
-                    <label for="enrollment-left-at" class="mb-1 block text-sm font-medium">{{ __('crud.enrollments.form.fields.left_at') }}</label>
-                    <input id="enrollment-left-at" wire:model="left_at" type="date" class="w-full rounded-xl px-4 py-3 text-sm">
-                    @error('left_at')
-                        <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
-                    @enderror
-                </div>
-
-                <div>
                     <label for="enrollment-notes" class="mb-1 block text-sm font-medium">{{ __('crud.enrollments.form.fields.notes') }}</label>
                     <textarea id="enrollment-notes" wire:model="notes" rows="4" class="w-full rounded-xl px-4 py-3 text-sm"></textarea>
                     @error('notes')
@@ -673,6 +643,13 @@ new class extends Component {
                 <button type="button" wire:click="cancel" class="pill-link">
                     {{ __('crud.common.actions.close') }}
                 </button>
+                @if ($editingId)
+                    @can('enrollments.delete')
+                        <button type="button" wire:click="delete({{ $editingId }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link ms-auto border-red-400/25 text-red-200 hover:border-red-300/35 hover:bg-red-500/12">
+                            {{ __('crud.common.actions.delete') }}
+                        </button>
+                    @endcan
+                @endif
             </div>
         </form>
     </x-admin.modal>

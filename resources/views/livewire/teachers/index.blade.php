@@ -741,8 +741,6 @@ new class extends Component {
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.teachers.table.headers.name') }}</th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.teachers.table.headers.phone') }}</th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.teachers.table.headers.access_role') }}</th>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.teachers.table.headers.course') }}</th>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.teachers.table.headers.groups') }}</th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.teachers.table.headers.helping') }}</th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.teachers.table.headers.status') }}</th>
                             <th class="px-5 py-4 text-right lg:px-6">{{ __('crud.teachers.table.headers.actions') }}</th>
@@ -764,14 +762,12 @@ new class extends Component {
                                         <x-teacher-avatar :teacher="$teacher" size="sm" />
                                         <div class="student-inline__body">
                                             <div class="student-inline__name">{{ $teacher->first_name }} {{ $teacher->last_name }}</div>
-                                            <div class="student-inline__meta">{{ $accessRoleLabel }}</div>
+                                            <div class="student-inline__meta">{{ $teacher->user?->username ?: __('crud.common.not_available') }}</div>
                                         </div>
                                     </div>
                                 </td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6"><bdi dir="ltr" class="inline-block">{{ $teacher->phone }}</bdi></td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $accessRoleLabel }}</td>
-                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $teacher->course?->name ?: __('crud.common.not_available') }}</td>
-                                <td class="px-5 py-4 text-white lg:px-6">{{ number_format($teacher->assigned_groups_count + $teacher->assisted_groups_count) }}</td>
                                 <td class="px-5 py-4 lg:px-6">
                                     @can('teachers.update')
                                         <button type="button" wire:click="toggleHelping({{ $teacher->id }})" class="{{ $teacher->is_helping ? 'status-chip status-chip--emerald' : 'status-chip status-chip--slate' }}">
@@ -914,18 +910,6 @@ new class extends Component {
                     </div>
                 @endif
 
-                <div>
-                    <label for="teacher-course" class="mb-1 block text-sm font-medium">{{ __('crud.teachers.form.fields.course') }}</label>
-                    <select id="teacher-course" wire:model="course_id" class="w-full rounded-xl px-4 py-3 text-sm">
-                        <option value="">{{ __('crud.teachers.form.options.select_course') }}</option>
-                        @foreach ($courses as $course)
-                            <option value="{{ $course->id }}">{{ $course->name }}{{ $course->is_active ? '' : ' - '.__('settings.common.states.inactive') }}</option>
-                        @endforeach
-                    </select>
-                    @error('course_id')
-                        <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
-                    @enderror
-                </div>
             </div>
 
             <div class="grid gap-4 md:grid-cols-2">
@@ -1109,18 +1093,6 @@ new class extends Component {
             </div>
 
             <div class="grid gap-4 md:grid-cols-2">
-                <div>
-                    <label for="review-teacher-course" class="mb-1 block text-sm font-medium">{{ __('crud.teachers.form.fields.course') }}</label>
-                    <select id="review-teacher-course" wire:model="course_id" class="w-full rounded-xl px-4 py-3 text-sm">
-                        <option value="">{{ __('crud.teachers.form.options.select_course') }}</option>
-                        @foreach ($courses as $course)
-                            <option value="{{ $course->id }}">{{ $course->name }}{{ $course->is_active ? '' : ' - '.__('settings.common.states.inactive') }}</option>
-                        @endforeach
-                    </select>
-                    @error('course_id')
-                        <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
-                    @enderror
-                </div>
 
             </div>
 

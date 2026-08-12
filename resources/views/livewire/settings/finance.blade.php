@@ -33,6 +33,7 @@ new class extends Component {
     public string $return_request_prefix = '';
     public string $exchange_prefix = '';
     public string $transfer_prefix = '';
+    public bool $maint_type_locked = false;
     public string $report_prefix = '';
     public string $request_terms = '';
     public string $default_cash_box_id = '';
@@ -474,6 +475,7 @@ new class extends Component {
             $validated['currency_is_active'] = true;
         }
 
+        $oldRateToBase = (float) ($current?->rate_to_base ?? 0);
         $currency = FinanceCurrency::query()->updateOrCreate(
             ['id' => $this->currency_editing_id],
             [
@@ -497,6 +499,10 @@ new class extends Component {
 
         if ($currency->is_local) {
             FinanceCurrency::query()->whereKeyNot($currency->id)->update(['is_local' => false]);
+        }
+
+        if ($current && $oldRateToBase > 0) {
+            app(FinanceService::class)->preserveReferencedCurrencyQuotes($currency->fresh(), $oldRateToBase);
         }
 
         $this->cancelCurrency();
@@ -656,6 +662,7 @@ new class extends Component {
         $this->maint_currency_id = $transaction->currency_id;
         $this->maint_category_id = $transaction->finance_category_id ?: $requestCategoryId;
         $this->maint_type = $transaction->type;
+        $this->maint_type_locked = in_array($transaction->source_type, [\App\Models\FinanceCurrencyExchange::class, \App\Models\FinanceCashBoxTransfer::class], true);
         $this->maint_direction = $transaction->direction;
         $this->maint_amount = $this->formatFinanceNumberForInput($transaction->amount);
         $this->maint_description = $transaction->description ?: '';
@@ -698,6 +705,9 @@ new class extends Component {
         ]);
         $transaction = FinanceTransaction::withTrashed()->findOrFail($this->maintaining_transaction_id);
         abort_if($transaction->trashed(), 422);
+        if (in_array($transaction->source_type, [\App\Models\FinanceCurrencyExchange::class, \App\Models\FinanceCashBoxTransfer::class], true)) {
+            $validated['maint_type'] = $transaction->source_type === \App\Models\FinanceCurrencyExchange::class ? 'exchange' : 'transfer';
+        }
         app(FinanceService::class)->updateTransaction($transaction, [
             'amount' => $validated['maint_amount'],
             'cash_box_id' => $validated['maint_cash_box_id'],
@@ -1110,7 +1120,7 @@ new class extends Component {
                         @foreach ($currencies as $currency)
                             <tr>
                                 <td class="px-5 py-3"><div class="font-medium text-white">{{ $currency->code }} {{ $currency->symbol ? '('.$currency->symbol.')' : '' }}</div><div class="text-xs text-neutral-500">{{ $currency->name }}</div></td>
-                                <td class="px-5 py-3"><bdi dir="ltr" class="inline-block">{{ app(FinanceService::class)->currencyRateLabel($currency, $baseCurrency) }}</bdi></td>
+                                <td class="px-5 py-3">@if ($currency->is_base)<span class="text-neutral-500">-</span>@else<bdi dir="ltr" class="inline-block">{{ app(FinanceService::class)->currencyRateLabel($currency, $baseCurrency) }}</bdi>@endif</td>
                                 <td class="px-5 py-3">
                                     <div class="flex flex-wrap gap-2">
                                         @if ($currency->is_local)<span class="status-chip status-chip--emerald">{{ __('finance.common.local') }}</span>@endif
@@ -1185,7 +1195,7 @@ new class extends Component {
                 <div><label class="mb-1 block text-sm">{{ __('finance.fields.cash_box') }}</label><select wire:model="maint_cash_box_id" class="w-full rounded-xl px-4 py-3">@foreach ($cashBoxes as $fund)<option value="{{ $fund->id }}">{{ $fund->name }}</option>@endforeach</select></div>
                 <div><label class="mb-1 block text-sm">{{ __('finance.common.currency') }}</label><select wire:model="maint_currency_id" class="w-full rounded-xl px-4 py-3">@foreach ($currencies as $currency)<option value="{{ $currency->id }}">{{ $currency->code }}</option>@endforeach</select></div>
                 <div><label class="mb-1 block text-sm">{{ __('finance.fields.category') }}</label><select wire:model="maint_category_id" class="w-full rounded-xl px-4 py-3"><option value="">-</option>@foreach ($financeCategories as $category)<option value="{{ $category->id }}">{{ $category->name }}</option>@endforeach</select></div>
-                <div><label class="mb-1 block text-sm">{{ __('finance.fields.type') }}</label><select wire:model="maint_type" class="w-full rounded-xl px-4 py-3">@foreach (['income', 'expense', 'return', 'exchange', 'transfer'] as $transactionType)<option value="{{ $transactionType }}">{{ app(\App\Services\FinanceService::class)->transactionTypeLabel($transactionType) }}</option>@endforeach</select></div>
+                <div><label class="mb-1 block text-sm">{{ __('finance.fields.type') }}</label><select wire:model="maint_type" @disabled($maint_type_locked) class="w-full rounded-xl px-4 py-3">@foreach ($maint_type_locked ? [$maint_type] : ['income', 'expense', 'return', 'exchange', 'transfer'] as $transactionType)<option value="{{ $transactionType }}">{{ app(\App\Services\FinanceService::class)->transactionTypeLabel($transactionType) }}</option>@endforeach</select></div>
                 <div><label class="mb-1 block text-sm">{{ __('finance.fields.direction') }}</label><select wire:model="maint_direction" class="w-full rounded-xl px-4 py-3"><option value="in">{{ __('finance.options.in') }}</option><option value="out">{{ __('finance.options.out') }}</option></select></div>
                 <div><label class="mb-1 block text-sm">{{ __('finance.fields.amount') }}</label><input wire:model="maint_amount" data-thousand-separator class="w-full rounded-xl px-4 py-3"></div>
                 <div><label class="mb-1 block text-sm">{{ __('finance.fields.special_transaction_no') }}</label><input wire:model="maint_special_transaction_no" dir="ltr" class="w-full rounded-xl px-4 py-3">@error('maint_special_transaction_no')<div class="mt-1 text-sm text-red-400">{{ $message }}</div>@enderror</div>
@@ -1244,6 +1254,7 @@ new class extends Component {
                 <input wire:model="currency_name" type="text" class="w-full rounded-xl px-4 py-3 text-sm">
                 @error('currency_name') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
             </div>
+            @unless ($currency_is_base)
             <div class="grid gap-4 md:grid-cols-[16rem_minmax(0,1fr)]">
                 <div>
                     <label class="mb-1 block text-sm font-medium">{{ __('finance.fields.rate_reference_currency') }}</label>
@@ -1263,10 +1274,11 @@ new class extends Component {
                 @error('currency_rate_input') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
                 </div>
             </div>
+            @endunless
             <div class="grid gap-3 text-sm">
                 <label class="flex items-center gap-3"><input wire:model="currency_is_active" type="checkbox" class="rounded"> {{ __('finance.common.active') }}</label>
                 <label class="flex items-center gap-3"><input wire:model="currency_is_local" type="checkbox" class="rounded"> {{ __('finance.common.local_currency') }}</label>
-                <label class="flex items-center gap-3"><input wire:model="currency_is_base" type="checkbox" class="rounded"> {{ __('finance.common.base_currency') }}</label>
+                <label class="flex items-center gap-3"><input wire:model.live="currency_is_base" type="checkbox" class="rounded"> {{ __('finance.common.base_currency') }}</label>
             </div>
             @error('currency_is_active') <div class="text-sm text-red-400">{{ $message }}</div> @enderror
             @error('currency_is_local') <div class="text-sm text-red-400">{{ $message }}</div> @enderror

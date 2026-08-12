@@ -6,6 +6,7 @@ use App\Livewire\Concerns\SupportsCreateAndNew;
 use App\Models\AcademicYear;
 use App\Models\AppSetting;
 use App\Models\Course;
+use App\Models\Curriculum;
 use App\Models\Enrollment;
 use App\Models\GradeLevel;
 use App\Models\Group;
@@ -31,6 +32,7 @@ new class extends Component {
     public ?int $teacher_id = null;
     public ?int $assistant_teacher_id = null;
     public ?int $grade_level_id = null;
+    public ?int $curriculum_id = null;
     public string $name = '';
     public string $capacity = '0';
     public bool $is_active = true;
@@ -91,6 +93,7 @@ new class extends Component {
             'academicYears' => AcademicYear::query()->where('is_active', true)->orderByDesc('starts_on')->get(['id', 'name']),
             'teachers' => $this->availableTeachersQuery()->orderBy('first_name')->orderBy('last_name')->get(['id', 'first_name', 'last_name']),
             'gradeLevels' => GradeLevel::query()->where('is_active', true)->orderBy('sort_order')->get(['id', 'name']),
+            'curricula' => Curriculum::query()->where('is_active', true)->when($this->course_id, fn ($query) => $query->where('course_id', $this->course_id))->orderBy('name')->get(['id', 'course_id', 'name']),
             'rosterGroup' => $this->rosterGroupId
                 ? $this->scopeGroupsQuery(Group::query()->with(['course', 'teacher']))->find($this->rosterGroupId)
                 : null,
@@ -118,7 +121,7 @@ new class extends Component {
             'dashboardCardGroup' => $this->dashboardCardGroupId
                 ? $this->scopeGroupsQuery(Group::query()->with(['course', 'academicYear', 'teacher']))->find($this->dashboardCardGroupId)
                 : null,
-            'dashboardCardTemplates' => $this->showDashboardCardTemplateModal
+            'dashboardCardTemplates' => ($this->showDashboardCardTemplateModal || $this->showFormModal)
                 ? PrintTemplate::query()
                     ->where('is_active', true)
                     ->orderBy('name')
@@ -147,6 +150,13 @@ new class extends Component {
         $this->resetPage();
     }
 
+    public function updatedCourseId(): void
+    {
+        if ($this->curriculum_id && ! Curriculum::query()->whereKey($this->curriculum_id)->where('course_id', $this->course_id)->exists()) {
+            $this->curriculum_id = null;
+        }
+    }
+
     public function rules(): array
     {
         return [
@@ -155,6 +165,7 @@ new class extends Component {
             'teacher_id' => ['required', 'exists:teachers,id'],
             'assistant_teacher_id' => ['nullable', 'exists:teachers,id', 'different:teacher_id'],
             'grade_level_id' => ['nullable', 'exists:grade_levels,id'],
+            'curriculum_id' => ['nullable', Rule::exists('curricula', 'id')->where(fn ($query) => $query->where('course_id', $this->course_id)->where('is_active', true))],
             'name' => [
                 'required',
                 'string',
@@ -165,6 +176,11 @@ new class extends Component {
             ],
             'capacity' => ['required', 'integer', 'min:0'],
             'is_active' => ['boolean'],
+            'dashboard_card_template_id' => [
+                'nullable',
+                'integer',
+                Rule::exists('print_templates', 'id')->where(fn ($query) => $query->where('is_active', true)),
+            ],
         ];
     }
 
@@ -200,6 +216,8 @@ new class extends Component {
         }
 
         $validated = $this->validate();
+        $dashboardCardTemplateId = $validated['dashboard_card_template_id'] ?? null;
+        unset($validated['dashboard_card_template_id']);
         $this->authorizeScopedTeacherAccess(Teacher::query()->findOrFail($validated['teacher_id']));
 
         if ($validated['assistant_teacher_id']) {
@@ -220,11 +238,20 @@ new class extends Component {
 
         $validated['assistant_teacher_id'] = $validated['assistant_teacher_id'] ?: null;
         $validated['grade_level_id'] = $validated['grade_level_id'] ?: null;
+        $validated['curriculum_id'] = $validated['curriculum_id'] ?: null;
 
         $group = Group::query()->updateOrCreate(
             ['id' => $this->editingId],
             $validated,
         );
+
+        $templateMap = $this->dashboardCardTemplateMap();
+        if ($dashboardCardTemplateId) {
+            $templateMap[(string) $group->id] = (int) $dashboardCardTemplateId;
+        } else {
+            unset($templateMap[(string) $group->id]);
+        }
+        AppSetting::storeValue('general', 'student_dashboard_card_templates', $templateMap, 'array');
 
         if (! $group->is_active) {
             $this->deactivateGroupEnrollments($group);
@@ -251,9 +278,11 @@ new class extends Component {
         $this->teacher_id = $group->teacher_id;
         $this->assistant_teacher_id = $group->assistant_teacher_id;
         $this->grade_level_id = $group->grade_level_id;
+        $this->curriculum_id = $group->curriculum_id;
         $this->name = $group->name;
         $this->capacity = (string) $group->capacity;
         $this->is_active = $group->is_active;
+        $this->dashboard_card_template_id = (string) ($this->dashboardCardTemplateMap()[(string) $group->id] ?? '');
         $this->showFormModal = true;
 
         $this->resetValidation();
@@ -533,9 +562,11 @@ new class extends Component {
         $this->teacher_id = null;
         $this->assistant_teacher_id = null;
         $this->grade_level_id = null;
+        $this->curriculum_id = null;
         $this->name = '';
         $this->capacity = '0';
         $this->is_active = true;
+        $this->dashboard_card_template_id = '';
 
         $this->resetValidation();
     }
@@ -832,7 +863,7 @@ new class extends Component {
             <div class="admin-empty-state">{{ __('crud.groups.table.empty') }}</div>
         @else
             <div class="overflow-x-auto">
-                <table class="text-sm">
+                <table class="w-full table-fixed text-sm">
                     <thead>
                         <tr>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.groups.table.headers.group') }}</th>
@@ -842,9 +873,7 @@ new class extends Component {
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.groups.table.headers.grade') }}</th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.groups.table.headers.students') }}</th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.groups.table.headers.status') }}</th>
-                            @if (auth()->user()->can('groups.view') || auth()->user()->can('groups.update') || auth()->user()->can('groups.delete'))
-                                <th class="px-5 py-4 text-right lg:px-6">{{ __('crud.groups.table.headers.actions') }}</th>
-                            @endif
+                            <th class="px-5 py-4 text-right lg:px-6">{{ __('crud.groups.table.headers.actions') }}</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-white/6">
@@ -865,41 +894,9 @@ new class extends Component {
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $group->gradeLevel?->name ?: __('crud.common.not_available') }}</td>
                                 <td class="px-5 py-4 text-white lg:px-6">{{ $group->enrollments_count }}</td>
                                 <td class="px-5 py-4 lg:px-6"><span class="{{ $groupStatusClass }}">{{ $group->is_active ? __('crud.common.status_options.active') : __('crud.common.status_options.inactive') }}</span></td>
-                                @if (auth()->user()->can('groups.view') || auth()->user()->can('groups.update') || auth()->user()->can('groups.delete'))
-                                    <td class="px-5 py-4 lg:px-6">
-                                        <div class="flex flex-wrap justify-end gap-2">
-                                            @if (auth()->user()->can('attendance.student.view') || auth()->user()->can('memorization.view'))
-                                                <button type="button" wire:click="openQuickSummaryModal({{ $group->id }})" class="pill-link pill-link--compact">
-                                                    {{ __('crud.groups.quick_summary.action') }}
-                                                </button>
-                                            @endif
-                                            <button type="button" wire:click="openRosterModal({{ $group->id }})" class="pill-link pill-link--compact">
-                                                {{ __('crud.common.actions.students') }}
-                                            </button>
-                                            <a href="{{ route('groups.schedules', $group) }}" wire:navigate class="pill-link pill-link--compact">
-                                                {{ __('crud.common.actions.schedules') }}
-                                            </a>
-                                            @can('groups.update')
-                                                <button type="button" wire:click="openDashboardCardTemplateModal({{ $group->id }})" class="pill-link pill-link--compact">
-                                                    {{ __('crud.groups.dashboard_card.action') }}
-                                                </button>
-                                                <button type="button" wire:click="edit({{ $group->id }})" class="pill-link pill-link--compact">
-                                                    {{ __('crud.common.actions.edit') }}
-                                                </button>
-                                                @if ($group->is_active)
-                                                    <button type="button" wire:click="deactivate({{ $group->id }})" wire:confirm="{{ __('crud.groups.confirm_deactivate') }}" class="pill-link pill-link--compact border-amber-300/30 bg-amber-400/10 text-amber-100 hover:border-amber-200/45 hover:bg-amber-400/15">
-                                                        {{ __('crud.common.actions.deactivate') }}
-                                                    </button>
-                                                @endif
-                                            @endcan
-                                            @can('groups.delete')
-                                                <button type="button" wire:click="delete({{ $group->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link pill-link--compact border-red-400/25 text-red-200 hover:border-red-300/35 hover:bg-red-500/12">
-                                                    {{ __('crud.common.actions.delete') }}
-                                                </button>
-                                            @endcan
-                                        </div>
-                                    </td>
-                                @endif
+                                <td class="px-5 py-4 text-right lg:px-6">
+                                    <a href="{{ route('groups.show', $group) }}" wire:navigate class="pill-link pill-link--compact">{{ __('crud.common.actions.open') }}</a>
+                                </td>
                             </tr>
                         @endforeach
                     </tbody>
@@ -1003,11 +1000,33 @@ new class extends Component {
             </div>
 
             <div>
+                <label for="group-curriculum" class="mb-1 block text-sm font-medium">{{ __('curricula.fields.curriculum') }}</label>
+                <select id="group-curriculum" wire:model="curriculum_id" class="w-full rounded-xl px-4 py-3 text-sm">
+                    <option value="">{{ __('curricula.options.no_curriculum') }}</option>
+                    @foreach ($curricula as $curriculum)
+                        <option value="{{ $curriculum->id }}">{{ $curriculum->name }}</option>
+                    @endforeach
+                </select>
+                @error('curriculum_id')<div class="mt-1 text-sm text-red-400">{{ $message }}</div>@enderror
+            </div>
+
+            <div>
                 <label for="group-capacity" class="mb-1 block text-sm font-medium">{{ __('crud.groups.form.fields.capacity') }}</label>
                 <input id="group-capacity" wire:model="capacity" type="number" min="0" class="w-full rounded-xl px-4 py-3 text-sm">
                 @error('capacity')
                     <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                 @enderror
+            </div>
+
+            <div>
+                <label for="group-card-template" class="mb-1 block text-sm font-medium">{{ __('crud.groups.dashboard_card.fields.template') }}</label>
+                <select id="group-card-template" wire:model="dashboard_card_template_id" class="w-full rounded-xl px-4 py-3 text-sm">
+                    <option value="">{{ __('crud.groups.dashboard_card.placeholders.none') }}</option>
+                    @foreach ($dashboardCardTemplates as $template)
+                        <option value="{{ $template->id }}">{{ $template->name }}</option>
+                    @endforeach
+                </select>
+                @error('dashboard_card_template_id')<div class="mt-1 text-sm text-red-400">{{ $message }}</div>@enderror
             </div>
 
             <label class="flex items-center gap-3 text-sm">

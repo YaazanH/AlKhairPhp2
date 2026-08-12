@@ -5,6 +5,7 @@ use App\Livewire\Concerns\FormatsFinanceNumbers;
 use App\Models\FinanceCurrency;
 use App\Models\FinanceCurrencyExchange;
 use App\Services\FinanceService;
+use App\Services\SpTodayExchangeRateService;
 use Livewire\Volt\Component;
 
 new class extends Component {
@@ -19,10 +20,12 @@ new class extends Component {
     public string $to_amount = '';
     public string $exchange_date = '';
     public string $notes = '';
+    public ?int $active_rate_currency_id = null;
 
     public function mount(): void
     {
         $this->authorizePermission('finance.exchange.view');
+        app(SpTodayExchangeRateService::class)->refreshUsdSypRate();
         $this->exchange_date = now()->toDateString();
         $baseCurrency = app(FinanceService::class)->baseCurrency();
         $localCurrency = app(FinanceService::class)->localCurrency();
@@ -30,6 +33,7 @@ new class extends Component {
         $this->to_currency_id = $localCurrency->id;
         $this->from_cash_box_id = app(FinanceService::class)->defaultCashBoxForUser(auth()->user(), $baseCurrency->id)?->id;
         $this->to_cash_box_id = app(FinanceService::class)->defaultCashBoxForUser(auth()->user(), $localCurrency->id)?->id;
+        $this->active_rate_currency_id = $localCurrency->is_base ? FinanceCurrency::query()->where('is_active', true)->where('is_base', false)->value('id') : $localCurrency->id;
     }
 
     public function with(): array
@@ -44,6 +48,11 @@ new class extends Component {
                 ->orderByDesc('is_base')
                 ->orderBy('code')
                 ->get(),
+            'selectedRateCurrency' => FinanceCurrency::query()
+                ->with(['rateReferenceCurrency', 'rateUpdatedBy'])
+                ->where('is_active', true)
+                ->where('is_base', false)
+                ->find($this->active_rate_currency_id),
             'baseCurrency' => $financeService->baseCurrency(),
             'fromCashBoxes' => $financeService->accessibleCashBoxesForCurrency(auth()->user(), $this->from_currency_id)->get(),
             'toCashBoxes' => $financeService->accessibleCashBoxesForCurrency(auth()->user(), $this->to_currency_id)->get(),
@@ -155,48 +164,22 @@ new class extends Component {
     <section class="surface-panel overflow-hidden p-0">
         <div class="relative isolate overflow-hidden p-5 lg:p-6">
             <div class="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top_left,rgba(16,185,129,0.20),transparent_34%),linear-gradient(135deg,rgba(255,255,255,0.08),transparent_48%)]"></div>
-            <div class="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+            <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                 <div>
                     <div class="eyebrow">{{ __('finance.exchange.rate_board_eyebrow') }}</div>
                     <h2 class="font-display mt-2 text-2xl text-white">{{ __('finance.exchange.rate_board_title') }}</h2>
                     <p class="mt-2 max-w-2xl text-sm leading-6 text-neutral-300">{{ __('finance.exchange.rate_board_subtitle') }}</p>
                 </div>
-                <span class="status-chip status-chip--emerald">{{ trans_choice('finance.exchange.active_currency_count', $activeCurrencies->count(), ['count' => number_format($activeCurrencies->count())]) }}</span>
-            </div>
-
-            <div class="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                @foreach ($activeCurrencies as $currency)
-                    <article class="group rounded-3xl border border-white/10 bg-black/20 p-4 shadow-2xl shadow-black/10 transition duration-200 hover:-translate-y-0.5 hover:border-emerald-300/30 hover:bg-emerald-500/[0.07]">
-                        <div class="flex items-start justify-between gap-3">
-                            <div>
-                                <div class="flex items-center gap-2">
-                                    <span class="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/10 text-sm font-semibold text-white">{{ $currency->symbol ?: $currency->code }}</span>
-                                    <div>
-                                        <div class="text-base font-semibold text-white">{{ $currency->code }}</div>
-                                        <div class="text-xs text-neutral-500">{{ $currency->name }}</div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="flex flex-wrap justify-end gap-1">
-                                @if ($currency->is_local)<span class="status-chip status-chip--emerald">{{ __('finance.common.local') }}</span>@endif
-                                @if ($currency->is_base)<span class="status-chip status-chip--slate">{{ __('finance.common.base') }}</span>@endif
-                            </div>
-                        </div>
-                        <div class="mt-4 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3">
-                            <div class="text-xs uppercase tracking-[0.18em] text-neutral-500">{{ __('finance.fields.exchange_rate') }}</div>
-                            <div class="mt-1 text-lg font-semibold text-emerald-100">
-                                <bdi dir="ltr" class="inline-block">{{ app(FinanceService::class)->currencyRateLabel($currency, $baseCurrency) }}</bdi>
-                            </div>
-                        </div>
-                        <div class="mt-3 text-xs text-neutral-500">
-                            {{ __('finance.exchange.rate_updated') }}:
-                            {{ $currency->rate_updated_at?->format('d-m-Y H:i') ?: '-' }}
-                            @if ($currency->rateUpdatedBy)
-                                · {{ $currency->rateUpdatedBy->name }}
-                            @endif
-                        </div>
-                    </article>
-                @endforeach
+                <div class="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center">
+                    <select wire:model.live="active_rate_currency_id" class="rounded-xl px-3 py-2 text-sm">
+                        @foreach ($activeCurrencies->where('is_base', false) as $currency)
+                            <option value="{{ $currency->id }}">{{ $currency->code }} - {{ $currency->name }}</option>
+                        @endforeach
+                    </select>
+                    @if ($selectedRateCurrency)
+                        <bdi dir="ltr" class="text-lg font-semibold text-emerald-100">{{ app(FinanceService::class)->currencyRateLabel($selectedRateCurrency, $baseCurrency) }}</bdi>
+                    @endif
+                </div>
             </div>
         </div>
     </section>

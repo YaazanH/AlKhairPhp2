@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Invoice;
+use App\Services\FinanceReportService;
 use Illuminate\Http\Response;
 use Mpdf\Config\ConfigVariables;
 use Mpdf\Config\FontVariables;
@@ -16,8 +17,8 @@ class FinanceInvoicePrintController extends Controller
         abort_unless($invoice->invoice_type === 'finance', 404);
 
         $invoice->load(['items', 'financeRequest.acceptedCurrency', 'finalisedBy']);
-        $fontDirectories = (new ConfigVariables())->getDefaults()['fontDir'];
-        $fontData = (new FontVariables())->getDefaults()['fontdata'];
+        $fontDirectories = (new ConfigVariables)->getDefaults()['fontDir'];
+        $fontData = (new FontVariables)->getDefaults()['fontdata'];
         $mpdf = new Mpdf([
             'format' => 'A5', 'orientation' => 'P', 'mode' => 'utf-8', 'default_font' => 'dubai',
             'fontDir' => array_merge($fontDirectories, [public_path('fonts/dubai')]),
@@ -25,7 +26,11 @@ class FinanceInvoicePrintController extends Controller
             'margin_top' => 12, 'margin_right' => 12, 'margin_bottom' => 12, 'margin_left' => 12,
         ]);
         $mpdf->SetDirectionality('rtl');
-        $mpdf->WriteHTML(view('print.finance-invoice-a5', ['invoice' => $invoice, 'isPdf' => true])->render());
+        $mpdf->WriteHTML(view('print.finance-invoice-a5', [
+            'invoice' => $invoice,
+            'isPdf' => true,
+            'logoImage' => app(FinanceReportService::class)->defaultReportLogoPdfSource(),
+        ])->render());
 
         return response($mpdf->Output('', 'S'), 200, [
             'Content-Type' => 'application/pdf',

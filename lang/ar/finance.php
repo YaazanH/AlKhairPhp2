@@ -225,6 +225,7 @@ return [
     'messages' => [
         'adjustment_posted' => 'تم تسجيل تعديل الصندوق.',
         'exchange_posted' => 'تم تسجيل عملية الصرافة.',
+        'invoice_updated' => 'تم تحديث الفاتورة.',
         'entry_delete_help' => 'حذف القيد المالي المسجل يحافظ على الأثر المالي عبر إنشاء قيد عكسي ثم إخفاء هذا السجل من جداول المالية.',
         'entry_delete_reversal_help' => 'لا يتم مسح قيود السجل المالي المسجلة. ينشئ النظام حركات عكسية حتى تبقى أرصدة الصناديق قابلة للتدقيق.',
         'entry_deleted' => 'تم حذف القيد المالي وإنشاء العكس عند الحاجة.',
@@ -281,7 +282,7 @@ return [
         'invoice' => 'فاتورة',
     ],
     'category_types' => [
-        'exchange' => 'تصريف',
+        'exchange' => 'صرافة',
         'transfer' => 'تحويل',
         'income' => 'إيراد',
         'expense' => 'مصروف',
@@ -295,7 +296,7 @@ return [
         'return' => 'إرجاع',
         'income' => 'دخل',
         'donation' => 'تبرع',
-        'exchange' => 'تصريف',
+        'exchange' => 'صرافة',
         'transfer' => 'تحويل',
     ],
     'pull_requests' => [
@@ -500,7 +501,7 @@ return [
         'income' => 'دخل',
         'return' => 'إرجاع',
         'transfer' => 'تحويل',
-        'exchange' => 'تصريف',
+        'exchange' => 'صرافة',
         'activity_expense' => 'مصروف نشاط',
         'activity_expense_adjustment' => 'تعديل مصروف نشاط',
         'activity_payment' => 'دفعة نشاط',

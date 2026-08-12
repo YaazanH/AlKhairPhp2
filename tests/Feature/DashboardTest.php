@@ -277,6 +277,102 @@ class DashboardTest extends TestCase
             ->assertSee('Teacher Group');
     }
 
+    public function test_group_supervisor_teacher_sees_group_dashboard_and_assigned_course(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $user = User::factory()->create(['username' => 'group-supervisor-dashboard']);
+        $user->assignRole('teacher');
+        $supervisorRole = Role::findOrCreate('مشرف حلقة', 'web');
+        $teacher = Teacher::create([
+            'user_id' => $user->id,
+            'access_role_id' => $supervisorRole->id,
+            'first_name' => 'Supervisor',
+            'last_name' => 'Teacher',
+            'phone' => '0944111222',
+            'status' => 'active',
+        ]);
+        Course::create(['name' => 'Default Course', 'is_active' => true, 'is_default' => true]);
+        $assignedCourse = Course::create(['name' => 'Assigned Special Course', 'is_active' => true]);
+        $academicYear = AcademicYear::create([
+            'name' => 'Hidden Academic Year',
+            'starts_on' => '2026-08-01',
+            'ends_on' => '2027-07-31',
+            'is_current' => true,
+            'is_active' => true,
+        ]);
+        $group = Group::create([
+            'course_id' => $assignedCourse->id,
+            'academic_year_id' => $academicYear->id,
+            'teacher_id' => $teacher->id,
+            'name' => 'Supervisor Group',
+            'capacity' => 20,
+            'is_active' => true,
+        ]);
+        $student = Student::create([
+            'first_name' => 'Ranked',
+            'last_name' => 'Student',
+            'birth_date' => '2014-01-01',
+            'status' => 'active',
+        ]);
+        $enrollment = Enrollment::create([
+            'student_id' => $student->id,
+            'group_id' => $group->id,
+            'enrolled_at' => '2026-09-01',
+            'status' => 'active',
+            'final_points_cached' => 75,
+            'memorized_pages_cached' => 12,
+        ]);
+        $present = AttendanceStatus::create([
+            'name' => 'Present',
+            'code' => 'supervisor-dashboard-present',
+            'scope' => 'student',
+            'is_present' => true,
+            'is_active' => true,
+        ]);
+        $attendanceDay = GroupAttendanceDay::create([
+            'group_id' => $group->id,
+            'attendance_date' => '2026-09-10',
+            'status' => 'closed',
+        ]);
+        StudentAttendanceRecord::create([
+            'group_attendance_day_id' => $attendanceDay->id,
+            'enrollment_id' => $enrollment->id,
+            'attendance_status_id' => $present->id,
+        ]);
+        MemorizationSession::create([
+            'enrollment_id' => $enrollment->id,
+            'student_id' => $student->id,
+            'teacher_id' => $teacher->id,
+            'recorded_on' => '2026-09-10',
+            'entry_type' => 'new',
+            'from_page' => 10,
+            'to_page' => 12,
+            'pages_count' => 3,
+        ]);
+
+        $this->actingAs($user)
+            ->get('/dashboard')
+            ->assertOk()
+            ->assertSee('Assigned Special Course')
+            ->assertDontSee('Hidden Academic Year')
+            ->assertSee('Supervisor Group')
+            ->assertSee('Average student attendance')
+            ->assertSee('100.0%')
+            ->assertSee('Top 5 Students by Memorization')
+            ->assertSee('Top Students by Points')
+            ->assertSee('Curriculum progress')
+            ->assertDontSee('Latest Memorization Entries')
+            ->assertSee('Ranked Student')
+            ->assertSee('dashboard-line-chart', false);
+
+        Volt::test('dashboard')
+            ->call('openTeacherLeaderboard')
+            ->assertSet('showTeacherLeaderboardModal', true)
+            ->call('openTeacherMemorizations')
+            ->assertSet('showTeacherMemorizationsModal', true);
+    }
+
     public function test_parent_users_see_only_their_students(): void
     {
         $this->seed(RoleSeeder::class);

@@ -533,7 +533,12 @@ new class extends Component {
 <div class="page-stack">
     <section class="page-hero p-6 lg:p-8">
         <div class="eyebrow">{{ __('ui.nav.tracking_quran') }}</div>
-        <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('workflow.quran_tests.workbench.title') }}</h1>
+        <div class="mt-4 flex flex-wrap items-center justify-between gap-4">
+            <h1 class="font-display text-4xl leading-none text-white md:text-5xl">{{ __('workflow.quran_tests.workbench.title') }}</h1>
+            <button type="button" wire:click="openEligibleAwqafModal" class="pill-link">
+                {{ __('workflow.quran_tests.workbench.eligible_awqaf_action') }}
+            </button>
+        </div>
         <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ __('workflow.quran_tests.workbench.subtitle') }}</p>
         <div class="mt-6 flex flex-wrap gap-3">
             <span class="badge-soft">{{ __('workflow.quran_tests.workbench.stats.students') }}: {{ number_format($stats['students']) }}</span>
@@ -583,9 +588,6 @@ new class extends Component {
                     @canany(['quran-awqaf-tests.record', 'quran-tests.record'])
                         <button type="button" wire:click="openCreateModal" class="pill-link pill-link--accent">{{ __('workflow.quran_tests.workbench.create') }}</button>
                     @endcanany
-                    <button type="button" wire:click="openEligibleAwqafModal" class="pill-link">
-                        {{ __('workflow.quran_tests.workbench.eligible_awqaf_action') }}
-                    </button>
                 </div>
             </div>
         </div>
@@ -691,9 +693,9 @@ new class extends Component {
         :title="__('workflow.quran_tests.eligible_modal.title')"
         :description="__('workflow.quran_tests.eligible_modal.description')"
         close-method="closeEligibleAwqafModal"
-        max-width="5xl"
+        max-width="4xl"
     >
-        <div class="space-y-5">
+        <div class="space-y-3">
             <div class="flex flex-wrap items-center justify-between gap-3">
                 <div class="text-sm text-neutral-400">{{ __('workflow.quran_tests.eligible_modal.summary', ['count' => number_format($eligibleAwqafStudents->count())]) }}</div>
                 <a href="{{ route('quran-tests.eligible-awqaf.export') }}" class="pill-link pill-link--accent">
@@ -708,19 +710,19 @@ new class extends Component {
                     <table class="text-sm">
                         <thead>
                             <tr>
-                                <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.quran_tests.eligible_modal.headers.full_name') }}</th>
-                                <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.quran_tests.eligible_modal.headers.father_name') }}</th>
-                                <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.quran_tests.eligible_modal.headers.birth_year') }}</th>
-                                <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.quran_tests.eligible_modal.headers.ajza_count') }}</th>
+                                <th class="px-3 py-2 text-left">{{ __('workflow.quran_tests.eligible_modal.headers.full_name') }}</th>
+                                <th class="px-3 py-2 text-left">{{ __('workflow.quran_tests.eligible_modal.headers.father_name') }}</th>
+                                <th class="px-3 py-2 text-left">{{ __('workflow.quran_tests.eligible_modal.headers.birth_year') }}</th>
+                                <th class="px-3 py-2 text-left">{{ __('workflow.quran_tests.eligible_modal.headers.ajza_count') }}</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-white/6">
                             @foreach ($eligibleAwqafStudents as $eligibleStudent)
                                 <tr>
-                                    <td class="px-5 py-4 lg:px-6 text-white">{{ $eligibleStudent->full_name }}</td>
-                                    <td class="px-5 py-4 lg:px-6 text-neutral-300">{{ $eligibleStudent->father_name }}</td>
-                                    <td class="px-5 py-4 lg:px-6 text-neutral-300">{{ $eligibleStudent->birth_year }}</td>
-                                    <td class="px-5 py-4 lg:px-6 text-white">{{ $eligibleStudent->eligible_juz_count }}</td>
+                                    <td class="px-3 py-2 text-white">{{ $eligibleStudent->full_name }}</td>
+                                    <td class="px-3 py-2 text-neutral-300">{{ $eligibleStudent->father_name }}</td>
+                                    <td class="px-3 py-2 text-neutral-300">{{ $eligibleStudent->birth_year }}</td>
+                                    <td class="px-3 py-2 text-white">{{ $eligibleStudent->eligible_juz_count }}</td>
                                 </tr>
                             @endforeach
                         </tbody>

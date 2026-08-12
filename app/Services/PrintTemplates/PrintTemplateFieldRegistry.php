@@ -19,6 +19,8 @@ use Illuminate\Support\Str;
 
 class PrintTemplateFieldRegistry
 {
+    protected array $courseEndRowsByCourse = [];
+
     public function entities(): array
     {
         return [
@@ -80,6 +82,7 @@ class PrintTemplateFieldRegistry
                 'photo' => $this->field('photo', ['image'], fn (Student $student) => $this->storageUrl($student->photo_path) ?: AvatarDefaults::url('student')),
             ],
             'course_student' => [
+                'special_note' => $this->field('special_note', ['text'], fn (Enrollment $enrollment) => (string) $enrollment->getAttribute('report_card_special_note')),
                 'full_name' => $this->field('full_name', ['text', 'barcode'], fn (Enrollment $enrollment) => $enrollment->student?->full_name),
                 'student_number' => $this->field('student_number', ['text', 'barcode'], fn (Enrollment $enrollment) => (string) ($enrollment->student?->student_number ?: $enrollment->student_id)),
                 'course_name' => $this->field('course_name', ['text'], fn (Enrollment $enrollment) => $enrollment->group?->course?->name),
@@ -95,15 +98,24 @@ class PrintTemplateFieldRegistry
                 'course_ends_on' => $this->field('course_ends_on', ['text'], fn (Enrollment $enrollment) => $enrollment->group?->course?->ends_on?->format('d-m-Y')),
                 'points_before_rules' => $this->field('points_before_rules', ['text'], fn (Enrollment $enrollment) => data_get($this->courseEndRow($enrollment), 'points_before', 0)),
                 'points_after_rules' => $this->field('points_after_rules', ['text'], fn (Enrollment $enrollment) => data_get($this->courseEndRow($enrollment), 'points_after', 0)),
+                'total_points' => $this->field('total_points', ['text'], fn (Enrollment $enrollment) => data_get($this->courseEndRow($enrollment), 'points_after', 0)),
+                'attendance_average' => $this->field('attendance_average', ['text'], fn (Enrollment $enrollment) => \App\Support\PercentageFormatter::format(data_get($this->courseEndRow($enrollment), 'attendance_average', 0))),
                 'days_attended' => $this->field('days_attended', ['text'], fn (Enrollment $enrollment) => data_get($this->courseEndRow($enrollment), 'days_attended', 0)),
                 'days_absent' => $this->field('days_absent', ['text'], fn (Enrollment $enrollment) => data_get($this->courseEndRow($enrollment), 'days_absent', 0)),
                 'memorized_pages' => $this->field('memorized_pages', ['text'], fn (Enrollment $enrollment) => data_get($this->courseEndRow($enrollment), 'memorized_pages', 0)),
+                'daily_memorization_average' => $this->field('daily_memorization_average', ['text'], fn (Enrollment $enrollment) => data_get($this->courseEndRow($enrollment), 'daily_memorization_average', 0)),
+                'weekly_memorization_average' => $this->field('weekly_memorization_average', ['text'], fn (Enrollment $enrollment) => data_get($this->courseEndRow($enrollment), 'weekly_memorization_average', 0)),
                 'final_tested_juz' => $this->field('final_tested_juz', ['text'], fn (Enrollment $enrollment) => data_get($this->courseEndRow($enrollment), 'final_tests', 0)),
+                'passed_final_juz_count' => $this->field('passed_final_juz_count', ['text'], fn (Enrollment $enrollment) => data_get($this->courseEndRow($enrollment), 'final_tests', 0)),
                 'final_test_score' => $this->field('final_test_score', ['text'], fn (Enrollment $enrollment) => data_get($this->courseEndRow($enrollment), 'final_score', __('print_templates.common.not_available'))),
+                'final_exam_score' => $this->field('final_exam_score', ['text'], fn (Enrollment $enrollment) => data_get($this->courseEndRow($enrollment), 'final_score', __('print_templates.common.not_available'))),
                 'final_juzs' => $this->field('final_juzs', ['text'], fn (Enrollment $enrollment) => data_get($this->courseEndRow($enrollment), 'final_juzs')),
                 'final_marks' => $this->field('final_marks', ['text'], fn (Enrollment $enrollment) => data_get($this->courseEndRow($enrollment), 'final_marks')),
                 'assessment_count' => $this->field('assessment_count', ['text'], fn (Enrollment $enrollment) => data_get($this->courseEndRow($enrollment), 'assessment_count', 0)),
                 'assessment_average' => $this->field('assessment_average', ['text'], fn (Enrollment $enrollment) => data_get($this->courseEndRow($enrollment), 'assessment_average', __('print_templates.common.not_available'))),
+                'worship_assessment_average' => $this->field('worship_assessment_average', ['text'], fn (Enrollment $enrollment) => data_get($this->courseEndRow($enrollment), 'assessment_average', __('print_templates.common.not_available'))),
+                'cheques_count' => $this->field('cheques_count', ['text'], fn (Enrollment $enrollment) => data_get($this->courseEndRow($enrollment), 'cheques_count', 0)),
+                'leaderboard_count' => $this->field('leaderboard_count', ['text'], fn (Enrollment $enrollment) => data_get($this->courseEndRow($enrollment), 'leaderboard_count', 0)),
                 'photo' => $this->field('photo', ['image'], fn (Enrollment $enrollment) => $this->storageUrl($enrollment->student?->photo_path) ?: AvatarDefaults::url('student')),
             ],
             'teacher' => [
@@ -597,8 +609,17 @@ class PrintTemplateFieldRegistry
 
     protected function courseEndRow(Enrollment $enrollment): array
     {
-        return app(\App\Services\CourseEndService::class)
-            ->studentRows($enrollment->group->course)
-            ->firstWhere('enrollment_id', $enrollment->id) ?? [];
+        $course = $enrollment->group?->course;
+        if (! $course) {
+            return [];
+        }
+
+        $courseId = (int) $course->id;
+        $this->courseEndRowsByCourse[$courseId] ??= app(\App\Services\CourseEndService::class)
+            ->studentRows($course)
+            ->keyBy('enrollment_id')
+            ->all();
+
+        return $this->courseEndRowsByCourse[$courseId][$enrollment->id] ?? [];
     }
 }
