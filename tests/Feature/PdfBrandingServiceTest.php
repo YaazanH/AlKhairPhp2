@@ -12,7 +12,7 @@ class PdfBrandingServiceTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_pdf_logo_uses_the_file_uploaded_in_general_settings(): void
+    public function test_pdf_logo_uses_only_the_file_uploaded_in_main_page_settings(): void
     {
         Storage::fake('public');
         Storage::disk('public')->put('settings/branding/report-logo.png', 'configured-png');
@@ -24,6 +24,15 @@ class PdfBrandingServiceTest extends TestCase
             'data:image/png;base64,'.base64_encode('configured-png'),
             app(PdfBrandingService::class)->logoSource(),
         );
+    }
+
+    public function test_pdf_logo_does_not_fall_back_to_the_public_website_logo(): void
+    {
+        Storage::fake('public');
+        Storage::disk('public')->put('website/branding/logo.jpeg', 'website-logo');
+        AppSetting::storeValue('website', 'logo_path', 'website/branding/logo.jpeg');
+
+        $this->assertNull(app(PdfBrandingService::class)->logoSource());
     }
 
     public function test_pdf_logo_accepts_a_storage_prefixed_path(): void

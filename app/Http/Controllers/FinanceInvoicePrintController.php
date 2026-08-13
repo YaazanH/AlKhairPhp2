@@ -3,7 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Invoice;
-use App\Services\PdfBrandingService;
+use App\Services\FinanceReportService;
 use Illuminate\Http\Response;
 use Mpdf\Config\ConfigVariables;
 use Mpdf\Config\FontVariables;
@@ -29,7 +29,7 @@ class FinanceInvoicePrintController extends Controller
         $mpdf->WriteHTML(view('print.finance-invoice-a5', [
             'invoice' => $invoice,
             'isPdf' => true,
-            'logoImage' => app(PdfBrandingService::class)->logoSource(),
+            'logoImage' => app(FinanceReportService::class)->defaultReportLogoPdfSource(),
         ])->render());
 
         return response($mpdf->Output('', 'S'), 200, [

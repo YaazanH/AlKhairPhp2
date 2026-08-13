@@ -9,8 +9,7 @@ class PdfBrandingService
 {
     public function logoSource(): ?string
     {
-        $path = AppSetting::groupValues('general')->get('pdf_logo_path')
-            ?: AppSetting::groupValues('website')->get('logo_path');
+        $path = AppSetting::groupValues('general')->get('pdf_logo_path');
 
         if (! is_string($path) || trim($path) === '') {
             return null;

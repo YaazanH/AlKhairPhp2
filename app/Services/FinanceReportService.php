@@ -860,8 +860,8 @@ class FinanceReportService
     protected function templateSnapshot(FinanceReportTemplate $template): array
     {
         $backgroundImageUrl = $template->background_image_url;
-        $brandLogoPdfSource = app(PdfBrandingService::class)->logoSource();
         $logoImageUrl = $template->logo_image_url;
+        $logoImagePdfSource = $this->pdfAssetSource($logoImageUrl);
 
         return [
             'background_image_pdf_src' => $this->pdfAssetSource($backgroundImageUrl),
@@ -878,7 +878,7 @@ class FinanceReportService
             'include_opening_balance' => (bool) $template->include_opening_balance,
             'is_default' => (bool) $template->is_default,
             'language' => $template->language,
-            'logo_image_pdf_src' => $brandLogoPdfSource ?: $this->pdfAssetSource($logoImageUrl),
+            'logo_image_pdf_src' => $logoImagePdfSource,
             'logo_image_url' => $logoImageUrl,
             'name' => $template->name,
             'shape_color' => $template->shape_color ?: '#0f7a3d',
@@ -928,14 +928,19 @@ class FinanceReportService
 
     public function defaultReportLogoPdfSource(): ?string
     {
-        return app(PdfBrandingService::class)->logoSource()
-            ?: $this->pdfAssetSource($this->defaultLedgerTemplate()->logo_image_url);
+        return $this->pdfAssetSource($this->defaultLedgerTemplate()->logo_image_url);
+    }
+
+    public function defaultReportLogoUrl(): ?string
+    {
+        return $this->defaultLedgerTemplate()->logo_image_url;
     }
 
     protected function normalizeLedgerTemplateSnapshot(array $template): array
     {
         $template['background_image_pdf_src'] = $template['background_image_pdf_src'] ?? $this->pdfAssetSource($template['background_image_url'] ?? null);
-        $template['logo_image_pdf_src'] = $template['logo_image_pdf_src'] ?? $this->pdfAssetSource($template['logo_image_url'] ?? null);
+        $template['logo_image_pdf_src'] = $this->defaultReportLogoPdfSource();
+        $template['logo_image_url'] = $this->defaultReportLogoUrl();
 
         return $template;
     }

@@ -1299,7 +1299,9 @@ class FinanceAndActivitiesTest extends TestCase
         $this->assertStringContainsString('table-layout:fixed; width:100%;', $rtlExportHtml);
         $this->assertStringContainsString('class="stamp-block"', $rtlExportHtml);
         $this->assertStringContainsString('class="signature-line"', $rtlExportHtml);
-        $this->assertStringContainsString('bottom:2.4mm', $rtlExportHtml);
+        $this->assertStringContainsString('max-height:40mm; max-width:40mm', $rtlExportHtml);
+        $this->assertStringContainsString('.signature-block { text-align:center; vertical-align:bottom; width:50%; }', $rtlExportHtml);
+        $this->assertStringContainsString('.signature-line { border-top:1px solid #315b3b; bottom:0;', $rtlExportHtml);
 
         $reportWithBackground = $report;
         $reportWithBackground['template']['background_image_pdf_src'] = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';

@@ -225,6 +225,8 @@ return [
             'school_timezone' => 'Timezone',
             'school_currency' => 'Currency',
             'school_address' => 'Address',
+            'main_page_logo' => 'Main page logo',
+            'main_page_logo_help' => 'Saved immediately after selection and used in PDFs at a maximum height of 23 mm. If empty, PDFs show no logo.',
             'code' => 'Code',
             'name' => 'Name',
             'starts_on' => 'Starts on',
@@ -279,6 +281,7 @@ return [
         'actions' => [
             'save_settings' => 'Save settings',
             'remove_default_avatar' => 'Remove image',
+            'remove_logo' => 'Remove logo',
             'create_year' => 'Create year',
             'update_year' => 'Update year',
             'create_grade' => 'Create grade',
@@ -302,6 +305,8 @@ return [
         'messages' => [
             'settings_saved' => 'Dashboard settings saved successfully.',
             'default_avatar_removed' => 'Default image removed successfully.',
+            'logo_saved' => 'Main page logo saved successfully.',
+            'logo_removed' => 'Main page logo removed successfully.',
             'academic_year_created' => 'Academic year created successfully.',
             'academic_year_updated' => 'Academic year updated successfully.',
             'academic_year_deleted' => 'Academic year deleted successfully.',

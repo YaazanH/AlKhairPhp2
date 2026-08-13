@@ -56,16 +56,16 @@
         .summary-label { color: #58715e; font-size: 8pt; font-weight: bold; width: 18%; }
         .summary-value { direction: ltr; font-weight: bold; text-align: right; width: 32%; }
         .summary-notes { text-align: right; }
-        .signature { border:0 !important; height: 29mm; padding-top:4mm !important; }
+        .signature { border:0 !important; height: 44mm; padding-top:4mm !important; }
         .signature-layout { border-collapse:collapse; table-layout:fixed; width:100%; }
         .signature-layout,.signature-layout td { border:0; padding:0; }
         .stamp-block { text-align:left; vertical-align:bottom; width:50%; }
-        .stamp-block img { height:auto; max-height:25mm; max-width:34mm; width:auto; }
+        .stamp-block img { display:block; height:auto; margin:0; max-height:40mm; max-width:40mm; width:auto; }
         .signature-block { text-align:center; vertical-align:bottom; width:50%; }
-        .signature-mark { height:16mm; position:relative; width:100%; }
-        .signature-image { display:block; margin:0 auto; max-height:16mm; max-width:70%; width:auto; }
-        .signature-line { border-top:1px solid #315b3b; bottom:2.4mm; left:0; position:absolute; width:100%; }
-        .signature-name { color: #637267; display: block; font-size: 7.5pt; margin-top: 2mm; text-align:center; }
+        .signature-mark { height:31mm; position:relative; width:100%; }
+        .signature-image { display:block; margin:0 auto; max-height:26mm; max-width:70%; width:auto; }
+        .signature-line { border-top:1px solid #315b3b; bottom:0; left:0; position:absolute; width:100%; }
+        .signature-name { color: #637267; display: block; font-size: 7.5pt; margin-top: 2mm; text-align:center; width:100%; }
     </style>
 </head>
 <body>

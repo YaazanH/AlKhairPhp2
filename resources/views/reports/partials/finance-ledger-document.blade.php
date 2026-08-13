@@ -162,12 +162,12 @@
         grid-template-columns: 1fr 1fr;
         margin-top: 22px;
     }
-    .ledger-report-doc__stamp { text-align: left; }
-    .ledger-report-doc__stamp img { max-height: 100px; max-width: 140px; object-fit: contain; }
+    .ledger-report-doc__stamp { align-items: end; display: flex; justify-content: flex-start; text-align: left; }
+    .ledger-report-doc__stamp img { display: block; height: auto; margin: 0; max-height: 151px; max-width: 151px; object-fit: contain; width: auto; }
     .ledger-report-doc__signature { text-align: center; }
-    .ledger-report-doc__signature-mark { height: 70px; position: relative; }
-    .ledger-report-doc__signature img { display: block; margin: 0 auto; max-height: 70px; max-width: 70%; object-fit: contain; }
-    .ledger-report-doc__signature-line { border-top: 1px solid #315b3b; bottom: 10.5px; inset-inline: 0; position: absolute; }
+    .ledger-report-doc__signature-mark { height: 116px; position: relative; }
+    .ledger-report-doc__signature img { display: block; margin: 0 auto; max-height: 98px; max-width: 70%; object-fit: contain; }
+    .ledger-report-doc__signature-line { border-top: 1px solid #315b3b; bottom: 0; inset-inline: 0; position: absolute; }
     .ledger-report-doc__signature-name { color: #637365; display: block; margin-top: 6px; }
     .ledger-report-doc__custom-text {
         background: rgba(255, 255, 255, 0.78);

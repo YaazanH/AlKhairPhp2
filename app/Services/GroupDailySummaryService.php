@@ -8,10 +8,27 @@ use App\Models\GroupAttendanceDay;
 use App\Models\MemorizationSession;
 use App\Models\QuranFinalTestAttempt;
 use App\Models\QuranPartialTestAttempt;
+use App\Models\User;
 use Illuminate\Support\Collection;
 
 class GroupDailySummaryService
 {
+    /** @return array{attendance: bool, memorization: bool, partial_tests: bool, final_tests: bool} */
+    public function visibilityFor(User $user): array
+    {
+        return [
+            'attendance' => $user->can('attendance.student.view'),
+            'memorization' => $user->can('memorization.view'),
+            'partial_tests' => $user->can('quran-partial-tests.view'),
+            'final_tests' => $user->can('quran-final-tests.view'),
+        ];
+    }
+
+    public function currentCopyTextForUser(Group $group, string $date, User $user): string
+    {
+        return $this->currentCopyText($group, $date, $this->visibilityFor($user));
+    }
+
     /** @param array{attendance?: bool, memorization?: bool, partial_tests?: bool, final_tests?: bool} $visibility */
     public function currentCopyText(Group $group, string $date, array $visibility): string
     {

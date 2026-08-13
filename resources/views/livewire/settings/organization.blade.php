@@ -444,7 +444,19 @@ new class extends Component {
     public function closeOrganizationModal(): void
     {
         $this->showOrganizationModal = false;
+        $this->reset('pdf_logo_upload');
         $this->resetValidation();
+    }
+
+    public function updatedPdfLogoUpload(): void
+    {
+        $this->authorizePermission('settings.manage');
+        $this->validateOnly('pdf_logo_upload', [
+            'pdf_logo_upload' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,svg', 'max:4096'],
+        ]);
+
+        $this->persistPdfLogoUpload();
+        session()->flash('status', __('settings.organization.messages.logo_saved'));
     }
 
     public function openAcademicYearModal(): void
@@ -764,14 +776,7 @@ new class extends Component {
 
         AvatarDefaults::forget();
 
-        if ($this->pdf_logo_upload) {
-            if ($this->pdf_logo_path) {
-                Storage::disk('public')->delete($this->pdf_logo_path);
-            }
-            $this->pdf_logo_path = $this->pdf_logo_upload->store('settings/branding', 'public');
-            AppSetting::storeValue('general', 'pdf_logo_path', $this->pdf_logo_path);
-            $this->reset('pdf_logo_upload');
-        }
+        $this->persistPdfLogoUpload();
 
         if ($studentNumberFormatChanged) {
             app(StudentNumberService::class)->syncAll();
@@ -783,6 +788,38 @@ new class extends Component {
 
         session()->flash('status', __('settings.organization.messages.settings_saved'));
         $this->showOrganizationModal = false;
+    }
+
+    public function removePdfLogo(): void
+    {
+        $this->authorizePermission('settings.manage');
+
+        if ($this->pdf_logo_path) {
+            Storage::disk('public')->delete($this->pdf_logo_path);
+        }
+
+        $this->pdf_logo_path = '';
+        $this->reset('pdf_logo_upload');
+        AppSetting::storeValue('general', 'pdf_logo_path', null);
+        session()->flash('status', __('settings.organization.messages.logo_removed'));
+    }
+
+    protected function persistPdfLogoUpload(): void
+    {
+        if (! $this->pdf_logo_upload) {
+            return;
+        }
+
+        $oldPath = $this->pdf_logo_path;
+        $newPath = $this->pdf_logo_upload->store('settings/branding', 'public');
+
+        $this->pdf_logo_path = $newPath;
+        AppSetting::storeValue('general', 'pdf_logo_path', $newPath);
+        $this->reset('pdf_logo_upload');
+
+        if ($oldPath && $oldPath !== $newPath) {
+            Storage::disk('public')->delete($oldPath);
+        }
     }
 
     public function removeDefaultAvatar(string $type): void
@@ -1588,10 +1625,13 @@ new class extends Component {
                             <img src="{{ asset('storage/'.ltrim($pdf_logo_path, '/')) }}" alt="" class="max-h-24 max-w-48 object-contain">
                         @endif
                         <div class="min-w-0 flex-1">
-                            <label class="mb-1 block text-sm font-semibold text-white">{{ app()->isLocale('ar') ? 'شعار ملفات PDF' : 'PDF logo' }}</label>
+                            <label class="mb-1 block text-sm font-semibold text-white">{{ __('settings.organization.fields.main_page_logo') }}</label>
                             <input wire:model="pdf_logo_upload" type="file" accept="image/*,.svg" class="block w-full text-sm text-neutral-300">
-                            <p class="mt-1 text-xs text-neutral-400">{{ app()->isLocale('ar') ? 'يستخدم في جميع ملفات PDF، ويقتصر ارتفاعه على 23 مم.' : 'Used in every PDF, with a maximum rendered height of 23 mm.' }}</p>
+                            <p class="mt-1 text-xs text-neutral-400">{{ __('settings.organization.fields.main_page_logo_help') }}</p>
                             @error('pdf_logo_upload') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+                            @if ($pdf_logo_path)
+                                <button type="button" wire:click="removePdfLogo" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link pill-link--compact pill-link--danger mt-3">{{ __('settings.organization.actions.remove_logo') }}</button>
+                            @endif
                         </div>
                     </div>
                 </div>

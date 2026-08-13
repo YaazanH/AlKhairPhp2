@@ -275,15 +275,9 @@ new class extends Component {
             return;
         }
 
-        $visibility = [
-            'attendance' => $user->can('attendance.student.view'),
-            'memorization' => $user->can('memorization.view'),
-            'partial_tests' => $user->canAny(['quran-partial-tests.view', 'quran-partial-tests.record', 'quran-partial-tests.record-linked-teacher']),
-            'final_tests' => $user->canAny(['quran-final-tests.view', 'quran-final-tests.record', 'quran-final-tests.record-linked-teacher']),
-        ];
         $date = now()->toDateString();
 
-        $this->dispatch('admin-copy-text', text: app(GroupDailySummaryService::class)->currentCopyText($group, $date, $visibility));
+        $this->dispatch('admin-copy-text', text: app(GroupDailySummaryService::class)->currentCopyTextForUser($group, $date, $user));
     }
 
     protected function teacherData($user): array

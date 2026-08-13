@@ -225,6 +225,8 @@ return [
             'school_timezone' => 'المنطقة الزمنية',
             'school_currency' => 'العملة',
             'school_address' => 'العنوان',
+            'main_page_logo' => 'شعار الصفحة الرئيسية',
+            'main_page_logo_help' => 'يُحفظ مباشرة بعد اختياره ويُستخدم في ملفات PDF بارتفاع أقصى 23 مم. عند عدم رفع شعار لن يظهر أي شعار.',
             'code' => 'الرمز',
             'name' => 'الاسم',
             'starts_on' => 'تبدأ في',
@@ -279,6 +281,7 @@ return [
         'actions' => [
             'save_settings' => 'حفظ الإعدادات',
             'remove_default_avatar' => 'حذف الصورة',
+            'remove_logo' => 'حذف الشعار',
             'create_year' => 'إنشاء السنة',
             'update_year' => 'تحديث السنة',
             'create_grade' => 'إنشاء المرحلة',
@@ -302,6 +305,8 @@ return [
         'messages' => [
             'settings_saved' => 'تم حفظ إعدادات الصفحة الرئيسية بنجاح.',
             'default_avatar_removed' => 'تم حذف الصورة الافتراضية بنجاح.',
+            'logo_saved' => 'تم حفظ شعار الصفحة الرئيسية بنجاح.',
+            'logo_removed' => 'تم حذف شعار الصفحة الرئيسية بنجاح.',
             'academic_year_created' => 'تم إنشاء السنة الدراسية بنجاح.',
             'academic_year_updated' => 'تم تحديث السنة الدراسية بنجاح.',
             'academic_year_deleted' => 'تم حذف السنة الدراسية بنجاح.',

@@ -15,6 +15,7 @@ use App\Models\Student;
 use App\Models\Teacher;
 use App\Services\GroupDailySummaryService;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
 use Livewire\Volt\Component;
 use Livewire\WithPagination;
@@ -463,10 +464,10 @@ new class extends Component {
             return;
         }
 
-        $this->dispatch('admin-copy-text', text: app(GroupDailySummaryService::class)->currentCopyText(
+        $this->dispatch('admin-copy-text', text: app(GroupDailySummaryService::class)->currentCopyTextForUser(
             $group->loadMissing(['course', 'teacher']),
             $this->quickSummaryDate ?: now()->toDateString(),
-            $this->quickSummaryVisibility(),
+            Auth::user(),
         ));
     }
 
@@ -634,12 +635,7 @@ new class extends Component {
 
     protected function quickSummaryVisibility(): array
     {
-        return [
-            'attendance' => $this->canPermission('attendance.student.view'),
-            'memorization' => $this->canPermission('memorization.view'),
-            'partial_tests' => $this->canPermission('quran-partial-tests.view'),
-            'final_tests' => $this->canPermission('quran-final-tests.view'),
-        ];
+        return app(GroupDailySummaryService::class)->visibilityFor(Auth::user());
     }
 }; ?>
 

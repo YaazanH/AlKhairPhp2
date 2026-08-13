@@ -294,7 +294,7 @@ class AdminExportController extends Controller
         $mpdf->WriteHTML(view('exports.group-roster-pdf', [
             'enrollments' => $enrollments,
             'group' => $group,
-            'logo' => app(PdfBrandingService::class)->logoSource(),
+            'logoImage' => app(PdfBrandingService::class)->logoSource(),
         ])->render());
 
         return response($mpdf->Output('', Destination::STRING_RETURN), 200, [

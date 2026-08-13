@@ -28,6 +28,8 @@ use App\Services\CourseCompletionRuleService;
 use App\Services\SidebarNavigationService;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Livewire\Volt\Volt;
 use Tests\TestCase;
 
@@ -295,6 +297,25 @@ class SystemSettingsTest extends TestCase
         $this->assertDatabaseMissing('academic_years', ['id' => $academicYear->id]);
         $this->assertDatabaseMissing('grade_levels', ['id' => $gradeLevel->id]);
         $this->assertDatabaseMissing('student_genders', ['id' => $studentGender->id]);
+    }
+
+    public function test_main_page_logo_upload_is_saved_immediately_and_can_be_removed(): void
+    {
+        Storage::fake('public');
+        $this->signIn();
+
+        $component = Volt::test('settings.organization')
+            ->set('pdf_logo_upload', UploadedFile::fake()->image('main-page-logo.png', 300, 120))
+            ->assertHasNoErrors();
+
+        $path = (string) AppSetting::groupValues('general')->get('pdf_logo_path');
+        $this->assertNotSame('', $path);
+        Storage::disk('public')->assertExists($path);
+
+        $component->call('removePdfLogo')->assertHasNoErrors();
+
+        $this->assertNull(AppSetting::groupValues('general')->get('pdf_logo_path'));
+        Storage::disk('public')->assertMissing($path);
     }
 
     public function test_manager_can_manage_course_completion_rules_and_apply_point_adjustments(): void
