@@ -78,7 +78,7 @@ class PrintTemplateRenderService
             && ($element['styling']['text_align'] ?? null) === 'justify'
             && is_scalar($value)
         ) {
-            $value = $this->addArabicKashidas((string) $value);
+            $value = $this->addArabicKashidas((string) $value, $element);
         }
 
         return match ($element['type']) {
@@ -145,19 +145,51 @@ class PrintTemplateRenderService
         return preg_replace("/^\h+/mu", '', $value) ?? $value;
     }
 
-    protected function addArabicKashidas(string $value): string
+    protected function addArabicKashidas(string $value, array $element): string
     {
         if (! preg_match('/\p{Arabic}/u', $value)) {
             return $value;
         }
 
-        // Stretch only Arabic letters that connect to the following letter. This
-        // keeps justified headings decorative without inserting visible spaces.
-        return preg_replace(
-            '/([\x{0626}\x{0628}\x{062A}-\x{062E}\x{0633}-\x{063A}\x{0641}-\x{0647}\x{064A}])(?=[\x{0622}-\x{064A}])/u',
-            '$1ـ',
-            $value,
-        ) ?? $value;
+        $fontSize = max((float) ($element['styling']['font_size'] ?? 4.2), 1.5);
+        $lineCapacity = max((float) ($element['width'] ?? 4) / ($fontSize * 0.55), 1);
+
+        return preg_replace_callback('/[^\r\n]+/u', function (array $line) use ($lineCapacity) {
+            $text = $line[0];
+            preg_match_all('/[\x{0621}-\x{064A}]/u', $text, $letters);
+
+            // Short text is centred by text-align-last and should not receive
+            // decorative stretching merely to occupy the whole text box.
+            if (count($letters[0]) < $lineCapacity * 0.58) {
+                return $text;
+            }
+
+            preg_match_all(
+                '/([\x{0626}\x{0628}\x{062A}-\x{062E}\x{0633}-\x{063A}\x{0641}-\x{0647}\x{064A}])(?=[\x{0622}-\x{064A}])/u',
+                $text,
+                $joins,
+                PREG_OFFSET_CAPTURE,
+            );
+
+            $available = count($joins[0]);
+            $needed = min(4, (int) ceil($available / 3), max(1, (int) round($lineCapacity - count($letters[0]))));
+            if ($available === 0 || $needed < 1) {
+                return $text;
+            }
+
+            $positions = [];
+            for ($index = 0; $index < $needed; $index++) {
+                $match = $joins[0][(int) floor((($index + 0.5) * $available) / $needed)];
+                $positions[] = $match[1] + strlen($match[0]);
+            }
+
+            rsort($positions);
+            foreach (array_unique($positions) as $position) {
+                $text = substr($text, 0, $position).'ـ'.substr($text, $position);
+            }
+
+            return $text;
+        }, $value) ?? $value;
     }
 
     protected function renderBarcode(string $value, array $element): ?string

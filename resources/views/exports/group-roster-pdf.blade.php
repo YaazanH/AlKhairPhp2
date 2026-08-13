@@ -39,14 +39,14 @@
             position: absolute;
             right: 0;
             top: 0;
-            width: 23mm;
+            width: 35mm;
         }
 
         .logo img {
             height: auto;
             margin: 1mm;
             max-height: 23mm;
-            max-width: 21mm;
+            max-width: 35mm;
             width: auto;
         }
 
@@ -122,7 +122,7 @@
     <sethtmlpagefooter name="roster-footer" value="on" show-this-page="1" />
     <div class="page-header">
         <div class="title-row">
-            <div class="logo"><img src="{{ $logo }}" alt=""></div>
+            @if ($logo)<div class="logo"><img src="{{ $logo }}" alt=""></div>@endif
             <h1>قائمة بيانات الطلاب</h1>
             <div class="group-line">
                 {{ $groupLine !== '' ? $groupLine : $group->name }}

@@ -459,6 +459,10 @@ return [
             'delete_memorization' => 'This student cannot be deleted because memorization or Quran page progress exists.',
             'duplicate_profile' => 'A similar student already exists: :name (:number). Open that record instead of creating a duplicate.',
         ],
+        'duplicate_active' => [
+            'title' => 'Student already exists',
+            'description' => 'This matching student is active. Nothing was saved or changed. The existing student’s full data is shown below.',
+        ],
         'bulk_status' => [
             'title' => 'Bulk student status',
             'description' => 'Update active and inactive students in bulk by all records, student number range, current course, or current group.',

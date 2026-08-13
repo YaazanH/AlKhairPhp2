@@ -139,31 +139,22 @@ new class extends Component {
 
 <div class="page-stack">
     <section class="page-hero p-6 lg:p-8">
-        <div class="eyebrow">{{ __('ui.nav.finance') }}</div>
-        <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('finance.exchange.title') }}</h1>
-        <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ __('finance.exchange.subtitle') }}</p>
+        <div class="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
+            <div>
+                <div class="eyebrow">{{ __('ui.nav.finance') }}</div>
+                <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('finance.exchange.title') }}</h1>
+                <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ __('finance.exchange.subtitle') }}</p>
+            </div>
+            <div class="shrink-0 rounded-2xl border border-emerald-300/20 bg-emerald-400/10 px-5 py-3 text-center shadow-inner">
+                <div class="text-xs text-neutral-300">{{ $localCurrency->code }} / {{ $baseCurrency->code }}</div>
+                <bdi dir="ltr" class="mt-1 block text-lg font-semibold text-emerald-100">{{ app(FinanceService::class)->currencyRateLabel($localCurrency, $baseCurrency) }}</bdi>
+            </div>
+        </div>
     </section>
 
     @if (session('status')) <div class="flash-success px-4 py-3 text-sm">{{ session('status') }}</div> @endif
     @error('amount') <div class="rounded-2xl border border-red-400/20 bg-red-500/10 px-4 py-3 text-sm text-red-100">{{ $message }}</div> @enderror
     @error('currency_id') <div class="rounded-2xl border border-red-400/20 bg-red-500/10 px-4 py-3 text-sm text-red-100">{{ $message }}</div> @enderror
-
-    <section class="surface-panel overflow-hidden p-0">
-        <div class="relative isolate overflow-hidden p-5 lg:p-6">
-            <div class="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top_left,rgba(16,185,129,0.20),transparent_34%),linear-gradient(135deg,rgba(255,255,255,0.08),transparent_48%)]"></div>
-            <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                <div>
-                    <div class="eyebrow">{{ __('finance.exchange.rate_board_eyebrow') }}</div>
-                    <h2 class="font-display mt-2 text-2xl text-white">{{ __('finance.exchange.rate_board_title') }}</h2>
-                    <p class="mt-2 max-w-2xl text-sm leading-6 text-neutral-300">{{ __('finance.exchange.rate_board_subtitle') }}</p>
-                </div>
-                <div class="rounded-2xl border border-emerald-300/20 bg-emerald-400/10 px-5 py-3 text-center shadow-inner">
-                    <div class="text-xs text-neutral-300">{{ $localCurrency->code }} / {{ $baseCurrency->code }}</div>
-                    <bdi dir="ltr" class="mt-1 block text-lg font-semibold text-emerald-100">{{ app(FinanceService::class)->currencyRateLabel($localCurrency, $baseCurrency) }}</bdi>
-                </div>
-            </div>
-        </div>
-    </section>
 
     @can('finance.exchange.create')
         <section class="surface-panel p-5 lg:p-6">

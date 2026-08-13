@@ -176,6 +176,8 @@ return [
                 'remove' => 'Remove',
                 'save' => 'Save template',
                 'update' => 'Update template',
+                'expand_editor' => 'Expand editor',
+                'collapse_editor' => 'Exit expanded view',
             ],
             'element_types' => [
                 'custom_text' => 'Custom text',

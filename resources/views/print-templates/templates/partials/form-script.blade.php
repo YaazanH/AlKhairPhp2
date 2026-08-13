@@ -22,6 +22,9 @@
         const removeBackgroundInput = document.querySelector('[data-print-template-remove-background]');
         const backgroundFileName = document.querySelector('[data-print-template-file-name]');
         const dimsBadge = document.querySelector('[data-print-template-stage-dims]');
+        const studio = document.querySelector('.print-template-studio');
+        const expandButton = document.querySelector('[data-print-template-expand]');
+        const expandLabel = document.querySelector('[data-print-template-expand-label]');
         const barcodePreviewUrl = @json(route('id-cards.barcode-preview'));
 
         const labels = {
@@ -38,6 +41,8 @@
             imageFit: @json(__('print_templates.templates.form.image_fit')),
             preview: @json(__('print_templates.templates.form.preview_fallbacks')),
             placeholderPicker: @json(__('print_templates.templates.form.element.placeholder_picker')),
+            expandEditor: @json(__('print_templates.templates.form.buttons.expand_editor')),
+            collapseEditor: @json(__('print_templates.templates.form.buttons.collapse_editor')),
         };
 
         const state = {
@@ -80,6 +85,24 @@
             return ['custom_text', 'dynamic_text', 'date_text', 'page_number'].includes(type);
         }
 
+        function justifiedPreviewText(value, element) {
+            const text = String(value || '');
+            if ((element.styling?.text_align || 'left') !== 'justify' || !/[\u0600-\u06ff]/.test(text)) return text;
+
+            const capacity = Math.max(1, Number(element.width || 4) / (Number(element.styling?.font_size || 4.2) * 0.55));
+            return text.split(/(\r?\n)/).map((line) => {
+                const letters = (line.match(/[\u0621-\u064a]/g) || []).length;
+                if (letters < capacity * 0.58) return line;
+
+                const matches = [...line.matchAll(/([\u0626\u0628\u062a-\u062e\u0633-\u063a\u0641-\u0647\u064a])(?=[\u0622-\u064a])/g)];
+                const count = Math.min(4, Math.ceil(matches.length / 3), Math.max(1, Math.round(capacity - letters)));
+                if (!matches.length || count < 1) return line;
+
+                const selected = new Set(Array.from({ length: count }, (_, index) => matches[Math.floor(((index + 0.5) * matches.length) / count)].index));
+                return [...line].map((character, index) => selected.has(index) ? `${character}ـ` : character).join('');
+            }).join('');
+        }
+
         function widthMm() {
             return Math.max(parseFloat(widthInput.value || '85.6'), 20);
         }
@@ -101,7 +124,9 @@
         }
 
         function scale() {
-            return Math.max(1.2, Math.min(9, previewWidth() / widthMm(), previewHeight() / heightMm()));
+            const maximumScale = studio?.classList.contains('print-template-studio--expanded') ? 14 : 9;
+
+            return Math.max(1.2, Math.min(maximumScale, previewWidth() / widthMm(), previewHeight() / heightMm()));
         }
 
         function metrics() {
@@ -451,13 +476,15 @@
                         }
                     } else {
                         const align = element.styling?.text_align || 'left';
-                        const previewValue = previewTextValue(element);
+                        const previewValue = justifiedPreviewText(previewTextValue(element), element);
                         node.classList.add('id-card-builder-stage__element--text');
                         node.style.color = element.styling?.color || '#102316';
                         node.style.fontSize = `${Number(element.styling?.font_size || 4.2) * scale}px`;
                         node.style.fontWeight = element.styling?.font_weight || '600';
                         node.style.display = 'block';
                         node.style.textAlign = align;
+                        node.style.textAlignLast = align === 'justify' ? 'center' : '';
+                        node.style.textJustify = align === 'justify' ? 'inter-character' : '';
                         node.style.whiteSpace = 'pre-wrap';
                         node.style.lineHeight = element.styling?.line_height || 1.2;
                         node.style.textIndent = '0';
@@ -522,8 +549,8 @@
                             <div class="id-card-layer-card__meta">${Number(element.width || 0).toFixed(1)} × ${Number(element.height || 0).toFixed(1)} mm</div>
                         </button>
                         <div class="admin-action-cluster admin-action-cluster--end p-2">
-                            <button type="button" class="pill-link pill-link--compact" data-layer-move="up" data-layer-id="${h(element.id)}">${h(labels.buttons.move_up)}</button>
-                            <button type="button" class="pill-link pill-link--compact" data-layer-move="down" data-layer-id="${h(element.id)}">${h(labels.buttons.move_down)}</button>
+                            <button type="button" class="pill-link pill-link--compact print-template-layer-arrow" data-layer-move="up" data-layer-id="${h(element.id)}" title="${h(labels.buttons.move_up)}" aria-label="${h(labels.buttons.move_up)}">↑</button>
+                            <button type="button" class="pill-link pill-link--compact print-template-layer-arrow" data-layer-move="down" data-layer-id="${h(element.id)}" title="${h(labels.buttons.move_down)}" aria-label="${h(labels.buttons.move_down)}">↓</button>
                             <button type="button" class="pill-link pill-link--compact" data-layer-duplicate="${h(element.id)}">${h(labels.buttons.duplicate)}</button>
                             <button type="button" class="pill-link pill-link--compact pill-link--danger" data-layer-remove="${h(element.id)}">${h(labels.buttons.remove)}</button>
                         </div>
@@ -970,6 +997,16 @@
         window.addEventListener('resize', () => {
             renderStage();
             syncLayerPanelForViewport();
+        });
+
+        expandButton?.addEventListener('click', () => {
+            const expanded = studio.classList.toggle('print-template-studio--expanded');
+            document.body.classList.toggle('print-template-editor-expanded', expanded);
+            expandButton.setAttribute('aria-pressed', expanded ? 'true' : 'false');
+            expandButton.title = expanded ? labels.collapseEditor : labels.expandEditor;
+            expandButton.setAttribute('aria-label', expandButton.title);
+            if (expandLabel) expandLabel.textContent = expanded ? labels.collapseEditor : labels.expandEditor;
+            requestAnimationFrame(renderStage);
         });
 
         syncSourcesToControls();

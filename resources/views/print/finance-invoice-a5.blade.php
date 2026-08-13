@@ -12,7 +12,7 @@
         .header table, .footer table, .meta, .items, .totals { border-collapse: collapse; width: 100%; }
         .brand { color: #14532d; font-size: 16pt; font-weight: bold; }
         .brand-logo { padding-left: 2mm; width: 17mm; }
-        .brand-logo img { height: auto; max-height: 15mm; max-width: 16mm; width: auto; }
+        .brand-logo img { height: auto; max-height: 23mm; max-width: 35mm; width: auto; }
         .invoice-title { color: #166534; font-size: 19pt; font-weight: bold; text-align: end; }
         .invoice-no { color: #50715a; font-size: 9pt; text-align: end; }
         .footer { background: #dff1e2; border-top: 1px solid #9fc6a8; color: #315b3b; padding: 2.5mm 10mm; }

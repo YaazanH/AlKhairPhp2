@@ -104,6 +104,43 @@ class StudentProgressPageTest extends TestCase
             ->assertSeeText('حفظ قديم');
     }
 
+    public function test_assessments_box_excludes_final_exam_results(): void
+    {
+        $this->seed(RoleSeeder::class);
+        [$parentUser, $student] = $this->makeScopedProgressData();
+        $enrollment = Enrollment::query()->where('student_id', $student->id)->firstOrFail();
+        $teacher = $enrollment->group->teacher;
+        $finalType = AssessmentType::create([
+            'name' => 'Final Exam',
+            'code' => 'final_exam',
+            'is_scored' => true,
+            'is_active' => true,
+        ]);
+        $finalAssessment = Assessment::create([
+            'group_id' => $enrollment->group_id,
+            'assessment_type_id' => $finalType->id,
+            'title' => 'Course Final Exam',
+            'total_mark' => 100,
+            'pass_mark' => 60,
+            'is_active' => true,
+        ]);
+        $finalResult = AssessmentResult::create([
+            'assessment_id' => $finalAssessment->id,
+            'enrollment_id' => $enrollment->id,
+            'student_id' => $student->id,
+            'teacher_id' => $teacher->id,
+            'score' => 86,
+            'status' => 'passed',
+            'attempt_no' => 1,
+        ]);
+
+        $this->actingAs($parentUser);
+
+        Volt::test('students.progress', ['student' => $student])
+            ->assertViewHas('assessmentResults', fn ($results) => $results->doesntContain('id', $finalResult->id))
+            ->assertViewHas('finalAssessmentResults', fn ($results) => $results->contains('id', $finalResult->id));
+    }
+
     public function test_student_progress_limits_highlights_to_default_course_but_keeps_history_general(): void
     {
         $this->seed(RoleSeeder::class);

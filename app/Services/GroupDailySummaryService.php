@@ -12,6 +12,14 @@ use Illuminate\Support\Collection;
 
 class GroupDailySummaryService
 {
+    /** @param array{attendance?: bool, memorization?: bool, partial_tests?: bool, final_tests?: bool} $visibility */
+    public function currentCopyText(Group $group, string $date, array $visibility): string
+    {
+        $group->loadMissing(['course', 'teacher']);
+
+        return $this->copyText($group, $date, $this->build($group, $date, $visibility));
+    }
+
     /**
      * @param  array{attendance?: bool, memorization?: bool, partial_tests?: bool, final_tests?: bool}  $visibility
      * @return array{rows: Collection<int, object>, partial_tests: Collection<int, object>, final_tests: Collection<int, object>}

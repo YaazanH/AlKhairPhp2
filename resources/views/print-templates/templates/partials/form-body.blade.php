@@ -61,6 +61,14 @@
                     </div>
                 </div>
 
+                <div class="admin-form-field print-template-size-field">
+                    <label for="print-template-height">{{ __('print_templates.templates.form.fields.height_mm') }}</label>
+                    <div class="print-template-number-control">
+                        <input id="print-template-height" name="height_mm" type="number" min="20" max="500" step="0.1" value="{{ old('height_mm', $template->height_mm) }}" required data-print-template-height>
+                        <span>mm</span>
+                    </div>
+                </div>
+
                 <details class="relative admin-form-field--full">
                     <summary class="pill-link w-fit cursor-pointer">{{ __('print_templates.templates.form.fields.paper_settings') }}</summary>
                     <div class="surface-panel absolute end-0 z-30 mt-2 grid w-full max-w-2xl gap-4 p-4 md:grid-cols-2">
@@ -107,14 +115,6 @@
                     <input type="checkbox" name="rounded_corners" value="1" @checked(old('rounded_corners', $template->rounded_corners))>
                     <span>{{ __('print_templates.templates.form.fields.rounded_corners') }}</span>
                 </label>
-
-                <div class="admin-form-field print-template-size-field">
-                    <label for="print-template-height">{{ __('print_templates.templates.form.fields.height_mm') }}</label>
-                    <div class="print-template-number-control">
-                        <input id="print-template-height" name="height_mm" type="number" min="20" max="500" step="0.1" value="{{ old('height_mm', $template->height_mm) }}" required data-print-template-height>
-                        <span>mm</span>
-                    </div>
-                </div>
 
                 <div class="admin-form-field admin-form-field--full">
                     <label for="print-template-background">{{ __('print_templates.templates.form.fields.background_image') }}</label>
@@ -166,7 +166,13 @@
                 <h2 class="font-display mt-3 text-2xl text-white">{{ __('print_templates.templates.form.sections.builder') }}</h2>
                 <p class="mt-3 max-w-3xl text-sm leading-7 text-neutral-300">{{ __('print_templates.templates.form.workspace_hint') }}</p>
             </div>
-            <span class="badge-soft" data-print-template-stage-dims></span>
+            <div class="flex items-center gap-2">
+                <span class="badge-soft" data-print-template-stage-dims></span>
+                <button type="button" class="pill-link pill-link--compact print-template-expand-button" data-print-template-expand title="{{ __('print_templates.templates.form.buttons.expand_editor') }}" aria-label="{{ __('print_templates.templates.form.buttons.expand_editor') }}">
+                    <span aria-hidden="true">⛶</span>
+                    <span data-print-template-expand-label>{{ __('print_templates.templates.form.buttons.expand_editor') }}</span>
+                </button>
+            </div>
         </div>
 
         <div class="print-template-command-bar">

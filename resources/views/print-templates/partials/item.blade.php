@@ -80,7 +80,7 @@
                     font-weight: {{ $element['styling']['font_weight'] }};
                     text-align: {{ $textAlign }};
                     @if ($textAlign === 'justify')
-                        text-align-last: justify;
+                        text-align-last: center;
                         text-justify: inter-character;
                     @endif
                     text-indent: 0;

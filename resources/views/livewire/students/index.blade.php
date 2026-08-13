@@ -62,6 +62,8 @@ new class extends Component {
     public bool $showFormModal = false;
     public bool $showAccountModal = false;
     public bool $showBulkStatusModal = false;
+    public bool $showDuplicateStudentModal = false;
+    public ?int $duplicateStudentId = null;
     public bool $showQuickParentForm = false;
     public string $quick_parent_father_name = '';
     public string $quick_parent_father_work = '';
@@ -161,6 +163,21 @@ new class extends Component {
                 ->orderBy('name')
                 ->get(['id', 'name', 'course_id']),
             'bulkStatusPreview' => $this->showBulkStatusModal ? $this->bulkStatusPreview() : ['profiles' => 0, 'accounts' => 0],
+            'duplicateStudent' => $this->showDuplicateStudentModal && $this->duplicateStudentId
+                ? $this->scopeStudentsQuery(
+                    Student::query()->with([
+                        'user',
+                        'parentProfile',
+                        'gradeLevel',
+                        'quranCurrentJuz',
+                        'enrollments' => fn ($query) => $query
+                            ->with('group.course')
+                            ->orderByRaw("case when status = 'active' then 0 else 1 end")
+                            ->orderByDesc('enrolled_at')
+                            ->orderByDesc('id'),
+                    ])
+                )->find($this->duplicateStudentId)
+                : null,
         ];
     }
 
@@ -400,8 +417,15 @@ new class extends Component {
         ]) : null;
 
         if ($duplicate) {
-            $this->authorizePermission('students.update');
             $this->authorizeScopedStudentAccess($duplicate);
+
+            if ($duplicate->status === 'active') {
+                $this->showActiveDuplicateStudent($duplicate);
+
+                return;
+            }
+
+            $this->authorizePermission('students.update');
         }
 
         $this->student_phone = PhoneNumberFormatter::normalize($this->student_phone) ?? '';
@@ -427,8 +451,15 @@ new class extends Component {
             $duplicate = $this->findDuplicateStudent($validated);
 
             if ($duplicate) {
-                $this->authorizePermission('students.update');
                 $this->authorizeScopedStudentAccess($duplicate);
+
+                if ($duplicate->status === 'active') {
+                    $this->showActiveDuplicateStudent($duplicate);
+
+                    return;
+                }
+
+                $this->authorizePermission('students.update');
             }
         }
 
@@ -579,6 +610,22 @@ new class extends Component {
     public function saveQuickParent(): void
     {
         $updatingParent = $this->editingId && $this->parent_id;
+
+        if (! $this->editingId) {
+            $duplicate = $this->findDuplicateStudent([
+                'first_name' => $this->first_name,
+                'last_name' => $this->last_name,
+                'birth_date' => $this->birth_date,
+            ]);
+
+            if ($duplicate?->status === 'active') {
+                $this->authorizeScopedStudentAccess($duplicate);
+                $this->showActiveDuplicateStudent($duplicate);
+
+                return;
+            }
+        }
+
         $this->authorizePermission($updatingParent ? 'parents.update' : 'parents.create');
 
         foreach (['quick_parent_father_phone', 'quick_parent_mother_phone', 'quick_parent_home_phone'] as $phoneField) {
@@ -682,6 +729,12 @@ new class extends Component {
         $this->showFormModal = true;
 
         $this->resetValidation();
+    }
+
+    public function closeDuplicateStudentModal(): void
+    {
+        $this->showDuplicateStudentModal = false;
+        $this->duplicateStudentId = null;
     }
 
     public function openAccountModal(int $studentId): void
@@ -1252,6 +1305,12 @@ new class extends Component {
             });
     }
 
+    protected function showActiveDuplicateStudent(Student $student): void
+    {
+        $this->duplicateStudentId = $student->id;
+        $this->showDuplicateStudentModal = true;
+    }
+
     protected function findDuplicateParent(array $validated): ?ParentProfile
     {
         $fatherName = ArabicSearch::normalizeForDuplicate((string) ($validated['father_name'] ?? ''));
@@ -1619,6 +1678,47 @@ new class extends Component {
     </x-admin.modal>
 
     <x-admin.modal
+        :show="$showDuplicateStudentModal"
+        :title="__('crud.students.duplicate_active.title')"
+        :description="__('crud.students.duplicate_active.description')"
+        close-method="closeDuplicateStudentModal"
+        max-width="3xl"
+    >
+        @if ($duplicateStudent)
+            @php
+                $duplicateEnrollment = $duplicateStudent->enrollments->first();
+                $duplicateFields = [
+                    __('crud.students.form.fields.student_number') => ($duplicateStudent->student_number ?: __('crud.common.not_available')),
+                    __('crud.students.form.fields.first_name') => $duplicateStudent->first_name,
+                    __('crud.students.form.fields.last_name') => $duplicateStudent->last_name,
+                    __('crud.students.form.fields.phone') => ($duplicateStudent->user?->phone ?: __('crud.common.not_available')),
+                    __('crud.students.form.fields.birth_year') => ($duplicateStudent->birth_date?->format('Y') ?: __('crud.common.not_available')),
+                    __('crud.students.form.fields.gender') => ($duplicateStudent->gender ? __('crud.common.gender_options.'.$duplicateStudent->gender) : __('crud.common.not_available')),
+                    __('crud.students.form.fields.parent') => ($duplicateStudent->parentProfile?->father_name ?: __('crud.common.not_available')),
+                    __('crud.students.form.fields.school') => ($duplicateStudent->school_name ?: __('crud.common.not_available')),
+                    __('crud.students.form.fields.grade_level') => ($duplicateStudent->gradeLevel?->name ?: __('crud.common.not_available')),
+                    __('crud.students.form.fields.group') => ($duplicateEnrollment?->group?->name ?: __('crud.common.not_available')),
+                    __('crud.students.form.fields.current_juz') => ($duplicateStudent->quranCurrentJuz?->juz_number ?: __('crud.common.not_available')),
+                    __('crud.students.form.fields.status') => __('crud.common.status_options.'.$duplicateStudent->status),
+                    __('crud.students.form.fields.joined_at') => ($duplicateStudent->joined_at?->format('d-m-Y') ?: __('crud.common.not_available')),
+                    __('crud.students.form.fields.notes') => ($duplicateStudent->notes ?: __('crud.common.not_available')),
+                ];
+            @endphp
+            <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                @foreach ($duplicateFields as $label => $value)
+                    <div class="rounded-2xl border border-white/8 bg-white/4 p-3">
+                        <div class="kpi-label">{{ $label }}</div>
+                        <div class="mt-2 text-sm font-semibold text-white">{{ $value }}</div>
+                    </div>
+                @endforeach
+            </div>
+            <div class="mt-4 flex justify-end">
+                <button type="button" wire:click="closeDuplicateStudentModal" class="pill-link pill-link--accent">{{ __('crud.common.actions.close') }}</button>
+            </div>
+        @endif
+    </x-admin.modal>
+
+    <x-admin.modal
         :show="$showFormModal"
         :title="$editingId ? __('crud.students.form.edit_title') : __('crud.students.form.create_title')"
         :description="__('crud.students.form.help')"
@@ -1653,10 +1753,10 @@ new class extends Component {
                 </div>
             </div>
 
+            @php
+                $connectedParent = $editingId && $parent_id ? $parents->firstWhere('id', (int) $parent_id) : null;
+            @endphp
             @if ($editingId && $parent_id)
-                    @php
-                        $connectedParent = $parents->firstWhere('id', (int) $parent_id);
-                    @endphp
                 <div class="rounded-3xl border border-white/10 bg-white/5 p-4">
                     <div class="flex flex-wrap items-center justify-between gap-3">
                         <div>

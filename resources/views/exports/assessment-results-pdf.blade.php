@@ -5,8 +5,8 @@
     <style>
         @page { margin: 10mm 10mm 18mm; footer: pdf-footer; }
         body { color: #172033; font-family: dubai, sans-serif; font-size: 11pt; }
-        .heading { background:#e6f3eb; display: table; margin: 0 0 5mm; padding:2mm 3mm; width: 100%; }
-        .heading-logo,.heading-copy { display:table-cell; vertical-align:middle; }
+        .heading { background:#e6f3eb; margin: 0 0 5mm; table-layout:fixed; width: 100%; }
+        .heading td { border:0; padding:2mm 3mm; vertical-align:middle; }
         .heading-logo { text-align:right; width:38mm; }
         .heading-logo img { height:auto; max-height:23mm; max-width:35mm; width:auto; }
         .heading-copy { text-align:right; }
@@ -34,10 +34,10 @@
 <htmlpagefooter name="pdf-footer"><div class="pdf-footer">{PAGENO} / {nbpg}</div></htmlpagefooter>
 @forelse ($groups as $group)
     @if (! $loop->first)<pagebreak />@endif
-    <div class="heading">
-        <div class="heading-logo">@if($logo)<img src="{{ $logo }}" alt="">@endif</div>
-        <div class="heading-copy"><div class="heading-title">{{ $assessment->title }}</div><div class="heading-group">{{ $group->name }}</div></div>
-    </div>
+    <table class="heading"><tr>
+        <td class="heading-logo">@if($logo)<img src="{{ $logo }}" alt="">@endif</td>
+        <td class="heading-copy"><div class="heading-title">{{ $assessment->title }}</div><div class="heading-group">{{ $group->name }}</div></td>
+    </tr></table>
     <table class="meta"><tr>
         <td class="meta-date">{{ __('workflow.assessments.results.pdf.due_date') }}: {{ $assessment->due_at?->format('d-m-Y') ?? '—' }}</td>
         <td class="meta-average">{{ __('workflow.assessments.results.pdf.average_mark') }}: {{ $group->average_mark !== null ? number_format((float) $group->average_mark, 2) : '—' }}</td>

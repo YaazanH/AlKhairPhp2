@@ -133,8 +133,6 @@
     .ledger-report-doc__meta-card,
     .ledger-report-doc__summary-card {
         background: transparent;
-        border: 1px solid #dce6db;
-        border-radius: 18px;
         padding: 14px 16px;
     }
     .ledger-report-doc__meta-label {
@@ -167,8 +165,9 @@
     .ledger-report-doc__stamp { text-align: left; }
     .ledger-report-doc__stamp img { max-height: 100px; max-width: 140px; object-fit: contain; }
     .ledger-report-doc__signature { text-align: center; }
-    .ledger-report-doc__signature img { display: block; margin: 0 auto 4px; max-height: 70px; max-width: 70%; object-fit: contain; }
-    .ledger-report-doc__signature-line { border-top: 1px solid #315b3b; }
+    .ledger-report-doc__signature-mark { height: 70px; position: relative; }
+    .ledger-report-doc__signature img { display: block; margin: 0 auto; max-height: 70px; max-width: 70%; object-fit: contain; }
+    .ledger-report-doc__signature-line { border-top: 1px solid #315b3b; bottom: 10.5px; inset-inline: 0; position: absolute; }
     .ledger-report-doc__signature-name { color: #637365; display: block; margin-top: 6px; }
     .ledger-report-doc__custom-text {
         background: rgba(255, 255, 255, 0.78);
@@ -357,7 +356,7 @@
 
             <section class="ledger-report-doc__authorization">
                 <div class="ledger-report-doc__stamp">@if($report['report_stamp_url'] ?? null)<img src="{{ $report['report_stamp_url'] }}" alt="">@endif</div>
-                <div class="ledger-report-doc__signature">@if($report['issuer_signature_url'] ?? null)<img src="{{ $report['issuer_signature_url'] }}" alt="">@endif<div class="ledger-report-doc__signature-line"></div><span class="ledger-report-doc__signature-name">{{ $report['issuer_name'] ?: '-' }}</span></div>
+                <div class="ledger-report-doc__signature"><div class="ledger-report-doc__signature-mark">@if($report['issuer_signature_url'] ?? null)<img src="{{ $report['issuer_signature_url'] }}" alt="">@endif<div class="ledger-report-doc__signature-line"></div></div><span class="ledger-report-doc__signature-name">{{ $report['issuer_name'] ?: '-' }}</span></div>
             </section>
 
             @if (! empty($template['footer_text']) || ($template['show_page_numbers'] ?? false))

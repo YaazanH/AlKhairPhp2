@@ -50,19 +50,21 @@
         .category-name { font-weight: bold; }
         .description { color: #637267; font-size: 7.5pt; margin-top: .4mm; }
         .empty { color: #68756b; padding: 10mm !important; text-align: center; }
-        .summary { margin-top: 4mm; page-break-inside: avoid; }
+        .summary { border-collapse: collapse; margin-top: 4mm; page-break-inside: avoid; table-layout: fixed; width: 100%; }
         .summary-title { color: #164d27; font-size: 12pt; font-weight: bold; margin: 4mm 0 1.5mm; text-align: center; }
-        .summary td { border: 1px solid #aac3ae; padding: 2.8mm 3.5mm; text-align: right; vertical-align: middle; }
+        .summary td { border: 0; padding: 2.1mm 1.2mm; text-align: right; vertical-align: middle; }
         .summary-label { color: #58715e; font-size: 8pt; font-weight: bold; width: 18%; }
         .summary-value { direction: ltr; font-weight: bold; text-align: right; width: 32%; }
         .summary-notes { text-align: right; }
         .signature { border:0 !important; height: 29mm; padding-top:4mm !important; }
+        .signature-layout { border-collapse:collapse; table-layout:fixed; width:100%; }
         .signature-layout,.signature-layout td { border:0; padding:0; }
         .stamp-block { text-align:left; vertical-align:bottom; width:50%; }
         .stamp-block img { height:auto; max-height:25mm; max-width:34mm; width:auto; }
         .signature-block { text-align:center; vertical-align:bottom; width:50%; }
-        .signature-image { display:block; margin:0 auto 1mm; max-height:16mm; max-width:70%; width:auto; }
-        .signature-line { border-top:1px solid #315b3b; width:100%; }
+        .signature-mark { height:16mm; position:relative; width:100%; }
+        .signature-image { display:block; margin:0 auto; max-height:16mm; max-width:70%; width:auto; }
+        .signature-line { border-top:1px solid #315b3b; bottom:2.4mm; left:0; position:absolute; width:100%; }
         .signature-name { color: #637267; display: block; font-size: 7.5pt; margin-top: 2mm; text-align:center; }
     </style>
 </head>
@@ -102,7 +104,7 @@
     <tr><td class="summary-label">إجمالي المصاريف</td><td class="summary-value">{{ data_get($report, 'formatted.expense') }}</td><td class="summary-label">إجمالي الإيرادات</td><td class="summary-value">{{ data_get($report, 'formatted.income') }}</td></tr>
     <tr><td class="summary-label">الرصيد الختامي</td><td class="summary-value">{{ data_get($report, 'formatted.closing_balance') }}</td><td class="summary-label">تاريخ التصدير</td><td class="summary-value">{{ $exportedAt }}</td></tr>
     <tr><td class="summary-label">ملاحظات</td><td colspan="3" class="summary-notes">{{ ($report['notes'] ?? null) ?: '-' }}</td></tr>
-    <tr><td colspan="4" class="signature"><table class="signature-layout" dir="ltr"><tr><td class="stamp-block">@if($stampImage)<img src="{{ $stampImage }}" alt="">@endif</td><td class="signature-block">@if($signatureImage)<img class="signature-image" src="{{ $signatureImage }}" alt="">@endif<div class="signature-line"></div><span class="signature-name">{{ $report['issuer_name'] ?: '-' }}</span></td></tr></table></td></tr>
+    <tr><td colspan="4" class="signature"><table class="signature-layout" dir="ltr"><tr><td class="stamp-block">@if($stampImage)<img src="{{ $stampImage }}" alt="">@endif</td><td class="signature-block"><div class="signature-mark">@if($signatureImage)<img class="signature-image" src="{{ $signatureImage }}" alt="">@endif<div class="signature-line"></div></div><span class="signature-name">{{ $report['issuer_name'] ?: '-' }}</span></td></tr></table></td></tr>
 </table>
 </body>
 </html>

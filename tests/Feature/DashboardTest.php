@@ -369,8 +369,9 @@ class DashboardTest extends TestCase
             ->assertSee('dashboard-line-chart', false);
 
         Volt::test('dashboard')
-            ->call('copyTeacherTodaySummary')
-            ->assertDispatched('admin-copy-text')
+            ->call('copyTeacherTodaySummary', $group->id)
+            ->assertDispatched('admin-copy-text', fn ($event, $params) => str_contains($params['text'], 'Supervisor Group')
+                && str_contains($params['text'], 'Assigned Special Course'))
             ->call('openTeacherLeaderboard')
             ->assertSet('showTeacherLeaderboardModal', true)
             ->call('openTeacherMemorizations')

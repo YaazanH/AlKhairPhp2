@@ -463,10 +463,10 @@ new class extends Component {
             return;
         }
 
-        $this->dispatch('admin-copy-text', text: app(GroupDailySummaryService::class)->copyText(
+        $this->dispatch('admin-copy-text', text: app(GroupDailySummaryService::class)->currentCopyText(
             $group->loadMissing(['course', 'teacher']),
             $this->quickSummaryDate ?: now()->toDateString(),
-            $summary,
+            $this->quickSummaryVisibility(),
         ));
     }
 

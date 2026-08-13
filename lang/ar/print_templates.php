@@ -176,6 +176,8 @@ return [
                 'remove' => 'حذف',
                 'save' => 'حفظ القالب',
                 'update' => 'تحديث القالب',
+                'expand_editor' => 'توسيع المصمم',
+                'collapse_editor' => 'إنهاء العرض الموسع',
             ],
             'element_types' => [
                 'custom_text' => 'نص مخصص',

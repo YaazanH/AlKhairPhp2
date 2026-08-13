@@ -259,7 +259,7 @@ new class extends Component {
         $this->selectedManagerStudentId = null;
     }
 
-    public function copyTeacherTodaySummary(): void
+    public function copyTeacherTodaySummary(int $groupId): void
     {
         $user = Auth::user();
         $teacher = $user?->teacherProfile?->load(['accessRole', 'jobTitle']);
@@ -269,9 +269,7 @@ new class extends Component {
         $groupsQuery = app(AccessScopeService::class)->scopeGroups(Group::query(), $user);
         $group = (clone $groupsQuery)
             ->with(['course', 'teacher'])
-            ->orderByDesc('is_active')
-            ->orderBy('name')
-            ->first();
+            ->findOrFail($groupId);
 
         if (! $group) {
             return;
@@ -280,13 +278,12 @@ new class extends Component {
         $visibility = [
             'attendance' => $user->can('attendance.student.view'),
             'memorization' => $user->can('memorization.view'),
-            'partial_tests' => $user->can('quran-partial-tests.view'),
-            'final_tests' => $user->can('quran-final-tests.view'),
+            'partial_tests' => $user->canAny(['quran-partial-tests.view', 'quran-partial-tests.record', 'quran-partial-tests.record-linked-teacher']),
+            'final_tests' => $user->canAny(['quran-final-tests.view', 'quran-final-tests.record', 'quran-final-tests.record-linked-teacher']),
         ];
         $date = now()->toDateString();
-        $summary = app(GroupDailySummaryService::class)->build($group, $date, $visibility);
 
-        $this->dispatch('admin-copy-text', text: app(GroupDailySummaryService::class)->copyText($group, $date, $summary));
+        $this->dispatch('admin-copy-text', text: app(GroupDailySummaryService::class)->currentCopyText($group, $date, $visibility));
     }
 
     protected function teacherData($user): array
@@ -510,7 +507,7 @@ new class extends Component {
                 [
                     'label' => __('dashboard.teacher.group_dashboard.today_summary'),
                     'value' => __('dashboard.teacher.group_dashboard.copy_today_summary'),
-                    'action' => $group ? 'copyTeacherTodaySummary' : null,
+                    'action' => $group ? 'copyTeacherTodaySummary('.$group->id.')' : null,
                 ],
                 ['label' => __('dashboard.teacher.group_dashboard.stats.students'), 'value' => $enrollments->count()],
                 ['label' => __('dashboard.teacher.group_dashboard.stats.attendance_average'), 'value' => number_format($attendanceAverage, 1).'%'],

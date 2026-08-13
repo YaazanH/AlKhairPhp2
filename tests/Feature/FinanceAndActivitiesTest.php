@@ -1201,7 +1201,8 @@ class FinanceAndActivitiesTest extends TestCase
 
         Volt::test('finance.exchange')
             ->assertSee('EXC-000001')
-            ->assertSee('Test exchange');
+            ->assertSee('Test exchange')
+            ->assertDontSeeText(__('finance.exchange.rate_board_title'));
     }
 
     public function test_quarter_comparison_converts_mixed_currencies_to_the_local_currency(): void
@@ -1293,6 +1294,12 @@ class FinanceAndActivitiesTest extends TestCase
         $this->assertStringNotContainsString('type="C39"', $rtlExportHtml);
         $this->assertStringContainsString('RPT-000000', $rtlExportHtml);
         $this->assertStringNotContainsString('background-image-resize', $rtlExportHtml);
+        $this->assertStringContainsString('.summary td { border: 0;', $rtlExportHtml);
+        $this->assertStringContainsString('.summary { border-collapse: collapse;', $rtlExportHtml);
+        $this->assertStringContainsString('table-layout:fixed; width:100%;', $rtlExportHtml);
+        $this->assertStringContainsString('class="stamp-block"', $rtlExportHtml);
+        $this->assertStringContainsString('class="signature-line"', $rtlExportHtml);
+        $this->assertStringContainsString('bottom:2.4mm', $rtlExportHtml);
 
         $reportWithBackground = $report;
         $reportWithBackground['template']['background_image_pdf_src'] = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';

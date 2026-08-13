@@ -1102,7 +1102,7 @@ class ManagementCrudTest extends TestCase
             ->assertDontSee('Numbered Student');
     }
 
-    public function test_creating_a_student_with_the_same_name_and_birth_year_updates_the_existing_record(): void
+    public function test_creating_a_student_with_the_same_name_and_birth_year_updates_the_inactive_record(): void
     {
         $this->signIn();
 
@@ -1117,7 +1117,7 @@ class ManagementCrudTest extends TestCase
             'last_name' => 'Same Student',
             'birth_date' => '2014-08-20',
             'school_name' => 'Old School',
-            'status' => 'active',
+            'status' => 'inactive',
             'notes' => 'Old notes',
         ]);
 
@@ -1151,6 +1151,63 @@ class ManagementCrudTest extends TestCase
             'notes' => 'Updated notes',
         ]);
         $this->assertSame('2014-01-01', $existingStudent->fresh()->birth_date?->format('Y-m-d'));
+        $this->assertSame('active', $existingStudent->fresh()->status);
+    }
+
+    public function test_creating_a_student_matching_an_active_student_shows_details_without_changing_data(): void
+    {
+        $this->signIn();
+
+        $originalParent = ParentProfile::create([
+            'father_name' => 'Original Parent',
+            'is_active' => true,
+        ]);
+        $existingStudent = Student::create([
+            'parent_id' => $originalParent->id,
+            'first_name' => 'Active',
+            'last_name' => 'Duplicate',
+            'birth_date' => '2014-08-20',
+            'school_name' => 'Original School',
+            'status' => 'active',
+            'notes' => 'Original notes',
+        ]);
+
+        $component = Volt::test('students.index')
+            ->call('openCreateModal')
+            ->set('first_name', 'Active')
+            ->set('last_name', 'Duplicate')
+            ->set('birth_date', '2014')
+            ->set('school_name', 'Changed School')
+            ->set('notes', 'Changed notes')
+            ->call('openQuickParentForm')
+            ->set('quick_parent_father_name', 'Submitted Parent')
+            ->set('quick_parent_father_phone', '0944555099')
+            ->call('saveQuickParent')
+            ->assertSet('showDuplicateStudentModal', true)
+            ->assertSet('duplicateStudentId', $existingStudent->id);
+
+        $this->assertDatabaseMissing('parents', ['father_name' => 'Submitted Parent']);
+
+        $component
+            ->call('closeDuplicateStudentModal')
+            ->call('save')
+            ->assertSet('showDuplicateStudentModal', true)
+            ->assertSet('duplicateStudentId', $existingStudent->id)
+            ->assertSet('showFormModal', true)
+            ->assertSee('Original School')
+            ->assertSee('Original notes');
+
+        $this->assertSame(1, Student::query()->count());
+        $this->assertDatabaseHas('students', [
+            'id' => $existingStudent->id,
+            'parent_id' => $originalParent->id,
+            'school_name' => 'Original School',
+            'status' => 'active',
+            'notes' => 'Original notes',
+        ]);
+        $this->assertDatabaseMissing('students', [
+            'school_name' => 'Changed School',
+        ]);
     }
 
     public function test_student_bulk_status_can_deactivate_current_course_students_and_sync_accounts(): void
