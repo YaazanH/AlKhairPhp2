@@ -6,6 +6,7 @@ use App\Models\QuranPartialTest;
 use App\Models\Teacher;
 use App\Services\QuranPartialTestRuleService;
 use App\Services\QuranPartialTestService;
+use App\Support\RoleRegistry;
 use Livewire\Volt\Component;
 
 new class extends Component {
@@ -188,10 +189,15 @@ new class extends Component {
             return collect();
         }
 
-        return Teacher::query()->with('user')->where(function ($query) {
-            $query->where('status', 'active')->orWhere('teachers.id', $this->teacher_id);
-        })->orderBy('first_name')->orderBy('last_name')->get()
-            ->filter(fn (Teacher $teacher) => $teacher->id === $this->teacher_id || $teacher->user?->can('quran-partial-tests.record'))->values();
+        return Teacher::query()
+            ->with('user.roles')
+            ->where('status', 'active')
+            ->orderBy('first_name')
+            ->orderBy('last_name')
+            ->get()
+            ->filter(fn (Teacher $teacher): bool => $teacher->user?->can('quran-partial-tests.record') === true
+                && ! $teacher->user->hasAnyRole(RoleRegistry::unrestrictedRoles()))
+            ->values();
     }
 }; ?>
 

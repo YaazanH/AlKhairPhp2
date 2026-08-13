@@ -11,8 +11,10 @@ use App\Models\Student;
 use App\Models\Teacher;
 use App\Models\User;
 use App\Services\ActivityAudienceService;
+use App\Services\CourseEndService;
 use App\Services\FinanceService;
 use App\Support\AvatarDefaults;
+use App\Support\PercentageFormatter;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
@@ -99,7 +101,7 @@ class PrintTemplateFieldRegistry
                 'points_before_rules' => $this->field('points_before_rules', ['text'], fn (Enrollment $enrollment) => data_get($this->courseEndRow($enrollment), 'points_before', 0)),
                 'points_after_rules' => $this->field('points_after_rules', ['text'], fn (Enrollment $enrollment) => data_get($this->courseEndRow($enrollment), 'points_after', 0)),
                 'total_points' => $this->field('total_points', ['text'], fn (Enrollment $enrollment) => data_get($this->courseEndRow($enrollment), 'points_after', 0)),
-                'attendance_average' => $this->field('attendance_average', ['text'], fn (Enrollment $enrollment) => \App\Support\PercentageFormatter::format(data_get($this->courseEndRow($enrollment), 'attendance_average', 0))),
+                'attendance_average' => $this->field('attendance_average', ['text'], fn (Enrollment $enrollment) => PercentageFormatter::format(data_get($this->courseEndRow($enrollment), 'attendance_average', 0))),
                 'days_attended' => $this->field('days_attended', ['text'], fn (Enrollment $enrollment) => data_get($this->courseEndRow($enrollment), 'days_attended', 0)),
                 'days_absent' => $this->field('days_absent', ['text'], fn (Enrollment $enrollment) => data_get($this->courseEndRow($enrollment), 'days_absent', 0)),
                 'memorized_pages' => $this->field('memorized_pages', ['text'], fn (Enrollment $enrollment) => data_get($this->courseEndRow($enrollment), 'memorized_pages', 0)),
@@ -368,8 +370,8 @@ class PrintTemplateFieldRegistry
     protected function recordSearchText(string $entity, Model $model): string
     {
         return match ($entity) {
-            'student' => trim($model->full_name.' '.$model->student_number.' '.$model->parentProfile?->father_name),
-            'course_student' => trim(($model->student?->full_name ?? '').' '.($model->student?->student_number ?? '').' '.($model->group?->course?->name ?? '').' '.($model->group?->name ?? '')),
+            'student' => trim($model->full_name.' '.$model->student_number),
+            'course_student' => trim(($model->student?->full_name ?? '').' '.($model->student?->student_number ?? '')),
             'teacher' => trim($model->first_name.' '.$model->last_name.' '.$model->phone.' '.$model->user?->username),
             'parent' => trim($model->father_name.' '.$model->mother_name.' '.$model->father_phone.' '.$model->user?->username),
             'user' => trim($model->name.' '.$model->username.' '.$model->email.' '.$model->phone),
@@ -393,7 +395,13 @@ class PrintTemplateFieldRegistry
                 'card_printed' => $this->studentCardPrinted($model),
                 'card_last_printed_at' => $this->studentCardLastPrintedAt($model),
             ],
-            'course_student' => ['student_ids' => [(int) $model->student_id], 'group_ids' => [(int) $model->group_id], 'course_id' => (int) $model->group?->course_id],
+            'course_student' => [
+                'student_ids' => [(int) $model->student_id],
+                'group_ids' => [(int) $model->group_id],
+                'course_id' => (int) $model->group?->course_id,
+                'student_name' => (string) ($model->student?->full_name ?? ''),
+                'course_name' => (string) ($model->group?->course?->name ?? ''),
+            ],
             'teacher' => [
                 'activity_ids' => $this->teacherActivityIds($model),
                 'group_ids' => $this->teacherGroupIds($model),
@@ -615,7 +623,7 @@ class PrintTemplateFieldRegistry
         }
 
         $courseId = (int) $course->id;
-        $this->courseEndRowsByCourse[$courseId] ??= app(\App\Services\CourseEndService::class)
+        $this->courseEndRowsByCourse[$courseId] ??= app(CourseEndService::class)
             ->studentRows($course)
             ->keyBy('enrollment_id')
             ->all();

@@ -11,7 +11,7 @@ class CurriculumAccessService
 {
     public function canManage(?User $user): bool
     {
-        return (bool) $user?->hasAnyRole(['super_admin', 'admin', 'manager']);
+        return (bool) $user?->can('curricula.manage');
     }
 
     public function canView(?User $user): bool
@@ -22,7 +22,9 @@ class CurriculumAccessService
     public function isGroupSupervisor(?User $user): bool
     {
         $teacher = $user?->teacherProfile?->loadMissing(['accessRole', 'jobTitle']);
-        if (! $teacher) return false;
+        if (! $teacher || ! $user?->can('curricula.record')) {
+            return false;
+        }
 
         $names = collect([$teacher->accessRole?->name, $teacher->job_title, $teacher->jobTitle?->name])
             ->filter()
@@ -39,7 +41,9 @@ class CurriculumAccessService
 
     public function groupsQuery(User $user): Builder
     {
-        if ($this->canManage($user)) return Group::query();
+        if ($this->canManage($user)) {
+            return Group::query();
+        }
 
         return app(AccessScopeService::class)->scopeGroups(Group::query(), $user);
     }

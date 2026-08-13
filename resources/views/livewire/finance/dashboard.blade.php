@@ -93,7 +93,7 @@ new class extends Component {
         return [
             'report' => app(FinanceReportService::class)->report($this->year, (int) $this->quarter),
             'cashBoxes' => $cashBoxes,
-            'currencies' => FinanceCurrency::query()->where('is_active', true)->orderByDesc('is_local')->orderBy('code')->get(),
+            'currencies' => FinanceCurrency::query()->where('is_active', true)->where('show_in_dropdowns', true)->orderByDesc('is_local')->orderBy('code')->get(),
             'transferCurrencies' => $service->currenciesForCashBox($this->transfer_from_cash_box_id)->get(),
             'transferToCashBoxes' => $service->accessibleCashBoxesForCurrency(auth()->user(), $this->transfer_currency_id)
                 ->when($this->transfer_from_cash_box_id, fn (Builder $query) => $query->where('finance_cash_boxes.id', '!=', $this->transfer_from_cash_box_id))

@@ -6,8 +6,6 @@ use App\Models\Assessment;
 use App\Models\AssessmentScoreBand;
 use App\Models\AssessmentType;
 use App\Models\AttendanceStatus;
-use App\Models\AwqafSubject;
-use App\Models\AwqafSubjectTest;
 use App\Models\QuranTest;
 use App\Models\QuranTestType;
 use App\Services\QuranFinalTestRuleService;
@@ -15,48 +13,65 @@ use App\Services\QuranPartialTestRuleService;
 use Illuminate\Validation\Rule;
 use Livewire\Volt\Component;
 
-new class extends Component {
+new class extends Component
+{
     use AuthorizesPermissions;
     use SupportsCreateAndNew;
 
     protected array $reservedQuranTestTypeCodes = ['partial'];
 
     public ?int $attendance_status_editing_id = null;
+
     public string $attendance_status_name = '';
+
     public string $attendance_status_code = '';
+
     public string $attendance_status_scope = 'both';
+
     public string $attendance_status_default_points = '0';
+
     public string $attendance_status_color = '';
+
     public bool $attendance_status_is_present = false;
+
     public bool $attendance_status_is_default = false;
+
     public bool $attendance_status_is_active = true;
+
     public bool $showAttendanceStatusModal = false;
 
     public ?int $assessment_type_editing_id = null;
+
     public string $assessment_type_name = '';
+
     public string $assessment_type_code = '';
+
     public bool $assessment_type_is_scored = true;
+
     public bool $assessment_type_is_active = true;
+
     public bool $showAssessmentTypeModal = false;
 
-    public ?int $awqaf_subject_editing_id = null;
-    public string $awqaf_subject_name = '';
-    public string $awqaf_subject_code = '';
-    public string $awqaf_subject_sort_order = '0';
-    public bool $awqaf_subject_is_active = true;
-    public bool $showAwqafSubjectModal = false;
-
     public ?int $quran_test_type_editing_id = null;
+
     public string $quran_test_type_name = '';
+
     public string $quran_test_type_code = '';
+
     public string $quran_test_type_sort_order = '0';
+
     public bool $quran_test_type_is_active = true;
+
     public bool $showQuranTestTypeModal = false;
 
     public string $partial_test_fail_threshold = '5';
+
     public string $final_test_failed_from = '0';
+
     public string $final_test_failed_to = '59.99';
+
     public string $final_test_passed_from = '60';
+
     public string $final_test_passed_to = '100';
 
     public function mount(): void
@@ -97,21 +112,6 @@ new class extends Component {
             'assessment_type_is_active' => ['boolean'],
             'assessment_type_is_scored' => ['boolean'],
             'assessment_type_name' => ['required', 'string', 'max:255'],
-        ];
-    }
-
-    public function awqafSubjectRules(): array
-    {
-        return [
-            'awqaf_subject_code' => [
-                'required',
-                'string',
-                'max:80',
-                Rule::unique('awqaf_subjects', 'code')->ignore($this->awqaf_subject_editing_id),
-            ],
-            'awqaf_subject_is_active' => ['boolean'],
-            'awqaf_subject_name' => ['required', 'string', 'max:255'],
-            'awqaf_subject_sort_order' => ['required', 'integer', 'min:0'],
         ];
     }
 
@@ -160,27 +160,6 @@ new class extends Component {
         session()->flash('status', __('settings.tracking.messages.attendance_status_deleted'));
     }
 
-    public function deleteAwqafSubject(int $awqafSubjectId): void
-    {
-        $this->authorizePermission('settings.manage');
-
-        $subject = AwqafSubject::query()->findOrFail($awqafSubjectId);
-
-        if (AwqafSubjectTest::query()->where('awqaf_subject_id', $subject->id)->exists()) {
-            $this->addError('awqafSubjectDelete', __('settings.tracking.errors.awqaf_subject_delete_linked'));
-
-            return;
-        }
-
-        $subject->delete();
-
-        if ($this->awqaf_subject_editing_id === $awqafSubjectId) {
-            $this->cancelAwqafSubject();
-        }
-
-        session()->flash('status', __('settings.tracking.messages.awqaf_subject_deleted'));
-    }
-
     public function deleteQuranTestType(int $quranTestTypeId): void
     {
         $this->authorizePermission('settings.manage');
@@ -214,22 +193,6 @@ new class extends Component {
         $this->assessment_type_is_scored = $assessmentType->is_scored;
         $this->assessment_type_is_active = $assessmentType->is_active;
         $this->showAssessmentTypeModal = true;
-
-        $this->resetValidation();
-    }
-
-    public function editAwqafSubject(int $awqafSubjectId): void
-    {
-        $this->authorizePermission('settings.manage');
-
-        $subject = AwqafSubject::query()->findOrFail($awqafSubjectId);
-
-        $this->awqaf_subject_editing_id = $subject->id;
-        $this->awqaf_subject_name = $subject->name;
-        $this->awqaf_subject_code = $subject->code;
-        $this->awqaf_subject_sort_order = (string) $subject->sort_order;
-        $this->awqaf_subject_is_active = $subject->is_active;
-        $this->showAwqafSubjectModal = true;
 
         $this->resetValidation();
     }
@@ -294,18 +257,6 @@ new class extends Component {
         $this->cancelAssessmentType();
     }
 
-    public function openAwqafSubjectModal(): void
-    {
-        $this->authorizePermission('settings.manage');
-        $this->cancelAwqafSubject();
-        $this->showAwqafSubjectModal = true;
-    }
-
-    public function closeAwqafSubjectModal(): void
-    {
-        $this->cancelAwqafSubject();
-    }
-
     public function openQuranTestTypeModal(): void
     {
         $this->authorizePermission('settings.manage');
@@ -358,32 +309,6 @@ new class extends Component {
         );
         $this->cancelAssessmentType();
     }
-
-    public function saveAwqafSubject(): void
-    {
-        $this->authorizePermission('settings.manage');
-
-        $validated = $this->validate($this->awqafSubjectRules());
-
-        AwqafSubject::query()->updateOrCreate(
-            ['id' => $this->awqaf_subject_editing_id],
-            [
-                'code' => $validated['awqaf_subject_code'],
-                'is_active' => $validated['awqaf_subject_is_active'],
-                'name' => $validated['awqaf_subject_name'],
-                'sort_order' => (int) $validated['awqaf_subject_sort_order'],
-            ],
-        );
-
-        session()->flash(
-            'status',
-            $this->awqaf_subject_editing_id
-                ? __('settings.tracking.messages.awqaf_subject_updated')
-                : __('settings.tracking.messages.awqaf_subject_created'),
-        );
-        $this->cancelAwqafSubject();
-    }
-
 
     public function saveAttendanceStatus(): void
     {
@@ -536,11 +461,9 @@ new class extends Component {
         return [
             'assessmentTypes' => AssessmentType::query()->withCount('assessments')->orderBy('name')->get(),
             'attendanceStatuses' => AttendanceStatus::query()->orderBy('scope')->orderBy('name')->get(),
-            'awqafSubjects' => AwqafSubject::query()->withCount('tests')->orderBy('sort_order')->orderBy('name')->get(),
             'totals' => [
                 'assessment_types' => AssessmentType::count(),
                 'attendance_statuses' => AttendanceStatus::count(),
-                'awqaf_subjects' => AwqafSubject::count(),
             ],
         ];
     }
@@ -568,17 +491,6 @@ new class extends Component {
         $this->attendance_status_is_default = false;
         $this->attendance_status_is_active = true;
         $this->showAttendanceStatusModal = false;
-        $this->resetValidation();
-    }
-
-    protected function cancelAwqafSubject(): void
-    {
-        $this->awqaf_subject_editing_id = null;
-        $this->awqaf_subject_name = '';
-        $this->awqaf_subject_code = '';
-        $this->awqaf_subject_sort_order = '0';
-        $this->awqaf_subject_is_active = true;
-        $this->showAwqafSubjectModal = false;
         $this->resetValidation();
     }
 
@@ -631,10 +543,9 @@ new class extends Component {
         <div class="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">{{ session('status') }}</div>
     @endif
 
-    <div class="grid gap-4 md:grid-cols-3">
+    <div class="grid gap-4 md:grid-cols-2">
         <div class="rounded-xl border border-neutral-200 p-5 dark:border-neutral-700"><div class="text-sm text-neutral-500">{{ __('settings.tracking.stats.attendance_statuses') }}</div><div class="mt-2 text-3xl font-semibold">{{ number_format($totals['attendance_statuses']) }}</div></div>
         <div class="rounded-xl border border-neutral-200 p-5 dark:border-neutral-700"><div class="text-sm text-neutral-500">{{ __('settings.tracking.stats.assessment_types') }}</div><div class="mt-2 text-3xl font-semibold">{{ number_format($totals['assessment_types']) }}</div></div>
-        <div class="rounded-xl border border-neutral-200 p-5 dark:border-neutral-700"><div class="text-sm text-neutral-500">{{ __('settings.tracking.stats.awqaf_subjects') }}</div><div class="mt-2 text-3xl font-semibold">{{ number_format($totals['awqaf_subjects']) }}</div></div>
     </div>
 
     <section class="surface-panel p-5 lg:p-6">
@@ -818,33 +729,6 @@ new class extends Component {
                 </form>
             </div>
 
-            <div class="overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700">
-                <div class="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-200 px-5 py-4 dark:border-neutral-700">
-                    <div>
-                        <div class="text-sm font-medium">{{ __('settings.tracking.sections.awqaf_subject.table') }}</div>
-                        <p class="mt-1 text-xs text-neutral-500 dark:text-neutral-400">{{ __('settings.tracking.sections.awqaf_subject.copy') }}</p>
-                    </div>
-                    <button type="button" wire:click="openAwqafSubjectModal" class="pill-link pill-link--accent">{{ __('settings.tracking.actions.create_awqaf_subject') }}</button>
-                </div>
-                <div class="overflow-x-auto">
-                    <table class="min-w-full divide-y divide-neutral-200 text-sm dark:divide-neutral-700">
-                        <thead class="bg-neutral-50 dark:bg-neutral-900/60"><tr><th class="px-5 py-3 text-left font-medium">{{ __('settings.tracking.table.name') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.tracking.table.code') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.tracking.table.tests') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.tracking.table.sort') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.tracking.table.state') }}</th><th class="px-5 py-3 text-right font-medium">{{ __('settings.tracking.table.actions') }}</th></tr></thead>
-                        <tbody class="divide-y divide-neutral-200 dark:divide-neutral-700">
-                            @foreach ($awqafSubjects as $subject)
-                                <tr>
-                                    <td class="px-5 py-3"><div class="font-medium">{{ $subject->name }}</div></td>
-                                    <td class="px-5 py-3">{{ $subject->code }}</td>
-                                    <td class="px-5 py-3">{{ number_format((int) $subject->tests_count) }}</td>
-                                    <td class="px-5 py-3">{{ number_format((int) $subject->sort_order) }}</td>
-                                    <td class="px-5 py-3">{{ $subject->is_active ? __('settings.common.states.active') : __('settings.common.states.inactive') }}</td>
-                                    <td class="px-5 py-3"><div class="flex justify-end gap-2"><button type="button" wire:click="editAwqafSubject({{ $subject->id }})" class="rounded-lg border border-neutral-300 px-3 py-1.5 dark:border-neutral-700">{{ __('crud.common.actions.edit') }}</button><button type="button" wire:click="deleteAwqafSubject({{ $subject->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="rounded-lg border border-red-300 px-3 py-1.5 text-red-700 dark:border-red-800 dark:text-red-300">{{ __('crud.common.actions.delete') }}</button></div></td>
-                                </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
-                </div>
-                @error('awqafSubjectDelete') <div class="border-t border-red-200 bg-red-50 px-5 py-3 text-sm text-red-700">{{ $message }}</div> @enderror
-            </div>
         </section>
     </div>
 
@@ -887,20 +771,6 @@ new class extends Component {
         </form>
     </x-admin.modal>
 
-    <x-admin.modal :show="$showAwqafSubjectModal" :title="$awqaf_subject_editing_id ? __('settings.tracking.sections.awqaf_subject.edit') : __('settings.tracking.sections.awqaf_subject.create')" :description="__('settings.tracking.sections.awqaf_subject.copy')" close-method="closeAwqafSubjectModal" max-width="3xl">
-        <form wire:submit="saveAwqafSubject" class="space-y-4">
-            <div><label class="mb-1 block text-sm font-medium">{{ __('settings.tracking.fields.name') }}</label><input wire:model="awqaf_subject_name" type="text" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">@error('awqaf_subject_name') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror</div>
-            <div class="grid gap-4 md:grid-cols-2">
-                <div><label class="mb-1 block text-sm font-medium">{{ __('settings.tracking.fields.code') }}</label><input wire:model="awqaf_subject_code" type="text" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">@error('awqaf_subject_code') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror</div>
-                <div><label class="mb-1 block text-sm font-medium">{{ __('settings.tracking.fields.sort_order') }}</label><input wire:model="awqaf_subject_sort_order" type="number" min="0" step="1" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">@error('awqaf_subject_sort_order') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror</div>
-            </div>
-            <label class="flex items-center gap-3 text-sm"><input wire:model="awqaf_subject_is_active" type="checkbox" class="rounded border-neutral-300 text-neutral-900"><span>{{ __('settings.tracking.fields.is_active') }}</span></label>
-            @error('awqafSubjectDelete') <div class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{{ $message }}</div> @enderror
-            <div class="flex justify-end gap-3">
-                <button type="button" wire:click="closeAwqafSubjectModal" class="pill-link">{{ __('crud.common.actions.cancel') }}</button>
-                <button type="submit" class="pill-link pill-link--accent">{{ $awqaf_subject_editing_id ? __('settings.tracking.actions.update_awqaf_subject') : __('settings.tracking.actions.create_awqaf_subject') }}</button>
-                <x-admin.create-and-new-button :show="! $awqaf_subject_editing_id" click="saveAndNew('saveAwqafSubject', 'openAwqafSubjectModal')" />
-            </div>
-        </form>
-    </x-admin.modal>
+
+    <livewire:settings.points :embedded="true" />
 </div>

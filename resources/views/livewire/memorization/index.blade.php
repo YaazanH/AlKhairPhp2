@@ -93,8 +93,11 @@ new class extends Component {
         $studentOptions = $this->scopeStudentsQuery(
             Student::query()
                 ->with(['parentProfile'])
+                ->where('status', 'active')
                 ->whereHas('enrollments', function (Builder $query) {
-                    $this->scopeEnrollmentsQuery($query)->where('status', 'active');
+                    $this->scopeEnrollmentsQuery($query)
+                        ->where('status', 'active')
+                        ->whereHas('group.course', fn (Builder $courseQuery) => $courseQuery->where('is_active', true));
                 })
         )
             ->orderBy('first_name')
@@ -230,7 +233,7 @@ new class extends Component {
             'selectedEnrollmentId' => __('workflow.memorization.workbench.form.group'),
         ]);
 
-        $student = $this->scopeStudentsQuery(Student::query())->findOrFail($validated['selectedStudentId']);
+        $student = $this->scopeStudentsQuery(Student::query()->where('status', 'active'))->findOrFail($validated['selectedStudentId']);
         $this->authorizeScopedStudentAccess($student);
 
         $availableEnrollmentIds = $this->availableEnrollmentsQuery()
@@ -404,6 +407,7 @@ new class extends Component {
         return $this->scopeEnrollmentsQuery(
             Enrollment::query()
                 ->where('status', 'active')
+                ->whereHas('group.course', fn (Builder $courseQuery) => $courseQuery->where('is_active', true))
                 ->when($this->selectedStudentId, fn (Builder $query) => $query->where('student_id', $this->selectedStudentId))
                 ->when(! $this->selectedStudentId, fn (Builder $query) => $query->whereRaw('1 = 0'))
         );
@@ -657,7 +661,7 @@ new class extends Component {
                         @foreach ($studentOptions as $student)
                             <option
                                 value="{{ $student->id }}"
-                                data-search="{{ trim(implode(' ', array_filter([$student->student_number, $student->parentProfile?->father_name, $student->first_name, $student->last_name]))) }}"
+                                data-search="{{ trim(implode(' ', array_filter([$student->student_number, $student->first_name, $student->last_name]))) }}"
                             >
                                 {{ $student->first_name }} {{ $student->last_name }}
                                 @if ($student->parentProfile?->father_name)

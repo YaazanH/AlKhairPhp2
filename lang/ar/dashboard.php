@@ -57,12 +57,12 @@ return [
         ],
         'analytics' => [
             'groups_eyebrow' => 'مجموعات الدورة الافتراضية',
-            'group_distribution' => 'الطلاب حسب المجموعة',
+            'group_distribution' => 'عدد الطلاب في كل مجموعة',
             'students_count' => '{1} طالب واحد|[2,10] :count طلاب|[11,*] :count طالب',
             'no_group_students' => 'لا يوجد طلاب نشطون في مجموعات الدورة الافتراضية بعد.',
             'last_four_days' => 'آخر أربعة أيام',
             'last_five_attendance_days' => 'آخر خمسة أيام حضور',
-            'daily_activity' => 'الحفظ والحضور',
+            'daily_activity' => 'مقارنة الحضور والحفظ',
             'memorized_pages' => 'الصفحات المحفوظة',
             'students_attended' => 'الطلاب الحاضرون',
             'leaderboard_eyebrow' => 'ترتيب الدورة الافتراضية',
@@ -99,6 +99,8 @@ return [
         'intro' => 'استخدم تكليفاتك كنقطة انطلاق للحضور والحفظ والتقييمات وملاحظات الطلاب.',
         'group_dashboard' => [
             'subheading' => 'عرض مركز لحضور الحلقة وحفظها واختباراتها وترتيب طلابها.',
+            'today_summary' => 'ملخص اليوم',
+            'copy_today_summary' => 'نسخ ملخص اليوم',
             'stats' => [
                 'group' => 'اسم المجموعة',
                 'students' => 'عدد الطلاب',

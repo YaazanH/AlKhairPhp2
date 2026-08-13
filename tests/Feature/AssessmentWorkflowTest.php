@@ -209,6 +209,7 @@ class AssessmentWorkflowTest extends TestCase
             ->call('create')
             ->set('group_scope', 'multiple')
             ->set('groupCourseFilter', (string) $course->id)
+            ->call('openGroupPicker')
             ->assertSee('Second Assessment Group')
             ->assertDontSee('Hidden Other Course Group')
             ->call('toggleGroup', $firstEnrollment->group_id)

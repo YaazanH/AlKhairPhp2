@@ -243,18 +243,8 @@ new class extends Component {
             return;
         }
 
-        if (! $validated['selectedEnrollmentId']) {
-            if (count($availableEnrollmentIds) > 1) {
-                $this->addError('selectedEnrollmentId', __('workflow.quran_tests.errors.select_group'));
-
-                return;
-            }
-
-            $validated['selectedEnrollmentId'] = $availableEnrollmentIds[0];
-            $this->selectedEnrollmentId = $validated['selectedEnrollmentId'];
-        }
-
-        abort_unless(in_array((int) $validated['selectedEnrollmentId'], $availableEnrollmentIds, true), 403);
+        $validated['selectedEnrollmentId'] = $availableEnrollmentIds[0];
+        $this->selectedEnrollmentId = $validated['selectedEnrollmentId'];
 
         $enrollment = $this->quranEnrollmentsQuery(
             Enrollment::query()->with(['student', 'group.teacher'])
@@ -342,10 +332,9 @@ new class extends Component {
     {
         return $this->quranEnrollmentsQuery(
             Enrollment::query()
-                ->where('status', 'active')
-                ->when($this->selectedStudentId, fn (Builder $query) => $query->where('student_id', $this->selectedStudentId))
+                ->when($this->selectedStudentId, fn (Builder $query) => $query->currentActiveForStudent((int) $this->selectedStudentId))
                 ->when(! $this->selectedStudentId, fn (Builder $query) => $query->whereRaw('1 = 0'))
-        );
+        )->limit(1);
     }
 
     protected function eligibleJuzsForStudentId(?int $studentId)
@@ -387,7 +376,11 @@ new class extends Component {
         $studentIds = $this->quranStudentsQuery(
             Student::query()
                 ->whereHas('enrollments', function (Builder $query) {
-                    $this->quranEnrollmentsQuery($query)->where('status', 'active');
+                    $this->quranEnrollmentsQuery($query)
+                        ->where('status', 'active')
+                        ->whereHas('group', fn (Builder $groupQuery) => $groupQuery
+                            ->where('is_active', true)
+                            ->whereHas('course', fn (Builder $courseQuery) => $courseQuery->where('is_active', true)));
                 })
         )
             ->orderBy('last_name')
@@ -754,7 +747,7 @@ new class extends Component {
                         @foreach ($studentOptions as $student)
                             <option
                                 value="{{ $student->id }}"
-                                data-search="{{ trim(implode(' ', array_filter([$student->student_number, $student->parentProfile?->father_name, $student->first_name, $student->last_name]))) }}"
+                                data-search="{{ trim(implode(' ', array_filter([$student->student_number, $student->first_name, $student->last_name]))) }}"
                             >
                                 {{ $student->first_name }} {{ $student->last_name }}
                                 @if ($student->parentProfile?->father_name)

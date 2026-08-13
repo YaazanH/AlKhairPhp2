@@ -6,6 +6,7 @@ use App\Models\AcademicYear;
 use App\Models\Course;
 use App\Models\Curriculum;
 use App\Models\CurriculumLesson;
+use App\Models\CurriculumLessonTopic;
 use App\Models\CurriculumSubject;
 use App\Models\CurriculumSubjectDefinition;
 use App\Models\GradeLevel;
@@ -57,7 +58,15 @@ class CurriculumModuleTest extends TestCase
             ->assertHasNoErrors();
 
         $definition = CurriculumSubjectDefinition::query()->firstOrFail();
-        $curriculum = Curriculum::create(['course_id' => $course->id, 'grade_level_id' => $grade->id, 'name' => 'Grade curriculum', 'is_active' => true]);
+        Volt::test('curricula.index')
+            ->call('openCurriculum')
+            ->set('curriculumName', 'Grade curriculum')
+            ->set('curriculumGradeId', (string) $grade->id)
+            ->call('saveCurriculum')
+            ->assertHasNoErrors();
+
+        $curriculum = Curriculum::query()->where('name', 'Grade curriculum')->firstOrFail();
+        $this->assertNull($curriculum->course_id);
 
         Volt::test('curricula.show', ['curriculum' => $curriculum])
             ->set('subjectDefinitionId', (string) $definition->id)
@@ -66,11 +75,10 @@ class CurriculumModuleTest extends TestCase
 
         $subject = CurriculumSubject::query()->firstOrFail();
         Volt::test('curricula.show', ['curriculum' => $curriculum])
-            ->set('lessonSubjectId', $subject->id)
-            ->set('lessonName', 'First lesson')
-            ->set('pageCount', '8')
-            ->set('importance', 3)
-            ->call('saveLesson')
+            ->set("newLessonDrafts.{$subject->id}.0.name", 'First lesson')
+            ->set("newLessonDrafts.{$subject->id}.0.page_count", '8')
+            ->set("newLessonDrafts.{$subject->id}.0.importance", 3)
+            ->call('saveInlineLesson', $subject->id, 0)
             ->assertHasNoErrors();
 
         Volt::test('groups.index')
@@ -129,12 +137,37 @@ class CurriculumModuleTest extends TestCase
         $this->assertDatabaseHas('group_custom_curriculum_lessons', ['group_id' => $group->id, 'subject_name' => 'Community', 'name' => 'Helping neighbours', 'status' => 'taught']);
     }
 
+    public function test_lesson_topics_roll_up_completion_and_remove_the_parent_checkbox(): void
+    {
+        $this->seed(RoleSeeder::class);
+        $user = User::factory()->create();
+        $user->assignRole('teacher');
+        [$course, $year, $grade] = $this->learningStructure(false);
+        $teacher = Teacher::create(['user_id' => $user->id, 'first_name' => 'Topic', 'last_name' => 'Supervisor', 'phone' => '0944007004', 'job_title' => 'مشرف حلقة', 'status' => 'active', 'is_helping' => true]);
+        $curriculum = Curriculum::create(['course_id' => $course->id, 'grade_level_id' => $grade->id, 'name' => 'Topic curriculum', 'is_active' => true]);
+        $definition = CurriculumSubjectDefinition::create(['name' => 'Topic subject', 'is_active' => true]);
+        $subject = CurriculumSubject::create(['curriculum_id' => $curriculum->id, 'subject_definition_id' => $definition->id]);
+        $lesson = CurriculumLesson::create(['curriculum_subject_id' => $subject->id, 'name' => 'Parent lesson', 'page_count' => 4, 'importance' => 2]);
+        $firstTopic = CurriculumLessonTopic::create(['curriculum_lesson_id' => $lesson->id, 'name' => 'First topic', 'sort_order' => 10]);
+        $secondTopic = CurriculumLessonTopic::create(['curriculum_lesson_id' => $lesson->id, 'name' => 'Second topic', 'sort_order' => 20]);
+        $group = Group::create(['course_id' => $course->id, 'academic_year_id' => $year->id, 'teacher_id' => $teacher->id, 'grade_level_id' => $grade->id, 'curriculum_id' => $curriculum->id, 'name' => 'Topic Group', 'capacity' => 20, 'is_active' => true]);
+
+        $this->actingAs($user);
+        Volt::test('curricula.index')->set('selectedGroupId', (string) $group->id)->assertSee('First topic')->call('toggleTopic', $firstTopic->id)->assertHasNoErrors();
+        $this->assertSame(0.0, app(CurriculumProgressService::class)->summary($group->fresh())['percentage']);
+
+        Volt::test('curricula.index')->set('selectedGroupId', (string) $group->id)->call('toggleTopic', $secondTopic->id)->assertHasNoErrors();
+        $this->assertSame(100.0, app(CurriculumProgressService::class)->summary($group->fresh())['percentage']);
+        $this->assertDatabaseHas('group_curriculum_lesson_progresses', ['group_id' => $group->id, 'curriculum_lesson_id' => $lesson->id, 'status' => 'taught']);
+    }
+
     private function learningStructure(bool $withTeacher = true): array
     {
         $course = Course::create(['name' => 'Default curriculum course', 'is_active' => true, 'is_default' => true]);
         $year = AcademicYear::create(['name' => '2026/2027', 'starts_on' => '2026-08-01', 'ends_on' => '2027-07-31', 'is_current' => true, 'is_active' => true]);
         $grade = GradeLevel::create(['name' => 'Grade curriculum', 'sort_order' => 1, 'is_active' => true]);
         $teacher = $withTeacher ? Teacher::create(['first_name' => 'Curriculum', 'last_name' => 'Teacher', 'phone' => '0944007004', 'status' => 'active', 'is_helping' => true]) : null;
+
         return [$course, $year, $grade, $teacher];
     }
 }

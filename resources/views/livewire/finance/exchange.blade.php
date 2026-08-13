@@ -20,7 +20,6 @@ new class extends Component {
     public string $to_amount = '';
     public string $exchange_date = '';
     public string $notes = '';
-    public ?int $active_rate_currency_id = null;
 
     public function mount(): void
     {
@@ -33,7 +32,6 @@ new class extends Component {
         $this->to_currency_id = $localCurrency->id;
         $this->from_cash_box_id = app(FinanceService::class)->defaultCashBoxForUser(auth()->user(), $baseCurrency->id)?->id;
         $this->to_cash_box_id = app(FinanceService::class)->defaultCashBoxForUser(auth()->user(), $localCurrency->id)?->id;
-        $this->active_rate_currency_id = $localCurrency->is_base ? FinanceCurrency::query()->where('is_active', true)->where('is_base', false)->value('id') : $localCurrency->id;
     }
 
     public function with(): array
@@ -41,19 +39,8 @@ new class extends Component {
         $financeService = app(FinanceService::class);
 
         return [
-            'activeCurrencies' => FinanceCurrency::query()
-                ->with(['rateReferenceCurrency', 'rateUpdatedBy'])
-                ->where('is_active', true)
-                ->orderByDesc('is_local')
-                ->orderByDesc('is_base')
-                ->orderBy('code')
-                ->get(),
-            'selectedRateCurrency' => FinanceCurrency::query()
-                ->with(['rateReferenceCurrency', 'rateUpdatedBy'])
-                ->where('is_active', true)
-                ->where('is_base', false)
-                ->find($this->active_rate_currency_id),
             'baseCurrency' => $financeService->baseCurrency(),
+            'localCurrency' => $financeService->localCurrency(),
             'fromCashBoxes' => $financeService->accessibleCashBoxesForCurrency(auth()->user(), $this->from_currency_id)->get(),
             'toCashBoxes' => $financeService->accessibleCashBoxesForCurrency(auth()->user(), $this->to_currency_id)->get(),
             'fromCurrencies' => $financeService->currenciesForCashBox($this->from_cash_box_id)->get(),
@@ -170,15 +157,9 @@ new class extends Component {
                     <h2 class="font-display mt-2 text-2xl text-white">{{ __('finance.exchange.rate_board_title') }}</h2>
                     <p class="mt-2 max-w-2xl text-sm leading-6 text-neutral-300">{{ __('finance.exchange.rate_board_subtitle') }}</p>
                 </div>
-                <div class="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center">
-                    <select wire:model.live="active_rate_currency_id" class="rounded-xl px-3 py-2 text-sm">
-                        @foreach ($activeCurrencies->where('is_base', false) as $currency)
-                            <option value="{{ $currency->id }}">{{ $currency->code }} - {{ $currency->name }}</option>
-                        @endforeach
-                    </select>
-                    @if ($selectedRateCurrency)
-                        <bdi dir="ltr" class="text-lg font-semibold text-emerald-100">{{ app(FinanceService::class)->currencyRateLabel($selectedRateCurrency, $baseCurrency) }}</bdi>
-                    @endif
+                <div class="rounded-2xl border border-emerald-300/20 bg-emerald-400/10 px-5 py-3 text-center shadow-inner">
+                    <div class="text-xs text-neutral-300">{{ $localCurrency->code }} / {{ $baseCurrency->code }}</div>
+                    <bdi dir="ltr" class="mt-1 block text-lg font-semibold text-emerald-100">{{ app(FinanceService::class)->currencyRateLabel($localCurrency, $baseCurrency) }}</bdi>
                 </div>
             </div>
         </div>

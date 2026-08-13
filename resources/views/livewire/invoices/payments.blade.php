@@ -9,12 +9,15 @@ use App\Models\InvoiceItem;
 use App\Models\Payment;
 use App\Services\FinanceService;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Livewire\Volt\Component;
+use Livewire\WithFileUploads;
 
 new class extends Component {
     use AuthorizesPermissions;
     use AuthorizesTeacherAssignments;
     use FormatsFinanceNumbers;
+    use WithFileUploads;
 
     public Invoice $currentInvoice;
     public ?int $editingItemId = null;
@@ -22,6 +25,14 @@ new class extends Component {
     public string $item_quantity = '1';
     public string $item_unit_price = '0';
     public string $invoice_deduction = '0';
+    public string $invoice_no = '';
+    public string $original_invoice_no = '';
+    public string $invoicer_name = '';
+    public string $issue_date = '';
+    public string $due_date = '';
+    public string $invoice_status = 'draft';
+    public string $invoice_notes = '';
+    public $invoice_attachment = null;
     public ?int $payment_method_id = null;
     public string $paid_at = '';
     public string $payment_amount = '';
@@ -35,6 +46,13 @@ new class extends Component {
         $this->authorizeScopedInvoiceAccess($this->currentInvoice);
         $this->paid_at = now()->toDateString();
         $this->invoice_deduction = $this->formatFinanceNumberForInput($this->currentInvoice->discount);
+        $this->invoice_no = $this->currentInvoice->invoice_no;
+        $this->original_invoice_no = $this->currentInvoice->original_invoice_no ?? '';
+        $this->invoicer_name = $this->currentInvoice->invoicer_name ?? '';
+        $this->issue_date = $this->currentInvoice->issue_date?->toDateString() ?? '';
+        $this->due_date = $this->currentInvoice->due_date?->toDateString() ?? '';
+        $this->invoice_status = $this->currentInvoice->status;
+        $this->invoice_notes = $this->currentInvoice->notes ?? '';
     }
 
     public function with(): array
@@ -47,7 +65,7 @@ new class extends Component {
 
     public function saveItem(): void
     {
-        $this->authorizePermission('invoices.update');
+        $this->authorizePermission('finance.entries.update');
         $this->normalizeFinanceNumberProperty('item_quantity');
         $this->normalizeFinanceNumberProperty('item_unit_price');
 
@@ -82,7 +100,7 @@ new class extends Component {
 
     public function saveDeduction(): void
     {
-        $this->authorizePermission('invoices.update');
+        $this->authorizePermission('finance.entries.update');
         $this->normalizeFinanceNumberProperty('invoice_deduction');
         $validated = $this->validate(['invoice_deduction' => ['required', 'numeric', 'min:0']]);
         $subtotal = (float) InvoiceItem::query()->where('invoice_id', $this->currentInvoice->id)->sum('amount');
@@ -98,9 +116,40 @@ new class extends Component {
         session()->flash('status', __('invoices.index.messages.updated'));
     }
 
+    public function saveInvoiceBasics(): void
+    {
+        $this->authorizePermission('finance.entries.update');
+        $validated = $this->validate([
+            'invoice_no' => ['required', 'string', 'max:255', \Illuminate\Validation\Rule::unique('invoices', 'invoice_no')->ignore($this->currentInvoice->id)],
+            'original_invoice_no' => ['nullable', 'string', 'max:255'],
+            'invoicer_name' => ['required', 'string', 'max:255'],
+            'issue_date' => ['required', 'date'],
+            'due_date' => ['nullable', 'date', 'after_or_equal:issue_date'],
+            'invoice_status' => ['required', 'in:draft,issued,partial,paid,cancelled'],
+            'invoice_notes' => ['nullable', 'string', 'max:4000'],
+            'invoice_attachment' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png,webp', 'max:10240'],
+        ]);
+
+        $oldPath = $this->currentInvoice->original_image_path;
+        $newPath = $validated['invoice_attachment']?->store('finance/invoices/scans', 'public');
+        $this->currentInvoice->update([
+            'invoice_no' => $validated['invoice_no'],
+            'original_invoice_no' => $validated['original_invoice_no'] ?: null,
+            'invoicer_name' => $validated['invoicer_name'],
+            'issue_date' => $validated['issue_date'],
+            'due_date' => $validated['due_date'] ?: null,
+            'status' => $validated['invoice_status'],
+            'notes' => $validated['invoice_notes'] ?: null,
+            'original_image_path' => $newPath ?: $oldPath,
+        ]);
+        if ($newPath && $oldPath && $newPath !== $oldPath) Storage::disk('public')->delete($oldPath);
+        $this->invoice_attachment = null;
+        session()->flash('status', __('invoices.index.messages.updated'));
+    }
+
     public function editItem(int $itemId): void
     {
-        $this->authorizePermission('invoices.update');
+        $this->authorizePermission('finance.entries.update');
         $item = InvoiceItem::query()->where('invoice_id', $this->currentInvoice->id)->findOrFail($itemId);
         $this->editingItemId = $item->id;
         $this->item_name = $item->item_name ?: $item->description;
@@ -111,7 +160,7 @@ new class extends Component {
 
     public function deleteItem(int $itemId): void
     {
-        $this->authorizePermission('invoices.update');
+        $this->authorizePermission('finance.entries.update');
         $item = InvoiceItem::query()->where('invoice_id', $this->currentInvoice->id)->findOrFail($itemId);
         $item->delete();
         if ($this->editingItemId === $itemId) {
@@ -242,8 +291,26 @@ new class extends Component {
         <article class="stat-card"><div class="kpi-label">{{ __('invoices.detail.summary.total') }}</div><div class="metric-value mt-3">{{ number_format((float) $invoiceRecord->total, 2) }}</div></article>
     </section>
 
+    @if (request()->boolean('maintenance') && auth()->user()?->can('finance.entries.update'))
+        <section class="surface-panel p-5 lg:p-6">
+            <div class="admin-section-card__title">{{ __('invoices.index.form.edit_title') }}</div>
+            <form wire:submit="saveInvoiceBasics" class="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                <label class="text-sm">{{ __('finance.fields.invoice_no') }}<input wire:model="invoice_no" class="mt-1 w-full rounded-xl px-4 py-3" dir="ltr"></label>
+                <label class="text-sm">{{ __('finance.fields.original_invoice_no') }}<input wire:model="original_invoice_no" class="mt-1 w-full rounded-xl px-4 py-3" dir="ltr"></label>
+                <label class="text-sm">{{ __('finance.fields.invoicer_name') }}<input wire:model="invoicer_name" class="mt-1 w-full rounded-xl px-4 py-3"></label>
+                <label class="text-sm">{{ __('invoices.index.form.fields.status') }}<select wire:model="invoice_status" class="mt-1 w-full rounded-xl px-4 py-3">@foreach(['draft','issued','partial','paid','cancelled'] as $value)<option value="{{ $value }}">{{ __('print.invoice.statuses.'.$value) }}</option>@endforeach</select></label>
+                <label class="text-sm">{{ __('invoices.index.form.fields.issue_date') }}<input wire:model="issue_date" type="date" class="mt-1 w-full rounded-xl px-4 py-3"></label>
+                <label class="text-sm">{{ __('invoices.index.form.fields.due_date') }}<input wire:model="due_date" type="date" class="mt-1 w-full rounded-xl px-4 py-3"></label>
+                <label class="text-sm md:col-span-2">{{ __('finance.fields.invoice_scan') }}<input wire:model="invoice_attachment" type="file" accept="image/*,application/pdf" class="mt-1 block w-full rounded-xl px-4 py-3"></label>
+                <label class="text-sm md:col-span-2 xl:col-span-4">{{ __('invoices.index.form.fields.notes') }}<textarea wire:model="invoice_notes" class="mt-1 w-full rounded-xl px-4 py-3"></textarea></label>
+                <div class="md:col-span-2 xl:col-span-4 flex items-center justify-between gap-3">@if($invoiceRecord->original_image_path)<a href="{{ asset('storage/'.$invoiceRecord->original_image_path) }}" target="_blank" class="pill-link">{{ __('finance.actions.view_original') }}</a>@else<span></span>@endif<button class="pill-link pill-link--accent">{{ __('crud.common.actions.save') }}</button></div>
+            </form>
+        </section>
+    @endif
+
     <div class="grid gap-6 xl:grid-cols-[23rem_minmax(0,1fr)]">
         <section class="space-y-6">
+            @if (request()->boolean('maintenance') && auth()->user()?->can('finance.entries.update'))
             <div class="surface-panel p-5 lg:p-6">
                 <div class="admin-section-card__header">
                     <div class="admin-section-card__title">{{ $editingItemId ? __('invoices.detail.item_form.edit_title') : __('invoices.detail.item_form.create_title') }}</div>
@@ -286,6 +353,8 @@ new class extends Component {
                     <button type="submit" class="pill-link pill-link--accent">{{ __('crud.common.actions.save') }}</button>
                 </form>
             </div>
+
+            @endif
 
             @if ($invoiceRecord->financeRequest && $invoiceRecord->financeRequest->status === \App\Models\FinanceRequest::STATUS_ACCEPTED)
                 <div class="surface-panel p-5 lg:p-6">

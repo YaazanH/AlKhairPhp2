@@ -51,7 +51,7 @@ class PrintTemplateLayoutService
         $fontWeight = in_array(($styling['font_weight'] ?? '600'), ['400', '500', '600', '700', '800'], true)
             ? (string) ($styling['font_weight'] ?? '600')
             : '600';
-        $textAlign = in_array(($styling['text_align'] ?? 'left'), ['left', 'center', 'right'], true)
+        $textAlign = in_array(($styling['text_align'] ?? 'left'), ['left', 'center', 'right', 'justify'], true)
             ? ($styling['text_align'] ?? 'left')
             : 'left';
         $objectFit = in_array(($styling['object_fit'] ?? 'cover'), ['contain', 'cover', 'fill'], true)

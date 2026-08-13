@@ -69,7 +69,15 @@ class SpTodayExchangeRateService
                 $sell = (float) $matches[2];
 
                 if ($buy > 0 && $sell > 0) {
-                    return (int) ceil(($buy + $sell) / 2);
+                    $average = ($buy + $sell) / 2;
+
+                    // SP Today still exposes the pre-redenomination SYP quote in
+                    // some payloads (for example 13,146 instead of 131.46).
+                    if ($average >= 1000) {
+                        $average /= 100;
+                    }
+
+                    return (int) ceil($average);
                 }
             }
         }

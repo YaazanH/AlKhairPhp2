@@ -429,6 +429,10 @@ class FinanceReportService
         $report['generated_report_id'] = $generatedReport->id;
         $report['default_course'] = $report['default_course'] ?? $this->defaultCourseName();
         $report['issuer_name'] = $report['issuer_name'] ?? ($generatedReport->generatedBy?->name ?: null);
+        $report['issuer_signature_pdf_src'] = $generatedReport->generatedBy?->financeSignaturePdfSource();
+        $report['issuer_signature_url'] = $generatedReport->generatedBy?->financeSignatureUrl();
+        $report['report_stamp_pdf_src'] = $this->reportStampPdfSource();
+        $report['report_stamp_url'] = $this->reportStampUrl();
         $report['page_number'] = (int) ($report['page_number'] ?? 1);
         $report['rows'] = is_array($report['rows'] ?? null) ? $report['rows'] : [];
         if (is_array($report['fund_reports'] ?? null)) {
@@ -436,6 +440,10 @@ class FinanceReportService
                 $fundReport['default_course'] = $fundReport['default_course'] ?? $report['default_course'];
                 $fundReport['template'] = $this->normalizeLedgerTemplateSnapshot(array_merge($report['template'], $fundReport['template'] ?? []));
                 $fundReport['rows'] = is_array($fundReport['rows'] ?? null) ? $fundReport['rows'] : [];
+                $fundReport['issuer_signature_pdf_src'] = $fundReport['issuer_signature_pdf_src'] ?? $report['issuer_signature_pdf_src'];
+                $fundReport['issuer_signature_url'] = $report['issuer_signature_url'];
+                $fundReport['report_stamp_pdf_src'] = $fundReport['report_stamp_pdf_src'] ?? $report['report_stamp_pdf_src'];
+                $fundReport['report_stamp_url'] = $report['report_stamp_url'];
 
                 return $fundReport;
             })->values()->all();
@@ -688,6 +696,7 @@ class FinanceReportService
     ): array {
         $closingBalance = round($openingBalance + $income - $expense, 2);
         $templateSnapshot = $this->normalizeLedgerTemplateSnapshot($this->templateSnapshot($template));
+        $effectiveIssuer = $issuer ?: auth()->user();
 
         return [
             'cash_box' => [
@@ -709,7 +718,9 @@ class FinanceReportService
             ],
             'income' => $income,
             'default_course' => $this->defaultCourseName(),
-            'issuer_name' => $issuer?->name ?: auth()->user()?->name,
+            'issuer_name' => $effectiveIssuer?->name,
+            'issuer_signature_pdf_src' => $effectiveIssuer?->financeSignaturePdfSource(),
+            'issuer_signature_url' => $effectiveIssuer?->financeSignatureUrl(),
             'net' => round($income - $expense, 2),
             'notes' => filled($notes) ? trim($notes) : null,
             'opening_balance' => $openingBalance,
@@ -717,6 +728,8 @@ class FinanceReportService
             'pdf_renderer' => $this->ledgerPdfRendererVersion(),
             'report_date' => $this->resolveReportDate($template, $exportedAt),
             'report_prefix' => $this->reportPrefix(),
+            'report_stamp_pdf_src' => $this->reportStampPdfSource(),
+            'report_stamp_url' => $this->reportStampUrl(),
             'rows' => $rows,
             'start' => $start->toDateString(),
             'template' => $templateSnapshot,
@@ -759,6 +772,12 @@ class FinanceReportService
     protected function ledgerRowFromTransaction(FinanceTransaction $transaction, float $income, float $expense, float $runningBalance): array
     {
         $currency = $transaction->currency;
+        $description = (string) ($transaction->description ?: '');
+        $category = $transaction->category ?: $transaction->financeRequest?->category;
+        $maskedDonor = $category?->is_donation ? $transaction->financeRequest?->maskedCounterpartyName() : '';
+        if ($maskedDonor) {
+            $description = $maskedDonor.($description !== '' ? ' — '.$description : '');
+        }
 
         return [
             'amount' => $this->formatMoney((float) $transaction->amount, $currency),
@@ -768,7 +787,7 @@ class FinanceReportService
                 ?: $transaction->financeRequest?->pullRequestKind?->name
                 ?: ''),
             'currency' => (string) ($currency?->code ?: ''),
-            'description' => (string) ($transaction->description ?: ''),
+            'description' => $description,
             'direction' => __('finance.options.'.$transaction->direction),
             'entered_by' => (string) ($transaction->enteredBy?->name ?: ''),
             'expense' => $expense > 0 ? $this->formatMoney($expense, $currency) : '',
@@ -841,6 +860,7 @@ class FinanceReportService
     protected function templateSnapshot(FinanceReportTemplate $template): array
     {
         $backgroundImageUrl = $template->background_image_url;
+        $brandLogoPdfSource = app(PdfBrandingService::class)->logoSource();
         $logoImageUrl = $template->logo_image_url;
 
         return [
@@ -858,7 +878,7 @@ class FinanceReportService
             'include_opening_balance' => (bool) $template->include_opening_balance,
             'is_default' => (bool) $template->is_default,
             'language' => $template->language,
-            'logo_image_pdf_src' => $this->pdfAssetSource($logoImageUrl),
+            'logo_image_pdf_src' => $brandLogoPdfSource ?: $this->pdfAssetSource($logoImageUrl),
             'logo_image_url' => $logoImageUrl,
             'name' => $template->name,
             'shape_color' => $template->shape_color ?: '#0f7a3d',
@@ -885,12 +905,31 @@ class FinanceReportService
 
     protected function ledgerPdfRendererVersion(): string
     {
-        return 'mpdf-fixed-ledger-v8';
+        return 'mpdf-fixed-ledger-v9';
+    }
+
+    public function reportStampPdfSource(): ?string
+    {
+        $path = AppSetting::groupValues('finance')->get('report_stamp_path');
+
+        return is_string($path) && $path !== '' && Storage::disk('public')->exists($path)
+            ? Storage::disk('public')->path($path)
+            : null;
+    }
+
+    public function reportStampUrl(): ?string
+    {
+        $path = AppSetting::groupValues('finance')->get('report_stamp_path');
+
+        return is_string($path) && $path !== '' && Storage::disk('public')->exists($path)
+            ? Storage::disk('public')->url($path)
+            : null;
     }
 
     public function defaultReportLogoPdfSource(): ?string
     {
-        return $this->pdfAssetSource($this->defaultLedgerTemplate()->logo_image_url);
+        return app(PdfBrandingService::class)->logoSource()
+            ?: $this->pdfAssetSource($this->defaultLedgerTemplate()->logo_image_url);
     }
 
     protected function normalizeLedgerTemplateSnapshot(array $template): array

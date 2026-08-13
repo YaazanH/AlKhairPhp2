@@ -4,6 +4,7 @@
     'description' => null,
     'closeMethod' => null,
     'maxWidth' => '4xl',
+    'compact' => false,
 ])
 
 @php
@@ -23,7 +24,7 @@
     <div class="admin-modal">
         <div class="admin-modal__backdrop"></div>
         <div class="admin-modal__viewport">
-            <div class="admin-modal__dialog {{ $widthClass }}">
+            <div class="admin-modal__dialog {{ $widthClass }} {{ ($compact || $maxWidth === '8xl') ? 'admin-modal__dialog--compact' : '' }}">
                 <div class="admin-modal__header">
                     <div>
                         @if ($title)

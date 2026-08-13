@@ -436,9 +436,6 @@ new class extends Component {
                                             @if ($invoice->original_image_path)
                                                 <a href="{{ asset('storage/'.$invoice->original_image_path) }}" target="_blank" class="pill-link pill-link--compact">{{ __('finance.actions.view_original') }}</a>
                                             @endif
-                                            @can('invoices.update')
-                                                <button type="button" wire:click="edit({{ $invoice->id }})" class="pill-link pill-link--compact">{{ __('crud.common.actions.edit') }}</button>
-                                            @endcan
                                             @can('invoices.delete')
                                                 <button type="button" wire:click="delete({{ $invoice->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link pill-link--compact border-red-400/25 text-red-200 hover:border-red-300/35 hover:bg-red-500/12">{{ __('crud.common.actions.delete') }}</button>
                                             @endcan

@@ -39,6 +39,7 @@ new class extends Component {
     public string $statusFilter = 'active';
     public int $perPage = 15;
     public bool $showForm = false;
+    public bool $showGroupPicker = false;
 
     public function mount(): void
     {
@@ -126,6 +127,19 @@ new class extends Component {
         $this->resetValidation(['group_id', 'group_ids']);
     }
 
+    public function updatedGroupScope(): void
+    {
+        $this->group_id = null;
+        $this->group_ids = [];
+        $this->showGroupPicker = false;
+        $this->resetValidation(['group_id', 'group_ids']);
+    }
+
+    public function openGroupPicker(): void
+    {
+        if ($this->group_scope !== 'all') $this->showGroupPicker = true;
+    }
+
     public function updatedScheduledAt(): void
     {
         if ($this->due_at_manually_changed) {
@@ -147,7 +161,7 @@ new class extends Component {
 
     public function toggleGroup(int $groupId): void
     {
-        if ($this->group_scope !== 'multiple') {
+        if (! in_array($this->group_scope, ['single', 'multiple'], true)) {
             return;
         }
 
@@ -155,6 +169,14 @@ new class extends Component {
             ->when($this->groupCourseFilter !== 'all', fn ($query) => $query->where('course_id', (int) $this->groupCourseFilter))
             ->findOrFail($groupId);
         $this->authorizeTeacherGroupAccess($group);
+
+        if ($this->group_scope === 'single') {
+            $this->group_id = $groupId;
+            $this->group_ids = [(string) $groupId];
+            $this->showGroupPicker = false;
+            $this->resetValidation(['group_id', 'group_ids']);
+            return;
+        }
 
         $selected = collect($this->group_ids)
             ->map(fn ($id) => (int) $id)
@@ -300,6 +322,7 @@ new class extends Component {
         $this->total_mark = '';
         $this->pass_mark = '';
         $this->is_active = true;
+        $this->showGroupPicker = false;
         $this->groupCourseFilter = (string) (Course::query()->where('is_default', true)->where('is_active', true)->value('id') ?? 'all');
 
         if ($closeForm) {
@@ -468,120 +491,34 @@ new class extends Component {
                 </div>
 
                 <form wire:submit.prevent="save" class="space-y-4">
-                    <div class="grid gap-4 md:grid-cols-2">
-                        <div>
-                            <label for="assessment-group-course" class="mb-1 block text-sm font-medium">{{ __('workflow.assessments.index.form.course') }}</label>
-                            <select id="assessment-group-course" wire:model.live="groupCourseFilter" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
-                                <option value="all">{{ __('workflow.assessments.index.form.all_courses') }}</option>
-                                @foreach ($courses as $course)
-                                    <option value="{{ $course->id }}">{{ $course->name }}</option>
-                                @endforeach
-                            </select>
-                            <div class="mt-1 text-xs text-neutral-500">{{ __('workflow.assessments.index.form.course_help') }}</div>
-                        </div>
-
-                        <div>
-                            <label class="mb-1 block text-sm font-medium">{{ __('workflow.assessments.index.form.group_scope') }}</label>
-                            <select wire:model.live="group_scope" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
-                                <option value="single">{{ __('workflow.assessments.index.form.group_scope_options.single') }}</option>
-                                <option value="multiple">{{ __('workflow.assessments.index.form.group_scope_options.multiple') }}</option>
-                                <option value="all">{{ __('workflow.assessments.index.form.group_scope_options.all') }}</option>
-                            </select>
-                            @error('group_scope') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
-                        </div>
-
-                        @if ($group_scope === 'single')
-                            <div>
-                                <label class="mb-1 block text-sm font-medium">{{ __('workflow.assessments.index.form.group') }}</label>
-                                <select wire:model="group_id" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
-                                    <option value="">{{ __('workflow.assessments.index.form.select_group') }}</option>
-                                    @foreach ($groups as $group)
-                                        <option value="{{ $group->id }}">{{ $group->name }}{{ $group->course ? ' | '.$group->course->name : '' }}</option>
-                                    @endforeach
-                                </select>
-                                @error('group_id') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
-                            </div>
-                        @elseif ($group_scope === 'multiple')
-                            <div class="md:col-span-2">
-                                <label class="mb-1 block text-sm font-medium">{{ __('workflow.assessments.index.form.groups') }}</label>
-                                <div class="max-h-72 overflow-y-auto rounded-2xl border border-white/10 bg-white/[0.02] p-3">
-                                    <div class="grid gap-2 sm:grid-cols-2">
-                                    @foreach ($groups as $group)
-                                        @php
-                                            $isSelected = in_array((string) $group->id, array_map('strval', $group_ids), true);
-                                        @endphp
-                                        <button
-                                            type="button"
-                                            wire:click="toggleGroup({{ $group->id }})"
-                                            class="flex items-center gap-3 rounded-xl border px-3 py-3 text-start transition {{ $isSelected ? 'border-emerald-400/40 bg-emerald-500/10 text-white' : 'border-white/10 bg-white/[0.02] text-neutral-300 hover:bg-white/[0.05]' }}"
-                                        >
-                                            <span class="flex h-5 w-5 shrink-0 items-center justify-center rounded border {{ $isSelected ? 'border-emerald-400 bg-emerald-500 text-white' : 'border-white/20' }}" aria-hidden="true">
-                                                {{ $isSelected ? '✓' : '' }}
-                                            </span>
-                                            <span class="min-w-0">
-                                                <span class="block truncate font-medium">{{ $group->name }}</span>
-                                                @if ($group->course)
-                                                    <span class="mt-0.5 block truncate text-xs text-neutral-500">{{ $group->course->name }}</span>
-                                                @endif
-                                            </span>
-                                        </button>
-                                    @endforeach
-                                    </div>
-                                </div>
-                                <div class="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-neutral-500">
-                                    <span>{{ __('workflow.assessments.index.form.multiple_groups_help') }}</span>
-                                    <span class="badge-soft">{{ __('workflow.assessments.index.form.selected_groups_count', ['count' => count($group_ids)]) }}</span>
-                                </div>
-                                @error('group_ids') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
-                            </div>
-                        @else
-                            <div class="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-neutral-300">
-                                {{ __('workflow.assessments.index.form.all_groups_help', ['count' => number_format($groups->count())]) }}
-                            </div>
-                        @endif
-                    </div>
-
-                    <div class="grid gap-4 md:grid-cols-[minmax(0,1fr)_auto_auto] md:items-end">
-                        <div>
-                            <label class="mb-1 block text-sm font-medium">{{ __('workflow.assessments.index.form.assessment_type') }}</label>
-                            <select wire:model.live="assessment_type_id" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
-                                <option value="">{{ __('workflow.assessments.index.form.select_type') }}</option>
-                                @foreach ($types as $type)
-                                    <option value="{{ $type->id }}">{{ $type->name }}</option>
-                                @endforeach
-                            </select>
-                            @error('assessment_type_id') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
-                        </div>
-                        <div class="pb-2 text-sm">
-                            <span class="text-neutral-500">{{ __('workflow.assessments.index.form.total_mark') }}:</span>
-                            <span class="font-semibold text-white">{{ $total_mark !== '' ? $total_mark : '—' }}</span>
-                        </div>
-                        <div class="pb-2 text-sm">
-                            <span class="text-neutral-500">{{ __('workflow.assessments.index.form.pass_mark') }}:</span>
-                            <span class="font-semibold text-white">{{ $pass_mark !== '' ? $pass_mark : '—' }}</span>
-                        </div>
-                        <p class="text-xs text-neutral-500 md:col-span-3">{{ __('workflow.assessments.index.form.marks_from_bands') }}</p>
-                    </div>
-
                     <div>
                         <label class="mb-1 block text-sm font-medium">{{ __('workflow.assessments.index.form.title') }}</label>
                         <input wire:model="title" type="text" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
                         @error('title') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
                     </div>
 
-                    <div>
+                    <div class="grid gap-4 md:grid-cols-[minmax(0,1fr)_9rem_9rem] md:items-end">
+                        <div><label class="mb-1 block text-sm font-medium">{{ __('workflow.assessments.index.form.assessment_type') }}</label><select wire:model.live="assessment_type_id" class="w-full rounded-lg px-3 py-2 text-sm"><option value="">{{ __('workflow.assessments.index.form.select_type') }}</option>@foreach ($types as $type)<option value="{{ $type->id }}">{{ $type->name }}</option>@endforeach</select>@error('assessment_type_id')<div class="mt-1 text-sm text-red-600">{{ $message }}</div>@enderror</div>
+                        <div class="rounded-lg border border-white/10 px-3 py-2 text-sm"><span class="block text-xs text-neutral-500">{{ __('workflow.assessments.index.form.pass_mark') }}</span><span class="font-semibold text-white">{{ $pass_mark !== '' ? $pass_mark : '—' }}</span></div>
+                        <div class="rounded-lg border border-white/10 px-3 py-2 text-sm"><span class="block text-xs text-neutral-500">{{ __('workflow.assessments.index.form.total_mark') }}</span><span class="font-semibold text-white">{{ $total_mark !== '' ? $total_mark : '—' }}</span></div>
+                    </div>
+
+                    <div class="grid gap-4 md:grid-cols-2">
+                        <div><label for="assessment-group-course" class="mb-1 block text-sm font-medium">{{ __('workflow.assessments.index.form.course') }}</label><select id="assessment-group-course" wire:model.live="groupCourseFilter" class="w-full rounded-lg px-3 py-2 text-sm"><option value="all">{{ __('workflow.assessments.index.form.all_courses') }}</option>@foreach ($courses as $course)<option value="{{ $course->id }}">{{ $course->name }}</option>@endforeach</select></div>
                         <div>
-                            <label class="mb-1 block text-sm font-medium">{{ __('workflow.assessments.index.form.due_at') }}</label>
-                            <input wire:model="due_at" type="date" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
-                            @error('due_at') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+                            <label class="mb-1 block text-sm font-medium">{{ __('workflow.assessments.index.form.groups') }}</label>
+                            <div class="flex gap-2">
+                                <select wire:model.live="group_scope" class="min-w-0 flex-1 rounded-lg px-3 py-2 text-sm"><option value="single">{{ __('workflow.assessments.index.form.group_scope_options.single') }}</option><option value="multiple">{{ __('workflow.assessments.index.form.group_scope_options.multiple') }}</option><option value="all">{{ __('workflow.assessments.index.form.group_scope_options.all') }}</option></select>
+                                @if ($group_scope !== 'all')
+                                    <button type="button" wire:click="openGroupPicker" class="pill-link px-4" aria-label="{{ __('workflow.assessments.index.form.groups') }}">…</button>
+                                @endif
+                            </div>
+                            @error('group_id')<div class="mt-1 text-sm text-red-600">{{ $message }}</div>@enderror
+                            @error('group_ids')<div class="mt-1 text-sm text-red-600">{{ $message }}</div>@enderror
                         </div>
                     </div>
 
-                    <div>
-                        <label class="mb-1 block text-sm font-medium">{{ __('workflow.assessments.index.form.description') }}</label>
-                        <textarea wire:model="description" rows="4" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900"></textarea>
-                        @error('description') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
-                    </div>
+                    <div><label class="mb-1 block text-sm font-medium">{{ __('workflow.assessments.index.form.due_at') }}</label><input wire:model="due_at" type="date" class="w-full rounded-lg px-3 py-2 text-sm">@error('due_at')<div class="mt-1 text-sm text-red-600">{{ $message }}</div>@enderror</div>
 
                     <label class="flex items-center gap-3 text-sm">
                         <input wire:model="is_active" type="checkbox" class="rounded border-neutral-300 text-neutral-900">
@@ -598,6 +535,30 @@ new class extends Component {
                         @endif
                     </div>
                 </form>
+                @if ($showGroupPicker)
+                    <div class="fixed inset-0 z-[80] flex items-center justify-center p-4">
+                        <button type="button" wire:click="$set('showGroupPicker', false)" class="absolute inset-0 bg-black/70" aria-label="{{ __('crud.common.actions.close') }}"></button>
+                        <div class="relative max-h-[75vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-white/10 bg-neutral-950 p-5 shadow-2xl">
+                            <div class="mb-4 flex items-center justify-between gap-3"><h3 class="text-lg font-semibold text-white">{{ __('workflow.assessments.index.form.groups') }}</h3><button type="button" wire:click="$set('showGroupPicker', false)" class="admin-modal__close">×</button></div>
+                            <div class="grid gap-2 sm:grid-cols-2">
+                                @foreach ($groups as $group)
+                                    @php
+                                        $isSelected = $group_scope === 'single'
+                                            ? (int) $group_id === $group->id
+                                            : in_array((string) $group->id, array_map('strval', $group_ids), true);
+                                    @endphp
+                                    <button type="button" wire:click="toggleGroup({{ $group->id }})" class="flex items-center gap-3 rounded-xl border px-3 py-3 text-start {{ $isSelected ? 'border-emerald-400/40 bg-emerald-500/10 text-white' : 'border-white/10 text-neutral-300' }}">
+                                        <span class="flex h-5 w-5 shrink-0 items-center justify-center rounded border {{ $isSelected ? 'border-emerald-400 bg-emerald-500' : 'border-white/20' }}">{{ $isSelected ? '✓' : '' }}</span>
+                                        <span><span class="block font-medium">{{ $group->name }}</span><span class="text-xs text-neutral-500">{{ $group->course?->name }}</span></span>
+                                    </button>
+                                @endforeach
+                            </div>
+                            @if ($group_scope === 'multiple')
+                                <div class="mt-4 flex justify-end"><button type="button" wire:click="$set('showGroupPicker', false)" class="pill-link pill-link--accent">{{ __('crud.common.actions.close') }}</button></div>
+                            @endif
+                        </div>
+                    </div>
+                @endif
             @else
                 <div class="admin-empty-state">{{ __('workflow.assessments.index.read_only') }}</div>
             @endif

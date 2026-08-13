@@ -173,6 +173,23 @@
                                             </div>
                                         </div>
 
+                                        @if (($courseReportMode ?? false) && $entity === 'course_student')
+                                            <div class="mt-4 overflow-x-auto rounded-2xl border border-white/10">
+                                                <table class="w-full text-sm">
+                                                    <thead><tr><th class="px-3 py-3 text-start">✓</th><th class="px-3 py-3 text-start">{{ __('print_templates.fields.student_name') }}</th><th class="px-3 py-3 text-start">{{ __('print_templates.fields.course_name') }}</th><th class="px-3 py-3 text-start">{{ __('print_templates.fields.special_note') }}</th></tr></thead>
+                                                    <tbody class="divide-y divide-white/10">
+                                                    @foreach ($payload['options'] as $option)
+                                                        <tr class="is-selected" data-source-card="{{ $entity }}" data-search="{{ $option['search'] }}" data-record-id="{{ $option['id'] }}" role="checkbox" tabindex="0" aria-checked="true">
+                                                            <td class="px-3 py-3"><input type="checkbox" name="sources[{{ $entity }}][multiple][]" value="{{ $option['id'] }}" class="h-4 w-4 rounded border-neutral-300" data-source-checkbox="{{ $entity }}" checked></td>
+                                                            <td class="px-3 py-3 text-white">{{ $option['meta']['student_name'] }}</td>
+                                                            <td class="px-3 py-3 text-neutral-300">{{ $option['meta']['course_name'] }}</td>
+                                                            <td class="min-w-64 px-3 py-3"><textarea name="special_notes[{{ $option['id'] }}]" rows="2" class="w-full rounded-lg" placeholder="{{ __('print_templates.fields.special_note') }}">{{ old('special_notes.'.$option['id']) }}</textarea></td>
+                                                        </tr>
+                                                    @endforeach
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        @else
                                         <div class="mt-4 id-card-student-grid">
                                             @foreach ($payload['options'] as $option)
                                                 <div
@@ -220,6 +237,7 @@
                                                 </div>
                                             @endforeach
                                         </div>
+                                        @endif
                                     </div>
                                 </section>
                             @endforeach

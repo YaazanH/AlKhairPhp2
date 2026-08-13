@@ -18,6 +18,7 @@ return [
     ],
     'fields' => [
         'special_note' => 'ملاحظة خاصة',
+        'student_name' => 'اسم الطالب',
         'full_name' => 'الاسم الكامل',
         'first_name' => 'الاسم الأول',
         'last_name' => 'الكنية',
@@ -131,6 +132,7 @@ return [
                 'width_mm' => 'العرض (مم)',
                 'height_mm' => 'الارتفاع (مم)',
                 'paper_size' => 'ورق الطباعة',
+                'paper_settings' => 'إعدادات الورق',
                 'orientation' => 'الاتجاه',
                 'margin_top' => 'الهامش العلوي',
                 'margin_right' => 'الهامش الأيمن',
@@ -170,6 +172,7 @@ return [
                 'add_shape' => 'إضافة شكل',
                 'move_up' => 'أعلى',
                 'move_down' => 'أسفل',
+                'duplicate' => 'نسخ',
                 'remove' => 'حذف',
                 'save' => 'حفظ القالب',
                 'update' => 'تحديث القالب',
@@ -238,6 +241,7 @@ return [
                 'left' => 'يسار',
                 'center' => 'وسط',
                 'right' => 'يمين',
+                'justify' => 'ضبط مع الكشيدة',
             ],
             'date_modes' => [
                 'today' => 'تاريخ اليوم',

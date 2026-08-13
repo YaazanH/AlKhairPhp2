@@ -79,6 +79,10 @@
                     font-size: {{ number_format($element['styling']['font_size'], 2, '.', '') }}mm;
                     font-weight: {{ $element['styling']['font_weight'] }};
                     text-align: {{ $textAlign }};
+                    @if ($textAlign === 'justify')
+                        text-align-last: justify;
+                        text-justify: inter-character;
+                    @endif
                     text-indent: 0;
                     letter-spacing: {{ number_format($element['styling']['letter_spacing'], 2, '.', '') }}mm;
                     line-height: {{ number_format($element['styling']['line_height'], 2, '.', '') }};

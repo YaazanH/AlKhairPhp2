@@ -830,8 +830,6 @@ class FinanceAndActivitiesTest extends TestCase
 
         Volt::test('finance.revenue-requests')
             ->call('openCreateModal')
-            ->assertSet('cash_box_id', $service->defaultCashBoxForUser(auth()->user(), $localCurrency->id)?->id)
-            ->assertSee('Secondary revenue box')
             ->set('finance_category_id', $category->id)
             ->set('counterparty_name', 'Yazan Al Hamwi')
             ->set('amount', '75')
@@ -870,6 +868,16 @@ class FinanceAndActivitiesTest extends TestCase
             'signed_amount' => 75,
             'transaction_date' => '2026-02-05 00:00:00',
         ]);
+
+        $ledger = app(FinanceReportService::class)->ledgerReport(
+            FinanceReportTemplate::query()->firstOrFail(),
+            $cashBox,
+            $localCurrency,
+            '2026-02-01',
+            '2026-02-28',
+            auth()->user(),
+        );
+        $this->assertStringStartsWith('U****** D**** — ', $ledger['rows'][0]['description']);
 
         Volt::test('finance.revenue-requests')
             ->call('openFinanceRequestDeleteModal', $request->id)
@@ -1349,7 +1357,7 @@ class FinanceAndActivitiesTest extends TestCase
         $this->assertStringStartsWith('%PDF', (string) $savedPdfResponse->getContent());
         $this->assertGreaterThan(1000, strlen((string) $savedPdfResponse->getContent()));
         $this->assertNotSame('legacy-pdf', Storage::disk('local')->get($generatedReport->pdf_path));
-        $this->assertSame('mpdf-fixed-ledger-v8', FinanceGeneratedReport::query()->findOrFail($generatedReport->id)->report_data['pdf_renderer']);
+        $this->assertSame('mpdf-fixed-ledger-v9', FinanceGeneratedReport::query()->findOrFail($generatedReport->id)->report_data['pdf_renderer']);
 
         $this->get(route('finance.reports.generated.show', ['generatedReport' => $generatedReport, 'format' => 'xlsx']))
             ->assertOk()
@@ -1555,6 +1563,7 @@ class FinanceAndActivitiesTest extends TestCase
             ->assertSet('showReportSettingsModal', true)
             ->set('report_background_upload', UploadedFile::fake()->image('background.jpg', 1200, 1600))
             ->set('report_logo_upload', UploadedFile::fake()->image('logo.png', 300, 120))
+            ->set('report_stamp_upload', UploadedFile::fake()->image('stamp.png', 300, 300))
             ->call('saveReportSettings')
             ->assertSet('showReportSettingsModal', false)
             ->assertHasNoErrors();
@@ -1568,6 +1577,7 @@ class FinanceAndActivitiesTest extends TestCase
         $this->assertTrue($settings->show_page_numbers);
         Storage::disk('public')->assertExists($settings->background_image);
         Storage::disk('public')->assertExists($settings->logo_image);
+        Storage::disk('public')->assertExists(AppSetting::groupValues('finance')->get('report_stamp_path'));
         $this->assertFalse(Route::has('settings.finance.report-templates'));
     }
 

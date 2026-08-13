@@ -13,6 +13,7 @@ use App\Models\StudentAttendanceRecord;
 use App\Services\PrintTemplates\PrintTemplateRenderService;
 use App\Services\AccessScopeService;
 use App\Services\CurriculumProgressService;
+use App\Services\GroupDailySummaryService;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Auth;
@@ -52,7 +53,7 @@ new class extends Component {
             return 'manager';
         }
 
-        if ($user->teacherProfile || $user->can('dashboard.teacher.view')) {
+        if ($user->teacherProfile || $user->can('dashboard.teacher.view') || $user->can('dashboard.group-teacher.view')) {
             return 'teacher';
         }
 
@@ -258,6 +259,36 @@ new class extends Component {
         $this->selectedManagerStudentId = null;
     }
 
+    public function copyTeacherTodaySummary(): void
+    {
+        $user = Auth::user();
+        $teacher = $user?->teacherProfile?->load(['accessRole', 'jobTitle']);
+
+        abort_unless($user && $teacher && ($user->can('dashboard.group-teacher.view') || $this->usesGroupSupervisorDashboard($teacher)), 403);
+
+        $groupsQuery = app(AccessScopeService::class)->scopeGroups(Group::query(), $user);
+        $group = (clone $groupsQuery)
+            ->with(['course', 'teacher'])
+            ->orderByDesc('is_active')
+            ->orderBy('name')
+            ->first();
+
+        if (! $group) {
+            return;
+        }
+
+        $visibility = [
+            'attendance' => $user->can('attendance.student.view'),
+            'memorization' => $user->can('memorization.view'),
+            'partial_tests' => $user->can('quran-partial-tests.view'),
+            'final_tests' => $user->can('quran-final-tests.view'),
+        ];
+        $date = now()->toDateString();
+        $summary = app(GroupDailySummaryService::class)->build($group, $date, $visibility);
+
+        $this->dispatch('admin-copy-text', text: app(GroupDailySummaryService::class)->copyText($group, $date, $summary));
+    }
+
     protected function teacherData($user): array
     {
         $teacher = $user->teacherProfile?->load(['accessRole', 'jobTitle']);
@@ -280,7 +311,7 @@ new class extends Component {
             ->take(8)
             ->get();
 
-        if ($this->usesGroupSupervisorDashboard($teacher)) {
+        if ($user->can('dashboard.group-teacher.view') || $this->usesGroupSupervisorDashboard($teacher)) {
             return $this->teacherGroupData($user, $teacher, $groups);
         }
 
@@ -471,10 +502,16 @@ new class extends Component {
             'intro' => __('dashboard.teacher.intro'),
             'profileName' => $teacher->first_name.' '.$teacher->last_name,
             'profileJob' => $accessRoleLabel,
-            'currentAcademicYearName' => $group?->course?->name ?: $this->dashboardCourseName(),
+            'currentAcademicYearName' => $group
+                ? collect([$group->course?->name, $group->name])->filter()->implode(' · ')
+                : $this->dashboardCourseName(),
             'profileMeta' => $accessRoleLabel,
             'stats' => [
-                ['label' => __('dashboard.teacher.group_dashboard.stats.group'), 'value' => $group?->name ?: __('dashboard.common.no_group')],
+                [
+                    'label' => __('dashboard.teacher.group_dashboard.today_summary'),
+                    'value' => __('dashboard.teacher.group_dashboard.copy_today_summary'),
+                    'action' => $group ? 'copyTeacherTodaySummary' : null,
+                ],
                 ['label' => __('dashboard.teacher.group_dashboard.stats.students'), 'value' => $enrollments->count()],
                 ['label' => __('dashboard.teacher.group_dashboard.stats.attendance_average'), 'value' => number_format($attendanceAverage, 1).'%'],
                 ['label' => __('dashboard.teacher.group_dashboard.stats.memorized_pages'), 'value' => (int) $enrollments->sum('memorized_pages_cached')],
@@ -832,7 +869,13 @@ new class extends Component {
                         <div class="kpi-label">{{ $stat['label'] }}</div>
                         <span class="badge-soft {{ $loop->even ? 'badge-soft--emerald' : '' }}">{{ str_pad((string) $loop->iteration, 2, '0', STR_PAD_LEFT) }}</span>
                     </div>
-                    <div class="metric-value mt-3">{{ is_numeric($stat['value']) ? number_format($stat['value']) : $stat['value'] }}</div>
+                    @if (filled($stat['action'] ?? null))
+                        <button type="button" wire:click="{{ $stat['action'] }}" class="pill-link pill-link--accent mt-3 w-full justify-center">
+                            {{ $stat['value'] }}
+                        </button>
+                    @else
+                        <div class="metric-value mt-3">{{ is_numeric($stat['value']) ? number_format($stat['value']) : $stat['value'] }}</div>
+                    @endif
                 </article>
             @endforeach
         </div>
@@ -883,7 +926,6 @@ new class extends Component {
 
             <section class="grid gap-6 xl:grid-cols-2">
                 <article class="surface-panel p-5 lg:p-6">
-                    <div class="eyebrow">{{ __('dashboard.manager.analytics.groups_eyebrow') }}</div>
                     <h2 class="font-display mt-2 text-2xl text-white">{{ __('dashboard.manager.analytics.group_distribution') }}</h2>
                     @if ($groupStudentTotal > 0)
                         <div class="dashboard-treemap mt-5 space-y-2.5" role="img" aria-label="{{ __('dashboard.manager.analytics.group_distribution') }}">
@@ -905,7 +947,7 @@ new class extends Component {
 
                 <article class="surface-panel p-5 lg:p-6">
                     <div class="flex flex-wrap items-end justify-between gap-4">
-                        <div><div class="eyebrow">{{ __('dashboard.manager.analytics.last_five_attendance_days') }}</div><h2 class="font-display mt-2 text-2xl text-white">{{ __('dashboard.manager.analytics.daily_activity') }}</h2></div>
+                        <h2 class="font-display mt-2 text-2xl text-white">{{ __('dashboard.manager.analytics.daily_activity') }}</h2>
                         <div class="flex flex-wrap gap-4 text-xs text-neutral-300">
                             <span class="flex items-center gap-2"><i class="h-2.5 w-6 rounded-full bg-emerald-400"></i>{{ __('dashboard.manager.analytics.memorized_pages') }}</span>
                             <span class="flex items-center gap-2"><i class="h-2.5 w-6 rounded-full bg-sky-400"></i>{{ __('dashboard.manager.analytics.students_attended') }}</span>
@@ -951,7 +993,6 @@ new class extends Component {
 
             <section class="mt-6 grid gap-6 xl:grid-cols-2">
                 <article class="surface-panel p-5 lg:p-6">
-                    <div class="eyebrow">{{ __('dashboard.manager.analytics.leaderboard_eyebrow') }}</div>
                     <h2 class="font-display mt-2 text-2xl text-white">{{ __('dashboard.manager.analytics.top_students') }}</h2>
                     @if ($leaderboard->isEmpty())
                         <div class="admin-empty-state mt-5">{{ __('dashboard.manager.analytics.no_ranked_students') }}</div>
@@ -963,7 +1004,7 @@ new class extends Component {
                                 @endphp
                                 <button type="button" wire:click="showManagerStudent({{ $entry['student']->id }})" class="dashboard-leaderboard__card dashboard-leaderboard__card--{{ $rankStyle }} dashboard-leaderboard__card--rank-{{ $entry['rank'] }} group">
                                     <span class="dashboard-leaderboard__rank">{{ $entry['rank'] }}</span>
-                                    <span class="mx-auto flex size-16 items-center justify-center rounded-2xl bg-white/10 text-xl font-semibold text-white transition-transform duration-200 group-hover:scale-110">{{ mb_substr($entry['student']->first_name, 0, 1) }}</span>
+                                    <x-student-avatar :student="$entry['student']" size="lg" class="mx-auto transition-transform duration-200 group-hover:scale-110" />
                                     <span class="mt-3 block line-clamp-2 font-semibold text-white">{{ $entry['student']->full_name }}</span>
                                     <span class="mt-2 block text-sm text-neutral-200">{{ number_format($entry['points']) }} {{ app()->isLocale('ar') ? ($entry['points'] > 10 ? 'نقطة' : 'نقاط') : __('dashboard.manager.analytics.points') }}</span>
                                 </button>
@@ -973,7 +1014,6 @@ new class extends Component {
                 </article>
 
                 <article class="surface-panel p-5 lg:p-6">
-                    <div class="eyebrow">{{ __('dashboard.manager.analytics.groups_eyebrow') }}</div>
                     <h2 class="font-display mt-2 text-2xl text-white">{{ __('dashboard.manager.analytics.top_groups_by_memorization') }}</h2>
                     @if ($groupPageTotals->isEmpty())
                         <div class="admin-empty-state mt-5">{{ __('dashboard.manager.analytics.no_groups') }}</div>
@@ -1155,11 +1195,11 @@ new class extends Component {
                 </article>
             </section>
 
-            <x-admin.modal :show="$showTeacherLeaderboardModal" :title="__('dashboard.teacher.group_dashboard.all_students')" close-method="closeTeacherLeaderboard" max-width="5xl">
+            <x-admin.modal :show="$showTeacherLeaderboardModal" :title="__('dashboard.teacher.group_dashboard.all_students')" close-method="closeTeacherLeaderboard" max-width="4xl" compact>
                 <div class="overflow-x-auto"><table class="text-sm"><thead><tr><th class="px-3 py-2 text-start">#</th><th class="px-3 py-2 text-start">{{ __('dashboard.teacher.group_dashboard.columns.student') }}</th><th class="px-3 py-2 text-start">{{ __('dashboard.teacher.group_dashboard.columns.days_attended') }}</th><th class="px-3 py-2 text-start">{{ __('dashboard.teacher.group_dashboard.columns.points') }}</th><th class="px-3 py-2 text-start">{{ __('dashboard.teacher.group_dashboard.columns.pages') }}</th><th class="px-3 py-2 text-start">{{ __('dashboard.teacher.group_dashboard.columns.final_tests') }}</th><th class="px-3 py-2 text-start">{{ __('dashboard.teacher.group_dashboard.columns.final_exam_score') }}</th></tr></thead><tbody class="divide-y divide-white/6">@foreach ($teacherRankedStudents as $row)<tr><td class="px-3 py-2">{{ $loop->iteration }}</td><td class="px-3 py-2 font-medium text-white">{{ $row['student']->full_name }}</td><td class="px-3 py-2">{{ number_format($row['days_attended']) }}</td><td class="px-3 py-2">{{ number_format($row['points']) }}</td><td class="px-3 py-2">{{ number_format($row['pages']) }}</td><td class="px-3 py-2">{{ number_format($row['final_tests']) }}</td><td class="px-3 py-2">{{ $row['final_exam_score'] === null ? '—' : \App\Support\PercentageFormatter::format($row['final_exam_score']) }}</td></tr>@endforeach</tbody></table></div>
             </x-admin.modal>
 
-            <x-admin.modal :show="$showTeacherMemorizationsModal" :title="__('dashboard.teacher.group_dashboard.all_memorizations')" close-method="closeTeacherMemorizations" max-width="4xl">
+            <x-admin.modal :show="$showTeacherMemorizationsModal" :title="__('dashboard.teacher.group_dashboard.all_memorizations')" close-method="closeTeacherMemorizations" max-width="3xl" compact>
                 <div class="space-y-3">
                     <div class="overflow-x-auto"><table class="text-sm"><thead><tr><th class="px-3 py-2 text-start">{{ __('dashboard.teacher.group_dashboard.columns.student') }}</th><th class="px-3 py-2 text-start">{{ __('dashboard.teacher.group_dashboard.columns.page_number') }}</th><th class="px-3 py-2 text-start">{{ __('dashboard.teacher.group_dashboard.columns.date') }}</th></tr></thead><tbody class="divide-y divide-white/6">@foreach ($teacherLatestMemorizations as $session)<tr><td class="px-3 py-2 font-medium text-white">{{ $session->student?->full_name }}</td><td class="px-3 py-2"><span dir="ltr">{{ $session->from_page === $session->to_page ? $session->from_page : $session->from_page.'–'.$session->to_page }}</span></td><td class="px-3 py-2">{{ $session->recorded_on?->format('d-m-Y') }}</td></tr>@endforeach</tbody></table></div>
                     @if ($teacherLatestMemorizations->hasPages())<div>{{ $teacherLatestMemorizations->links() }}</div>@endif

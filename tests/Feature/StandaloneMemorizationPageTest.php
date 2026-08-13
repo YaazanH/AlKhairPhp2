@@ -295,6 +295,57 @@ class StandaloneMemorizationPageTest extends TestCase
         ]);
     }
 
+    public function test_memorization_entry_student_lists_require_an_active_student_enrollment_and_course(): void
+    {
+        [, , $eligibleEnrollment] = $this->teacherMemorizationContext();
+        $teacherId = $eligibleEnrollment->group->teacher_id;
+        $yearId = $eligibleEnrollment->group->academic_year_id;
+
+        $makeEnrollment = function (string $name, string $studentStatus, string $enrollmentStatus, bool $courseActive) use ($teacherId, $yearId): Enrollment {
+            $parent = ParentProfile::create(['father_name' => $name.' Parent']);
+            $student = Student::create([
+                'parent_id' => $parent->id,
+                'first_name' => $name,
+                'last_name' => 'Student',
+                'birth_date' => '2014-01-01',
+                'status' => $studentStatus,
+            ]);
+            $course = Course::create(['name' => $name.' Course', 'is_active' => $courseActive]);
+            $group = Group::create([
+                'course_id' => $course->id,
+                'academic_year_id' => $yearId,
+                'teacher_id' => $teacherId,
+                'name' => $name.' Group',
+                'capacity' => 12,
+                'is_active' => true,
+            ]);
+
+            return Enrollment::create([
+                'student_id' => $student->id,
+                'group_id' => $group->id,
+                'enrolled_at' => '2026-09-01',
+                'status' => $enrollmentStatus,
+            ]);
+        };
+
+        $makeEnrollment('Inactive Profile', 'inactive', 'active', true);
+        $makeEnrollment('Inactive Enrollment', 'active', 'inactive', true);
+        $makeEnrollment('Inactive Course', 'active', 'active', false);
+
+        Volt::test('memorization.index')
+            ->call('openCreateModal')
+            ->assertSee('Memorization Student')
+            ->assertDontSee('Inactive Profile Student')
+            ->assertDontSee('Inactive Enrollment Student')
+            ->assertDontSee('Inactive Course Student');
+
+        Volt::test('memorization.quick-entry')
+            ->assertSee('Memorization Student')
+            ->assertDontSee('Inactive Profile Student')
+            ->assertDontSee('Inactive Enrollment Student')
+            ->assertDontSee('Inactive Course Student');
+    }
+
     private function teacherMemorizationContext(): array
     {
         $this->seed();

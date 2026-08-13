@@ -74,7 +74,7 @@
                     @else
                         <div class="mt-6 id-card-student-grid">
                             @foreach ($students as $student)
-                                <label class="id-card-student-card text-start" data-student-card data-search="{{ strtolower($student->full_name.' '.($student->student_number ?? '').' '.($student->parentProfile?->father_name ?? '')) }}">
+                                <label class="id-card-student-card text-start" data-student-card data-search="{{ strtolower($student->full_name.' '.($student->student_number ?? '')) }}">
                                     <input type="checkbox" name="student_ids[]" value="{{ $student->id }}" class="sr-only" data-id-card-student-checkbox>
                                     <div class="student-inline">
                                         <x-student-avatar :student="$student" size="sm" />

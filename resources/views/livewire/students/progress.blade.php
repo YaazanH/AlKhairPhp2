@@ -19,22 +19,34 @@ use App\Models\StudentPageAchievement;
 use App\Models\Teacher;
 use App\Services\PointLedgerService;
 use App\Services\QuranProgressionService;
+use Illuminate\Support\Str;
 use Livewire\Volt\Component;
 
-new class extends Component {
+new class extends Component
+{
     use AuthorizesPermissions;
     use AuthorizesTeacherAssignments;
 
     public ?Student $currentStudent = null;
+
     public int|string|null $selectedStudentId = null;
+
     public ?int $missingJuzId = null;
+
     public string $openDetails = '';
+
     public bool $showAwqafTestModal = false;
+
     public ?int $awqafEnrollmentId = null;
+
     public ?int $awqafJuzId = null;
+
     public string $awqafTestedOn = '';
+
     public string $awqafScore = '';
+
     public string $awqafStatus = 'passed';
+
     public string $awqafNotes = '';
 
     public function mount(?Student $student = null): void
@@ -71,7 +83,7 @@ new class extends Component {
 
     public function showDetails(string $section): void
     {
-        if (in_array($section, ['parent', 'memorization', 'points', 'assessments', 'awqaf', 'enrollments', 'notes'], true)) {
+        if (in_array($section, ['parent', 'memorization', 'points', 'assessments', 'final-assessments', 'enrollments', 'notes'], true)) {
             $this->openDetails = $section;
         }
     }
@@ -91,15 +103,17 @@ new class extends Component {
         $this->missingJuzId = null;
     }
 
-    public function openAwqafTest(int $enrollmentId, int $juzId): void
+    public function openAwqafTest(int $juzId): void
     {
         $this->authorizeAnyPermission(['quran-awqaf-tests.record', 'quran-tests.record']);
 
+        abort_unless($this->currentStudent, 404);
+
         $enrollment = $this->scopeEnrollmentsQuery(
             Enrollment::query()->with(['group.teacher', 'student'])
-        )->findOrFail($enrollmentId);
+                ->currentActiveForStudent((int) $this->currentStudent->id)
+        )->firstOrFail();
         $this->authorizeTeacherEnrollmentAccess($enrollment);
-        abort_unless($this->currentStudent && (int) $enrollment->student_id === (int) $this->currentStudent->id, 403);
         QuranJuz::query()->findOrFail($juzId);
 
         $this->awqafEnrollmentId = $enrollment->id;
@@ -132,11 +146,14 @@ new class extends Component {
             'awqafNotes' => ['nullable', 'string'],
         ]);
 
+        abort_unless($this->currentStudent, 404);
+
         $enrollment = $this->scopeEnrollmentsQuery(
             Enrollment::query()->with(['group.teacher', 'student'])
-        )->findOrFail((int) $validated['awqafEnrollmentId']);
+                ->currentActiveForStudent((int) $this->currentStudent->id)
+        )->firstOrFail();
         $this->authorizeTeacherEnrollmentAccess($enrollment);
-        abort_unless($this->currentStudent && (int) $enrollment->student_id === (int) $this->currentStudent->id, 403);
+        $this->awqafEnrollmentId = $enrollment->id;
 
         $teacherId = $this->currentTeacher()?->id ?: $enrollment->group?->teacher_id;
 
@@ -184,7 +201,7 @@ new class extends Component {
             ->map(fn (Student $student): object => (object) [
                 'full_name' => $student->full_name,
                 'id' => (int) $student->id,
-                'search' => collect([$student->full_name, $student->student_number, $student->parentProfile?->father_name])->filter()->implode(' '),
+                'search' => collect([$student->full_name, $student->student_number])->filter()->implode(' '),
                 'student_number' => $student->student_number,
             ]);
 
@@ -192,7 +209,7 @@ new class extends Component {
             return ['studentOptions' => $studentOptions];
         }
 
-        $studentRecord = $this->currentStudent->fresh(['gradeLevel', 'parentProfile', 'quranCurrentJuz', 'externalMemorizedJuzs']);
+        $studentRecord = $this->currentStudent->fresh(['user', 'gradeLevel', 'parentProfile', 'quranCurrentJuz', 'externalMemorizedJuzs']);
         $enrollments = $this->scopeEnrollmentsQuery(
             Enrollment::query()
                 ->with(['group.course', 'group.teacher'])
@@ -260,6 +277,16 @@ new class extends Component {
                     ->when($enrollmentIds === [], fn ($query) => $query->whereRaw('1 = 0'), fn ($query) => $query->whereIn('enrollment_id', $enrollmentIds))
             )->latest('id')->get()
             : collect();
+        $finalAssessmentResults = $assessmentResults
+            ->filter(function (AssessmentResult $result): bool {
+                $assessment = $result->assessment;
+                $code = Str::lower((string) $assessment?->type?->code);
+                $name = Str::lower(Str::squish(($assessment?->type?->name ?? '').' '.($assessment?->title ?? '')));
+
+                return in_array($code, ['final', 'final_exam', 'final-exam'], true)
+                    || Str::contains($name, ['final exam', 'final assessment', 'نهائي']);
+            })
+            ->values();
 
         $awqafTests = auth()->user()->can('quran-awqaf-tests.view') || auth()->user()->can('quran-tests.view')
             ? $this->scopeQuranTestsQuery(
@@ -362,6 +389,7 @@ new class extends Component {
             'enrollments' => $enrollments,
             'memorizationRows' => $memorizationRows,
             'assessmentResults' => $assessmentResults,
+            'finalAssessmentResults' => $finalAssessmentResults,
             'awqafTests' => $awqafTests,
             'pointTransactions' => $pointTransactions,
             'parentVisibleNotes' => $parentVisibleNotes,
@@ -465,8 +493,7 @@ new class extends Component {
                     <div class="rounded-2xl border border-white/8 bg-white/4 p-3"><div class="kpi-label">{{ __('workflow.student_progress.profile.student_no') }}</div><div class="mt-2 text-sm font-semibold text-white">{{ $studentRecord->student_number ?: __('crud.common.not_available') }}</div></div>
                     <div class="rounded-2xl border border-white/8 bg-white/4 p-3"><div class="kpi-label">{{ __('workflow.student_progress.profile.student_name') }}</div><div class="mt-2 text-sm font-semibold text-white">{{ $studentRecord->full_name }}</div></div>
                     <div class="relative rounded-2xl border border-white/8 bg-white/4 p-3"><div class="kpi-label pe-7">{{ __('workflow.student_progress.profile.father_name') }}</div>@if ($studentRecord->parentProfile)<button type="button" wire:click="showDetails('parent')" class="absolute end-2 top-2 inline-flex h-6 w-6 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-neutral-300 transition hover:bg-white/10 hover:text-white" title="{{ __('workflow.student_progress.actions.details') }}" aria-label="{{ __('workflow.student_progress.actions.details') }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="h-3.5 w-3.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12s3.75-6.75 9.75-6.75S21.75 12 21.75 12 18 18.75 12 18.75 2.25 12 2.25 12Z"/><circle cx="12" cy="12" r="2.25"/></svg></button>@endif<div class="mt-2 text-sm font-semibold text-white">{{ $studentRecord->parentProfile?->father_name ?: __('crud.common.not_available') }}</div></div>
-                    <div class="rounded-2xl border border-white/8 bg-white/4 p-3"><div class="kpi-label">{{ __('workflow.student_progress.profile.birth_year') }}</div><div class="mt-2 text-sm font-semibold text-white">{{ $studentRecord->birth_date?->format('Y') ?: __('crud.common.not_available') }}</div></div>
-                    <div class="rounded-2xl border border-white/8 bg-white/4 p-3"><div class="kpi-label">{{ __('workflow.student_progress.profile.grade') }}</div><div class="mt-2 text-sm font-semibold text-white">{{ $studentRecord->gradeLevel?->name ?: __('crud.common.not_available') }}</div></div>
+                    <div class="grid grid-cols-2 overflow-hidden rounded-2xl border border-white/8 bg-white/4"><div class="min-w-0 p-3"><div class="kpi-label">{{ __('workflow.student_progress.profile.grade') }}</div><div class="mt-2 truncate text-sm font-semibold text-white">{{ $studentRecord->gradeLevel?->name ?: __('crud.common.not_available') }}</div></div><div class="min-w-0 border-s border-white/8 p-3"><div class="kpi-label">{{ __('workflow.student_progress.profile.phone') }}</div><div class="mt-2 truncate text-sm font-semibold text-white"><bdi dir="ltr">{{ $studentRecord->user?->phone ?: __('crud.common.not_available') }}</bdi></div></div></div>
                     <div class="rounded-2xl border border-white/8 bg-white/4 p-3"><div class="kpi-label">{{ __('workflow.student_progress.profile.school') }}</div><div class="mt-2 text-sm font-semibold text-white">{{ $studentRecord->school_name ?: __('crud.common.not_available') }}</div></div>
                     <div class="rounded-2xl border border-white/8 bg-white/4 p-3"><div class="kpi-label">{{ __('workflow.student_progress.profile.group') }}</div><div class="mt-2 text-sm font-semibold text-white">{{ $activeEnrollment?->group?->name ?: __('crud.common.not_available') }}</div></div>
                     <div class="rounded-2xl border border-white/8 bg-white/4 p-3"><div class="kpi-label">{{ __('workflow.student_progress.profile.current_juz') }}</div><div class="mt-2 text-sm font-semibold text-white">{{ $studentRecord->quranCurrentJuz ? __('workflow.common.labels.juz_number', ['number' => $studentRecord->quranCurrentJuz->juz_number]) : __('crud.common.not_available') }}</div></div>
@@ -502,7 +529,7 @@ new class extends Component {
                         <td class="px-5 py-4">{{ $row->memorized_externally ? '' : number_format($row->memorized_pages) }}</td>
                         <td class="px-5 py-4">@if (! $row->memorized_externally && $row->partial_test_created)<bdi dir="ltr">{{ number_format($row->passed_parts) }}/4</bdi>@endif</td>
                         <td class="px-5 py-4" @if($row->latest_final_score !== null) title="{{ trim(($row->latest_final_date?->format('d-m-Y') ?? '').' · '.($row->latest_final_course ?? '')) }}" @endif>{{ ! $row->memorized_externally && $row->latest_final_score !== null ? \App\Support\PercentageFormatter::format($row->latest_final_score) : '' }}</td>
-                        <td class="px-5 py-4"><span class="status-chip {{ $row->memorized_externally ? 'border-lime-400/30 bg-lime-400/15 text-lime-300' : $statusClass($row->status) }}">{{ $row->memorized_externally ? __('workflow.student_progress.juz_progress.statuses.memorized_before') : ($row->status === 'missing' ? __('workflow.student_progress.juz_progress.incomplete', ['count' => number_format($row->missing_pages->count())]) : __('workflow.student_progress.juz_progress.statuses.'.$row->status)) }}</span></td>
+                        <td class="px-5 py-4"><span class="status-chip {{ $row->memorized_externally ? 'border-emerald-300/25 bg-emerald-300/10 text-emerald-200' : $statusClass($row->status) }}">{{ $row->memorized_externally ? __('workflow.student_progress.juz_progress.statuses.memorized_before') : ($row->status === 'missing' ? __('workflow.student_progress.juz_progress.incomplete', ['count' => number_format($row->missing_pages->count())]) : __('workflow.student_progress.juz_progress.statuses.'.$row->status)) }}</span></td>
                         <td class="px-5 py-4 text-right">
                             @php($showMissingPagesAction = ! $row->memorized_externally && $row->status !== 'finished' && $row->missing_pages->isNotEmpty())
                             @php($showAwqafAction = $row->enrollment && ($row->final_passed || $row->memorized_externally) && ! $row->awqaf_passed && (auth()->user()->can('quran-awqaf-tests.record') || auth()->user()->can('quran-tests.record')))
@@ -511,7 +538,7 @@ new class extends Component {
                             @elseif ($showMissingPagesAction || $showAwqafAction)
                                 <div class="flex flex-wrap justify-end gap-2">
                                     @if ($showMissingPagesAction)<button type="button" wire:click="showMissingPages({{ $row->juz->id }})" class="pill-link pill-link--compact">{{ __('workflow.student_progress.juz_progress.show_missing') }}</button>@endif
-                                    @if ($showAwqafAction)<button type="button" wire:click="openAwqafTest({{ $row->enrollment?->id ?: 0 }}, {{ $row->juz->id }})" class="pill-link pill-link--compact">{{ __('workflow.student_progress.juz_progress.add_awqaf_test') }}</button>@endif
+                                    @if ($showAwqafAction)<button type="button" wire:click="openAwqafTest({{ $row->juz->id }})" class="pill-link pill-link--compact">{{ __('workflow.student_progress.juz_progress.add_awqaf_test') }}</button>@endif
                                 </div>
                             @else
                                 <span class="text-neutral-600">-</span>
@@ -544,12 +571,12 @@ new class extends Component {
                     @foreach ($assessmentResults->take(5) as $row)<tr><td class="px-4 py-3">{{ $row->assessment?->title ?: __('crud.common.not_available') }}</td><td class="px-4 py-3">{{ $row->score !== null ? number_format((float) $row->score, 2) : '' }}</td><td class="px-4 py-3"><span class="status-chip {{ $statusClass($row->status) }}">{{ __('workflow.common.result_status.'.$row->status) }}</span></td></tr>@endforeach
                 </x-student-progress-table>
             @endcan
-            @canany(['quran-awqaf-tests.view', 'quran-tests.view'])
-                <x-student-progress-table :title="__('workflow.student_progress.awqaf_tests.title')" :empty="$awqafTests->isEmpty()" :empty-text="__('workflow.student_progress.awqaf_tests.empty')" view-all-action="awqaf">
-                    <x-slot:head><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.awqaf_tests.headers.date') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.awqaf_tests.headers.juz') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.awqaf_tests.headers.score') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.awqaf_tests.headers.status') }}</th></x-slot:head>
-                    @foreach ($awqafTests->take(5) as $row)<tr><td class="px-4 py-3">{{ $row->tested_on?->format('d-m-Y') }}</td><td class="px-4 py-3">{{ $row->juz?->juz_number ?: '' }}</td><td class="px-4 py-3">{{ $row->score !== null ? number_format((float) $row->score, 2) : '' }}</td><td class="px-4 py-3"><span class="status-chip {{ $statusClass($row->status) }}">{{ __('workflow.common.result_status.'.$row->status) }}</span></td></tr>@endforeach
+            @can('assessment-results.view')
+                <x-student-progress-table :title="__('workflow.student_progress.final_assessments.title')" :empty="$finalAssessmentResults->isEmpty()" :empty-text="__('workflow.student_progress.final_assessments.empty')" view-all-action="final-assessments">
+                    <x-slot:head><th class="w-12 px-4 py-3 text-left">#</th><th class="w-1/2 px-4 py-3 text-left">{{ __('workflow.student_progress.assessments.headers.assessment') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.assessments.headers.score') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.assessments.headers.status') }}</th></x-slot:head>
+                    @foreach ($finalAssessmentResults->take(5) as $row)<tr><td class="px-4 py-3">{{ $loop->iteration }}</td><td class="px-4 py-3 font-medium">{{ $row->assessment?->title ?: __('crud.common.not_available') }}</td><td class="px-4 py-3">{{ $row->score !== null ? number_format((float) $row->score, 2) : '' }}</td><td class="px-4 py-3"><span class="status-chip {{ $statusClass($row->status) }}">{{ __('workflow.common.result_status.'.$row->status) }}</span></td></tr>@endforeach
                 </x-student-progress-table>
-            @endcanany
+            @endcan
         </section>
 
         <section class="grid gap-6 xl:grid-cols-2">
@@ -563,7 +590,7 @@ new class extends Component {
             </x-student-progress-table>
         </section>
 
-        <x-admin.modal :show="$openDetails !== ''" :title="$openDetails === 'parent' ? __('workflow.student_progress.parent_details.title') : __('workflow.student_progress.actions.view_all')" close-method="closeDetails" max-width="6xl">
+        <x-admin.modal :show="$openDetails !== ''" :title="$openDetails === 'parent' ? __('workflow.student_progress.parent_details.title') : __('workflow.student_progress.actions.view_all')" close-method="closeDetails" max-width="5xl" compact>
             @if ($openDetails === 'parent' && $studentRecord->parentProfile)
                 @php($parent = $studentRecord->parentProfile)
                 <div class="space-y-4"><div class="student-parent-details__row grid gap-4 rounded-2xl border border-white/8 bg-white/4 p-4 md:grid-cols-3"><div><div class="kpi-label">{{ __('workflow.student_progress.profile.father_name') }}</div><div class="mt-1 text-white">{{ $parent->father_name ?: '-' }}</div></div><div><div class="kpi-label">{{ __('workflow.student_progress.parent_details.father_work') }}</div><div class="mt-1 text-white">{{ $parent->father_work ?: '-' }}</div></div><div><div class="kpi-label">{{ __('workflow.student_progress.parent_details.father_phone') }}</div><div class="mt-1 text-white"><bdi dir="ltr">{{ $parent->father_phone ?: '-' }}</bdi></div></div></div><div class="student-parent-details__row grid gap-4 rounded-2xl border border-white/8 bg-white/4 p-4 md:grid-cols-2"><div><div class="kpi-label">{{ __('workflow.student_progress.parent_details.mother_name') }}</div><div class="mt-1 text-white">{{ $parent->mother_name ?: '-' }}</div></div><div><div class="kpi-label">{{ __('workflow.student_progress.parent_details.mother_phone') }}</div><div class="mt-1 text-white"><bdi dir="ltr">{{ $parent->mother_phone ?: '-' }}</bdi></div></div></div><div class="student-parent-details__row grid gap-4 rounded-2xl border border-white/8 bg-white/4 p-4 md:grid-cols-2"><div><div class="kpi-label">{{ __('workflow.student_progress.parent_details.address') }}</div><div class="mt-1 text-white">{{ $parent->address ?: '-' }}</div></div><div><div class="kpi-label">{{ __('workflow.student_progress.parent_details.home_phone') }}</div><div class="mt-1 text-white"><bdi dir="ltr">{{ $parent->home_phone ?: '-' }}</bdi></div></div></div></div>
@@ -573,8 +600,8 @@ new class extends Component {
                 <div class="overflow-x-auto"><table class="text-sm"><thead><tr><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.points.headers.date') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.points.headers.type') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.points.headers.points') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.points.headers.notes') }}</th></tr></thead><tbody>@foreach ($pointTransactions as $row)<tr><td class="px-4 py-3">{{ $row->entered_at?->format('d-m-Y') }}</td><td class="px-4 py-3">{{ $row->pointType?->name ?: '-' }}</td><td class="px-4 py-3">{{ number_format((int) $row->points) }}</td><td class="px-4 py-3">{{ $row->notes ?: '-' }}</td></tr>@endforeach</tbody></table></div>
             @elseif ($openDetails === 'assessments')
                 <div class="overflow-x-auto"><table class="text-sm"><thead><tr><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.assessments.headers.assessment') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.assessments.headers.score') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.assessments.headers.status') }}</th></tr></thead><tbody>@foreach ($assessmentResults as $row)<tr><td class="px-4 py-3">{{ $row->assessment?->title ?: '-' }}</td><td class="px-4 py-3">{{ $row->score }}</td><td class="px-4 py-3">{{ __('workflow.common.result_status.'.$row->status) }}</td></tr>@endforeach</tbody></table></div>
-            @elseif ($openDetails === 'awqaf')
-                <div class="overflow-x-auto"><table class="text-sm"><thead><tr><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.awqaf_tests.headers.date') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.awqaf_tests.headers.juz') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.awqaf_tests.headers.score') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.awqaf_tests.headers.status') }}</th></tr></thead><tbody>@foreach ($awqafTests as $row)<tr><td class="px-4 py-3">{{ $row->tested_on?->format('d-m-Y') }}</td><td class="px-4 py-3">{{ $row->juz?->juz_number }}</td><td class="px-4 py-3">{{ $row->score }}</td><td class="px-4 py-3">{{ __('workflow.common.result_status.'.$row->status) }}</td></tr>@endforeach</tbody></table></div>
+            @elseif ($openDetails === 'final-assessments')
+                <div class="overflow-x-auto"><table class="text-sm"><thead><tr><th class="w-12 px-3 py-2 text-left">#</th><th class="w-1/2 px-3 py-2 text-left">{{ __('workflow.student_progress.assessments.headers.assessment') }}</th><th class="px-3 py-2 text-left">{{ __('workflow.student_progress.assessments.headers.score') }}</th><th class="px-3 py-2 text-left">{{ __('workflow.student_progress.assessments.headers.status') }}</th></tr></thead><tbody>@foreach ($finalAssessmentResults as $row)<tr><td class="px-3 py-2">{{ $loop->iteration }}</td><td class="px-3 py-2 font-medium">{{ $row->assessment?->title ?: '-' }}</td><td class="px-3 py-2">{{ $row->score !== null ? number_format((float) $row->score, 2) : '-' }}</td><td class="px-3 py-2">{{ __('workflow.common.result_status.'.$row->status) }}</td></tr>@endforeach</tbody></table></div>
             @elseif ($openDetails === 'enrollments')
                 <div class="overflow-x-auto"><table class="text-sm"><thead><tr><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.enrollments.headers.course') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.enrollments.headers.group') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.enrollments.headers.teacher') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.enrollments.headers.status') }}</th></tr></thead><tbody>@foreach ($enrollments as $row)<tr><td class="px-4 py-3">{{ $row->group?->course?->name ?: '-' }}</td><td class="px-4 py-3">{{ $row->group?->name ?: '-' }}</td><td class="px-4 py-3">{{ $row->group?->teacher ? trim($row->group->teacher->first_name.' '.$row->group->teacher->last_name) : '-' }}</td><td class="px-4 py-3">{{ __('crud.common.status_options.'.$row->status) }}</td></tr>@endforeach</tbody></table></div>
             @elseif ($openDetails === 'notes')

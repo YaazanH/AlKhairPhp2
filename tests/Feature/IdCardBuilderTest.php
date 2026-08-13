@@ -256,7 +256,8 @@ class IdCardBuilderTest extends TestCase
             ->get(route('print-templates.templates.edit', $template))
             ->assertOk()
             ->assertSee('data-print-template-stage', false)
-            ->assertSee('data-print-template-layout-input', false);
+            ->assertSee('data-print-template-layout-input', false)
+            ->assertSee('data-layer-duplicate', false);
     }
 
     public function test_managers_can_store_static_image_elements_in_print_templates(): void

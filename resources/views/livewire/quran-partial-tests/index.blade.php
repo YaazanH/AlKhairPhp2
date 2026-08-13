@@ -15,27 +15,43 @@ use Illuminate\Support\Facades\DB;
 use Livewire\Volt\Component;
 use Livewire\WithPagination;
 
-new class extends Component {
+new class extends Component
+{
     use AuthorizesPermissions;
     use AuthorizesTeacherAssignments;
     use SupportsCreateAndNew;
     use WithPagination;
 
     public ?int $selectedStudentId = null;
+
     public ?int $selectedEnrollmentId = null;
+
     public ?int $juz_id = null;
+
     public string $search = '';
+
     public string $statusFilter = 'all';
+
     public string $juzFilter = 'all';
+
     public string $sortField = 'last_tested_on';
+
     public string $sortDirection = 'desc';
+
     public int $perPage = 15;
+
     public bool $showFormModal = false;
+
     public bool $showOpenTestWarningModal = false;
+
     public array $openTestWarnings = [];
+
     public ?int $existingPartialTestId = null;
+
     public ?int $pendingCreateStudentId = null;
+
     public ?int $pendingCreateEnrollmentId = null;
+
     public ?int $pendingCreateJuzId = null;
 
     protected array $sortableFields = [
@@ -119,11 +135,6 @@ new class extends Component {
             'partialTests' => $testsQuery->paginate($this->perPage),
             'filteredCount' => (clone $testsQuery)->count(),
             'studentOptions' => $studentOptions,
-            'enrollmentOptions' => $this->availableEnrollmentsQuery()
-                ->with(['group.course'])
-                ->orderByDesc('enrolled_at')
-                ->orderByDesc('id')
-                ->get(),
             'juzOptions' => QuranJuz::query()->orderBy('juz_number')->get(),
             'eligibleJuzs' => empty($eligibleJuzIds)
                 ? collect()
@@ -169,14 +180,10 @@ new class extends Component {
 
     public function updatedSelectedStudentId(): void
     {
-        $enrollmentIds = $this->availableEnrollmentsQuery()
-            ->pluck('id')
-            ->map(fn ($id) => (int) $id)
-            ->all();
-
-        $this->selectedEnrollmentId = count($enrollmentIds) === 1
-            ? $enrollmentIds[0]
-            : null;
+        $this->selectedEnrollmentId = $this->availableEnrollmentsQuery()
+            ->orderByDesc('enrolled_at')
+            ->orderByDesc('id')
+            ->value('id');
 
         $this->juz_id = null;
 
@@ -257,12 +264,13 @@ new class extends Component {
             'juz_id' => ['required', 'exists:quran_juzs,id'],
         ], [], [
             'selectedStudentId' => __('workflow.quran_partial_tests.form.student'),
-            'selectedEnrollmentId' => __('workflow.quran_partial_tests.form.group'),
         ]);
 
         $student = $this->quranStudentsQuery(Student::query()->with('pageAchievements'))->findOrFail($validated['selectedStudentId']);
 
         $availableEnrollmentIds = $this->availableEnrollmentsQuery()
+            ->orderByDesc('enrolled_at')
+            ->orderByDesc('id')
             ->pluck('id')
             ->map(fn ($id) => (int) $id)
             ->all();
@@ -274,12 +282,6 @@ new class extends Component {
         }
 
         if (! $validated['selectedEnrollmentId']) {
-            if (count($availableEnrollmentIds) > 1) {
-                $this->addError('selectedEnrollmentId', __('workflow.quran_partial_tests.errors.select_group'));
-
-                return;
-            }
-
             $validated['selectedEnrollmentId'] = $availableEnrollmentIds[0];
             $this->selectedEnrollmentId = $validated['selectedEnrollmentId'];
         }
@@ -355,7 +357,7 @@ new class extends Component {
                 QuranJuz::query()->findOrFail($juzId),
                 $ignoreOpenTestWarning,
             );
-        } catch (\LogicException $exception) {
+        } catch (LogicException $exception) {
             $this->addError('juz_id', $exception->getMessage());
 
             return;
@@ -400,12 +402,12 @@ new class extends Component {
 
     protected function quranStudentsQuery(Builder $query): Builder
     {
-        return $query;
+        return $query->where('status', 'active');
     }
 
     protected function quranEnrollmentsQuery(Builder $query): Builder
     {
-        return $query;
+        return $query->whereHas('group.course', fn (Builder $courseQuery) => $courseQuery->where('is_active', true));
     }
 
     protected function quranPartialTestsQuery(Builder $query): Builder
@@ -597,7 +599,7 @@ new class extends Component {
 
     <x-admin.modal :show="$showFormModal" :title="__('workflow.quran_partial_tests.form.title')" :description="__('workflow.quran_partial_tests.form.help')" close-method="closeFormModal" max-width="4xl">
         <form wire:submit="save" class="space-y-4" data-searchable-refresh>
-            <div class="grid gap-4 md:grid-cols-2">
+            <div>
                 <div>
                     <label for="partial-test-student" class="mb-1 block text-sm font-medium">{{ __('workflow.quran_partial_tests.form.student') }}</label>
                     <select
@@ -611,7 +613,7 @@ new class extends Component {
                         @foreach ($studentOptions as $student)
                             <option
                                 value="{{ $student->id }}"
-                                data-search="{{ trim(implode(' ', array_filter([$student->student_number, $student->parentProfile?->father_name, $student->first_name, $student->last_name]))) }}"
+                                data-search="{{ trim(implode(' ', array_filter([$student->student_number, $student->first_name, $student->last_name]))) }}"
                             >
                                 {{ $student->first_name }} {{ $student->last_name }}
                                 @if ($student->parentProfile?->father_name)
@@ -623,31 +625,6 @@ new class extends Component {
                     @error('selectedStudentId') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
                 </div>
 
-                <div>
-                    <label for="partial-test-enrollment" class="mb-1 block text-sm font-medium">{{ __('workflow.quran_partial_tests.form.group') }}</label>
-                    <select
-                        id="partial-test-enrollment"
-                        wire:key="partial-test-enrollment-select-{{ $selectedStudentId ?: 'blank' }}"
-                        wire:model="selectedEnrollmentId"
-                        data-search-placeholder="{{ __('crud.common.filters.search_placeholder') }}"
-                        class="w-full rounded-xl px-4 py-3 text-sm"
-                        @disabled($enrollmentOptions->isEmpty())
-                    >
-                        <option value="">{{ __('workflow.quran_partial_tests.form.select_group') }}</option>
-                        @foreach ($enrollmentOptions as $enrollment)
-                            <option value="{{ $enrollment->id }}">
-                                {{ $enrollment->group?->name ?: __('workflow.common.no_group') }}
-                                @if ($enrollment->group?->course?->name)
-                                    - {{ $enrollment->group->course->name }}
-                                @endif
-                            </option>
-                        @endforeach
-                    </select>
-                    @if ($selectedStudentId && $enrollmentOptions->count() === 1)
-                        <div class="mt-1 text-xs text-neutral-500">{{ __('workflow.quran_partial_tests.form.group_auto') }}</div>
-                    @endif
-                    @error('selectedEnrollmentId') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
-                </div>
             </div>
 
             <div>

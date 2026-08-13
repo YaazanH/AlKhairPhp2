@@ -124,6 +124,7 @@ return [
             'description' => 'Review the linked student records for this parent profile. :count shown.',
             'empty' => 'No student records are linked to this parent profile yet.',
             'headers' => [
+                'name' => 'Student name',
                 'student' => 'Student',
                 'student_number' => 'Student No.',
                 'grade' => 'Grade',
@@ -303,21 +304,21 @@ return [
             'points_disabled' => 'Disabled',
             'default' => 'Default',
         ],
-            'messages' => [
-                'created' => 'Course created successfully.',
-                'updated' => 'Course updated successfully.',
-                'deleted' => 'Course deleted successfully.',
-                'copied' => 'Course copied as inactive with inactive groups and enrollments. Operational history was left empty.',
-                'deactivated' => 'Course, groups, and enrollments were deactivated successfully.',
-            ],
-            'confirm_deactivate' => 'Deactivate this course, its groups, and its enrollments?',
-            'copy' => [
-                'confirm' => 'Copy this course with its groups and active enrolled students?',
-                'name' => ':name copy',
-                'name_numbered' => ':name copy :number',
-            ],
-            'errors' => [
-                'delete_linked' => 'This course cannot be deleted while it is linked to other records.',
+        'messages' => [
+            'created' => 'Course created successfully.',
+            'updated' => 'Course updated successfully.',
+            'deleted' => 'Course deleted successfully.',
+            'copied' => 'Course copied as inactive with inactive groups and enrollments. Operational history was left empty.',
+            'deactivated' => 'Course, groups, and enrollments were deactivated successfully.',
+        ],
+        'confirm_deactivate' => 'Deactivate this course, its groups, and its enrollments?',
+        'copy' => [
+            'confirm' => 'Copy this course with its groups and active enrolled students?',
+            'name' => ':name copy',
+            'name_numbered' => ':name copy :number',
+        ],
+        'errors' => [
+            'delete_linked' => 'This course cannot be deleted while it is linked to other records.',
         ],
     ],
     'students' => [
@@ -351,6 +352,9 @@ return [
                 'label' => 'Graduated',
                 'description' => 'Profiles marked complete for the active teaching lifecycle.',
             ],
+        ],
+        'filters' => [
+            'search_placeholder' => 'Search by student name or number',
         ],
         'form' => [
             'eyebrow' => 'Student editor',
@@ -429,6 +433,7 @@ return [
             'title' => 'Student records',
             'empty' => 'No student records yet.',
             'headers' => [
+                'name' => 'Student name',
                 'student' => 'Student',
                 'student_number' => 'Student No.',
                 'parent' => 'Parent',
@@ -622,6 +627,7 @@ return [
             'remove_action' => 'Remove',
             'fields' => [
                 'student' => 'Student',
+                'student_name' => 'Student name',
                 'enrolled_at' => 'Enrolled at',
             ],
             'placeholders' => [
@@ -679,6 +685,18 @@ return [
                 'memorized' => 'Memorized: :value',
                 'teacher' => 'Teacher: :value',
             ],
+            'tests' => [
+                'partial_title' => 'Trial tests',
+                'final_title' => 'Final tests',
+                'partial_line' => '• :student — Juz :juz — :quarter',
+                'final_line' => '• :student — Juz :juz',
+                'quarters' => [
+                    1 => 'First quarter',
+                    2 => 'Second quarter',
+                    3 => 'Third quarter',
+                    4 => 'Fourth quarter',
+                ],
+            ],
         ],
     ],
     'enrollments' => [
@@ -711,11 +729,11 @@ return [
                 'description' => 'Enrollments that have finished their active lifecycle.',
             ],
         ],
-            'form' => [
-                'eyebrow' => 'Enrollment editor',
-                'create_title' => 'Create enrollment',
-                'edit_title' => 'Edit enrollment',
-                'help' => 'Cached points and memorized pages stay automatic. This form manages the enrollment anchor only.',
+        'form' => [
+            'eyebrow' => 'Enrollment editor',
+            'create_title' => 'Create enrollment',
+            'edit_title' => 'Edit enrollment',
+            'help' => 'Cached points and memorized pages stay automatic. This form manages the enrollment anchor only.',
             'fields' => [
                 'student' => 'Student',
                 'group' => 'Group',
@@ -724,14 +742,14 @@ return [
                 'left_at' => 'Left at',
                 'notes' => 'Notes',
             ],
-                'placeholders' => [
-                    'select_student' => 'Select student',
-                    'select_group' => 'Select group',
-                ],
-                'no_available_students' => 'All scoped students are already enrolled in this group.',
-                'create_submit' => 'Create enrollment',
-                'update_submit' => 'Update enrollment',
+            'placeholders' => [
+                'select_student' => 'Select student',
+                'select_group' => 'Select group',
             ],
+            'no_available_students' => 'All scoped students are already enrolled in this group.',
+            'create_submit' => 'Create enrollment',
+            'update_submit' => 'Update enrollment',
+        ],
         'read_only' => [
             'title' => 'Enrollment records',
             'description' => 'You can view enrollment records, but you do not have permission to create or edit them.',
@@ -749,15 +767,15 @@ return [
                 'actions' => 'Actions',
             ],
         ],
-            'messages' => [
-                'created' => 'Enrollment created successfully.',
-                'updated' => 'Enrollment updated successfully.',
-                'deleted' => 'Enrollment deleted successfully.',
-            ],
-            'errors' => [
-                'already_enrolled' => 'This student is already enrolled in the selected group.',
-                'already_active' => 'This student already has an active enrollment. Complete or cancel it before creating another one.',
-                'inactive_student' => 'Only active students can be enrolled.',
-            ],
+        'messages' => [
+            'created' => 'Enrollment created successfully.',
+            'updated' => 'Enrollment updated successfully.',
+            'deleted' => 'Enrollment deleted successfully.',
         ],
-  ];
+        'errors' => [
+            'already_enrolled' => 'This student is already enrolled in the selected group.',
+            'already_active' => 'This student already has an active enrollment. Complete or cancel it before creating another one.',
+            'inactive_student' => 'Only active students can be enrolled.',
+        ],
+    ],
+];

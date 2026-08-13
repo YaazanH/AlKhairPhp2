@@ -456,6 +456,7 @@ class FinanceService
     {
         return FinanceCurrency::query()
             ->when($activeOnly, fn (Builder $query) => $query->where('is_active', true))
+            ->where('show_in_dropdowns', true)
             ->when($cashBoxId, fn (Builder $query) => $query->whereHas('cashBoxes', fn (Builder $cashBoxQuery) => $cashBoxQuery->whereKey($cashBoxId)))
             ->orderByDesc('is_local')
             ->orderByDesc('is_base')

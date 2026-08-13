@@ -39,7 +39,6 @@
                                 <th class="px-5 py-4 text-left lg:px-6">{{ __('print_templates.templates.table.headers.sources') }}</th>
                                 <th class="px-5 py-4 text-left lg:px-6">{{ __('print_templates.templates.table.headers.elements') }}</th>
                                 <th class="px-5 py-4 text-left lg:px-6">{{ __('print_templates.templates.table.headers.status') }}</th>
-                                <th class="px-5 py-4 text-right lg:px-6">{{ __('print_templates.templates.table.headers.actions') }}</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-white/6">
@@ -53,6 +52,19 @@
                                                 <span class="status-chip status-chip--active">{{ __('print_templates.templates.labels.student_card') }}</span>
                                             @endif
                                         </div>
+                                        <details class="mt-3">
+                                            <summary class="cursor-pointer text-xs text-emerald-200">{{ __('print_templates.templates.table.headers.actions') }}</summary>
+                                            <div class="admin-action-cluster mt-3">
+                                                @can('id-cards.print')
+                                                    <a href="{{ $template->is_student_card ? route('id-cards.print.create', ['template' => $template->id]) : route('print-templates.print.create', ['template' => $template->id]) }}" class="pill-link pill-link--compact">{{ __('print_templates.templates.actions.print') }}</a>
+                                                @endcan
+                                                @can('id-cards.templates.manage')
+                                                    <form method="POST" action="{{ route('print-templates.templates.copy', $template) }}">@csrf<button type="submit" class="pill-link pill-link--compact">{{ __('print_templates.templates.actions.copy') }}</button></form>
+                                                    <a href="{{ route('print-templates.templates.edit', $template) }}" class="pill-link pill-link--compact">{{ __('crud.common.actions.edit') }}</a>
+                                                    <form method="POST" action="{{ route('print-templates.templates.destroy', $template) }}" data-admin-confirm-message="{{ __('print_templates.templates.confirm_delete') }}">@csrf @method('DELETE')<button type="submit" class="pill-link pill-link--compact pill-link--danger">{{ __('crud.common.actions.delete') }}</button></form>
+                                                @endcan
+                                            </div>
+                                        </details>
                                     </td>
                                     <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ number_format($template->width_mm, 2) }} × {{ number_format($template->height_mm, 2) }} mm</td>
                                     <td class="px-5 py-4 text-neutral-300 lg:px-6">
@@ -63,25 +75,6 @@
                                         <span class="status-chip {{ $template->is_active ? 'status-chip--active' : 'status-chip--muted' }}">
                                             {{ $template->is_active ? __('print_templates.templates.status.active') : __('print_templates.templates.status.inactive') }}
                                         </span>
-                                    </td>
-                                    <td class="px-5 py-4 text-right lg:px-6">
-                                        <div class="admin-action-cluster admin-action-cluster--end">
-                                            @can('id-cards.print')
-                                                <a href="{{ $template->is_student_card ? route('id-cards.print.create', ['template' => $template->id]) : route('print-templates.print.create', ['template' => $template->id]) }}" class="pill-link pill-link--compact">{{ __('print_templates.templates.actions.print') }}</a>
-                                            @endcan
-                                            @can('id-cards.templates.manage')
-                                                <form method="POST" action="{{ route('print-templates.templates.copy', $template) }}">
-                                                    @csrf
-                                                    <button type="submit" class="pill-link pill-link--compact">{{ __('print_templates.templates.actions.copy') }}</button>
-                                                </form>
-                                                <a href="{{ route('print-templates.templates.edit', $template) }}" class="pill-link pill-link--compact">{{ __('crud.common.actions.edit') }}</a>
-                                                <form method="POST" action="{{ route('print-templates.templates.destroy', $template) }}" data-admin-confirm-message="{{ __('print_templates.templates.confirm_delete') }}">
-                                                    @csrf
-                                                    @method('DELETE')
-                                                    <button type="submit" class="pill-link pill-link--compact pill-link--danger">{{ __('crud.common.actions.delete') }}</button>
-                                                </form>
-                                            @endcan
-                                        </div>
                                     </td>
                                 </tr>
                             @endforeach

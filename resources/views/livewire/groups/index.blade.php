@@ -10,11 +10,10 @@ use App\Models\Curriculum;
 use App\Models\Enrollment;
 use App\Models\GradeLevel;
 use App\Models\Group;
-use App\Models\GroupAttendanceDay;
-use App\Models\MemorizationSession;
 use App\Models\PrintTemplate;
 use App\Models\Student;
 use App\Models\Teacher;
+use App\Services\GroupDailySummaryService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Livewire\Volt\Component;
@@ -93,7 +92,7 @@ new class extends Component {
             'academicYears' => AcademicYear::query()->where('is_active', true)->orderByDesc('starts_on')->get(['id', 'name']),
             'teachers' => $this->availableTeachersQuery()->orderBy('first_name')->orderBy('last_name')->get(['id', 'first_name', 'last_name']),
             'gradeLevels' => GradeLevel::query()->where('is_active', true)->orderBy('sort_order')->get(['id', 'name']),
-            'curricula' => Curriculum::query()->where('is_active', true)->when($this->course_id, fn ($query) => $query->where('course_id', $this->course_id))->orderBy('name')->get(['id', 'course_id', 'name']),
+            'curricula' => Curriculum::query()->where('is_active', true)->orderBy('name')->get(['id', 'course_id', 'name']),
             'rosterGroup' => $this->rosterGroupId
                 ? $this->scopeGroupsQuery(Group::query()->with(['course', 'teacher']))->find($this->rosterGroupId)
                 : null,
@@ -152,7 +151,7 @@ new class extends Component {
 
     public function updatedCourseId(): void
     {
-        if ($this->curriculum_id && ! Curriculum::query()->whereKey($this->curriculum_id)->where('course_id', $this->course_id)->exists()) {
+        if ($this->curriculum_id && ! Curriculum::query()->whereKey($this->curriculum_id)->where('is_active', true)->exists()) {
             $this->curriculum_id = null;
         }
     }
@@ -165,7 +164,7 @@ new class extends Component {
             'teacher_id' => ['required', 'exists:teachers,id'],
             'assistant_teacher_id' => ['nullable', 'exists:teachers,id', 'different:teacher_id'],
             'grade_level_id' => ['nullable', 'exists:grade_levels,id'],
-            'curriculum_id' => ['nullable', Rule::exists('curricula', 'id')->where(fn ($query) => $query->where('course_id', $this->course_id)->where('is_active', true))],
+            'curriculum_id' => ['nullable', Rule::exists('curricula', 'id')->where(fn ($query) => $query->where('is_active', true))],
             'name' => [
                 'required',
                 'string',
@@ -449,7 +448,7 @@ new class extends Component {
 
     public function copyQuickSummary(): void
     {
-        abort_unless($this->canPermission('attendance.student.view') || $this->canPermission('memorization.view'), 403);
+        abort_unless(collect($this->quickSummaryVisibility())->contains(true), 403);
 
         if (! $this->quickSummaryGroupId) {
             return;
@@ -458,13 +457,17 @@ new class extends Component {
         $group = Group::query()->findOrFail($this->quickSummaryGroupId);
         $this->authorizeScopedGroupAccess($group);
 
-        $rows = $this->buildQuickSummaryRows();
+        $summary = $this->buildQuickSummary();
 
-        if ($rows->isEmpty()) {
+        if ($summary['rows']->isEmpty() && $summary['partial_tests']->isEmpty() && $summary['final_tests']->isEmpty()) {
             return;
         }
 
-        $this->dispatch('admin-copy-text', text: $this->buildQuickSummaryCopyText($group, $rows));
+        $this->dispatch('admin-copy-text', text: app(GroupDailySummaryService::class)->copyText(
+            $group->loadMissing(['course', 'teacher']),
+            $this->quickSummaryDate ?: now()->toDateString(),
+            $summary,
+        ));
     }
 
     public function addStudentToRoster(): void
@@ -610,168 +613,33 @@ new class extends Component {
 
     protected function buildQuickSummaryRows()
     {
+        return $this->buildQuickSummary()['rows'];
+    }
+
+    protected function buildQuickSummary(): array
+    {
         if (! $this->quickSummaryGroupId) {
-            return collect();
+            return ['rows' => collect(), 'partial_tests' => collect(), 'final_tests' => collect()];
         }
 
         $group = Group::query()->findOrFail($this->quickSummaryGroupId);
         $this->authorizeScopedGroupAccess($group);
 
-        $summaryDate = $this->quickSummaryDate ?: now()->toDateString();
-        $canViewAttendance = $this->canPermission('attendance.student.view');
-        $canViewMemorization = $this->canPermission('memorization.view');
-
-        $enrollments = $this->scopeEnrollmentsQuery(
-            Enrollment::query()
-                ->with(['student.parentProfile'])
-                ->where('group_id', $group->id)
-                ->where('status', 'active')
-        )
-            ->orderBy('enrolled_at')
-            ->orderBy('id')
-            ->get();
-
-        if ($enrollments->isEmpty()) {
-            return collect();
-        }
-
-        $attendanceRecords = $canViewAttendance
-            ? $this->scopeGroupAttendanceDaysQuery(
-                GroupAttendanceDay::query()
-                    ->where('group_id', $group->id)
-                    ->whereDate('attendance_date', $summaryDate)
-                    ->with(['records.status'])
-            )
-                ->get()
-                ->flatMap(fn (GroupAttendanceDay $day) => $day->records)
-                ->keyBy('enrollment_id')
-            : collect();
-
-        $memorizationSessionsByEnrollment = $canViewMemorization
-            ? $this->scopeMemorizationSessionsQuery(
-                MemorizationSession::query()
-                    ->with(['pages' => fn ($query) => $query->orderBy('page_no')])
-                    ->whereIn('enrollment_id', $enrollments->pluck('id'))
-                    ->whereDate('recorded_on', $summaryDate)
-                    ->where('entry_type', 'new')
-            )
-                ->get()
-                ->groupBy('enrollment_id')
-            : collect();
-
-        return $enrollments
-            ->map(function (Enrollment $enrollment) use ($attendanceRecords, $memorizationSessionsByEnrollment, $canViewAttendance, $canViewMemorization, $summaryDate): object {
-                $student = $enrollment->student;
-                $studentName = $student
-                    ? trim($student->first_name.' '.$student->last_name)
-                    : __('crud.common.not_available');
-                $attendanceLabel = $canViewAttendance
-                    ? ($attendanceRecords->get($enrollment->id)?->status?->name ?: __('crud.groups.quick_summary.attendance_missing'))
-                    : __('crud.groups.quick_summary.attendance_unavailable');
-
-                $memorizedPages = $canViewMemorization
-                    ? $memorizationSessionsByEnrollment
-                        ->get($enrollment->id, collect())
-                        ->flatMap(function (MemorizationSession $session) {
-                            $sessionPages = $session->pages
-                                ->pluck('page_no')
-                                ->map(fn ($page) => (int) $page)
-                                ->filter(fn ($page) => $page > 0)
-                                ->values();
-
-                            if ($sessionPages->isEmpty() && filled($session->from_page) && filled($session->to_page)) {
-                                $fromPage = (int) min($session->from_page, $session->to_page);
-                                $toPage = (int) max($session->from_page, $session->to_page);
-
-                                return collect(range($fromPage, $toPage));
-                            }
-
-                            return $sessionPages;
-                        })
-                        ->unique()
-                        ->sort()
-                        ->values()
-                    : collect();
-
-                $memorizedLabel = $canViewMemorization
-                    ? ($memorizedPages->isNotEmpty()
-                        ? __('crud.groups.quick_summary.memorized_pages', ['pages' => $this->formatQuickSummaryPages($memorizedPages->all())])
-                        : __('crud.groups.quick_summary.memorization_missing'))
-                    : __('crud.groups.quick_summary.memorization_unavailable');
-
-                return (object) [
-                    'enrollment_id' => $enrollment->id,
-                    'student_name' => $studentName,
-                    'student_number' => $student?->student_number,
-                    'parent_name' => $student?->parentProfile?->father_name,
-                    'attendance_label' => $attendanceLabel,
-                    'memorized_label' => $memorizedLabel,
-                    'copy_text' => implode(PHP_EOL, [
-                        __('crud.groups.quick_summary.copy_lines.student', ['value' => $studentName]),
-                        __('crud.groups.quick_summary.copy_lines.date', ['value' => $summaryDate]),
-                        __('crud.groups.quick_summary.copy_lines.attendance', ['value' => $attendanceLabel]),
-                        __('crud.groups.quick_summary.copy_lines.memorized', ['value' => $memorizedLabel]),
-                    ]),
-                ];
-            })
-            ->values();
+        return app(GroupDailySummaryService::class)->build(
+            $group,
+            $this->quickSummaryDate ?: now()->toDateString(),
+            $this->quickSummaryVisibility(),
+        );
     }
 
-    protected function formatQuickSummaryPages(array $pages): string
+    protected function quickSummaryVisibility(): array
     {
-        $pages = collect($pages)
-            ->map(fn ($page) => (int) $page)
-            ->filter(fn ($page) => $page > 0)
-            ->unique()
-            ->sort()
-            ->values();
-
-        if ($pages->isEmpty()) {
-            return '';
-        }
-
-        $ranges = [];
-        $rangeStart = $pages->first();
-        $rangeEnd = $rangeStart;
-
-        foreach ($pages->slice(1) as $page) {
-            if ($page === $rangeEnd + 1) {
-                $rangeEnd = $page;
-
-                continue;
-            }
-
-            $ranges[] = $rangeStart === $rangeEnd ? (string) $rangeStart : $rangeStart.'-'.$rangeEnd;
-            $rangeStart = $page;
-            $rangeEnd = $page;
-        }
-
-        $ranges[] = $rangeStart === $rangeEnd ? (string) $rangeStart : $rangeStart.'-'.$rangeEnd;
-
-        return implode(', ', $ranges);
-    }
-
-    protected function buildQuickSummaryCopyText(Group $group, \Illuminate\Support\Collection $rows): string
-    {
-        $summaryDate = $this->quickSummaryDate ?: now()->toDateString();
-
-        $header = array_filter([
-            __('crud.groups.quick_summary.copy_lines.group', ['value' => $group->name]),
-            __('crud.groups.quick_summary.copy_lines.date', ['value' => $summaryDate]),
-            $group->course?->name
-                ? __('crud.groups.quick_summary.copy_lines.course', ['value' => $group->course->name])
-                : null,
-            $group->teacher
-                ? __('crud.groups.quick_summary.copy_lines.teacher', ['value' => trim($group->teacher->first_name.' '.$group->teacher->last_name)])
-                : null,
-        ]);
-
-        $studentBlocks = $rows->map(fn (object $row) => $row->copy_text)->all();
-
-        return implode(PHP_EOL.PHP_EOL, [
-            implode(PHP_EOL, $header),
-            implode(PHP_EOL.PHP_EOL, $studentBlocks),
-        ]);
+        return [
+            'attendance' => $this->canPermission('attendance.student.view'),
+            'memorization' => $this->canPermission('memorization.view'),
+            'partial_tests' => $this->canPermission('quran-partial-tests.view'),
+            'final_tests' => $this->canPermission('quran-final-tests.view'),
+        ];
     }
 }; ?>
 
@@ -1228,7 +1096,7 @@ new class extends Component {
                                     @foreach ($availableRosterStudents as $student)
                                         <option
                                             value="{{ $student->id }}"
-                                            data-search="{{ trim(implode(' ', array_filter([$student->student_number, $student->parentProfile?->father_name, $student->first_name, $student->last_name]))) }}"
+                                            data-search="{{ trim(implode(' ', array_filter([$student->student_number, $student->first_name, $student->last_name]))) }}"
                                         >
                                             {{ $student->first_name }} {{ $student->last_name }}
                                             @if ($student->parentProfile?->father_name)

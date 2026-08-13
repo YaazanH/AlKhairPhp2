@@ -3,6 +3,7 @@
 use App\Livewire\Concerns\AuthorizesPermissions;
 use App\Models\FinanceGeneratedReport;
 use App\Models\FinanceReportTemplate;
+use App\Models\AppSetting;
 use App\Services\FinanceReportService;
 use App\Services\FinanceService;
 use Illuminate\Support\Collection;
@@ -24,9 +25,11 @@ new class extends Component {
     public string $ledger_date_to = '';
     public $report_background_upload = null;
     public $report_logo_upload = null;
+    public $report_stamp_upload = null;
     public string $report_notes = '';
     public bool $remove_report_background = false;
     public bool $remove_report_logo = false;
+    public bool $remove_report_stamp = false;
     public bool $showReportSettingsModal = false;
 
     public function mount(): void
@@ -90,6 +93,7 @@ new class extends Component {
             'ledgerCashBoxes' => $financeService->accessibleCashBoxes(auth()->user())->get(),
             'ledgerCurrencies' => $this->ledgerCurrencies(),
             'ledgerSettings' => app(FinanceReportService::class)->defaultLedgerTemplate()->fresh(),
+            'reportStampPath' => AppSetting::groupValues('finance')->get('report_stamp_path'),
         ];
     }
 
@@ -99,8 +103,10 @@ new class extends Component {
         $validated = $this->validate([
             'report_background_upload' => ['nullable', 'image', 'mimes:jpeg,jpg,png', 'max:8192'],
             'report_logo_upload' => ['nullable', 'image', 'mimes:png', 'max:4096'],
+            'report_stamp_upload' => ['nullable', 'image', 'mimes:png', 'max:4096'],
             'remove_report_background' => ['boolean'],
             'remove_report_logo' => ['boolean'],
+            'remove_report_stamp' => ['boolean'],
         ]);
         $settings = app(FinanceReportService::class)->defaultLedgerTemplate();
 
@@ -124,6 +130,18 @@ new class extends Component {
             }
             $settings->logo_image = $validated['report_logo_upload']->store('finance/reports/logos', 'public');
         }
+        $stampPath = AppSetting::groupValues('finance')->get('report_stamp_path');
+        if ($validated['remove_report_stamp'] && $stampPath) {
+            Storage::disk('public')->delete($stampPath);
+            AppSetting::storeValue('finance', 'report_stamp_path', null);
+            $stampPath = null;
+        }
+        if ($validated['report_stamp_upload'] ?? null) {
+            if ($stampPath) {
+                Storage::disk('public')->delete($stampPath);
+            }
+            AppSetting::storeValue('finance', 'report_stamp_path', $validated['report_stamp_upload']->store('finance/reports/stamps', 'public'));
+        }
 
         $settings->forceFill([
             'columns' => FinanceReportTemplate::DEFAULT_COLUMNS,
@@ -140,7 +158,7 @@ new class extends Component {
             'title' => 'تقرير مالي',
         ])->save();
 
-        $this->reset('report_background_upload', 'report_logo_upload', 'remove_report_background', 'remove_report_logo');
+        $this->reset('report_background_upload', 'report_logo_upload', 'report_stamp_upload', 'remove_report_background', 'remove_report_logo', 'remove_report_stamp');
         $this->showReportSettingsModal = false;
         session()->flash('status', __('finance.reports.settings_saved'));
     }
@@ -153,7 +171,7 @@ new class extends Component {
 
     public function closeReportSettings(): void
     {
-        $this->reset('report_background_upload', 'report_logo_upload', 'remove_report_background', 'remove_report_logo');
+        $this->reset('report_background_upload', 'report_logo_upload', 'report_stamp_upload', 'remove_report_background', 'remove_report_logo', 'remove_report_stamp');
         $this->showReportSettingsModal = false;
         $this->resetValidation();
     }
@@ -378,6 +396,13 @@ new class extends Component {
                     @error('report_logo_upload')<div class="mt-1 text-sm text-red-400">{{ $message }}</div>@enderror
                     @if ($ledgerSettings?->logo_image_url)<img src="{{ $ledgerSettings->logo_image_url }}" alt="" class="mt-3 h-28 max-w-52 rounded-xl object-contain">@endif
                     @if ($ledgerSettings?->logo_image)<label class="mt-3 flex items-center gap-2 text-sm"><input wire:model="remove_report_logo" type="checkbox"><span>{{ __('finance.reports.remove_logo') }}</span></label>@endif
+                </div>
+                <div class="lg:col-span-2">
+                    <label class="mb-2 block text-sm font-medium">{{ __('finance.reports.report_stamp') }}</label>
+                    <input wire:model="report_stamp_upload" type="file" accept="image/png" class="w-full rounded-xl px-4 py-3 text-sm">
+                    <p class="mt-1 text-xs text-neutral-400">{{ __('finance.reports.report_stamp_help') }}</p>
+                    @error('report_stamp_upload')<div class="mt-1 text-sm text-red-400">{{ $message }}</div>@enderror
+                    @if ($reportStampPath)<img src="{{ asset('storage/'.ltrim($reportStampPath, '/')) }}" alt="" class="mt-3 h-28 max-w-52 rounded-xl bg-white object-contain p-2"><label class="mt-3 flex items-center gap-2 text-sm"><input wire:model="remove_report_stamp" type="checkbox"><span>{{ __('finance.reports.remove_stamp') }}</span></label>@endif
                 </div>
                 <div class="lg:col-span-2 flex justify-end gap-3">
                     <button type="button" wire:click="closeReportSettings" class="pill-link">{{ __('crud.common.actions.close') }}</button>

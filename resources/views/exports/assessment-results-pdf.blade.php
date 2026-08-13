@@ -3,12 +3,15 @@
 <head>
     <meta charset="utf-8">
     <style>
-        @page { margin: 25mm 10mm 18mm; header: pdf-header; footer: pdf-footer; }
+        @page { margin: 10mm 10mm 18mm; footer: pdf-footer; }
         body { color: #172033; font-family: dubai, sans-serif; font-size: 11pt; }
-        .heading { display: table; margin: 0 0 5mm; width: 100%; }
-        .heading-title, .heading-group { display: table-cell; font-size: 22pt; font-weight: bold; width: 50%; }
-        .heading-title { text-align: right; }
-        .heading-group { text-align: left; }
+        .heading { background:#e6f3eb; display: table; margin: 0 0 5mm; padding:2mm 3mm; width: 100%; }
+        .heading-logo,.heading-copy { display:table-cell; vertical-align:middle; }
+        .heading-logo { text-align:right; width:38mm; }
+        .heading-logo img { height:auto; max-height:23mm; max-width:35mm; width:auto; }
+        .heading-copy { text-align:right; }
+        .heading-title { font-size:22pt; font-weight:bold; }
+        .heading-group { font-size:15pt; font-weight:500; margin-top:1mm; }
         .meta { border: 0; margin-bottom: 7mm; table-layout: fixed; }
         .meta td { border: 0; padding: 0 0 5mm; width: 50%; }
         .meta-date { text-align: right; }
@@ -28,13 +31,12 @@
     </style>
 </head>
 <body>
-<htmlpageheader name="pdf-header"><div class="pdf-header">@if($logo)<img src="{{ $logo }}" alt="">@endif</div></htmlpageheader>
 <htmlpagefooter name="pdf-footer"><div class="pdf-footer">{PAGENO} / {nbpg}</div></htmlpagefooter>
 @forelse ($groups as $group)
     @if (! $loop->first)<pagebreak />@endif
     <div class="heading">
-        <div class="heading-title">{{ $assessment->title }}</div>
-        <div class="heading-group">{{ $group->name }}</div>
+        <div class="heading-logo">@if($logo)<img src="{{ $logo }}" alt="">@endif</div>
+        <div class="heading-copy"><div class="heading-title">{{ $assessment->title }}</div><div class="heading-group">{{ $group->name }}</div></div>
     </div>
     <table class="meta"><tr>
         <td class="meta-date">{{ __('workflow.assessments.results.pdf.due_date') }}: {{ $assessment->due_at?->format('d-m-Y') ?? '—' }}</td>

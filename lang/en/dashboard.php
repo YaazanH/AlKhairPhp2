@@ -57,12 +57,12 @@ return [
         ],
         'analytics' => [
             'groups_eyebrow' => 'Default course groups',
-            'group_distribution' => 'Students by Group',
+            'group_distribution' => 'Number of Students per Group',
             'students_count' => '{1} :count student|[2,*] :count students',
             'no_group_students' => 'No active students are enrolled in the default-course groups yet.',
             'last_four_days' => 'Latest four days',
             'last_five_attendance_days' => 'Latest five attendance days',
-            'daily_activity' => 'Memorization and Attendance',
+            'daily_activity' => 'Comparison between Attendance and Memorisation',
             'memorized_pages' => 'Memorized pages',
             'students_attended' => 'Students attended',
             'leaderboard_eyebrow' => 'Default course leaderboard',
@@ -99,6 +99,8 @@ return [
         'intro' => 'Use your assignments as the launch point for attendance, memorization, assessments, and student notes.',
         'group_dashboard' => [
             'subheading' => 'A focused view of your group’s attendance, memorization, tests, and student ranking.',
+            'today_summary' => "Today's summary",
+            'copy_today_summary' => "Copy today's summary",
             'stats' => [
                 'group' => 'Group name',
                 'students' => 'Number of students',

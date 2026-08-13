@@ -259,7 +259,9 @@ class SidebarNavigationService
 
                 $items[] = [
                     'key' => $itemKey,
-                    'label' => __($itemDefinition['label_key']),
+                    'label' => $itemKey === 'curricula' && ! $user->can('curricula.manage')
+                        ? __('ui.nav.my_curriculum')
+                        : __($itemDefinition['label_key']),
                     'icon' => $itemDefinition['icon'],
                     'href' => route($itemDefinition['route_name']),
                     'current' => request()->routeIs(...$itemDefinition['current_patterns']),

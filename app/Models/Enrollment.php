@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -32,6 +33,18 @@ class Enrollment extends Model
             'final_points_cached' => 'integer',
             'memorized_pages_cached' => 'integer',
         ];
+    }
+
+    public function scopeCurrentActiveForStudent(Builder $query, int $studentId): Builder
+    {
+        return $query
+            ->where('student_id', $studentId)
+            ->where('status', 'active')
+            ->whereHas('group', fn (Builder $groupQuery) => $groupQuery
+                ->where('is_active', true)
+                ->whereHas('course', fn (Builder $courseQuery) => $courseQuery->where('is_active', true)))
+            ->orderByDesc('enrolled_at')
+            ->orderByDesc('id');
     }
 
     public function group(): BelongsTo

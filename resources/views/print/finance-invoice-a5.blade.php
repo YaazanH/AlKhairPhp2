@@ -5,7 +5,7 @@
     <meta charset="utf-8">
     <title>{{ $invoice->invoice_no }}</title>
     <style>
-        @page { margin: 23mm 10mm 16mm; header: invoiceHeader; footer: invoiceFooter; }
+        @page { margin: 29mm 10mm 16mm; header: invoiceHeader; footer: invoiceFooter; }
         @page :first { header: invoiceFirstHeader; }
         body { color: #17321f; font-family: dubai, sans-serif; font-size: 9.5pt; margin: 0; }
         .header { background: #dff1e2; border-bottom: 1px solid #9fc6a8; padding: 4mm 10mm; }
@@ -18,7 +18,7 @@
         .footer { background: #dff1e2; border-top: 1px solid #9fc6a8; color: #315b3b; padding: 2.5mm 10mm; }
         .footer td { width: 50%; }
         .page { text-align: end; }
-        .meta { margin: 10mm 0 5mm; }
+        .meta { margin: 5mm 0 5mm; }
         .meta td { border-bottom: 1px solid #d9e7dc; padding: 2.2mm 2mm; }
         .label { color: #5d7663; font-size: 8pt; font-weight: bold; width: 23%; }
         .value { font-weight: bold; width: 27%; }

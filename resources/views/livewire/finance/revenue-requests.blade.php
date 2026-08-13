@@ -56,7 +56,7 @@ new class extends Component {
                 ->pluck('id')
                 ->mapWithKeys(fn ($currencyId) => [(int) $currencyId => app(FinanceService::class)->accessibleCashBoxesForCurrency(auth()->user(), (int) $currencyId)->get()])
                 ->all(),
-            'currencies' => app(FinanceService::class)->currenciesForCashBox($this->cash_box_id)->get(),
+            'currencies' => FinanceCurrency::query()->where('is_active', true)->where('show_in_dropdowns', true)->orderByDesc('is_local')->orderBy('code')->get(),
             'revenueCategories' => FinanceCategory::query()
                 ->where('is_active', true)
                 ->whereIn('type', [FinanceRequest::TYPE_REVENUE, FinanceRequest::TYPE_RETURN])
@@ -88,7 +88,7 @@ new class extends Component {
             'amount' => ['required', 'numeric', 'gt:0'],
             'attachments' => ['array'],
             'attachments.*' => ['file', 'max:4096', 'mimes:jpg,jpeg,png,webp,pdf'],
-            'cash_box_id' => [$canReview ? 'required' : 'nullable', 'exists:finance_cash_boxes,id'],
+            'cash_box_id' => ['nullable', 'exists:finance_cash_boxes,id'],
             'currency_id' => ['required', 'exists:finance_currencies,id'],
             'finance_category_id' => [
                 'required',
@@ -121,11 +121,22 @@ new class extends Component {
         $this->storeAttachments($request);
 
         if ($canReview) {
+            $postingCashBox = $validated['cash_box_id']
+                ? app(FinanceService::class)->cashBoxForUser((int) $validated['cash_box_id'], auth()->user())
+                : app(FinanceService::class)->defaultCashBoxForUser(auth()->user(), (int) $validated['currency_id']);
+
+            if (! $postingCashBox) {
+                $request->delete();
+                $this->addError('currency_id', __('finance.validation.cash_box_currency_mismatch'));
+
+                return;
+            }
+
             try {
                 app(FinanceService::class)->acceptRequest(
                     $request,
                     (float) $validated['amount'],
-                    app(FinanceService::class)->cashBoxForUser((int) $validated['cash_box_id'], auth()->user()),
+                    $postingCashBox,
                     auth()->user(),
                     'Auto-posted by finance management.',
                     null,
@@ -319,7 +330,6 @@ new class extends Component {
             <div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.amount') }}</label><input wire:model="amount" type="text" inputmode="decimal" data-thousand-separator class="w-full rounded-xl px-4 py-3 text-sm">@error('amount') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
             <div><label class="mb-1 block text-sm font-medium">{{ __('finance.common.currency') }}</label><select wire:model.live="currency_id" class="w-full rounded-xl px-4 py-3 text-sm">@foreach ($currencies as $currency)<option value="{{ $currency->id }}">{{ $currency->code }}</option>@endforeach</select></div>
             @can('finance.entries.update')<div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.entry_date') }}</label><input wire:model="request_date" type="date" class="w-full rounded-xl px-4 py-3 text-sm">@error('request_date') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>@endcan
-            @can('finance.revenue-requests.review')<div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.cash_box') }}</label><select wire:model.live="cash_box_id" class="w-full rounded-xl px-4 py-3 text-sm"><option value="">{{ __('finance.actions.choose_box') }}</option>@foreach ($cashBoxes as $box)<option value="{{ $box->id }}">{{ $box->name }}</option>@endforeach</select>@error('cash_box_id') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>@endcan
             <div class="lg:col-span-3"><label class="mb-1 block text-sm font-medium">{{ __('finance.common.description') }}</label><textarea wire:model="requested_reason" rows="2" class="w-full rounded-xl px-4 py-3 text-sm"></textarea>@error('requested_reason') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
             <div class="lg:col-span-3"><label class="mb-1 block text-sm font-medium">{{ __('finance.common.attachments') }}</label><input wire:model="attachments" type="file" multiple class="w-full rounded-xl px-4 py-3 text-sm">@error('attachments.*') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
             <div class="lg:col-span-3 flex flex-wrap justify-end gap-3">

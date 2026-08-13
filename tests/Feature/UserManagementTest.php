@@ -6,7 +6,9 @@ use App\Models\User;
 use App\Support\RoleRegistry;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 use Livewire\Volt\Volt;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
@@ -26,9 +28,22 @@ class UserManagementTest extends TestCase
         $admin->assignRole('admin');
 
         $this->actingAs($admin);
+        Storage::fake('public');
 
         $this->get(route('users.index', absolute: false))->assertOk();
         $this->get(route('settings.access-control', absolute: false))->assertOk();
+
+        Volt::test('users.index')
+            ->call('edit', $admin->id)
+            ->assertSee(__('access.users.fields.finance_signature'))
+            ->assertSeeHtml('data-user-direct-permissions')
+            ->assertSeeHtml('data-user-scope-overrides')
+            ->set('finance_signature_upload', UploadedFile::fake()->image('signature.png', 600, 180))
+            ->call('save')
+            ->assertHasNoErrors();
+
+        $admin->refresh();
+        Storage::disk('public')->assertExists($admin->finance_signature_path);
 
         Volt::test('users.index')
             ->set('name', 'Teacher Account')

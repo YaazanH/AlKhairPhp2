@@ -61,6 +61,9 @@
                     </div>
                 </div>
 
+                <details class="relative admin-form-field--full">
+                    <summary class="pill-link w-fit cursor-pointer">{{ __('print_templates.templates.form.fields.paper_settings') }}</summary>
+                    <div class="surface-panel absolute end-0 z-30 mt-2 grid w-full max-w-2xl gap-4 p-4 md:grid-cols-2">
                 <div class="admin-form-field">
                     <label for="print-template-paper-size">{{ __('print_templates.templates.form.fields.paper_size') }}</label>
                     <select id="print-template-paper-size" name="paper_size" required>
@@ -97,6 +100,8 @@
                         </div>
                     </div>
                 @endforeach
+                    </div>
+                </details>
 
                 <label class="admin-checkbox admin-form-field--full">
                     <input type="checkbox" name="rounded_corners" value="1" @checked(old('rounded_corners', $template->rounded_corners))>
@@ -134,19 +139,19 @@
             <div class="print-template-source-card">
                 <div class="eyebrow">{{ __('print_templates.templates.form.sections.data_sources') }}</div>
                 <p class="mt-3 text-sm leading-7 text-neutral-300">{{ __('print_templates.templates.form.student_card_help') }}</p>
-                <div class="mt-3 print-template-source-grid">
-                    @foreach ($entityOptions as $entity)
-                        <div class="print-template-source-pill" data-print-template-source-row="{{ $entity['key'] }}">
-                            <label class="admin-checkbox">
-                                <input type="checkbox" data-source-enabled="{{ $entity['key'] }}">
-                                <span>{{ $entity['label'] }}</span>
-                            </label>
-                            <select class="rounded-xl px-3 py-2 text-sm" data-source-mode="{{ $entity['key'] }}">
-                                <option value="single">{{ __('print_templates.templates.form.source_modes.single') }}</option>
-                                <option value="multiple">{{ __('print_templates.templates.form.source_modes.multiple') }}</option>
-                            </select>
-                        </div>
-                    @endforeach
+                <div class="mt-3 grid gap-3">
+                    <div class="admin-form-field">
+                        <label for="print-template-data-source">{{ __('print_templates.templates.form.sections.data_sources') }}</label>
+                        <select id="print-template-data-source" data-source-picker>
+                            @foreach ($entityOptions as $entity)
+                                <option value="{{ $entity['key'] }}">{{ $entity['label'] }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <label class="admin-checkbox">
+                        <input type="checkbox" data-source-multiple-records>
+                        <span>{{ __('print_templates.templates.form.source_modes.multiple') }}</span>
+                    </label>
                 </div>
             </div>
         </div>

@@ -30,7 +30,7 @@ return [
         ],
         'tracking' => [
             'meta' => 'Rules',
-            'title' => 'Tracking',
+            'title' => 'Tracking & Points',
         ],
         'completion' => [
             'meta' => 'Course end',

@@ -1,11 +1,11 @@
 @php
 if (! isset($scrollTo)) {
-    $scrollTo = 'body';
+    $scrollTo = '.surface-table';
 }
 
 $scrollIntoViewJsSnippet = ($scrollTo !== false)
     ? <<<JS
-       (\$el.closest('{$scrollTo}') || document.querySelector('{$scrollTo}')).scrollIntoView()
+       (\$el.closest('{$scrollTo}') || \$el.closest('section')?.querySelector('{$scrollTo}') || \$el.closest('[data-pagination-container]') || \$el.closest('section') || document.querySelector('main'))?.scrollIntoView({ behavior: 'smooth', block: 'start' })
     JS
     : '';
 @endphp
@@ -107,6 +107,7 @@ $scrollIntoViewJsSnippet = ($scrollTo !== false)
                                             type="button"
                                             wire:click="gotoPage({{ $page }}, '{{ $paginator->getPageName() }}')"
                                             x-on:click="{{ $scrollIntoViewJsSnippet }}"
+                                            wire:loading.attr="disabled"
                                             class="app-pagination__page"
                                             aria-label="{{ __('pagination.go_to_page', ['page' => $page]) }}"
                                         >

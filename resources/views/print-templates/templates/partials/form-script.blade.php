@@ -121,11 +121,9 @@
         }
 
         function checkedSources() {
-            const checked = Array.from(document.querySelectorAll('[data-source-enabled]:checked'))
-                .map((checkbox) => checkbox.dataset.sourceEnabled)
-                .filter(Boolean);
+            const selected = document.querySelector('[data-source-picker]')?.value;
 
-            return checked.length ? [...new Set(checked)] : enabledSources();
+            return selected ? [selected] : enabledSources();
         }
 
         function groupsFor(type) {
@@ -200,33 +198,21 @@
         }
 
         function syncSourcesToControls() {
-            document.querySelectorAll('[data-source-enabled]').forEach((checkbox) => {
-                checkbox.checked = state.sources.some((source) => source.entity === checkbox.dataset.sourceEnabled);
-            });
+            const source = state.sources[0];
+            const picker = document.querySelector('[data-source-picker]');
+            const multiple = document.querySelector('[data-source-multiple-records]');
 
-            document.querySelectorAll('[data-source-mode]').forEach((select) => {
-                select.value = state.sources.find((source) => source.entity === select.dataset.sourceMode)?.mode || 'single';
-            });
+            if (picker && source?.entity) picker.value = source.entity;
+            if (multiple) multiple.checked = source?.mode === 'multiple';
         }
 
         function syncControlsToSources() {
-            state.sources = entities.map((entity) => {
-                if (!document.querySelector(`[data-source-enabled="${entity.key}"]`)?.checked) return null;
-
-                return {
-                    key: entity.key,
-                    entity: entity.key,
-                    mode: document.querySelector(`[data-source-mode="${entity.key}"]`)?.value || 'single',
-                };
-            }).filter(Boolean);
-
-            let repeatingSeen = false;
-            state.sources = state.sources.map((source) => {
-                if (source.mode !== 'multiple') return source;
-                if (repeatingSeen) return { ...source, mode: 'single' };
-                repeatingSeen = true;
-                return source;
-            });
+            const entity = document.querySelector('[data-source-picker]')?.value;
+            state.sources = entity ? [{
+                key: entity,
+                entity,
+                mode: document.querySelector('[data-source-multiple-records]')?.checked ? 'multiple' : 'single',
+            }] : [];
 
             ensureElementBindings();
             syncSourcesToControls();
@@ -538,6 +524,7 @@
                         <div class="admin-action-cluster admin-action-cluster--end p-2">
                             <button type="button" class="pill-link pill-link--compact" data-layer-move="up" data-layer-id="${h(element.id)}">${h(labels.buttons.move_up)}</button>
                             <button type="button" class="pill-link pill-link--compact" data-layer-move="down" data-layer-id="${h(element.id)}">${h(labels.buttons.move_down)}</button>
+                            <button type="button" class="pill-link pill-link--compact" data-layer-duplicate="${h(element.id)}">${h(labels.buttons.duplicate)}</button>
                             <button type="button" class="pill-link pill-link--compact pill-link--danger" data-layer-remove="${h(element.id)}">${h(labels.buttons.remove)}</button>
                         </div>
                     </div>
@@ -702,9 +689,42 @@
             renderAll();
         }
 
+        function duplicateElement(elementId) {
+            const source = state.elements.find((element) => element.id === elementId);
+            if (!source) return;
+
+            const sourceFile = source.type === 'static_image' ? staticImageInput(source.id)?.files?.[0] : null;
+            const duplicate = typeof structuredClone === 'function'
+                ? structuredClone(source)
+                : JSON.parse(JSON.stringify(source));
+            duplicate.id = id();
+            duplicate.z_index = Math.max(0, ...state.elements.map((element) => Number(element.z_index || 0))) + 1;
+            duplicate.x = Number(source.x || 0) + 3;
+            duplicate.y = Number(source.y || 0) + 3;
+            fitElementToStage(duplicate);
+
+            if (duplicate.x === Number(source.x || 0) && duplicate.y === Number(source.y || 0)) {
+                duplicate.x = Math.max(Number(source.x || 0) - 3, 0);
+                duplicate.y = Math.max(Number(source.y || 0) - 3, 0);
+            }
+
+            state.elements.push(duplicate);
+            state.selectedId = duplicate.id;
+            renderAll();
+
+            if (sourceFile && typeof DataTransfer !== 'undefined') {
+                const transfer = new DataTransfer();
+                transfer.items.add(sourceFile);
+                const duplicateInput = staticImageInput(duplicate.id);
+                if (duplicateInput) duplicateInput.files = transfer.files;
+                setStaticImagePreview(duplicate.id, sourceFile);
+                renderAll();
+            }
+        }
+
         document.querySelectorAll('[data-print-template-add]').forEach((button) => button.addEventListener('click', () => addElement(button.dataset.printTemplateAdd)));
 
-        document.querySelectorAll('[data-source-enabled], [data-source-mode]').forEach((control) => {
+        document.querySelectorAll('[data-source-picker], [data-source-multiple-records]').forEach((control) => {
             control.addEventListener('change', () => {
                 syncControlsToSources();
                 renderAll();
@@ -735,6 +755,7 @@
             const select = event.target.closest('[data-layer-select]');
             const remove = event.target.closest('[data-layer-remove]');
             const move = event.target.closest('[data-layer-move]');
+            const duplicate = event.target.closest('[data-layer-duplicate]');
 
             if (select) {
                 state.selectedId = select.dataset.layerSelect;
@@ -745,6 +766,11 @@
                 if (state.selectedId === remove.dataset.layerRemove) {
                     state.selectedId = state.elements[0]?.id || null;
                 }
+            }
+
+            if (duplicate) {
+                duplicateElement(duplicate.dataset.layerDuplicate);
+                return;
             }
 
             if (move) {

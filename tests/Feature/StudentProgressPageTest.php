@@ -81,6 +81,29 @@ class StudentProgressPageTest extends TestCase
             ->assertForbidden();
     }
 
+    public function test_progress_labels_external_memorization_and_shows_student_phone(): void
+    {
+        $this->seed(RoleSeeder::class);
+        [$parentUser, $student] = $this->makeScopedProgressData();
+        $juz = QuranJuz::query()->firstOrFail();
+        $student->externalMemorizedJuzs()->sync([$juz->id]);
+        $studentUser = User::factory()->create(['phone' => '0999888777']);
+        $student->update(['user_id' => $studentUser->id]);
+        $this->actingAs($parentUser);
+
+        app()->setLocale('en');
+        $this->get(route('students.progress', $student, absolute: false))
+            ->assertOk()
+            ->assertSeeText('Old memorisation')
+            ->assertSeeText('Student phone')
+            ->assertSeeText('+963 999 888 777');
+
+        app()->setLocale('ar');
+        $this->get(route('students.progress', $student, absolute: false))
+            ->assertOk()
+            ->assertSeeText('حفظ قديم');
+    }
+
     public function test_student_progress_limits_highlights_to_default_course_but_keeps_history_general(): void
     {
         $this->seed(RoleSeeder::class);
@@ -268,12 +291,32 @@ class StudentProgressPageTest extends TestCase
         $finalTest->update(['status' => 'passed', 'passed_on' => '2026-09-16']);
         $finalTest->attempts()->firstOrFail()->update(['status' => 'passed']);
 
+        $currentCourse = Course::create([
+            'name' => 'Current Awqaf Course',
+            'is_active' => true,
+        ]);
+        $currentGroup = Group::create([
+            'course_id' => $currentCourse->id,
+            'academic_year_id' => $enrollment->group->academic_year_id,
+            'teacher_id' => $teacher->id,
+            'name' => 'Current Awqaf Group',
+            'capacity' => 12,
+            'is_active' => true,
+        ]);
+        $currentEnrollment = Enrollment::create([
+            'student_id' => $student->id,
+            'group_id' => $currentGroup->id,
+            'enrolled_at' => '2026-09-16',
+            'status' => 'active',
+        ]);
+        $enrollment->update(['status' => 'completed', 'left_at' => '2026-09-15']);
+
         $component
             ->call('$refresh')
             ->assertViewHas('quranJuzProgress', fn ($rows) => $rows->first()?->status === 'finished')
             ->assertDontSeeText(__('workflow.student_progress.juz_progress.show_missing'))
             ->assertSeeText(__('workflow.student_progress.juz_progress.add_awqaf_test'))
-            ->call('openAwqafTest', $enrollment->id, $juz->id)
+            ->call('openAwqafTest', $juz->id)
             ->assertSet('showAwqafTestModal', true)
             ->set('awqafTestedOn', '2026-09-16')
             ->set('awqafScore', '60')
@@ -282,7 +325,7 @@ class StudentProgressPageTest extends TestCase
             ->assertHasNoErrors()
             ->assertSet('showAwqafTestModal', false)
             ->assertSeeText(__('workflow.student_progress.juz_progress.add_awqaf_test'))
-            ->call('openAwqafTest', $enrollment->id, $juz->id)
+            ->call('openAwqafTest', $juz->id)
             ->set('awqafTestedOn', '2026-09-17')
             ->set('awqafScore', '88')
             ->set('awqafStatus', 'passed')
@@ -291,7 +334,7 @@ class StudentProgressPageTest extends TestCase
             ->assertDontSeeText(__('workflow.student_progress.juz_progress.add_awqaf_test'));
 
         $this->assertDatabaseHas('quran_tests', [
-            'enrollment_id' => $enrollment->id,
+            'enrollment_id' => $currentEnrollment->id,
             'juz_id' => $juz->id,
             'score' => 88,
             'status' => 'passed',

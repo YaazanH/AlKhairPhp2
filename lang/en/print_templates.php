@@ -18,6 +18,7 @@ return [
     ],
     'fields' => [
         'special_note' => 'Special note',
+        'student_name' => 'Student name',
         'full_name' => 'Full name',
         'first_name' => 'First name',
         'last_name' => 'Last name',
@@ -131,6 +132,7 @@ return [
                 'width_mm' => 'Width (mm)',
                 'height_mm' => 'Height (mm)',
                 'paper_size' => 'Printing paper',
+                'paper_settings' => 'Paper settings',
                 'orientation' => 'Orientation',
                 'margin_top' => 'Top margin',
                 'margin_right' => 'Right margin',
@@ -170,6 +172,7 @@ return [
                 'add_shape' => 'Add shape',
                 'move_up' => 'Up',
                 'move_down' => 'Down',
+                'duplicate' => 'Duplicate',
                 'remove' => 'Remove',
                 'save' => 'Save template',
                 'update' => 'Update template',
@@ -238,6 +241,7 @@ return [
                 'left' => 'Left',
                 'center' => 'Center',
                 'right' => 'Right',
+                'justify' => 'Justified',
             ],
             'date_modes' => [
                 'today' => 'Today',

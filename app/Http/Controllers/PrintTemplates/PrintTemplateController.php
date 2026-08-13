@@ -10,11 +10,11 @@ use App\Services\PrintTemplates\PrintTemplateLayoutService;
 use App\Services\PrintTemplates\PrintTemplateRenderService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
-use Illuminate\Validation\ValidationException;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class PrintTemplateController extends Controller
@@ -24,8 +24,7 @@ class PrintTemplateController extends Controller
         protected PrintTemplateRenderService $renderService,
         protected PrintTemplateFieldRegistry $fieldRegistry,
         protected PrintTemplateDataSourceService $dataSourceService,
-    ) {
-    }
+    ) {}
 
     public function index(): View
     {
@@ -52,7 +51,7 @@ class PrintTemplateController extends Controller
             'rounded_corners' => false,
             'data_sources' => $courseReport
                 ? [['key' => 'course_student', 'entity' => 'course_student', 'mode' => 'multiple']]
-                : [['key' => 'student', 'entity' => 'student', 'mode' => 'multiple']],
+                : [['key' => 'student', 'entity' => 'student', 'mode' => request()->boolean('student_card') ? 'multiple' : 'single']],
             'layout_json' => $this->defaultLayout(),
             'is_active' => true,
             'is_student_card' => request()->boolean('student_card'),
@@ -64,7 +63,7 @@ class PrintTemplateController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
-        $template = new PrintTemplate();
+        $template = new PrintTemplate;
         $template->fill($this->validatedPayload($request, $template));
         $template->save();
 

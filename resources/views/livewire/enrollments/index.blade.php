@@ -57,7 +57,8 @@ new class extends Component {
                     $builder
                         ->whereHas('student', fn ($studentQuery) => $studentQuery
                             ->where('first_name', 'like', '%'.$this->search.'%')
-                            ->orWhere('last_name', 'like', '%'.$this->search.'%'))
+                            ->orWhere('last_name', 'like', '%'.$this->search.'%')
+                            ->orWhere('student_number', 'like', '%'.$this->search.'%'))
                         ->orWhereHas('group', fn ($groupQuery) => $groupQuery
                             ->where('name', 'like', '%'.$this->search.'%')
                             ->orWhereHas('course', fn ($courseQuery) => $courseQuery->where('name', 'like', '%'.$this->search.'%')));
@@ -149,6 +150,11 @@ new class extends Component {
 
     public function rules(): array
     {
+        if (! $this->editingId) {
+            $this->enrolled_at = now()->toDateString();
+            $this->status = 'active';
+        }
+
         return [
             'student_id' => ['required', 'exists:students,id'],
             'group_id' => ['required', 'exists:groups,id'],
@@ -221,6 +227,8 @@ new class extends Component {
         if ($this->editingId) {
             $validated['left_at'] = $validated['left_at'] ?: null;
         } else {
+            $validated['enrolled_at'] = now()->toDateString();
+            $validated['status'] = 'active';
             $validated['left_at'] = null;
             $validated['notes'] = null;
         }
@@ -252,7 +260,7 @@ new class extends Component {
         $this->editingId = null;
         $this->student_id = null;
         $this->group_id = $preservedGroupId;
-        $this->enrolled_at = '';
+        $this->enrolled_at = now()->toDateString();
         $this->status = 'active';
         $this->left_at = '';
         $this->notes = '';
@@ -285,7 +293,7 @@ new class extends Component {
         $this->editingId = null;
         $this->student_id = null;
         $this->group_id = null;
-        $this->enrolled_at = '';
+        $this->enrolled_at = now()->toDateString();
         $this->status = 'active';
         $this->left_at = '';
         $this->notes = '';
@@ -572,6 +580,25 @@ new class extends Component {
     >
         <form wire:submit="save" class="space-y-4">
             <div>
+                <label for="enrollment-student" class="mb-1 block text-sm font-medium">{{ __('crud.enrollments.form.fields.student') }}</label>
+                <select id="enrollment-student" wire:model="student_id" class="w-full rounded-xl px-4 py-3 text-sm">
+                    <option value="">{{ __('crud.enrollments.form.placeholders.select_student') }}</option>
+                    @foreach ($students as $student)
+                        <option
+                            value="{{ $student->id }}"
+                            data-search="{{ trim(implode(' ', array_filter([$student->student_number, $student->first_name, $student->last_name]))) }}"
+                        >{{ $student->first_name }} {{ $student->last_name }}</option>
+                    @endforeach
+                </select>
+                @if ($group_id && $students->isEmpty())
+                    <div class="mt-1 text-sm text-neutral-400">{{ __('crud.enrollments.form.no_available_students') }}</div>
+                @endif
+                @error('student_id')
+                    <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
+                @enderror
+            </div>
+
+            <div>
                 <label for="enrollment-group" class="mb-1 block text-sm font-medium">{{ __('crud.enrollments.form.fields.group') }}</label>
                 <select id="enrollment-group" wire:model.live="group_id" class="w-full rounded-xl px-4 py-3 text-sm">
                     <option value="">{{ __('crud.enrollments.form.placeholders.select_group') }}</option>
@@ -584,25 +611,7 @@ new class extends Component {
                 @enderror
             </div>
 
-            <div>
-                <label for="enrollment-student" class="mb-1 block text-sm font-medium">{{ __('crud.enrollments.form.fields.student') }}</label>
-                <select id="enrollment-student" wire:model="student_id" class="w-full rounded-xl px-4 py-3 text-sm">
-                    <option value="">{{ __('crud.enrollments.form.placeholders.select_student') }}</option>
-                    @foreach ($students as $student)
-                        <option
-                            value="{{ $student->id }}"
-                            data-search="{{ trim(implode(' ', array_filter([$student->student_number, $student->parentProfile?->father_name, $student->first_name, $student->last_name]))) }}"
-                        >{{ $student->first_name }} {{ $student->last_name }}</option>
-                    @endforeach
-                </select>
-                @if ($group_id && $students->isEmpty())
-                    <div class="mt-1 text-sm text-neutral-400">{{ __('crud.enrollments.form.no_available_students') }}</div>
-                @endif
-                @error('student_id')
-                    <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
-                @enderror
-            </div>
-
+            @if ($editingId)
             <div class="grid gap-4 md:grid-cols-2">
                 <div>
                     <label for="enrollment-date" class="mb-1 block text-sm font-medium">{{ __('crud.enrollments.form.fields.enrolled_at') }}</label>
@@ -625,7 +634,6 @@ new class extends Component {
                 </div>
             </div>
 
-            @if ($editingId)
                 <div>
                     <label for="enrollment-notes" class="mb-1 block text-sm font-medium">{{ __('crud.enrollments.form.fields.notes') }}</label>
                     <textarea id="enrollment-notes" wire:model="notes" rows="4" class="w-full rounded-xl px-4 py-3 text-sm"></textarea>

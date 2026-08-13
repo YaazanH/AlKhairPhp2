@@ -70,6 +70,7 @@ new class extends Component {
             'cashBoxes' => app(FinanceService::class)->accessibleCashBoxesForCurrency(auth()->user(), $this->currency_id)->get(),
             'cashBoxesByCurrency' => FinanceCurrency::query()
                 ->where('is_active', true)
+                ->where('show_in_dropdowns', true)
                 ->pluck('id')
                 ->mapWithKeys(fn ($currencyId) => [(int) $currencyId => app(FinanceService::class)->accessibleCashBoxesForCurrency(auth()->user(), (int) $currencyId)->get()])
                 ->all(),
@@ -587,9 +588,6 @@ new class extends Component {
                         @if ($request?->status === 'accepted')<button wire:click="openFinaliseModal({{ $request->id }})" class="pill-link pill-link--compact pill-link--accent">{{ __('finance.actions.finalise') }}</button>@endif
                         @if ($request?->invoice)
                             <button wire:click="$set('viewingInvoiceId', {{ $request->invoice->id }})" class="pill-link pill-link--compact">{{ __('finance.actions.view_invoice') }}</button>
-                            @can('finance.expense-requests.review')
-                                <button wire:click="editInvoice({{ $request->invoice->id }})" class="pill-link pill-link--compact">{{ __('finance.actions.edit_invoice') }}</button>
-                            @endcan
                         @endif
                     </div></td>
                 </tr>

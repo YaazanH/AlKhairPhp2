@@ -30,7 +30,7 @@ return [
         ],
         'tracking' => [
             'meta' => 'القواعد',
-            'title' => 'التتبع',
+            'title' => 'التتبع والنقاط',
         ],
         'completion' => [
             'meta' => 'نهاية الدورة',

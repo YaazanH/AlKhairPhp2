@@ -2044,6 +2044,18 @@ html:not(.dark) .admin-modal__title {
     padding: 1.5rem;
 }
 
+.admin-modal__dialog--compact .admin-modal__header {
+    padding: 1rem 1.25rem 0.8rem;
+}
+
+.admin-modal__dialog--compact .admin-modal__title {
+    font-size: 1.45rem;
+}
+
+.admin-modal__dialog--compact .admin-modal__body {
+    padding: 1rem 1.25rem 1.25rem;
+}
+
 .admin-modal__dialog:has(.searchable-select--open) {
     overflow: visible;
 }

@@ -46,6 +46,10 @@ new class extends Component
 
     public $profile_photo_upload = null;
 
+    public string $finance_signature_url = '';
+
+    public $finance_signature_upload = null;
+
     public bool $is_active = true;
 
     public array $roles = [];
@@ -142,6 +146,7 @@ new class extends Component
             'phone' => ['nullable', 'string', 'max:255', Rule::unique('users', 'phone')->ignore($this->editingId)],
             'password' => ['nullable', 'string', 'min:8'],
             'profile_photo_upload' => ['nullable', 'image', 'max:2048'],
+            'finance_signature_upload' => ['nullable', 'file', 'mimes:png', 'max:4096'],
             'is_active' => ['boolean'],
             'roles' => ['required', 'array', 'min:1'],
             'roles.*' => ['string', Rule::exists('roles', 'name')],
@@ -207,6 +212,9 @@ new class extends Component
 
         $user->syncRoles($validated['roles']);
         $user->syncPermissions($validated['direct_permissions'] ?? []);
+        if ($this->finance_signature_upload && $this->hasFullFinancialAccess($user)) {
+            $user->storeFinanceSignatureUpload($this->finance_signature_upload);
+        }
         app(AccessScopeService::class)->syncUserOverrides($user, [
             'group' => $validated['scope_groups'] ?? [],
             'parent' => $validated['scope_parents'] ?? [],
@@ -241,6 +249,8 @@ new class extends Component
         $this->profile_photo_path = $user->profilePhotoPath() ?? '';
         $this->profile_photo_url = $user->profilePhotoUrl() ?? '';
         $this->profile_photo_upload = null;
+        $this->finance_signature_url = $user->financeSignatureUrl() ?? '';
+        $this->finance_signature_upload = null;
         $this->is_active = $user->is_active;
         $this->roles = $user->getRoleNames()->values()->all();
         $this->direct_permissions = $user->getDirectPermissions()->pluck('name')->values()->all();
@@ -264,6 +274,8 @@ new class extends Component
         $this->profile_photo_path = '';
         $this->profile_photo_url = '';
         $this->profile_photo_upload = null;
+        $this->finance_signature_url = '';
+        $this->finance_signature_upload = null;
         $this->is_active = true;
         $this->roles = [];
         $this->direct_permissions = [];
@@ -328,6 +340,29 @@ new class extends Component
         return is_array($labels) && isset($labels[$group])
             ? $labels[$group]
             : Str::of($group)->replace('-', ' ')->headline()->toString();
+    }
+
+    public function editingUserHasFullFinancialAccess(): bool
+    {
+        if (! $this->editingId) {
+            return false;
+        }
+
+        $permissionNames = collect($this->direct_permissions)->merge(
+            Role::query()
+                ->whereIn('name', $this->roles)
+                ->with('permissions:id,name')
+                ->get()
+                ->flatMap(fn (Role $role) => $role->permissions->pluck('name'))
+        );
+
+        return $permissionNames->contains('finance.entries.update')
+            && $permissionNames->contains('finance.reports.export');
+    }
+
+    protected function hasFullFinancialAccess(User $user): bool
+    {
+        return $user->can('finance.entries.update') && $user->can('finance.reports.export');
     }
 
     protected function permissionLabel(string $permissionName): string
@@ -604,6 +639,28 @@ new class extends Component
                     <input wire:model="is_active" type="checkbox" class="rounded">
                     <span>{{ __('access.users.fields.is_active') }}</span>
                 </label>
+
+                @if ($editingId && $this->editingUserHasFullFinancialAccess())
+                    <div class="mt-4 rounded-3xl border border-emerald-400/20 bg-emerald-500/10 p-4">
+                        <div class="grid gap-4 md:grid-cols-[minmax(0,14rem)_minmax(0,1fr)] md:items-center">
+                            <div class="grid min-h-24 place-items-center rounded-2xl bg-white p-3">
+                                @if ($finance_signature_upload)
+                                    <img src="{{ $finance_signature_upload->temporaryUrl() }}" alt="" class="max-h-20 max-w-full object-contain">
+                                @elseif ($finance_signature_url)
+                                    <img src="{{ $finance_signature_url }}" alt="" class="max-h-20 max-w-full object-contain">
+                                @else
+                                    <span class="text-xs text-neutral-500">{{ __('access.users.help.finance_signature_empty') }}</span>
+                                @endif
+                            </div>
+                            <div>
+                                <label class="mb-1 block text-sm font-semibold text-white">{{ __('access.users.fields.finance_signature') }}</label>
+                                <input wire:model="finance_signature_upload" type="file" accept="image/png" class="block w-full text-sm text-neutral-300">
+                                <p class="mt-2 text-xs leading-5 text-neutral-400">{{ __('access.users.help.finance_signature') }}</p>
+                                @error('finance_signature_upload')<div class="mt-1 text-sm text-red-400">{{ $message }}</div>@enderror
+                            </div>
+                        </div>
+                    </div>
+                @endif
             </section>
 
             <section class="admin-section-card">
@@ -618,7 +675,7 @@ new class extends Component
                     <div class="mt-3 grid gap-3 md:grid-cols-2">
                         @foreach ($availableRoles as $availableRole)
                             <label class="flex items-center gap-3 rounded-2xl border border-white/8 px-3 py-3 text-sm text-neutral-200">
-                                <input wire:model="roles" type="checkbox" value="{{ $availableRole->name }}" class="rounded">
+                                <input wire:model.live="roles" type="checkbox" value="{{ $availableRole->name }}" class="rounded">
                                 <span><x-admin.role-label :name="$availableRole->name" /></span>
                             </label>
                         @endforeach
@@ -628,10 +685,18 @@ new class extends Component
                     @enderror
                 </div>
 
-                <div class="rounded-3xl border border-white/10 bg-white/5 p-4">
-                    <div class="text-sm font-semibold text-white">{{ __('access.users.fields.permissions') }}</div>
-                    <div class="mt-2 text-sm text-neutral-400">{{ __('access.users.help.permissions') }}</div>
-                    <div class="mt-4 space-y-4">
+                <details
+                    class="admin-collapsible rounded-3xl border border-white/10 bg-white/5"
+                    data-user-direct-permissions
+                    @if ($errors->has('direct_permissions') || $errors->has('direct_permissions.*')) open @endif
+                >
+                    <summary class="admin-collapsible__summary">
+                        <span>{{ __('access.users.fields.permissions') }}</span>
+                        <span class="admin-collapsible__count">{{ count($direct_permissions) }}/{{ $permissionGroups->flatten(1)->count() }}</span>
+                    </summary>
+                    <div>
+                        <div class="text-sm text-neutral-400">{{ __('access.users.help.permissions') }}</div>
+                        <div class="mt-4 space-y-4">
                         @foreach ($permissionGroups as $group => $permissions)
                             @php
                                 $selectedPermissionCount = $permissions->pluck('name')->intersect($direct_permissions)->count();
@@ -644,28 +709,35 @@ new class extends Component
                                 <div class="mt-3 grid gap-3 md:grid-cols-2">
                                     @foreach ($permissions as $permission)
                                         <label class="flex items-start gap-3 text-sm text-neutral-200">
-                                            <input wire:model="direct_permissions" type="checkbox" value="{{ $permission->name }}" class="mt-0.5 rounded">
+                                            <input wire:model.live="direct_permissions" type="checkbox" value="{{ $permission->name }}" class="mt-0.5 rounded">
                                             <span>{{ $this->permissionLabel($permission->name) }}</span>
                                         </label>
                                     @endforeach
                                 </div>
                             </details>
                         @endforeach
+                        </div>
                     </div>
-                </div>
+                </details>
             </section>
 
             <section class="admin-section-card">
-                <div class="admin-section-card__header">
-                    <div class="admin-section-card__title">{{ __('access.users.sections.scope') }}</div>
-                    <p class="admin-section-card__copy">{{ __('access.users.help.scope') }}</p>
-                </div>
+                <details
+                    class="admin-collapsible"
+                    data-user-scope-overrides
+                    @if ($errors->has('scope_groups') || $errors->has('scope_students') || $errors->has('scope_teachers') || $errors->has('scope_parents')) open @endif
+                >
+                    <summary class="admin-collapsible__summary">
+                        <span>{{ __('access.users.sections.scope') }}</span>
+                        <span class="admin-collapsible__count">
+                            {{ count($scope_groups) + count($scope_students) + count($scope_teachers) + count($scope_parents) }}/{{ $availableScopeGroups->count() + $availableScopeStudents->count() + $availableScopeTeachers->count() + $availableScopeParents->count() }}
+                        </span>
+                    </summary>
+                    <div>
+                        <p class="text-sm text-neutral-400">{{ __('access.users.help.scope') }}</p>
+                        <p class="mt-2 text-sm text-neutral-400">{{ __('access.users.scopes.help') }}</p>
 
-                <div class="rounded-3xl border border-white/10 bg-white/5 p-4">
-                    <div class="text-sm font-semibold text-white">{{ __('access.users.scopes.title') }}</div>
-                    <p class="mt-2 text-sm text-neutral-400">{{ __('access.users.scopes.help') }}</p>
-
-                    <div class="mt-4 space-y-4">
+                        <div class="mt-4 space-y-4">
                         <details class="admin-collapsible">
                             <summary class="admin-collapsible__summary">
                                 <span>{{ __('access.users.scopes.groups') }}</span>
@@ -733,8 +805,9 @@ new class extends Component
                                 @endforelse
                             </div>
                         </details>
+                        </div>
                     </div>
-                </div>
+                </details>
             </section>
 
             <div class="flex flex-wrap gap-3">

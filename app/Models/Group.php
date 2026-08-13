@@ -84,6 +84,11 @@ class Group extends Model
         return $this->hasMany(GroupCurriculumLessonProgress::class);
     }
 
+    public function curriculumTopicProgresses(): HasMany
+    {
+        return $this->hasMany(GroupCurriculumTopicProgress::class);
+    }
+
     public function customCurriculumLessons(): HasMany
     {
         return $this->hasMany(GroupCustomCurriculumLesson::class);

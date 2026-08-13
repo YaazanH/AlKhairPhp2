@@ -156,6 +156,20 @@
         font-size: 20px;
         margin-top: 4px;
     }
+    .ledger-report-doc__authorization {
+        align-items: end;
+        direction: ltr;
+        display: grid;
+        gap: 24px;
+        grid-template-columns: 1fr 1fr;
+        margin-top: 22px;
+    }
+    .ledger-report-doc__stamp { text-align: left; }
+    .ledger-report-doc__stamp img { max-height: 100px; max-width: 140px; object-fit: contain; }
+    .ledger-report-doc__signature { text-align: center; }
+    .ledger-report-doc__signature img { display: block; margin: 0 auto 4px; max-height: 70px; max-width: 70%; object-fit: contain; }
+    .ledger-report-doc__signature-line { border-top: 1px solid #315b3b; }
+    .ledger-report-doc__signature-name { color: #637365; display: block; margin-top: 6px; }
     .ledger-report-doc__custom-text {
         background: rgba(255, 255, 255, 0.78);
         border: 1px dashed #dce6db;
@@ -339,6 +353,11 @@
                 <div class="ledger-report-doc__summary-card"><span class="ledger-report-doc__meta-label">{{ $service->bilingual('Income', 'الإيرادات', $language) }}</span><strong>{{ data_get($report, 'formatted.income') }}</strong></div>
                 <div class="ledger-report-doc__summary-card"><span class="ledger-report-doc__meta-label">{{ $service->bilingual('Expense', 'المصاريف', $language) }}</span><strong>{{ data_get($report, 'formatted.expense') }}</strong></div>
                 @if ($template['include_closing_balance'] ?? false)<div class="ledger-report-doc__summary-card"><span class="ledger-report-doc__meta-label">{{ $service->bilingual('Closing balance', 'الرصيد الختامي', $language) }}</span><strong>{{ data_get($report, 'formatted.closing_balance') }}</strong></div>@endif
+            </section>
+
+            <section class="ledger-report-doc__authorization">
+                <div class="ledger-report-doc__stamp">@if($report['report_stamp_url'] ?? null)<img src="{{ $report['report_stamp_url'] }}" alt="">@endif</div>
+                <div class="ledger-report-doc__signature">@if($report['issuer_signature_url'] ?? null)<img src="{{ $report['issuer_signature_url'] }}" alt="">@endif<div class="ledger-report-doc__signature-line"></div><span class="ledger-report-doc__signature-name">{{ $report['issuer_name'] ?: '-' }}</span></div>
             </section>
 
             @if (! empty($template['footer_text']) || ($template['show_page_numbers'] ?? false))

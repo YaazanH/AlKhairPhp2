@@ -8,12 +8,11 @@ use App\Models\Assessment;
 use App\Models\AssessmentResult;
 use App\Models\AssessmentType;
 use App\Models\AttendanceStatus;
-use App\Models\AwqafSubject;
 use App\Models\Course;
+use App\Models\Enrollment;
 use App\Models\GradeLevel;
 use App\Models\Group;
 use App\Models\GroupAttendanceDay;
-use App\Models\Enrollment;
 use App\Models\ParentProfile;
 use App\Models\PointTransaction;
 use App\Models\PointType;
@@ -129,39 +128,13 @@ class SystemSettingsTest extends TestCase
         $this->get(route('settings.sidebar-navigation'))->assertOk();
     }
 
-    public function test_manager_can_manage_awqaf_subjects_from_tracking_settings(): void
+    public function test_tracking_settings_hide_unused_awqaf_subject_management_and_include_points(): void
     {
         $this->signIn();
 
         Volt::test('settings.tracking')
-            ->set('awqaf_subject_name', 'Hadith Basics')
-            ->set('awqaf_subject_code', 'hadith-basics')
-            ->set('awqaf_subject_sort_order', '5')
-            ->call('saveAwqafSubject')
-            ->assertHasNoErrors();
-
-        $subject = AwqafSubject::query()->firstOrFail();
-
-        $this->assertDatabaseHas('awqaf_subjects', [
-            'id' => $subject->id,
-            'code' => 'hadith-basics',
-            'name' => 'Hadith Basics',
-            'sort_order' => 5,
-            'is_active' => true,
-        ]);
-
-        Volt::test('settings.tracking')
-            ->call('editAwqafSubject', $subject->id)
-            ->set('awqaf_subject_name', 'Hadith Advanced')
-            ->set('awqaf_subject_is_active', false)
-            ->call('saveAwqafSubject')
-            ->assertHasNoErrors();
-
-        $this->assertDatabaseHas('awqaf_subjects', [
-            'id' => $subject->id,
-            'name' => 'Hadith Advanced',
-            'is_active' => false,
-        ]);
+            ->assertDontSee(__('settings.tracking.sections.awqaf_subject.table'))
+            ->assertSee(__('settings.points.title'));
     }
 
     public function test_manager_can_manage_organization_settings(): void
@@ -745,7 +718,7 @@ class SystemSettingsTest extends TestCase
             ->call('savePointType')
             ->assertHasNoErrors();
 
-        $pointType = \App\Models\PointType::query()->where('code', 'behavior-bonus')->firstOrFail();
+        $pointType = PointType::query()->where('code', 'behavior-bonus')->firstOrFail();
 
         Volt::test('settings.points')
             ->set('point_policy_point_type_id', $pointType->id)

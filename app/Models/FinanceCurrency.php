@@ -20,6 +20,7 @@ class FinanceCurrency extends Model
         'rate_to_base',
         'rate_reference_currency_id',
         'is_active',
+        'show_in_dropdowns',
         'is_local',
         'is_base',
         'rate_updated_by',
@@ -30,6 +31,7 @@ class FinanceCurrency extends Model
     {
         return [
             'is_active' => 'boolean',
+            'show_in_dropdowns' => 'boolean',
             'is_local' => 'boolean',
             'is_base' => 'boolean',
             'decimal_places' => 'integer',

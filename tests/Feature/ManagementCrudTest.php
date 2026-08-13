@@ -659,6 +659,8 @@ class ManagementCrudTest extends TestCase
 
         $this->assertNull($enrollment->left_at);
         $this->assertNull($enrollment->notes);
+        $this->assertSame(now()->toDateString(), $enrollment->enrolled_at?->toDateString());
+        $this->assertSame('active', $enrollment->status);
     }
 
     public function test_group_create_modal_defaults_to_current_year_and_create_and_new_preserves_course(): void
@@ -1066,6 +1068,89 @@ class ManagementCrudTest extends TestCase
             ->set('search', 'اياد احمد')
             ->assertSee('إياد أحمد')
             ->assertDontSee('إياد سليم');
+    }
+
+    public function test_student_search_uses_only_name_or_student_number(): void
+    {
+        $this->signIn();
+
+        $parent = ParentProfile::create([
+            'father_name' => 'Unique Parent Lookup',
+            'is_active' => true,
+        ]);
+
+        $student = Student::create([
+            'parent_id' => $parent->id,
+            'first_name' => 'Numbered',
+            'last_name' => 'Student',
+            'student_number' => 'ST-90817',
+            'school_name' => 'Unique School Lookup',
+            'birth_date' => '2013-01-01',
+            'status' => 'active',
+        ]);
+
+        Volt::test('students.index')
+            ->set('search', $student->fresh()->student_number)
+            ->assertSee('Numbered Student');
+
+        Volt::test('students.index')
+            ->set('search', 'Unique Parent Lookup')
+            ->assertDontSee('Numbered Student');
+
+        Volt::test('students.index')
+            ->set('search', 'Unique School Lookup')
+            ->assertDontSee('Numbered Student');
+    }
+
+    public function test_creating_a_student_with_the_same_name_and_birth_year_updates_the_existing_record(): void
+    {
+        $this->signIn();
+
+        $oldParent = ParentProfile::create([
+            'father_name' => 'Old Parent',
+            'is_active' => true,
+        ]);
+
+        $existingStudent = Student::create([
+            'parent_id' => $oldParent->id,
+            'first_name' => 'Ahmad',
+            'last_name' => 'Same Student',
+            'birth_date' => '2014-08-20',
+            'school_name' => 'Old School',
+            'status' => 'active',
+            'notes' => 'Old notes',
+        ]);
+
+        $component = Volt::test('students.index')
+            ->call('openCreateModal')
+            ->set('first_name', 'Ahmad')
+            ->set('last_name', 'Same Student')
+            ->set('birth_date', '2014')
+            ->set('school_name', 'New School')
+            ->set('notes', 'Updated notes')
+            ->call('openQuickParentForm')
+            ->set('quick_parent_father_name', 'New Parent')
+            ->set('quick_parent_father_phone', '0944555010')
+            ->call('saveQuickParent')
+            ->assertHasNoErrors();
+
+        $newParent = ParentProfile::query()->where('father_name', 'New Parent')->firstOrFail();
+
+        $component
+            ->assertSet('parent_id', $newParent->id)
+            ->call('save')
+            ->assertHasNoErrors();
+
+        $this->assertSame(1, Student::query()->count());
+        $this->assertDatabaseHas('students', [
+            'id' => $existingStudent->id,
+            'parent_id' => $newParent->id,
+            'first_name' => 'Ahmad',
+            'last_name' => 'Same Student',
+            'school_name' => 'New School',
+            'notes' => 'Updated notes',
+        ]);
+        $this->assertSame('2014-01-01', $existingStudent->fresh()->birth_date?->format('Y-m-d'));
     }
 
     public function test_student_bulk_status_can_deactivate_current_course_students_and_sync_accounts(): void

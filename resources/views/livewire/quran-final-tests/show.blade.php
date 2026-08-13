@@ -8,6 +8,7 @@ use App\Models\QuranJuz;
 use App\Models\Teacher;
 use App\Services\QuranFinalTestRuleService;
 use App\Services\QuranFinalTestService;
+use App\Support\RoleRegistry;
 use Livewire\Volt\Component;
 use Illuminate\Validation\Rule;
 
@@ -189,10 +190,15 @@ new class extends Component {
             return collect();
         }
 
-        return Teacher::query()->with('user')->where(function ($query) {
-            $query->where('status', 'active')->orWhere('teachers.id', $this->teacher_id);
-        })->orderBy('first_name')->orderBy('last_name')->get()
-            ->filter(fn (Teacher $teacher) => $teacher->id === $this->teacher_id || $teacher->user?->can('quran-final-tests.record'))->values();
+        return Teacher::query()
+            ->with('user.roles')
+            ->where('status', 'active')
+            ->orderBy('first_name')
+            ->orderBy('last_name')
+            ->get()
+            ->filter(fn (Teacher $teacher): bool => $teacher->user?->can('quran-final-tests.record') === true
+                && ! $teacher->user->hasAnyRole(RoleRegistry::unrestrictedRoles()))
+            ->values();
     }
 
     protected function availableCurrentJuzs()

@@ -55,6 +55,7 @@ new class extends Component {
     public string $currency_rate_input = '1';
     public ?int $currency_rate_reference_currency_id = null;
     public bool $currency_is_active = true;
+    public bool $currency_show_in_dropdowns = true;
     public bool $currency_is_local = false;
     public bool $currency_is_base = false;
     public bool $showCurrencyModal = false;
@@ -230,6 +231,7 @@ new class extends Component {
         $this->currency_name = $currency->name;
         $this->currency_symbol = $currency->symbol ?? '';
         $this->currency_is_active = $currency->is_active;
+        $this->currency_show_in_dropdowns = $currency->show_in_dropdowns;
         $this->currency_is_local = $currency->is_local;
         $this->currency_is_base = $currency->is_base;
         $this->currency_rate_input = app(FinanceService::class)->currencyRateInput($currency);
@@ -411,6 +413,7 @@ new class extends Component {
             'currency_code' => ['required', 'string', 'max:10', Rule::unique('finance_currencies', 'code')->ignore($this->currency_editing_id)],
             'currency_decimal_places' => ['required', 'integer', 'min:0', 'max:6'],
             'currency_is_active' => ['boolean'],
+            'currency_show_in_dropdowns' => ['boolean'],
             'currency_is_base' => ['boolean'],
             'currency_is_local' => ['boolean'],
             'currency_name' => ['required', 'string', 'max:255'],
@@ -482,6 +485,7 @@ new class extends Component {
                 'code' => strtoupper($validated['currency_code']),
                 'decimal_places' => (int) $validated['currency_decimal_places'],
                 'is_active' => $validated['currency_is_active'],
+                'show_in_dropdowns' => $validated['currency_show_in_dropdowns'],
                 'is_base' => $validated['currency_is_base'],
                 'is_local' => $validated['currency_is_local'],
                 'name' => $validated['currency_name'],
@@ -844,6 +848,7 @@ new class extends Component {
         $this->currency_rate_input = '1';
         $this->currency_rate_reference_currency_id = app(FinanceService::class)->baseCurrency()->id;
         $this->currency_is_active = true;
+        $this->currency_show_in_dropdowns = true;
         $this->currency_is_local = false;
         $this->currency_is_base = false;
         $this->showCurrencyModal = false;
@@ -1207,7 +1212,7 @@ new class extends Component {
             </form>
             @php($maintainingInvoice = $maintaining_transaction_id ? \App\Models\FinanceTransaction::withTrashed()->with('financeRequest.invoice')->find($maintaining_transaction_id)?->financeRequest?->invoice : null)
             @if ($maintainingInvoice && auth()->user()?->can('invoices.view'))
-                <div class="mt-4 flex justify-end"><a href="{{ route('invoices.payments', $maintainingInvoice) }}" wire:navigate class="pill-link">{{ __('finance.actions.edit_invoice') }}</a></div>
+                <div class="mt-4 flex justify-end"><a href="{{ route('invoices.payments', ['invoice' => $maintainingInvoice, 'maintenance' => 1]) }}" wire:navigate class="pill-link">{{ __('finance.actions.edit_invoice') }}</a></div>
             @endif
             @unless ($maintaining_transaction_deleted)
                 @can('finance.entries.delete')
@@ -1277,6 +1282,7 @@ new class extends Component {
             @endunless
             <div class="grid gap-3 text-sm">
                 <label class="flex items-center gap-3"><input wire:model="currency_is_active" type="checkbox" class="rounded"> {{ __('finance.common.active') }}</label>
+                <label class="flex items-center gap-3"><input wire:model="currency_show_in_dropdowns" type="checkbox" class="rounded"> {{ app()->isLocale('ar') ? 'إظهار العملة في القوائم المنسدلة' : 'Show currency in dropdown menus' }}</label>
                 <label class="flex items-center gap-3"><input wire:model="currency_is_local" type="checkbox" class="rounded"> {{ __('finance.common.local_currency') }}</label>
                 <label class="flex items-center gap-3"><input wire:model.live="currency_is_base" type="checkbox" class="rounded"> {{ __('finance.common.base_currency') }}</label>
             </div>

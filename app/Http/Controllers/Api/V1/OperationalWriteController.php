@@ -452,7 +452,6 @@ class OperationalWriteController extends Controller
     public function storeQuranTest(Request $request, Enrollment $enrollment)
     {
         $this->authorizeAnyPermission($request, ['quran-awqaf-tests.record', 'quran-tests.record']);
-        $this->authorizeTeacherEnrollmentScope($request, $enrollment);
 
         $linkedTeacherId = $this->linkedTeacherIdForPermission($request, 'quran-awqaf-tests.record-linked-teacher')
             ?: $this->linkedTeacherIdForPermission($request, 'quran-tests.record-linked-teacher');
@@ -495,6 +494,12 @@ class OperationalWriteController extends Controller
                 'message' => __('workflow.quran_tests.errors.awqaf_only'),
             ], 422);
         }
+
+        $enrollment = Enrollment::query()
+            ->with(['group.teacher', 'student'])
+            ->currentActiveForStudent((int) $enrollment->student_id)
+            ->firstOrFail();
+        $this->authorizeTeacherEnrollmentScope($request, $enrollment);
 
         $progression = app(QuranProgressionService::class)->validate($enrollment, (int) $validated['juz_id'], $testType);
         $score = $validated['score'] ?? null;

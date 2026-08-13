@@ -5,11 +5,12 @@ namespace App\Models;
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use App\Support\AvatarDefaults;
 use App\Support\PhoneNumberFormatter;
+use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Casts\Attribute;
-use Illuminate\Database\Eloquent\Relations\HasOne;
-use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Facades\Storage;
@@ -19,7 +20,7 @@ use Spatie\Permission\Traits\HasRoles;
 
 class User extends Authenticatable // implements MustVerifyEmail
 {
-    /** @use HasFactory<\Database\Factories\UserFactory> */
+    /** @use HasFactory<UserFactory> */
     use HasApiTokens, HasFactory, HasRoles, Notifiable;
 
     /**
@@ -35,6 +36,7 @@ class User extends Authenticatable // implements MustVerifyEmail
         'password',
         'issued_password',
         'profile_photo_path',
+        'finance_signature_path',
         'is_active',
     ];
 
@@ -146,6 +148,32 @@ class User extends Authenticatable // implements MustVerifyEmail
         }
 
         return AvatarDefaults::url('user');
+    }
+
+    public function storeFinanceSignatureUpload(mixed $upload): string
+    {
+        if ($this->finance_signature_path) {
+            Storage::disk('public')->delete($this->finance_signature_path);
+        }
+
+        $path = $upload->store('users/signatures/'.$this->id, 'public');
+        $this->forceFill(['finance_signature_path' => $path])->save();
+
+        return $path;
+    }
+
+    public function financeSignatureUrl(): ?string
+    {
+        return $this->finance_signature_path
+            ? '/storage/'.ltrim($this->finance_signature_path, '/')
+            : null;
+    }
+
+    public function financeSignaturePdfSource(): ?string
+    {
+        return $this->finance_signature_path && Storage::disk('public')->exists($this->finance_signature_path)
+            ? Storage::disk('public')->path($this->finance_signature_path)
+            : null;
     }
 
     public function usesLinkedProfilePhoto(): bool

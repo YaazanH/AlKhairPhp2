@@ -19,6 +19,8 @@ return [
                 'starts_at' => 'Starts at',
                 'ends_at' => 'Ends at',
                 'room_name' => 'Room name',
+                'from' => 'From',
+                'to' => 'To',
             ],
             'active_flag' => 'Active schedule slot',
             'create_submit' => 'Create schedule',

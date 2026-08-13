@@ -252,6 +252,7 @@ function searchHintValue(select) {
 function closeSearchableSelect(wrapper) {
     wrapper.classList.remove('searchable-select--open');
     wrapper.querySelector('.searchable-select__panel')?.setAttribute('hidden', 'hidden');
+    wrapper.querySelector('.searchable-select__button')?.setAttribute('aria-expanded', 'false');
 }
 
 function closeOtherSearchableSelects(currentWrapper) {
@@ -309,9 +310,8 @@ function buildSearchableSelectOptions(select, list, query = '') {
 
         item.addEventListener('click', () => {
             select.value = option.value;
-            select.dispatchEvent(new Event('input', { bubbles: true }));
             select.dispatchEvent(new Event('change', { bubbles: true }));
-            select.searchableSelectSync?.();
+            select.searchableSelectSync?.(true);
             closeSearchableSelect(item.closest('.searchable-select'));
         });
 
@@ -404,7 +404,7 @@ function enhanceSearchableSelect(select) {
         }
 
         const nextOptionsSignature = Array.from(select.options)
-            .map((option) => `${option.value}\u0000${option.textContent}\u0000${option.disabled}\u0000${option.hidden}`)
+            .map((option) => `${option.value}\u0000${option.textContent}\u0000${option.dataset.search || ''}\u0000${option.disabled}\u0000${option.hidden}\u0000${option.selected}`)
             .join('\u0001');
 
         if (force || nextOptionsSignature !== optionsSignature) {

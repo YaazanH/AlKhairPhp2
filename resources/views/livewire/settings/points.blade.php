@@ -10,42 +10,69 @@ use App\Services\PointLedgerService;
 use Illuminate\Validation\Rule;
 use Livewire\Volt\Component;
 
-new class extends Component {
+new class extends Component
+{
     use AuthorizesPermissions;
     use SupportsCreateAndNew;
 
     protected array $hiddenPointTypeCategories = ['attendance', 'system'];
 
     public ?int $point_type_editing_id = null;
+
     public string $point_type_name = '';
+
     public string $point_type_code = '';
+
     public string $point_type_category = '';
+
     public string $point_type_default_points = '0';
+
     public bool $point_type_allow_manual_entry = true;
+
     public bool $point_type_allow_negative = true;
+
     public bool $point_type_is_active = true;
+
     public bool $showPointTypeModal = false;
 
     public ?int $point_policy_editing_id = null;
+
     public ?int $point_policy_point_type_id = null;
+
     public string $point_policy_name = '';
+
     public string $point_policy_rule_key = '';
+
     public string $point_policy_source_type = '';
+
     public string $point_policy_trigger_key = '';
+
     public ?int $point_policy_grade_level_id = null;
+
     public string $point_policy_from_value = '';
+
     public string $point_policy_to_value = '';
+
     public string $point_policy_points = '0';
+
     public string $point_policy_priority = '0';
+
     public string $point_policy_period_type = 'global';
+
     public string $point_policy_active_from = '';
+
     public string $point_policy_active_until = '';
+
     public bool $point_policy_is_active = true;
+
     public bool $showPointPolicyModal = false;
 
-    public function mount(): void
+    public bool $embedded = false;
+
+    public function mount(bool $embedded = false): void
     {
         $this->authorizePermission('settings.manage');
+        $this->embedded = $embedded;
     }
 
     public function deletePointPolicy(int $pointPolicyId): void
@@ -374,7 +401,8 @@ new class extends Component {
     }
 }; ?>
 
-<div class="page-stack settings-admin-page">
+<div class="{{ $embedded ? 'space-y-6' : 'page-stack settings-admin-page' }}">
+    @unless ($embedded)
     <section class="page-hero p-6 lg:p-8">
         <div class="eyebrow">{{ __('ui.nav.settings') }}</div>
         <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('settings.points.title') }}</h1>
@@ -382,6 +410,7 @@ new class extends Component {
     </section>
 
     <x-settings.admin-nav section="dashboard" current="settings.points" />
+    @endunless
 
     @if (session('status'))
         <div class="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">{{ session('status') }}</div>

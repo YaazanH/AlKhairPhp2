@@ -289,26 +289,7 @@ new class extends Component
                         ->whereRaw($normalizedFirstName.' like ?', [$normalizedSearch])
                         ->orWhereRaw($normalizedLastName.' like ?', [$normalizedSearch])
                         ->orWhereRaw($normalizedFullName.' like ?', [$normalizedSearch])
-                        ->orWhere('student_number', 'like', $rawSearch)
-                        ->orWhereHas('parentProfile', function (Builder $parentQuery) use ($normalizedSearch): void {
-                            $normalizedFatherName = $this->normalizedSqlExpression('coalesce(father_name, \'\')');
-                            $normalizedMotherName = $this->normalizedSqlExpression('coalesce(mother_name, \'\')');
-
-                            $parentQuery
-                                ->whereRaw($normalizedFatherName.' like ?', [$normalizedSearch])
-                                ->orWhereRaw($normalizedMotherName.' like ?', [$normalizedSearch]);
-                        });
-                })
-                ->orWhereHas('group', function (Builder $groupQuery) use ($normalizedSearch): void {
-                    $normalizedGroupName = $this->normalizedSqlExpression('coalesce(name, \'\')');
-
-                    $groupQuery
-                        ->whereRaw($normalizedGroupName.' like ?', [$normalizedSearch])
-                        ->orWhereHas('course', function (Builder $courseQuery) use ($normalizedSearch): void {
-                            $normalizedCourseName = $this->normalizedSqlExpression('coalesce(name, \'\')');
-
-                            $courseQuery->whereRaw($normalizedCourseName.' like ?', [$normalizedSearch]);
-                        });
+                        ->orWhere('student_number', 'like', $rawSearch);
                 });
         });
     }

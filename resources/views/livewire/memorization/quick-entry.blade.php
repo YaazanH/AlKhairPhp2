@@ -209,6 +209,7 @@ new class extends Component {
     {
         return Student::query()
             ->with(['parentProfile'])
+            ->where('status', 'active')
             ->whereHas('enrollments', fn (Builder $builder) => $this->quickEntryEnrollmentsQuery($builder)->where('status', 'active'));
     }
 
@@ -216,7 +217,7 @@ new class extends Component {
     {
         $query ??= Enrollment::query();
 
-        return $query;
+        return $query->whereHas('group.course', fn (Builder $courseQuery) => $courseQuery->where('is_active', true));
     }
 
     protected function findQuickEntryStudent(int $studentId): Student
@@ -347,7 +348,7 @@ new class extends Component {
                     @foreach ($studentOptions as $student)
                         <option
                             value="{{ $student->id }}"
-                            data-search="{{ trim(implode(' ', array_filter([$student->student_number, $student->parentProfile?->father_name, $student->first_name, $student->last_name]))) }}"
+                            data-search="{{ trim(implode(' ', array_filter([$student->student_number, $student->first_name, $student->last_name]))) }}"
                         >
                             {{ $student->first_name }} {{ $student->last_name }}
                             @if ($student->student_number)

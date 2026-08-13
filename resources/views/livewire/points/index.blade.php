@@ -607,7 +607,7 @@ new class extends Component {
                         @foreach ($studentOptions as $student)
                             <option
                                 value="{{ $student->id }}"
-                                data-search="{{ trim(implode(' ', array_filter([$student->student_number, $student->parentProfile?->father_name, $student->first_name, $student->last_name]))) }}"
+                                data-search="{{ trim(implode(' ', array_filter([$student->student_number, $student->first_name, $student->last_name]))) }}"
                             >
                                 {{ $student->first_name }} {{ $student->last_name }}
                                 @if ($student->parentProfile?->father_name)

@@ -19,6 +19,8 @@ return [
                 'starts_at' => 'يبدأ عند',
                 'ends_at' => 'ينتهي عند',
                 'room_name' => 'اسم القاعة',
+                'from' => 'من',
+                'to' => 'إلى',
             ],
             'active_flag' => 'موعد نشط',
             'create_submit' => 'إنشاء الموعد',

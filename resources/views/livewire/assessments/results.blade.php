@@ -545,7 +545,7 @@ new class extends Component {
                         @foreach ($quickEntryEnrollments as $enrollment)
                             <option
                                 value="{{ $enrollment->id }}"
-                                data-search="{{ trim(implode(' ', array_filter([$enrollment->student?->student_number, $enrollment->student?->first_name, $enrollment->student?->last_name, $enrollment->group?->name, $enrollment->group?->course?->name]))) }}"
+                                data-search="{{ trim(implode(' ', array_filter([$enrollment->student?->student_number, $enrollment->student?->first_name, $enrollment->student?->last_name]))) }}"
                             >
                                 {{ $enrollment->student?->full_name }}
                                 · {{ $enrollment->group?->name }}

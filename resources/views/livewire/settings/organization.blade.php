@@ -46,10 +46,12 @@ new class extends Component {
     public string $default_student_avatar_path = '';
     public string $default_teacher_avatar_path = '';
     public string $default_parent_avatar_path = '';
+    public string $pdf_logo_path = '';
     public $default_user_avatar_upload = null;
     public $default_student_avatar_upload = null;
     public $default_teacher_avatar_upload = null;
     public $default_parent_avatar_upload = null;
+    public $pdf_logo_upload = null;
     public bool $showOrganizationModal = false;
 
     public ?int $academic_year_editing_id = null;
@@ -698,6 +700,7 @@ new class extends Component {
             'default_student_avatar_upload' => ['nullable', 'image', 'max:2048'],
             'default_teacher_avatar_upload' => ['nullable', 'image', 'max:2048'],
             'default_parent_avatar_upload' => ['nullable', 'image', 'max:2048'],
+            'pdf_logo_upload' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,svg', 'max:4096'],
         ]);
 
         $generalSettings = AppSetting::groupValues('general');
@@ -760,6 +763,15 @@ new class extends Component {
         }
 
         AvatarDefaults::forget();
+
+        if ($this->pdf_logo_upload) {
+            if ($this->pdf_logo_path) {
+                Storage::disk('public')->delete($this->pdf_logo_path);
+            }
+            $this->pdf_logo_path = $this->pdf_logo_upload->store('settings/branding', 'public');
+            AppSetting::storeValue('general', 'pdf_logo_path', $this->pdf_logo_path);
+            $this->reset('pdf_logo_upload');
+        }
 
         if ($studentNumberFormatChanged) {
             app(StudentNumberService::class)->syncAll();
@@ -998,6 +1010,7 @@ new class extends Component {
         $this->default_student_avatar_path = (string) ($media->get('default_student_avatar_path') ?? '');
         $this->default_teacher_avatar_path = (string) ($media->get('default_teacher_avatar_path') ?? '');
         $this->default_parent_avatar_path = (string) ($media->get('default_parent_avatar_path') ?? '');
+        $this->pdf_logo_path = (string) ($settings->get('pdf_logo_path') ?? '');
     }
 }; ?>
 
@@ -1500,45 +1513,6 @@ new class extends Component {
                 @endif
             </div>
 
-            <div class="overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700">
-                <div class="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-200 px-5 py-4 dark:border-neutral-700">
-                    <div>
-                        <div class="text-sm font-medium">{{ __('settings.organization.sections.activity_expense_category.table') }}</div>
-                        <p class="mt-1 text-xs text-neutral-500">{{ __('settings.organization.sections.activity_expense_category.copy') }}</p>
-                    </div>
-                    <button type="button" wire:click="openExpenseCategoryModal" class="pill-link pill-link--accent">{{ __('settings.organization.actions.create_expense_category') }}</button>
-                </div>
-                @error('expenseCategoryDelete') <div class="px-5 pt-4 text-sm text-red-600">{{ $message }}</div> @enderror
-                @if ($expenseCategories->isEmpty())
-                    <div class="px-5 py-10 text-sm text-neutral-500">{{ __('settings.organization.sections.activity_expense_category.empty') }}</div>
-                @else
-                    <div class="overflow-x-auto">
-                        <table class="min-w-full divide-y divide-neutral-200 text-sm dark:divide-neutral-700">
-                            <thead class="bg-neutral-50 dark:bg-neutral-900/60"><tr><th class="px-5 py-3 text-left font-medium">{{ __('settings.organization.table.name') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.organization.table.code') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.organization.table.state') }}</th><th class="px-5 py-3 text-right font-medium">{{ __('settings.organization.table.actions') }}</th></tr></thead>
-                            <tbody class="divide-y divide-neutral-200 dark:divide-neutral-700">
-                                @foreach ($expenseCategories as $expenseCategory)
-                                    <tr>
-                                        <td class="px-5 py-3 font-medium">{{ $expenseCategory->name }}</td>
-                                        <td class="px-5 py-3 font-mono">{{ $expenseCategory->code }}</td>
-                                        <td class="px-5 py-3">{{ $expenseCategory->is_active ? __('settings.common.states.active') : __('settings.common.states.inactive') }}</td>
-                                        <td class="px-5 py-3">
-                                            <div class="flex justify-end gap-2">
-                                                <button type="button" wire:click="editExpenseCategory({{ $expenseCategory->id }})" class="rounded-lg border border-neutral-300 px-3 py-1.5 dark:border-neutral-700">{{ __('crud.common.actions.edit') }}</button>
-                                                <button type="button" wire:click="deleteExpenseCategory({{ $expenseCategory->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="rounded-lg border border-red-300 px-3 py-1.5 text-red-700 dark:border-red-800 dark:text-red-300">{{ __('crud.common.actions.delete') }}</button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                @endforeach
-                            </tbody>
-                        </table>
-                    </div>
-                    @if ($expenseCategories->hasPages())
-                        <div class="border-t border-neutral-200 px-5 py-4 dark:border-neutral-700">
-                            {{ $expenseCategories->links() }}
-                        </div>
-                    @endif
-                @endif
-            </div>
         </section>
     </div>
 
@@ -1606,6 +1580,21 @@ new class extends Component {
                 </div>
             </div>
             <section class="rounded-3xl border border-white/10 bg-white/5 p-4">
+                <div class="mb-5 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 p-4">
+                    <div class="flex flex-col gap-4 sm:flex-row sm:items-center">
+                        @if ($pdf_logo_upload)
+                            <img src="{{ $pdf_logo_upload->temporaryUrl() }}" alt="" class="max-h-24 max-w-48 object-contain">
+                        @elseif ($pdf_logo_path)
+                            <img src="{{ asset('storage/'.ltrim($pdf_logo_path, '/')) }}" alt="" class="max-h-24 max-w-48 object-contain">
+                        @endif
+                        <div class="min-w-0 flex-1">
+                            <label class="mb-1 block text-sm font-semibold text-white">{{ app()->isLocale('ar') ? 'شعار ملفات PDF' : 'PDF logo' }}</label>
+                            <input wire:model="pdf_logo_upload" type="file" accept="image/*,.svg" class="block w-full text-sm text-neutral-300">
+                            <p class="mt-1 text-xs text-neutral-400">{{ app()->isLocale('ar') ? 'يستخدم في جميع ملفات PDF، ويقتصر ارتفاعه على 23 مم.' : 'Used in every PDF, with a maximum rendered height of 23 mm.' }}</p>
+                            @error('pdf_logo_upload') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+                        </div>
+                    </div>
+                </div>
                 <div class="mb-4">
                     <div class="text-sm font-semibold text-white">{{ __('settings.organization.sections.default_avatars.title') }}</div>
                     <p class="mt-1 text-xs leading-5 text-neutral-400">{{ __('settings.organization.sections.default_avatars.copy') }}</p>
@@ -1736,27 +1725,6 @@ new class extends Component {
                 <button type="button" wire:click="cancelFatherJob" class="pill-link">{{ __('crud.common.actions.cancel') }}</button>
                 <button type="submit" class="pill-link pill-link--accent">{{ $father_job_editing_id ? __('settings.organization.actions.update_father_job') : __('settings.organization.actions.create_father_job') }}</button>
                 <x-admin.create-and-new-button :show="! $father_job_editing_id" click="saveAndNew('saveFatherJob', 'openFatherJobModal')" />
-            </div>
-        </form>
-    </x-admin.modal>
-
-    <x-admin.modal :show="$showExpenseCategoryModal" :title="$expense_category_editing_id ? __('settings.organization.sections.activity_expense_category.edit') : __('settings.organization.sections.activity_expense_category.create')" :description="__('settings.organization.sections.activity_expense_category.copy')" close-method="cancelExpenseCategory" max-width="2xl">
-        <form wire:submit="saveExpenseCategory" class="space-y-4">
-            <div>
-                <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.name') }}</label>
-                <input wire:model="expense_category_name" type="text" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
-                @error('expense_category_name') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
-            </div>
-            <div>
-                <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.code') }}</label>
-                <input wire:model="expense_category_code" type="text" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm lowercase dark:border-neutral-700 dark:bg-neutral-900">
-                @error('expense_category_code') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
-            </div>
-            <label class="flex items-center gap-3 text-sm"><input wire:model="expense_category_is_active" type="checkbox" class="rounded border-neutral-300 text-neutral-900"><span>{{ __('settings.organization.fields.is_active') }}</span></label>
-            <div class="flex flex-wrap justify-end gap-3">
-                <button type="button" wire:click="cancelExpenseCategory" class="pill-link">{{ __('crud.common.actions.cancel') }}</button>
-                <button type="submit" class="pill-link pill-link--accent">{{ $expense_category_editing_id ? __('settings.organization.actions.update_expense_category') : __('settings.organization.actions.create_expense_category') }}</button>
-                <x-admin.create-and-new-button :show="! $expense_category_editing_id" click="saveAndNew('saveExpenseCategory', 'openExpenseCategoryModal')" />
             </div>
         </form>
     </x-admin.modal>

@@ -232,6 +232,82 @@ class StandaloneWorkflowPagesTest extends TestCase
         ]);
     }
 
+    public function test_partial_and_final_test_student_lists_require_an_active_student_enrollment_and_course(): void
+    {
+        [$teacher, $eligibleEnrollment] = $this->teacherContext();
+        $inactiveStudentEnrollment = $this->makeEnrollment($teacher->id, 'Inactive Quran Profile');
+        $inactiveStudentEnrollment->student()->update(['status' => 'inactive']);
+        $inactiveEnrollment = $this->makeEnrollment($teacher->id, 'Inactive Quran Enrollment');
+        $inactiveEnrollment->update(['status' => 'inactive']);
+        $inactiveCourseEnrollment = $this->makeEnrollment($teacher->id, 'Inactive Quran Course');
+        $inactiveCourseEnrollment->group->course()->update(['is_active' => false]);
+
+        foreach (['quran-partial-tests.index', 'quran-final-tests.index'] as $component) {
+            Volt::test($component)
+                ->call('openCreateModal')
+                ->assertSee($eligibleEnrollment->student->full_name)
+                ->assertDontSee($inactiveStudentEnrollment->student->full_name)
+                ->assertDontSee($inactiveEnrollment->student->full_name)
+                ->assertDontSee($inactiveCourseEnrollment->student->full_name);
+        }
+    }
+
+    public function test_recording_on_behalf_teacher_lists_exclude_admins_and_managers(): void
+    {
+        $enrollment = $this->managerContext();
+        $juz = QuranJuz::query()->where('juz_number', 1)->firstOrFail();
+
+        $makeTeacher = function (string $role, string $firstName, string $phone): Teacher {
+            $user = User::factory()->create([
+                'name' => $firstName,
+                'username' => str($firstName)->slug()->value(),
+                'phone' => $phone,
+            ]);
+            $user->assignRole($role);
+
+            return Teacher::create([
+                'user_id' => $user->id,
+                'first_name' => $firstName,
+                'last_name' => 'Recorder',
+                'phone' => $phone,
+                'status' => 'active',
+            ]);
+        };
+
+        $eligibleTeacher = $makeTeacher('teacher', 'Eligible Teacher', '0998555101');
+        $adminTeacher = $makeTeacher('admin', 'Admin Teacher', '0998555102');
+        $managerTeacher = $makeTeacher('manager', 'Manager Teacher', '0998555103');
+
+        $partialTest = QuranPartialTest::create([
+            'created_by' => auth()->id(),
+            'enrollment_id' => $enrollment->id,
+            'juz_id' => $juz->id,
+            'status' => 'in_progress',
+            'student_id' => $enrollment->student_id,
+        ]);
+        $part = $partialTest->parts()->create(['part_number' => 1, 'status' => 'pending']);
+
+        $finalTest = QuranFinalTest::create([
+            'created_by' => auth()->id(),
+            'enrollment_id' => $enrollment->id,
+            'juz_id' => $juz->id,
+            'status' => 'in_progress',
+            'student_id' => $enrollment->student_id,
+        ]);
+
+        Volt::test('quran-partial-tests.show', ['partialTest' => $partialTest])
+            ->call('openAttemptModal', $part->id)
+            ->assertSee('Eligible Teacher Recorder')
+            ->assertDontSee('Admin Teacher Recorder')
+            ->assertDontSee('Manager Teacher Recorder');
+
+        Volt::test('quran-final-tests.show', ['finalTest' => $finalTest])
+            ->call('openAttemptModal')
+            ->assertSee('Eligible Teacher Recorder')
+            ->assertDontSee('Admin Teacher Recorder')
+            ->assertDontSee('Manager Teacher Recorder');
+    }
+
     public function test_super_admin_can_edit_partial_and_final_test_attempts(): void
     {
         [$teacher, $enrollment] = $this->teacherContext();

@@ -43,6 +43,7 @@ new class extends Component {
 }; ?>
 
 <div class="page-stack">
+    <style>.page-stack > section.surface-table table { table-layout: fixed; width: 100%; }</style>
     <section class="page-hero p-6 lg:p-8"><div class="eyebrow">{{ __('course_end.eyebrow') }}</div><h1 class="font-display mt-4 text-4xl text-white">{{ __('course_end.title') }}</h1><p class="mt-3 text-neutral-200">{{ $course->name }} — {{ __('course_end.preview_notice') }}</p></section>
     <div><a href="{{ route('courses.index') }}" wire:navigate class="pill-link pill-link--compact">{{ __('course_end.back') }}</a></div>
     <section class="grid gap-4 md:grid-cols-2 xl:grid-cols-5">

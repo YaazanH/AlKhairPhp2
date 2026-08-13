@@ -66,7 +66,7 @@ new class extends Component {
             'cashBoxes' => $cashBoxes,
             'manualAdjustmentEnabled' => $this->financeSettingEnabled('cash_box_manual_adjustment_enabled'),
             'transferEnabled' => $this->financeSettingEnabled('cash_box_transfer_enabled'),
-            'currencies' => FinanceCurrency::query()->where('is_active', true)->orderByDesc('is_local')->orderByDesc('is_base')->orderBy('code')->get(),
+            'currencies' => FinanceCurrency::query()->where('is_active', true)->where('show_in_dropdowns', true)->orderByDesc('is_local')->orderByDesc('is_base')->orderBy('code')->get(),
             'localCurrency' => $financeService->localCurrency(),
             'adjustCashBoxes' => $financeService->accessibleCashBoxesForCurrency(auth()->user(), $this->adjust_currency_id)->get(),
             'adjustCurrencies' => $financeService->currenciesForCashBox($this->adjust_cash_box_id)->get(),

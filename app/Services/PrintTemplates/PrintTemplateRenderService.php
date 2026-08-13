@@ -14,8 +14,7 @@ class PrintTemplateRenderService
         protected PrintTemplateLayoutService $layoutService,
         protected Code39SvgRenderer $barcodeRenderer,
         protected QrCodeSvgRenderer $qrCodeRenderer,
-    ) {
-    }
+    ) {}
 
     public function render(PrintTemplate $template, array $context = [], int $copyNumber = 1, int $pageNumber = 1): array
     {
@@ -73,6 +72,14 @@ class PrintTemplateRenderService
             ])),
             default => $this->fieldRegistry->resolve($context, $element['source'], $element['field']),
         };
+
+        if (
+            in_array($element['type'], ['custom_text', 'dynamic_text', 'date_text', 'page_number'], true)
+            && ($element['styling']['text_align'] ?? null) === 'justify'
+            && is_scalar($value)
+        ) {
+            $value = $this->addArabicKashidas((string) $value);
+        }
 
         return match ($element['type']) {
             'dynamic_image' => $element + [
@@ -136,6 +143,21 @@ class PrintTemplateRenderService
         $value = preg_replace("/^\R+/u", '', $value) ?? $value;
 
         return preg_replace("/^\h+/mu", '', $value) ?? $value;
+    }
+
+    protected function addArabicKashidas(string $value): string
+    {
+        if (! preg_match('/\p{Arabic}/u', $value)) {
+            return $value;
+        }
+
+        // Stretch only Arabic letters that connect to the following letter. This
+        // keeps justified headings decorative without inserting visible spaces.
+        return preg_replace(
+            '/([\x{0626}\x{0628}\x{062A}-\x{062E}\x{0633}-\x{063A}\x{0641}-\x{0647}\x{064A}])(?=[\x{0622}-\x{064A}])/u',
+            '$1ـ',
+            $value,
+        ) ?? $value;
     }
 
     protected function renderBarcode(string $value, array $element): ?string

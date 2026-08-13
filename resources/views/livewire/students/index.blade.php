@@ -338,13 +338,13 @@ new class extends Component {
         $this->closeBulkStatusModal();
     }
 
-    public function rules(): array
+    public function rules(?int $ignoredUserId = null): array
     {
         return [
             'parent_id' => ['nullable', 'exists:parents,id'],
             'first_name' => ['required', 'string', 'max:255'],
             'last_name' => ['required', 'string', 'max:255'],
-            'student_phone' => ['nullable', 'string', 'max:30', Rule::unique('users', 'phone')->ignore($this->linkedUserId())],
+            'student_phone' => ['nullable', 'string', 'max:30', Rule::unique('users', 'phone')->ignore($ignoredUserId ?? $this->linkedUserId())],
             'birth_date' => ['required', 'string', function (string $attribute, mixed $value, \Closure $fail): void {
                 if (! $this->isValidBirthYearValue((string) $value)) {
                     $fail(__('validation.date', ['attribute' => __('crud.students.form.fields.birth_year')]));
@@ -393,22 +393,49 @@ new class extends Component {
             $this->authorizeScopedStudentAccess(Student::query()->findOrFail($this->editingId));
         }
 
+        $duplicate = ! $isEditing ? $this->findDuplicateStudent([
+            'first_name' => $this->first_name,
+            'last_name' => $this->last_name,
+            'birth_date' => $this->birth_date,
+        ]) : null;
+
+        if ($duplicate) {
+            $this->authorizePermission('students.update');
+            $this->authorizeScopedStudentAccess($duplicate);
+        }
+
         $this->student_phone = PhoneNumberFormatter::normalize($this->student_phone) ?? '';
-        $validated = $this->validate();
+        $validated = $this->validate($this->rules($duplicate?->user_id));
         if (filled($validated['parent_id'] ?? null)) {
             $this->authorizeScopedParentAccess(ParentProfile::query()->findOrFail($validated['parent_id']));
         }
 
-        if ($duplicate = $this->findDuplicateStudent($validated)) {
-            $this->addError('first_name', __('crud.students.errors.duplicate_profile', [
-                'name' => $duplicate->full_name,
-                'number' => $duplicate->student_number ?: $duplicate->id,
-            ]));
+        if ($isEditing) {
+            $editingDuplicate = $this->findDuplicateStudent($validated);
 
-            return;
+            if ($editingDuplicate) {
+                $this->addError('first_name', __('crud.students.errors.duplicate_profile', [
+                    'name' => $editingDuplicate->full_name,
+                    'number' => $editingDuplicate->student_number ?: $editingDuplicate->id,
+                ]));
+
+                return;
+            }
         }
 
-        $selectedGroupId = ! $isEditing && filled($validated['enrollment_group_id'] ?? null)
+        if (! $isEditing) {
+            $duplicate = $this->findDuplicateStudent($validated);
+
+            if ($duplicate) {
+                $this->authorizePermission('students.update');
+                $this->authorizeScopedStudentAccess($duplicate);
+            }
+        }
+
+        $targetStudentId = $this->editingId ?? $duplicate?->id;
+        $isUpdatingExisting = $targetStudentId !== null;
+
+        $selectedGroupId = ! $isUpdatingExisting && filled($validated['enrollment_group_id'] ?? null)
             ? (int) $validated['enrollment_group_id']
             : null;
 
@@ -430,12 +457,12 @@ new class extends Component {
         $validated['grade_level_id'] = $validated['grade_level_id'] ?: null;
         $validated['quran_current_juz_id'] = $validated['quran_current_juz_id'] ?: null;
         $validated['photo_path'] = $validated['photo_path'] ?: null;
-        $validated['joined_at'] = $isEditing
+        $validated['joined_at'] = $isUpdatingExisting
             ? ($validated['joined_at'] ?: null)
             : ($validated['joined_at'] ?: now()->toDateString());
-        $payload = DB::transaction(function () use ($externalMemorizedJuzIds, $isEditing, $selectedGroup, $studentPhone, $validated): array {
+        $payload = DB::transaction(function () use ($externalMemorizedJuzIds, $isUpdatingExisting, $selectedGroup, $studentPhone, $targetStudentId, $validated): array {
             $student = Student::query()->updateOrCreate(
-                ['id' => $this->editingId],
+                ['id' => $targetStudentId],
                 $validated,
             );
             $student->refresh();
@@ -459,7 +486,7 @@ new class extends Component {
                 app(MemorizationService::class)->rebuildStudentAchievementsAndPoints($student);
             }
 
-            if (! $isEditing && $selectedGroup && ! Enrollment::query()
+            if (! $isUpdatingExisting && $selectedGroup && ! Enrollment::query()
                 ->where('student_id', $student->id)
                 ->where('group_id', $selectedGroup->id)
                 ->exists()) {
@@ -484,7 +511,7 @@ new class extends Component {
 
         session()->flash(
             'status',
-            $isEditing ? __('crud.students.messages.updated') : __('crud.students.messages.created'),
+            $isUpdatingExisting ? __('crud.students.messages.updated') : __('crud.students.messages.created'),
         );
 
         $this->cancel();
@@ -895,13 +922,11 @@ new class extends Component {
         $normalizedFullName = $this->normalizedSqlExpression($this->sqlConcatWithSpaces(['first_name', 'last_name']));
         $normalizedFirstName = $this->normalizedSqlExpression('coalesce(first_name, \'\')');
         $normalizedLastName = $this->normalizedSqlExpression('coalesce(last_name, \'\')');
-        $normalizedSchoolName = $this->normalizedSqlExpression('coalesce(school_name, \'\')');
 
         $query->where(function (Builder $builder) use (
             $normalizedFirstName,
             $normalizedFullName,
             $normalizedLastName,
-            $normalizedSchoolName,
             $normalizedSearch,
             $rawSearch
         ): void {
@@ -909,16 +934,7 @@ new class extends Component {
                 ->whereRaw($normalizedFirstName.' like ?', [$normalizedSearch])
                 ->orWhereRaw($normalizedLastName.' like ?', [$normalizedSearch])
                 ->orWhereRaw($normalizedFullName.' like ?', [$normalizedSearch])
-                ->orWhere('student_number', 'like', $rawSearch)
-                ->orWhereRaw($normalizedSchoolName.' like ?', [$normalizedSearch])
-                ->orWhereHas('parentProfile', function (Builder $parentQuery) use ($normalizedSearch): void {
-                    $normalizedFatherName = $this->normalizedSqlExpression('coalesce(father_name, \'\')');
-                    $normalizedMotherName = $this->normalizedSqlExpression('coalesce(mother_name, \'\')');
-
-                    $parentQuery
-                        ->whereRaw($normalizedFatherName.' like ?', [$normalizedSearch])
-                        ->orWhereRaw($normalizedMotherName.' like ?', [$normalizedSearch]);
-                });
+                ->orWhere('student_number', 'like', $rawSearch);
         });
     }
 
@@ -1217,22 +1233,16 @@ new class extends Component {
         $firstName = ArabicSearch::normalizeForDuplicate((string) ($validated['first_name'] ?? ''));
         $lastName = ArabicSearch::normalizeForDuplicate((string) ($validated['last_name'] ?? ''));
         $birthDate = $this->normalizeBirthYearValue((string) ($validated['birth_date'] ?? ''));
-        $parentId = (int) ($validated['parent_id'] ?? 0);
+        $birthYear = $birthDate ? (int) substr($birthDate, 0, 4) : null;
 
-        if ($firstName === '' || $lastName === '') {
+        if ($firstName === '' || $lastName === '' || ! $birthYear) {
             return null;
         }
 
         return $this->scopeStudentsQuery(
             Student::query()
                 ->when($this->editingId, fn (Builder $query) => $query->whereKeyNot($this->editingId))
-                ->where(function (Builder $query) use ($parentId, $birthDate): void {
-                    $query->where('parent_id', $parentId);
-
-                    if ($birthDate) {
-                        $query->orWhereDate('birth_date', $birthDate);
-                    }
-                })
+                ->whereYear('birth_date', $birthYear)
                 ->orderByDesc('id')
         )
             ->get()
@@ -1339,7 +1349,7 @@ new class extends Component {
             <div class="admin-toolbar__controls">
                 <div class="admin-filter-field">
                     <label for="student-search">{{ __('crud.common.filters.search') }}</label>
-                    <input id="student-search" wire:model.live.debounce.300ms="search" type="text" placeholder="{{ __('crud.common.filters.search_placeholder') }}">
+                    <input id="student-search" wire:model.live.debounce.300ms="search" type="text" placeholder="{{ __('crud.students.filters.search_placeholder') }}">
                 </div>
 
                 <div class="admin-filter-field">

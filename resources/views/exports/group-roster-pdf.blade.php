@@ -30,7 +30,7 @@
         .title-row {
             background: #c5e0b4;
             min-height: 42px;
-            padding: 5px 72px 4px 12px;
+            padding: 5px 12px 4px;
             position: relative;
         }
 
@@ -81,7 +81,7 @@
             border-bottom: 1.5px solid #000;
             font-size: 11.5px;
             font-weight: bold;
-            padding: 3px 4px;
+            padding: 1.5px 4px;
             text-align: center;
         }
 
@@ -109,7 +109,7 @@
         }
 
         .footer {
-            background: #e6f3eb;
+            background: #c5e0b4;
             color: #555;
             font-size: 9px;
             padding: 2mm 0;
