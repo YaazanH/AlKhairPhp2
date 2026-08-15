@@ -680,6 +680,13 @@ return [
             'memorization_missing' => 'لا يوجد حفظ مسجل',
             'memorization_unavailable' => 'بيانات الحفظ غير متاحة',
             'memorized_pages' => 'الصفحات :pages',
+            'copy_sections' => [
+                'attendance' => 'الحضور:',
+                'memorization' => 'التسميع:',
+                'partial_tests' => 'السبر التجريبي:',
+                'final_tests' => 'السبر النهائي:',
+                'closing' => 'تقبل الله منا ومنكم 🌺',
+            ],
             'copy_lines' => [
                 'group' => 'المجموعة: :value',
                 'student' => 'الطالب: :value',
@@ -692,8 +699,8 @@ return [
             'tests' => [
                 'partial_title' => 'سبر تجريبي',
                 'final_title' => 'سبر نهائي',
-                'partial_line' => '• :student — الجزء :juz — :quarter',
-                'final_line' => '• :student — الجزء :juz',
+                'partial_line' => ':student — الجزء :juz — (:quarter)',
+                'final_line' => ':student — الجزء :juz',
                 'quarters' => [
                     1 => 'الربع الأول',
                     2 => 'الربع الثاني',

@@ -13,6 +13,7 @@
 <head>
     <meta charset="utf-8">
     <style>
+        @page { margin: 31mm 10mm 18mm; header: roster-header; footer: roster-footer; }
         body {
             color: #000;
             direction: rtl;
@@ -22,24 +23,22 @@
         }
 
         .page-header {
+            background: #c5e0b4;
             border-bottom: 1.5px solid #000;
-            margin-bottom: 10px;
-            padding-bottom: 8px;
+            padding: 2mm 3mm;
         }
 
         .title-row {
             background: #c5e0b4;
-            min-height: 42px;
-            padding: 5px 12px 4px;
-            position: relative;
+            border-collapse: collapse;
+            table-layout: fixed;
+            width: 100%;
         }
 
         .logo {
-            height: 23mm;
-            position: absolute;
-            right: 0;
-            top: 0;
-            width: 35mm;
+            text-align: right;
+            vertical-align: middle;
+            width: 22%;
         }
 
         .logo img {
@@ -50,18 +49,27 @@
             width: auto;
         }
 
+        .header-copy {
+            text-align: center;
+            vertical-align: middle;
+            width: 56%;
+        }
+
         h1 {
-            font-size: 28px;
+            font-size: 20px;
             font-weight: bold;
-            margin: 0 0 6px;
+            margin: 0;
             text-align: center;
         }
 
         .group-line {
             font-size: 13px;
-            font-weight: bold;
+            font-weight: 500;
+            margin-top: 1mm;
             text-align: center;
         }
+
+        .header-spacer { width: 22%; }
 
         .meta-label {
             font-weight: bold;
@@ -118,17 +126,8 @@
     </style>
 </head>
 <body>
+    <htmlpageheader name="roster-header"><div class="page-header"><table class="title-row" dir="ltr"><tr><td class="header-spacer"></td><td class="header-copy" dir="rtl"><h1>قائمة بيانات الطلاب</h1><div class="group-line">{{ $groupLine !== '' ? $groupLine : $group->name }}</div></td><td class="logo" dir="rtl">@if ($logo)<img src="{{ $logo }}" alt="">@endif</td></tr></table></div></htmlpageheader>
     <htmlpagefooter name="roster-footer"><div class="footer">صفحة {PAGENO} من {nbpg}</div></htmlpagefooter>
-    <sethtmlpagefooter name="roster-footer" value="on" show-this-page="1" />
-    <div class="page-header">
-        <div class="title-row">
-            @if ($logo)<div class="logo"><img src="{{ $logo }}" alt=""></div>@endif
-            <h1>قائمة بيانات الطلاب</h1>
-            <div class="group-line">
-                {{ $groupLine !== '' ? $groupLine : $group->name }}
-            </div>
-        </div>
-    </div>
 
     <table>
         <thead>

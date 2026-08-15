@@ -67,11 +67,12 @@ class PrintTemplateFieldRegistry
                 'relations' => ['activity', 'cashBox', 'category', 'requestedBy', 'reviewedBy', 'teacher', 'requestedCurrency', 'acceptedCurrency'],
             ],
         ];
+
     }
 
     public function definitions(): array
     {
-        return [
+        $definitions = [
             'student' => [
                 'full_name' => $this->field('full_name', ['text', 'barcode'], fn (Student $student) => $student->full_name),
                 'first_name' => $this->field('first_name', ['text'], fn (Student $student) => $student->first_name),
@@ -181,6 +182,13 @@ class PrintTemplateFieldRegistry
                 'reviewed_by' => $this->field('reviewed_by', ['text'], fn (FinanceRequest $request) => $request->reviewedBy?->name ?: __('print_templates.common.not_available')),
             ],
         ];
+
+        foreach (array_keys($definitions) as $entity) {
+            $definitions[$entity] = ['current_date' => $this->field('current_date', ['text'], fn () => now()->format('d-m-Y'))]
+                + $definitions[$entity];
+        }
+
+        return $definitions;
     }
 
     public function entityOptions(): array

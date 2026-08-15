@@ -81,7 +81,7 @@
                     text-align: {{ $textAlign }};
                     @if ($textAlign === 'justify')
                         text-align-last: center;
-                        text-justify: inter-character;
+                        text-justify: auto;
                     @endif
                     text-indent: 0;
                     letter-spacing: {{ number_format($element['styling']['letter_spacing'], 2, '.', '') }}mm;

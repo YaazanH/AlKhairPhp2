@@ -81,8 +81,6 @@ new class extends Component {
             'invoicer_name' => ['required', 'string', 'max:255'],
             'invoice_type' => ['required', 'string', 'max:50'],
             'issue_date' => ['required', 'date'],
-            'due_date' => ['nullable', 'date', 'after_or_equal:issue_date'],
-            'status' => ['required', 'in:draft,issued,partial,paid,cancelled'],
             'discount' => ['required', 'numeric', 'min:0'],
             'notes' => ['nullable', 'string'],
             'invoice_scan' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png,webp', 'max:10240'],
@@ -131,10 +129,10 @@ new class extends Component {
                 'issue_date' => $canUpdateEntryDate
                     ? $validated['issue_date']
                     : ($existingInvoice?->issue_date?->toDateString() ?? now()->toDateString()),
-                'due_date' => $validated['due_date'] ?: null,
-                'status' => $validated['status'],
+                'due_date' => $existingInvoice?->due_date,
+                'status' => $existingInvoice?->status ?? 'draft',
                 'discount' => $validated['discount'],
-                'notes' => $validated['notes'] ?: null,
+                'notes' => $existingInvoice ? ($validated['notes'] ?: null) : null,
                 'original_image_path' => $scanPath,
             ],
         );
@@ -306,20 +304,6 @@ new class extends Component {
                         </div>
                     </div>
 
-                    <div class="grid gap-4 md:grid-cols-2">
-                        <div>
-                            <label class="mb-1 block text-sm font-medium">{{ __('invoices.index.form.fields.status') }}</label>
-                            <select wire:model="status" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
-                                <option value="draft">{{ __('print.invoice.statuses.draft') }}</option>
-                                <option value="issued">{{ __('print.invoice.statuses.issued') }}</option>
-                                <option value="partial">{{ __('print.invoice.statuses.partial') }}</option>
-                                <option value="paid">{{ __('print.invoice.statuses.paid') }}</option>
-                                <option value="cancelled">{{ __('print.invoice.statuses.cancelled') }}</option>
-                            </select>
-                            @error('status') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
-                        </div>
-                    </div>
-
                     <div>
                         <label class="mb-1 block text-sm font-medium">{{ __('finance.fields.invoice_scan') }}</label>
                         <input wire:model="invoice_scan" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
@@ -329,16 +313,11 @@ new class extends Component {
                         @endif
                     </div>
 
-                    <div class="grid gap-4 md:grid-cols-2">
+                    <div>
                         <div>
-                            <label class="mb-1 block text-sm font-medium">{{ __('invoices.index.form.fields.issue_date') }}</label>
+                            <label class="mb-1 block text-sm font-medium">{{ __('finance.fields.date') }}</label>
                             <input wire:model="issue_date" type="date" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900" @disabled(! auth()->user()?->can('finance.entries.update'))>
                             @error('issue_date') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
-                        </div>
-                        <div>
-                            <label class="mb-1 block text-sm font-medium">{{ __('invoices.index.form.fields.due_date') }}</label>
-                            <input wire:model="due_date" type="date" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
-                            @error('due_date') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
                         </div>
                     </div>
 
@@ -348,10 +327,10 @@ new class extends Component {
                         @error('discount') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
                     </div>
 
-                    <div>
+                    @if ($editingId)<div>
                         <label class="mb-1 block text-sm font-medium">{{ __('invoices.index.form.fields.notes') }}</label>
                         <textarea wire:model="notes" rows="4" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900"></textarea>
-                    </div>
+                    </div>@endif
 
                     @error('delete') <div class="rounded-xl border border-red-500/20 bg-red-500/10 px-3 py-2 text-sm text-red-300">{{ $message }}</div> @enderror
 

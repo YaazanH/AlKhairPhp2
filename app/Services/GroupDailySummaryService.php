@@ -13,6 +13,16 @@ use Illuminate\Support\Collection;
 
 class GroupDailySummaryService
 {
+    public function openGroupCopyText(Group $group, string $date): string
+    {
+        return $this->currentCopyText($group, $date, [
+            'attendance' => true,
+            'memorization' => true,
+            'partial_tests' => true,
+            'final_tests' => true,
+        ]);
+    }
+
     /** @return array{attendance: bool, memorization: bool, partial_tests: bool, final_tests: bool} */
     public function visibilityFor(User $user): array
     {
@@ -99,7 +109,9 @@ class GroupDailySummaryService
                 'student_number' => $enrollment->student?->student_number,
                 'parent_name' => $enrollment->student?->parentProfile?->father_name,
                 'attendance_label' => $attendanceLabel,
+                'is_present' => (bool) $attendanceRecords->get($enrollment->id)?->status?->is_present,
                 'memorized_label' => $memorizedLabel,
+                'memorized_pages' => $pages,
                 'copy_text' => implode(PHP_EOL, [
                     __('crud.groups.quick_summary.copy_lines.student', ['value' => $studentName]),
                     __('crud.groups.quick_summary.copy_lines.date', ['value' => $date]),
@@ -123,33 +135,48 @@ class GroupDailySummaryService
     /** @param array{rows: Collection<int, object>, partial_tests: Collection<int, object>, final_tests: Collection<int, object>} $summary */
     public function copyText(Group $group, string $date, array $summary): string
     {
-        $blocks = [implode(PHP_EOL, array_filter([
-            __('crud.groups.quick_summary.copy_lines.group', ['value' => $group->name]),
-            __('crud.groups.quick_summary.copy_lines.date', ['value' => $date]),
-            $group->course?->name ? __('crud.groups.quick_summary.copy_lines.course', ['value' => $group->course->name]) : null,
-            $group->teacher ? __('crud.groups.quick_summary.copy_lines.teacher', ['value' => trim($group->teacher->first_name.' '.$group->teacher->last_name)]) : null,
-        ]))];
+        $blocks = [implode(PHP_EOL, [
+            $group->name,
+            trim(($group->course?->name ?: __('crud.common.not_available')).' / '.$date),
+        ])];
 
-        if ($summary['rows']->isNotEmpty()) {
-            $blocks[] = $summary['rows']->pluck('copy_text')->implode(PHP_EOL.PHP_EOL);
+        $attendingStudents = $summary['rows']
+            ->filter(fn (object $row) => $row->is_present)
+            ->pluck('student_name')
+            ->unique()
+            ->values();
+        $blocks[] = __('crud.groups.quick_summary.copy_sections.attendance').PHP_EOL
+            .$attendingStudents->implode(PHP_EOL);
+
+        $memorizingStudents = $summary['rows']
+            ->filter(fn (object $row) => $row->memorized_pages->isNotEmpty())
+            ->map(fn (object $row) => $row->student_name.' '.$this->formatPages($row->memorized_pages))
+            ->values();
+        if ($memorizingStudents->isNotEmpty()) {
+            $blocks[] = __('crud.groups.quick_summary.copy_sections.memorization').PHP_EOL
+                .$memorizingStudents->implode(PHP_EOL);
         }
 
         if ($summary['partial_tests']->isNotEmpty()) {
-            $blocks[] = __('crud.groups.quick_summary.tests.partial_title').PHP_EOL
+            $blocks[] = __('crud.groups.quick_summary.copy_sections.partial_tests').PHP_EOL
                 .$summary['partial_tests']->map(fn (object $test) => __('crud.groups.quick_summary.tests.partial_line', [
                     'student' => $test->student_name,
                     'juz' => $test->juz_number,
-                    'quarter' => __('crud.groups.quick_summary.tests.quarters.'.$test->part_number),
+                    'quarter' => collect($test->part_numbers)
+                        ->map(fn (int $partNumber) => __('crud.groups.quick_summary.tests.quarters.'.$partNumber))
+                        ->implode('، '),
                 ]))->implode(PHP_EOL);
         }
 
         if ($summary['final_tests']->isNotEmpty()) {
-            $blocks[] = __('crud.groups.quick_summary.tests.final_title').PHP_EOL
+            $blocks[] = __('crud.groups.quick_summary.copy_sections.final_tests').PHP_EOL
                 .$summary['final_tests']->map(fn (object $test) => __('crud.groups.quick_summary.tests.final_line', [
                     'student' => $test->student_name,
                     'juz' => $test->juz_number,
                 ]))->implode(PHP_EOL);
         }
+
+        $blocks[] = __('crud.groups.quick_summary.copy_sections.closing');
 
         return implode(PHP_EOL.PHP_EOL, array_filter($blocks));
     }
@@ -158,6 +185,7 @@ class GroupDailySummaryService
     {
         return QuranPartialTestAttempt::query()
             ->whereDate('tested_on', $date)
+            ->where('status', 'passed')
             ->whereHas('part.partialTest', fn ($query) => $query->whereIn('enrollment_id', $enrollmentIds))
             ->with(['part.partialTest.student', 'part.partialTest.juz'])
             ->get()
@@ -168,11 +196,16 @@ class GroupDailySummaryService
                 $attempt->part?->part_number,
                 $attempt->id,
             ))
-            ->map(fn (QuranPartialTestAttempt $attempt): object => (object) [
-                'student_name' => $attempt->part?->partialTest?->student?->full_name ?: __('crud.common.not_available'),
-                'juz_number' => $attempt->part?->partialTest?->juz?->juz_number ?: __('crud.common.not_available'),
-                'part_number' => (int) $attempt->part?->part_number,
-            ])
+            ->groupBy(fn (QuranPartialTestAttempt $attempt) => $attempt->part?->partialTest?->student_id.'-'.$attempt->part?->partialTest?->juz_id)
+            ->map(function (Collection $attempts): object {
+                $attempt = $attempts->first();
+
+                return (object) [
+                    'student_name' => $attempt?->part?->partialTest?->student?->full_name ?: __('crud.common.not_available'),
+                    'juz_number' => $attempt?->part?->partialTest?->juz?->juz_number ?: __('crud.common.not_available'),
+                    'part_numbers' => $attempts->map(fn (QuranPartialTestAttempt $item) => (int) $item->part?->part_number)->unique()->sort()->values()->all(),
+                ];
+            })
             ->values();
     }
 
@@ -180,6 +213,7 @@ class GroupDailySummaryService
     {
         return QuranFinalTestAttempt::query()
             ->whereDate('tested_on', $date)
+            ->where('status', 'passed')
             ->whereHas('finalTest', fn ($query) => $query->whereIn('enrollment_id', $enrollmentIds))
             ->with(['finalTest.student', 'finalTest.juz'])
             ->get()
@@ -193,6 +227,7 @@ class GroupDailySummaryService
                 'student_name' => $attempt->finalTest?->student?->full_name ?: __('crud.common.not_available'),
                 'juz_number' => $attempt->finalTest?->juz?->juz_number ?: __('crud.common.not_available'),
             ])
+            ->unique(fn (object $attempt) => $attempt->student_name.'-'.$attempt->juz_number)
             ->values();
     }
 

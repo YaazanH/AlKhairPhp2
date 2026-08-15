@@ -17,6 +17,7 @@ return [
         'revenue' => 'Revenue',
     ],
     'fields' => [
+        'current_date' => 'Current date',
         'special_note' => 'Special note',
         'student_name' => 'Student name',
         'full_name' => 'Full name',

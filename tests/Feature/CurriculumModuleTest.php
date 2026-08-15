@@ -14,6 +14,7 @@ use App\Models\Group;
 use App\Models\Teacher;
 use App\Models\User;
 use App\Services\CurriculumProgressService;
+use App\Services\SidebarNavigationService;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Volt\Volt;
@@ -41,6 +42,29 @@ class CurriculumModuleTest extends TestCase
         $supervisorUser->assignRole('teacher');
         Teacher::create(['user_id' => $supervisorUser->id, 'first_name' => 'Group', 'last_name' => 'Supervisor', 'phone' => '0944007002', 'job_title' => 'مشرف حلقة', 'status' => 'active', 'is_helping' => true]);
         $this->actingAs($supervisorUser)->get(route('curricula.index', absolute: false))->assertOk();
+    }
+
+    public function test_group_teacher_curriculum_is_shown_immediately_after_reports_in_sidebar(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $user = User::factory()->create();
+        $user->assignRole('teacher');
+        $user->givePermissionTo(['dashboard.group-teacher.view', 'reports.view']);
+        Teacher::create([
+            'user_id' => $user->id,
+            'first_name' => 'Group',
+            'last_name' => 'Teacher',
+            'phone' => '0944007099',
+            'job_title' => 'Teacher',
+            'status' => 'active',
+            'is_helping' => true,
+        ]);
+
+        $platform = collect(app(SidebarNavigationService::class)->sidebarFor($user))->firstWhere('key', 'platform');
+
+        $this->assertSame(['dashboard', 'reports', 'curricula'], array_column($platform['items'], 'key'));
+        $this->assertSame(__('ui.nav.my_curriculum'), $platform['items'][2]['label']);
     }
 
     public function test_manager_can_build_a_curriculum_and_assign_it_to_a_group(): void

@@ -251,7 +251,10 @@ class SidebarNavigationService
                     continue;
                 }
 
-                $configuredGroupKey = $settings['items'][$itemKey]['group_key'] ?? $itemDefinition['group_key'];
+                $isTeacherCurriculum = $itemKey === 'curricula' && ! $user->can('curricula.manage');
+                $configuredGroupKey = $isTeacherCurriculum
+                    ? 'platform'
+                    : ($settings['items'][$itemKey]['group_key'] ?? $itemDefinition['group_key']);
 
                 if ($configuredGroupKey !== $groupKey || ! $this->userCanSeeItem($user, $itemDefinition)) {
                     continue;
@@ -265,7 +268,9 @@ class SidebarNavigationService
                     'icon' => $itemDefinition['icon'],
                     'href' => route($itemDefinition['route_name']),
                     'current' => request()->routeIs(...$itemDefinition['current_patterns']),
-                    'sort_order' => $settings['items'][$itemKey]['sort_order'] ?? $itemDefinition['sort_order'],
+                    'sort_order' => $isTeacherCurriculum
+                        ? 30
+                        : ($settings['items'][$itemKey]['sort_order'] ?? $itemDefinition['sort_order']),
                 ];
             }
 

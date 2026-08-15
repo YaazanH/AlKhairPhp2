@@ -224,7 +224,6 @@ new class extends Component {
             'tested_on' => ['required', 'date'],
             'score' => ['nullable', 'numeric', 'between:0,100'],
             'status' => ['required', 'in:passed,failed,cancelled'],
-            'notes' => ['nullable', 'string'],
         ], [], [
             'selectedStudentId' => __('workflow.quran_tests.workbench.form.student'),
             'selectedEnrollmentId' => __('workflow.quran_tests.workbench.form.group'),
@@ -281,7 +280,7 @@ new class extends Component {
                 (int) $validated['juz_id'],
                 $testType->id,
             ),
-            'notes' => $validated['notes'] ?: null,
+            'notes' => null,
         ]);
 
         app(PointLedgerService::class)->recordQuranTestPoints($test->fresh(['enrollment.student', 'student.gradeLevel', 'type']));
@@ -759,31 +758,6 @@ new class extends Component {
                     @error('selectedStudentId') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
                 </div>
 
-                <div>
-                    <label for="quran-workbench-enrollment" class="mb-1 block text-sm font-medium">{{ __('workflow.quran_tests.workbench.form.group') }}</label>
-                    <select
-                        id="quran-workbench-enrollment"
-                        wire:key="quran-workbench-enrollment-select-{{ $selectedStudentId ?: 'blank' }}"
-                        wire:model="selectedEnrollmentId"
-                        data-search-placeholder="{{ __('crud.common.filters.search_placeholder') }}"
-                        class="w-full rounded-xl px-4 py-3 text-sm"
-                        @disabled($enrollmentOptions->isEmpty())
-                    >
-                        <option value="">{{ __('workflow.quran_tests.workbench.form.select_group') }}</option>
-                        @foreach ($enrollmentOptions as $enrollment)
-                            <option value="{{ $enrollment->id }}">
-                                {{ $enrollment->group?->name ?: __('workflow.common.no_group') }}
-                                @if ($enrollment->group?->course?->name)
-                                    - {{ $enrollment->group->course->name }}
-                                @endif
-                            </option>
-                        @endforeach
-                    </select>
-                    @if ($selectedStudentId && $enrollmentOptions->count() === 1)
-                        <div class="mt-1 text-xs text-neutral-500">{{ __('workflow.quran_tests.workbench.form.group_auto') }}</div>
-                    @endif
-                    @error('selectedEnrollmentId') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
-                </div>
             </div>
 
             <div class="grid gap-4 md:grid-cols-3">
@@ -814,7 +788,7 @@ new class extends Component {
                 </div>
             </div>
 
-            <div class="grid gap-4 md:grid-cols-2">
+            <div>
                 <div>
                     <label for="quran-workbench-status" class="mb-1 block text-sm font-medium">{{ __('workflow.quran_tests.form.result_status') }}</label>
                     <select id="quran-workbench-status" wire:model="status" class="w-full rounded-xl px-4 py-3 text-sm">
@@ -825,11 +799,6 @@ new class extends Component {
                     @error('status') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
                 </div>
 
-                <div>
-                    <label for="quran-workbench-notes" class="mb-1 block text-sm font-medium">{{ __('workflow.quran_tests.form.notes') }}</label>
-                    <textarea id="quran-workbench-notes" wire:model="notes" rows="4" class="w-full rounded-xl px-4 py-3 text-sm"></textarea>
-                    @error('notes') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
-                </div>
             </div>
 
             <div class="flex flex-wrap items-center gap-3">

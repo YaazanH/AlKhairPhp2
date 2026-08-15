@@ -32,6 +32,7 @@ return [
         'edit_invoice' => 'Edit invoice',
         'remove_scan' => 'Remove scan',
         'view_original' => 'View original',
+        'view_attachment' => 'View attachment',
         'review_request' => 'Review request',
         'review' => 'Review',
         'transfer' => 'Transfer',

@@ -17,6 +17,7 @@ return [
         'revenue' => 'إيراد',
     ],
     'fields' => [
+        'current_date' => 'التاريخ الحالي',
         'special_note' => 'ملاحظة خاصة',
         'student_name' => 'اسم الطالب',
         'full_name' => 'الاسم الكامل',

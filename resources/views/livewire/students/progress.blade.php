@@ -143,7 +143,6 @@ new class extends Component
             'awqafTestedOn' => ['required', 'date'],
             'awqafScore' => ['nullable', 'numeric', 'between:0,100'],
             'awqafStatus' => ['required', 'in:passed,failed,cancelled'],
-            'awqafNotes' => ['nullable', 'string'],
         ]);
 
         abort_unless($this->currentStudent, 404);
@@ -185,7 +184,7 @@ new class extends Component
             'score' => $validated['awqafScore'] !== '' ? $validated['awqafScore'] : null,
             'status' => $validated['awqafStatus'],
             'attempt_no' => app(QuranProgressionService::class)->nextAttemptNumber($enrollment, (int) $validated['awqafJuzId'], $testType->id),
-            'notes' => $validated['awqafNotes'] ?: null,
+            'notes' => null,
         ]);
 
         app(PointLedgerService::class)->recordQuranTestPoints($test->fresh(['enrollment.student', 'student.gradeLevel', 'type']));
@@ -625,7 +624,6 @@ new class extends Component
                     <div><label class="mb-1 block text-sm font-medium">{{ __('workflow.quran_tests.form.score') }}</label><input wire:model="awqafScore" type="number" min="0" max="100" step="0.01" class="w-full rounded-xl px-4 py-3 text-sm">@error('awqafScore')<div class="mt-1 text-sm text-red-400">{{ $message }}</div>@enderror</div>
                     <div><label class="mb-1 block text-sm font-medium">{{ __('workflow.quran_tests.form.result_status') }}</label><select wire:model="awqafStatus" class="w-full rounded-xl px-4 py-3 text-sm"><option value="passed">{{ __('workflow.common.result_status.passed') }}</option><option value="failed">{{ __('workflow.common.result_status.failed') }}</option><option value="cancelled">{{ __('workflow.common.result_status.cancelled') }}</option></select>@error('awqafStatus')<div class="mt-1 text-sm text-red-400">{{ $message }}</div>@enderror</div>
                 </div>
-                <div><label class="mb-1 block text-sm font-medium">{{ __('workflow.quran_tests.form.notes') }}</label><textarea wire:model="awqafNotes" rows="3" class="w-full rounded-xl px-4 py-3 text-sm"></textarea>@error('awqafNotes')<div class="mt-1 text-sm text-red-400">{{ $message }}</div>@enderror</div>
                 @error('awqafEnrollmentId')<div class="text-sm text-red-400">{{ $message }}</div>@enderror
                 <div class="flex justify-end gap-3"><button type="button" wire:click="closeAwqafTest" class="pill-link">{{ __('crud.common.actions.cancel') }}</button><button class="pill-link pill-link--accent">{{ __('workflow.common.actions.save_quran_test') }}</button></div>
             </form>

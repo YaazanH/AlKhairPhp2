@@ -587,6 +587,44 @@ class StudentAttendanceDayModuleTest extends TestCase
         $this->assertSame(0, PointTransaction::query()->where('enrollment_id', $enrollment->id)->whereNull('voided_at')->sum('points'));
     }
 
+    public function test_manager_can_export_student_attendance_for_a_selected_group_and_period(): void
+    {
+        $this->seed();
+
+        $manager = User::factory()->create([
+            'username' => 'student-attendance-export-manager',
+            'phone' => '0998222990',
+        ]);
+        $manager->assignRole('manager');
+        $teacher = Teacher::create([
+            'first_name' => 'Export',
+            'last_name' => 'Teacher',
+            'phone' => '0998222991',
+            'status' => 'active',
+        ]);
+        $enrollment = $this->makeEnrollment($teacher->id, 'Export Attendance Group');
+        $enrollment->student->update(['student_number' => 'ST-EXPORT-1']);
+        $present = AttendanceStatus::query()->where('code', 'present')->firstOrFail();
+        $service = app(StudentAttendanceDayService::class);
+        $day = $service->createOrSyncDay('2026-10-14', collect([$enrollment->group]), $manager);
+        $service->recordEnrollmentStatus($day, $enrollment->fresh(['student', 'group.course']), $present);
+
+        $this->actingAs($manager)
+            ->get(route('student-attendance.index', absolute: false))
+            ->assertOk()
+            ->assertSeeText(__('workflow.student_attendance.export.action'))
+            ->assertSeeText('Export Attendance Group');
+
+        $response = $this->get(route('student-attendance.export', [
+            'group_id' => $enrollment->group_id,
+            'date_from' => '2026-10-01',
+            'date_to' => '2026-10-31',
+        ], absolute: false));
+
+        $response->assertOk()->assertHeader('content-type', 'application/pdf');
+        $this->assertStringStartsWith('%PDF-', $response->getContent());
+    }
+
     private function teacherContext(string $groupName, bool $otherTeacher = false): array
     {
         $teacherUser = User::factory()->create([

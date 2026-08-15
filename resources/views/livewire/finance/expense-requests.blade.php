@@ -388,7 +388,6 @@ new class extends Component {
             'invoice_items.*.quantity' => ['required', 'numeric', 'gt:0'],
             'invoice_items.*.unit_price' => ['required', 'numeric', 'min:0'],
             'invoice_image' => ['nullable', 'file', 'max:8192', 'mimes:jpg,jpeg,png,webp,pdf'],
-            'invoice_notes' => ['nullable', 'string', 'max:4000'],
             'confirm_invoice_overage' => ['boolean'],
         ]);
         $request = FinanceRequest::query()->with('pullRequestKind')->where('status', FinanceRequest::STATUS_ACCEPTED)->findOrFail($this->finalisingRequestId);
@@ -421,7 +420,7 @@ new class extends Component {
             'discount' => $deduction,
             'total' => $total,
             'original_image_path' => $imagePath,
-            'notes' => $validated['invoice_notes'] ?: null,
+            'notes' => null,
         ]);
         foreach ($validated['invoice_items'] as $index => $item) {
             InvoiceItem::query()->create([
@@ -607,5 +606,16 @@ new class extends Component {
         @endif
     </x-admin.modal>
 
-    <x-admin.modal :show="$viewingInvoiceId !== null" :title="__('finance.actions.view_invoice')" close-method="$set('viewingInvoiceId', null)" max-width="5xl">@if ($viewingInvoice)<div class="grid gap-3 md:grid-cols-3"><div><div class="kpi-label">{{ __('finance.fields.invoice_no') }}</div><div class="mt-1 text-white">{{ $viewingInvoice->invoice_no }}</div></div><div><div class="kpi-label">{{ __('finance.fields.original_invoice_no') }}</div><div class="mt-1 text-white">{{ $viewingInvoice->original_invoice_no }}</div></div><div><div class="kpi-label">{{ __('finance.fields.invoice_issuer') }}</div><div class="mt-1 text-white">{{ $viewingInvoice->invoicer_name }}</div></div></div><div class="mt-5 overflow-x-auto"><table class="text-sm"><thead><tr><th class="px-4 py-3 text-left">{{ __('finance.fields.item_name') }}</th><th class="px-4 py-3 text-left">{{ __('finance.fields.quantity') }}</th><th class="px-4 py-3 text-left">{{ __('finance.fields.unit_price') }}</th><th class="px-4 py-3 text-left">{{ __('finance.fields.amount') }}</th></tr></thead><tbody>@foreach ($viewingInvoice->items as $item)<tr><td class="px-4 py-3">{{ $item->item_name }}</td><td class="px-4 py-3">{{ $item->quantity }}</td><td class="px-4 py-3">{{ $item->unit_price }}</td><td class="px-4 py-3">{{ $item->amount }}</td></tr>@endforeach</tbody><tfoot><tr><th colspan="3" class="px-4 py-3 text-right">{{ __('finance.fields.subtotal') }}</th><td class="px-4 py-3"><bdi dir="ltr">{{ app(FinanceService::class)->formatCurrencyAmount($viewingInvoice->subtotal, $viewingInvoice->financeRequest?->acceptedCurrency) }}</bdi></td></tr><tr><th colspan="3" class="px-4 py-3 text-right">{{ __('finance.fields.deduction') }}</th><td class="px-4 py-3"><bdi dir="ltr">{{ app(FinanceService::class)->formatCurrencyAmount(-(float) $viewingInvoice->discount, $viewingInvoice->financeRequest?->acceptedCurrency) }}</bdi></td></tr><tr><th colspan="3" class="px-4 py-3 text-right text-white">{{ __('finance.fields.grand_total') }}</th><td class="px-4 py-3 font-semibold text-white"><bdi dir="ltr">{{ app(FinanceService::class)->formatCurrencyAmount($viewingInvoice->total, $viewingInvoice->financeRequest?->acceptedCurrency) }}</bdi></td></tr></tfoot></table></div><div class="mt-5 flex flex-wrap justify-end gap-3">@if ($viewingInvoice->original_image_path)<a href="{{ asset('storage/'.$viewingInvoice->original_image_path) }}" target="_blank" class="pill-link">{{ __('finance.actions.view_original') }}</a>@endif<a href="{{ route('finance.invoices.print', $viewingInvoice) }}" target="_blank" class="pill-link pill-link--accent">{{ __('finance.actions.print_a5') }}</a></div>@endif</x-admin.modal>
+    <x-admin.modal :show="$viewingInvoiceId !== null" :title="__('finance.actions.view_invoice')" close-method="$set('viewingInvoiceId', null)" max-width="3xl">
+        @if ($viewingInvoice)
+            <div class="grid grid-cols-2 gap-x-5 gap-y-2 rounded-xl border border-white/8 bg-white/4 p-3 text-sm">
+                <div><span class="kpi-label">{{ __('finance.fields.invoice_no') }}:</span> <span class="text-white">{{ $viewingInvoice->invoice_no }}</span></div>
+                <div><span class="kpi-label">{{ __('finance.fields.original_invoice_no') }}:</span> <span class="text-white">{{ $viewingInvoice->original_invoice_no ?: '—' }}</span></div>
+                <div><span class="kpi-label">{{ __('finance.fields.invoice_issuer') }}:</span> <span class="text-white">{{ $viewingInvoice->invoicer_name }}</span></div>
+                <div><span class="kpi-label">{{ __('finance.common.date') }}:</span> <span class="text-white">{{ $viewingInvoice->issue_date?->format('d-m-Y') ?: '—' }}</span></div>
+            </div>
+            <div class="mt-4 overflow-x-auto"><table class="w-full text-sm"><thead><tr><th class="px-4 py-3 text-left">{{ __('finance.fields.item_name') }}</th><th class="px-4 py-3 text-left">{{ __('finance.fields.quantity') }}</th><th class="px-4 py-3 text-left">{{ __('finance.fields.unit_price') }}</th><th class="px-4 py-3 text-left">{{ __('finance.fields.amount') }}</th></tr></thead><tbody>@foreach ($viewingInvoice->items as $item)<tr><td class="px-4 py-3">{{ $item->item_name }}</td><td class="px-4 py-3">{{ $item->quantity }}</td><td class="px-4 py-3">{{ $item->unit_price }}</td><td class="px-4 py-3">{{ $item->amount }}</td></tr>@endforeach</tbody><tfoot><tr><th colspan="3" class="px-4 py-3 text-right">{{ __('finance.fields.subtotal') }}</th><td class="px-4 py-3"><bdi dir="ltr">{{ app(FinanceService::class)->formatCurrencyAmount($viewingInvoice->subtotal, $viewingInvoice->financeRequest?->acceptedCurrency) }}</bdi></td></tr><tr><th colspan="3" class="px-4 py-3 text-right">{{ __('finance.fields.deduction') }}</th><td class="px-4 py-3"><bdi dir="ltr">{{ app(FinanceService::class)->formatCurrencyAmount(-(float) $viewingInvoice->discount, $viewingInvoice->financeRequest?->acceptedCurrency) }}</bdi></td></tr><tr><th colspan="3" class="px-4 py-3 text-right text-white">{{ __('finance.fields.grand_total') }}</th><td class="px-4 py-3 font-semibold text-white"><bdi dir="ltr">{{ app(FinanceService::class)->formatCurrencyAmount($viewingInvoice->total, $viewingInvoice->financeRequest?->acceptedCurrency) }}</bdi></td></tr></tfoot></table></div>
+            <div class="mt-4 flex flex-wrap justify-end gap-3"><a href="{{ route('finance.invoices.print', $viewingInvoice) }}" target="_blank" class="pill-link pill-link--accent">{{ __('finance.actions.print_a5') }}</a>@if ($viewingInvoice->original_image_path)<a href="{{ asset('storage/'.$viewingInvoice->original_image_path) }}" target="_blank" class="pill-link">{{ __('finance.actions.view_attachment') }}</a>@endif</div>
+        @endif
+    </x-admin.modal>
 </div>

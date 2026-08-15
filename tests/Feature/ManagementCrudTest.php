@@ -1351,7 +1351,7 @@ class ManagementCrudTest extends TestCase
         $this->assertTrue($otherUser->fresh()->is_active);
     }
 
-    public function test_student_bulk_activation_skips_students_without_parents(): void
+    public function test_student_bulk_activation_includes_students_without_parents(): void
     {
         $this->signIn();
 
@@ -1368,12 +1368,12 @@ class ManagementCrudTest extends TestCase
             ->set('bulk_status_action', 'activate')
             ->set('bulk_sync_accounts', false)
             ->call('applyBulkStatus')
-            ->assertHasErrors(['bulk_status']);
+            ->assertHasNoErrors();
 
-        $this->assertSame('inactive', $student->fresh()->status);
+        $this->assertSame('active', $student->fresh()->status);
     }
 
-    public function test_student_is_forced_inactive_when_saved_without_a_parent(): void
+    public function test_student_can_be_saved_active_without_a_parent(): void
     {
         $student = Student::create([
             'first_name' => 'Rule',
@@ -1382,12 +1382,12 @@ class ManagementCrudTest extends TestCase
             'status' => 'active',
         ]);
 
-        $this->assertSame('inactive', $student->fresh()->status);
+        $this->assertSame('active', $student->fresh()->status);
 
         $student->status = 'active';
         $student->save();
 
-        $this->assertSame('inactive', $student->fresh()->status);
+        $this->assertSame('active', $student->fresh()->status);
     }
 
     public function test_parent_bulk_status_can_activate_by_parent_number_range_and_sync_accounts(): void

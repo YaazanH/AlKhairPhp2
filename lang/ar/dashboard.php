@@ -104,7 +104,7 @@ return [
             'stats' => [
                 'group' => 'اسم المجموعة',
                 'students' => 'عدد الطلاب',
-                'attendance_average' => 'متوسط حضور الطلاب',
+                'attendance_average' => 'متوسط نسبة الحضور',
                 'memorized_pages' => 'إجمالي الصفحات المحفوظة',
             ],
             'empty_activity' => 'لا توجد أيام حضور مسجلة لهذه المجموعة بعد.',

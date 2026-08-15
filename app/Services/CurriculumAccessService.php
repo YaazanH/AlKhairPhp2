@@ -26,6 +26,10 @@ class CurriculumAccessService
             return false;
         }
 
+        if ($user->can('dashboard.group-teacher.view')) {
+            return true;
+        }
+
         $names = collect([$teacher->accessRole?->name, $teacher->job_title, $teacher->jobTitle?->name])
             ->filter()
             ->map(fn (string $name) => Str::lower(Str::squish($name)));

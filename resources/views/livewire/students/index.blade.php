@@ -56,7 +56,7 @@ new class extends Component {
     public ?string $issued_password = null;
     public string $search = '';
     public string $statusFilter = 'all';
-    public string $sortField = 'student';
+    public string $sortField = 'status';
     public string $sortDirection = 'asc';
     public int $perPage = 15;
     public bool $showFormModal = false;
@@ -504,7 +504,7 @@ new class extends Component {
                     'name' => trim($validated['first_name'].' '.$validated['last_name']),
                     'username' => $student->student_number ?: null,
                     'phone' => $studentPhone,
-                    'is_active' => $student->user?->is_active ?? ! in_array($validated['status'], ['inactive', 'blocked'], true),
+                    'is_active' => ! in_array($validated['status'], ['inactive', 'blocked'], true),
                 ],
                 'student',
             );
@@ -1018,7 +1018,9 @@ new class extends Component {
                     ->limit(1),
                 $direction,
             ),
-            'status' => $query->orderBy('status', $direction),
+            'status' => $query->orderByRaw(
+                "case status when 'active' then 1 when 'inactive' then 2 when 'graduated' then 3 when 'blocked' then 4 else 5 end {$direction}",
+            ),
             'student_number' => $query->orderBy('student_number', $direction),
             default => $query
                 ->orderBy('first_name', $direction)
@@ -1180,10 +1182,6 @@ new class extends Component {
             $query->whereHas('enrollments', fn (Builder $enrollmentQuery) => $enrollmentQuery
                 ->where('status', 'active')
                 ->where('group_id', $this->bulk_group_id));
-        }
-
-        if ($this->bulk_status_action === 'activate') {
-            $query->whereNotNull('parent_id');
         }
 
         return $query->where('status', $this->bulk_status_action === 'activate' ? 'inactive' : 'active');

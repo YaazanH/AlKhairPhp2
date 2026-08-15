@@ -79,6 +79,18 @@ return [
     'student_attendance' => [
         'title' => 'Student Attendance',
         'subtitle' => 'Create one attendance day for this group and mark each enrollment under that date.',
+        'export' => [
+            'title' => 'Export student attendance',
+            'report_title' => 'Student Attendance',
+            'action' => 'Export attendance',
+            'group' => 'Group',
+            'select_group' => 'Select group',
+            'from' => 'Date from',
+            'to' => 'Date to',
+            'student_number' => 'Student number',
+            'percentage' => 'Attendance percentage',
+            'empty' => 'No students are available for this group and period.',
+        ],
         'days' => [
             'title' => 'Attendance Days',
             'subtitle' => 'Create one attendance day for a date, then review its active groups before marking each class roster.',

@@ -4271,10 +4271,15 @@ body.print-template-editor-expanded {
 }
 
 .print-template-layer-arrow {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     width: 2.25rem;
     min-width: 2.25rem;
     padding-inline: 0;
     font-size: 1.05rem;
+    line-height: 1;
+    text-align: center;
 }
 
 .print-template-studio__header,
@@ -4434,6 +4439,10 @@ body.print-template-editor-expanded {
 @media (min-width: 1320px) {
     .print-template-studio__workspace {
         grid-template-columns: minmax(17rem, 0.72fr) minmax(0, 2.05fr);
+    }
+
+    .print-template-studio__workspace:has(.print-template-panel--inspector.is-dynamic-text) {
+        grid-template-columns: minmax(14rem, 0.5fr) minmax(0, 2.5fr);
     }
 }
 

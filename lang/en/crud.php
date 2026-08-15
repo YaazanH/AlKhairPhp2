@@ -680,6 +680,13 @@ return [
             'memorization_missing' => 'No memorization recorded',
             'memorization_unavailable' => 'Memorization data unavailable',
             'memorized_pages' => 'Pages :pages',
+            'copy_sections' => [
+                'attendance' => 'Attendance:',
+                'memorization' => 'Memorization:',
+                'partial_tests' => 'Trial test:',
+                'final_tests' => 'Final test:',
+                'closing' => 'May Allah accept from us and from you 🌺',
+            ],
             'copy_lines' => [
                 'group' => 'Group: :value',
                 'student' => 'Student: :value',
@@ -692,8 +699,8 @@ return [
             'tests' => [
                 'partial_title' => 'Trial tests',
                 'final_title' => 'Final tests',
-                'partial_line' => '• :student — Juz :juz — :quarter',
-                'final_line' => '• :student — Juz :juz',
+                'partial_line' => ':student — Juz :juz — (:quarter)',
+                'final_line' => ':student — Juz :juz',
                 'quarters' => [
                     1 => 'First quarter',
                     2 => 'Second quarter',

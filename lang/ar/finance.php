@@ -32,6 +32,7 @@ return [
         'edit_invoice' => 'تعديل الفاتورة',
         'remove_scan' => 'إزالة النسخة الممسوحة',
         'view_original' => 'عرض الأصل',
+        'view_attachment' => 'عرض المرفق',
         'review_request' => 'مراجعة الطلب',
         'review' => 'مراجعة',
         'transfer' => 'تحويل',

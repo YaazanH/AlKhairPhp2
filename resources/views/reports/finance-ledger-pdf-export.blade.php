@@ -14,7 +14,7 @@
     <meta charset="utf-8">
     <title>تقرير مالي</title>
     <style>
-        @page { margin: 34mm 12mm 18mm; header: ledgerHeader; footer: ledgerFooter; }
+        @page { margin: 33mm 12mm 18mm; header: ledgerHeader; footer: ledgerFooter; }
         @page :first { header: ledgerFirstHeader; }
         body { color: #18351f; direction: rtl; font-family: dubai, sans-serif; font-size: 9pt; margin: 0; }
         .header-wrap { margin: 0 -12mm; }
@@ -24,10 +24,10 @@
         .logo { width: 22%; }
         .logo img { height: auto; max-height: 23mm; max-width: 42mm; width: auto; }
         .title { color: #164d27; font-size: 18pt; font-weight: bold; text-align: center; width: 56%; }
-        .notice { color: #a52323; font-size: 8pt; font-weight: bold; margin-top: 2mm; }
+        .notice { color: #a52323; font-size: 8pt; font-weight: bold; margin-top: 2.8mm; }
         .report-no { color: #355f3e; direction: ltr; text-align: left; width: 22%; }
         .continuation { color: #78907e; direction: rtl; font-size: 7pt; font-weight: normal; margin-top: .8mm; }
-        .meta-wrap { background: transparent; border-bottom: 1px solid #bad1be; margin-bottom: 2mm; padding: 2mm 0; }
+        .meta-wrap { background: transparent; border-bottom: 1px solid #bad1be; margin-bottom: 1.5mm; padding: 2mm 0; }
         .meta-table td { border: 0; padding: .7mm 1.2mm; text-align: right; vertical-align: middle; }
         .meta-label { color: #58715e; font-size: 7.8pt; font-weight: bold; white-space: nowrap; width: 13%; }
         .meta-value { color: #173b20; font-weight: bold; padding-right: 2.5mm !important; width: 20%; }
@@ -37,13 +37,13 @@
         .footer-table td { background: #dcefdc; border: 0; height: 8mm; padding: 0 2mm; vertical-align: middle; width: 33.33%; }
         .footer-page { font-weight: bold; text-align: center; }
         .footer-code { background: transparent !important; direction: ltr; font-family: code39; font-size: 20pt; line-height: 1; text-align: right; }
-        .statement-gap { height: 2mm; }
+        .statement-gap { height: 1.5mm; }
         .ledger { page-break-inside: auto; }
         .ledger thead { display: table-header-group; }
         .ledger tr { page-break-inside: avoid; }
         .ledger th { background: #dcefdc; border: 1px solid #9fbea5; color: #214c2c; font-size: 8.5pt; padding: 2mm 1.5mm; text-align: center; }
         .ledger td { border: 1px solid #bfd1c1; font-size: 8.2pt; padding: 1.8mm 1.5mm; vertical-align: top; }
-        .ledger tbody tr:nth-child(even) td { background: rgba(220, 239, 220, .60); }
+        .ledger tbody tr:nth-child(even) td { background: rgba(220, 239, 220, .50); }
         .date { text-align: center; white-space: nowrap; width: 13%; }
         .category { width: 39%; }
         .money { direction: ltr; text-align: right; white-space: nowrap; width: 16%; }
@@ -51,10 +51,11 @@
         .description { color: #637267; font-size: 7.5pt; margin-top: .4mm; }
         .empty { color: #68756b; padding: 10mm !important; text-align: center; }
         .summary { border-collapse: collapse; margin-top: 4mm; page-break-inside: avoid; table-layout: fixed; width: 100%; }
-        .summary-title { color: #164d27; font-size: 12pt; font-weight: bold; margin: 4mm 0 1.5mm; text-align: center; }
         .summary td { border: 0; padding: 2.1mm 1.2mm; text-align: right; vertical-align: middle; }
-        .summary-label { color: #58715e; font-size: 8pt; font-weight: bold; width: 18%; }
-        .summary-value { direction: ltr; font-weight: bold; text-align: right; width: 32%; }
+        .summary-label { color: #58715e; font-size: 8pt; font-weight: bold; width: 10%; }
+        .summary-value { direction: ltr; font-weight: bold; text-align: right; width: 20%; }
+        .summary-label-wide { width: 12%; }
+        .summary-value-wide { direction: rtl; width: 28%; }
         .summary-notes { text-align: right; }
         .signature { border:0 !important; height: 44mm; padding-top:4mm !important; }
         .signature-layout { border-collapse:collapse; table-layout:fixed; width:100%; }
@@ -62,9 +63,10 @@
         .stamp-block { text-align:left; vertical-align:bottom; width:50%; }
         .stamp-block img { display:block; height:auto; margin:0; max-height:40mm; max-width:40mm; width:auto; }
         .signature-block { text-align:center; vertical-align:bottom; width:50%; }
-        .signature-mark { height:31mm; position:relative; width:100%; }
-        .signature-image { display:block; margin:0 auto; max-height:26mm; max-width:70%; width:auto; }
-        .signature-line { border-top:1px solid #315b3b; bottom:0; left:0; position:absolute; width:100%; }
+        .signature-mark { height:31mm; width:100%; }
+        .signature-image-space { height:27mm; text-align:center; width:100%; }
+        .signature-image { display:inline-block; height:auto; margin:0 auto; max-height:26mm; max-width:70%; width:auto; }
+        .signature-line { border-top:1px solid #315b3b; display:block; height:0; line-height:0; width:100%; }
         .signature-name { color: #637267; display: block; font-size: 7.5pt; margin-top: 2mm; text-align:center; width:100%; }
     </style>
 </head>
@@ -99,12 +101,10 @@
     </tbody>
 </table>
 
-<div class="summary-title">ملخص التقرير المالي</div>
 <table class="summary">
-    <tr><td class="summary-label">إجمالي المصاريف</td><td class="summary-value">{{ data_get($report, 'formatted.expense') }}</td><td class="summary-label">إجمالي الإيرادات</td><td class="summary-value">{{ data_get($report, 'formatted.income') }}</td></tr>
-    <tr><td class="summary-label">الرصيد الختامي</td><td class="summary-value">{{ data_get($report, 'formatted.closing_balance') }}</td><td class="summary-label">تاريخ التصدير</td><td class="summary-value">{{ $exportedAt }}</td></tr>
-    <tr><td class="summary-label">ملاحظات</td><td colspan="3" class="summary-notes">{{ ($report['notes'] ?? null) ?: '-' }}</td></tr>
-    <tr><td colspan="4" class="signature"><table class="signature-layout" dir="ltr"><tr><td class="stamp-block">@if($stampImage)<img src="{{ $stampImage }}" alt="">@endif</td><td class="signature-block"><div class="signature-mark">@if($signatureImage)<img class="signature-image" src="{{ $signatureImage }}" alt="">@endif<div class="signature-line"></div></div><span class="signature-name">{{ $report['issuer_name'] ?: '-' }}</span></td></tr></table></td></tr>
+    <tr><td class="summary-label">إجمالي المصاريف</td><td class="summary-value">{{ data_get($report, 'formatted.expense') }}</td><td class="summary-label">إجمالي الإيرادات</td><td class="summary-value">{{ data_get($report, 'formatted.income') }}</td><td class="summary-label summary-label-wide">{{ __('finance.common.notes') }}</td><td class="summary-value summary-value-wide">{{ ($report['notes'] ?? null) ?: '-' }}</td></tr>
+    <tr><td class="summary-label">الرصيد الختامي</td><td class="summary-value">{{ data_get($report, 'formatted.closing_balance') }}</td><td class="summary-label">تاريخ التصدير</td><td class="summary-value">{{ $exportedAt }}</td><td class="summary-label summary-label-wide"></td><td class="summary-value summary-value-wide"></td></tr>
+    <tr><td colspan="6" class="signature"><table class="signature-layout" dir="ltr"><tr><td class="stamp-block">@if($stampImage)<img src="{{ $stampImage }}" alt="">@endif</td><td class="signature-block"><div class="signature-mark"><div class="signature-image-space">@if($signatureImage)<img class="signature-image" src="{{ $signatureImage }}" alt="">@endif</div><div class="signature-line">&nbsp;</div></div><span class="signature-name">{{ $report['issuer_name'] ?: '-' }}</span></td></tr></table></td></tr>
 </table>
 </body>
 </html>

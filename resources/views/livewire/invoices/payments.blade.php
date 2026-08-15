@@ -124,8 +124,6 @@ new class extends Component {
             'original_invoice_no' => ['nullable', 'string', 'max:255'],
             'invoicer_name' => ['required', 'string', 'max:255'],
             'issue_date' => ['required', 'date'],
-            'due_date' => ['nullable', 'date', 'after_or_equal:issue_date'],
-            'invoice_status' => ['required', 'in:draft,issued,partial,paid,cancelled'],
             'invoice_notes' => ['nullable', 'string', 'max:4000'],
             'invoice_attachment' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png,webp', 'max:10240'],
         ]);
@@ -137,8 +135,6 @@ new class extends Component {
             'original_invoice_no' => $validated['original_invoice_no'] ?: null,
             'invoicer_name' => $validated['invoicer_name'],
             'issue_date' => $validated['issue_date'],
-            'due_date' => $validated['due_date'] ?: null,
-            'status' => $validated['invoice_status'],
             'notes' => $validated['invoice_notes'] ?: null,
             'original_image_path' => $newPath ?: $oldPath,
         ]);
@@ -298,9 +294,7 @@ new class extends Component {
                 <label class="text-sm">{{ __('finance.fields.invoice_no') }}<input wire:model="invoice_no" class="mt-1 w-full rounded-xl px-4 py-3" dir="ltr"></label>
                 <label class="text-sm">{{ __('finance.fields.original_invoice_no') }}<input wire:model="original_invoice_no" class="mt-1 w-full rounded-xl px-4 py-3" dir="ltr"></label>
                 <label class="text-sm">{{ __('finance.fields.invoicer_name') }}<input wire:model="invoicer_name" class="mt-1 w-full rounded-xl px-4 py-3"></label>
-                <label class="text-sm">{{ __('invoices.index.form.fields.status') }}<select wire:model="invoice_status" class="mt-1 w-full rounded-xl px-4 py-3">@foreach(['draft','issued','partial','paid','cancelled'] as $value)<option value="{{ $value }}">{{ __('print.invoice.statuses.'.$value) }}</option>@endforeach</select></label>
-                <label class="text-sm">{{ __('invoices.index.form.fields.issue_date') }}<input wire:model="issue_date" type="date" class="mt-1 w-full rounded-xl px-4 py-3"></label>
-                <label class="text-sm">{{ __('invoices.index.form.fields.due_date') }}<input wire:model="due_date" type="date" class="mt-1 w-full rounded-xl px-4 py-3"></label>
+                <label class="text-sm">{{ __('finance.fields.date') }}<input wire:model="issue_date" type="date" class="mt-1 w-full rounded-xl px-4 py-3"></label>
                 <label class="text-sm md:col-span-2">{{ __('finance.fields.invoice_scan') }}<input wire:model="invoice_attachment" type="file" accept="image/*,application/pdf" class="mt-1 block w-full rounded-xl px-4 py-3"></label>
                 <label class="text-sm md:col-span-2 xl:col-span-4">{{ __('invoices.index.form.fields.notes') }}<textarea wire:model="invoice_notes" class="mt-1 w-full rounded-xl px-4 py-3"></textarea></label>
                 <div class="md:col-span-2 xl:col-span-4 flex items-center justify-between gap-3">@if($invoiceRecord->original_image_path)<a href="{{ asset('storage/'.$invoiceRecord->original_image_path) }}" target="_blank" class="pill-link">{{ __('finance.actions.view_original') }}</a>@else<span></span>@endif<button class="pill-link pill-link--accent">{{ __('crud.common.actions.save') }}</button></div>

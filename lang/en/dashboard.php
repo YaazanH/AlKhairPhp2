@@ -104,7 +104,7 @@ return [
             'stats' => [
                 'group' => 'Group name',
                 'students' => 'Number of students',
-                'attendance_average' => 'Average student attendance',
+                'attendance_average' => 'Average attendance percentage',
                 'memorized_pages' => 'Total pages memorized',
             ],
             'empty_activity' => 'No attendance days are available for this group yet.',

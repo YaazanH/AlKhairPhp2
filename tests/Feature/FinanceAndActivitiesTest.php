@@ -149,8 +149,7 @@ class FinanceAndActivitiesTest extends TestCase
             ->set('finance_invoice_kind_id', $invoiceKind->id)
             ->set('invoice_type', 'finance')
             ->set('issue_date', '2026-11-02')
-            ->set('due_date', '2026-11-15')
-            ->set('status', 'issued')
+            ->set('notes', 'This must not be stored for a new invoice')
             ->set('discount', '5')
             ->call('save')
             ->assertHasNoErrors();
@@ -168,7 +167,9 @@ class FinanceAndActivitiesTest extends TestCase
 
         $this->assertSame('30.00', $invoice->subtotal);
         $this->assertSame('25.00', $invoice->total);
-        $this->assertSame('issued', $invoice->status);
+        $this->assertSame('draft', $invoice->status);
+        $this->assertNull($invoice->due_date);
+        $this->assertNull($invoice->notes);
 
         Volt::test('invoices.payments', ['invoice' => $invoice])
             ->set('invoice_deduction', '10')
@@ -1301,7 +1302,8 @@ class FinanceAndActivitiesTest extends TestCase
         $this->assertStringContainsString('class="signature-line"', $rtlExportHtml);
         $this->assertStringContainsString('max-height:40mm; max-width:40mm', $rtlExportHtml);
         $this->assertStringContainsString('.signature-block { text-align:center; vertical-align:bottom; width:50%; }', $rtlExportHtml);
-        $this->assertStringContainsString('.signature-line { border-top:1px solid #315b3b; bottom:0;', $rtlExportHtml);
+        $this->assertStringContainsString('.signature-line { border-top:1px solid #315b3b; display:block;', $rtlExportHtml);
+        $this->assertStringContainsString('<div class="signature-line">&nbsp;</div>', $rtlExportHtml);
 
         $reportWithBackground = $report;
         $reportWithBackground['template']['background_image_pdf_src'] = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
@@ -1318,7 +1320,8 @@ class FinanceAndActivitiesTest extends TestCase
         $backgroundPageCount = $pdfInspector->setSourceFile(StreamReader::createByString($backgroundPdf));
         $this->assertGreaterThanOrEqual(2, $backgroundPageCount);
         $this->assertLessThan(10, $backgroundPageCount, 'small='.$smallPageCount.', plain='.$plainPageCount.', background='.$backgroundPageCount);
-        $this->assertStringContainsString('ملخص التقرير المالي', $rtlExportHtml);
+        $this->assertStringNotContainsString('ملخص التقرير المالي', $rtlExportHtml);
+        $this->assertStringContainsString('Only for this ledger', $rtlExportHtml);
 
         Volt::test('finance.reports')
             ->assertSee(__('finance.reports.ledger_export_title'))

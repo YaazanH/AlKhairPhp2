@@ -13,6 +13,7 @@ use App\Http\Controllers\PrintTemplates\PrintTemplateController;
 use App\Http\Controllers\PrintTemplates\PrintTemplatePrintController;
 use App\Http\Controllers\ReportExportController;
 use App\Http\Controllers\TeacherAttendanceExportController;
+use App\Http\Controllers\StudentAttendanceExportController;
 use App\Http\Controllers\WebsiteController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -90,6 +91,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('parents/export', [AdminExportController::class, 'parents'])->middleware('permission:parents.view')->name('parents.export');
     Volt::route('teachers/attendance', 'teachers.attendance')->middleware('permission:attendance.teacher.view')->name('teachers.attendance');
     Route::get('teachers/attendance/export/pdf', TeacherAttendanceExportController::class)->middleware('permission:attendance.teacher.view')->name('teachers.attendance.export');
+    Route::get('student-attendance/export/pdf', StudentAttendanceExportController::class)->middleware('permission:attendance.student.view')->name('student-attendance.export');
     Volt::route('teachers/attendance/days/{teacherAttendanceDay}', 'teachers.attendance-show')->middleware('permission:attendance.teacher.view')->name('teachers.attendance.show');
     Volt::route('teachers', 'teachers.index')->middleware('permission:teachers.view')->name('teachers.index');
     Route::get('teachers/export', [AdminExportController::class, 'teachers'])->middleware('permission:teachers.view')->name('teachers.export');

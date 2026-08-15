@@ -9,12 +9,11 @@ use App\Models\Curriculum;
 use App\Models\Enrollment;
 use App\Models\GradeLevel;
 use App\Models\Group;
-use App\Models\GroupAttendanceDay;
 use App\Models\GroupSchedule;
-use App\Models\MemorizationSession;
 use App\Models\PrintTemplate;
 use App\Models\Student;
 use App\Models\Teacher;
+use App\Services\GroupDailySummaryService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Livewire\Volt\Component;
@@ -190,27 +189,7 @@ new class extends Component {
     public function copyProgress(): void
     {
         $date = $this->validate(['progressDate' => ['required','date']])['progressDate'];
-        $attendance = GroupAttendanceDay::query()->where('group_id', $this->currentGroup->id)->whereDate('attendance_date', $date)->with('records.status','records.enrollment.student')->get()->flatMap->records->filter(fn ($record) => $record->status?->is_present)->map(fn ($record) => $record->enrollment?->student?->full_name)->filter()->unique()->values();
-        $memorized = MemorizationSession::query()
-            ->whereDate('recorded_on', $date)
-            ->where('entry_type', 'new')
-            ->whereHas('enrollment', fn ($q) => $q->where('group_id', $this->currentGroup->id))
-            ->with(['student', 'pages'])
-            ->get()
-            ->groupBy('student_id')
-            ->map(function ($sessions): string {
-                $studentName = $sessions->first()?->student?->full_name;
-                $pages = $sessions->flatMap(function (MemorizationSession $session) {
-                    if ($session->pages->isNotEmpty()) return $session->pages->pluck('page_no');
-                    if (filled($session->from_page) && filled($session->to_page)) return range(min($session->from_page, $session->to_page), max($session->from_page, $session->to_page));
-                    return [];
-                })->map(fn ($page) => (int) $page)->filter()->unique()->sort()->values()->all();
-                $pageLabel = $this->formatPageRanges($pages);
-
-                return trim(($studentName ?? '').($pageLabel !== '' ? ' '.$pageLabel : ''));
-            })->filter()->values();
-        $lines = [$this->currentGroup->name, $date, '', 'الحضور:', ...($attendance->all() ?: ['-']), '', 'التسميع:', ...($memorized->all() ?: ['-']), '', 'تقبل الله منا ومنكم'];
-        $this->dispatch('admin-copy-text', text: implode(PHP_EOL, $lines));
+        $this->dispatch('admin-copy-text', text: app(GroupDailySummaryService::class)->currentCopyTextForUser($this->currentGroup, $date, auth()->user()));
     }
     protected function availableTeachersQuery()
     {
@@ -228,20 +207,6 @@ new class extends Component {
         return $this->availableTeachersQuery()->whereKey($teacherId)->exists();
     }
 
-    protected function formatPageRanges(array $pages): string
-    {
-        if ($pages === []) return '';
-        $ranges = [];
-        $start = $end = array_shift($pages);
-        foreach ($pages as $page) {
-            if ($page === $end + 1) { $end = $page; continue; }
-            $ranges[] = $start === $end ? (string) $start : $start.'-'.$end;
-            $start = $end = $page;
-        }
-        $ranges[] = $start === $end ? (string) $start : $start.'-'.$end;
-
-        return implode(', ', $ranges);
-    }
 }; ?>
 
 @php

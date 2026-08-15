@@ -157,39 +157,67 @@ class PrintTemplateRenderService
         return preg_replace_callback('/[^\r\n]+/u', function (array $line) use ($lineCapacity) {
             $text = $line[0];
             preg_match_all('/[\x{0621}-\x{064A}]/u', $text, $letters);
+            preg_match_all('/\s/u', $text, $spaces);
+            $visualLength = count($letters[0]) + (count($spaces[0]) * 0.45);
 
             // Short text is centred by text-align-last and should not receive
             // decorative stretching merely to occupy the whole text box.
-            if (count($letters[0]) < $lineCapacity * 0.58) {
+            if ($visualLength < $lineCapacity * 0.58) {
                 return $text;
             }
 
             preg_match_all(
-                '/([\x{0626}\x{0628}\x{062A}-\x{062E}\x{0633}-\x{063A}\x{0641}-\x{0647}\x{064A}])(?=[\x{0622}-\x{064A}])/u',
+                '/([\x{0626}\x{0628}\x{062A}-\x{062E}\x{0633}-\x{063A}\x{0641}-\x{0647}\x{0649}\x{064A}])(?=[\x{0622}-\x{064A}])/u',
                 $text,
                 $joins,
                 PREG_OFFSET_CAPTURE,
             );
 
-            $available = count($joins[0]);
-            $needed = min(4, (int) ceil($available / 3), max(1, (int) round($lineCapacity - count($letters[0]))));
-            if ($available === 0 || $needed < 1) {
+            if ($joins[0] === []) {
                 return $text;
             }
 
-            $positions = [];
+            // Tatweel is narrower than a normal glyph. Close the estimated gap
+            // without putting more than two marks at any joining point.
+            $estimatedGap = $visualLength < $lineCapacity
+                ? $lineCapacity - $visualLength
+                : min(2.2, $lineCapacity * 0.08);
+            $needed = min(count($joins[0]) * 2, 12, max(1, (int) ceil($estimatedGap / 0.55)));
+            $positions = collect($joins[0])
+                ->map(fn (array $match, int $index) => [
+                    'position' => $match[1] + strlen($match[0]),
+                    'score' => $this->kashidaJoinScore($match[0], $index, count($joins[0])),
+                ])
+                ->sortByDesc('score')
+                ->pluck('position')
+                ->values()
+                ->all();
+            $insertions = [];
             for ($index = 0; $index < $needed; $index++) {
-                $match = $joins[0][(int) floor((($index + 0.5) * $available) / $needed)];
-                $positions[] = $match[1] + strlen($match[0]);
+                $position = $positions[$index % count($positions)];
+                $insertions[$position] = ($insertions[$position] ?? 0) + 1;
             }
 
-            rsort($positions);
-            foreach (array_unique($positions) as $position) {
-                $text = substr($text, 0, $position).'ـ'.substr($text, $position);
+            krsort($insertions);
+            foreach ($insertions as $position => $count) {
+                $text = substr($text, 0, $position).str_repeat("\u{0640}", $count).substr($text, $position);
             }
 
             return $text;
         }, $value) ?? $value;
+    }
+
+    protected function kashidaJoinScore(string $letter, int $index, int $total): float
+    {
+        $stylisticPriority = match (true) {
+            preg_match('/[\x{0633}-\x{063A}\x{0635}\x{0636}]/u', $letter) === 1 => 3,
+            preg_match('/[\x{0637}-\x{063A}\x{0641}\x{0642}]/u', $letter) === 1 => 2,
+            preg_match('/[\x{0628}\x{062A}-\x{062E}\x{0643}-\x{0646}\x{064A}]/u', $letter) === 1 => 1,
+            default => 0,
+        };
+        $middleDistance = abs(($index + 0.5) - ($total / 2));
+
+        return ($stylisticPriority * 100) - $middleDistance + ($index / 1000);
     }
 
     protected function renderBarcode(string $value, array $element): ?string

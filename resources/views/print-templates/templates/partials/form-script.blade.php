@@ -92,14 +92,35 @@
             const capacity = Math.max(1, Number(element.width || 4) / (Number(element.styling?.font_size || 4.2) * 0.55));
             return text.split(/(\r?\n)/).map((line) => {
                 const letters = (line.match(/[\u0621-\u064a]/g) || []).length;
-                if (letters < capacity * 0.58) return line;
+                const spaces = (line.match(/\s/g) || []).length;
+                const visualLength = letters + (spaces * 0.45);
+                if (visualLength < capacity * 0.58) return line;
 
-                const matches = [...line.matchAll(/([\u0626\u0628\u062a-\u062e\u0633-\u063a\u0641-\u0647\u064a])(?=[\u0622-\u064a])/g)];
-                const count = Math.min(4, Math.ceil(matches.length / 3), Math.max(1, Math.round(capacity - letters)));
-                if (!matches.length || count < 1) return line;
+                const matches = [...line.matchAll(/([\u0626\u0628\u062a-\u062e\u0633-\u063a\u0641-\u0647\u0649\u064a])(?=[\u0622-\u064a])/g)];
+                if (!matches.length) return line;
 
-                const selected = new Set(Array.from({ length: count }, (_, index) => matches[Math.floor(((index + 0.5) * matches.length) / count)].index));
-                return [...line].map((character, index) => selected.has(index) ? `${character}ـ` : character).join('');
+                const priority = (letter) => /[\u0633-\u063a\u0635\u0636]/.test(letter)
+                    ? 3
+                    : (/[\u0637-\u063a\u0641\u0642]/.test(letter) ? 2 : 1);
+                const positions = matches
+                    .map((match, index) => ({
+                        position: match.index + match[0].length,
+                        score: (priority(match[0]) * 100) - Math.abs((index + 0.5) - (matches.length / 2)) + (index / 1000),
+                    }))
+                    .sort((left, right) => right.score - left.score)
+                    .map((candidate) => candidate.position);
+                const estimatedGap = visualLength < capacity ? capacity - visualLength : Math.min(2.2, capacity * 0.08);
+                const count = Math.min(matches.length * 2, 12, Math.max(1, Math.ceil(estimatedGap / 0.55)));
+                const insertions = new Map();
+
+                for (let index = 0; index < count; index += 1) {
+                    const position = positions[index % positions.length];
+                    insertions.set(position, (insertions.get(position) || 0) + 1);
+                }
+
+                return [...insertions.entries()]
+                    .sort((left, right) => right[0] - left[0])
+                    .reduce((result, [position, amount]) => `${result.slice(0, position)}${'\u0640'.repeat(amount)}${result.slice(position)}`, line);
             }).join('');
         }
 
@@ -484,7 +505,7 @@
                         node.style.display = 'block';
                         node.style.textAlign = align;
                         node.style.textAlignLast = align === 'justify' ? 'center' : '';
-                        node.style.textJustify = align === 'justify' ? 'inter-character' : '';
+                        node.style.textJustify = align === 'justify' ? 'auto' : '';
                         node.style.whiteSpace = 'pre-wrap';
                         node.style.lineHeight = element.styling?.line_height || 1.2;
                         node.style.textIndent = '0';
@@ -610,6 +631,7 @@
 
         function renderInspector() {
             const element = selectedElement();
+            inspector.closest('.print-template-panel--inspector')?.classList.toggle('is-dynamic-text', element?.type === 'dynamic_text');
             if (!element) {
                 inspector.innerHTML = `<div class="admin-empty-state">${labels.empty}</div>`;
                 return;

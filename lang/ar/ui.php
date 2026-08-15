@@ -38,7 +38,7 @@ return [
         'academics' => 'الأكاديمي',
         'courses' => 'الدورات',
         'groups' => 'المجموعات',
-        'curricula' => 'مناهج',
+        'curricula' => 'المناهج',
         'my_curriculum' => 'منهاجي',
         'enrollments' => 'التسجيل في الدورة',
         'assessments' => 'التقييمات',

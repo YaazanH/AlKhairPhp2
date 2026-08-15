@@ -285,7 +285,7 @@ class AdminExportController extends Controller
             'margin_bottom' => 18,
             'margin_left' => 8,
             'margin_right' => 8,
-            'margin_top' => 8,
+            'margin_top' => 31,
         ]));
         $mpdf->autoLangToFont = false;
         $mpdf->autoScriptToLang = false;
