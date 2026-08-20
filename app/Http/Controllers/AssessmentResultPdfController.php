@@ -24,6 +24,12 @@ class AssessmentResultPdfController extends Controller
             $groupIds->push($assessment->group_id);
         }
 
+        $selectedGroupId = $request->integer('group_id');
+        if ($selectedGroupId !== 0) {
+            abort_unless($groupIds->contains($selectedGroupId), 404);
+            $groupIds = collect([$selectedGroupId]);
+        }
+
         $groups = $scopes->scopeGroups(Group::query()->whereIn('id', $groupIds), $request->user())
             ->with(['enrollments' => fn ($query) => $query
                 ->where('status', 'active')

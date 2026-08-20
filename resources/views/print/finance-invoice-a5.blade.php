@@ -1,4 +1,8 @@
-@php($printNotes = preg_match('/^(?:Created from withdrawal request|تم إنشاؤها من طلب السحب)/u', (string) $invoice->notes) ? null : $invoice->notes)
+@php
+    $printNotes = preg_match('/^(?:Created from withdrawal request|تم إنشاؤها من طلب السحب)/u', (string) $invoice->notes) ? null : $invoice->notes;
+    $formatInvoiceNumber = fn (float|int|string|null $value) => preg_replace('/\.00$/', '', number_format((float) ($value ?? 0), 2));
+    $formatInvoiceAmount = fn (float|int|string|null $value) => preg_replace('/\.00(?=\s|$)/', '', app(\App\Services\FinanceService::class)->formatCurrencyAmount($value, $invoice->financeRequest?->acceptedCurrency));
+@endphp
 <!doctype html>
 <html lang="{{ app()->getLocale() }}" dir="{{ app()->getLocale() === 'ar' ? 'rtl' : 'ltr' }}">
 <head>
@@ -17,9 +21,9 @@
         .invoice-no { color: #50715a; font-size: 9pt; text-align: end; }
         .footer { background: #dff1e2; border-top: 1px solid #9fc6a8; color: #315b3b; padding: 2.5mm 10mm; }
         .footer td { width: 50%; }
+        .footer-barcode { direction:ltr; font-family:code39; font-size:18pt; line-height:1; text-align:start; }
         .page { text-align: end; }
         .meta { margin: 5mm 0 5mm; }
-        .invoice-content-gap { height: 4mm; line-height: 4mm; }
         .meta td { border-bottom: 1px solid #d9e7dc; padding: 2.2mm 2mm; }
         .label { color: #5d7663; font-size: 8pt; font-weight: bold; width: 23%; }
         .value { font-weight: bold; width: 27%; }
@@ -33,7 +37,7 @@
         .totals { margin-top: 4mm; width: 58%; }
         .totals th, .totals td { border-bottom: 1px solid #c9d9cc; padding: 2mm; }
         .totals th { color: #526e59; text-align: start; }
-        .totals td { direction: ltr; font-weight: bold; text-align: end; }
+        .totals td { direction:ltr; font-weight:bold; text-align:{{ app()->getLocale() === 'ar' ? 'right' : 'end' }}; }
         .grand th, .grand td { background: #dff1e2; color: #14532d; font-size: 11pt; }
         .notes { color: #526e59; margin-top: 5mm; }
         .signature { margin-top: 18mm; text-align: center; width: 45%; }
@@ -50,12 +54,11 @@
     <div class="header"><table><tr>@if ($logoImage ?? null)<td class="brand-logo"><img src="{{ $logoImage }}" alt=""></td>@endif<td><div class="brand">جامع الخير</div><div>المهاجرين</div></td><td><div class="invoice-title">فاتورة</div><div class="invoice-no">{{ $invoice->invoice_no }} · متابعة</div></td></tr></table></div>
 </htmlpageheader>
 <htmlpagefooter name="invoiceFooter">
-    <div class="footer"><table><tr><td>{{ $invoice->invoice_no }}</td><td class="page">Page {PAGENO} / {nbpg}</td></tr></table></div>
+    <div class="footer"><table><tr><td class="footer-barcode">*{{ $invoice->invoice_no }}*</td><td class="page">Page {PAGENO} / {nbpg}</td></tr></table></div>
 </htmlpagefooter>
 
 @unless($isPdf ?? false)<div class="actions"><button type="button" onclick="window.print()">{{ __('finance.actions.print') }}</button></div>@endunless
 
-<div class="invoice-content-gap">&nbsp;</div>
 <table class="meta">
     <tr><td class="label">{{ __('finance.fields.invoice_issuer') }}</td><td class="value">{{ $invoice->invoicer_name ?: '-' }}</td><td class="label">{{ __('finance.common.date') }}</td><td class="value">{{ $invoice->issue_date?->format('d-m-Y') ?: '-' }}</td></tr>
     <tr><td class="label">{{ __('finance.fields.original_invoice_no') }}</td><td class="value">{{ $invoice->original_invoice_no ?: '-' }}</td><td class="label">{{ __('finance.fields.invoice_no') }}</td><td class="value">{{ $invoice->invoice_no }}</td></tr>
@@ -67,7 +70,7 @@
         <thead><tr><th style="width:7%">#</th><th>{{ __('finance.fields.item_name') }}</th><th style="width:13%">{{ __('finance.fields.quantity') }}</th><th style="width:20%">{{ __('finance.fields.unit_price') }}</th><th style="width:20%">{{ __('finance.fields.amount') }}</th></tr></thead>
         <tbody>
         @foreach ($pageItems as $itemIndex => $item)
-            <tr><td class="number">{{ $itemIndex + 1 }}</td><td>{{ $item->item_name }}</td><td class="number">{{ $item->quantity }}</td><td class="number">{{ number_format((float) $item->unit_price, 2) }}</td><td class="number">{{ number_format((float) $item->amount, 2) }}</td></tr>
+            <tr><td class="number">{{ $itemIndex + 1 }}</td><td>{{ $item->item_name }}</td><td class="number">{{ $formatInvoiceNumber($item->quantity) }}</td><td class="number">{{ $formatInvoiceNumber($item->unit_price) }}</td><td class="number">{{ $formatInvoiceNumber($item->amount) }}</td></tr>
         @endforeach
         </tbody>
     </table>
@@ -75,9 +78,9 @@
 @endforeach
 
 <table class="totals" align="{{ app()->getLocale() === 'ar' ? 'left' : 'right' }}">
-    <tr><th>{{ __('finance.fields.subtotal') }}</th><td>{{ app(\App\Services\FinanceService::class)->formatCurrencyAmount($invoice->subtotal, $invoice->financeRequest?->acceptedCurrency) }}</td></tr>
-    <tr><th>{{ __('finance.fields.deduction') }}</th><td>{{ app(\App\Services\FinanceService::class)->formatCurrencyAmount(-(float) $invoice->discount, $invoice->financeRequest?->acceptedCurrency) }}</td></tr>
-    <tr class="grand"><th>{{ __('finance.fields.grand_total') }}</th><td>{{ app(\App\Services\FinanceService::class)->formatCurrencyAmount($invoice->total, $invoice->financeRequest?->acceptedCurrency) }}</td></tr>
+    <tr><th>{{ __('finance.fields.subtotal') }}</th><td>{{ $formatInvoiceAmount($invoice->subtotal) }}</td></tr>
+    <tr><th>{{ __('finance.fields.deduction') }}</th><td>{{ $formatInvoiceAmount(-(float) $invoice->discount) }}</td></tr>
+    <tr class="grand"><th>{{ __('finance.fields.grand_total') }}</th><td>{{ $formatInvoiceAmount($invoice->total) }}</td></tr>
 </table>
 
 @if ($printNotes)<div class="notes">{{ $printNotes }}</div>@endif

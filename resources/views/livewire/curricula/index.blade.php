@@ -35,6 +35,7 @@ new class extends Component {
     public int $customImportance = 1;
     public string $customDate = '';
     public string $customStatus = 'taught';
+    public bool $showBooksModal = false;
 
     public function mount(): void
     {
@@ -64,7 +65,7 @@ new class extends Component {
             $availableGroups = $groupsQuery->with('course')->orderBy('name')->get();
             if ($this->selectedGroupId === '' && $availableGroups->isNotEmpty()) $this->selectedGroupId = (string) $availableGroups->first()->id;
             $selectedGroup = $availableGroups->firstWhere('id', (int) $this->selectedGroupId);
-            if ($selectedGroup) $selectedGroup->load(['curriculum.subjects.definition', 'curriculum.subjects.resources', 'curriculum.subjects.lessons.resource', 'curriculum.subjects.lessons.topics', 'curriculumProgresses.teacher', 'curriculumTopicProgresses.teacher', 'customCurriculumLessons.teacher']);
+            if ($selectedGroup) $selectedGroup->load(['curriculum.standaloneResources', 'curriculum.subjects.definition', 'curriculum.subjects.resources', 'curriculum.subjects.lessons.resource', 'curriculum.subjects.lessons.topics', 'curriculumProgresses.teacher', 'curriculumTopicProgresses.teacher', 'customCurriculumLessons.teacher']);
             $groups = $availableGroups; $groupProgress = collect(); $curricula = collect();
         }
 
@@ -78,6 +79,8 @@ new class extends Component {
             'curricula' => $curricula, 'groups' => $groups, 'groupProgress' => $groupProgress,
             'selectedGroup' => $selectedGroup, 'selectedSummary' => $selectedSummary, 'subjectRows' => $subjectRows,
             'latestLessons' => $selectedGroup ? $this->latestLessons($selectedGroup) : collect(),
+            'downloadResources' => $selectedGroup ? $selectedGroup->curriculum->subjects->flatMap->resources
+                ->merge($selectedGroup->curriculum->standaloneResources)->whereNotNull('pdf_path')->unique('id')->sortBy('book_name')->values() : collect(),
         ];
     }
 
@@ -244,7 +247,7 @@ new class extends Component {
 }; ?>
 
 <div class="page-stack">
-    <section class="page-hero p-6 lg:p-8"><div class="flex flex-wrap items-start justify-between gap-5"><div><div class="eyebrow">{{ $isManager ? __('curricula.title') : __('curricula.my_title') }}</div><h1 class="font-display mt-3 text-4xl text-white">{{ $isManager ? __('curricula.title') : __('curricula.my_title') }}</h1><p class="mt-3 max-w-3xl text-neutral-300">{{ $isManager ? __('curricula.subtitle') : __('curricula.teacher_subtitle') }}</p></div>@if($isManager)<select wire:model.live="courseId" class="rounded-xl px-4 py-2.5">@foreach($courses as $course)<option value="{{ $course->id }}">{{ $course->name }}</option>@endforeach</select>@else<select wire:model.live="selectedGroupId" class="rounded-xl px-4 py-2.5">@foreach($groups as $group)<option value="{{ $group->id }}">{{ $group->name }} · {{ $group->course?->name }}</option>@endforeach</select>@endif</div></section>
+    <section class="page-hero p-6 lg:p-8"><div class="flex flex-wrap items-start justify-between gap-5"><div>@if($isManager)<div class="eyebrow">{{ __('curricula.title') }}</div>@endif<h1 class="font-display {{ $isManager ? 'mt-3' : '' }} text-4xl text-white">{{ $isManager ? __('curricula.title') : __('curricula.my_title') }}</h1><p class="mt-3 max-w-3xl text-neutral-300">{{ $isManager ? __('curricula.subtitle') : ($selectedGroup?->curriculum?->name ?: __('curricula.progress.empty')) }}</p></div>@if($isManager)<select wire:model.live="courseId" class="rounded-xl px-4 py-2.5">@foreach($courses as $course)<option value="{{ $course->id }}">{{ $course->name }}</option>@endforeach</select>@elseif($selectedGroup)<button wire:click="$set('showBooksModal', true)" class="pill-link pill-link--accent">{{ __('curricula.actions.download_books') }}</button>@endif</div></section>
     @if(session('status'))<div class="flash-success px-4 py-3 text-sm">{{ session('status') }}</div>@endif @error('delete')<div class="flash-error px-4 py-3 text-sm">{{ $message }}</div>@enderror
 
     @if($isManager)
@@ -280,6 +283,7 @@ new class extends Component {
         @else<div class="surface-panel admin-empty-state">{{ __('curricula.errors.no_group') }}</div>@endif
     @endif
 
+    <x-admin.modal :show="$showBooksModal" :title="__('curricula.actions.download_books')" close-method="$set('showBooksModal', false)" max-width="2xl"><div class="grid gap-2">@forelse($downloadResources as $resource)<div class="flex items-center justify-between gap-3 rounded-xl border border-white/10 p-3"><span>{{ $resource->book_name }}</span><a href="{{ route('curriculum-resources.download', $resource) }}" class="pill-link pill-link--compact" aria-label="{{ __('curricula.actions.download') }}">⬇</a></div>@empty<div class="admin-empty-state">{{ __('curricula.fields.no_downloadable_books') }}</div>@endforelse</div></x-admin.modal>
     <x-admin.modal :show="$showCurriculumModal" :title="__('curricula.form.curriculum_title')" close-method="$set('showCurriculumModal', false)" max-width="3xl"><form wire:submit="saveCurriculum" class="grid gap-4 md:grid-cols-2"><label class="block text-sm">{{ __('curricula.fields.name') }}<input wire:model="curriculumName" class="mt-1 w-full rounded-xl px-4 py-3"></label><label class="block text-sm">{{ __('curricula.fields.grade') }}<select wire:model="curriculumGradeId" class="mt-1 w-full rounded-xl px-4 py-3"><option value="">{{ __('curricula.options.all_grades') }}</option>@foreach($grades as $grade)<option value="{{ $grade->id }}">{{ $grade->name }}</option>@endforeach</select></label><div class="md:col-span-2"><button class="pill-link pill-link--accent">{{ __('curricula.actions.save') }}</button></div></form></x-admin.modal>
     <x-admin.modal :show="$detailsGroupId !== null" :title="__('curricula.progress.group_details', ['group' => $selectedGroup?->name])" close-method="$set('detailsGroupId', null)" max-width="6xl"><div class="space-y-3">@foreach($subjectRows as $subject)<details class="rounded-2xl border border-white/10 p-4"><summary class="flex cursor-pointer justify-between"><span class="font-semibold text-white">{{ $subject['name'] }}</span><span>{{ number_format($subject['percentage'], 0) }}%</span></summary><table class="mt-3 w-full text-sm"><thead><tr><th class="p-2">{{ __('curricula.fields.lesson') }}</th><th class="p-2">{{ __('curricula.fields.status') }}</th><th class="p-2">{{ __('curricula.fields.date') }}</th></tr></thead><tbody>@foreach($subject['lessons'] as $lesson)<tr><td class="p-2 text-white">{{ $lesson['name'] }}</td><td class="p-2">{{ __('curricula.status.'.$lesson['status']) }}</td><td class="p-2">{{ $lesson['taught_on']?->format('Y-m-d') ?: '—' }}</td></tr>@endforeach</tbody></table></details>@endforeach</div></x-admin.modal>
     <x-admin.modal :show="$showCustomModal" :title="__('curricula.form.custom_title')" close-method="$set('showCustomModal', false)" max-width="3xl"><form wire:submit="saveCustom" class="grid gap-4 md:grid-cols-2"><label class="block text-sm">{{ __('curricula.fields.subject') }}<input wire:model="customSubjectName" class="mt-1 w-full rounded-xl px-4 py-3"></label><label class="block text-sm">{{ __('curricula.fields.lesson') }}<input wire:model="customLessonName" class="mt-1 w-full rounded-xl px-4 py-3"></label><label class="block text-sm">{{ __('curricula.fields.page_count') }}<input wire:model="customPageCount" type="number" min="0" class="mt-1 w-full rounded-xl px-4 py-3"></label><label class="block text-sm">{{ __('curricula.fields.date') }}<input wire:model="customDate" type="date" class="mt-1 w-full rounded-xl px-4 py-3"></label><div class="md:col-span-2"><button class="pill-link pill-link--accent">{{ __('curricula.actions.save') }}</button></div></form></x-admin.modal>

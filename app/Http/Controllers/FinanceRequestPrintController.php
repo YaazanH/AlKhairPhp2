@@ -90,7 +90,7 @@ class FinanceRequestPrintController extends Controller
 
     protected function previewWithTemplate(FinanceRequest $financeRequest, PrintTemplate $template): View
     {
-        $defaults = $this->defaultPageSize()?->layoutConfig() ?? app(IdCardPrintLayoutService::class)->defaults();
+        $defaults = $template->printLayoutConfig();
         $contextKey = in_array($financeRequest->type, [FinanceRequest::TYPE_REVENUE, FinanceRequest::TYPE_RETURN], true) ? 'revenue' : 'finance_request';
         $contexts = collect([[$contextKey => $financeRequest]]);
         $layout = app(IdCardPrintLayoutService::class)->paginateDimensions(

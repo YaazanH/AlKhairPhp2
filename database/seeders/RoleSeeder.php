@@ -166,6 +166,9 @@ class RoleSeeder extends Seeder
             Permission::findOrCreate($permissionName, 'web');
         }
 
+        // Deliberately unassigned: access is granted explicitly to individual test recorders.
+        Permission::findOrCreate('quran-tests.quick-entry', 'web');
+
         $roles = [
             RoleRegistry::SUPER_ADMIN => $permissions,
             RoleRegistry::ADMIN => $permissions,

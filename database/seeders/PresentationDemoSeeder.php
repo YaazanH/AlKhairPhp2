@@ -72,7 +72,7 @@ class PresentationDemoSeeder extends Seeder
             ['code' => 'participation-reward'],
             [
                 'name' => 'Participation Reward',
-                'category' => 'manual',
+                'category' => 'ManualEntry',
                 'default_points' => 5,
                 'allow_manual_entry' => true,
                 'allow_negative' => false,
@@ -83,7 +83,7 @@ class PresentationDemoSeeder extends Seeder
             ['code' => 'follow-up-reminder'],
             [
                 'name' => 'Follow-up Reminder',
-                'category' => 'manual',
+                'category' => 'ManualEntry',
                 'default_points' => -2,
                 'allow_manual_entry' => true,
                 'allow_negative' => true,

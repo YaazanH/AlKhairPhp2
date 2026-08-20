@@ -55,6 +55,14 @@ new class extends Component {
     public function mount(): void
     {
         $this->authorizePermission('groups.view');
+        $teacherId = Auth::user()?->teacherProfile?->id;
+        $activeGroup = $teacherId ? Group::query()->where('is_active', true)
+            ->where(fn ($query) => $query->where('teacher_id', $teacherId)->orWhere('assistant_teacher_id', $teacherId))
+            ->orderByDesc('starts_on')->orderByDesc('id')->first() : null;
+        if ($activeGroup) {
+            $this->redirectRoute('groups.show', ['group' => $activeGroup], navigate: true);
+            return;
+        }
         $this->courseFilter = 'all';
         $this->resetForm();
         $this->quickSummaryDate = now()->toDateString();
@@ -1094,7 +1102,7 @@ new class extends Component {
                                             value="{{ $student->id }}"
                                             data-search="{{ trim(implode(' ', array_filter([$student->student_number, $student->first_name, $student->last_name]))) }}"
                                         >
-                                            {{ $student->first_name }} {{ $student->last_name }}
+                                            {{ $student->full_name }}
                                             @if ($student->parentProfile?->father_name)
                                                 - {{ $student->parentProfile->father_name }}
                                             @endif
@@ -1174,7 +1182,7 @@ new class extends Component {
                                                     <div class="student-inline">
                                                         <x-student-avatar :student="$enrollment->student" size="sm" />
                                                         <div class="student-inline__body">
-                                                            <div class="student-inline__name">{{ $enrollment->student->first_name }} {{ $enrollment->student->last_name }}</div>
+                                                            <div class="student-inline__name">{{ $enrollment->student->full_name }}</div>
                                                         </div>
                                                     </div>
                                                 @else

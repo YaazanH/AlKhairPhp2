@@ -47,6 +47,21 @@ class QuranFinalTestService
         });
     }
 
+    public function createForExternalMemorization(Enrollment $enrollment, QuranJuz $juz): QuranFinalTest
+    {
+        if (! $enrollment->student->externalMemorizedJuzs()->whereKey($juz->id)->exists()) {
+            throw new LogicException(__('workflow.quran_final_tests.errors.juz_not_eligible'));
+        }
+        if ($this->existingTestForStudentAndJuz($enrollment->student_id, $juz->id)) {
+            throw new LogicException(__('workflow.quran_final_tests.errors.open_cycle_exists'));
+        }
+
+        return QuranFinalTest::query()->create([
+            'created_by' => auth()->id(), 'enrollment_id' => $enrollment->id, 'juz_id' => $juz->id,
+            'status' => 'in_progress', 'student_id' => $enrollment->student_id,
+        ])->fresh(['attempts.teacher', 'enrollment.group.course', 'juz', 'student.parentProfile']);
+    }
+
     public function eligibleJuzIdsForStudent(Student $student): Collection
     {
         $passedPartialJuzIds = QuranPartialTest::query()
@@ -61,6 +76,7 @@ class QuranFinalTestService
             ->pluck('juz_id')
             ->map(fn (int $juzId) => (int) $juzId)
             ->all();
+        $externalJuzIds = $student->externalMemorizedJuzs()->pluck('quran_juzs.id')->map(fn ($id) => (int) $id)->all();
 
         $legacyBlockedJuzIds = QuranTest::query()
             ->where('student_id', $student->id)
@@ -75,6 +91,7 @@ class QuranFinalTestService
             ->get()
             ->filter(fn (QuranJuz $juz): bool => in_array($juz->id, $passedPartialJuzIds, true)
                 && ! in_array($juz->id, $existingFinalJuzIds, true)
+                && ! in_array($juz->id, $externalJuzIds, true)
                 && ! in_array($juz->id, $legacyBlockedJuzIds, true))
             ->pluck('id')
             ->values();

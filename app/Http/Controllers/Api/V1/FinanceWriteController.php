@@ -316,7 +316,7 @@ class FinanceWriteController extends Controller
             'notes' => $registration->notes,
             'status' => $registration->status,
             'student_id' => $registration->student_id,
-            'student_name' => trim(($registration->student?->first_name ?? '').' '.($registration->student?->last_name ?? '')),
+            'student_name' => $registration->student?->full_name ?? '',
         ];
     }
 
@@ -336,7 +336,7 @@ class FinanceWriteController extends Controller
             'invoice_id' => $item->invoice_id,
             'quantity' => (float) $item->quantity,
             'student_id' => $item->student_id,
-            'student_name' => trim(($item->student?->first_name ?? '').' '.($item->student?->last_name ?? '')),
+            'student_name' => $item->student?->full_name ?? '',
             'unit_price' => (float) $item->unit_price,
         ];
     }

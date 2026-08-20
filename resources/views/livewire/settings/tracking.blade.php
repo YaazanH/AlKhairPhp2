@@ -532,9 +532,7 @@ new class extends Component
 
 <div class="page-stack settings-admin-page">
     <section class="page-hero p-6 lg:p-8">
-        <div class="eyebrow">{{ __('ui.nav.settings') }}</div>
-        <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('settings.tracking.title') }}</h1>
-        <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ __('settings.tracking.subtitle') }}</p>
+        <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('ui.common.settings') }}</h1>
     </section>
 
     <x-settings.admin-nav section="dashboard" current="settings.tracking" />
@@ -542,20 +540,6 @@ new class extends Component
     @if (session('status'))
         <div class="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">{{ session('status') }}</div>
     @endif
-
-    <div class="grid gap-4 md:grid-cols-2">
-        <div class="rounded-xl border border-neutral-200 p-5 dark:border-neutral-700"><div class="text-sm text-neutral-500">{{ __('settings.tracking.stats.attendance_statuses') }}</div><div class="mt-2 text-3xl font-semibold">{{ number_format($totals['attendance_statuses']) }}</div></div>
-        <div class="rounded-xl border border-neutral-200 p-5 dark:border-neutral-700"><div class="text-sm text-neutral-500">{{ __('settings.tracking.stats.assessment_types') }}</div><div class="mt-2 text-3xl font-semibold">{{ number_format($totals['assessment_types']) }}</div></div>
-    </div>
-
-    <section class="surface-panel p-5 lg:p-6">
-        <div class="admin-toolbar">
-            <div>
-                <div class="admin-toolbar__title">{{ __('settings.tracking.title') }}</div>
-                <p class="admin-toolbar__subtitle">{{ __('settings.tracking.subtitle') }}</p>
-            </div>
-        </div>
-    </section>
 
     <div class="space-y-6">
         <section class="hidden">
@@ -661,73 +645,13 @@ new class extends Component
                 </div>
             </div>
 
-            <div class="overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700">
-                <div class="border-b border-neutral-200 px-5 py-4 dark:border-neutral-700">
-                    <div class="text-sm font-medium">{{ __('settings.tracking.sections.partial_test_rule.title') }}</div>
-                    <p class="mt-1 text-xs text-neutral-500 dark:text-neutral-400">{{ __('settings.tracking.sections.partial_test_rule.copy') }}</p>
-                </div>
-                <form wire:submit="savePartialTestRules" class="space-y-4 px-5 py-5">
-                    <div class="rounded-xl border border-neutral-200 p-4 dark:border-neutral-700">
-                        <div class="text-sm font-semibold">{{ __('settings.tracking.sections.partial_test_rule.threshold_title') }}</div>
-                        <div class="mt-3 max-w-md">
-                            <label class="mb-1 block text-sm font-medium">{{ __('settings.tracking.fields.fail_at_mistakes') }}</label>
-                            <input wire:model="partial_test_fail_threshold" type="number" min="1" max="999" step="1" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
-                            <p class="mt-2 text-xs text-neutral-500 dark:text-neutral-400">{{ __('settings.tracking.sections.partial_test_rule.threshold_help') }}</p>
-                            @error('partial_test_fail_threshold') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
-                        </div>
-                    </div>
-
-                    <div class="flex justify-end gap-3">
-                        <button type="submit" class="pill-link pill-link--accent">{{ __('settings.tracking.actions.save_partial_rules') }}</button>
-                    </div>
-                </form>
-            </div>
-
-            <div class="overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700">
-                <div class="border-b border-neutral-200 px-5 py-4 dark:border-neutral-700">
-                    <div class="text-sm font-medium">{{ __('settings.tracking.sections.final_test_rule.title') }}</div>
-                    <p class="mt-1 text-xs text-neutral-500 dark:text-neutral-400">{{ __('settings.tracking.sections.final_test_rule.copy') }}</p>
-                </div>
-                <form wire:submit="saveFinalTestRules" class="space-y-4 px-5 py-5">
-                    <div class="grid gap-4 md:grid-cols-2">
-                        <div class="rounded-xl border border-neutral-200 p-4 dark:border-neutral-700">
-                            <div class="text-sm font-semibold">{{ __('settings.tracking.sections.final_test_rule.failed_title') }}</div>
-                            <div class="mt-3 grid gap-4 md:grid-cols-2">
-                                <div>
-                                    <label class="mb-1 block text-sm font-medium">{{ __('settings.tracking.fields.from_score') }}</label>
-                                    <input wire:model="final_test_failed_from" type="number" min="0" max="100" step="0.01" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
-                                    @error('final_test_failed_from') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
-                                </div>
-                                <div>
-                                    <label class="mb-1 block text-sm font-medium">{{ __('settings.tracking.fields.to_score') }}</label>
-                                    <input wire:model="final_test_failed_to" type="number" min="0" max="100" step="0.01" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
-                                    @error('final_test_failed_to') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="rounded-xl border border-neutral-200 p-4 dark:border-neutral-700">
-                            <div class="text-sm font-semibold">{{ __('settings.tracking.sections.final_test_rule.passed_title') }}</div>
-                            <div class="mt-3 grid gap-4 md:grid-cols-2">
-                                <div>
-                                    <label class="mb-1 block text-sm font-medium">{{ __('settings.tracking.fields.from_score') }}</label>
-                                    <input wire:model="final_test_passed_from" type="number" min="0" max="100" step="0.01" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
-                                    @error('final_test_passed_from') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
-                                </div>
-                                <div>
-                                    <label class="mb-1 block text-sm font-medium">{{ __('settings.tracking.fields.to_score') }}</label>
-                                    <input wire:model="final_test_passed_to" type="number" min="0" max="100" step="0.01" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
-                                    @error('final_test_passed_to') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="flex justify-end gap-3">
-                        <button type="submit" class="pill-link pill-link--accent">{{ __('settings.tracking.actions.save_final_rules') }}</button>
-                    </div>
-                </form>
-            </div>
+            <section class="surface-table">
+                <div class="admin-grid-meta"><div class="admin-grid-meta__title">{{ __('settings.tracking.sections.saber_rules') }}</div></div>
+                <table class="text-sm"><thead><tr><th>{{ __('settings.tracking.table.type') }}</th><th>{{ __('settings.tracking.table.rule') }}</th><th>{{ __('settings.tracking.table.actions') }}</th></tr></thead><tbody>
+                    <tr><td class="px-5 py-4 font-semibold">{{ __('settings.tracking.sections.partial_test_rule.title') }}</td><td class="px-5 py-4"><form id="partial-saber-rule" wire:submit="savePartialTestRules"><input wire:model="partial_test_fail_threshold" type="number" min="1" max="999" class="w-full rounded-lg px-3 py-2" aria-label="{{ __('settings.tracking.fields.fail_at_mistakes') }}"></form></td><td class="px-5 py-4"><button form="partial-saber-rule" class="pill-link pill-link--accent">{{ __('crud.common.actions.save') }}</button></td></tr>
+                    <tr><td class="px-5 py-4 font-semibold">{{ __('settings.tracking.sections.final_test_rule.title') }}</td><td class="px-5 py-4"><form id="final-saber-rule" wire:submit="saveFinalTestRules" class="grid gap-3 sm:grid-cols-4"><input wire:model="final_test_failed_from" type="number" min="0" max="100" step="0.01" class="rounded-lg px-3 py-2" placeholder="{{ __('settings.tracking.sections.final_test_rule.failed_title') }} {{ __('settings.tracking.fields.from_score') }}"><input wire:model="final_test_failed_to" type="number" min="0" max="100" step="0.01" class="rounded-lg px-3 py-2" placeholder="{{ __('settings.tracking.sections.final_test_rule.failed_title') }} {{ __('settings.tracking.fields.to_score') }}"><input wire:model="final_test_passed_from" type="number" min="0" max="100" step="0.01" class="rounded-lg px-3 py-2" placeholder="{{ __('settings.tracking.sections.final_test_rule.passed_title') }} {{ __('settings.tracking.fields.from_score') }}"><input wire:model="final_test_passed_to" type="number" min="0" max="100" step="0.01" class="rounded-lg px-3 py-2" placeholder="{{ __('settings.tracking.sections.final_test_rule.passed_title') }} {{ __('settings.tracking.fields.to_score') }}"></form></td><td class="px-5 py-4"><button form="final-saber-rule" class="pill-link pill-link--accent">{{ __('crud.common.actions.save') }}</button></td></tr>
+                </tbody></table>
+            </section>
 
         </section>
     </div>

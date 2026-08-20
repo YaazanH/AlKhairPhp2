@@ -3,6 +3,7 @@
 use App\Models\Curriculum;
 use App\Models\CurriculumLesson;
 use App\Models\CurriculumLessonTopic;
+use App\Models\CurriculumResource;
 use App\Models\CurriculumSubject;
 use App\Models\CurriculumSubjectDefinition;
 use App\Services\CurriculumAccessService;
@@ -37,13 +38,14 @@ new class extends Component {
 
     public function with(): array
     {
-        $curriculum = Curriculum::query()->with(['course', 'gradeLevel', 'subjects.definition', 'subjects.resources', 'subjects.lessons.resource', 'subjects.lessons.topics'])->findOrFail($this->curriculumRecord->id);
+        $curriculum = Curriculum::query()->with(['course', 'gradeLevel', 'standaloneResources', 'subjects.definition', 'subjects.resources', 'subjects.lessons.resource', 'subjects.lessons.topics'])->findOrFail($this->curriculumRecord->id);
         return [
             'curriculum' => $curriculum,
             'definitions' => CurriculumSubjectDefinition::query()->where('is_active', true)->whereDoesntHave('curriculumSubjects', fn ($query) => $query->where('curriculum_id', $curriculum->id))->with(['resources' => fn ($query) => $query->where('is_active', true)->orderBy('book_name')])->orderBy('name')->get(),
             'selectedDefinition' => $this->subjectDefinitionId ? CurriculumSubjectDefinition::query()->with(['resources' => fn ($query) => $query->where('is_active', true)])->find($this->subjectDefinitionId) : null,
             'lessonSubject' => $this->lessonSubjectId ? CurriculumSubject::query()->with('resources')->find($this->lessonSubjectId) : null,
             'grades' => \App\Models\GradeLevel::query()->where('is_active', true)->orderBy('sort_order')->get(),
+            'standaloneResources' => CurriculumResource::query()->whereNull('subject_definition_id')->where('is_active', true)->orderBy('book_name')->get(),
         ];
     }
 
@@ -142,6 +144,12 @@ new class extends Component {
         CurriculumLessonTopic::query()->whereHas('lesson.subject', fn ($query) => $query->where('curriculum_id', $this->curriculumRecord->id))->findOrFail($topicId)->delete();
     }
 
+    public function toggleStandaloneResource(int $resourceId): void
+    {
+        $resource = CurriculumResource::query()->whereNull('subject_definition_id')->where('is_active', true)->findOrFail($resourceId);
+        $this->curriculumRecord->standaloneResources()->toggle($resource->id);
+    }
+
     public function saveCurriculum(): void
     {
         $data = $this->validate(['curriculumName' => ['required', 'string', 'max:255'], 'curriculumGradeId' => ['nullable', 'exists:grade_levels,id']]);
@@ -161,6 +169,7 @@ new class extends Component {
     <section class="page-hero p-6 lg:p-8"><div class="flex flex-wrap items-start justify-between gap-4"><div><a href="{{ route('curricula.index') }}" wire:navigate class="text-sm text-neutral-300">← {{ __('crud.common.actions.back') }}</a><h1 class="font-display mt-4 text-4xl text-white">{{ $curriculum->name }}</h1><div class="mt-3 flex flex-wrap gap-2"><span class="badge-soft">{{ $curriculum->gradeLevel?->name ?: __('curricula.options.all_grades') }}</span><span class="badge-soft">{{ $curriculum->subjects->sum(fn ($subject) => $subject->lessons->count()) }} {{ __('curricula.fields.lessons') }}</span></div></div><div class="flex flex-wrap gap-2"><button wire:click="openSubject" class="pill-link pill-link--accent">{{ __('curricula.actions.add_subject') }}</button><button wire:click="$set('showCurriculumModal', true)" class="pill-link">{{ __('curricula.actions.edit') }}</button><button wire:click="deleteCurriculum" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link pill-link--danger">{{ __('curricula.actions.delete') }}</button></div></div></section>
     @if(session('status'))<div class="flash-success px-4 py-3 text-sm">{{ session('status') }}</div>@endif
     @error('delete')<div class="flash-error px-4 py-3 text-sm">{{ $message }}</div>@enderror
+    @if($standaloneResources->isNotEmpty())<section class="surface-panel p-5"><div class="admin-toolbar__title">{{ __('curricula.fields.standalone_books') }}</div><div class="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">@foreach($standaloneResources as $resource)<label class="flex cursor-pointer items-center gap-3 rounded-xl border border-white/10 p-3"><input type="checkbox" wire:click="toggleStandaloneResource({{ $resource->id }})" @checked($curriculum->standaloneResources->contains($resource)) class="rounded"><span>{{ $resource->book_name }}</span></label>@endforeach</div></section>@endif
     <x-admin.modal :show="$showCurriculumModal" :title="__('curricula.form.curriculum_title')" close-method="$set('showCurriculumModal', false)" max-width="2xl"><form wire:submit="saveCurriculum" class="space-y-4"><label class="block text-sm">{{ __('curricula.fields.name') }}<input wire:model="curriculumName" class="mt-1 w-full rounded-xl px-4 py-3"></label><label class="block text-sm">{{ __('curricula.fields.grade') }}<select wire:model="curriculumGradeId" class="mt-1 w-full rounded-xl px-4 py-3"><option value="">{{ __('curricula.options.all_grades') }}</option>@foreach($grades as $grade)<option value="{{ $grade->id }}">{{ $grade->name }}</option>@endforeach</select></label><button class="pill-link pill-link--accent">{{ __('curricula.actions.save') }}</button></form></x-admin.modal>
     <section class="grid gap-4">
         @forelse($curriculum->subjects as $subject)

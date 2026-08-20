@@ -305,40 +305,15 @@ new class extends Component {
 }; ?>
 
 <div class="page-stack">
-    <section class="page-hero p-6 lg:p-8">
-        <div class="eyebrow">{{ __('ui.nav.tracking') }}</div>
-        <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('workflow.memorization.quick_entry.title') }}</h1>
-        <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ __('workflow.memorization.quick_entry.subtitle') }}</p>
+    @if (session('status'))
+        <div class="flash-success px-4 py-3 text-sm">{{ session('status') }}</div>
+    @endif
 
-        <div class="mt-6 flex flex-wrap gap-3">
-            <span class="badge-soft">{{ __('workflow.memorization.form.entry_type') }}: {{ __('workflow.common.entry_type.new') }}</span>
-            <span class="badge-soft badge-soft--emerald">{{ __('workflow.common.labels.recorded_on', ['value' => now()->format('d-m-Y')]) }}</span>
-        </div>
+    @if (session('error'))
+        <div class="rounded-3xl border border-red-400/25 bg-red-500/12 px-4 py-3 text-sm text-red-100">{{ session('error') }}</div>
+    @endif
 
-        @if (session('status'))
-            <div class="flash-success mt-6 px-4 py-3 text-sm">{{ session('status') }}</div>
-        @endif
-
-        @if (session('error'))
-            <div class="mt-6 rounded-3xl border border-red-400/25 bg-red-500/12 px-4 py-3 text-sm text-red-100">{{ session('error') }}</div>
-        @endif
-    </section>
-
-    <section class="surface-panel mx-auto w-full max-w-4xl p-6 lg:p-8">
-        <div class="mb-6 text-center">
-            <div class="eyebrow">{{ __('workflow.memorization.quick_entry.card_eyebrow') }}</div>
-            <h2 class="font-display mt-3 text-3xl text-white">{{ __('workflow.memorization.quick_entry.card_title') }}</h2>
-            @if ($currentTeacher)
-                <p class="mt-3 text-sm leading-7 text-neutral-300">
-                    {{ __('workflow.memorization.quick_entry.teacher_context', ['name' => trim($currentTeacher->first_name.' '.$currentTeacher->last_name)]) }}
-                </p>
-            @else
-                <p class="mt-3 text-sm leading-7 text-neutral-300">
-                    {{ __('workflow.memorization.quick_entry.operator_context', ['name' => $currentUser?->name ?? $currentUser?->username ?? __('crud.common.not_available')]) }}
-                </p>
-            @endif
-            <p class="mt-2 text-sm leading-7 text-neutral-400">{{ __('workflow.memorization.quick_entry.auto_context') }}</p>
-        </div>
+    <section class="surface-panel w-full p-6 lg:p-8">
 
         <form wire:submit="save" class="space-y-5">
             <div class="admin-form-field">
@@ -350,7 +325,7 @@ new class extends Component {
                             value="{{ $student->id }}"
                             data-search="{{ trim(implode(' ', array_filter([$student->student_number, $student->first_name, $student->last_name]))) }}"
                         >
-                            {{ $student->first_name }} {{ $student->last_name }}
+                            {{ $student->full_name }}
                             @if ($student->student_number)
                                 - #{{ $student->student_number }}
                             @endif

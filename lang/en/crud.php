@@ -360,7 +360,7 @@ return [
             'eyebrow' => 'Student editor',
             'create_title' => 'Create student',
             'edit_title' => 'Edit student',
-            'help' => 'Keep the core profile here. Photos and supporting files stay on the separate media screen.',
+            'help' => 'Manage the student profile here. Use Upload photo in the table, or open Media beside the phone for supporting files.',
             'fields' => [
                 'parent' => 'Parent',
                 'first_name' => 'First name',
@@ -407,6 +407,16 @@ return [
             'media_help' => 'Save the student first, then use the Media action in the records table to manage the photo and uploaded files.',
             'create_submit' => 'Create student',
             'update_submit' => 'Update student',
+        ],
+        'external_tests' => [
+            'title' => 'Add test for an old memorisation',
+            'add' => 'Add a test for an old memorisation',
+            'juz' => 'Old memorised juz',
+            'select_juz' => 'Select juz',
+            'type' => 'Test type',
+            'partial' => 'Partial saber',
+            'final' => 'Final saber',
+            'create' => 'Create test',
         ],
         'read_only' => [
             'title' => 'Student records',
@@ -684,7 +694,7 @@ return [
                 'attendance' => 'Attendance:',
                 'memorization' => 'Memorization:',
                 'partial_tests' => 'Trial test:',
-                'final_tests' => 'Final test:',
+                'final_tests' => 'Final saber:',
                 'closing' => 'May Allah accept from us and from you 🌺',
             ],
             'copy_lines' => [
@@ -698,7 +708,7 @@ return [
             ],
             'tests' => [
                 'partial_title' => 'Trial tests',
-                'final_title' => 'Final tests',
+                'final_title' => 'Final sabers',
                 'partial_line' => ':student — Juz :juz — (:quarter)',
                 'final_line' => ':student — Juz :juz',
                 'quarters' => [

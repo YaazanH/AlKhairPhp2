@@ -257,7 +257,6 @@ new class extends Component {
         <div class="admin-toolbar">
             <div>
                 <div class="admin-toolbar__title">{{ __('workflow.teacher_attendance.days.table.title') }}</div>
-                <p class="admin-toolbar__subtitle">{{ __('workflow.teacher_attendance.days.form.help') }}</p>
             </div>
 
             <div class="admin-toolbar__controls">

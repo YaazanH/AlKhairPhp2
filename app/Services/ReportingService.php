@@ -39,7 +39,7 @@ class ReportingService
                 $result->assessment?->group?->course?->name,
                 $result->assessment?->title,
                 $result->assessment?->type?->name,
-                trim(($result->enrollment?->student?->first_name ?? '').' '.($result->enrollment?->student?->last_name ?? '')),
+                $result->enrollment?->student?->full_name ?? '',
                 $result->score !== null ? (float) $result->score : null,
                 $result->status,
                 $result->attempt_no,
@@ -68,7 +68,7 @@ class ReportingService
                 $record->attendanceDay?->group?->academicYear?->name,
                 $record->attendanceDay?->group?->name,
                 $record->attendanceDay?->group?->course?->name,
-                trim(($record->enrollment?->student?->first_name ?? '').' '.($record->enrollment?->student?->last_name ?? '')),
+                $record->enrollment?->student?->full_name ?? '',
                 $record->status?->name,
                 $record->status?->code,
                 $record->notes,
@@ -110,7 +110,7 @@ class ReportingService
                 $session->enrollment?->group?->academicYear?->name,
                 $session->enrollment?->group?->name,
                 $session->enrollment?->group?->course?->name,
-                trim(($session->student?->first_name ?? '').' '.($session->student?->last_name ?? '')),
+                $session->student?->full_name ?? '',
                 trim(($session->teacher?->first_name ?? '').' '.($session->teacher?->last_name ?? '')),
                 $session->entry_type,
                 $session->from_page,
@@ -135,7 +135,7 @@ class ReportingService
                 $transaction->enrollment?->group?->academicYear?->name,
                 $transaction->enrollment?->group?->name,
                 $transaction->enrollment?->group?->course?->name,
-                trim(($transaction->student?->first_name ?? '').' '.($transaction->student?->last_name ?? '')),
+                $transaction->student?->full_name ?? '',
                 $transaction->pointType?->name,
                 $transaction->policy?->name,
                 $transaction->source_type,
@@ -194,8 +194,17 @@ class ReportingService
             ->get()
             ->keyBy('enrollment_id');
 
+        $passedFinalTests = app(AccessScopeService::class)
+            ->scopeQuranFinalTests(QuranFinalTest::query(), auth()->user())
+            ->whereIn('enrollment_id', $enrollmentIds)
+            ->where('status', 'passed')
+            ->tap(fn (Builder $query) => $this->applyDateRange($query, 'passed_on', $filters))
+            ->selectRaw('enrollment_id, COUNT(*) as total_tests')
+            ->groupBy('enrollment_id')
+            ->pluck('total_tests', 'enrollment_id');
+
         return $enrollments
-            ->map(function (Enrollment $enrollment) use ($attendanceCounts, $memorizedPages, $points) {
+            ->map(function (Enrollment $enrollment) use ($attendanceCounts, $memorizedPages, $passedFinalTests, $points) {
                 $attendance = $attendanceCounts->get($enrollment->id);
 
                 return [
@@ -207,8 +216,9 @@ class ReportingService
                     'group' => $enrollment->group?->name,
                     'memorized_pages' => (int) ($memorizedPages[$enrollment->id] ?? 0),
                     'points' => (int) ($points[$enrollment->id] ?? 0),
+                    'passed_final_tests' => (int) ($passedFinalTests[$enrollment->id] ?? 0),
                     'student_id' => $enrollment->student_id,
-                    'student_name' => trim(($enrollment->student?->first_name ?? '').' '.($enrollment->student?->last_name ?? '')),
+                    'student_name' => $enrollment->student?->full_name ?? '',
                 ];
             })
             ->values()
@@ -221,14 +231,31 @@ class ReportingService
             ->map(fn (array $row) => [
                 $row['student_name'],
                 $row['memorized_pages'],
-                $row['points'],
+                $row['passed_final_tests'],
                 $row['attended_days'],
-                $row['absent_days'],
+                $row['points'],
                 $row['group'],
                 $row['course'],
                 $row['academic_year'],
             ])
             ->all();
+    }
+
+    public function studentActivityAverageAttendance(array $filters = []): float
+    {
+        $filters = $this->normalizeFilters($filters);
+        $records = $this->scopedStudentAttendanceRecordsQuery($filters);
+        $attendanceDays = (clone $records)->distinct()->count('group_attendance_day_id');
+
+        if ($attendanceDays === 0) {
+            return 0;
+        }
+
+        $presentStudents = (clone $records)
+            ->whereHas('status', fn (Builder $query) => $query->where('is_present', true))
+            ->count();
+
+        return round($presentStudents / $attendanceDays, 1);
     }
 
     public function studentQuranTestSummary(array $filters = []): array
@@ -283,7 +310,7 @@ class ReportingService
                     'group' => $enrollment->group?->name,
                     'partial_tests' => $partialTests,
                     'student_id' => $enrollment->student_id,
-                    'student_name' => trim(($enrollment->student?->first_name ?? '').' '.($enrollment->student?->last_name ?? '')),
+                    'student_name' => $enrollment->student?->full_name ?? '',
                 ];
             })
             ->values()
@@ -413,7 +440,7 @@ class ReportingService
                 'pages' => (int) $row->total_pages,
                 'sessions' => (int) $row->sessions_count,
                 'student_id' => (int) $row->student_id,
-                'student_name' => trim(($student?->first_name ?? '').' '.($student?->last_name ?? '')),
+                'student_name' => $student?->full_name ?? '',
             ];
         })->values()->all();
     }
@@ -479,7 +506,7 @@ class ReportingService
             return [
                 'net_points' => (int) $row->net_points,
                 'student_id' => (int) $row->student_id,
-                'student_name' => trim(($student?->first_name ?? '').' '.($student?->last_name ?? '')),
+                'student_name' => $student?->full_name ?? '',
                 'transactions' => (int) $row->transaction_count,
             ];
         })->values()->all();

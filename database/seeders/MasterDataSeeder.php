@@ -109,10 +109,10 @@ class MasterDataSeeder extends Seeder
         ], ['code'], ['name', 'sort_order', 'is_active', 'updated_at']);
 
         DB::table('point_types')->upsert([
-            ['name' => 'Memorization Page', 'code' => 'memorization-page', 'category' => 'memorization', 'default_points' => 0, 'allow_manual_entry' => false, 'allow_negative' => false, 'is_active' => true, 'created_at' => $now, 'updated_at' => $now],
-            ['name' => 'Quiz Score', 'code' => 'quiz-score', 'category' => 'assessment', 'default_points' => 0, 'allow_manual_entry' => false, 'allow_negative' => false, 'is_active' => true, 'created_at' => $now, 'updated_at' => $now],
-            ['name' => 'Worksheet Score', 'code' => 'worksheet-score', 'category' => 'assessment', 'default_points' => 0, 'allow_manual_entry' => false, 'allow_negative' => false, 'is_active' => true, 'created_at' => $now, 'updated_at' => $now],
-            ['name' => 'Exam Score', 'code' => 'exam-score', 'category' => 'assessment', 'default_points' => 0, 'allow_manual_entry' => false, 'allow_negative' => false, 'is_active' => true, 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Memorization Page', 'code' => 'memorization-page', 'category' => 'Automatic', 'default_points' => 0, 'allow_manual_entry' => false, 'allow_negative' => true, 'is_active' => true, 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Quiz Score', 'code' => 'quiz-score', 'category' => 'Assessment', 'default_points' => 0, 'allow_manual_entry' => false, 'allow_negative' => true, 'is_active' => true, 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Worksheet Score', 'code' => 'worksheet-score', 'category' => 'Assessment', 'default_points' => 0, 'allow_manual_entry' => false, 'allow_negative' => true, 'is_active' => true, 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Exam Score', 'code' => 'exam-score', 'category' => 'Assessment', 'default_points' => 0, 'allow_manual_entry' => false, 'allow_negative' => true, 'is_active' => true, 'created_at' => $now, 'updated_at' => $now],
         ], ['code'], ['name', 'category', 'default_points', 'allow_manual_entry', 'allow_negative', 'is_active', 'updated_at']);
 
         $pointTypeIds = DB::table('point_types')

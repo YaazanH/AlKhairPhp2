@@ -43,7 +43,7 @@ new class extends Component
 
     public bool $showExportModal = false;
 
-    public string $export_group_id = '';
+    public string $export_course_id = '';
 
     public string $export_date_from = '';
 
@@ -54,7 +54,7 @@ new class extends Component
         $this->authorizePermission('attendance.student.view');
         $this->attendance_date = now()->toDateString();
         $this->course_id = (string) ($this->availableCoursesQuery()->where('is_default', true)->value('courses.id') ?? '');
-        $this->export_group_id = (string) ($this->scopeGroupsQuery(Group::query()->where('is_active', true))->orderBy('name')->value('groups.id') ?? '');
+        $this->export_course_id = (string) ($this->availableCoursesQuery()->where('is_default', true)->value('courses.id') ?? '');
         $this->export_date_from = now()->startOfMonth()->toDateString();
         $this->export_date_to = now()->toDateString();
     }
@@ -108,9 +108,7 @@ new class extends Component
                 ->orderByDesc('is_present')
                 ->orderBy('name')
                 ->get(),
-            'exportGroupOptions' => $this->scopeGroupsQuery(Group::query()->with('course')->where('is_active', true))
-                ->orderBy('name')
-                ->get(),
+            'exportCourseOptions' => $this->availableCoursesQuery()->orderBy('name')->get(['id', 'name']),
         ];
     }
 
@@ -308,7 +306,6 @@ new class extends Component
         <div class="admin-toolbar">
             <div>
                 <div class="admin-toolbar__title">{{ __('workflow.student_attendance.days.table.title') }}</div>
-                <p class="admin-toolbar__subtitle">{{ __('workflow.student_attendance.days.form.help') }}</p>
             </div>
 
             <div class="admin-toolbar__controls">
@@ -329,7 +326,9 @@ new class extends Component
                 <div class="admin-toolbar__actions">
                     <button type="button" wire:click="$set('showExportModal', true)" class="pill-link">{{ __('workflow.student_attendance.export.action') }}</button>
                     @can('barcode-scans.import')
+                    @if ((bool) (\App\Models\AppSetting::groupValues('dashboard')->get('barcode_scanner_enabled') ?? true))
                         <a href="{{ route('barcode-actions.import') }}" wire:navigate class="pill-link">{{ __('ui.nav.scanner_import') }}</a>
+                    @endif
                     @endcan
                     @can('attendance.student.take')
                         <button type="button" wire:click="openCreateModal" class="pill-link pill-link--accent">{{ __('workflow.student_attendance.days.create') }}</button>
@@ -341,11 +340,11 @@ new class extends Component
 
     <x-admin.modal :show="$showExportModal" :title="__('workflow.student_attendance.export.title')" close-method="closeExportModal" max-width="2xl">
         <div class="grid gap-4 sm:grid-cols-2">
-            <div class="sm:col-span-2"><label class="mb-1 block text-sm font-medium">{{ __('workflow.student_attendance.export.group') }}</label><select wire:model.live="export_group_id" class="w-full rounded-xl px-4 py-3"><option value="">{{ __('workflow.student_attendance.export.select_group') }}</option>@foreach($exportGroupOptions as $group)<option value="{{ $group->id }}">{{ $group->name }}{{ $group->course ? ' · '.$group->course->name : '' }}</option>@endforeach</select></div>
+            <div class="sm:col-span-2"><label class="mb-1 block text-sm font-medium">{{ __('workflow.student_attendance.export.course') }}</label><select wire:model.live="export_course_id" class="w-full rounded-xl px-4 py-3"><option value="">{{ __('workflow.student_attendance.export.select_course') }}</option>@foreach($exportCourseOptions as $course)<option value="{{ $course->id }}">{{ $course->name }}</option>@endforeach</select></div>
             <div><label class="mb-1 block text-sm font-medium">{{ __('workflow.student_attendance.export.from') }}</label><input wire:model.live="export_date_from" type="date" class="w-full rounded-xl px-4 py-3"></div>
             <div><label class="mb-1 block text-sm font-medium">{{ __('workflow.student_attendance.export.to') }}</label><input wire:model.live="export_date_to" type="date" class="w-full rounded-xl px-4 py-3"></div>
         </div>
-        <div class="mt-5 flex justify-end"><a href="{{ route('student-attendance.export', ['group_id' => $export_group_id, 'date_from' => $export_date_from, 'date_to' => $export_date_to]) }}" target="_blank" class="pill-link pill-link--accent {{ $export_group_id === '' ? 'pointer-events-none opacity-50' : '' }}">{{ __('workflow.student_attendance.export.action') }}</a></div>
+        <div class="mt-5 flex justify-end"><a href="{{ route('student-attendance.export', ['course_id' => $export_course_id, 'date_from' => $export_date_from, 'date_to' => $export_date_to]) }}" target="_blank" class="pill-link pill-link--accent {{ $export_course_id === '' ? 'pointer-events-none opacity-50' : '' }}">{{ __('workflow.student_attendance.export.action') }}</a></div>
     </x-admin.modal>
 
     <section class="surface-table">

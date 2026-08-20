@@ -75,8 +75,9 @@ new class extends Component {
             ->when(in_array($this->statusFilter, ['active', 'inactive', 'blocked', 'pending', 'declined'], true), fn ($query) => $query->where('status', $this->statusFilter))
             ->when(in_array($this->helpingFilter, ['helping', 'not_helping'], true), fn ($query) => $query->where('is_helping', $this->helpingFilter === 'helping'))
             ->withCount(['assignedGroups', 'assistedGroups'])
-            ->orderBy('last_name')
-            ->orderBy('first_name');
+            ->orderByDesc('is_helping')
+            ->orderBy('first_name')
+            ->orderBy('last_name');
 
         $filteredCount = (clone $filteredQuery)->count();
 

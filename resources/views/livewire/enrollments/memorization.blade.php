@@ -212,7 +212,7 @@ new class extends Component {
         <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('workflow.memorization.title') }}</h1>
         <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ __('workflow.memorization.subtitle') }}</p>
         <div class="mt-6 flex flex-wrap gap-3">
-            <span class="badge-soft">{{ $enrollmentRecord->student?->first_name }} {{ $enrollmentRecord->student?->last_name }}</span>
+            <span class="badge-soft">{{ $enrollmentRecord->student?->full_name }}</span>
             <span class="badge-soft badge-soft--emerald">{{ $enrollmentRecord->group?->name ?: __('workflow.common.no_group') }}</span>
             <span class="badge-soft">{{ $enrollmentRecord->group?->course?->name ?: __('workflow.common.no_course') }}</span>
         </div>
@@ -344,7 +344,7 @@ new class extends Component {
                 <div class="mt-4 space-y-3 text-sm text-neutral-300">
                     <div>
                         <div class="text-xs uppercase tracking-[0.18em] text-neutral-500">{{ __('workflow.memorization.context.student') }}</div>
-                        <div class="mt-1 text-white">{{ $enrollmentRecord->student?->first_name }} {{ $enrollmentRecord->student?->last_name }}</div>
+                        <div class="mt-1 text-white">{{ $enrollmentRecord->student?->full_name }}</div>
                     </div>
                     <div>
                         <div class="text-xs uppercase tracking-[0.18em] text-neutral-500">{{ __('workflow.memorization.context.group') }}</div>

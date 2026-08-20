@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\AppSetting;
+use App\Models\Group;
 use App\Models\User;
 
 class SidebarNavigationService
@@ -48,6 +49,7 @@ class SidebarNavigationService
 
             'memorization' => $this->item('ui.nav.memorization', 'book-open-text', 'memorization.index', ['memorization.index', 'enrollments.memorization'], 'tracking_quran', 10, ['memorization.view']),
             'enter_memorize' => $this->item('ui.nav.enter_memorize', 'pencil-square', 'memorization.quick-entry', ['memorization.quick-entry'], 'tracking_quran', 20, ['memorization.record']),
+            'quran_tests_quick_entry' => $this->item('ui.nav.quran_tests_quick_entry', 'bolt', 'quran-tests.quick-entry', ['quran-tests.quick-entry'], 'tracking_quran', 25),
             'quran_partial_tests' => $this->item('ui.nav.quran_partial_tests', 'squares-2x2', 'quran-partial-tests.index', ['quran-partial-tests.*'], 'tracking_quran', 30, ['quran-partial-tests.view']),
             'quran_final_tests' => $this->item('ui.nav.quran_final_tests', 'check-badge', 'quran-final-tests.index', ['quran-final-tests.*'], 'tracking_quran', 40, ['quran-final-tests.view']),
             'quran_tests' => $this->item('ui.nav.quran_tests', 'document-check', 'quran-tests.index', ['quran-tests.*', 'enrollments.quran-tests'], 'tracking_quran', 50, ['quran-awqaf-tests.view']),
@@ -242,6 +244,7 @@ class SidebarNavigationService
         $settings = $this->settings();
         $groups = [];
         $defaultGroups = $this->defaultGroups();
+        $activeTeacherGroup = $this->activeTeacherGroup($user);
 
         foreach ($settings['groups'] as $groupKey => $groupDefinition) {
             $items = [];
@@ -252,6 +255,7 @@ class SidebarNavigationService
                 }
 
                 $isTeacherCurriculum = $itemKey === 'curricula' && ! $user->can('curricula.manage');
+                $teacherGroup = $itemKey === 'groups' ? $activeTeacherGroup : null;
                 $configuredGroupKey = $isTeacherCurriculum
                     ? 'platform'
                     : ($settings['items'][$itemKey]['group_key'] ?? $itemDefinition['group_key']);
@@ -262,11 +266,11 @@ class SidebarNavigationService
 
                 $items[] = [
                     'key' => $itemKey,
-                    'label' => $itemKey === 'curricula' && ! $user->can('curricula.manage')
+                    'label' => $isTeacherCurriculum
                         ? __('ui.nav.my_curriculum')
-                        : __($itemDefinition['label_key']),
+                        : ($teacherGroup ? __('ui.nav.my_group') : __($itemDefinition['label_key'])),
                     'icon' => $itemDefinition['icon'],
-                    'href' => route($itemDefinition['route_name']),
+                    'href' => $teacherGroup ? route('groups.show', $teacherGroup) : route($itemDefinition['route_name']),
                     'current' => request()->routeIs(...$itemDefinition['current_patterns']),
                     'sort_order' => $isTeacherCurriculum
                         ? 30
@@ -321,6 +325,11 @@ class SidebarNavigationService
 
     protected function userCanSeeItem(User $user, array $itemDefinition): bool
     {
+        if (($itemDefinition['route_name'] ?? null) === 'quran-tests.quick-entry') {
+            return $user->teacherProfile !== null
+                && $user->hasPermissionTo('quran-tests.quick-entry');
+        }
+
         if (($itemDefinition['route_name'] ?? null) === 'curricula.index') {
             return app(CurriculumAccessService::class)->canView($user);
         }
@@ -344,6 +353,16 @@ class SidebarNavigationService
         }
 
         return false;
+    }
+
+    protected function activeTeacherGroup(User $user): ?Group
+    {
+        $teacherId = $user->teacherProfile?->id;
+
+        return $teacherId ? Group::query()
+            ->where('is_active', true)
+            ->where(fn ($query) => $query->where('teacher_id', $teacherId)->orWhere('assistant_teacher_id', $teacherId))
+            ->orderByDesc('starts_on')->orderByDesc('id')->first() : null;
     }
 
     protected function isValidCustomGroupKey(string $key): bool

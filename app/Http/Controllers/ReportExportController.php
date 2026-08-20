@@ -67,8 +67,8 @@ class ReportExportController extends Controller
     public function studentActivitySummary(Request $request): StreamedResponse
     {
         return $this->xlsxDownload(
-            'student-activity-summary-report',
-            ['Student', 'Memorized Pages', 'Points', 'Attended Days', 'Absent Days', 'Group', 'Course', 'Academic Year'],
+            'student-progress-detail-report',
+            ['Student', 'Memorized Pages', 'Passed Final Tests', 'Attended Days', 'Points', 'Group', 'Course', 'Academic Year'],
             app(ReportingService::class)->studentActivitySummaryRows($this->validatedFilters($request)),
         );
     }
@@ -85,6 +85,7 @@ class ReportExportController extends Controller
     public function financeLedger(Request $request)
     {
         abort_unless($request->user()?->can('finance.reports.export'), 403);
+        abort_unless($request->user()?->financeSignaturePdfSource(), 422, __('finance.reports.signature_required'));
 
         $validated = $request->validate([
             'cash_box_id' => ['nullable', 'integer', 'exists:finance_cash_boxes,id'],

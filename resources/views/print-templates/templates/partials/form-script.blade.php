@@ -36,6 +36,7 @@
             barcodeFormats: @json(__('print_templates.templates.form.barcode_formats')),
             fontWeights: @json(__('print_templates.templates.form.font_weights')),
             textAlignments: @json(__('print_templates.templates.form.text_alignments')),
+            verticalAlignments: @json(__('print_templates.templates.form.vertical_alignments')),
             dateModes: @json(__('print_templates.templates.form.date_modes')),
             shapeTypes: @json(__('print_templates.templates.form.shape_types')),
             imageFit: @json(__('print_templates.templates.form.image_fit')),
@@ -94,8 +95,6 @@
                 const letters = (line.match(/[\u0621-\u064a]/g) || []).length;
                 const spaces = (line.match(/\s/g) || []).length;
                 const visualLength = letters + (spaces * 0.45);
-                if (visualLength < capacity * 0.58) return line;
-
                 const matches = [...line.matchAll(/([\u0626\u0628\u062a-\u062e\u0633-\u063a\u0641-\u0647\u0649\u064a])(?=[\u0622-\u064a])/g)];
                 if (!matches.length) return line;
 
@@ -497,14 +496,18 @@
                         }
                     } else {
                         const align = element.styling?.text_align || 'left';
+                        const verticalAlign = element.styling?.vertical_align || 'top';
                         const previewValue = justifiedPreviewText(previewTextValue(element), element);
                         node.classList.add('id-card-builder-stage__element--text');
                         node.style.color = element.styling?.color || '#102316';
                         node.style.fontSize = `${Number(element.styling?.font_size || 4.2) * scale}px`;
                         node.style.fontWeight = element.styling?.font_weight || '600';
-                        node.style.display = 'block';
+                        node.style.display = 'flex';
+                        node.style.flexDirection = 'column';
+                        node.style.alignItems = 'stretch';
+                        node.style.justifyContent = ({ top: 'flex-start', center: 'center', bottom: 'flex-end', justify: 'space-between' })[verticalAlign] || 'flex-start';
                         node.style.textAlign = align;
-                        node.style.textAlignLast = align === 'justify' ? 'center' : '';
+                        node.style.textAlignLast = align === 'justify' ? 'justify' : '';
                         node.style.textJustify = align === 'justify' ? 'auto' : '';
                         node.style.whiteSpace = 'pre-wrap';
                         node.style.lineHeight = element.styling?.line_height || 1.2;
@@ -512,7 +515,11 @@
                         node.style.letterSpacing = `${Number(element.styling?.letter_spacing || 0) * scale}px`;
                         node.style.direction = isRtlText(previewValue) ? 'rtl' : 'ltr';
                         node.style.unicodeBidi = 'isolate';
-                        node.textContent = previewValue;
+                        if (verticalAlign === 'justify') {
+                            node.innerHTML = previewValue.split(/\r?\n/).map((line) => `<span>${h(line)}</span>`).join('');
+                        } else {
+                            node.innerHTML = `<span>${h(previewValue)}</span>`;
+                        }
                     }
 
                     node.addEventListener('pointerdown', (event) => {
@@ -642,6 +649,7 @@
             const typeOptions = Object.entries(labels.types).map(([value, label]) => `<option value="${h(value)}" ${element.type === value ? 'selected' : ''}>${h(label)}</option>`).join('');
             const fontWeights = optionList(Object.entries(labels.fontWeights), element.styling?.font_weight || '600');
             const textAlignments = optionList(Object.entries(labels.textAlignments), element.styling?.text_align || 'left');
+            const verticalAlignments = optionList(Object.entries(labels.verticalAlignments), element.styling?.vertical_align || 'top');
             const imageFit = optionList(Object.entries(labels.imageFit), element.styling?.object_fit || 'cover');
             const barcodeFormats = optionList(Object.entries(labels.barcodeFormats), element.styling?.barcode_format || 'code39');
             const dateModes = optionList(Object.entries(labels.dateModes), element.styling?.date_mode || 'today');
@@ -658,7 +666,7 @@
                 <div class="admin-form-field"><label>${h(labels.element.height)}</label><input class="w-full rounded-xl px-4 py-3 text-sm" type="number" step="0.01" min="4" value="${h(element.height)}" data-n="height"></div>
                 <div class="admin-form-field"><label>${h(labels.element.z_index)}</label><input class="w-full rounded-xl px-4 py-3 text-sm" type="number" step="1" min="1" value="${h(element.z_index)}" data-n="z_index"></div>
                 ${isTextElement(element.type) || element.type === 'barcode' ? `<div class="admin-form-field"><label>${h(labels.element.font_size)}</label><input class="w-full rounded-xl px-4 py-3 text-sm" type="number" step="0.1" min="1.5" value="${h(element.styling?.font_size || 4.2)}" data-s-n="font_size"></div>` : ''}
-                ${isTextElement(element.type) ? `<div class="admin-form-field"><label>${h(labels.element.font_weight)}</label><select class="w-full rounded-xl px-4 py-3 text-sm" data-s="font_weight">${fontWeights}</select></div><div class="admin-form-field"><label>${h(labels.element.text_align)}</label><select class="w-full rounded-xl px-4 py-3 text-sm" data-s="text_align">${textAlignments}</select></div>` : ''}
+                ${isTextElement(element.type) ? `<div class="admin-form-field"><label>${h(labels.element.font_weight)}</label><select class="w-full rounded-xl px-4 py-3 text-sm" data-s="font_weight">${fontWeights}</select></div><div class="admin-form-field"><label>${h(labels.element.text_align)}</label><select class="w-full rounded-xl px-4 py-3 text-sm" data-s="text_align">${textAlignments}</select></div><div class="admin-form-field"><label>${h(labels.element.vertical_align)}</label><select class="w-full rounded-xl px-4 py-3 text-sm" data-s="vertical_align">${verticalAlignments}</select></div>` : ''}
                 ${!isImageElement(element.type) ? `<div class="admin-form-field"><label>${h(labels.element.color)}</label><input class="w-full rounded-xl px-4 py-3 text-sm" type="color" value="${h(element.styling?.color || '#102316')}" data-s="color"></div>` : ''}
                 ${isTextElement(element.type) ? `<div class="admin-form-field"><label>${h(labels.element.line_height)}</label><input class="w-full rounded-xl px-4 py-3 text-sm" type="number" step="0.1" min="0.8" max="2.5" value="${h(element.styling?.line_height || 1.2)}" data-s-n="line_height"></div><div class="admin-form-field"><label>${h(labels.element.letter_spacing)}</label><input class="w-full rounded-xl px-4 py-3 text-sm" type="number" step="0.1" min="0" max="3" value="${h(element.styling?.letter_spacing || 0)}" data-s-n="letter_spacing"></div>` : ''}
                 ${element.type === 'static_image' ? `<div class="admin-form-field admin-form-field--full"><label>${h(labels.element.static_image)}</label><div class="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-neutral-200">${h(staticImageLabel(element))}</div><p class="mt-2 text-xs text-neutral-400">${h(labels.element.image_source_help)}</p><div class="mt-3 admin-action-cluster"><button type="button" class="pill-link pill-link--compact" data-static-image-pick="${h(element.id)}">${h((staticImageInput(element.id)?.files?.[0] || element.content) ? labels.element.replace_image : labels.element.choose_image)}</button><button type="button" class="pill-link pill-link--compact pill-link--danger" data-static-image-clear="${h(element.id)}">${h(labels.element.remove_image)}</button></div></div>` : ''}
@@ -708,6 +716,7 @@
                     font_weight: '600',
                     color: '#102316',
                     text_align: 'left',
+                    vertical_align: 'top',
                     border_radius: type === 'dynamic_image' ? 3 : 0,
                     object_fit: 'cover',
                     show_text: true,

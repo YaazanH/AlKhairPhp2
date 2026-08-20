@@ -22,16 +22,19 @@ new class extends Component {
     public bool $is_active = true;
     public bool $showForm = false;
 
-    public function mount(): void
+    public bool $embedded = false;
+
+    public function mount(bool $embedded = false): void
     {
         $this->authorizePermission('assessment-score-bands.view');
+        $this->embedded = $embedded;
     }
 
     public function with(): array
     {
         return [
             'types' => AssessmentType::query()->where('is_active', true)->orderBy('name')->get(),
-            'pointTypes' => PointType::query()->where('category', 'assessment')->where('is_active', true)->orderBy('name')->get(),
+            'pointTypes' => PointType::query()->where('category', 'Assessment')->where('is_active', true)->orderBy('name')->get(),
             'bands' => AssessmentScoreBand::query()->with(['assessmentType', 'pointType'])->orderBy('assessment_type_id')->orderByDesc('from_mark')->get(),
         ];
     }
@@ -170,7 +173,8 @@ new class extends Component {
     }
 }; ?>
 
-<div class="page-stack">
+<div class="{{ $embedded ? 'space-y-6' : 'page-stack' }}">
+    @unless ($embedded)
     <section class="page-hero p-6 lg:p-8">
         <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
@@ -181,6 +185,7 @@ new class extends Component {
             </div>
         </div>
     </section>
+    @endunless
 
     @if (session('status'))
         <div class="flash-success px-4 py-3 text-sm">{{ session('status') }}</div>

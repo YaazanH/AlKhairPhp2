@@ -380,8 +380,14 @@ class FinanceAndActivitiesTest extends TestCase
 
         $revenueTemplate = PrintTemplate::query()->create([
             'name' => 'Revenue Receipt',
-            'width_mm' => 100,
+            'width_mm' => 80,
             'height_mm' => 60,
+            'paper_size' => 'a6',
+            'orientation' => 'portrait',
+            'margin_top_mm' => 7,
+            'margin_right_mm' => 8,
+            'margin_bottom_mm' => 9,
+            'margin_left_mm' => 6,
             'data_sources' => [
                 ['entity' => 'revenue', 'mode' => 'single'],
             ],
@@ -457,7 +463,9 @@ class FinanceAndActivitiesTest extends TestCase
             ->assertSee('Revenue Receipt')
             ->assertSee($revenueRequest->request_no)
             ->assertSee(now()->format('Y-m-d'))
-            ->assertSee('Page 1');
+            ->assertSee('Page 1')
+            ->assertSee('width: 105mm', false)
+            ->assertSee('padding: 7mm 8mm 9mm 6mm', false);
 
         $this->get(route('finance.requests.print', ['financeRequest' => $revenueRequest, 'choose' => 1]))
             ->assertOk()
@@ -1142,6 +1150,7 @@ class FinanceAndActivitiesTest extends TestCase
 
         $this->assertSame(128000.0, $toAmount);
         $this->assertSame('1 USD = 12,800 SYP', $service->exchangeRateLabel((float) $usd->rate_to_base, (float) $syp->rate_to_base, 'USD', 'SYP'));
+        $manualToAmount = 127000.0;
 
         $exchange = $service->recordCurrencyExchange(
             $mainBox,
@@ -1149,7 +1158,7 @@ class FinanceAndActivitiesTest extends TestCase
             10,
             $secondBox,
             $syp,
-            $toAmount,
+            $manualToAmount,
             '2026-01-12',
             auth()->user(),
             'Test exchange',
@@ -1157,6 +1166,7 @@ class FinanceAndActivitiesTest extends TestCase
 
         $this->assertInstanceOf(FinanceCurrencyExchange::class, $exchange);
         $this->assertSame('EXC-000001', $exchange->exchange_no);
+        $this->assertSame('1 USD = 12,700 SYP', $service->exchangeRateLabel((float) $exchange->from_rate_to_base, (float) $exchange->to_rate_to_base, 'USD', 'SYP'));
         $this->assertSame(2, FinanceTransaction::query()->where('pair_uuid', $exchange->pair_uuid)->count());
         $exchangeTransactions = FinanceTransaction::query()
             ->where('pair_uuid', $exchange->pair_uuid)
@@ -1175,7 +1185,7 @@ class FinanceAndActivitiesTest extends TestCase
             'cash_box_id' => $secondBox->id,
             'currency_id' => $syp->id,
             'type' => 'exchange',
-            'signed_amount' => $toAmount,
+            'signed_amount' => $manualToAmount,
         ]);
 
         $service->recordCashBoxTransfer($secondBox, $mainBox, $syp, 3000, '2026-01-13', auth()->user(), 'Move local cash');
@@ -1186,7 +1196,7 @@ class FinanceAndActivitiesTest extends TestCase
 
         $this->assertSame(90.0, $mainBalance['currencies']->firstWhere('currency.id', $usd->id)['balance']);
         $this->assertSame(3000.0, $mainBalance['currencies']->firstWhere('currency.id', $syp->id)['balance']);
-        $this->assertSame(125000.0, $secondBalance['currencies']->firstWhere('currency.id', $syp->id)['balance']);
+        $this->assertSame(124000.0, $secondBalance['currencies']->firstWhere('currency.id', $syp->id)['balance']);
 
         $report = app(FinanceReportService::class)->report(2026, 1);
 
@@ -1324,6 +1334,7 @@ class FinanceAndActivitiesTest extends TestCase
         $this->assertStringContainsString('Only for this ledger', $rtlExportHtml);
 
         Volt::test('finance.reports')
+            ->call('openCreateReport')
             ->assertSee(__('finance.reports.ledger_export_title'))
             ->assertSee(__('finance.reports.generated_reports'))
             ->assertSee($cashBox->name)
@@ -1331,7 +1342,7 @@ class FinanceAndActivitiesTest extends TestCase
 
         $this->get(route('finance.reports.index'))
             ->assertOk()
-            ->assertSee('data-searchable="false"', false);
+            ->assertSee('wire:click="openCreateReport"', false);
 
         $pdfResponse = $this->get(route('finance.reports.ledger.export', [
             'cash_box_id' => $cashBox->id,
@@ -1418,6 +1429,56 @@ class FinanceAndActivitiesTest extends TestCase
 
         $this->get(route('finance.reports.generated.show', 1))
             ->assertNotFound();
+    }
+
+    public function test_financial_report_generation_requires_the_current_users_signature(): void
+    {
+        $this->signIn();
+        $user = auth()->user();
+        Storage::disk('public')->delete((string) $user->finance_signature_path);
+        $user->forceFill(['finance_signature_path' => null])->save();
+
+        $cashBox = FinanceCashBox::query()->firstOrFail();
+
+        Volt::test('finance.reports')
+            ->call('openCreateReport')
+            ->assertHasErrors('createReport');
+
+        $this->get(route('finance.reports.ledger.export', [
+            'cash_box_id' => $cashBox->id,
+            'date_from' => '2026-02-01',
+            'date_to' => '2026-02-28',
+            'format' => 'pdf',
+        ]))->assertStatus(422);
+    }
+
+    public function test_finance_settings_can_import_old_reports_until_uploading_is_finished(): void
+    {
+        $this->signIn();
+        Storage::fake('local');
+
+        $component = Volt::test('settings.finance')
+            ->set('legacy_report_pdf', UploadedFile::fake()->create('old-report.pdf', 100, 'application/pdf'))
+            ->set('legacy_report_number', 'OLD-0042')
+            ->set('legacy_report_period_mode', 'quarter')
+            ->set('legacy_report_year', 2024)
+            ->set('legacy_report_quarter', '3')
+            ->set('legacy_report_cash_box', 'Old fund')
+            ->set('legacy_report_currency', 'USD')
+            ->set('legacy_report_generated_at', '2024-04-01')
+            ->call('importLegacyReport')
+            ->assertHasNoErrors();
+
+        $report = FinanceGeneratedReport::query()->firstOrFail();
+        $this->assertSame('OLD-0042', data_get($report->report_data, 'original_report_number'));
+        $this->assertTrue((bool) data_get($report->report_data, 'imported_legacy'));
+        $this->assertSame('2024-07-01', data_get($report->filters, 'date_from'));
+        $this->assertSame('2024-09-30', data_get($report->filters, 'date_to'));
+        $this->assertSame('Q3-2024', app(FinanceReportService::class)->savedReportPeriodLabel($report));
+        Storage::disk('local')->assertExists($report->pdf_path);
+
+        $component->call('finishLegacyReportImport')->assertHasNoErrors();
+        $this->assertTrue((bool) AppSetting::groupValues('finance')->get('legacy_report_import_finished'));
     }
 
     public function test_multi_fund_ledger_is_saved_and_can_be_reopened(): void
@@ -2407,6 +2468,8 @@ class FinanceAndActivitiesTest extends TestCase
             'username' => 'finance-manager',
             'phone' => '0991111222',
         ]);
+        Storage::disk('public')->put('tests/finance-signature.png', base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII='));
+        $user->forceFill(['finance_signature_path' => 'tests/finance-signature.png'])->save();
 
         $user->assignRole('manager');
 

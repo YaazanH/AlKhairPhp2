@@ -7,6 +7,7 @@ use App\Models\AcademicYear;
 use App\Models\AppSetting;
 use App\Models\Course;
 use App\Models\Enrollment;
+use App\Models\FatherJob;
 use App\Models\GradeLevel;
 use App\Models\Group;
 use App\Models\GroupSchedule;
@@ -15,6 +16,7 @@ use App\Models\MemorizationSession;
 use App\Models\MemorizationSessionPage;
 use App\Models\ParentProfile;
 use App\Models\PrintTemplate;
+use App\Models\School;
 use App\Models\Student;
 use App\Models\StudentFile;
 use App\Models\Teacher;
@@ -34,6 +36,37 @@ use Tests\TestCase;
 class ManagementCrudTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_students_with_the_same_first_and_last_names_use_the_fathers_full_name(): void
+    {
+        $firstParent = ParentProfile::create(['father_name' => 'Mahmoud Khaled Ali']);
+        $secondParent = ParentProfile::create(['father_name' => 'Samer Nabil Ali']);
+        $first = Student::create(['parent_id' => $firstParent->id, 'first_name' => 'Omar', 'last_name' => 'Ali', 'birth_date' => '2012-01-01', 'status' => 'active']);
+        $second = Student::create(['parent_id' => $secondParent->id, 'first_name' => 'Omar', 'last_name' => 'Ali', 'birth_date' => '2013-01-01', 'status' => 'active']);
+
+        $this->assertSame('Omar Mahmoud Khaled Ali', $first->fresh('parentProfile')->full_name);
+        $this->assertSame('Omar Samer Nabil Ali', $second->fresh('parentProfile')->full_name);
+    }
+
+    public function test_renaming_school_and_parent_work_settings_updates_linked_profiles_and_rejects_duplicates(): void
+    {
+        $this->signIn();
+        $school = School::create(['name' => 'Old School', 'is_active' => true]);
+        School::create(['name' => 'Existing School', 'is_active' => true]);
+        $job = FatherJob::create(['name' => 'Old Job', 'is_active' => true]);
+        FatherJob::create(['name' => 'Existing Job', 'is_active' => true]);
+        $parent = ParentProfile::create(['father_name' => 'Settings Parent', 'father_work' => 'Old Job']);
+        $student = Student::create(['parent_id' => $parent->id, 'first_name' => 'Settings', 'last_name' => 'Student', 'birth_date' => '2013-01-01', 'school_name' => 'Old School', 'status' => 'active']);
+
+        Volt::test('settings.organization')->call('editSchoolReference', $school->id)->set('school_reference_name', 'New School')->call('saveSchoolReference')->assertHasNoErrors();
+        Volt::test('settings.organization')->call('editFatherJob', $job->id)->set('father_job_name', 'New Job')->call('saveFatherJob')->assertHasNoErrors();
+
+        $this->assertSame('New School', $student->fresh()->school_name);
+        $this->assertSame('New Job', $parent->fresh()->father_work);
+
+        Volt::test('settings.organization')->call('editSchoolReference', $school->id)->set('school_reference_name', ' Existing School ')->call('saveSchoolReference')->assertHasErrors('school_reference_name');
+        Volt::test('settings.organization')->call('editFatherJob', $job->id)->set('father_job_name', ' Existing Job ')->call('saveFatherJob')->assertHasErrors('father_job_name');
+    }
 
     public function test_course_parent_and_teacher_components_support_crud_operations(): void
     {
@@ -1190,7 +1223,7 @@ class ManagementCrudTest extends TestCase
 
         $component
             ->call('closeDuplicateStudentModal')
-            ->call('save')
+            ->call('saveAndNew')
             ->assertSet('showDuplicateStudentModal', true)
             ->assertSet('duplicateStudentId', $existingStudent->id)
             ->assertSet('showFormModal', true)
@@ -1532,7 +1565,7 @@ class ManagementCrudTest extends TestCase
         ]);
 
         Volt::test('students.files', ['student' => $student])
-            ->set('photo_upload', UploadedFile::fake()->create('student-photo.jpg', 128, 'image/jpeg'))
+            ->set('photo_upload', UploadedFile::fake()->create('student-photo.jpg', 5120, 'image/jpeg'))
             ->call('savePhoto')
             ->assertHasNoErrors();
 
@@ -1540,6 +1573,13 @@ class ManagementCrudTest extends TestCase
 
         $this->assertNotNull($student->photo_path);
         Storage::disk('public')->assertExists($student->photo_path);
+
+        Volt::test('students.index')
+            ->set('quick_photo_upload', UploadedFile::fake()->create('replacement-photo.webp', 5120, 'image/webp'))
+            ->call('uploadStudentPhoto', $student->id)
+            ->assertHasNoErrors();
+
+        $this->assertStringEndsWith('.webp', $student->fresh()->photo_path);
 
         Volt::test('students.files', ['student' => $student])
             ->set('file_type', 'identity')

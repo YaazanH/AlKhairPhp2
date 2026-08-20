@@ -88,7 +88,7 @@ class ExportPrintLayerTest extends TestCase
             'group_id' => $context['group']->id,
         ]));
         $studentSummaryResponse->assertOk();
-        $this->assertXlsxContains($studentSummaryResponse->streamedContent(), ['Invoice Student', 'Memorized Pages', 'Points', 'Attended Days', 'Absent Days']);
+        $this->assertXlsxContains($studentSummaryResponse->streamedContent(), ['Invoice Student', 'Memorized Pages', 'Passed Final Tests', 'Points', 'Attended Days']);
 
         $assessmentResponse = $this->get(route('reports.exports.assessments', [
             'group_id' => $context['group']->id,

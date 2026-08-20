@@ -4,6 +4,7 @@ use App\Http\Controllers\AdminExportController;
 use App\Http\Controllers\AssessmentResultPdfController;
 use App\Http\Controllers\BarcodeActionPrintController;
 use App\Http\Controllers\CourseEndExportController;
+use App\Http\Controllers\CurriculumResourceDownloadController;
 use App\Http\Controllers\FinanceInvoicePrintController;
 use App\Http\Controllers\FinanceRequestPrintController;
 use App\Http\Controllers\IdCards\IdCardBarcodePreviewController;
@@ -41,7 +42,9 @@ Volt::route('dashboard', 'dashboard')
 Route::middleware(['auth'])->group(function () {
     Volt::route('reports', 'reports.index')->middleware('permission:reports.view')->name('reports.index');
     Volt::route('reports/student-activity-summary', 'reports.student-activity-summary')->middleware('permission:reports.view')->name('reports.student-activity-summary');
-    Volt::route('reports/student-quran-tests', 'reports.student-quran-tests')->middleware('permission:reports.view')->name('reports.student-quran-tests');
+    Route::redirect('reports/student-quran-tests', '/reports/student-activity-summary')
+        ->middleware('permission:reports.view')
+        ->name('reports.student-quran-tests');
     Volt::route('reports/rankings/groups', 'reports.groups-ranking')->middleware('permission:reports.view')->name('reports.rankings.groups');
     Volt::route('reports/rankings/students', 'reports.students-ranking')->middleware('permission:reports.view')->name('reports.rankings.students');
     Volt::route('reports/rankings', 'reports.rankings')->middleware('permission:reports.view')->name('reports.rankings');
@@ -118,6 +121,7 @@ Route::middleware(['auth'])->group(function () {
     Volt::route('groups/{group}', 'groups.show')->middleware('permission:groups.view')->name('groups.show');
     Volt::route('curricula', 'curricula.index')->name('curricula.index');
     Volt::route('curricula/{curriculum}', 'curricula.show')->name('curricula.show');
+    Route::get('curriculum-resources/{resource}/download', CurriculumResourceDownloadController::class)->name('curriculum-resources.download');
     Volt::route('settings/curriculum-subjects', 'settings.curriculum-subjects')->middleware('permission:curricula.manage')->name('settings.curriculum-subjects');
     Volt::route('enrollments', 'enrollments.index')->middleware('permission:enrollments.view')->name('enrollments.index');
     Route::get('enrollments/export', [AdminExportController::class, 'enrollments'])->middleware('permission:enrollments.view')->name('enrollments.export');
@@ -128,6 +132,7 @@ Route::middleware(['auth'])->group(function () {
     Volt::route('student-notes', 'student-notes.index')->middleware('permission:student-notes.view')->name('student-notes.index');
     Volt::route('memorization/quick-entry', 'memorization.quick-entry')->middleware('permission:memorization.record')->name('memorization.quick-entry');
     Volt::route('memorization', 'memorization.index')->middleware('permission:memorization.view')->name('memorization.index');
+    Volt::route('quran-tests/quick-entry', 'quran-tests.quick-entry')->name('quran-tests.quick-entry');
     Volt::route('quran-partial-tests', 'quran-partial-tests.index')->middleware('permission:quran-partial-tests.view')->name('quran-partial-tests.index');
     Volt::route('quran-partial-tests/{partialTest}', 'quran-partial-tests.show')->middleware('permission:quran-partial-tests.view')->name('quran-partial-tests.show');
     Volt::route('quran-final-tests', 'quran-final-tests.index')->middleware('permission:quran-final-tests.view')->name('quran-final-tests.index');

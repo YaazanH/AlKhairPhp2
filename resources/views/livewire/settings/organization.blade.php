@@ -19,6 +19,7 @@ use App\Services\StudentNumberService;
 use App\Support\AvatarDefaults;
 use App\Support\PhoneNumberFormatter;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Livewire\Volt\Component;
@@ -53,6 +54,7 @@ new class extends Component {
     public $default_parent_avatar_upload = null;
     public $pdf_logo_upload = null;
     public bool $showOrganizationModal = false;
+    public bool $barcode_scanner_enabled = true;
 
     public ?int $academic_year_editing_id = null;
     public string $academic_year_name = '';
@@ -90,6 +92,8 @@ new class extends Component {
     public string $student_gender_sort_order = '0';
     public bool $student_gender_is_active = true;
     public bool $student_gender_is_default = false;
+
+    public ?int $default_student_gender_id = null;
     public bool $showStudentGenderModal = false;
 
     public ?int $print_page_size_editing_id = null;
@@ -131,6 +135,7 @@ new class extends Component {
                 ->orderBy('sort_order')
                 ->orderBy('name')
                 ->paginate(10, ['*'], 'student_genders_page'),
+            'activeStudentGenders' => StudentGender::query()->where('is_active', true)->orderBy('sort_order')->orderBy('name')->get(),
             'printPageSizes' => PrintPageSize::query()
                 ->orderByDesc('is_default')
                 ->orderBy('name')
@@ -145,6 +150,14 @@ new class extends Component {
                 'student_genders' => StudentGender::count(),
             ],
         ];
+    }
+
+    public function toggleBarcodeScanner(): void
+    {
+        $this->authorizePermission('settings.manage');
+        $this->barcode_scanner_enabled = ! $this->barcode_scanner_enabled;
+        AppSetting::storeValue('dashboard', 'barcode_scanner_enabled', $this->barcode_scanner_enabled, 'boolean');
+        session()->flash('status', __('settings.organization.messages.barcode_scanner_updated'));
     }
 
     public function academicYearRules(): array
@@ -254,19 +267,30 @@ new class extends Component {
     public function saveSchoolReference(): void
     {
         $this->authorizePermission('settings.manage');
+        $this->school_reference_name = trim($this->school_reference_name);
+
+        $duplicateSchool = School::query()
+            ->whereRaw('LOWER(TRIM(name)) = ?', [mb_strtolower($this->school_reference_name)])
+            ->when($this->school_reference_editing_id, fn ($query) => $query->whereKeyNot($this->school_reference_editing_id))
+            ->exists();
+        if ($duplicateSchool) {
+            $this->addError('school_reference_name', __('validation.unique', ['attribute' => __('settings.organization.fields.school_name')]));
+            return;
+        }
 
         $validated = $this->validate([
             'school_reference_name' => ['required', 'string', 'max:255', Rule::unique('schools', 'name')->ignore($this->school_reference_editing_id)],
             'school_reference_is_active' => ['boolean'],
         ]);
 
-        School::query()->updateOrCreate(
-            ['id' => $this->school_reference_editing_id],
-            [
-                'name' => trim($validated['school_reference_name']),
-                'is_active' => (bool) $validated['school_reference_is_active'],
-            ],
-        );
+        DB::transaction(function () use ($validated): void {
+            $school = $this->school_reference_editing_id ? School::query()->findOrFail($this->school_reference_editing_id) : new School;
+            $oldName = $school->name;
+            $school->fill(['name' => trim($validated['school_reference_name']), 'is_active' => (bool) $validated['school_reference_is_active']])->save();
+            if ($oldName && $oldName !== $school->name) {
+                Student::query()->where('school_name', $oldName)->update(['school_name' => $school->name]);
+            }
+        });
 
         session()->flash('status', $this->school_reference_editing_id ? __('settings.organization.messages.school_updated') : __('settings.organization.messages.school_created'));
         $this->cancelSchoolReference();
@@ -320,19 +344,30 @@ new class extends Component {
     public function saveFatherJob(): void
     {
         $this->authorizePermission('settings.manage');
+        $this->father_job_name = trim($this->father_job_name);
+
+        $duplicateJob = FatherJob::query()
+            ->whereRaw('LOWER(TRIM(name)) = ?', [mb_strtolower($this->father_job_name)])
+            ->when($this->father_job_editing_id, fn ($query) => $query->whereKeyNot($this->father_job_editing_id))
+            ->exists();
+        if ($duplicateJob) {
+            $this->addError('father_job_name', __('validation.unique', ['attribute' => __('crud.parents.form.fields.father_work')]));
+            return;
+        }
 
         $validated = $this->validate([
             'father_job_name' => ['required', 'string', 'max:255', Rule::unique('father_jobs', 'name')->ignore($this->father_job_editing_id)],
             'father_job_is_active' => ['boolean'],
         ]);
 
-        FatherJob::query()->updateOrCreate(
-            ['id' => $this->father_job_editing_id],
-            [
-                'name' => trim($validated['father_job_name']),
-                'is_active' => (bool) $validated['father_job_is_active'],
-            ],
-        );
+        DB::transaction(function () use ($validated): void {
+            $job = $this->father_job_editing_id ? FatherJob::query()->findOrFail($this->father_job_editing_id) : new FatherJob;
+            $oldName = $job->name;
+            $job->fill(['name' => trim($validated['father_job_name']), 'is_active' => (bool) $validated['father_job_is_active']])->save();
+            if ($oldName && $oldName !== $job->name) {
+                ParentProfile::query()->where('father_work', $oldName)->update(['father_work' => $job->name]);
+            }
+        });
 
         session()->flash('status', $this->father_job_editing_id ? __('settings.organization.messages.father_job_updated') : __('settings.organization.messages.father_job_created'));
         $this->cancelFatherJob();
@@ -453,6 +488,7 @@ new class extends Component {
         $this->authorizePermission('settings.manage');
         $this->validateOnly('pdf_logo_upload', [
             'pdf_logo_upload' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,svg', 'max:4096'],
+            'default_student_gender_id' => ['required', 'integer', Rule::exists('student_genders', 'id')->where('is_active', true)],
         ]);
 
         $this->persistPdfLogoUpload();
@@ -776,6 +812,9 @@ new class extends Component {
 
         AvatarDefaults::forget();
 
+        StudentGender::query()->update(['is_default' => false]);
+        StudentGender::query()->whereKey($validated['default_student_gender_id'])->update(['is_default' => true]);
+
         $this->persistPdfLogoUpload();
 
         if ($studentNumberFormatChanged) {
@@ -1048,14 +1087,15 @@ new class extends Component {
         $this->default_teacher_avatar_path = (string) ($media->get('default_teacher_avatar_path') ?? '');
         $this->default_parent_avatar_path = (string) ($media->get('default_parent_avatar_path') ?? '');
         $this->pdf_logo_path = (string) ($settings->get('pdf_logo_path') ?? '');
+        $this->barcode_scanner_enabled = (bool) (AppSetting::groupValues('dashboard')->get('barcode_scanner_enabled') ?? true);
+        $this->default_student_gender_id = StudentGender::query()->where('is_active', true)->where('is_default', true)->value('id')
+            ?? StudentGender::query()->where('is_active', true)->orderBy('sort_order')->value('id');
     }
 }; ?>
 
 <div class="page-stack settings-admin-page">
     <section class="page-hero p-6 lg:p-8">
-        <div class="eyebrow">{{ __('ui.nav.settings') }}</div>
         <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('settings.organization.title') }}</h1>
-        <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ __('settings.organization.subtitle') }}</p>
     </section>
 
     <x-settings.admin-nav section="dashboard" current="settings.organization" />
@@ -1064,32 +1104,13 @@ new class extends Component {
         <div class="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">{{ session('status') }}</div>
     @endif
 
-    <div class="grid gap-4 md:grid-cols-4">
-        <div class="rounded-xl border border-neutral-200 p-5 dark:border-neutral-700">
-            <div class="text-sm text-neutral-500">{{ __('settings.organization.stats.academic_years') }}</div>
-            <div class="mt-2 text-3xl font-semibold">{{ number_format($totals['academic_years']) }}</div>
-        </div>
-        <div class="rounded-xl border border-neutral-200 p-5 dark:border-neutral-700">
-            <div class="text-sm text-neutral-500">{{ __('settings.organization.stats.grade_levels') }}</div>
-            <div class="mt-2 text-3xl font-semibold">{{ number_format($totals['grade_levels']) }}</div>
-        </div>
-        <div class="rounded-xl border border-neutral-200 p-5 dark:border-neutral-700">
-            <div class="text-sm text-neutral-500">{{ __('settings.organization.stats.active_grade_levels') }}</div>
-            <div class="mt-2 text-3xl font-semibold">{{ number_format($totals['active_grade_levels']) }}</div>
-        </div>
-        <div class="rounded-xl border border-neutral-200 p-5 dark:border-neutral-700">
-            <div class="text-sm text-neutral-500">{{ __('settings.organization.stats.student_genders') }}</div>
-            <div class="mt-2 text-3xl font-semibold">{{ number_format($totals['student_genders']) }}</div>
-        </div>
-    </div>
-
     <section class="surface-panel p-5 lg:p-6">
         <div class="admin-toolbar">
             <div>
-                <div class="admin-toolbar__title">{{ __('settings.organization.title') }}</div>
-                <p class="admin-toolbar__subtitle">{{ __('settings.organization.subtitle') }}</p>
+                <div class="admin-toolbar__title">{{ __('settings.organization.sections.profile.title') }}</div>
             </div>
             <div class="admin-toolbar__actions">
+                <button type="button" wire:click="toggleBarcodeScanner" class="pill-link {{ $barcode_scanner_enabled ? 'pill-link--accent' : '' }}">{{ $barcode_scanner_enabled ? __('settings.organization.actions.disable_barcode_scanner') : __('settings.organization.actions.enable_barcode_scanner') }}</button>
                 <button type="button" wire:click="openOrganizationModal" class="pill-link">{{ __('settings.organization.actions.save_settings') }}</button>
             </div>
         </div>
@@ -1313,7 +1334,7 @@ new class extends Component {
         </section>
 
         <section class="space-y-6">
-            <div class="overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700">
+            <div class="hidden" aria-hidden="true">
                 <div class="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-200 px-5 py-4 dark:border-neutral-700">
                     <div>
                         <div class="text-sm font-medium">{{ __('settings.organization.sections.academic_year.table') }}</div>
@@ -1478,31 +1499,15 @@ new class extends Component {
 
             @can('students.promote-grade-levels')
                 <div class="overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700">
-                    <div class="border-b border-neutral-200 px-5 py-4 dark:border-neutral-700">
+                    <div class="flex items-center justify-between gap-4 px-5 py-4">
                         <div class="text-sm font-medium">{{ __('settings.organization.sections.student_promotion.title') }}</div>
-                        <p class="mt-1 text-xs text-neutral-500">{{ __('settings.organization.sections.student_promotion.copy') }}</p>
+                        <button type="button" wire:click="promoteStudentsToNextGrade" wire:confirm="{{ __('settings.organization.actions.promote_students_confirm') }}" class="pill-link pill-link--accent">{{ __('settings.organization.actions.promote_students') }}</button>
                     </div>
-                    <div class="space-y-4 px-5 py-4">
-                        <div class="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm leading-7 text-neutral-300">
-                            {{ __('settings.organization.sections.student_promotion.note') }}
-                        </div>
-                        @error('studentPromotion')
-                            <div class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{{ $message }}</div>
-                        @enderror
-                        <div class="flex flex-wrap justify-end gap-3">
-                            <button
-                                type="button"
-                                wire:click="promoteStudentsToNextGrade"
-                                wire:confirm="{{ __('settings.organization.actions.promote_students_confirm') }}"
-                                class="pill-link pill-link--accent"
-                            >
-                                {{ __('settings.organization.actions.promote_students') }}
-                            </button>
-                        </div>
-                    </div>
+                    @error('studentPromotion')<div class="px-5 pb-4 text-sm text-red-400">{{ $message }}</div>@enderror
                 </div>
             @endcan
 
+            @if (false)
             <div class="overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700">
                 <div class="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-200 px-5 py-4 dark:border-neutral-700">
                     <div>
@@ -1549,11 +1554,12 @@ new class extends Component {
                     @endif
                 @endif
             </div>
+            @endif
 
         </section>
     </div>
 
-    <x-admin.modal :show="$showOrganizationModal" :title="__('settings.organization.sections.profile.title')" :description="__('settings.organization.sections.profile.copy')" close-method="closeOrganizationModal" max-width="4xl">
+    <x-admin.modal :show="$showOrganizationModal" :title="__('settings.organization.sections.profile.title')" close-method="closeOrganizationModal" max-width="4xl">
         <form wire:submit="saveOrganizationSettings" class="space-y-4">
             <div>
                 <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.school_name') }}</label>
@@ -1561,6 +1567,10 @@ new class extends Component {
                 @error('school_name') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
             </div>
             <div class="grid gap-4 md:grid-cols-2">
+                <div>
+                    <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.default_student_gender') }}</label>
+                    <select wire:model="default_student_gender_id" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">@foreach ($activeStudentGenders as $studentGender)<option value="{{ $studentGender->id }}">{{ $studentGender->name }}</option>@endforeach</select>
+                </div>
                 <div>
                     <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.school_phone') }}</label>
                     <x-phone-input model="school_phone" :value="$school_phone" />

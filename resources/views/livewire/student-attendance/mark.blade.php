@@ -333,7 +333,7 @@ new class extends Component
                                     <div class="student-inline">
                                         <x-student-avatar :student="$enrollment->student" size="sm" />
                                         <div class="student-inline__body">
-                                            <div class="student-inline__name">{{ $enrollment->student?->first_name }} {{ $enrollment->student?->last_name }}</div>
+                                            <div class="student-inline__name">{{ $enrollment->student?->full_name }}</div>
                                         </div>
                                     </div>
                                 </td>

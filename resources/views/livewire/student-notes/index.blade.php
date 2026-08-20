@@ -414,7 +414,7 @@ new class extends Component {
                                 <option
                                     value="{{ $student->id }}"
                                     data-search="{{ trim(implode(' ', array_filter([$student->student_number, $student->first_name, $student->last_name]))) }}"
-                                >{{ $student->first_name }} {{ $student->last_name }}{{ $student->parentProfile?->father_name ? ' | '.$student->parentProfile->father_name : '' }}</option>
+                                >{{ $student->full_name }}{{ $student->parentProfile?->father_name ? ' | '.$student->parentProfile->father_name : '' }}</option>
                             @endforeach
                         </select>
                         @error('student_id') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
@@ -501,7 +501,7 @@ new class extends Component {
                             <option
                                 value="{{ $student->id }}"
                                 data-search="{{ trim(implode(' ', array_filter([$student->student_number, $student->first_name, $student->last_name]))) }}"
-                            >{{ $student->first_name }} {{ $student->last_name }}</option>
+                            >{{ $student->full_name }}</option>
                         @endforeach
                     </select>
 
@@ -549,7 +549,7 @@ new class extends Component {
                             <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                                 <div class="space-y-2">
                                     <div class="flex flex-wrap items-center gap-2 text-sm">
-                                        <span class="font-semibold">{{ $note->student?->first_name }} {{ $note->student?->last_name }}</span>
+                                        <span class="font-semibold">{{ $note->student?->full_name }}</span>
                                         <span class="rounded-full bg-neutral-100 px-2 py-1 text-xs font-medium capitalize text-neutral-600 dark:bg-neutral-900 dark:text-neutral-300">
                                             {{ __('notes.sources.'.$note->source) }}
                                         </span>

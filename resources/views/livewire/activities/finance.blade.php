@@ -326,7 +326,7 @@ new class extends Component {
                                 <option
                                     value="{{ $student->id }}"
                                     data-search="{{ trim(implode(' ', array_filter([$student->student_number, $student->first_name, $student->last_name]))) }}"
-                                >{{ $student->first_name }} {{ $student->last_name }}</option>
+                                >{{ $student->full_name }}</option>
                             @endforeach
                         </select>
                         @error('registration_student_id') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
@@ -337,7 +337,7 @@ new class extends Component {
                         <select wire:model="registration_enrollment_id" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
                             <option value="">{{ __('activities.finance.registrations.placeholders.enrollment') }}</option>
                             @foreach ($enrollments as $enrollment)
-                                <option value="{{ $enrollment->id }}">{{ $enrollment->student?->first_name }} {{ $enrollment->student?->last_name }} | {{ $enrollment->group?->name }}</option>
+                                <option value="{{ $enrollment->id }}">{{ $enrollment->student?->full_name }} | {{ $enrollment->group?->name }}</option>
                             @endforeach
                         </select>
                         @error('registration_enrollment_id') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
@@ -385,7 +385,7 @@ new class extends Component {
                         <select wire:model="payment_registration_id" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
                             <option value="">{{ __('activities.finance.payments.placeholders.registration') }}</option>
                             @foreach ($paymentRegistrations as $registration)
-                                <option value="{{ $registration->id }}">{{ $registration->student?->first_name }} {{ $registration->student?->last_name }} | {{ number_format((float) $registration->fee_amount, 2) }}</option>
+                                <option value="{{ $registration->id }}">{{ $registration->student?->full_name }} | {{ number_format((float) $registration->fee_amount, 2) }}</option>
                             @endforeach
                         </select>
                         @error('payment_registration_id') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
@@ -485,7 +485,7 @@ new class extends Component {
                                         <div class="student-inline">
                                             <x-student-avatar :student="$registration->student" size="sm" />
                                             <div class="student-inline__body">
-                                                <div class="student-inline__name">{{ $registration->student?->first_name }} {{ $registration->student?->last_name }}</div>
+                                                <div class="student-inline__name">{{ $registration->student?->full_name }}</div>
                                             </div>
                                         </div>
                                     </td>
@@ -521,7 +521,7 @@ new class extends Component {
                                         <div class="student-inline">
                                             <x-student-avatar :student="$payment->registration?->student" size="sm" />
                                             <div class="student-inline__body">
-                                                <div class="student-inline__name">{{ $payment->registration?->student?->first_name }} {{ $payment->registration?->student?->last_name }}</div>
+                                                <div class="student-inline__name">{{ $payment->registration?->student?->full_name }}</div>
                                             </div>
                                         </div>
                                     </td>

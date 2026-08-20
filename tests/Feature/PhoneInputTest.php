@@ -23,10 +23,16 @@ class PhoneInputTest extends TestCase
 
         $this->assertStringContainsString("region: 'US'", $html);
         $this->assertStringContainsString('x-text="selectedDial"', $html);
-        $this->assertStringContainsString('x-text="country.flag"', $html);
+        $this->assertStringContainsString('flagcdn.com/32x24', $html);
         $this->assertStringContainsString('x-text="country.name"', $html);
-        $this->assertStringContainsString('x-text="country.region"', $html);
+        $this->assertStringContainsString('x-text="country.dial_code"', $html);
+        $this->assertStringContainsString('phone-country-option', $html);
         $this->assertStringNotContainsString('<select', $html);
+        $this->assertFalse(PhoneCountries::options()->contains('region', 'IL'));
+        $this->assertFalse(PhoneCountries::options()->contains('region', 'VG'));
+        $this->assertFalse(PhoneCountries::options()->contains('region', 'TA'));
+        $this->assertTrue(PhoneCountries::options()->contains('region', 'SH'));
+        $this->assertSame('هونغ كونغ', PhoneCountries::options()->firstWhere('region', 'HK')['name']);
     }
 
     public function test_phone_numbers_are_normalized_and_formatted_by_country(): void

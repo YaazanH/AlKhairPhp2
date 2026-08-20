@@ -254,6 +254,7 @@ new class extends Component {
 
         $payload = [
             'group_id' => $groupIds[0],
+            'group_scope' => $validated['group_scope'],
             'assessment_type_id' => $validated['assessment_type_id'],
             'title' => $validated['title'],
             'description' => $validated['description'] ?: null,
@@ -291,7 +292,9 @@ new class extends Component {
         $this->editingId = $assessment->id;
         $this->group_id = $groupIds[0] ?? $assessment->group_id;
         $this->group_ids = array_map('strval', $groupIds);
-        $this->group_scope = count($groupIds) > 1 ? 'multiple' : 'single';
+        $this->group_scope = in_array($assessment->group_scope, ['single', 'multiple', 'all'], true)
+            ? $assessment->group_scope
+            : (count($groupIds) > 1 ? 'multiple' : 'single');
         $courseIds = $assessment->groups->pluck('course_id')->filter()->unique();
         $this->groupCourseFilter = $courseIds->count() === 1 ? (string) $courseIds->first() : 'all';
         $this->assessment_type_id = $assessment->assessment_type_id;
@@ -443,11 +446,6 @@ new class extends Component {
                 <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ __('workflow.assessments.index.subtitle') }}</p>
             </div>
 
-            @can('assessment-score-bands.view')
-                <a href="{{ route('assessments.bands') }}" class="pill-link">
-                    {{ __('workflow.common.actions.score_bands') }}
-                </a>
-            @endcan
         </div>
     </section>
 

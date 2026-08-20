@@ -11,6 +11,7 @@ return [
         'add_subject' => 'إضافة مادة', 'add_lesson' => 'إضافة درس', 'add_custom_lesson' => 'درس مخصص',
         'add_topic' => 'إضافة موضوع',
         'add_resource' => 'إضافة مرجع', 'record' => 'تسجيل', 'update_progress' => 'تحديث التقدم', 'manage_subjects' => 'إعدادات المواد',
+        'add_standalone_book' => 'إضافة كتاب مستقل', 'download_books' => 'تحميل الكتب', 'download' => 'تحميل',
     ],
     'fields' => [
         'curriculum' => 'المنهاج', 'name' => 'الاسم', 'course' => 'الدورة', 'grade' => 'الصف', 'subject' => 'المادة',
@@ -19,6 +20,7 @@ return [
         'publisher' => 'الناشر', 'published_on' => 'سنة النشر', 'edition_number' => 'رقم الطبعة', 'edition_and_year' => 'رقم الطبعة + السنة', 'year' => 'السنة', 'date' => 'التاريخ', 'teacher' => 'المدرس', 'status' => 'الحالة',
         'resource' => 'المرجع', 'topic_name' => 'اسم الموضوع', 'topics' => 'المواضيع', 'pages_short' => 'صفحة',
         'general_lessons' => 'دروس عامة للمادة',
+        'standalone_books' => 'الكتب المستقلة', 'pdf_file' => 'ملف PDF للكتاب (حتى 10 ميغابايت)', 'pdf_uploaded' => 'تم رفع PDF', 'no_pdf' => 'لا يوجد PDF', 'no_downloadable_books' => 'لا توجد كتب متاحة للتحميل.',
     ],
     'options' => ['no_curriculum' => 'بدون منهاج', 'all_grades' => 'بدون صف محدد'],
     'status' => ['untaught' => 'لم يُدرّس', 'partial' => 'منجز جزئياً', 'taught' => 'تم تدريسه'],

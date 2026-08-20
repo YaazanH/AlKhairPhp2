@@ -28,8 +28,12 @@ class CourseCompletionRuleService
 
         return [
             'required_passed_final_tests' => max(0, (int) ($settings->get('required_passed_final_tests') ?? 1)),
+            'required_memorized_pages' => max(0, (int) ($settings->get('required_memorized_pages') ?? 0)),
+            'final_rule_operator' => in_array($settings->get('final_rule_operator'), ['and', 'or'], true) ? $settings->get('final_rule_operator') : 'and',
             'required_passed_quizzes' => max(0, (int) ($settings->get('required_passed_quizzes') ?? 1)),
             'assessment_type_requirements' => $this->assessmentTypeRequirements($settings),
+            'final_test_grade_ids' => $this->gradeIds($settings->get('final_test_grade_ids')),
+            'assessment_grade_ids' => $this->gradeIds($settings->get('assessment_grade_ids')),
             'required_present_attendance' => max(0, (int) ($settings->get('required_present_attendance') ?? 1)),
             'retain_percentage' => min(100, max(0, (int) ($settings->get('retain_percentage') ?? 50))),
             'minimum_points' => max(0, (int) ($settings->get('minimum_points') ?? 0)),
@@ -40,6 +44,7 @@ class CourseCompletionRuleService
     {
         foreach ([
             'required_passed_final_tests',
+            'required_memorized_pages',
             'required_passed_quizzes',
             'required_present_attendance',
             'retain_percentage',
@@ -62,6 +67,9 @@ class CourseCompletionRuleService
         }
 
         AppSetting::storeValue('course_completion', 'assessment_type_requirements', $requirements, 'array');
+        AppSetting::storeValue('course_completion', 'final_rule_operator', $validated['final_rule_operator']);
+        AppSetting::storeValue('course_completion', 'final_test_grade_ids', $validated['final_test_grade_ids'] ?? [], 'array');
+        AppSetting::storeValue('course_completion', 'assessment_grade_ids', $validated['assessment_grade_ids'] ?? [], 'array');
     }
 
     public function apply(array $filters, User $actor): array
@@ -197,6 +205,7 @@ class CourseCompletionRuleService
             ->where('enrollment_id', $enrollment->id)
             ->where('status', 'passed')
             ->count();
+        $memorizedPages = max(0, (int) $enrollment->memorized_pages_cached);
 
         $passedQuizzes = AssessmentResult::query()
             ->where('enrollment_id', $enrollment->id)
@@ -229,14 +238,32 @@ class CourseCompletionRuleService
 
         $unmet = [];
 
-        if ($settings['required_passed_final_tests'] > 0 && $passedFinalTests < $settings['required_passed_final_tests']) {
-            $unmet[] = __('settings.course_completion.criteria.final_tests_progress', [
-                'actual' => $passedFinalTests,
-                'required' => $settings['required_passed_final_tests'],
-            ]);
+        $gradeLevelId = $enrollment->student?->grade_level_id;
+        $finalGradeIds = $settings['final_test_grade_ids'] ?? [];
+        $assessmentGradeIds = $settings['assessment_grade_ids'] ?? [];
+        $finalRuleApplies = $finalGradeIds === [] || in_array($gradeLevelId, $finalGradeIds, true);
+        $assessmentRulesApply = $assessmentGradeIds === [] || in_array($gradeLevelId, $assessmentGradeIds, true);
+
+        if ($finalRuleApplies) {
+            $finalTestsMet = $settings['required_passed_final_tests'] <= 0 || $passedFinalTests >= $settings['required_passed_final_tests'];
+            $pagesMet = $settings['required_memorized_pages'] <= 0 || $memorizedPages >= $settings['required_memorized_pages'];
+            $combinedMet = $settings['final_rule_operator'] === 'or' ? $finalTestsMet || $pagesMet : $finalTestsMet && $pagesMet;
+
+            if (! $combinedMet) {
+                $unmet[] = __('settings.course_completion.criteria.final_saber_pages_progress', [
+                    'tests_actual' => $passedFinalTests,
+                    'tests_required' => $settings['required_passed_final_tests'],
+                    'pages_actual' => $memorizedPages,
+                    'pages_required' => $settings['required_memorized_pages'],
+                    'operator' => __('settings.course_completion.options.'.$settings['final_rule_operator']),
+                ]);
+            }
         }
 
         foreach ($assessmentTypeRequirements as $assessmentTypeId => $requiredCount) {
+            if (! $assessmentRulesApply) {
+                continue;
+            }
             if ($requiredCount <= 0) {
                 continue;
             }
@@ -266,6 +293,7 @@ class CourseCompletionRuleService
         return [
             'passed' => $unmet === [],
             'passed_final_tests' => $passedFinalTests,
+            'memorized_pages' => $memorizedPages,
             'passed_quizzes' => $passedQuizzes,
             'passed_assessments_by_type' => $passedAssessmentsByType,
             'present_attendance' => $presentAttendance,
@@ -298,10 +326,17 @@ class CourseCompletionRuleService
         return [(int) $quizTypeId => $requiredQuizzes];
     }
 
+    protected function gradeIds(mixed $stored): array
+    {
+        return is_array($stored)
+            ? collect($stored)->map(fn ($id) => (int) $id)->filter()->unique()->values()->all()
+            : \App\Models\GradeLevel::query()->where('is_active', true)->pluck('id')->map(fn ($id) => (int) $id)->all();
+    }
+
     protected function adjustmentNote(Enrollment $enrollment, array $criteria, int $basePoints, int $targetPoints, int $retainPercentage): string
     {
         return __('settings.course_completion.messages.adjustment_note', [
-            'student' => trim(($enrollment->student?->first_name ?? '').' '.($enrollment->student?->last_name ?? '')),
+            'student' => $enrollment->student?->full_name ?? '',
             'base' => $basePoints,
             'target' => $targetPoints,
             'percentage' => $retainPercentage,
@@ -315,7 +350,7 @@ class CourseCompletionRuleService
             ['code' => self::ADJUSTMENT_POINT_TYPE_CODE],
             [
                 'name' => 'Course Completion Adjustment',
-                'category' => 'system',
+                'category' => 'Automatic',
                 'default_points' => 0,
                 'allow_manual_entry' => false,
                 'allow_negative' => true,

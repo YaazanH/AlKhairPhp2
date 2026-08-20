@@ -18,6 +18,7 @@ new class extends Component {
     public ?int $to_currency_id = null;
     public string $from_amount = '';
     public string $to_amount = '';
+    public bool $to_amount_is_manual = false;
     public string $exchange_date = '';
     public string $notes = '';
 
@@ -65,7 +66,9 @@ new class extends Component {
             'to_currency_id' => ['required', 'exists:finance_currencies,id'],
         ]);
 
-        $this->calculateToAmount();
+        if (! $this->to_amount_is_manual) {
+            $this->calculateToAmount();
+        }
 
         if ((float) $this->normalizeFinanceNumber($this->to_amount) <= 0) {
             $this->addError('to_amount', __('finance.validation.cash_box_currency_mismatch'));
@@ -87,7 +90,7 @@ new class extends Component {
 
         $baseCurrency = app(FinanceService::class)->baseCurrency();
         $localCurrency = app(FinanceService::class)->localCurrency();
-        $this->reset(['from_amount', 'to_amount', 'notes']);
+        $this->reset(['from_amount', 'to_amount', 'to_amount_is_manual', 'notes']);
         $this->from_currency_id = $baseCurrency->id;
         $this->to_currency_id = $localCurrency->id;
         $this->from_cash_box_id = app(FinanceService::class)->defaultCashBoxForUser(auth()->user(), $baseCurrency->id)?->id;
@@ -99,6 +102,7 @@ new class extends Component {
     public function updated($property): void
     {
         if (in_array($property, ['from_amount', 'from_currency_id', 'to_currency_id'], true)) {
+            $this->to_amount_is_manual = false;
             $this->calculateToAmount();
         }
 
@@ -119,6 +123,11 @@ new class extends Component {
             $this->to_currency_id = app(FinanceService::class)->currenciesForCashBox($this->to_cash_box_id)->value('id');
             $this->calculateToAmount();
         }
+    }
+
+    public function enableManualToAmount(): void
+    {
+        $this->to_amount_is_manual = true;
     }
 
     protected function calculateToAmount(): void
@@ -166,7 +175,15 @@ new class extends Component {
                 <div><label class="mb-1 block text-sm font-medium">{{ __('finance.common.date') }}</label><input wire:model="exchange_date" type="date" class="w-full rounded-xl px-4 py-3 text-sm"></div>
                 <div><label class="mb-1 block text-sm font-medium">{{ __('finance.exchange.to_box') }}</label><select wire:model.live="to_cash_box_id" class="w-full rounded-xl px-4 py-3 text-sm"><option value="">{{ __('finance.actions.choose_box') }}</option>@foreach ($toCashBoxes as $box)<option value="{{ $box->id }}">{{ $box->name }}</option>@endforeach</select></div>
                 <div><label class="mb-1 block text-sm font-medium">{{ __('finance.exchange.to_currency') }}</label><select wire:model.live="to_currency_id" class="w-full rounded-xl px-4 py-3 text-sm"><option value="">{{ __('finance.options.currency') }}</option>@foreach ($toCurrencies as $currency)<option value="{{ $currency->id }}">{{ $currency->code }}</option>@endforeach</select></div>
-                <div><label class="mb-1 block text-sm font-medium">{{ __('finance.exchange.to_amount') }}</label><input wire:model="to_amount" type="text" inputmode="decimal" data-thousand-separator readonly class="w-full rounded-xl px-4 py-3 text-sm opacity-75"></div>
+                <div>
+                    <label class="mb-1 block text-sm font-medium">{{ __('finance.exchange.to_amount') }}</label>
+                    <div class="relative">
+                        <input wire:model="to_amount" type="text" inputmode="decimal" data-thousand-separator @readonly(! $to_amount_is_manual) class="w-full rounded-xl py-3 ps-4 pe-12 text-sm {{ $to_amount_is_manual ? '' : 'opacity-75' }}">
+                        <button type="button" wire:click="enableManualToAmount" class="absolute inset-y-1 end-1 grid w-9 place-items-center rounded-lg text-neutral-400 hover:bg-white/10 hover:text-white" title="{{ __('finance.exchange.edit_to_amount') }}" aria-label="{{ __('finance.exchange.edit_to_amount') }}">
+                            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 3.487 3.651 3.651M5.25 18.75l4.224-.845a2.25 2.25 0 0 0 1.075-.59L19.72 8.143a2.582 2.582 0 0 0-3.652-3.652L6.897 13.663a2.25 2.25 0 0 0-.59 1.075L5.25 18.75Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 5.25 18.75 9"/></svg>
+                        </button>
+                    </div>
+                </div>
                 <div><label class="mb-1 block text-sm font-medium">{{ __('finance.common.notes') }}</label><input wire:model="notes" type="text" class="w-full rounded-xl px-4 py-3 text-sm"></div>
                 @error('from_currency_id') <div class="lg:col-span-4 text-sm text-red-400">{{ $message }}</div> @enderror
                 <div class="lg:col-span-4"><button type="submit" class="pill-link pill-link--accent">{{ __('finance.actions.post_exchange') }}</button></div>

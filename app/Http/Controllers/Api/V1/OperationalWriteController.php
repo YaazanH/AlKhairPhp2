@@ -696,7 +696,7 @@ class OperationalWriteController extends Controller
                 'score' => $result->score !== null ? (float) $result->score : null,
                 'status' => $result->status,
                 'student_id' => $result->student_id,
-                'student_name' => trim(($result->enrollment?->student?->first_name ?? '').' '.($result->enrollment?->student?->last_name ?? '')),
+                'student_name' => $result->enrollment?->student?->full_name ?? '',
             ])->all(),
         ]);
     }

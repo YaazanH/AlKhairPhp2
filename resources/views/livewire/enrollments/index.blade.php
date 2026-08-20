@@ -537,7 +537,7 @@ new class extends Component {
                                         <div class="student-inline">
                                             <x-student-avatar :student="$enrollment->student" size="sm" />
                                             <div class="student-inline__body">
-                                                <div class="student-inline__name">{{ $enrollment->student->first_name }} {{ $enrollment->student->last_name }}</div>
+                                                <div class="student-inline__name">{{ $enrollment->student->full_name }}</div>
                                             </div>
                                         </div>
                                     @else
@@ -587,7 +587,7 @@ new class extends Component {
                         <option
                             value="{{ $student->id }}"
                             data-search="{{ trim(implode(' ', array_filter([$student->student_number, $student->first_name, $student->last_name]))) }}"
-                        >{{ $student->first_name }} {{ $student->last_name }}</option>
+                        >{{ $student->full_name }}</option>
                     @endforeach
                 </select>
                 @if ($group_id && $students->isEmpty())

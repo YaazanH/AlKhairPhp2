@@ -29,6 +29,26 @@ use Illuminate\Validation\ValidationException;
 
 class FinanceService
 {
+    public function availableTransactionPeriods(?User $user = null): Collection
+    {
+        $query = FinanceTransaction::query()->orderByDesc('transaction_date');
+
+        if ($user) {
+            $query->whereIn('cash_box_id', $this->accessibleCashBoxes($user)->select('finance_cash_boxes.id'));
+        }
+
+        return $query->pluck('transaction_date')
+            ->filter()
+            ->map(fn ($date) => Carbon::parse($date))
+            ->groupBy(fn (Carbon $date) => $date->year)
+            ->map(fn (Collection $dates, $year) => [
+                'year' => (int) $year,
+                'quarters' => $dates->map(fn (Carbon $date) => $date->quarter)->unique()->sortDesc()->values()->all(),
+            ])
+            ->sortByDesc('year')
+            ->values();
+    }
+
     public function financeRequestTypeLabel(string $type): string
     {
         $label = __('finance.request_types.'.$type);
@@ -812,7 +832,9 @@ class FinanceService
         $direction = (string) ($payload['direction'] ?? 'in');
         $amount = abs((float) ($payload['amount'] ?? 0));
         $signedAmount = $direction === 'out' ? -$amount : $amount;
-        $snapshot = $this->amountSnapshot($currency, $signedAmount);
+        $snapshot = array_key_exists('rate_to_base', $payload)
+            ? $this->amountSnapshotAtRate($signedAmount, (float) $payload['rate_to_base'])
+            : $this->amountSnapshot($currency, $signedAmount);
         $specialTransactionNo = $payload['special_transaction_no'] ?? null;
         $financeRequest = ! empty($payload['finance_request_id'])
             ? FinanceRequest::query()->find((int) $payload['finance_request_id'])
@@ -1081,7 +1103,11 @@ class FinanceService
     {
         return DB::transaction(function () use ($date, $fromAmount, $fromCashBox, $fromCurrency, $notes, $toAmount, $toCashBox, $toCurrency, $user): FinanceCurrencyExchange {
             $pairUuid = (string) Str::uuid();
-            $fromSnapshot = $this->amountSnapshot($fromCurrency, $fromAmount);
+            $fromRateToBase = (float) $fromCurrency->rate_to_base;
+            $toRateToBase = $toAmount > 0
+                ? ($fromAmount * $fromRateToBase) / $toAmount
+                : (float) $toCurrency->rate_to_base;
+            $fromSnapshot = $this->amountSnapshotAtRate($fromAmount, $fromRateToBase);
             $exchangeNo = $this->nextExchangeNumber();
 
             $exchange = FinanceCurrencyExchange::query()->create([
@@ -1093,8 +1119,8 @@ class FinanceService
                 'to_currency_id' => $toCurrency->id,
                 'from_amount' => $fromAmount,
                 'to_amount' => $toAmount,
-                'from_rate_to_base' => $fromCurrency->rate_to_base,
-                'to_rate_to_base' => $toCurrency->rate_to_base,
+                'from_rate_to_base' => $fromRateToBase,
+                'to_rate_to_base' => $toRateToBase,
                 'base_amount' => abs($fromSnapshot['base_amount']),
                 'local_amount' => abs($fromSnapshot['local_amount']),
                 'exchange_date' => $date,
@@ -1111,6 +1137,7 @@ class FinanceService
                 'special_transaction_no' => $exchangeNo,
                 'direction' => 'out',
                 'amount' => $fromAmount,
+                'rate_to_base' => $fromRateToBase,
                 'transaction_date' => $date,
                 'description' => $this->exchangeDescription('out', $notes),
                 'entered_by' => $user?->id,
@@ -1130,6 +1157,7 @@ class FinanceService
                 'special_transaction_no' => $exchangeNo,
                 'direction' => 'in',
                 'amount' => $toAmount,
+                'rate_to_base' => $toRateToBase,
                 'transaction_date' => $date,
                 'description' => $this->exchangeDescription('in', $notes),
                 'entered_by' => $user?->id,
@@ -1503,7 +1531,11 @@ class FinanceService
 
     protected function amountSnapshot(FinanceCurrency $currency, float $signedAmount): array
     {
-        $rateToBase = (float) $currency->rate_to_base;
+        return $this->amountSnapshotAtRate($signedAmount, (float) $currency->rate_to_base);
+    }
+
+    protected function amountSnapshotAtRate(float $signedAmount, float $rateToBase): array
+    {
         $baseAmount = round($signedAmount * $rateToBase, 2);
         $localRate = (float) $this->localCurrency()->rate_to_base;
         $localAmount = $localRate > 0 ? round($baseAmount / $localRate, 2) : $baseAmount;
@@ -1534,6 +1566,12 @@ class FinanceService
 
     protected function formatRateNumber(float $rate, int $maxDecimals): string
     {
+        $nearestInteger = round($rate);
+
+        if (abs($rate - $nearestInteger) < 0.0005) {
+            $rate = $nearestInteger;
+        }
+
         $decimals = $rate >= 1 ? min(4, $maxDecimals) : $maxDecimals;
 
         return rtrim(rtrim(number_format($rate, $decimals, '.', ','), '0'), '.');

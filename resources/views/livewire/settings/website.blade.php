@@ -450,7 +450,7 @@ new class extends Component {
     }
 }; ?>
 
-<div class="page-stack">
+<div class="page-stack settings-admin-page">
     <section class="page-hero p-6 lg:p-8">
         <div class="eyebrow">{{ __('site.admin.nav.meta') }}</div>
         <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('site.admin.website.title') }}</h1>
@@ -462,25 +462,6 @@ new class extends Component {
     @if (session('status'))
         <div class="flash-success px-4 py-3 text-sm">{{ session('status') }}</div>
     @endif
-
-    <section class="admin-kpi-grid">
-        <article class="stat-card">
-            <div class="kpi-label">{{ __('site.admin.website.stats.published_pages') }}</div>
-            <div class="metric-value mt-3">{{ number_format($totals['published_pages']) }}</div>
-        </article>
-        <article class="stat-card">
-            <div class="kpi-label">{{ __('site.admin.website.stats.program_cards') }}</div>
-            <div class="metric-value mt-3">{{ number_format($totals['program_cards']) }}</div>
-        </article>
-        <article class="stat-card">
-            <div class="kpi-label">{{ __('site.admin.website.stats.quick_stats') }}</div>
-            <div class="metric-value mt-3">{{ number_format($totals['quick_stats']) }}</div>
-        </article>
-        <article class="stat-card">
-            <div class="kpi-label">{{ __('site.admin.website.stats.media_assets') }}</div>
-            <div class="metric-value mt-3">{{ number_format($totals['media_assets']) }}</div>
-        </article>
-    </section>
 
     @php
         $homepageSections = [

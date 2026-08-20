@@ -208,6 +208,7 @@ return [
                 'letter_spacing' => 'تباعد الأحرف',
                 'color' => 'اللون',
                 'text_align' => 'المحاذاة',
+                'vertical_align' => 'المحاذاة العمودية',
                 'object_fit' => 'ملاءمة الصورة',
                 'static_image' => 'الصورة الثابتة',
                 'image_source_help' => 'ارفع شعاراً أو صورة ثابتة لهذا العنصر.',
@@ -234,6 +235,8 @@ return [
                 'page_number' => 'الصفحة 1',
             ],
             'font_weights' => [
+                '200' => 'خفيف جداً',
+                '300' => 'خفيف',
                 '400' => 'عادي',
                 '500' => 'متوسط',
                 '600' => 'شبه عريض',
@@ -245,6 +248,12 @@ return [
                 'center' => 'وسط',
                 'right' => 'يمين',
                 'justify' => 'ضبط مع الكشيدة',
+            ],
+            'vertical_alignments' => [
+                'top' => 'أعلى',
+                'center' => 'وسط',
+                'bottom' => 'أسفل',
+                'justify' => 'ضبط',
             ],
             'date_modes' => [
                 'today' => 'تاريخ اليوم',
@@ -322,6 +331,7 @@ return [
             'sections' => [
                 'template' => 'القالب والورق',
                 'sources' => 'السجلات المطلوبة',
+                'selected_students' => 'الطلاب المحددون',
             ],
             'fields' => [
                 'template' => 'القالب',

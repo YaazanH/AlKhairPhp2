@@ -66,13 +66,23 @@
             @php
                 $textValue = (string) $element['resolved']['value'];
                 $textAlign = $element['styling']['text_align'];
+                $verticalAlign = $element['styling']['vertical_align'] ?? 'top';
+                $verticalJustification = match ($verticalAlign) {
+                    'center' => 'center',
+                    'bottom' => 'flex-end',
+                    'justify' => 'space-between',
+                    default => 'flex-start',
+                };
                 $textDirection = preg_match('/[\p{Arabic}\p{Hebrew}\p{Syriac}]/u', $textValue) === 1 ? 'rtl' : 'ltr';
             @endphp
             <div
                 class="print-template-render__element print-template-render__element--text"
                 style="
                     {{ $style }}
-                    display:block;
+                    display:flex;
+                    flex-direction:column;
+                    align-items:stretch;
+                    justify-content:{{ $verticalJustification }};
                     color: {{ $element['styling']['color'] }};
                     direction: {{ $textDirection }};
                     unicode-bidi: isolate;
@@ -80,14 +90,16 @@
                     font-weight: {{ $element['styling']['font_weight'] }};
                     text-align: {{ $textAlign }};
                     @if ($textAlign === 'justify')
-                        text-align-last: center;
+                        text-align-last: justify;
                         text-justify: auto;
                     @endif
                     text-indent: 0;
                     letter-spacing: {{ number_format($element['styling']['letter_spacing'], 2, '.', '') }}mm;
                     line-height: {{ number_format($element['styling']['line_height'], 2, '.', '') }};
                 "
-            >{{ $textValue }}</div>
+            >{!! $verticalAlign === 'justify'
+                ? collect(preg_split('/\R/u', $textValue) ?: [$textValue])->map(fn ($textLine) => '<span style="width:100%">'.e($textLine).'</span>')->implode('')
+                : e($textValue) !!}</div>
         @endif
     @endforeach
 </article>

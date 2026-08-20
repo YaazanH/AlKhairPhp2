@@ -160,12 +160,6 @@ class PrintTemplateRenderService
             preg_match_all('/\s/u', $text, $spaces);
             $visualLength = count($letters[0]) + (count($spaces[0]) * 0.45);
 
-            // Short text is centred by text-align-last and should not receive
-            // decorative stretching merely to occupy the whole text box.
-            if ($visualLength < $lineCapacity * 0.58) {
-                return $text;
-            }
-
             preg_match_all(
                 '/([\x{0626}\x{0628}\x{062A}-\x{062E}\x{0633}-\x{063A}\x{0641}-\x{0647}\x{0649}\x{064A}])(?=[\x{0622}-\x{064A}])/u',
                 $text,

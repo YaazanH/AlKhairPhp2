@@ -414,7 +414,7 @@ new class extends Component {
 
                 return (object) [
                     'id' => $student->id,
-                    'full_name' => trim($student->first_name.' '.$student->last_name),
+                    'full_name' => $student->full_name,
                     'father_name' => $student->parentProfile?->father_name ?: __('crud.common.not_available'),
                     'birth_year' => $student->birth_date?->format('Y') ?: __('crud.common.not_available'),
                     'eligible_juz_count' => $eligibleJuzCount,
@@ -644,7 +644,7 @@ new class extends Component {
                                         <div class="student-inline">
                                             <x-student-avatar :student="$test->student" size="sm" />
                                             <div class="student-inline__body">
-                                                <div class="student-inline__name">{{ $test->student->first_name }} {{ $test->student->last_name }}</div>
+                                                <div class="student-inline__name">{{ $test->student->full_name }}</div>
                                                 <div class="student-inline__meta">{{ $test->student->parentProfile?->father_name ?: __('crud.common.not_available') }}</div>
                                             </div>
                                         </div>
@@ -748,7 +748,7 @@ new class extends Component {
                                 value="{{ $student->id }}"
                                 data-search="{{ trim(implode(' ', array_filter([$student->student_number, $student->first_name, $student->last_name]))) }}"
                             >
-                                {{ $student->first_name }} {{ $student->last_name }}
+                                {{ $student->full_name }}
                                 @if ($student->parentProfile?->father_name)
                                     - {{ $student->parentProfile->father_name }}
                                 @endif

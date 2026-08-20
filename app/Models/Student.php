@@ -56,6 +56,22 @@ class Student extends Model
 
     public function getFullNameAttribute(): string
     {
+        $hasNamesake = static::query()
+            ->whereKeyNot($this->getKey())
+            ->where('first_name', $this->first_name)
+            ->where('last_name', $this->last_name)
+            ->exists();
+
+        if ($hasNamesake) {
+            $fatherName = $this->relationLoaded('parentProfile')
+                ? $this->parentProfile?->father_name
+                : $this->parentProfile()->value('father_name');
+
+            if (filled($fatherName)) {
+                return trim($this->first_name.' '.$fatherName);
+            }
+        }
+
         return trim($this->first_name.' '.$this->last_name);
     }
 

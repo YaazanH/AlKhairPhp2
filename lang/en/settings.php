@@ -26,32 +26,32 @@ return [
         ],
         'organization' => [
             'meta' => 'Setup',
-            'title' => 'Dashboard',
+            'title' => 'General',
         ],
         'tracking' => [
             'meta' => 'Rules',
-            'title' => 'Tracking & Points',
+            'title' => 'Points',
         ],
         'completion' => [
             'meta' => 'Course end',
-            'title' => 'Completion',
+            'title' => 'Course End',
         ],
         'sidebar' => [
             'meta' => 'Navigation',
-            'title' => 'Sidebar',
+            'title' => 'Navigation',
         ],
         'points' => [
             'meta' => 'Rewards',
             'title' => 'Points',
         ],
-        'barcodes' => ['meta' => 'Automation', 'title' => 'Action barcodes'],
+        'barcodes' => ['meta' => 'Automation', 'title' => 'Barcodes'],
         'finance' => [
             'meta' => 'Billing',
             'title' => 'Finance',
         ],
         'access' => [
             'meta' => 'Roles',
-            'title' => 'Access',
+            'title' => 'Permissions',
         ],
     ],
     'account' => [
@@ -121,7 +121,7 @@ return [
         ],
     ],
     'organization' => [
-        'title' => 'Dashboard Settings',
+        'title' => 'Settings',
         'subtitle' => 'Control dashboard identity, academic years, and grade-level structure without changing code.',
         'stats' => [
             'academic_years' => 'Academic years',
@@ -132,7 +132,7 @@ return [
         ],
         'sections' => [
             'profile' => [
-                'title' => 'Dashboard profile',
+                'title' => 'General settings',
                 'copy' => 'These values drive the dashboard identity and shared reporting defaults.',
             ],
             'academic_year' => [
@@ -279,7 +279,9 @@ return [
             'parent' => 'Default parent image',
         ],
         'actions' => [
-            'save_settings' => 'Save settings',
+            'save_settings' => 'Edit',
+            'enable_barcode_scanner' => 'Enable barcode scanner',
+            'disable_barcode_scanner' => 'Disable barcode scanner',
             'remove_default_avatar' => 'Remove image',
             'remove_logo' => 'Remove logo',
             'create_year' => 'Create year',
@@ -293,7 +295,7 @@ return [
             'create_expense_category' => 'Create expense category',
             'update_expense_category' => 'Update expense category',
             'promote_students' => 'Promote all students',
-            'promote_students_confirm' => 'Move every student with a grade level up to the next active grade?',
+            'promote_students_confirm' => 'Move every student with an assigned grade to the next active grade? Students in the highest active grade and students without a grade remain unchanged. Inactive grades are skipped.',
             'create_teacher_job_title' => 'Create job title',
             'update_teacher_job_title' => 'Update job title',
             'create_student_gender' => 'Create gender',
@@ -304,6 +306,7 @@ return [
         ],
         'messages' => [
             'settings_saved' => 'Dashboard settings saved successfully.',
+            'barcode_scanner_updated' => 'Barcode scanner availability updated.',
             'default_avatar_removed' => 'Default image removed successfully.',
             'logo_saved' => 'Main page logo saved successfully.',
             'logo_removed' => 'Main page logo removed successfully.',
@@ -386,14 +389,15 @@ return [
     ],
     'tracking' => [
         'title' => 'Tracking Rules',
-        'subtitle' => 'Manage attendance states, assessment types, the partial-test mistake threshold, and the final-test score rules used by the standalone Quran test workflows.',
+        'subtitle' => 'Manage attendance states, assessment types, the partial-saber mistake threshold, and the final-saber score rules used by the standalone Quran saber workflows.',
         'stats' => [
             'attendance_statuses' => 'Attendance statuses',
             'assessment_types' => 'Assessment types',
             'awqaf_subjects' => 'Awqaf subjects',
-            'quran_test_types' => 'Quran test types',
+            'quran_test_types' => 'Quran saber types',
         ],
         'sections' => [
+            'saber_rules' => 'Saber rules',
             'attendance_status' => [
                 'create' => 'New attendance status',
                 'edit' => 'Edit attendance status',
@@ -413,20 +417,20 @@ return [
                 'table' => 'Awqaf subjects',
             ],
             'quran_test_type' => [
-                'create' => 'New Quran test type',
-                'edit' => 'Edit Quran test type',
-                'copy' => 'These types control the legacy Quran test screen for final and awqaf progression. Partial tests now use their own standalone workflow.',
-                'table' => 'Quran test types',
+                'create' => 'New Quran saber type',
+                'edit' => 'Edit Quran saber type',
+                'copy' => 'These types control the legacy Quran test screen for final and awqaf progression. Partial sabers now use their own standalone workflow.',
+                'table' => 'Quran saber types',
             ],
             'partial_test_rule' => [
-                'title' => 'Partial test mistake rule',
-                'copy' => 'Partial test attempts now record the number of mistakes. If the student reaches this number of mistakes or more, the part fails automatically.',
+                'title' => 'Partial saber mistake rule',
+                'copy' => 'Partial saber attempts now record the number of mistakes. If the student reaches this number of mistakes or more, the part fails automatically.',
                 'threshold_title' => 'Fail threshold',
                 'threshold_help' => 'If the mistake count is equal to or greater than this number, the student fails the part.',
             ],
             'final_test_rule' => [
-                'title' => 'Final test score rules',
-                'copy' => 'Final test attempts also use exactly two score ranges. The student result is derived automatically from the score you enter on each attempt.',
+                'title' => 'Final saber score rules',
+                'copy' => 'Final saber attempts also use exactly two score ranges. The student result is derived automatically from the score you enter on each attempt.',
                 'failed_title' => 'Failed range',
                 'passed_title' => 'Passed range',
             ],
@@ -452,6 +456,7 @@ return [
             'teacher' => 'Teacher',
         ],
         'table' => [
+            'rule' => 'Rule',
             'name' => 'Name',
             'type' => 'Type',
             'code' => 'Code',
@@ -493,8 +498,8 @@ return [
             'quran_test_type_created' => 'Quran test type created successfully.',
             'quran_test_type_updated' => 'Quran test type updated successfully.',
             'quran_test_type_deleted' => 'Quran test type deleted successfully.',
-            'partial_test_rules_saved' => 'Partial test mistake rule saved successfully.',
-            'final_test_rules_saved' => 'Final test score rules saved successfully.',
+            'partial_test_rules_saved' => 'Partial saber mistake rule saved successfully.',
+            'final_test_rules_saved' => 'Final saber score rules saved successfully.',
         ],
         'errors' => [
             'attendance_status_delete_linked' => 'This attendance status cannot be deleted while attendance records still use it.',
@@ -502,20 +507,21 @@ return [
             'default_requires_student_scope' => 'The default attendance value must be active and available for students.',
             'assessment_type_delete_linked' => 'This assessment type cannot be deleted while assessments or score bands still use it.',
             'awqaf_subject_delete_linked' => 'This Awqaf subject cannot be deleted while tests still use it.',
-            'final_test_rules_order' => 'Each final-test score range must start before it ends.',
-            'final_test_rules_overlap' => 'The passed and failed score ranges for final tests cannot overlap.',
+            'final_test_rules_order' => 'Each final-saber score range must start before it ends.',
+            'final_test_rules_overlap' => 'The passed and failed score ranges for final sabers cannot overlap.',
             'quran_test_type_delete_linked' => 'This Quran test type cannot be deleted while test records still use it.',
-            'quran_test_type_reserved' => 'The `partial` code is reserved for the standalone partial test workflow and cannot be created here.',
+            'quran_test_type_reserved' => 'The `partial` code is reserved for the standalone partial saber workflow and cannot be created here.',
         ],
     ],
     'course_completion' => [
-        'title' => 'Course Completion Rules',
+        'title' => 'Course End',
         'subtitle' => 'Define the end-of-course rules that protect student points, then apply the adjustment as a visible point-ledger entry.',
         'sections' => [
             'rules' => [
-                'title' => 'Completion requirements',
+                'title' => 'Course End Rules',
                 'copy' => 'A student keeps full points only when every enabled requirement is met.',
             ],
+            'final_points' => ['title' => 'Final points'],
             'apply' => [
                 'title' => 'Apply rule impact',
                 'copy' => 'Choose the course scope, then calculate the point effect for the enrollments in that scope.',
@@ -523,7 +529,9 @@ return [
             ],
         ],
         'fields' => [
-            'required_passed_final_tests' => 'Required passed final tests',
+            'required_passed_final_tests' => 'Required passed final sabers',
+            'required_memorized_pages' => 'Memorized pages',
+            'final_rule_operator' => 'Condition',
             'required_passed_quizzes' => 'Required passed quizzes',
             'assessment_type_requirements' => 'Assessment type requirements',
             'required_present_attendance' => 'Required present attendance records',
@@ -535,6 +543,8 @@ return [
             'enrollment_status' => 'Enrollment status',
         ],
         'options' => [
+            'and' => 'And',
+            'or' => 'Or',
             'all_academic_years' => 'All academic years',
             'all_courses' => 'All courses',
             'all_groups' => 'All groups',
@@ -547,18 +557,21 @@ return [
             'cancelled' => 'Cancelled only',
         ],
         'criteria' => [
-            'final_tests_progress' => 'Passed final tests :actual/:required',
+            'final_saber_pages_progress' => 'Final saber :tests_actual/:tests_required :operator memorized pages :pages_actual/:pages_required',
+            'final_tests_progress' => 'Passed final sabers :actual/:required',
             'quizzes_progress' => 'Passed quizzes :actual/:required',
             'assessment_type_progress' => ':type passed assessments :actual/:required',
             'attendance_progress' => 'Present attendance :actual/:required',
         ],
         'labels' => [
             'assessment_type_requirements_help' => 'Set the minimum passed results for each active assessment type. Enter 0 to disable a type.',
+            'choose_grades' => 'Choose affected grades',
             'no_assessment_types' => 'No active assessment types are available.',
             'unknown_assessment_type' => 'Unknown assessment type',
             'point_effect' => 'If a student misses any enabled rule, the system keeps :percentage% of the base active points, but will not drop below :minimum points unless the student had fewer points already.',
         ],
         'actions' => [
+            'add_assessment_type' => 'Add assessment type',
             'save_rules' => 'Save rules',
             'apply_rules' => 'Apply point effect',
             'apply_confirm' => 'Apply the course completion point effect to the current scope?',
@@ -574,7 +587,7 @@ return [
         ],
     ],
     'points' => [
-        'title' => 'Point Settings',
+        'title' => 'Points',
         'subtitle' => 'Manage point types and the automatic policies that translate attendance, memorization, and scores into ledger entries.',
         'stats' => [
             'point_types' => 'Point types',
@@ -598,8 +611,8 @@ return [
         'guides' => [
             'quran_tests' => [
                 'title' => 'Quran test point keys',
-                'copy' => 'Use these `source_type` and `trigger_key` pairs when you want points to be awarded automatically for the new partial workflow or the existing final and awqaf tests.',
-                'score_ranges' => 'Use `from_value` and `to_value` only when the policy depends on the recorded attempt value. For partial-test parts this value is the mistake count, while final and awqaf tests still use scores. Partial cycle completion has no numeric value of its own, so leave the range empty for `quran_partial_test + partial_passed`.',
+                'copy' => 'Use these `source_type` and `trigger_key` pairs when you want points to be awarded automatically for the new partial workflow or the existing final and awqaf sabers.',
+                'score_ranges' => 'Use `from_value` and `to_value` only when the policy depends on the recorded attempt value. For partial-saber parts this value is the mistake count, while final and awqaf sabers still use scores. Partial cycle completion has no numeric value of its own, so leave the range empty for `quran_partial_test + partial_passed`.',
                 'items' => [
                     'partial_part' => [
                         'title' => 'Passed part attempt',
@@ -607,14 +620,14 @@ return [
                     ],
                     'partial_cycle' => [
                         'title' => 'Completed partial cycle',
-                        'copy' => 'Runs once after all four parts are passed. Good for the overall partial-test reward.',
+                        'copy' => 'Runs once after all four parts are passed. Good for the overall partial-saber reward.',
                     ],
                     'final' => [
-                        'title' => 'Passed final test',
-                        'copy' => 'Runs when the final Quran test is saved as passed.',
+                        'title' => 'Passed final saber',
+                        'copy' => 'Runs when the final Quran saber is saved as passed.',
                     ],
                     'awqaf' => [
-                        'title' => 'Passed awqaf test',
+                        'title' => 'Passed awqaf saber',
                         'copy' => 'Runs when the awqaf Quran test is saved as passed.',
                     ],
                 ],
@@ -649,10 +662,10 @@ return [
         ],
         'rule_options' => [
             'memorization_pages' => 'Memorization pages',
-            'partial_part_passed' => 'Passed partial test part',
-            'partial_passed' => 'Passed full partial test',
-            'final_passed' => 'Passed final Quran test',
-            'awqaf_passed' => 'Passed awqaf test',
+            'partial_part_passed' => 'Passed partial saber part',
+            'partial_passed' => 'Passed full partial saber',
+            'final_passed' => 'Passed final Quran saber',
+            'awqaf_passed' => 'Passed awqaf saber',
         ],
         'table' => [
             'type' => 'Type',
@@ -667,6 +680,7 @@ return [
             'actions' => 'Actions',
         ],
         'labels' => [
+            'manual_entry_automatic' => 'ManualEntry always allows manual entry. This setting is applied automatically.',
             'point_type_usage' => ':policies policies, :transactions transactions, :bands bands',
             'point_policy_meta' => ':pointType | :gradeLevel',
             'point_policy_range' => ':from to :to',
@@ -681,6 +695,7 @@ return [
             'update_policy' => 'Update policy',
         ],
         'messages' => [
+            'automatic_multiplier_saved' => 'Automatic positive point multiplier saved successfully.',
             'point_type_created' => 'Point type created successfully.',
             'point_type_updated' => 'Point type updated successfully.',
             'point_type_deleted' => 'Point type deleted successfully.',
@@ -693,6 +708,10 @@ return [
             'point_policy_delete_linked' => 'This point policy cannot be deleted while point transactions still reference it.',
             'manual_point_amount_required' => 'Manual point types must have a non-zero point amount.',
             'range_invalid' => 'The maximum value must be greater than or equal to the minimum value.',
+        ],
+        'multiplier' => [
+            'title' => 'Automatic positive point multiplier',
+            'value' => 'Multiplier',
         ],
     ],
     'finance' => [

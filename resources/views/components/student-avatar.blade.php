@@ -4,7 +4,7 @@
 ])
 
 @php
-    $name = trim(($student?->first_name ?? '').' '.($student?->last_name ?? ''));
+    $name = $student?->full_name ?? '';
     $segments = array_values(array_filter(preg_split('/\s+/', $name ?: '')));
     $initials = collect($segments)
         ->take(2)

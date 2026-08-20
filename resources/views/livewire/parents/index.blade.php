@@ -45,6 +45,8 @@ new class extends Component {
     public int $perPage = 15;
     public bool $showFormModal = false;
     public bool $showAccountModal = false;
+    public bool $showAccountViewModal = false;
+    public string $account_father_name = '';
     public bool $showChildrenModal = false;
     public bool $showBulkStatusModal = false;
     public ?int $childrenParentId = null;
@@ -341,6 +343,17 @@ new class extends Component {
             'account_password',
             'account_is_active',
         ]);
+    }
+
+    public function viewAccount(int $parentId): void
+    {
+        $this->authorizePermission('parents.view');
+        $parent = ParentProfile::query()->with('user')->findOrFail($parentId);
+        $this->authorizeScopedParentAccess($parent);
+        $this->account_father_name = $parent->father_name;
+        $this->account_username = $parent->parent_number ?? ($parent->user?->username ?? '');
+        $this->issued_password = $parent->user?->issued_password;
+        $this->showAccountViewModal = true;
     }
 
     public function openChildrenModal(int $parentId): void
@@ -772,17 +785,12 @@ new class extends Component {
                                 </td>
                                 <td class="px-5 py-4 lg:px-6">
                                     <div class="flex flex-wrap justify-end gap-2">
-                                        @can('parents.update')
-                                            <button type="button" wire:click="openAccountModal({{ $parent->id }})" class="pill-link pill-link--compact">{{ __('crud.common.actions.account') }}</button>
-                                        @endcan
+                                        <button type="button" wire:click="viewAccount({{ $parent->id }})" class="pill-link pill-link--compact">{{ __('crud.common.actions.account') }}</button>
                                         @can('students.view')
                                             <button type="button" wire:click="openChildrenModal({{ $parent->id }})" class="pill-link pill-link--compact">{{ __('crud.parents.children.action') }}</button>
                                         @endcan
                                         @can('parents.update')
                                             <button type="button" wire:click="edit({{ $parent->id }})" class="pill-link pill-link--compact">{{ __('crud.common.actions.edit') }}</button>
-                                        @endcan
-                                        @can('parents.delete')
-                                            <button type="button" wire:click="delete({{ $parent->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link pill-link--compact border-red-400/25 text-red-200 hover:border-red-300/35 hover:bg-red-500/12">{{ __('crud.common.actions.delete') }}</button>
                                         @endcan
                                     </div>
                                 </td>
@@ -972,6 +980,7 @@ new class extends Component {
                 <button type="button" wire:click="cancel" class="pill-link">
                     {{ __('crud.common.actions.close') }}
                 </button>
+                @if($editingId)@can('parents.update')<button type="button" wire:click="openAccountModal({{ $editingId }})" class="pill-link">{{ __('access.profile_accounts.title') }}</button>@endcan @can('parents.delete')<button type="button" wire:click="delete({{ $editingId }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link border-red-400/25 text-red-200">{{ __('crud.common.actions.delete') }}</button>@endcan @endif
             </div>
         </form>
     </x-admin.modal>
@@ -1028,6 +1037,16 @@ new class extends Component {
             <button type="button" wire:click="closeChildrenModal" class="pill-link">
                 {{ __('crud.common.actions.close') }}
             </button>
+        </div>
+    </x-admin.modal>
+
+    <x-admin.modal :show="$showAccountViewModal" :title="__('access.profile_accounts.title')" close-method="$set('showAccountViewModal', false)" max-width="2xl">
+        <div class="rounded-3xl border border-white/15 bg-white p-8 text-neutral-900 shadow-xl" dir="{{ app()->isLocale('ar') ? 'rtl' : 'ltr' }}">
+            <div class="text-center text-2xl font-bold">{{ $account_father_name }}</div>
+            <div class="mt-8 grid grid-cols-[auto_1fr] gap-x-5 gap-y-4 text-lg">
+                <div class="font-semibold">{{ __('access.profile_accounts.fields.username') }}</div><div class="font-mono">{{ $account_username ?: __('crud.common.not_available') }}</div>
+                <div class="font-semibold">{{ __('access.profile_accounts.fields.password') }}</div><div class="font-mono">{{ $issued_password ?: __('access.profile_accounts.empty.issued_password') }}</div>
+            </div>
         </div>
     </x-admin.modal>
 

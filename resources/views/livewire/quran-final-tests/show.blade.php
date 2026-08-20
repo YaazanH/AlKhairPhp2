@@ -242,7 +242,7 @@ new class extends Component {
     <section class="surface-panel p-5 lg:p-6">
         <div class="admin-toolbar">
             <div>
-                <div class="admin-toolbar__title">{{ $finalTestRecord->student?->first_name }} {{ $finalTestRecord->student?->last_name }}</div>
+                <div class="admin-toolbar__title">{{ $finalTestRecord->student?->full_name }}</div>
                 <p class="admin-toolbar__subtitle">
                     {{ $finalTestRecord->enrollment?->group?->name ?: __('workflow.common.no_group') }}
                     @if ($finalTestRecord->enrollment?->group?->course?->name)

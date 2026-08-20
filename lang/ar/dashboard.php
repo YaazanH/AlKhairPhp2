@@ -65,6 +65,7 @@ return [
             'daily_activity' => 'مقارنة الحضور والحفظ',
             'memorized_pages' => 'الصفحات المحفوظة',
             'students_attended' => 'الطلاب الحاضرون',
+            'average_attendance' => 'متوسط الحضور',
             'leaderboard_eyebrow' => 'ترتيب الدورة الافتراضية',
             'top_students' => 'أفضل 3 طلاب',
             'no_ranked_students' => 'لا يوجد طلاب نشطون للترتيب بعد.',
@@ -76,7 +77,7 @@ return [
             'pages_count' => '{1} صفحة واحدة|[2,*] :count صفحة',
             'no_groups' => 'لا يوجد مجموعات نشطة في الدورة الافتراضية.',
             'student_highlights' => 'ملخص الطالب',
-            'final_tests' => 'الاختبارات النهائية',
+            'final_tests' => 'الأسبار النهائية',
         ],
         'cards' => [
             'people' => [
@@ -98,6 +99,7 @@ return [
         'subheading' => 'مجموعاتك الموكلة والطلاب المرتبطون بها حالياً.',
         'intro' => 'استخدم تكليفاتك كنقطة انطلاق للحضور والحفظ والتقييمات وملاحظات الطلاب.',
         'group_dashboard' => [
+            'heading' => 'لوحة معلم حلقة',
             'subheading' => 'عرض مركز لحضور الحلقة وحفظها واختباراتها وترتيب طلابها.',
             'today_summary' => 'ملخص اليوم',
             'copy_today_summary' => 'نسخ ملخص اليوم',
@@ -124,7 +126,7 @@ return [
                 'days_attended' => 'أيام الحضور',
                 'points' => 'النقاط',
                 'pages' => 'الصفحات المحفوظة',
-                'final_tests' => 'الاختبارات النهائية',
+                'final_tests' => 'الأسبار النهائية',
                 'final_exam_score' => 'علامة الامتحان النهائي',
                 'page_number' => 'رقم الصفحة',
                 'date' => 'التاريخ',

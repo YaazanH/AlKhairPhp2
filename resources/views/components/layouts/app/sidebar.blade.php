@@ -53,13 +53,30 @@
 
                 <flux:spacer />
 
-                <div class="mt-4">
+                <div
+                    class="app-sidebar-account mt-4"
+                    x-data="{
+                        preserveScrollPosition() {
+                            const pageY = window.scrollY;
+                            const sidebar = this.$el.closest('.app-sidebar-shell');
+                            const sidebarY = sidebar?.scrollTop || 0;
+                            const restore = () => {
+                                window.scrollTo(0, pageY);
+                                if (sidebar) sidebar.scrollTop = sidebarY;
+                            };
+                            requestAnimationFrame(restore);
+                            [0, 50, 150, 300].forEach(delay => setTimeout(restore, delay));
+                        },
+                    }"
+                    x-on:click.capture="if ($event.target.closest('[data-flux-profile]')) preserveScrollPosition()"
+                >
                     <flux:dropdown position="top" align="{{ $desktopDropdownAlign }}">
                         <flux:profile
                             :name="auth()->user()->name"
                             :avatar="auth()->user()->profilePhotoUrl()"
                             :initials="auth()->user()->initials()"
                             icon-trailing="chevrons-up-down"
+                            x-on:mousedown.prevent
                         />
 
                         <flux:menu class="w-[220px]">

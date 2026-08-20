@@ -302,11 +302,9 @@ new class extends Component {
     }
 }; ?>
 
-<div class="page-stack">
+<div class="page-stack settings-admin-page">
     <section class="page-hero p-6 lg:p-8">
-        <div class="eyebrow">{{ __('ui.nav.configuration') }}</div>
-        <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('access.roles.title') }}</h1>
-        <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ __('access.roles.subtitle') }}</p>
+        <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('ui.common.settings') }}</h1>
     </section>
 
     <x-settings.admin-nav section="dashboard" current="settings.access-control" />
@@ -319,49 +317,10 @@ new class extends Component {
         <div class="rounded-2xl border border-red-500/25 bg-red-500/10 px-4 py-3 text-sm text-red-200">{{ $message }}</div>
     @enderror
 
-    <section class="surface-panel p-5 lg:p-6">
-        <div class="admin-toolbar">
-            <div>
-                <div class="admin-toolbar__title">{{ __('access.roles.title') }}</div>
-                <p class="admin-toolbar__subtitle">{{ __('access.roles.editor.subtitle') }}</p>
-            </div>
-
-            <div class="admin-toolbar__controls">
-                <div class="admin-filter-field">
-                    <label for="role-search">{{ __('access.roles.fields.search') }}</label>
-                    <input id="role-search" wire:model.live.debounce.300ms="role_search" type="text" placeholder="{{ __('access.roles.fields.search') }}">
-                </div>
-
-                <div class="admin-toolbar__actions">
-                    <button type="button" wire:click="openCreateRoleModal" class="pill-link pill-link--accent">
-                        {{ __('access.roles.actions.create') }}
-                    </button>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <section class="admin-kpi-grid">
-        <article class="stat-card">
-            <div class="kpi-label">{{ __('access.roles.stats.total') }}</div>
-            <div class="metric-value mt-3">{{ number_format($filteredRolesCount) }}</div>
-        </article>
-        <article class="stat-card">
-            <div class="kpi-label">{{ __('access.roles.stats.system') }}</div>
-            <div class="metric-value mt-3">{{ number_format($systemRolesCount) }}</div>
-        </article>
-        <article class="stat-card">
-            <div class="kpi-label">{{ __('access.roles.stats.custom') }}</div>
-            <div class="metric-value mt-3">{{ number_format($customRolesCount) }}</div>
-        </article>
-    </section>
-
     <section class="surface-table">
         <div class="admin-grid-meta">
-            <div>
-                <div class="admin-grid-meta__title">{{ __('access.common.roles') }}</div>
-                <div class="admin-grid-meta__summary">{{ __('crud.common.badges.in_view', ['count' => number_format($filteredRolesCount)]) }}</div>
-            </div>
+            <div class="admin-grid-meta__title">{{ __('access.common.roles') }}</div>
+            <div class="flex flex-wrap items-end gap-3"><div class="admin-filter-field"><label for="role-search">{{ __('access.roles.fields.search') }}</label><input id="role-search" wire:model.live.debounce.300ms="role_search" type="text" placeholder="{{ __('access.roles.fields.search') }}"></div><button type="button" wire:click="openCreateRoleModal" class="pill-link pill-link--accent">{{ __('access.roles.actions.create') }}</button></div>
         </div>
 
         @if ($roles->isEmpty())

@@ -75,6 +75,8 @@
             font-weight: bold;
         }
 
+        body > table { margin-top: 4mm; }
+
         table {
             border-collapse: collapse;
             table-layout: fixed;
@@ -86,6 +88,7 @@
         }
 
         th {
+            background: #dfece2;
             border-bottom: 1.5px solid #000;
             font-size: 11.5px;
             font-weight: bold;
@@ -102,7 +105,7 @@
         }
 
         tbody tr:nth-child(even) td {
-            background: #d9d9d9;
+            background: #f1f7f2;
         }
 
         .name {
@@ -150,7 +153,7 @@
                 @endphp
                 <tr>
                     <td>{{ $student?->student_number ?: '-' }}</td>
-                    <td class="name">{{ trim(($student?->first_name ?? '').' '.($student?->last_name ?? '')) ?: '-' }}</td>
+                    <td class="name">{{ $student?->full_name ?: '-' }}</td>
                     <td>{{ $student?->gradeLevel?->name ?: '-' }}</td>
                     <td>{{ $juz?->juz_number ?: '-' }}</td>
                     <td dir="ltr">{{ $student?->user?->phone ?: '-' }}</td>

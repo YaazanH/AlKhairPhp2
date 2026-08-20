@@ -13,49 +13,39 @@
 <div class="surface-panel p-4">
     <div class="grid gap-4">
         @unless($showWebsiteSettings)
-        <section class="rounded-2xl border border-white/8 bg-white/4 p-3">
-            <div class="mb-3 px-2">
-                <div class="eyebrow">{{ __('settings.navigation.groups.dashboard.meta') }}</div>
-                <div class="mt-1 text-sm font-semibold text-white">{{ __('settings.navigation.groups.dashboard.title') }}</div>
-            </div>
-
+        <section class="rounded-2xl border border-white/8 bg-white/4 p-3" aria-label="{{ __('ui.common.settings') }}">
             <div class="settings-tabs">
                 <a href="{{ route('settings.organization') }}" wire:navigate class="settings-tab {{ $resolvedCurrent === 'settings.organization' ? 'is-active' : '' }}">
-                    <span class="settings-tab__meta">{{ __('settings.navigation.organization.meta') }}</span>
                     <span class="settings-tab__title">{{ __('settings.navigation.organization.title') }}</span>
                 </a>
                 <a href="{{ route('settings.tracking') }}" wire:navigate class="settings-tab {{ $resolvedCurrent === 'settings.tracking' ? 'is-active' : '' }}">
-                    <span class="settings-tab__meta">{{ __('settings.navigation.tracking.meta') }}</span>
                     <span class="settings-tab__title">{{ __('settings.navigation.tracking.title') }}</span>
                 </a>
                 @can('course-completion-rules.manage')
                     <a href="{{ route('settings.course-completion') }}" wire:navigate class="settings-tab {{ $resolvedCurrent === 'settings.course-completion' ? 'is-active' : '' }}">
-                        <span class="settings-tab__meta">{{ __('settings.navigation.completion.meta') }}</span>
                         <span class="settings-tab__title">{{ __('settings.navigation.completion.title') }}</span>
                     </a>
                 @endcan
                 @can('curricula.manage')
                     <a href="{{ route('settings.curriculum-subjects') }}" wire:navigate class="settings-tab {{ $resolvedCurrent === 'settings.curriculum-subjects' ? 'is-active' : '' }}">
-                        <span class="settings-tab__meta">{{ __('curricula.settings.meta') }}</span>
                         <span class="settings-tab__title">{{ __('curricula.settings.title') }}</span>
+                    </a>
+                @endcan
+                @can('barcode-actions.view')
+                @if ((bool) (\App\Models\AppSetting::groupValues('dashboard')->get('barcode_scanner_enabled') ?? true))
+                    <a href="{{ route('barcode-actions.index') }}" wire:navigate class="settings-tab {{ $resolvedCurrent === 'barcode-actions.index' ? 'is-active' : '' }}">
+                        <span class="settings-tab__title">{{ __('settings.navigation.barcodes.title') }}</span>
+                    </a>
+                @endif
+                @endcan
+                @can('roles.manage')
+                    <a href="{{ route('settings.access-control') }}" wire:navigate class="settings-tab {{ $resolvedCurrent === 'settings.access-control' ? 'is-active' : '' }}">
+                        <span class="settings-tab__title">{{ __('settings.navigation.access.title') }}</span>
                     </a>
                 @endcan
                 @can('sidebar-navigation.manage')
                     <a href="{{ route('settings.sidebar-navigation') }}" wire:navigate class="settings-tab {{ $resolvedCurrent === 'settings.sidebar-navigation' ? 'is-active' : '' }}">
-                        <span class="settings-tab__meta">{{ __('settings.navigation.sidebar.meta') }}</span>
                         <span class="settings-tab__title">{{ __('settings.navigation.sidebar.title') }}</span>
-                    </a>
-                @endcan
-                @can('barcode-actions.view')
-                    <a href="{{ route('barcode-actions.index') }}" wire:navigate class="settings-tab {{ $resolvedCurrent === 'barcode-actions.index' ? 'is-active' : '' }}">
-                        <span class="settings-tab__meta">{{ __('settings.navigation.barcodes.meta') }}</span>
-                        <span class="settings-tab__title">{{ __('ui.nav.action_barcodes') }}</span>
-                    </a>
-                @endcan
-                @can('roles.manage')
-                    <a href="{{ route('settings.access-control') }}" wire:navigate class="settings-tab {{ $resolvedCurrent === 'settings.access-control' ? 'is-active' : '' }}">
-                        <span class="settings-tab__meta">{{ __('settings.navigation.access.meta') }}</span>
-                        <span class="settings-tab__title">{{ __('settings.navigation.access.title') }}</span>
                     </a>
                 @endcan
             </div>
@@ -64,23 +54,15 @@
 
         @if($showWebsiteSettings)
         @can('website.manage')
-            <section class="rounded-2xl border border-white/8 bg-white/4 p-3">
-                <div class="mb-3 px-2">
-                    <div class="eyebrow">{{ __('settings.navigation.groups.website.meta') }}</div>
-                    <div class="mt-1 text-sm font-semibold text-white">{{ __('settings.navigation.groups.website.title') }}</div>
-                </div>
-
+            <section class="rounded-2xl border border-white/8 bg-white/4 p-3" aria-label="{{ __('ui.nav.public_website_settings') }}">
                 <div class="settings-tabs">
                     <a href="{{ route('settings.website') }}" wire:navigate class="settings-tab {{ $resolvedCurrent === 'settings.website' ? 'is-active' : '' }}">
-                        <span class="settings-tab__meta">{{ __('site.admin.nav.meta') }}</span>
                         <span class="settings-tab__title">{{ __('site.admin.nav.website') }}</span>
                     </a>
                     <a href="{{ route('settings.website.pages') }}" wire:navigate class="settings-tab {{ $resolvedCurrent === 'settings.website.pages' ? 'is-active' : '' }}">
-                        <span class="settings-tab__meta">{{ __('site.admin.nav.meta') }}</span>
                         <span class="settings-tab__title">{{ __('site.admin.nav.pages') }}</span>
                     </a>
                     <a href="{{ route('settings.website.navigation') }}" wire:navigate class="settings-tab {{ $resolvedCurrent === 'settings.website.navigation' ? 'is-active' : '' }}">
-                        <span class="settings-tab__meta">{{ __('site.admin.nav.meta') }}</span>
                         <span class="settings-tab__title">{{ __('site.admin.nav.menus') }}</span>
                     </a>
                 </div>

@@ -10,6 +10,8 @@ use libphonenumber\PhoneNumberType;
 
 class PhoneCountries
 {
+    protected const EXCLUDED_REGIONS = ['IL', 'IO', 'VG', 'MP', 'VC', 'SJ', 'ST', 'TA', 'TC', 'VI'];
+
     public static function options(): Collection
     {
         static $options = [];
@@ -24,8 +26,14 @@ class PhoneCountries
         $phoneUtil = PhoneNumberUtil::getInstance();
 
         return $options[$locale] = collect($phoneUtil->getSupportedRegions())
+            ->reject(fn (string $region): bool => in_array($region, self::EXCLUDED_REGIONS, true))
             ->map(function (string $region) use ($locale, $phoneUtil): array {
                 $name = Locale::getDisplayRegion('-'.$region, $locale) ?: $region;
+                $name = match ($region) {
+                    'HK' => str_starts_with($locale, 'ar') ? 'هونغ كونغ' : 'Hong Kong',
+                    'MO' => str_starts_with($locale, 'ar') ? 'ماكاو' : 'Macao',
+                    default => $name,
+                };
                 $example = $phoneUtil->getExampleNumberForType($region, PhoneNumberType::MOBILE)
                     ?: $phoneUtil->getExampleNumber($region);
                 $formattedExample = $example

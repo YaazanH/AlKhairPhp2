@@ -232,6 +232,7 @@ class AssessmentWorkflowTest extends TestCase
         $this->assertSame(1, Assessment::query()->count());
         $this->assertSame('100.00', $assessment->total_mark);
         $this->assertSame('60.00', $assessment->pass_mark);
+        $this->assertSame('multiple', $assessment->group_scope);
         $this->assertDatabaseHas('assessment_groups', [
             'assessment_id' => $assessment->id,
             'group_id' => $firstEnrollment->group_id,
@@ -274,6 +275,12 @@ class AssessmentWorkflowTest extends TestCase
 
         $pdfInspector = new Mpdf(['tempDir' => storage_path('app/mpdf')]);
         $this->assertSame(2, $pdfInspector->setSourceFile(StreamReader::createByString($pdfResponse->getContent())));
+
+        $groupPdfResponse = $this->get(route('assessments.results.pdf', [
+            'assessment' => $assessment,
+            'group_id' => $secondGroup->id,
+        ], absolute: false))->assertOk()->assertHeader('content-type', 'application/pdf');
+        $this->assertSame(1, $pdfInspector->setSourceFile(StreamReader::createByString($groupPdfResponse->getContent())));
     }
 
     public function test_assessments_are_sorted_by_due_date_descending_with_undated_records_last(): void

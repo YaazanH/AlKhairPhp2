@@ -4,43 +4,36 @@
     <meta charset="utf-8">
     <style>
         @page { margin: 10mm 10mm 18mm; footer: pdf-footer; }
-        body { color: #172033; font-family: dubai, sans-serif; font-size: 11pt; }
-        .heading { background:#e6f3eb; margin: 0 0 5mm; table-layout:fixed; width: 100%; }
+        body { color:#172033; font-family:dubai,sans-serif; font-size:11pt; }
+        .heading { background:#cfe7d6; margin:0 0 4mm; table-layout:fixed; width:100%; }
         .heading td { border:0; padding:2mm 3mm; vertical-align:middle; }
-        .heading-logo { text-align:right; width:38mm; }
+        .heading-side { width:38mm; }
+        .heading-logo { text-align:right; }
         .heading-logo img { height:auto; max-height:23mm; max-width:35mm; width:auto; }
-        .heading-copy { text-align:right; }
+        .heading-copy { text-align:center; }
         .heading-title { font-size:22pt; font-weight:bold; }
         .heading-group { font-size:15pt; font-weight:500; margin-top:1mm; }
-        .meta { border: 0; margin-bottom: 7mm; table-layout: fixed; }
-        .meta td { border: 0; padding: 0 0 5mm; width: 50%; }
-        .meta-date { text-align: right; }
-        .meta-average { text-align: left; }
-        table { border-collapse: collapse; width: 100%; }
-        th, td { border: 1px solid #b8c2ca; padding: 2.5mm 2mm; }
-        th { background: #e6f3eb; font-weight: bold; }
-        tbody tr:nth-child(even) td { background: #f1f7f2; }
-        .pdf-header,.pdf-footer { background:#e6f3eb; padding:2mm 3mm; }
-        .pdf-header img { height:auto; max-height:23mm; max-width:35mm; width:auto; }
-        .pdf-footer { color:#526158; font-size:9pt; text-align:center; }
-        .number, .score, .status { text-align: center; white-space: nowrap; }
-        .number { width: 10mm; }
-        .score { width: 28mm; }
-        .status { width: 32mm; }
-        .empty { color: #687386; padding: 10mm; text-align: center; }
+        .heading-meta { border:1px solid #b8c2ca !important; font-size:9pt; padding:1.5mm 2mm !important; text-align:left; }
+        table { border-collapse:collapse; width:100%; }
+        th, td { border:1px solid #b8c2ca; padding:2.5mm 2mm; }
+        th { background:#dfece2; border-bottom:3px double #b8c2ca; font-weight:bold; text-align:center; }
+        tbody tr:nth-child(even) td { background:#f1f7f2; }
+        .pdf-footer { background:#cfe7d6; color:#526158; font-size:9pt; padding:2mm 3mm; text-align:center; }
+        .number, .score, .status { text-align:center; white-space:nowrap; }
+        .number { width:10mm; }
+        .score { width:28mm; }
+        .status { width:32mm; }
+        .empty { color:#687386; padding:10mm; text-align:center; }
     </style>
 </head>
 <body>
 <htmlpagefooter name="pdf-footer"><div class="pdf-footer">{PAGENO} / {nbpg}</div></htmlpagefooter>
 @forelse ($groups as $group)
     @if (! $loop->first)<pagebreak />@endif
-    <table class="heading"><tr>
-        <td class="heading-logo">@if($logo)<img src="{{ $logo }}" alt="">@endif</td>
-        <td class="heading-copy"><div class="heading-title">{{ $assessment->title }}</div><div class="heading-group">{{ $group->name }}</div></td>
-    </tr></table>
-    <table class="meta"><tr>
-        <td class="meta-date">{{ __('workflow.assessments.results.pdf.due_date') }}: {{ $assessment->due_at?->format('d-m-Y') ?? '—' }}</td>
-        <td class="meta-average">{{ __('workflow.assessments.results.pdf.average_mark') }}: {{ $group->average_mark !== null ? number_format((float) $group->average_mark, 2) : '—' }}</td>
+    <table class="heading" dir="ltr"><tr>
+        <td class="heading-side heading-meta" dir="{{ app()->isLocale('ar') ? 'rtl' : 'ltr' }}">{{ __('workflow.assessments.results.pdf.due_date') }}: {{ $assessment->due_at?->format('d-m-Y') ?? '—' }}<br>{{ __('workflow.assessments.results.pdf.average_mark') }}: {{ $group->average_mark !== null ? number_format((float) $group->average_mark, 2) : '—' }}</td>
+        <td class="heading-copy" dir="{{ app()->isLocale('ar') ? 'rtl' : 'ltr' }}"><div class="heading-title">{{ $assessment->title }}</div><div class="heading-group">{{ $group->name }}</div></td>
+        <td class="heading-side heading-logo">@if($logo)<img src="{{ $logo }}" alt="">@endif</td>
     </tr></table>
     <table>
         <thead><tr>

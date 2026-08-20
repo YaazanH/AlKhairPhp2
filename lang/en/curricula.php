@@ -11,6 +11,7 @@ return [
         'add_subject' => 'Add subject', 'add_lesson' => 'Add lesson', 'add_custom_lesson' => 'Custom lesson',
         'add_topic' => 'Add topic',
         'add_resource' => 'Add resource', 'record' => 'Record', 'update_progress' => 'Update progress', 'manage_subjects' => 'Subject settings',
+        'add_standalone_book' => 'Add standalone book', 'download_books' => 'Download books', 'download' => 'Download',
     ],
     'fields' => [
         'curriculum' => 'Curriculum', 'name' => 'Name', 'course' => 'Course', 'grade' => 'Grade', 'subject' => 'Subject',
@@ -19,6 +20,7 @@ return [
         'publisher' => 'Publisher', 'published_on' => 'Publishing year', 'edition_number' => 'Edition no.', 'edition_and_year' => 'Edition no. + year', 'year' => 'Year', 'date' => 'Date', 'teacher' => 'Teacher', 'status' => 'Status',
         'resource' => 'Resource', 'topic_name' => 'Topic name', 'topics' => 'Topics', 'pages_short' => 'pages',
         'general_lessons' => 'General subject lessons',
+        'standalone_books' => 'Standalone books', 'pdf_file' => 'Book PDF (up to 10 MB)', 'pdf_uploaded' => 'PDF uploaded', 'no_pdf' => 'No PDF', 'no_downloadable_books' => 'No downloadable books are available.',
     ],
     'options' => ['no_curriculum' => 'No curriculum', 'all_grades' => 'No specific grade'],
     'status' => ['untaught' => 'Untaught', 'partial' => 'Partially done', 'taught' => 'Taught'],

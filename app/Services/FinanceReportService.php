@@ -287,9 +287,34 @@ class FinanceReportService
 
     public function reportNumber(?FinanceGeneratedReport $generatedReport = null, array $report = []): string
     {
+        if (filled($report['original_report_number'] ?? null)) {
+            return (string) $report['original_report_number'];
+        }
+
         $prefix = (string) ($report['report_prefix'] ?? $this->reportPrefix());
 
         return $prefix.'-'.str_pad((string) ($generatedReport?->id ?? 0), 6, '0', STR_PAD_LEFT);
+    }
+
+    public function savedReportPeriodLabel(FinanceGeneratedReport $generatedReport): string
+    {
+        $startValue = data_get($generatedReport->filters, 'date_from', data_get($generatedReport->report_data, 'start'));
+        $endValue = data_get($generatedReport->filters, 'date_to', data_get($generatedReport->report_data, 'end'));
+
+        if (! $startValue || ! $endValue) {
+            return '-';
+        }
+
+        $start = Carbon::parse($startValue)->startOfDay();
+        $end = Carbon::parse($endValue)->startOfDay();
+        $quarterStart = $start->copy()->startOfQuarter()->startOfDay();
+        $quarterEnd = $start->copy()->endOfQuarter()->startOfDay();
+
+        if ($start->equalTo($quarterStart) && $end->equalTo($quarterEnd)) {
+            return 'Q'.$start->quarter.'-'.$start->year;
+        }
+
+        return $start->format('d-m-Y').' - '.$end->format('d-m-Y');
     }
 
     public function previewLedgerReport(FinanceReportTemplate $template, ?User $issuer = null): array
@@ -455,6 +480,9 @@ class FinanceReportService
     public function ensureStoredLedgerPdf(FinanceGeneratedReport $generatedReport, array $report): ?string
     {
         $existingPath = is_string($generatedReport->pdf_path ?? null) ? $generatedReport->pdf_path : null;
+        if (($report['imported_legacy'] ?? false) && $existingPath && Storage::disk('local')->exists($existingPath)) {
+            return $existingPath;
+        }
         $currentRenderer = $this->ledgerPdfRendererVersion();
         $storedRenderer = is_array($generatedReport->report_data)
             ? (string) ($generatedReport->report_data['pdf_renderer'] ?? '')

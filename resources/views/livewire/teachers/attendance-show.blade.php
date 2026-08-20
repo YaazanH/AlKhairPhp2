@@ -424,9 +424,11 @@ new class extends Component {
                                 {{ __('workflow.teacher_attendance.day_details.manual_add.action') }}
                             </button>
                         @endif
-                        <button wire:click="deleteDay" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" type="button" class="pill-link border-red-400/25 text-red-200 hover:border-red-300/35 hover:bg-red-500/12">
-                            {{ __('crud.common.actions.delete') }}
-                        </button>
+                        @if ($dayRecord->status !== 'closed')
+                            <button wire:click="deleteDay" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" type="button" class="pill-link border-red-400/25 text-red-200 hover:border-red-300/35 hover:bg-red-500/12">
+                                {{ __('crud.common.actions.delete') }}
+                            </button>
+                        @endif
                     @endcan
                 </div>
             </div>

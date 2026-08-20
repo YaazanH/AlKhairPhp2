@@ -2,6 +2,7 @@
 
 use App\Livewire\Concerns\AuthorizesPermissions;
 use App\Livewire\Concerns\SupportsCreateAndNew;
+use App\Models\AppSetting;
 use App\Models\GradeLevel;
 use App\Models\PointPolicy;
 use App\Models\PointTransaction;
@@ -16,6 +17,8 @@ new class extends Component
     use SupportsCreateAndNew;
 
     protected array $hiddenPointTypeCategories = ['attendance', 'system'];
+
+    public array $pointTypeCategories = ['Automatic', 'Assessment', 'ManualEntry'];
 
     public ?int $point_type_editing_id = null;
 
@@ -67,12 +70,22 @@ new class extends Component
 
     public bool $showPointPolicyModal = false;
 
+    public string $automatic_multiplier = '1';
+
+    public string $automatic_multiplier_from = '';
+
+    public string $automatic_multiplier_until = '';
+
     public bool $embedded = false;
 
     public function mount(bool $embedded = false): void
     {
         $this->authorizePermission('settings.manage');
         $this->embedded = $embedded;
+        $settings = AppSetting::groupValues('points');
+        $this->automatic_multiplier = (string) ($settings->get('automatic_multiplier') ?? 1);
+        $this->automatic_multiplier_from = (string) ($settings->get('automatic_multiplier_from') ?? '');
+        $this->automatic_multiplier_until = (string) ($settings->get('automatic_multiplier_until') ?? '');
     }
 
     public function deletePointPolicy(int $pointPolicyId): void
@@ -203,7 +216,6 @@ new class extends Component
                         ->where('code', '!=', PointLedgerService::ATTENDANCE_POINT_TYPE_CODE)),
             ],
             'point_policy_points' => ['required', 'integer'],
-            'point_policy_priority' => ['required', 'integer', 'min:0'],
             'point_policy_rule_key' => [$this->point_policy_source_type !== '' && $this->point_policy_trigger_key !== '' ? 'nullable' : 'required', 'string', Rule::in(array_keys($this->pointPolicyRuleOptions()))],
             'point_policy_source_type' => [$this->point_policy_rule_key !== '' ? 'nullable' : 'required', 'string', 'max:50'],
             'point_policy_to_value' => ['nullable', 'numeric'],
@@ -216,9 +228,7 @@ new class extends Component
     public function pointTypeRules(): array
     {
         return [
-            'point_type_allow_manual_entry' => ['boolean'],
-            'point_type_allow_negative' => ['boolean'],
-            'point_type_category' => ['required', 'string', 'max:50', Rule::notIn($this->hiddenPointTypeCategories)],
+            'point_type_category' => ['required', Rule::in($this->pointTypeCategories)],
             'point_type_code' => [
                 'required',
                 'string',
@@ -260,7 +270,7 @@ new class extends Component
                 'name' => $validated['point_policy_name'],
                 'point_type_id' => $validated['point_policy_point_type_id'],
                 'points' => (int) $validated['point_policy_points'],
-                'priority' => (int) $validated['point_policy_priority'],
+                'priority' => 0,
                 'period_type' => $validated['point_policy_period_type'],
                 'active_from' => $activeFrom,
                 'active_until' => $activeUntil,
@@ -283,18 +293,18 @@ new class extends Component
     {
         $this->authorizePermission('settings.manage');
 
+        if (! in_array($this->point_type_category, $this->pointTypeCategories, true)) {
+            $this->point_type_category = $this->point_type_allow_manual_entry ? 'ManualEntry' : 'Automatic';
+        }
+
         $validated = $this->validate($this->pointTypeRules());
 
         $defaultPoints = (int) $validated['point_type_default_points'];
 
-        if ($validated['point_type_allow_manual_entry'] && $defaultPoints === 0) {
+        $allowManualEntry = $validated['point_type_category'] === 'ManualEntry';
+
+        if ($allowManualEntry && $defaultPoints === 0) {
             $this->addError('point_type_default_points', __('settings.points.errors.manual_point_amount_required'));
-
-            return;
-        }
-
-        if (! $validated['point_type_allow_negative'] && $defaultPoints < 0) {
-            $this->addError('point_type_default_points', __('workflow.points.errors.negative_not_allowed'));
 
             return;
         }
@@ -302,8 +312,8 @@ new class extends Component
         PointType::query()->updateOrCreate(
             ['id' => $this->point_type_editing_id],
             [
-                'allow_manual_entry' => $validated['point_type_allow_manual_entry'],
-                'allow_negative' => $validated['point_type_allow_negative'],
+                'allow_manual_entry' => $allowManualEntry,
+                'allow_negative' => true,
                 'category' => $validated['point_type_category'],
                 'code' => $validated['point_type_code'],
                 'default_points' => $defaultPoints,
@@ -321,6 +331,23 @@ new class extends Component
         $this->cancelPointType();
     }
 
+    public function saveAutomaticMultiplier(): void
+    {
+        $this->authorizePermission('settings.manage');
+
+        $validated = $this->validate([
+            'automatic_multiplier' => ['required', 'numeric', 'min:1', 'max:3'],
+            'automatic_multiplier_from' => ['required', 'date'],
+            'automatic_multiplier_until' => ['required', 'date', 'after_or_equal:automatic_multiplier_from'],
+        ]);
+
+        AppSetting::storeValue('points', 'automatic_multiplier', (float) $validated['automatic_multiplier'], 'float');
+        AppSetting::storeValue('points', 'automatic_multiplier_from', $validated['automatic_multiplier_from']);
+        AppSetting::storeValue('points', 'automatic_multiplier_until', $validated['automatic_multiplier_until']);
+
+        session()->flash('status', __('settings.points.messages.automatic_multiplier_saved'));
+    }
+
     public function with(): array
     {
         return [
@@ -328,7 +355,6 @@ new class extends Component
             'pointPolicies' => PointPolicy::query()
                 ->with(['gradeLevel', 'pointType'])
                 ->where('source_type', '!=', 'attendance')
-                ->orderByDesc('priority')
                 ->orderBy('name')
                 ->get(),
             'pointTypes' => $this->visiblePointTypesQuery()->withCount(['assessmentScoreBands', 'policies', 'transactions'])->orderBy('name')->get(),
@@ -378,7 +404,7 @@ new class extends Component
     protected function visiblePointTypesQuery()
     {
         return PointType::query()
-            ->whereNotIn('category', $this->hiddenPointTypeCategories)
+            ->whereIn('category', $this->pointTypeCategories)
             ->where('code', '!=', PointLedgerService::ATTENDANCE_POINT_TYPE_CODE);
     }
 
@@ -404,9 +430,8 @@ new class extends Component
 <div class="{{ $embedded ? 'space-y-6' : 'page-stack settings-admin-page' }}">
     @unless ($embedded)
     <section class="page-hero p-6 lg:p-8">
-        <div class="eyebrow">{{ __('ui.nav.settings') }}</div>
-        <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('settings.points.title') }}</h1>
-        <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ __('settings.points.subtitle') }}</p>
+        <div class="eyebrow">{{ __('ui.common.settings') }}</div>
+        <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('ui.common.settings') }}</h1>
     </section>
 
     <x-settings.admin-nav section="dashboard" current="settings.points" />
@@ -416,62 +441,14 @@ new class extends Component
         <div class="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">{{ session('status') }}</div>
     @endif
 
-    <div class="grid gap-4 md:grid-cols-3">
-        <div class="rounded-xl border border-neutral-200 p-5 dark:border-neutral-700"><div class="text-sm text-neutral-500">{{ __('settings.points.stats.point_types') }}</div><div class="mt-2 text-3xl font-semibold">{{ number_format($totals['point_types']) }}</div></div>
-        <div class="rounded-xl border border-neutral-200 p-5 dark:border-neutral-700"><div class="text-sm text-neutral-500">{{ __('settings.points.stats.point_policies') }}</div><div class="mt-2 text-3xl font-semibold">{{ number_format($totals['point_policies']) }}</div></div>
-        <div class="rounded-xl border border-neutral-200 p-5 dark:border-neutral-700"><div class="text-sm text-neutral-500">{{ __('settings.points.stats.active_policies') }}</div><div class="mt-2 text-3xl font-semibold">{{ number_format($totals['active_policies']) }}</div></div>
-    </div>
-
     <section class="surface-panel p-5 lg:p-6">
-        <div class="admin-toolbar">
-            <div>
-                <div class="admin-toolbar__title">{{ __('settings.points.title') }}</div>
-                <p class="admin-toolbar__subtitle">{{ __('settings.points.subtitle') }}</p>
-            </div>
-        </div>
-    </section>
-
-    <section class="surface-panel p-5 lg:p-6">
-        <div class="admin-toolbar">
-            <div>
-                <div class="admin-toolbar__title">{{ __('settings.points.guides.quran_tests.title') }}</div>
-                <p class="admin-toolbar__subtitle">{{ __('settings.points.guides.quran_tests.copy') }}</p>
-            </div>
-        </div>
-
-        <div class="mt-5 grid gap-3 md:grid-cols-2">
-            <div class="rounded-2xl border border-neutral-200 px-4 py-4 text-sm dark:border-neutral-700">
-                <div class="font-semibold">{{ __('settings.points.guides.quran_tests.items.partial_part.title') }}</div>
-                <div class="mt-2 text-neutral-500 dark:text-neutral-400">{{ __('settings.points.guides.quran_tests.items.partial_part.copy') }}</div>
-                <div class="mt-3 font-mono text-xs">source_type = <span class="text-neutral-900 dark:text-white">quran_partial_test_part</span></div>
-                <div class="mt-1 font-mono text-xs">trigger_key = <span class="text-neutral-900 dark:text-white">part_passed</span></div>
-            </div>
-
-            <div class="rounded-2xl border border-neutral-200 px-4 py-4 text-sm dark:border-neutral-700">
-                <div class="font-semibold">{{ __('settings.points.guides.quran_tests.items.partial_cycle.title') }}</div>
-                <div class="mt-2 text-neutral-500 dark:text-neutral-400">{{ __('settings.points.guides.quran_tests.items.partial_cycle.copy') }}</div>
-                <div class="mt-3 font-mono text-xs">source_type = <span class="text-neutral-900 dark:text-white">quran_partial_test</span></div>
-                <div class="mt-1 font-mono text-xs">trigger_key = <span class="text-neutral-900 dark:text-white">partial_passed</span></div>
-            </div>
-
-            <div class="rounded-2xl border border-neutral-200 px-4 py-4 text-sm dark:border-neutral-700">
-                <div class="font-semibold">{{ __('settings.points.guides.quran_tests.items.final.title') }}</div>
-                <div class="mt-2 text-neutral-500 dark:text-neutral-400">{{ __('settings.points.guides.quran_tests.items.final.copy') }}</div>
-                <div class="mt-3 font-mono text-xs">source_type = <span class="text-neutral-900 dark:text-white">quran_final_test</span></div>
-                <div class="mt-1 font-mono text-xs">trigger_key = <span class="text-neutral-900 dark:text-white">final_passed</span></div>
-            </div>
-
-            <div class="rounded-2xl border border-neutral-200 px-4 py-4 text-sm dark:border-neutral-700">
-                <div class="font-semibold">{{ __('settings.points.guides.quran_tests.items.awqaf.title') }}</div>
-                <div class="mt-2 text-neutral-500 dark:text-neutral-400">{{ __('settings.points.guides.quran_tests.items.awqaf.copy') }}</div>
-                <div class="mt-3 font-mono text-xs">source_type = <span class="text-neutral-900 dark:text-white">quran_test</span></div>
-                <div class="mt-1 font-mono text-xs">trigger_key = <span class="text-neutral-900 dark:text-white">awqaf_passed</span></div>
-            </div>
-        </div>
-
-        <div class="mt-4 rounded-2xl border border-emerald-200/50 bg-emerald-50/60 px-4 py-4 text-sm text-emerald-900 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-100">
-            {{ __('settings.points.guides.quran_tests.score_ranges') }}
-        </div>
+        <div class="admin-toolbar"><div class="admin-toolbar__title">{{ __('settings.points.multiplier.title') }}</div></div>
+        <form wire:submit="saveAutomaticMultiplier" class="mt-5 grid gap-4 md:grid-cols-[10rem_1fr_1fr_auto] md:items-end">
+            <div><label class="mb-1 block text-sm font-medium">{{ __('settings.points.multiplier.value') }}</label><select wire:model="automatic_multiplier" class="w-full rounded-xl px-4 py-3"><option value="1">x1</option><option value="1.5">x1.5</option><option value="2">x2</option><option value="2.5">x2.5</option><option value="3">x3</option></select></div>
+            <div><label class="mb-1 block text-sm font-medium">{{ __('settings.points.fields.active_from') }}</label><input wire:model="automatic_multiplier_from" type="date" class="w-full rounded-xl px-4 py-3">@error('automatic_multiplier_from')<div class="mt-1 text-sm text-red-400">{{ $message }}</div>@enderror</div>
+            <div><label class="mb-1 block text-sm font-medium">{{ __('settings.points.fields.active_until') }}</label><input wire:model="automatic_multiplier_until" type="date" class="w-full rounded-xl px-4 py-3">@error('automatic_multiplier_until')<div class="mt-1 text-sm text-red-400">{{ $message }}</div>@enderror</div>
+            <button type="submit" class="pill-link pill-link--accent">{{ __('crud.common.actions.save') }}</button>
+        </form>
     </section>
 
     <div class="space-y-6">
@@ -541,7 +518,6 @@ new class extends Component
                 <div class="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-200 px-5 py-4 dark:border-neutral-700">
                     <div>
                         <div class="text-sm font-medium">{{ __('settings.points.sections.point_type.table') }}</div>
-                        <p class="mt-1 text-xs text-neutral-500 dark:text-neutral-400">{{ __('settings.points.sections.point_type.copy') }}</p>
                     </div>
                     <button type="button" wire:click="openPointTypeModal" class="pill-link pill-link--accent">{{ __('settings.points.actions.create_point_type') }}</button>
                 </div>
@@ -568,7 +544,6 @@ new class extends Component
                 <div class="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-200 px-5 py-4 dark:border-neutral-700">
                     <div>
                         <div class="text-sm font-medium">{{ __('settings.points.sections.point_policy.table') }}</div>
-                        <p class="mt-1 text-xs text-neutral-500 dark:text-neutral-400">{{ __('settings.points.sections.point_policy.copy') }}</p>
                     </div>
                     <button type="button" wire:click="openPointPolicyModal" class="pill-link pill-link--accent">{{ __('settings.points.actions.create_policy') }}</button>
                 </div>
@@ -588,7 +563,7 @@ new class extends Component
                                         </div>
                                     </td>
                                     <td class="px-5 py-3">{{ __('settings.points.labels.point_policy_range', ['from' => $pointPolicy->from_value ?? __('crud.common.not_available'), 'to' => $pointPolicy->to_value ?? __('crud.common.not_available')]) }}</td>
-                                    <td class="px-5 py-3">{{ __('settings.points.labels.point_policy_points', ['points' => $pointPolicy->points, 'priority' => $pointPolicy->priority]) }}</td>
+                                    <td class="px-5 py-3">{{ number_format($pointPolicy->points) }}</td>
                                     <td class="px-5 py-3">{{ $pointPolicy->is_active ? __('settings.common.states.active') : __('settings.common.states.inactive') }}</td>
                                     <td class="px-5 py-3"><div class="flex justify-end gap-2"><button type="button" wire:click="editPointPolicy({{ $pointPolicy->id }})" class="rounded-lg border border-neutral-300 px-3 py-1.5 dark:border-neutral-700">{{ __('crud.common.actions.edit') }}</button><button type="button" wire:click="deletePointPolicy({{ $pointPolicy->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="rounded-lg border border-red-300 px-3 py-1.5 text-red-700 dark:border-red-800 dark:text-red-300">{{ __('crud.common.actions.delete') }}</button></div></td>
                                 </tr>
@@ -600,16 +575,17 @@ new class extends Component
         </section>
     </div>
 
-    <x-admin.modal :show="$showPointTypeModal" :title="$point_type_editing_id ? __('settings.points.sections.point_type.edit') : __('settings.points.sections.point_type.create')" :description="__('settings.points.sections.point_type.copy')" close-method="closePointTypeModal" max-width="3xl">
+    <livewire:assessments.bands :embedded="true" />
+
+    <x-admin.modal :show="$showPointTypeModal" :title="$point_type_editing_id ? __('settings.points.sections.point_type.edit') : __('settings.points.sections.point_type.create')" close-method="closePointTypeModal" max-width="3xl">
         <form wire:submit="savePointType" class="space-y-4">
             <div><label class="mb-1 block text-sm font-medium">{{ __('settings.points.fields.name') }}</label><input wire:model="point_type_name" type="text" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">@error('point_type_name') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror</div>
             <div class="grid gap-4 md:grid-cols-2">
                 <div><label class="mb-1 block text-sm font-medium">{{ __('settings.points.fields.code') }}</label><input wire:model="point_type_code" type="text" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">@error('point_type_code') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror</div>
-                <div><label class="mb-1 block text-sm font-medium">{{ __('settings.points.fields.category') }}</label><input wire:model="point_type_category" type="text" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">@error('point_type_category') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror</div>
+                <div><label class="mb-1 block text-sm font-medium">{{ __('settings.points.fields.category') }}</label><select wire:model.live="point_type_category" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900"><option value="">—</option>@foreach ($pointTypeCategories as $category)<option value="{{ $category }}">{{ $category }}</option>@endforeach</select>@error('point_type_category') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror</div>
             </div>
             <div><label class="mb-1 block text-sm font-medium">{{ __('settings.points.fields.default_points') }}</label><input wire:model="point_type_default_points" type="number" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">@error('point_type_default_points') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror</div>
-            <label class="flex items-center gap-3 text-sm"><input wire:model="point_type_allow_manual_entry" type="checkbox" class="rounded border-neutral-300 text-neutral-900"><span>{{ __('settings.points.fields.allow_manual_entry') }}</span></label>
-            <label class="flex items-center gap-3 text-sm"><input wire:model="point_type_allow_negative" type="checkbox" class="rounded border-neutral-300 text-neutral-900"><span>{{ __('settings.points.fields.allow_negative') }}</span></label>
+            @if ($point_type_category === 'ManualEntry')<div class="rounded-xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-3 text-sm">{{ __('settings.points.labels.manual_entry_automatic') }}</div>@endif
             <label class="flex items-center gap-3 text-sm"><input wire:model="point_type_is_active" type="checkbox" class="rounded border-neutral-300 text-neutral-900"><span>{{ __('settings.points.fields.is_active') }}</span></label>
             @error('pointTypeDelete') <div class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{{ $message }}</div> @enderror
             <div class="flex justify-end gap-3">
@@ -620,7 +596,7 @@ new class extends Component
         </form>
     </x-admin.modal>
 
-    <x-admin.modal :show="$showPointPolicyModal" :title="$point_policy_editing_id ? __('settings.points.sections.point_policy.edit') : __('settings.points.sections.point_policy.create')" :description="__('settings.points.sections.point_policy.copy')" close-method="closePointPolicyModal" max-width="4xl">
+    <x-admin.modal :show="$showPointPolicyModal" :title="$point_policy_editing_id ? __('settings.points.sections.point_policy.edit') : __('settings.points.sections.point_policy.create')" close-method="closePointPolicyModal" max-width="4xl">
         <form wire:submit="savePointPolicy" class="space-y-4">
             <div>
                 <label class="mb-1 block text-sm font-medium">{{ __('settings.points.fields.point_type') }}</label>
@@ -679,10 +655,7 @@ new class extends Component
                 <div><label class="mb-1 block text-sm font-medium">{{ __('settings.points.fields.from_value') }}</label><input wire:model="point_policy_from_value" type="number" step="0.01" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">@error('point_policy_from_value') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror</div>
                 <div><label class="mb-1 block text-sm font-medium">{{ __('settings.points.fields.to_value') }}</label><input wire:model="point_policy_to_value" type="number" step="0.01" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">@error('point_policy_to_value') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror</div>
             </div>
-            <div class="grid gap-4 md:grid-cols-2">
-                <div><label class="mb-1 block text-sm font-medium">{{ __('settings.points.fields.points') }}</label><input wire:model="point_policy_points" type="number" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">@error('point_policy_points') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror</div>
-                <div><label class="mb-1 block text-sm font-medium">{{ __('settings.points.fields.priority') }}</label><input wire:model="point_policy_priority" type="number" min="0" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">@error('point_policy_priority') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror</div>
-            </div>
+            <div><label class="mb-1 block text-sm font-medium">{{ __('settings.points.fields.points') }}</label><input wire:model="point_policy_points" type="number" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">@error('point_policy_points') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror</div>
             <label class="flex items-center gap-3 text-sm"><input wire:model="point_policy_is_active" type="checkbox" class="rounded border-neutral-300 text-neutral-900"><span>{{ __('settings.points.fields.is_active') }}</span></label>
             @error('pointPolicyDelete') <div class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{{ $message }}</div> @enderror
             <div class="flex justify-end gap-3">

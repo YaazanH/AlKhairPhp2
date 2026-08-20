@@ -601,7 +601,7 @@ new class extends Component {
                                         <div class="student-inline">
                                             <x-student-avatar :student="$session->student" size="sm" />
                                             <div class="student-inline__body">
-                                                <div class="student-inline__name">{{ $session->student->first_name }} {{ $session->student->last_name }}</div>
+                                                <div class="student-inline__name">{{ $session->student->full_name }}</div>
                                                 <div class="student-inline__meta">{{ $session->student->parentProfile?->father_name ?: __('crud.common.not_available') }}</div>
                                             </div>
                                         </div>
@@ -663,7 +663,7 @@ new class extends Component {
                                 value="{{ $student->id }}"
                                 data-search="{{ trim(implode(' ', array_filter([$student->student_number, $student->first_name, $student->last_name]))) }}"
                             >
-                                {{ $student->first_name }} {{ $student->last_name }}
+                                {{ $student->full_name }}
                                 @if ($student->parentProfile?->father_name)
                                     - {{ $student->parentProfile->father_name }}
                                 @endif

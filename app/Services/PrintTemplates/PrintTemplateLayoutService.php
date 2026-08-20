@@ -48,12 +48,15 @@ class PrintTemplateLayoutService
         }
 
         $styling = Arr::wrap($element['styling'] ?? []);
-        $fontWeight = in_array(($styling['font_weight'] ?? '600'), ['400', '500', '600', '700', '800'], true)
+        $fontWeight = in_array(($styling['font_weight'] ?? '600'), ['200', '300', '400', '500', '600', '700', '800'], true)
             ? (string) ($styling['font_weight'] ?? '600')
             : '600';
         $textAlign = in_array(($styling['text_align'] ?? 'left'), ['left', 'center', 'right', 'justify'], true)
             ? ($styling['text_align'] ?? 'left')
             : 'left';
+        $verticalAlign = in_array(($styling['vertical_align'] ?? 'top'), ['top', 'center', 'bottom', 'justify'], true)
+            ? ($styling['vertical_align'] ?? 'top')
+            : 'top';
         $objectFit = in_array(($styling['object_fit'] ?? 'cover'), ['contain', 'cover', 'fill'], true)
             ? ($styling['object_fit'] ?? 'cover')
             : 'cover';
@@ -103,6 +106,7 @@ class PrintTemplateLayoutService
                 'font_weight' => $fontWeight,
                 'color' => $this->hexColor($styling['color'] ?? '#102316'),
                 'text_align' => $textAlign,
+                'vertical_align' => $verticalAlign,
                 'border_radius' => $this->float($styling['border_radius'] ?? 0, 0, 16),
                 'object_fit' => $objectFit,
                 'letter_spacing' => $this->float($styling['letter_spacing'] ?? 0, 0, 3),

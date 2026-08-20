@@ -17,19 +17,24 @@ use App\Models\StudentGender;
 use App\Models\User;
 use App\Services\ManagedUserService;
 use App\Services\MemorizationService;
+use App\Services\QuranFinalTestService;
+use App\Services\QuranPartialTestService;
 use App\Services\StudentNumberService;
 use App\Support\ArabicSearch;
 use App\Support\PhoneNumberFormatter;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Livewire\Volt\Component;
+use Livewire\WithFileUploads;
 use Livewire\WithPagination;
 
 new class extends Component {
     use AuthorizesPermissions;
     use AuthorizesTeacherAssignments;
     use SupportsCreateAndNew;
+    use WithFileUploads;
     use WithPagination;
 
     public ?int $editingId = null;
@@ -43,8 +48,10 @@ new class extends Component {
     public ?int $grade_level_id = null;
     public ?int $enrollment_group_id = null;
     public ?int $quran_current_juz_id = null;
+    public string $quran_current_juz_number = '';
     public array $external_memorized_juz_ids = [];
     public string $photo_path = '';
+    public $quick_photo_upload = null;
     public string $status = 'active';
     public string $joined_at = '';
     public string $notes = '';
@@ -63,6 +70,9 @@ new class extends Component {
     public bool $showAccountModal = false;
     public bool $showBulkStatusModal = false;
     public bool $showDuplicateStudentModal = false;
+    public bool $showExternalTestModal = false;
+    public ?int $external_test_juz_id = null;
+    public string $external_test_type = 'partial';
     public ?int $duplicateStudentId = null;
     public bool $showQuickParentForm = false;
     public string $quick_parent_father_name = '';
@@ -372,6 +382,7 @@ new class extends Component {
             'grade_level_id' => ['nullable', 'exists:grade_levels,id'],
             'enrollment_group_id' => ['nullable', 'exists:groups,id'],
             'quran_current_juz_id' => ['nullable', 'exists:quran_juzs,id'],
+            'quran_current_juz_number' => ['nullable', 'integer', 'between:1,30', 'exists:quran_juzs,juz_number'],
             'external_memorized_juz_ids' => ['array'],
             'external_memorized_juz_ids.*' => ['integer', 'distinct', 'exists:quran_juzs,id'],
             'photo_path' => ['nullable', 'string', 'max:255'],
@@ -403,6 +414,9 @@ new class extends Component {
     public function save(): void
     {
         $isEditing = $this->editingId !== null;
+        $this->quran_current_juz_id = filled($this->quran_current_juz_number)
+            ? QuranJuz::query()->where('juz_number', (int) $this->quran_current_juz_number)->value('id')
+            : null;
 
         $this->authorizePermission($isEditing ? 'students.update' : 'students.create');
 
@@ -482,6 +496,7 @@ new class extends Component {
         unset($validated['enrollment_group_id']);
         $externalMemorizedJuzIds = array_map('intval', $validated['external_memorized_juz_ids'] ?? []);
         unset($validated['external_memorized_juz_ids']);
+        unset($validated['quran_current_juz_number']);
         $validated['birth_date'] = $this->normalizeBirthYearValue((string) $validated['birth_date']);
         $validated['gender'] = $validated['gender'] ?: null;
         $validated['parent_id'] = $validated['parent_id'] ?: null;
@@ -501,7 +516,7 @@ new class extends Component {
             $result = app(ManagedUserService::class)->syncLinkedUser(
                 $student->user,
                 [
-                    'name' => trim($validated['first_name'].' '.$validated['last_name']),
+                    'name' => $student->full_name,
                     'username' => $student->student_number ?: null,
                     'phone' => $studentPhone,
                     'is_active' => ! in_array($validated['status'], ['inactive', 'blocked'], true),
@@ -719,6 +734,7 @@ new class extends Component {
         $this->grade_level_id = $student->grade_level_id;
         $this->enrollment_group_id = null;
         $this->quran_current_juz_id = $student->quran_current_juz_id;
+        $this->quran_current_juz_number = (string) ($student->quranCurrentJuz?->juz_number ?? '');
         $this->external_memorized_juz_ids = $student->externalMemorizedJuzs->pluck('id')->map(fn ($id) => (int) $id)->all();
         $this->photo_path = $student->photo_path ?? '';
         $this->status = $student->status;
@@ -778,7 +794,7 @@ new class extends Component {
         $result = app(ManagedUserService::class)->syncLinkedUser(
             $student->user,
             [
-                'name' => trim($student->first_name.' '.$student->last_name),
+                'name' => $student->full_name,
                 'username' => $validated['account_username'] ?: ($student->student_number ?: null),
                 'email' => $validated['account_email'] ?: null,
                 'phone' => null,
@@ -835,12 +851,17 @@ new class extends Component {
         $this->grade_level_id = null;
         $this->enrollment_group_id = null;
         $this->quran_current_juz_id = null;
+        $this->quran_current_juz_number = '';
         $this->external_memorized_juz_ids = [];
         $this->photo_path = '';
+        $this->quick_photo_upload = null;
         $this->status = 'active';
         $this->joined_at = '';
         $this->notes = '';
         $this->showFormModal = false;
+        $this->showExternalTestModal = false;
+        $this->external_test_juz_id = null;
+        $this->external_test_type = 'partial';
         $this->showQuickParentForm = false;
         $this->quick_parent_father_name = '';
         $this->quick_parent_father_work = '';
@@ -911,6 +932,16 @@ new class extends Component {
         $this->authorizePermission('students.create');
         $this->new_school_name = trim($this->school_name);
 
+        $existingSchool = School::query()
+            ->whereRaw('LOWER(TRIM(name)) = ?', [mb_strtolower($this->new_school_name)])
+            ->first();
+        if ($existingSchool) {
+            $existingSchool->update(['is_active' => true]);
+            $this->school_name = $existingSchool->name;
+            $this->new_school_name = '';
+            return;
+        }
+
         $validated = $this->validate([
             'new_school_name' => ['required', 'string', 'max:255', Rule::unique('schools', 'name')],
         ], [], [
@@ -932,6 +963,16 @@ new class extends Component {
         $this->authorizePermission('parents.create');
         $this->quick_parent_new_father_work = trim($this->quick_parent_father_work);
 
+        $existingJob = FatherJob::query()
+            ->whereRaw('LOWER(TRIM(name)) = ?', [mb_strtolower($this->quick_parent_new_father_work)])
+            ->first();
+        if ($existingJob) {
+            $existingJob->update(['is_active' => true]);
+            $this->quick_parent_father_work = $existingJob->name;
+            $this->quick_parent_new_father_work = '';
+            return;
+        }
+
         $validated = $this->validate([
             'quick_parent_new_father_work' => ['required', 'string', 'max:255', Rule::unique('father_jobs', 'name')],
         ], [], [
@@ -946,6 +987,79 @@ new class extends Component {
         $this->quick_parent_father_work = $job->name;
         $this->quick_parent_new_father_work = '';
         $this->resetValidation('quick_parent_new_father_work');
+    }
+
+    public function uploadStudentPhoto(int $studentId): void
+    {
+        $this->authorizePermission('students.photo.update');
+        $student = Student::query()->findOrFail($studentId);
+        $this->authorizeScopedStudentAccess($student);
+
+        $validated = $this->validate([
+            'quick_photo_upload' => ['required', 'file', 'mimes:jpg,jpeg,png,webp', 'max:10240'],
+        ]);
+        $path = $validated['quick_photo_upload']->store('students/photos/'.$student->id, 'public');
+        if ($student->photo_path) {
+            Storage::disk('public')->delete($student->photo_path);
+        }
+        $student->update(['photo_path' => $path]);
+        $this->reset('quick_photo_upload');
+        session()->flash('status', __('media.student_files.messages.photo_updated'));
+    }
+
+    public function openExternalTestModal(): void
+    {
+        $this->authorizePermission('students.update');
+        abort_unless($this->editingId, 404);
+        $this->external_test_juz_id = count($this->external_memorized_juz_ids) === 1
+            ? (int) $this->external_memorized_juz_ids[0]
+            : null;
+        $this->external_test_type = 'partial';
+        $this->showExternalTestModal = true;
+        $this->resetValidation(['external_test_juz_id', 'external_test_type']);
+    }
+
+    public function closeExternalTestModal(): void
+    {
+        $this->showExternalTestModal = false;
+        $this->external_test_juz_id = null;
+        $this->external_test_type = 'partial';
+        $this->resetValidation(['external_test_juz_id', 'external_test_type']);
+    }
+
+    public function createExternalMemorizationTest(): void
+    {
+        abort_unless($this->editingId, 404);
+        $validated = $this->validate([
+            'external_test_juz_id' => ['required', 'integer', Rule::in(array_map('intval', $this->external_memorized_juz_ids))],
+            'external_test_type' => ['required', Rule::in(['partial', 'final'])],
+        ]);
+        $permission = $validated['external_test_type'] === 'partial' ? 'quran-partial-tests.record' : 'quran-final-tests.record';
+        $this->authorizePermission($permission);
+
+        $student = Student::query()->with('externalMemorizedJuzs')->findOrFail($this->editingId);
+        $this->authorizeScopedStudentAccess($student);
+        $enrollment = $student->enrollments()->with(['student.externalMemorizedJuzs', 'group.course'])
+            ->where('status', 'active')->latest('enrolled_at')->latest('id')->first();
+        if (! $enrollment) {
+            $this->addError('external_test_juz_id', __('workflow.memorization.errors.no_active_enrollment'));
+            return;
+        }
+        $juz = QuranJuz::query()->findOrFail((int) $validated['external_test_juz_id']);
+
+        try {
+            $test = $validated['external_test_type'] === 'partial'
+                ? app(QuranPartialTestService::class)->createForExternalMemorization($enrollment, $juz)
+                : app(QuranFinalTestService::class)->createForExternalMemorization($enrollment, $juz);
+        } catch (\LogicException $exception) {
+            $this->addError('external_test_juz_id', $exception->getMessage());
+            return;
+        }
+
+        $route = $validated['external_test_type'] === 'partial' ? 'quran-partial-tests.show' : 'quran-final-tests.show';
+        $this->closeExternalTestModal();
+        $this->cancel();
+        $this->redirect(route($route, $test), navigate: true);
     }
 
     protected function defaultGenderCode(): string
@@ -1526,7 +1640,7 @@ new class extends Component {
                                       <div class="student-inline">
                                           <x-student-avatar :student="$student" size="sm" />
                                           <div class="student-inline__body">
-                                              <div class="student-inline__name">{{ $student->first_name }} {{ $student->last_name }}</div>
+                                              <div class="student-inline__name">{{ $student->full_name }}</div>
                                               <div class="student-inline__meta">{{ $student->school_name ?: __('crud.students.table.no_school') }}</div>
                                           </div>
                                       </div>
@@ -1545,9 +1659,12 @@ new class extends Component {
                                                     {{ __('crud.common.actions.account') }}
                                                 </button>
                                             @endcan
-                                            <a href="{{ route('students.files', $student) }}" wire:navigate class="pill-link pill-link--compact">
-                                                {{ __('crud.common.actions.media') }}
-                                            </a>
+                                            @can('students.photo.update')
+                                                <label class="pill-link pill-link--compact cursor-pointer">
+                                                    {{ __('media.student_files.photo.upload') }}
+                                                    <input wire:model="quick_photo_upload" wire:change="uploadStudentPhoto({{ $student->id }})" type="file" accept="image/jpeg,image/png,image/webp" class="sr-only">
+                                                </label>
+                                            @endcan
                                             @can('students.update')
                                                 <button type="button" wire:click="edit({{ $student->id }})" class="pill-link pill-link--compact">
                                                     {{ __('crud.common.actions.edit') }}
@@ -1743,7 +1860,12 @@ new class extends Component {
 
                 <div>
                     <label for="student-phone" class="mb-1 block text-sm font-medium">{{ __('crud.students.form.fields.phone') }}</label>
-                    <x-phone-input id="student-phone" model="student_phone" :value="$student_phone" />
+                    <div class="flex items-center gap-2">
+                        <div class="min-w-0 flex-1"><x-phone-input id="student-phone" model="student_phone" :value="$student_phone" /></div>
+                        @if ($editingId)
+                            <a href="{{ route('students.files', $editingId) }}" wire:navigate class="pill-link pill-link--compact">{{ __('crud.common.actions.media') }}</a>
+                        @endif
+                    </div>
                     <p class="mt-1 text-xs text-neutral-500">{{ __('crud.students.form.student_phone_help') }}</p>
                     @error('student_phone')
                         <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
@@ -2000,12 +2122,10 @@ new class extends Component {
             <div class="grid gap-4 md:grid-cols-2">
                 <div>
                     <label for="student-juz" class="mb-1 block text-sm font-medium">{{ __('crud.students.form.fields.current_juz') }}</label>
-                    <select id="student-juz" wire:model="quran_current_juz_id" class="searchable-select w-full rounded-xl px-4 py-3 text-sm">
-                        <option value="">{{ __('crud.students.form.placeholders.select_juz') }}</option>
-                        @foreach ($juzs as $juz)
-                            <option value="{{ $juz->id }}">{{ __('crud.students.labels.juz_number', ['number' => $juz->juz_number]) }}</option>
-                        @endforeach
-                    </select>
+                    <input id="student-juz" wire:model="quran_current_juz_number" type="number" inputmode="numeric" min="1" max="30" step="1" class="w-full rounded-xl px-4 py-3 text-sm" placeholder="{{ __('crud.students.form.placeholders.select_juz') }}">
+                    @error('quran_current_juz_number')
+                        <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
+                    @enderror
                     @error('quran_current_juz_id')
                         <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                     @enderror
@@ -2026,7 +2146,8 @@ new class extends Component {
                 @endif
             </div>
 
-            <details class="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+            <div class="flex items-start gap-2">
+            <details class="min-w-0 flex-1 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
                 <summary class="cursor-pointer text-sm font-medium">{{ __('crud.students.form.fields.external_memorized_juzs') }} · {{ collect($juzs)->whereIn('id', array_map('intval', $external_memorized_juz_ids))->pluck('juz_number')->sort()->implode(', ') ?: __('crud.common.not_available') }}</summary>
                 <div class="mt-4 grid max-h-72 gap-2 overflow-y-auto sm:grid-cols-3">
                     @foreach ($juzs as $juz)
@@ -2038,6 +2159,10 @@ new class extends Component {
                     <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                 @enderror
             </details>
+            @if ($editingId && $external_memorized_juz_ids !== [] && (auth()->user()->can('quran-partial-tests.record') || auth()->user()->can('quran-final-tests.record')))
+                <button type="button" wire:click="openExternalTestModal" class="pill-link pill-link--compact" title="{{ __('crud.students.external_tests.add') }}" aria-label="{{ __('crud.students.external_tests.add') }}">+</button>
+            @endif
+            </div>
 
             <div class="flex flex-wrap items-center gap-3">
                 @if ($editingId)
@@ -2054,6 +2179,33 @@ new class extends Component {
                 <button type="button" wire:click="cancel" class="pill-link">
                     {{ __('crud.common.actions.close') }}
                 </button>
+            </div>
+        </form>
+    </x-admin.modal>
+
+    <x-admin.modal :show="$showExternalTestModal" :title="__('crud.students.external_tests.title')" close-method="closeExternalTestModal" max-width="xl">
+        <form wire:submit="createExternalMemorizationTest" class="space-y-4">
+            <div class="admin-form-field">
+                <label for="external-test-juz">{{ __('crud.students.external_tests.juz') }}</label>
+                <select id="external-test-juz" wire:model="external_test_juz_id" class="w-full rounded-xl px-4 py-3 text-sm">
+                    <option value="">{{ __('crud.students.external_tests.select_juz') }}</option>
+                    @foreach (collect($juzs)->whereIn('id', array_map('intval', $external_memorized_juz_ids)) as $juz)
+                        <option value="{{ $juz->id }}">{{ __('crud.students.labels.juz_number', ['number' => $juz->juz_number]) }}</option>
+                    @endforeach
+                </select>
+                @error('external_test_juz_id') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
+            </div>
+            <div class="admin-form-field">
+                <label for="external-test-type">{{ __('crud.students.external_tests.type') }}</label>
+                <select id="external-test-type" wire:model="external_test_type" class="w-full rounded-xl px-4 py-3 text-sm">
+                    @can('quran-partial-tests.record')<option value="partial">{{ __('crud.students.external_tests.partial') }}</option>@endcan
+                    @can('quran-final-tests.record')<option value="final">{{ __('crud.students.external_tests.final') }}</option>@endcan
+                </select>
+                @error('external_test_type') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
+            </div>
+            <div class="flex justify-end gap-3">
+                <button type="button" wire:click="closeExternalTestModal" class="pill-link">{{ __('crud.common.actions.cancel') }}</button>
+                <button type="submit" class="pill-link pill-link--accent">{{ __('crud.students.external_tests.create') }}</button>
             </div>
         </form>
     </x-admin.modal>

@@ -97,7 +97,7 @@
                         <td class="px-5 py-3"><span class="status-chip {{ $request->status === 'accepted' ? 'status-chip--emerald' : ($request->status === 'declined' ? 'status-chip--rose' : 'status-chip--slate') }}">{{ __('finance.statuses.'.$request->status) }}</span></td>
                         <td class="px-5 py-3">
                             <div class="admin-action-cluster admin-action-cluster--end">
-                                @if ($request->status === 'accepted' && auth()->user()?->can($printPermission))
+                                @if ($request->status === 'accepted' && auth()->user()?->can($printPermission) && ($request->type !== \App\Models\FinanceRequest::TYPE_REVENUE || $request->category?->is_donation))
                                     <a href="{{ route('finance.requests.print', $request) }}" target="_blank" class="pill-link pill-link--compact">{{ __('finance.actions.print') }}</a>
                                     <a href="{{ route('finance.requests.print', ['financeRequest' => $request, 'choose' => 1]) }}" target="_blank" class="pill-link pill-link--compact">{{ __('finance.actions.choose_print_template') }}</a>
                                 @endif

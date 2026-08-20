@@ -5,12 +5,15 @@ use App\Livewire\Concerns\AuthorizesTeacherAssignments;
 use App\Models\Course;
 use App\Models\Group;
 use App\Services\ReportingService;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Livewire\Volt\Component;
+use Livewire\WithPagination;
 
 new class extends Component
 {
     use AuthorizesPermissions;
     use AuthorizesTeacherAssignments;
+    use WithPagination;
 
     public mixed $course_id = null;
 
@@ -26,9 +29,9 @@ new class extends Component
 
     protected array $sortableFields = [
         'group',
-        'absent_days',
         'attended_days',
         'memorized_pages',
+        'passed_final_tests',
         'points',
         'student_name',
     ];
@@ -41,6 +44,7 @@ new class extends Component
 
     public function updatedCourseId(): void
     {
+        $this->resetPage();
         $this->normalizeFilters();
 
         if (! $this->group_id) {
@@ -57,12 +61,29 @@ new class extends Component
         }
     }
 
+    public function updatedGroupId(): void
+    {
+        $this->resetPage();
+        $this->normalizeFilters();
+    }
+
+    public function updatedDateFrom(): void
+    {
+        $this->resetPage();
+    }
+
+    public function updatedDateTo(): void
+    {
+        $this->resetPage();
+    }
+
     public function clearFilters(): void
     {
         $this->course_id = Course::query()->where('is_default', true)->where('is_active', true)->value('id');
         $this->group_id = null;
         $this->date_from = '';
         $this->date_to = '';
+        $this->resetPage();
     }
 
     public function sortBy(string $field): void
@@ -73,19 +94,30 @@ new class extends Component
 
         if ($this->sortField === $field) {
             $this->sortDirection = $this->sortDirection === 'asc' ? 'desc' : 'asc';
+            $this->resetPage();
 
             return;
         }
 
         $this->sortField = $field;
         $this->sortDirection = $field === 'student_name' || $field === 'group' ? 'asc' : 'desc';
+        $this->resetPage();
     }
 
     public function with(): array
     {
         $this->normalizeFilters();
 
-        $rows = $this->sortedRows(app(ReportingService::class)->studentActivitySummary($this->filters()));
+        $reporting = app(ReportingService::class);
+        $allRows = $this->sortedRows($reporting->studentActivitySummary($this->filters()));
+        $page = max(1, $this->getPage());
+        $rows = new LengthAwarePaginator(
+            collect($allRows)->forPage($page, 15)->values(),
+            count($allRows),
+            15,
+            $page,
+            ['pageName' => 'page']
+        );
 
         return [
             'courses' => Course::query()->where('is_active', true)->orderBy('name')->get(['id', 'name']),
@@ -99,11 +131,11 @@ new class extends Component
             )->get(),
             'rows' => $rows,
             'totals' => [
-                'absent_days' => collect($rows)->sum('absent_days'),
-                'attended_days' => collect($rows)->sum('attended_days'),
-                'memorized_pages' => collect($rows)->sum('memorized_pages'),
-                'points' => collect($rows)->sum('points'),
-                'students' => count($rows),
+                'average_attendance' => $reporting->studentActivityAverageAttendance($this->filters()),
+                'memorized_pages' => collect($allRows)->sum('memorized_pages'),
+                'passed_final_tests' => collect($allRows)->sum('passed_final_tests'),
+                'points' => collect($allRows)->sum('points'),
+                'students' => count($allRows),
             ],
         ];
     }
@@ -130,7 +162,7 @@ new class extends Component
         return collect($rows)
             ->sort(function (array $left, array $right) use ($field, $direction): int {
                 $comparison = match ($field) {
-                    'absent_days', 'attended_days', 'memorized_pages', 'points' => ($left[$field] ?? 0) <=> ($right[$field] ?? 0),
+                    'attended_days', 'memorized_pages', 'passed_final_tests', 'points' => ($left[$field] ?? 0) <=> ($right[$field] ?? 0),
                     default => strnatcasecmp((string) ($left[$field] ?? ''), (string) ($right[$field] ?? '')),
                 };
 
@@ -199,13 +231,7 @@ new class extends Component
 
     <div class="grid gap-6">
         <section class="order-2 surface-panel report-panel min-w-0 p-5 lg:p-6">
-            <div class="mb-5">
-                <div class="eyebrow">{{ __('reports.filters.eyebrow') }}</div>
-                <h2 class="font-display mt-3 text-2xl text-white">{{ __('reports.student_activity.filters_title') }}</h2>
-                <p class="mt-3 text-sm leading-7 text-neutral-300">{{ __('reports.student_activity.filters_subtitle') }}</p>
-            </div>
-
-            <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                 <div>
                     <label class="report-field-label mb-2 block text-sm font-medium">{{ __('reports.filters.course') }}</label>
                     <select wire:model.live="course_id" class="report-control w-full rounded-xl px-3 py-2.5 text-sm">
@@ -237,7 +263,7 @@ new class extends Component
                 </div>
             </div>
 
-            <div class="mt-5 flex flex-wrap justify-end gap-3">
+            <div class="mt-3 flex flex-wrap justify-end gap-3">
                 <a href="{{ route('reports.exports.student-activity-summary', ['course_id' => $course_id, 'group_id' => $group_id, 'date_from' => $date_from, 'date_to' => $date_to]) }}" class="pill-link pill-link--accent justify-center">
                     {{ __('reports.student_activity.export') }}
                 </a>
@@ -258,16 +284,16 @@ new class extends Component
                     <div class="metric-value report-kpi-value mt-5">{{ number_format($totals['memorized_pages']) }}</div>
                 </article>
                 <article class="surface-panel report-kpi-card p-5">
+                    <div class="kpi-label report-kpi-label">{{ __('reports.student_activity.passed_final_tests') }}</div>
+                    <div class="metric-value report-kpi-value mt-5">{{ number_format($totals['passed_final_tests']) }}</div>
+                </article>
+                <article class="surface-panel report-kpi-card p-5">
+                    <div class="kpi-label report-kpi-label">{{ __('reports.student_activity.average_attendance') }}</div>
+                    <div class="metric-value report-kpi-value mt-5">{{ number_format($totals['average_attendance'], 1) }}</div>
+                </article>
+                <article class="surface-panel report-kpi-card p-5">
                     <div class="kpi-label report-kpi-label">{{ __('reports.student_activity.points') }}</div>
                     <div class="metric-value report-kpi-value mt-5">{{ number_format($totals['points']) }}</div>
-                </article>
-                <article class="surface-panel report-kpi-card p-5">
-                    <div class="kpi-label report-kpi-label">{{ __('reports.student_activity.attended_days') }}</div>
-                    <div class="metric-value report-kpi-value mt-5">{{ number_format($totals['attended_days']) }}</div>
-                </article>
-                <article class="surface-panel report-kpi-card p-5">
-                    <div class="kpi-label report-kpi-label">{{ __('reports.student_activity.absent_days') }}</div>
-                    <div class="metric-value report-kpi-value mt-5">{{ number_format($totals['absent_days']) }}</div>
                 </article>
             </section>
 
@@ -277,14 +303,14 @@ new class extends Component
                     <h2 class="font-display mt-3 text-2xl text-white">{{ __('reports.student_activity.table_title') }}</h2>
                 </div>
 
-                @if (empty($rows))
+                @if ($rows->isEmpty())
                     <div class="px-6 py-14 text-sm leading-7 text-neutral-400">{{ __('reports.student_activity.empty') }}</div>
                 @else
                     <div class="overflow-x-auto">
-                        <table class="text-sm">
+                        <table class="w-full table-fixed text-sm">
                             <thead>
                                 <tr>
-                                    <th class="px-5 py-4 text-left lg:px-6">
+                                    <th class="w-1/6 px-5 py-4 text-left lg:px-6">
                                         <button type="button" wire:click="sortBy('student_name')" class="inline-flex items-center gap-2 font-medium text-inherit">
                                             <span>{{ __('reports.student_activity.headers.student') }}</span>
                                             @if ($sortIndicator = $this->sortIndicator('student_name'))
@@ -292,7 +318,7 @@ new class extends Component
                                             @endif
                                         </button>
                                     </th>
-                                    <th class="px-5 py-4 text-left lg:px-6">
+                                    <th class="w-1/6 px-5 py-4 text-left lg:px-6">
                                         <button type="button" wire:click="sortBy('memorized_pages')" class="inline-flex items-center gap-2 font-medium text-inherit">
                                             <span>{{ __('reports.student_activity.headers.memorized_pages') }}</span>
                                             @if ($sortIndicator = $this->sortIndicator('memorized_pages'))
@@ -300,15 +326,15 @@ new class extends Component
                                             @endif
                                         </button>
                                     </th>
-                                    <th class="px-5 py-4 text-left lg:px-6">
-                                        <button type="button" wire:click="sortBy('points')" class="inline-flex items-center gap-2 font-medium text-inherit">
-                                            <span>{{ __('reports.student_activity.headers.points') }}</span>
-                                            @if ($sortIndicator = $this->sortIndicator('points'))
+                                    <th class="w-1/6 px-5 py-4 text-left lg:px-6">
+                                        <button type="button" wire:click="sortBy('passed_final_tests')" class="inline-flex items-center gap-2 font-medium text-inherit">
+                                            <span>{{ __('reports.student_activity.headers.passed_final_tests') }}</span>
+                                            @if ($sortIndicator = $this->sortIndicator('passed_final_tests'))
                                                 <span aria-hidden="true">{{ $sortIndicator }}</span>
                                             @endif
                                         </button>
                                     </th>
-                                    <th class="px-5 py-4 text-left lg:px-6">
+                                    <th class="w-1/6 px-5 py-4 text-left lg:px-6">
                                         <button type="button" wire:click="sortBy('attended_days')" class="inline-flex items-center gap-2 font-medium text-inherit">
                                             <span>{{ __('reports.student_activity.headers.attended_days') }}</span>
                                             @if ($sortIndicator = $this->sortIndicator('attended_days'))
@@ -316,15 +342,15 @@ new class extends Component
                                             @endif
                                         </button>
                                     </th>
-                                    <th class="px-5 py-4 text-left lg:px-6">
-                                        <button type="button" wire:click="sortBy('absent_days')" class="inline-flex items-center gap-2 font-medium text-inherit">
-                                            <span>{{ __('reports.student_activity.headers.absent_days') }}</span>
-                                            @if ($sortIndicator = $this->sortIndicator('absent_days'))
+                                    <th class="w-1/6 px-5 py-4 text-left lg:px-6">
+                                        <button type="button" wire:click="sortBy('points')" class="inline-flex items-center gap-2 font-medium text-inherit">
+                                            <span>{{ __('reports.student_activity.headers.points') }}</span>
+                                            @if ($sortIndicator = $this->sortIndicator('points'))
                                                 <span aria-hidden="true">{{ $sortIndicator }}</span>
                                             @endif
                                         </button>
                                     </th>
-                                    <th class="px-5 py-4 text-left lg:px-6">
+                                    <th class="w-1/6 px-5 py-4 text-left lg:px-6">
                                         <button type="button" wire:click="sortBy('group')" class="inline-flex items-center gap-2 font-medium text-inherit">
                                             <span>{{ __('reports.student_activity.headers.group') }}</span>
                                             @if ($sortIndicator = $this->sortIndicator('group'))
@@ -339,15 +365,16 @@ new class extends Component
                                     <tr>
                                         <td class="px-5 py-4 font-medium text-white lg:px-6">{{ $row['student_name'] ?: __('reports.leaderboard.unknown_student') }}</td>
                                         <td class="px-5 py-4 text-neutral-200 lg:px-6">{{ number_format($row['memorized_pages']) }}</td>
-                                        <td class="px-5 py-4 text-neutral-200 lg:px-6">{{ number_format($row['points']) }}</td>
+                                        <td class="px-5 py-4 text-neutral-200 lg:px-6">{{ number_format($row['passed_final_tests']) }}</td>
                                         <td class="px-5 py-4 text-neutral-200 lg:px-6">{{ number_format($row['attended_days']) }}</td>
-                                        <td class="px-5 py-4 text-neutral-200 lg:px-6">{{ number_format($row['absent_days']) }}</td>
+                                        <td class="px-5 py-4 text-neutral-200 lg:px-6">{{ number_format($row['points']) }}</td>
                                         <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $row['group'] }}</td>
                                     </tr>
                                 @endforeach
                             </tbody>
                         </table>
                     </div>
+                    @if ($rows->hasPages())<div class="border-t border-white/8 px-5 py-4">{{ $rows->links() }}</div>@endif
                 @endif
             </section>
         </div>

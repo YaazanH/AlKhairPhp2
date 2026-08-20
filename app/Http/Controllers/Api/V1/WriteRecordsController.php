@@ -152,7 +152,7 @@ class WriteRecordsController extends Controller
             'notes' => $enrollment->notes,
             'status' => $enrollment->status,
             'student' => $enrollment->student ? [
-                'full_name' => trim($enrollment->student->first_name.' '.$enrollment->student->last_name),
+                'full_name' => $enrollment->student->full_name,
                 'id' => $enrollment->student->id,
                 'parent_name' => $enrollment->student->parentProfile?->father_name,
             ] : null,

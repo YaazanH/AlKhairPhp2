@@ -66,7 +66,7 @@
                         <td>
                             {{ $item->item_name ?: $item->description }}
                             @if ($item->student)
-                                <div class="subtitle">{{ $item->student->first_name }} {{ $item->student->last_name }}</div>
+                                <div class="subtitle">{{ $item->student->full_name }}</div>
                             @endif
                         </td>
                         <td>{{ $item->line_no ?: $loop->iteration }}</td>

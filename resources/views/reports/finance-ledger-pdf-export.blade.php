@@ -43,7 +43,7 @@
         .ledger tr { page-break-inside: avoid; }
         .ledger th { background: #dcefdc; border: 1px solid #9fbea5; color: #214c2c; font-size: 8.5pt; padding: 2mm 1.5mm; text-align: center; }
         .ledger td { border: 1px solid #bfd1c1; font-size: 8.2pt; padding: 1.8mm 1.5mm; vertical-align: top; }
-        .ledger tbody tr:nth-child(even) td { background: rgba(220, 239, 220, .50); }
+        .ledger tbody tr:nth-child(even) td { background: #eef7ee; }
         .date { text-align: center; white-space: nowrap; width: 13%; }
         .category { width: 39%; }
         .money { direction: ltr; text-align: right; white-space: nowrap; width: 16%; }
@@ -67,7 +67,6 @@
         .signature-image-space { height:27mm; text-align:center; width:100%; }
         .signature-image { display:inline-block; height:auto; margin:0 auto; max-height:26mm; max-width:70%; width:auto; }
         .signature-line { border-top:1px solid #315b3b; display:block; height:0; line-height:0; width:100%; }
-        .signature-name { color: #637267; display: block; font-size: 7.5pt; margin-top: 2mm; text-align:center; width:100%; }
     </style>
 </head>
 <body>
@@ -104,7 +103,7 @@
 <table class="summary">
     <tr><td class="summary-label">إجمالي المصاريف</td><td class="summary-value">{{ data_get($report, 'formatted.expense') }}</td><td class="summary-label">إجمالي الإيرادات</td><td class="summary-value">{{ data_get($report, 'formatted.income') }}</td><td class="summary-label summary-label-wide">{{ __('finance.common.notes') }}</td><td class="summary-value summary-value-wide">{{ ($report['notes'] ?? null) ?: '-' }}</td></tr>
     <tr><td class="summary-label">الرصيد الختامي</td><td class="summary-value">{{ data_get($report, 'formatted.closing_balance') }}</td><td class="summary-label">تاريخ التصدير</td><td class="summary-value">{{ $exportedAt }}</td><td class="summary-label summary-label-wide"></td><td class="summary-value summary-value-wide"></td></tr>
-    <tr><td colspan="6" class="signature"><table class="signature-layout" dir="ltr"><tr><td class="stamp-block">@if($stampImage)<img src="{{ $stampImage }}" alt="">@endif</td><td class="signature-block"><div class="signature-mark"><div class="signature-image-space">@if($signatureImage)<img class="signature-image" src="{{ $signatureImage }}" alt="">@endif</div><div class="signature-line">&nbsp;</div></div><span class="signature-name">{{ $report['issuer_name'] ?: '-' }}</span></td></tr></table></td></tr>
+    <tr><td colspan="6" class="signature"><table class="signature-layout" dir="ltr"><tr><td class="stamp-block">@if($stampImage)<img src="{{ $stampImage }}" alt="">@endif</td><td class="signature-block"><div class="signature-mark"><div class="signature-image-space">@if($signatureImage)<img class="signature-image" src="{{ $signatureImage }}" alt="">@endif</div><div class="signature-line">&nbsp;</div></div></td></tr></table></td></tr>
 </table>
 </body>
 </html>

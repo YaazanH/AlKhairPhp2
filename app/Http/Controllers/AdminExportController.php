@@ -124,7 +124,7 @@ class AdminExportController extends Controller
         }
 
         return $this->streamXlsx('students', ['Student', 'Student Number', 'Username', 'Password', 'Parent', 'School', 'Grade', 'Current Juz', 'Enrollments', 'Status'], $query->get()->map(fn (Student $student) => [
-            trim($student->first_name.' '.$student->last_name),
+            $student->full_name,
             $student->student_number,
             $student->user?->username,
             $student->user?->issued_password,
@@ -234,7 +234,7 @@ class AdminExportController extends Controller
             ->map(fn (Enrollment $enrollment) => [
                 $group->name,
                 $group->course?->name,
-                trim(($enrollment->student?->first_name ?? '').' '.($enrollment->student?->last_name ?? '')),
+                $enrollment->student?->full_name ?? '',
                 $enrollment->student?->student_number,
                 $enrollment->student?->user?->phone,
                 $enrollment->student?->gradeLevel?->name,
@@ -337,7 +337,7 @@ class AdminExportController extends Controller
         }
 
         return $this->streamXlsx('enrollments', ['Student', 'Group', 'Course', 'Enrolled At', 'Left At', 'Status'], $query->get()->map(fn (Enrollment $enrollment) => [
-            $enrollment->student ? trim($enrollment->student->first_name.' '.$enrollment->student->last_name) : null,
+            $enrollment->student?->full_name,
             $enrollment->group?->name,
             $enrollment->group?->course?->name,
             $enrollment->enrolled_at?->format('Y-m-d'),
@@ -379,7 +379,7 @@ class AdminExportController extends Controller
                 $eligibleJuzCount = $progression->eligibleAwqafJuzIdsForStudent($student->id)->count();
 
                 return [
-                    'student' => trim($student->first_name.' '.$student->last_name),
+                    'student' => $student->full_name,
                     'father_name' => $student->parentProfile?->father_name,
                     'birth_year' => $student->birth_date?->format('Y'),
                     'eligible_juz_count' => $eligibleJuzCount,

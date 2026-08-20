@@ -108,9 +108,6 @@
                         </div>
                     </div>
                 @endforeach
-                    </div>
-                </details>
-
                 <label class="admin-checkbox admin-form-field--full">
                     <input type="checkbox" name="rounded_corners" value="1" @checked(old('rounded_corners', $template->rounded_corners))>
                     <span>{{ __('print_templates.templates.form.fields.rounded_corners') }}</span>
@@ -134,6 +131,8 @@
                         </div>
                     @endif
                 </div>
+                    </div>
+                </details>
             </div>
 
             <div class="print-template-source-card">

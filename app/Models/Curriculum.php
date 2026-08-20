@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Curriculum extends Model
@@ -20,4 +21,5 @@ class Curriculum extends Model
     public function gradeLevel(): BelongsTo { return $this->belongsTo(GradeLevel::class); }
     public function subjects(): HasMany { return $this->hasMany(CurriculumSubject::class)->orderBy('sort_order')->orderBy('id'); }
     public function groups(): HasMany { return $this->hasMany(Group::class); }
+    public function standaloneResources(): BelongsToMany { return $this->belongsToMany(CurriculumResource::class, 'curriculum_resource_curriculum'); }
 }

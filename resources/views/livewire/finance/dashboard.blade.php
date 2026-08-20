@@ -69,6 +69,17 @@ new class extends Component {
         $this->filter_cash_box_id = $defaultFund?->id;
         $this->request_currency_id = $localCurrency->id;
         $this->request_cash_box_id = $defaultFund?->id;
+        $latestPeriod = app(FinanceService::class)->availableTransactionPeriods(auth()->user())->first();
+        if ($latestPeriod) {
+            $this->year = (int) $latestPeriod['year'];
+            $this->quarter = (string) ($latestPeriod['quarters'][0] ?? 1);
+        }
+    }
+
+    public function updatedYear(): void
+    {
+        $period = app(FinanceService::class)->availableTransactionPeriods(auth()->user())->firstWhere('year', $this->year);
+        $this->quarter = (string) ($period['quarters'][0] ?? '');
     }
 
     public function with(): array
@@ -92,6 +103,7 @@ new class extends Component {
 
         return [
             'report' => app(FinanceReportService::class)->report($this->year, (int) $this->quarter),
+            'availableFinancePeriods' => $service->availableTransactionPeriods(auth()->user()),
             'cashBoxes' => $cashBoxes,
             'currencies' => FinanceCurrency::query()->where('is_active', true)->where('show_in_dropdowns', true)->orderByDesc('is_local')->orderBy('code')->get(),
             'transferCurrencies' => $service->currenciesForCashBox($this->transfer_from_cash_box_id)->get(),
@@ -303,8 +315,8 @@ new class extends Component {
         <div class="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
             <div><div class="eyebrow">{{ __('ui.nav.finance') }}</div><h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('ui.nav.finance_dashboard') }}</h1><p class="mt-4 max-w-3xl text-neutral-200">{{ __('finance.dashboard.subtitle') }}</p></div>
             <div class="relative z-30 grid gap-3 sm:grid-cols-2">
-                <div><label class="mb-1 block text-sm">{{ __('finance.fields.year') }}</label><input wire:model.live="year" type="number" min="2000" max="2100" class="w-full rounded-xl px-4 py-3 text-sm"></div>
-                <div class="relative z-40"><label class="mb-1 block text-sm">{{ __('finance.fields.quarter') }}</label><select wire:model.live="quarter" class="relative z-50 w-full rounded-xl px-4 py-3 text-sm"><option value="1">Q1</option><option value="2">Q2</option><option value="3">Q3</option><option value="4">Q4</option></select></div>
+                <div><label class="mb-1 block text-sm">{{ __('finance.fields.year') }}</label><select wire:model.live="year" class="w-full rounded-xl px-4 py-3 text-sm">@forelse($availableFinancePeriods as $period)<option value="{{ $period['year'] }}">{{ $period['year'] }}</option>@empty<option value="{{ $year }}">-</option>@endforelse</select></div>
+                <div class="relative z-40"><label class="mb-1 block text-sm">{{ __('finance.fields.quarter') }}</label><select wire:model.live="quarter" class="relative z-50 w-full rounded-xl px-4 py-3 text-sm">@foreach((collect($availableFinancePeriods)->firstWhere('year', $year)['quarters'] ?? []) as $availableQuarter)<option value="{{ $availableQuarter }}">Q{{ $availableQuarter }}</option>@endforeach</select></div>
             </div>
         </div>
     </section>

@@ -72,7 +72,8 @@ class ReportsAndApiTest extends TestCase
             ->assertDontSee('Use academic, group, and date filters')
             ->assertSee('grid grid-cols-2 gap-3', false)
             ->assertSee('aspect-square w-28', false)
-            ->assertSee('Student Quran tests')
+            ->assertSee('Students’ progress detail')
+            ->assertDontSee('Student Quran tests')
             ->assertDontSee('Students in scope');
 
         $this->actingAs($manager)
@@ -201,7 +202,7 @@ class ReportsAndApiTest extends TestCase
             ->set('group_id', $group->id)
             ->set('date_from', '2026-09-01')
             ->set('date_to', '2026-09-30')
-            ->assertSee('Student pages and points')
+            ->assertSee('Students’ progress detail')
             ->assertSee('Report Student')
             ->assertSee('5')
             ->assertSee('4');
@@ -366,15 +367,11 @@ class ReportsAndApiTest extends TestCase
         $this->assertSame(1, $rows[0]['partial_tests']);
         $this->assertSame(1, $rows[0]['final_tests']);
 
-        Volt::test('reports.student-quran-tests')
-            ->set('course_id', $group->course_id)
-            ->set('group_id', $group->id)
-            ->set('date_from', '2026-09-01')
-            ->set('date_to', '2026-09-30')
-            ->assertSee('Student Quran tests')
-            ->assertSee('Report Student')
-            ->assertSee('Partial tests')
-            ->assertSee('Final tests');
+        $progressRows = app(ReportingService::class)->studentActivitySummary($filters);
+        $this->assertSame(1, $progressRows[0]['passed_final_tests']);
+
+        $this->get(route('reports.student-quran-tests', absolute: false))
+            ->assertRedirect(route('reports.student-activity-summary', absolute: false));
 
         $this->get(route('reports.exports.student-quran-tests', $filters, absolute: false))
             ->assertOk()

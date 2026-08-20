@@ -169,7 +169,6 @@
     .ledger-report-doc__signature-image-space { height: 109px; text-align: center; }
     .ledger-report-doc__signature img { display: block; margin: 0 auto; max-height: 98px; max-width: 70%; object-fit: contain; }
     .ledger-report-doc__signature-line { border-top: 1px solid #315b3b; display: block; height: 0; line-height: 0; width: 100%; }
-    .ledger-report-doc__signature-name { color: #637365; display: block; margin-top: 6px; }
     .ledger-report-doc__custom-text {
         background: rgba(255, 255, 255, 0.78);
         border: 1px dashed #dce6db;
@@ -357,7 +356,7 @@
 
             <section class="ledger-report-doc__authorization">
                 <div class="ledger-report-doc__stamp">@if($report['report_stamp_url'] ?? null)<img src="{{ $report['report_stamp_url'] }}" alt="">@endif</div>
-                <div class="ledger-report-doc__signature"><div class="ledger-report-doc__signature-mark"><div class="ledger-report-doc__signature-image-space">@if($report['issuer_signature_url'] ?? null)<img src="{{ $report['issuer_signature_url'] }}" alt="">@endif</div><div class="ledger-report-doc__signature-line">&nbsp;</div></div><span class="ledger-report-doc__signature-name">{{ $report['issuer_name'] ?: '-' }}</span></div>
+                <div class="ledger-report-doc__signature"><div class="ledger-report-doc__signature-mark"><div class="ledger-report-doc__signature-image-space">@if($report['issuer_signature_url'] ?? null)<img src="{{ $report['issuer_signature_url'] }}" alt="">@endif</div><div class="ledger-report-doc__signature-line">&nbsp;</div></div></div>
             </section>
 
             @if (! empty($template['footer_text']) || ($template['show_page_numbers'] ?? false))

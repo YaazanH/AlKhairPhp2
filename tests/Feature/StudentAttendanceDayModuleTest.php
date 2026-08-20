@@ -587,7 +587,7 @@ class StudentAttendanceDayModuleTest extends TestCase
         $this->assertSame(0, PointTransaction::query()->where('enrollment_id', $enrollment->id)->whereNull('voided_at')->sum('points'));
     }
 
-    public function test_manager_can_export_student_attendance_for_a_selected_group_and_period(): void
+    public function test_manager_can_export_student_attendance_for_a_selected_course_and_period(): void
     {
         $this->seed();
 
@@ -616,7 +616,7 @@ class StudentAttendanceDayModuleTest extends TestCase
             ->assertSeeText('Export Attendance Group');
 
         $response = $this->get(route('student-attendance.export', [
-            'group_id' => $enrollment->group_id,
+            'course_id' => $enrollment->group->course_id,
             'date_from' => '2026-10-01',
             'date_to' => '2026-10-31',
         ], absolute: false));

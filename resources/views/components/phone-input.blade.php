@@ -10,6 +10,7 @@
     $phoneCountries = \App\Support\PhoneCountries::options();
     $inputId = $id ?: 'phone-'.str_replace(['.', '_'], '-', $model);
     $initial = \App\Support\PhoneNumberFormatter::split($value);
+    $isRtl = app()->isLocale('ar');
 @endphp
 
 <div
@@ -88,8 +89,9 @@
     <div class="relative" x-on:click.outside="open = false" x-on:keydown.escape.window="open = false">
         <button
             type="button"
-            class="flex w-full items-center justify-between rounded-xl px-3 py-3 text-left text-sm"
-            style="direction: ltr; unicode-bidi: isolate;"
+            class="flex w-full items-center justify-between rounded-xl px-3 py-3 text-sm"
+            dir="{{ $isRtl ? 'rtl' : 'ltr' }}"
+            style="unicode-bidi: isolate;"
             x-on:click="open = ! open; if (open) $nextTick(() => $refs.countrySearch.focus())"
             x-bind:aria-expanded="open"
             aria-haspopup="listbox"
@@ -105,23 +107,23 @@
             x-cloak
             x-show="open"
             x-transition
-            class="absolute left-0 z-50 mt-2 w-80 max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border border-neutral-700 bg-neutral-900 shadow-2xl"
+            class="absolute left-0 z-50 mt-2 w-max min-w-80 max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border border-neutral-700 bg-neutral-900 shadow-2xl"
         >
             <div class="border-b border-neutral-700 p-2">
                 <input x-ref="countrySearch" x-model="search" type="search" class="w-full rounded-lg px-3 py-2 text-sm" placeholder="{{ __('phone.search_country') }}">
             </div>
-            <div class="max-h-72 touch-pan-y overflow-y-auto overscroll-contain py-1" role="listbox">
+            <div class="phone-country-options max-h-72 touch-pan-y overflow-y-auto overscroll-contain py-1" role="listbox" dir="{{ $isRtl ? 'rtl' : 'ltr' }}">
                 <template x-for="country in filteredCountries" :key="country.region">
                     <button
                         type="button"
-                        class="flex w-full items-center gap-3 px-3 py-2 text-left text-sm hover:bg-white/10"
+                        class="phone-country-option w-full gap-3 px-3 py-2 text-sm hover:bg-white/10"
                         x-on:click="chooseCountry(country)"
                         x-bind:class="country.region === region ? 'bg-white/10 text-emerald-300' : 'text-neutral-200'"
                         role="option"
                     >
-                        <img x-bind:src="`https://flagcdn.com/24x18/${country.region.toLowerCase()}.png`" x-bind:alt="country.name" class="h-[18px] w-6 shrink-0 rounded-sm object-cover">
-                        <span class="min-w-0 flex-1 truncate" x-text="country.name"></span>
-                        <span class="text-xs text-neutral-400" x-text="country.dial_code"></span>
+                        <img x-bind:src="`https://flagcdn.com/32x24/${country.region.toLowerCase()}.png`" x-bind:alt="country.name" class="h-6 w-8 shrink-0 rounded-md object-cover">
+                        <span class="whitespace-nowrap text-xs text-neutral-400" x-text="country.dial_code"></span>
+                        <span class="whitespace-nowrap" x-text="country.name"></span>
                     </button>
                 </template>
             </div>

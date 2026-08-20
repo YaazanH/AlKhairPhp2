@@ -15,6 +15,7 @@ class Assessment extends Model
 
     protected $fillable = [
         'group_id',
+        'group_scope',
         'assessment_type_id',
         'title',
         'description',

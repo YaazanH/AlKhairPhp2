@@ -65,6 +65,7 @@ return [
             'daily_activity' => 'Comparison between Attendance and Memorisation',
             'memorized_pages' => 'Memorized pages',
             'students_attended' => 'Students attended',
+            'average_attendance' => 'Average attendance',
             'leaderboard_eyebrow' => 'Default course leaderboard',
             'top_students' => 'Top 3 Students',
             'no_ranked_students' => 'No active students are available for ranking yet.',
@@ -76,7 +77,7 @@ return [
             'pages_count' => '{1} :count page|[2,*] :count pages',
             'no_groups' => 'No active groups are available in the default course.',
             'student_highlights' => 'Student Highlights',
-            'final_tests' => 'Final tests',
+            'final_tests' => 'Final sabers',
         ],
         'cards' => [
             'people' => [
@@ -98,6 +99,7 @@ return [
         'subheading' => 'Your assigned groups and the students currently attached to them.',
         'intro' => 'Use your assignments as the launch point for attendance, memorization, assessments, and student notes.',
         'group_dashboard' => [
+            'heading' => 'Group Teacher Dashboard',
             'subheading' => 'A focused view of your group’s attendance, memorization, tests, and student ranking.',
             'today_summary' => "Today's summary",
             'copy_today_summary' => "Copy today's summary",
@@ -124,7 +126,7 @@ return [
                 'days_attended' => 'Days attended',
                 'points' => 'Points',
                 'pages' => 'Pages memorized',
-                'final_tests' => 'Final tests',
+                'final_tests' => 'Final sabers',
                 'final_exam_score' => 'Final exam score',
                 'page_number' => 'Page number',
                 'date' => 'Date',

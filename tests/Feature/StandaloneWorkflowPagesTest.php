@@ -23,6 +23,7 @@ use App\Models\StudentPageAchievement;
 use App\Models\Teacher;
 use App\Models\User;
 use App\Services\QuranFinalTestService;
+use App\Services\QuranPartialTestService;
 use App\Services\QuranProgressionService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Volt\Volt;
@@ -31,6 +32,23 @@ use Tests\TestCase;
 class StandaloneWorkflowPagesTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_external_memorization_starts_partial_or_final_tests_without_entering_normal_eligibility_lists(): void
+    {
+        [, $enrollment] = $this->teacherContext();
+        $juz = QuranJuz::query()->where('juz_number', 1)->firstOrFail();
+        $enrollment->student->externalMemorizedJuzs()->attach($juz->id);
+
+        $this->assertNotContains($juz->id, app(QuranPartialTestService::class)->eligibleJuzIdsForStudent($enrollment->student)->all());
+        $this->assertNotContains($juz->id, app(QuranFinalTestService::class)->eligibleJuzIdsForStudent($enrollment->student)->all());
+
+        $partial = app(QuranPartialTestService::class)->createForExternalMemorization($enrollment->fresh('student'), $juz);
+        $final = app(QuranFinalTestService::class)->createForExternalMemorization($enrollment->fresh('student'), $juz);
+
+        $this->assertSame('in_progress', $partial->status);
+        $this->assertCount(4, $partial->parts);
+        $this->assertSame('in_progress', $final->status);
+    }
 
     public function test_teacher_partial_test_workbench_uses_the_logged_in_teacher(): void
     {

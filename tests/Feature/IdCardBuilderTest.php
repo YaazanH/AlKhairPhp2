@@ -428,21 +428,22 @@ class IdCardBuilderTest extends TestCase
         StudentCardPrint::query()->create([
             'student_id' => $student->id,
             'print_template_id' => $template->id,
+            'course_id' => $course->id,
             'printed_by' => $manager->id,
             'printed_at' => now(),
         ]);
 
         $this->actingAs($manager)
-            ->get(route('id-cards.print.create', ['template' => $template->id]))
+            ->get(route('id-cards.print.create', ['template' => $template->id, 'course_id' => $course->id]))
             ->assertOk()
             ->assertSee('data-source-printed-filter="student"', false)
-            ->assertSee('data-mark-selected-printed', false)
-            ->assertSee('data-mark-selected-unprinted', false)
+            ->assertSee('data-toggle-selected-print-status', false)
             ->assertSee('data-card-printed="1"', false)
+            ->assertSee(__('print_templates.print.setup.sections.selected_students'))
             ->assertSee('Card Group')
             ->assertSee(__('print_templates.print.setup.fields.printed_flag'))
             ->assertSee(__('print_templates.print.setup.buttons.mark_printed'))
-            ->assertSee(__('print_templates.print.setup.buttons.mark_unprinted'));
+            ->assertSee('markUnprintedDefaultLabel', false);
     }
 
     public function test_student_card_print_record_endpoint_creates_history_rows(): void

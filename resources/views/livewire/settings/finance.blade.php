@@ -20,10 +20,12 @@ use App\Services\PrintTemplates\PrintTemplateDataSourceService;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Livewire\Volt\Component;
+use Livewire\WithFileUploads;
 
 new class extends Component {
     use AuthorizesPermissions;
     use FormatsFinanceNumbers;
+    use WithFileUploads;
 
     public string $invoice_prefix = '';
     public string $transaction_prefix = '';
@@ -105,11 +107,24 @@ new class extends Component {
     public ?int $maint_entered_by = null;
     public string $maint_delete_reason = '';
     public string $report_lookup_no = '';
+    public $legacy_report_pdf = null;
+    public string $legacy_report_number = '';
+    public string $legacy_report_period_mode = 'quarter';
+    public int $legacy_report_year;
+    public string $legacy_report_quarter = '';
+    public string $legacy_report_date_from = '';
+    public string $legacy_report_date_to = '';
+    public string $legacy_report_cash_box = '';
+    public string $legacy_report_currency = '';
+    public string $legacy_report_generated_at = '';
+    public bool $showLegacyReportModal = false;
 
     public function mount(): void
     {
         $this->authorizePermission('finance.settings.manage');
         $this->loadFinanceSettings();
+        $this->legacy_report_year = (int) now()->year;
+        $this->legacy_report_quarter = (string) now()->quarter;
         $this->cash_box_currency_ids = FinanceCurrency::query()->where('is_active', true)->pluck('id')->map(fn ($id) => (string) $id)->all();
     }
 
@@ -780,6 +795,88 @@ new class extends Component {
         session()->flash('status', __('finance.reports.saved_report_deleted'));
     }
 
+    public function openLegacyReportModal(): void
+    {
+        $this->authorizePermission('finance.settings.manage');
+        abort_if((bool) AppSetting::groupValues('finance')->get('legacy_report_import_finished'), 403);
+        $this->showLegacyReportModal = true;
+    }
+
+    public function closeLegacyReportModal(): void
+    {
+        $this->reset('legacy_report_pdf', 'legacy_report_number', 'legacy_report_date_from', 'legacy_report_date_to', 'legacy_report_cash_box', 'legacy_report_currency', 'legacy_report_generated_at');
+        $this->legacy_report_period_mode = 'quarter';
+        $this->legacy_report_year = (int) now()->year;
+        $this->legacy_report_quarter = (string) now()->quarter;
+        $this->showLegacyReportModal = false;
+        $this->resetValidation();
+    }
+
+    public function importLegacyReport(): void
+    {
+        $this->authorizePermission('finance.settings.manage');
+        abort_if((bool) AppSetting::groupValues('finance')->get('legacy_report_import_finished'), 403);
+        abort_unless(FinanceGeneratedReport::pdfStorageIsReady(), 422);
+
+        $validated = $this->validate([
+            'legacy_report_pdf' => ['required', 'file', 'mimes:pdf', 'max:20480'],
+            'legacy_report_number' => ['required', 'string', 'max:50'],
+            'legacy_report_period_mode' => ['required', Rule::in(['quarter', 'custom'])],
+            'legacy_report_year' => ['required_if:legacy_report_period_mode,quarter', 'integer', 'between:2000,2100'],
+            'legacy_report_quarter' => ['required_if:legacy_report_period_mode,quarter', Rule::in(['1', '2', '3', '4'])],
+            'legacy_report_date_from' => ['required_if:legacy_report_period_mode,custom', 'nullable', 'date'],
+            'legacy_report_date_to' => ['required_if:legacy_report_period_mode,custom', 'nullable', 'date', 'after_or_equal:legacy_report_date_from'],
+            'legacy_report_cash_box' => ['required', 'string', 'max:255'],
+            'legacy_report_currency' => ['required', 'string', 'max:50'],
+            'legacy_report_generated_at' => ['required', 'date'],
+        ]);
+
+        if ($validated['legacy_report_period_mode'] === 'quarter') {
+            $quarterStart = \Illuminate\Support\Carbon::create((int) $validated['legacy_report_year'], (((int) $validated['legacy_report_quarter'] - 1) * 3) + 1, 1);
+            $dateFrom = $quarterStart->toDateString();
+            $dateTo = $quarterStart->copy()->endOfQuarter()->toDateString();
+        } else {
+            $dateFrom = $validated['legacy_report_date_from'];
+            $dateTo = $validated['legacy_report_date_to'];
+        }
+
+        $path = $validated['legacy_report_pdf']->store('finance/generated-reports/imported', 'local');
+        $report = FinanceGeneratedReport::query()->create([
+            'report_type' => 'ledger',
+            'filters' => [
+                'cash_box_name' => $validated['legacy_report_cash_box'],
+                'currency_code' => $validated['legacy_report_currency'],
+                'date_from' => $dateFrom,
+                'date_to' => $dateTo,
+                'period_mode' => $validated['legacy_report_period_mode'],
+                'year' => $validated['legacy_report_period_mode'] === 'quarter' ? (int) $validated['legacy_report_year'] : null,
+                'quarter' => $validated['legacy_report_period_mode'] === 'quarter' ? (int) $validated['legacy_report_quarter'] : null,
+            ],
+            'report_data' => [
+                'cash_box' => ['name' => $validated['legacy_report_cash_box']],
+                'currency' => ['code' => $validated['legacy_report_currency']],
+                'end' => $dateTo,
+                'imported_legacy' => true,
+                'original_report_number' => $validated['legacy_report_number'],
+                'start' => $dateFrom,
+            ],
+            'pdf_path' => $path,
+            'generated_by' => auth()->id(),
+        ]);
+        $report->forceFill(['created_at' => $validated['legacy_report_generated_at'], 'updated_at' => $validated['legacy_report_generated_at']])->save();
+
+        $this->closeLegacyReportModal();
+        session()->flash('status', __('finance.reports.legacy_report_imported'));
+    }
+
+    public function finishLegacyReportImport(): void
+    {
+        $this->authorizePermission('finance.settings.manage');
+        AppSetting::storeValue('finance', 'legacy_report_import_finished', true, 'boolean');
+        $this->closeLegacyReportModal();
+        session()->flash('status', __('finance.reports.legacy_report_import_finished'));
+    }
+
     public function savePaymentMethod(): void
     {
         $this->authorizePermission('finance.settings.manage');
@@ -823,6 +920,7 @@ new class extends Component {
             'paymentMethods' => PaymentMethod::query()->orderBy('name')->get(),
             'pullRequestKinds' => FinancePullRequestKind::query()->orderBy('mode')->orderBy('name')->get(),
             'users' => User::query()->where('is_active', true)->orderBy('name')->get(),
+            'legacyReportImportEnabled' => ! (bool) AppSetting::groupValues('finance')->get('legacy_report_import_finished'),
         ];
     }
 
@@ -939,17 +1037,6 @@ new class extends Component {
         <div class="eyebrow">{{ __('ui.nav.settings') }}</div>
         <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('finance.settings.title') }}</h1>
         <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ __('finance.settings.subtitle') }}</p>
-    </section>
-
-    <section class="surface-panel p-4">
-        <div class="flex flex-wrap gap-2">
-            <a href="#finance-defaults" class="pill-link pill-link--compact">{{ __('finance.settings.defaults') }}</a>
-            <a href="#finance-currencies" class="pill-link pill-link--compact">{{ __('finance.settings.currencies') }}</a>
-            <a href="#finance-cash-boxes" class="pill-link pill-link--compact">{{ __('finance.settings.cash_boxes') }}</a>
-            <a href="#finance-categories" class="pill-link pill-link--compact">{{ __('finance.settings.categories') }}</a>
-            <a href="#finance-generated-reports" class="pill-link pill-link--compact">{{ __('finance.settings.generated_report_maintenance') }}</a>
-            <a href="#finance-legacy" class="pill-link pill-link--compact">{{ __('finance.settings.payment_setup') }}</a>
-        </div>
     </section>
 
     @if (session('status'))
@@ -1232,9 +1319,31 @@ new class extends Component {
         <div class="mt-5 flex flex-col gap-3 sm:flex-row">
             <input wire:model="report_lookup_no" placeholder="{{ $report_prefix }}-000001" class="min-w-0 flex-1 rounded-xl px-4 py-3" dir="ltr">
             <button wire:click="deleteGeneratedReport" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" type="button" class="pill-link pill-link--danger">{{ __('finance.reports.delete_saved_report') }}</button>
+            @if ($legacyReportImportEnabled)<button wire:click="openLegacyReportModal" type="button" class="pill-link pill-link--accent" aria-label="{{ __('finance.reports.import_legacy_report') }}">+</button>@endif
         </div>
         @error('report_lookup_no')<div class="mt-2 text-sm text-red-400">{{ $message }}</div>@enderror
     </section>
+
+    @if ($legacyReportImportEnabled)
+        <x-admin.modal :show="$showLegacyReportModal" :title="__('finance.reports.import_legacy_report')" close-method="closeLegacyReportModal" max-width="3xl">
+            <form wire:submit="importLegacyReport" class="grid gap-4 md:grid-cols-2">
+                <div class="md:col-span-2"><label class="mb-1 block text-sm">{{ __('finance.reports.legacy_pdf') }}</label><input wire:model="legacy_report_pdf" type="file" accept="application/pdf" class="w-full rounded-xl px-4 py-3">@error('legacy_report_pdf')<div class="mt-1 text-sm text-red-400">{{ $message }}</div>@enderror</div>
+                <div><label class="mb-1 block text-sm">{{ __('finance.fields.report_no') }}</label><input wire:model="legacy_report_number" class="w-full rounded-xl px-4 py-3" dir="ltr">@error('legacy_report_number')<div class="mt-1 text-sm text-red-400">{{ $message }}</div>@enderror</div>
+                <div><label class="mb-1 block text-sm">{{ __('finance.common.date') }}</label><input wire:model="legacy_report_generated_at" type="date" class="w-full rounded-xl px-4 py-3"></div>
+                <div><label class="mb-1 block text-sm">{{ __('finance.fields.period') }}</label><select wire:model.live="legacy_report_period_mode" class="w-full rounded-xl px-4 py-3"><option value="quarter">{{ __('finance.reports.period_quarter') }}</option><option value="custom">{{ __('finance.reports.period_custom') }}</option></select></div>
+                @if ($legacy_report_period_mode === 'quarter')
+                    <div><label class="mb-1 block text-sm">{{ __('finance.fields.year') }}</label><input wire:model="legacy_report_year" type="number" min="2000" max="2100" class="w-full rounded-xl px-4 py-3"></div>
+                    <div><label class="mb-1 block text-sm">{{ __('finance.fields.quarter') }}</label><select wire:model="legacy_report_quarter" class="w-full rounded-xl px-4 py-3">@for($quarter = 1; $quarter <= 4; $quarter++)<option value="{{ $quarter }}">Q{{ $quarter }}</option>@endfor</select></div>
+                @else
+                    <div><label class="mb-1 block text-sm">{{ __('finance.fields.from_date') }}</label><input wire:model="legacy_report_date_from" type="date" class="w-full rounded-xl px-4 py-3"></div>
+                    <div><label class="mb-1 block text-sm">{{ __('finance.fields.to_date') }}</label><input wire:model="legacy_report_date_to" type="date" class="w-full rounded-xl px-4 py-3"></div>
+                @endif
+                <div><label class="mb-1 block text-sm">{{ __('finance.fields.cash_box') }}</label><input wire:model="legacy_report_cash_box" class="w-full rounded-xl px-4 py-3"></div>
+                <div><label class="mb-1 block text-sm">{{ __('finance.common.currency') }}</label><input wire:model="legacy_report_currency" class="w-full rounded-xl px-4 py-3"></div>
+                <div class="md:col-span-2 flex flex-wrap justify-end gap-3"><button type="button" wire:click="finishLegacyReportImport" wire:confirm="{{ __('finance.reports.finish_legacy_import_confirm') }}" class="pill-link pill-link--danger">{{ __('finance.reports.finish_uploading') }}</button><button class="pill-link pill-link--accent">{{ __('finance.reports.import_legacy_report') }}</button></div>
+            </form>
+        </x-admin.modal>
+    @endif
 
     <x-admin.modal :show="$showCurrencyModal" :title="$currency_editing_id ? __('finance.actions.edit').' '.__('finance.common.currency') : __('finance.actions.create_currency')" :description="__('finance.settings.currencies_subtitle')" close-method="closeCurrencyModal" max-width="3xl">
         <form wire:submit="saveCurrency" class="space-y-4">

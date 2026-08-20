@@ -138,7 +138,9 @@ class StudentProgressPageTest extends TestCase
 
         Volt::test('students.progress', ['student' => $student])
             ->assertViewHas('assessmentResults', fn ($results) => $results->doesntContain('id', $finalResult->id))
-            ->assertViewHas('finalAssessmentResults', fn ($results) => $results->contains('id', $finalResult->id));
+            ->assertViewHas('finalAssessmentResults', fn ($results) => $results->contains('id', $finalResult->id))
+            ->call('showDetails', 'final-assessments')
+            ->assertSeeText('Course Final Exam · Quran Track');
     }
 
     public function test_student_progress_limits_highlights_to_default_course_but_keeps_history_general(): void
@@ -289,6 +291,7 @@ class StudentProgressPageTest extends TestCase
             ->assertSeeText('اختر الطالب')
             ->assertSeeText('Parent Student')
             ->assertSeeText('Other Student')
+            ->assertSee('data-option-name="Parent Student"', false)
             ->assertSeeText('اختر طالباً من الأعلى لعرض صفحة التقدم الكاملة.');
     }
 

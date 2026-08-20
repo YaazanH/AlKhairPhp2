@@ -375,7 +375,7 @@ new class extends Component
                         @foreach ($enrollments as $enrollment)
                             <tr>
                                 <td class="px-5 py-4 lg:px-6">
-                                    <div class="font-semibold text-white">{{ $enrollment->student?->first_name }} {{ $enrollment->student?->last_name }}</div>
+                                    <div class="font-semibold text-white">{{ $enrollment->student?->full_name }}</div>
                                 </td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $enrollment->enrolled_at?->format('d-m-Y') }}</td>
                                 <td class="px-5 py-4 text-white lg:px-6">{{ $enrollment->final_points_cached }}</td>

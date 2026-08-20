@@ -46,11 +46,11 @@ return [
         'memorized_pages' => 'Pages memorized',
         'daily_memorization_average' => 'Daily memorization average',
         'weekly_memorization_average' => 'Three-attendance-day memorization average',
-        'final_tested_juz' => 'Juz final tested',
-        'passed_final_juz_count' => 'Passed final-tested juz count',
-        'final_test_score' => 'Final-test score',
+        'final_tested_juz' => 'Juz final sabered',
+        'passed_final_juz_count' => 'Passed final-saber juz count',
+        'final_test_score' => 'Final-saber score',
         'final_exam_score' => 'Final exam assessment score',
-        'final_juzs' => 'Final-tested juz', 'final_marks' => 'Final-test marks',
+        'final_juzs' => 'Final-saber juz', 'final_marks' => 'Final-saber marks',
         'assessment_count' => 'Assessment count', 'assessment_average' => 'Assessment average',
         'worship_assessment_average' => 'Assessment average (Worship Program)',
         'cheques_count' => 'Cheques (شيك ٢٥ / شيك ٥٠)',
@@ -208,6 +208,7 @@ return [
                 'letter_spacing' => 'Letter spacing',
                 'color' => 'Color',
                 'text_align' => 'Alignment',
+                'vertical_align' => 'Vertical alignment',
                 'object_fit' => 'Image fit',
                 'static_image' => 'Static image',
                 'image_source_help' => 'Upload a fixed logo or image for this element.',
@@ -234,6 +235,8 @@ return [
                 'page_number' => 'Page 1',
             ],
             'font_weights' => [
+                '200' => 'Ultra light',
+                '300' => 'Light',
                 '400' => 'Regular',
                 '500' => 'Medium',
                 '600' => 'Semibold',
@@ -245,6 +248,12 @@ return [
                 'center' => 'Center',
                 'right' => 'Right',
                 'justify' => 'Justified',
+            ],
+            'vertical_alignments' => [
+                'top' => 'Top',
+                'center' => 'Center',
+                'bottom' => 'Bottom',
+                'justify' => 'Justify',
             ],
             'date_modes' => [
                 'today' => 'Today',
@@ -322,6 +331,7 @@ return [
             'sections' => [
                 'template' => 'Template and paper',
                 'sources' => 'Required records',
+                'selected_students' => 'Selected students',
             ],
             'fields' => [
                 'template' => 'Template',

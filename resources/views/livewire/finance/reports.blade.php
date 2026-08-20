@@ -31,6 +31,7 @@ new class extends Component {
     public bool $remove_report_logo = false;
     public bool $remove_report_stamp = false;
     public bool $showReportSettingsModal = false;
+    public bool $showCreateReportModal = false;
 
     public function mount(): void
     {
@@ -38,6 +39,11 @@ new class extends Component {
 
         $this->ledger_year = (int) now()->year;
         $this->ledger_quarter = (string) now()->quarter;
+        $latestPeriod = app(FinanceService::class)->availableTransactionPeriods(auth()->user())->first();
+        if ($latestPeriod) {
+            $this->ledger_year = (int) $latestPeriod['year'];
+            $this->ledger_quarter = (string) ($latestPeriod['quarters'][0] ?? 1);
+        }
         $this->syncLedgerQuarterDates();
         $this->selectDefaultLedgerCashBox();
     }
@@ -64,6 +70,8 @@ new class extends Component {
     public function updatedLedgerYear(): void
     {
         if ($this->ledger_period_mode === 'quarter') {
+            $period = app(FinanceService::class)->availableTransactionPeriods(auth()->user())->firstWhere('year', $this->ledger_year);
+            $this->ledger_quarter = (string) ($period['quarters'][0] ?? '');
             $this->syncLedgerQuarterDates();
         }
     }
@@ -92,8 +100,10 @@ new class extends Component {
                 : collect(),
             'ledgerCashBoxes' => $financeService->accessibleCashBoxes(auth()->user())->get(),
             'ledgerCurrencies' => $this->ledgerCurrencies(),
+            'ledgerPeriods' => $financeService->availableTransactionPeriods(auth()->user()),
             'ledgerSettings' => app(FinanceReportService::class)->defaultLedgerTemplate()->fresh(),
             'reportStampPath' => AppSetting::groupValues('finance')->get('report_stamp_path'),
+            'canGenerateReport' => auth()->user()?->financeSignaturePdfSource() !== null,
         ];
     }
 
@@ -176,6 +186,23 @@ new class extends Component {
         $this->resetValidation();
     }
 
+    public function openCreateReport(): void
+    {
+        $this->authorizePermission('finance.reports.export');
+        if (! auth()->user()?->financeSignaturePdfSource()) {
+            $this->addError('createReport', __('finance.reports.signature_required'));
+
+            return;
+        }
+        $this->showCreateReportModal = true;
+    }
+
+    public function closeCreateReport(): void
+    {
+        $this->showCreateReportModal = false;
+        $this->resetValidation('createReport');
+    }
+
     protected function selectDefaultLedgerCashBox(): void
     {
         $cashBox = app(FinanceService::class)->defaultCashBoxForUser(auth()->user());
@@ -244,12 +271,13 @@ new class extends Component {
         @if ($generatedReportsEnabled)
             <section class="surface-table" style="order: 4">
                 <div class="admin-grid-meta">
-                    <div>
-                        <div class="admin-grid-meta__title">{{ __('finance.reports.generated_reports') }}</div>
-                        <div class="admin-grid-meta__summary">{{ __('finance.reports.generated_reports_subtitle') }}</div>
+                    <div class="admin-grid-meta__title">{{ __('finance.reports.generated_reports') }}</div>
+                    <div class="admin-toolbar__controls">
+                        <span class="badge-soft">{{ number_format($generatedReports->count()) }}</span>
+                        <button type="button" wire:click="openCreateReport" @disabled(! $canGenerateReport) @if(! $canGenerateReport) title="{{ __('finance.reports.signature_required') }}" @endif class="pill-link pill-link--accent disabled:cursor-not-allowed disabled:opacity-50">{{ __('finance.reports.generate_report') }}</button>
                     </div>
-                    <span class="badge-soft">{{ number_format($generatedReports->count()) }}</span>
                 </div>
+                @error('createReport')<div class="mx-5 mb-4 rounded-xl border border-red-400/25 bg-red-500/10 px-4 py-3 text-sm text-red-100">{{ $message }}</div>@enderror
                 <div class="overflow-x-auto">
                     <table class="text-sm">
                         <thead>
@@ -265,15 +293,11 @@ new class extends Component {
                         </thead>
                         <tbody class="divide-y divide-white/6">
                             @forelse ($generatedReports as $generatedReport)
-                                @php
-                                    $savedStart = data_get($generatedReport->filters, 'date_from', data_get($generatedReport->report_data, 'start'));
-                                    $savedEnd = data_get($generatedReport->filters, 'date_to', data_get($generatedReport->report_data, 'end'));
-                                @endphp
                                 <tr>
                                     <td class="px-5 py-3">
                                         <div class="font-medium text-white">{{ app(FinanceReportService::class)->reportNumber($generatedReport, $generatedReport->report_data ?: []) }}</div>
                                     </td>
-                                    <td class="px-5 py-3">{{ $savedStart ? \Illuminate\Support\Carbon::parse($savedStart)->format('d-m-Y') : '-' }} - {{ $savedEnd ? \Illuminate\Support\Carbon::parse($savedEnd)->format('d-m-Y') : '-' }}</td>
+                                    <td class="px-5 py-3"><bdi dir="ltr">{{ app(FinanceReportService::class)->savedReportPeriodLabel($generatedReport) }}</bdi></td>
                                     <td class="px-5 py-3">{{ data_get($generatedReport->filters, 'cash_box_name', data_get($generatedReport->report_data, 'cash_box.name', '-')) }}</td>
                                     <td class="px-5 py-3">{{ data_get($generatedReport->filters, 'currency_code', data_get($generatedReport->report_data, 'currency.code', '-')) }}</td>
                                     <td class="px-5 py-3">{{ $generatedReport->generatedBy?->name ?: (data_get($generatedReport->report_data, 'issuer_name') ?: '-') }}</td>
@@ -313,7 +337,8 @@ new class extends Component {
                 'ledger_notes' => $report_notes,
             ];
         @endphp
-        <section class="surface-panel p-5 lg:p-6" style="order: 3">
+        <x-admin.modal :show="$showCreateReportModal" :title="__('finance.reports.generate_report')" close-method="closeCreateReport" max-width="4xl">
+        <section class="surface-panel p-5 lg:p-6">
             <div>
                 <div class="w-full sm:max-w-md">
                     <div class="eyebrow">{{ __('finance.reports.ledger_export') }}</div>
@@ -344,11 +369,11 @@ new class extends Component {
                     @if ($ledger_period_mode === 'quarter')
                         <div>
                             <label class="mb-1 block text-sm font-medium">{{ __('finance.fields.year') }}</label>
-                            <select wire:model.live="ledger_year" class="w-full rounded-xl px-4 py-3 text-sm">@for ($reportYear = now()->year + 1; $reportYear >= now()->year - 10; $reportYear--)<option value="{{ $reportYear }}">{{ $reportYear }}</option>@endfor</select>
+                            <select wire:model.live="ledger_year" class="w-full rounded-xl px-4 py-3 text-sm">@forelse($ledgerPeriods as $period)<option value="{{ $period['year'] }}">{{ $period['year'] }}</option>@empty<option value="{{ $ledger_year }}">-</option>@endforelse</select>
                         </div>
                         <div>
                             <label class="mb-1 block text-sm font-medium">{{ __('finance.fields.quarter') }}</label>
-                            <select wire:model.live="ledger_quarter" class="w-full rounded-xl px-4 py-3 text-sm">@for ($reportQuarter = 1; $reportQuarter <= 4; $reportQuarter++)<option value="{{ $reportQuarter }}">Q{{ $reportQuarter }}</option>@endfor</select>
+                            <select wire:model.live="ledger_quarter" class="w-full rounded-xl px-4 py-3 text-sm">@foreach((collect($ledgerPeriods)->firstWhere('year', $ledger_year)['quarters'] ?? []) as $reportQuarter)<option value="{{ $reportQuarter }}">Q{{ $reportQuarter }}</option>@endforeach</select>
                         </div>
                     @else
                         <div>
@@ -377,6 +402,7 @@ new class extends Component {
                 @endif
             </div>
         </section>
+        </x-admin.modal>
     @endcan
 
     @can('finance.report-templates.manage')

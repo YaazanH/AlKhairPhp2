@@ -299,7 +299,21 @@ function buildSearchableSelectOptions(select, list, query = '') {
         const item = document.createElement('button');
         item.type = 'button';
         item.className = 'searchable-select__option';
-        item.textContent = label || option.value;
+        if (option.dataset.optionName !== undefined || option.dataset.optionNumber !== undefined) {
+            item.classList.add('searchable-select__option--columns');
+
+            const name = document.createElement('span');
+            name.className = 'searchable-select__option-name';
+            name.textContent = option.dataset.optionName || label || option.value;
+
+            const number = document.createElement('span');
+            number.className = 'searchable-select__option-number';
+            number.textContent = option.dataset.optionNumber || '';
+
+            item.append(name, number);
+        } else {
+            item.textContent = label || option.value;
+        }
         item.dataset.value = option.value;
         item.setAttribute('role', 'option');
         item.setAttribute('aria-selected', option.selected ? 'true' : 'false');
@@ -404,7 +418,7 @@ function enhanceSearchableSelect(select) {
         }
 
         const nextOptionsSignature = Array.from(select.options)
-            .map((option) => `${option.value}\u0000${option.textContent}\u0000${option.dataset.search || ''}\u0000${option.disabled}\u0000${option.hidden}\u0000${option.selected}`)
+            .map((option) => `${option.value}\u0000${option.textContent}\u0000${option.dataset.search || ''}\u0000${option.dataset.optionName || ''}\u0000${option.dataset.optionNumber || ''}\u0000${option.disabled}\u0000${option.hidden}\u0000${option.selected}`)
             .join('\u0001');
 
         if (force || nextOptionsSignature !== optionsSignature) {

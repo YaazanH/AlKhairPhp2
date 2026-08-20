@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\AppSetting;
 use App\Models\AttendanceStatus;
 use App\Models\Course;
 use App\Models\Enrollment;
@@ -62,6 +63,8 @@ class PointLedgerService
             return null;
         }
 
+        $points = $this->multipliedAutomaticPoints($points);
+
         return PointTransaction::query()->create([
             'student_id' => $enrollment->student_id,
             'enrollment_id' => $enrollment->id,
@@ -74,6 +77,25 @@ class PointLedgerService
             'entered_at' => now(),
             'notes' => $notes,
         ]);
+    }
+
+    protected function multipliedAutomaticPoints(int $points): int
+    {
+        if ($points <= 0) {
+            return $points;
+        }
+
+        $settings = AppSetting::groupValues('points');
+        $multiplier = min(3, max(1, (float) ($settings->get('automatic_multiplier') ?? 1)));
+        $today = now()->toDateString();
+        $from = (string) ($settings->get('automatic_multiplier_from') ?? '');
+        $until = (string) ($settings->get('automatic_multiplier_until') ?? '');
+
+        if ($from === '' || $until === '' || $today < $from || $today > $until) {
+            return $points;
+        }
+
+        return (int) round($points * $multiplier, 0, PHP_ROUND_HALF_UP);
     }
 
     public function recordAttendanceStatusPoints(Enrollment $enrollment, string $sourceType, int $sourceId, AttendanceStatus $status, ?string $notes = null): ?PointTransaction
@@ -182,7 +204,7 @@ class PointLedgerService
             ['code' => self::ATTENDANCE_POINT_TYPE_CODE],
             [
                 'name' => 'Attendance',
-                'category' => 'system',
+                'category' => 'Automatic',
                 'default_points' => 0,
                 'allow_manual_entry' => false,
                 'allow_negative' => true,

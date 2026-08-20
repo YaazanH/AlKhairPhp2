@@ -20,6 +20,12 @@ trait SupportsCreateAndNew
 
         $this->{$saveMethod}();
 
+        foreach (['showDuplicateStudentModal', 'showDuplicateParentModal'] as $duplicateModalProperty) {
+            if (property_exists($this, $duplicateModalProperty) && $this->{$duplicateModalProperty}) {
+                return;
+            }
+        }
+
         if (method_exists($this, 'getErrorBag') && $this->getErrorBag()->count() > $errorCount) {
             return;
         }

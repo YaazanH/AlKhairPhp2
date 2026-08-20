@@ -115,6 +115,40 @@ new class extends Component {
         $this->resetValidation();
     }
 
+    public function moveItem(string $itemKey, string $groupKey, ?string $beforeItemKey = null): void
+    {
+        if (! isset($this->item_settings[$itemKey], $this->group_settings[$groupKey])) {
+            return;
+        }
+
+        $orderedKeys = collect($this->availableItems())
+            ->where('group_key', $groupKey)
+            ->pluck('key')
+            ->reject(fn (string $key) => $key === $itemKey)
+            ->values();
+        $position = $beforeItemKey ? $orderedKeys->search($beforeItemKey) : false;
+        $position === false ? $orderedKeys->push($itemKey) : $orderedKeys->splice($position, 0, [$itemKey]);
+
+        $this->item_settings[$itemKey]['group_key'] = $groupKey;
+        foreach ($orderedKeys as $index => $key) {
+            $this->item_settings[$key]['sort_order'] = (string) (($index + 1) * 10);
+        }
+    }
+
+    public function moveGroup(string $groupKey, string $beforeGroupKey): void
+    {
+        if ($groupKey === $beforeGroupKey || ! isset($this->group_settings[$groupKey], $this->group_settings[$beforeGroupKey])) {
+            return;
+        }
+
+        $keys = collect(array_keys($this->availableGroups()))->reject(fn (string $key) => $key === $groupKey)->values();
+        $position = $keys->search($beforeGroupKey);
+        $keys->splice($position === false ? $keys->count() : $position, 0, [$groupKey]);
+        foreach ($keys as $index => $key) {
+            $this->group_settings[$key]['sort_order'] = (string) (($index + 1) * 10);
+        }
+    }
+
     protected function loadSettings(): void
     {
         $service = app(SidebarNavigationService::class);
@@ -196,9 +230,7 @@ new class extends Component {
 
 <div class="page-stack settings-admin-page">
     <section class="page-hero p-6 lg:p-8">
-        <div class="eyebrow">{{ __('ui.nav.settings') }}</div>
-        <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('settings.sidebar_navigation.title') }}</h1>
-        <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ __('settings.sidebar_navigation.subtitle') }}</p>
+        <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('ui.common.settings') }}</h1>
     </section>
 
     <x-settings.admin-nav section="dashboard" current="settings.sidebar-navigation" />
@@ -207,87 +239,30 @@ new class extends Component {
         <div class="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">{{ session('status') }}</div>
     @endif
 
-    <form wire:submit="save" class="grid gap-6 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
+    <form wire:submit="save" class="space-y-6" x-data="{ draggedItem: null, draggedGroup: null }">
         <section class="surface-panel p-5 lg:p-6">
             <div class="admin-toolbar">
-                <div>
-                    <div class="admin-toolbar__title">{{ __('settings.sidebar_navigation.sections.groups.title') }}</div>
-                    <p class="admin-toolbar__subtitle">{{ __('settings.sidebar_navigation.sections.groups.copy') }}</p>
-                </div>
-
+                <div class="admin-toolbar__title">{{ __('settings.sidebar_navigation.title') }}</div>
                 <div class="admin-toolbar__actions">
-                    <button type="button" wire:click="addGroup" class="pill-link">{{ __('settings.sidebar_navigation.actions.add_group') }}</button>
+                    <button type="button" wire:click="addGroup" class="pill-link pill-link--compact text-xl" aria-label="{{ __('settings.sidebar_navigation.actions.add_group') }}">+</button>
                 </div>
             </div>
 
             <div class="mt-5 space-y-4">
                 @foreach ($availableGroups as $group)
-                    <div class="rounded-2xl border border-white/10 bg-white/4 p-4">
-                        <div class="mb-4 flex items-center justify-between gap-3">
-                            <div class="text-sm font-semibold text-white">
-                                {{ $group['is_custom'] ? __('settings.sidebar_navigation.labels.custom_group') : $group['default_title'] }}
-                            </div>
-
-                            @if ($group['is_custom'])
-                                <button type="button" wire:click="removeGroup('{{ $group['key'] }}')" class="pill-link pill-link--compact">{{ __('settings.sidebar_navigation.actions.remove_group') }}</button>
-                            @endif
+                    <details class="rounded-2xl border border-white/10 bg-white/4 p-4" open x-data="{ editing: {{ $group['is_custom'] && $group['title'] === '' ? 'true' : 'false' }} }" draggable="true" @dragstart.self="draggedGroup='{{ $group['key'] }}'" @dragover.prevent @drop.prevent="if(draggedGroup){$wire.moveGroup(draggedGroup,'{{ $group['key'] }}');draggedGroup=null}">
+                        <summary class="flex cursor-pointer list-none items-center gap-3"><span class="cursor-grab text-neutral-400" aria-hidden="true">⠿</span><span class="min-w-0 flex-1 text-sm font-semibold text-white">{{ $group['title'] ?: $group['default_title'] ?: __('settings.sidebar_navigation.labels.custom_group') }}</span><button type="button" @click.prevent="editing=!editing" class="pill-link pill-link--compact" aria-label="{{ __('crud.common.actions.edit') }}">✎</button>@if ($group['is_custom'])<button type="button" wire:click="removeGroup('{{ $group['key'] }}')" class="pill-link pill-link--compact pill-link--danger">{{ __('crud.common.actions.delete') }}</button>@endif</summary>
+                        <div x-show="editing" x-cloak class="mt-4"><input wire:model="group_settings.{{ $group['key'] }}.title" type="text" class="w-full rounded-xl px-4 py-3 text-sm" placeholder="{{ __('settings.sidebar_navigation.fields.use_default_title') }}"></div>
+                        <div class="mt-4 space-y-2 rounded-xl border border-dashed border-white/10 p-2" @dragover.prevent @drop.prevent="if(draggedItem){$wire.moveItem(draggedItem,'{{ $group['key'] }}');draggedItem=null}">
+                            @foreach (collect($availableItems)->where('group_key', $group['key']) as $item)
+                                <div draggable="true" @dragstart.stop="draggedItem='{{ $item['key'] }}'" @dragover.prevent @drop.prevent.stop="if(draggedItem){$wire.moveItem(draggedItem,'{{ $group['key'] }}','{{ $item['key'] }}');draggedItem=null}" class="flex cursor-grab items-center gap-3 rounded-xl border border-white/10 bg-white/5 px-4 py-3"><span class="text-neutral-400" aria-hidden="true">⠿</span><span class="text-sm text-white">{{ $item['label'] }}</span></div>
+                            @endforeach
                         </div>
-
-                        <div class="grid gap-4 md:grid-cols-[minmax(0,1fr)_120px]">
-                            <div>
-                                <label class="mb-1 block text-sm font-medium">
-                                    {{ $group['is_custom'] ? __('settings.sidebar_navigation.fields.custom_group_title') : $group['default_title'] }}
-                                </label>
-                                <input wire:model="group_settings.{{ $group['key'] }}.title" type="text" class="w-full rounded-xl px-4 py-3 text-sm" placeholder="{{ $group['is_custom'] ? __('settings.sidebar_navigation.fields.custom_group_title_placeholder') : __('settings.sidebar_navigation.fields.use_default_title') }}">
-                                @error('group_settings.'.$group['key'].'.title') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
-                            </div>
-
-                            <div>
-                                <label class="mb-1 block text-sm font-medium">{{ __('settings.sidebar_navigation.fields.group_order') }}</label>
-                                <input wire:model="group_settings.{{ $group['key'] }}.sort_order" type="number" min="0" max="999" class="w-full rounded-xl px-4 py-3 text-sm">
-                                @error('group_settings.'.$group['key'].'.sort_order') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
-                            </div>
-                        </div>
-                    </div>
+                    </details>
                 @endforeach
             </div>
         </section>
-
-        <section class="surface-panel p-5 lg:p-6">
-            <div class="admin-toolbar">
-                <div>
-                    <div class="admin-toolbar__title">{{ __('settings.sidebar_navigation.sections.items.title') }}</div>
-                    <p class="admin-toolbar__subtitle">{{ __('settings.sidebar_navigation.sections.items.copy') }}</p>
-                </div>
-            </div>
-
-            <div class="mt-5 space-y-4">
-                @foreach ($availableItems as $item)
-                    <div class="rounded-2xl border border-white/10 bg-white/4 p-4">
-                        <div class="mb-3 text-sm font-semibold text-white">{{ $item['label'] }}</div>
-                        <div class="grid gap-4 md:grid-cols-[minmax(0,1fr)_120px]">
-                            <div>
-                                <label class="mb-1 block text-sm font-medium">{{ __('settings.sidebar_navigation.fields.group') }}</label>
-                                <select wire:model="item_settings.{{ $item['key'] }}.group_key" class="w-full rounded-xl px-4 py-3 text-sm">
-                                    @foreach ($availableGroups as $group)
-                                        <option value="{{ $group['key'] }}">{{ $group['title'] ?: $group['default_title'] }}</option>
-                                    @endforeach
-                                </select>
-                                @error('item_settings.'.$item['key'].'.group_key') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
-                            </div>
-
-                            <div>
-                                <label class="mb-1 block text-sm font-medium">{{ __('settings.sidebar_navigation.fields.item_order') }}</label>
-                                <input wire:model="item_settings.{{ $item['key'] }}.sort_order" type="number" min="0" max="999" class="w-full rounded-xl px-4 py-3 text-sm">
-                                @error('item_settings.'.$item['key'].'.sort_order') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
-                            </div>
-                        </div>
-                    </div>
-                @endforeach
-            </div>
-        </section>
-
-        <div class="xl:col-span-2 flex justify-end">
+        <div class="flex justify-end">
             <button type="submit" class="pill-link pill-link--accent">{{ __('settings.sidebar_navigation.actions.save') }}</button>
         </div>
     </form>

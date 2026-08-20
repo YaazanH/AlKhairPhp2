@@ -90,10 +90,19 @@ new class extends Component {
             ->orderBy('name')
             ->get();
 
+        $averageAttendanceByGroup = GroupAttendanceDay::query()
+            ->whereIn('group_id', $groups->pluck('id'))
+            ->withCount(['records as present_students_count' => fn ($query) => $query
+                ->whereHas('status', fn ($statusQuery) => $statusQuery->where('is_present', true))])
+            ->get()
+            ->groupBy('group_id')
+            ->map(fn ($days) => round((float) $days->avg('present_students_count'), 1));
+
         $groupDistribution = $groups->map(fn (Group $group) => [
             'id' => $group->id,
             'name' => $group->name,
             'students' => (int) $group->active_students_count,
+            'average_attendance' => (float) ($averageAttendanceByGroup[$group->id] ?? 0),
         ]);
 
         $trendDates = GroupAttendanceDay::query()
@@ -314,11 +323,14 @@ new class extends Component {
             ->count();
 
         $accessRoleName = $teacher->accessRole?->name;
-        $accessRoleLabel = $accessRoleName
-            ? ((__('ui.roles.'.$accessRoleName) === 'ui.roles.'.$accessRoleName)
-                ? \Illuminate\Support\Str::of($accessRoleName)->replace('_', ' ')->headline()->toString()
-                : __('ui.roles.'.$accessRoleName))
-            : __('dashboard.roles.teacher');
+        $accessRoleLabel = $teacher->jobTitle?->name ?: $teacher->job_title;
+        $accessRoleLabel = filled($accessRoleLabel)
+            ? $accessRoleLabel
+            : ($accessRoleName
+                ? ((__('ui.roles.'.$accessRoleName) === 'ui.roles.'.$accessRoleName)
+                    ? Str::of($accessRoleName)->replaceMatches('/[_-]+/', ' ')->squish()->toString()
+                    : __('ui.roles.'.$accessRoleName))
+                : __('dashboard.roles.teacher'));
 
         return [
             'dashboardRole' => 'teacher',
@@ -477,9 +489,14 @@ new class extends Component {
         $latestMemorizations = $latestMemorizationsQuery->paginate(10, ['*'], 'teacherMemorizationPage');
 
         $accessRoleName = $teacher->accessRole?->name;
-        $accessRoleLabel = $accessRoleName
-            ? ((__('ui.roles.'.$accessRoleName) === 'ui.roles.'.$accessRoleName) ? $accessRoleName : __('ui.roles.'.$accessRoleName))
-            : __('dashboard.roles.teacher');
+        $accessRoleLabel = $teacher->jobTitle?->name ?: $teacher->job_title;
+        $accessRoleLabel = filled($accessRoleLabel)
+            ? $accessRoleLabel
+            : ($accessRoleName
+                ? ((__('ui.roles.'.$accessRoleName) === 'ui.roles.'.$accessRoleName)
+                    ? Str::of($accessRoleName)->replaceMatches('/[_-]+/', ' ')->squish()->toString()
+                    : __('ui.roles.'.$accessRoleName))
+                : __('dashboard.roles.teacher'));
 
         $teacherCurriculumSummary = $group
             ? app(CurriculumProgressService::class)->summary($group)
@@ -488,7 +505,7 @@ new class extends Component {
         return [
             'dashboardRole' => 'teacher',
             'teacherGroupDashboard' => true,
-            'heading' => __('dashboard.teacher.heading'),
+            'heading' => __('dashboard.teacher.group_dashboard.heading'),
             'subheading' => __('dashboard.teacher.group_dashboard.subheading'),
             'intro' => __('dashboard.teacher.intro'),
             'profileName' => $teacher->first_name.' '.$teacher->last_name,
@@ -625,7 +642,7 @@ new class extends Component {
             'recordsHeading' => __('dashboard.parent.records.heading'),
             'recordsEmpty' => __('dashboard.parent.records.empty'),
             'records' => $students->map(fn (Student $student) => [
-                'title' => $student->first_name.' '.$student->last_name,
+                'title' => $student->full_name,
                 'subtitle' => trim(($student->gradeLevel?->name ?: __('dashboard.common.no_grade')).' | '.($student->school_name ?: __('dashboard.common.no_school'))),
                 'meta' => __('dashboard.common.active_enrollments', ['count' => $student->enrollments_count]),
             ]),
@@ -664,7 +681,7 @@ new class extends Component {
             'heading' => __('dashboard.student.heading'),
             'subheading' => __('dashboard.student.subheading'),
             'intro' => __('dashboard.student.intro'),
-            'profileName' => $student->first_name.' '.$student->last_name,
+            'profileName' => $student->full_name,
             'profileJob' => $student->gradeLevel?->name ?: __('dashboard.roles.student'),
             'currentAcademicYearName' => $this->dashboardCourseName(),
             'profileMeta' => $student->gradeLevel?->name ?: ($student->school_name ?: __('dashboard.student.profile_meta_no_grade')),
@@ -878,7 +895,7 @@ new class extends Component {
                 $groupStudentTotal = (int) $groupDistribution->sum('students');
                 $chartColor = fn (int $index) => sprintf('hsl(%.1f 42%% 57%%)', fmod(24 + ($index * 137.508), 360));
                 $lollipopGroups = $groupDistribution->where('students', '>', 0)->sortByDesc('students')->values();
-                $lollipopMax = max(1, (int) $lollipopGroups->max('students'));
+                $lollipopMax = max(1, (float) $lollipopGroups->max(fn (array $group) => max($group['students'], $group['average_attendance'])));
                 $niceScale = function (int $value): array {
                     $value = max(1, $value);
                     $best = null;
@@ -926,6 +943,7 @@ new class extends Component {
                                     <div class="relative h-5">
                                         <span class="absolute inset-y-1/2 start-0 h-px -translate-y-1/2 rounded-full opacity-70" style="width: {{ ($group['students'] / $lollipopMax) * 100 }}%; background: {{ $chartColor($index) }}"></span>
                                         <span class="absolute top-1/2 h-3.5 w-3.5 -translate-y-1/2 translate-x-1/2 rounded-full border-2 border-neutral-950 shadow" style="inset-inline-start: calc({{ ($group['students'] / $lollipopMax) * 100 }}% - .875rem); background: {{ $chartColor($index) }}"></span>
+                                        <span class="absolute top-1/2 h-2.5 w-2.5 -translate-y-1/2 translate-x-1/2 rounded-full border-2 border-neutral-950 bg-sky-300 shadow" style="inset-inline-start: calc({{ ($group['average_attendance'] / $lollipopMax) * 100 }}% - .625rem)" title="{{ __('dashboard.manager.analytics.average_attendance') }}: {{ number_format($group['average_attendance'], 1) }}"></span>
                                     </div>
                                     <div class="min-w-8 text-end text-xs font-semibold text-white">{{ number_format($group['students']) }}</div>
                                 </div>
@@ -936,15 +954,10 @@ new class extends Component {
                     @endif
                 </article>
 
-                <article class="surface-panel p-5 lg:p-6">
-                    <div class="flex flex-wrap items-end justify-between gap-4">
-                        <h2 class="font-display mt-2 text-2xl text-white">{{ __('dashboard.manager.analytics.daily_activity') }}</h2>
-                        <div class="flex flex-wrap gap-4 text-xs text-neutral-300">
-                            <span class="flex items-center gap-2"><i class="h-2.5 w-6 rounded-full bg-emerald-400"></i>{{ __('dashboard.manager.analytics.memorized_pages') }}</span>
-                            <span class="flex items-center gap-2"><i class="h-2.5 w-6 rounded-full bg-sky-400"></i>{{ __('dashboard.manager.analytics.students_attended') }}</span>
-                        </div>
-                    </div>
-                    <svg viewBox="0 0 440 220" dir="ltr" class="dashboard-line-chart mx-auto mt-6 h-auto w-full max-w-2xl overflow-hidden" role="img" aria-label="{{ __('dashboard.manager.analytics.daily_activity') }}">
+                <article class="surface-panel flex min-h-[22rem] flex-col p-5 lg:p-6">
+                    <h2 class="font-display mt-2 text-2xl text-white">{{ __('dashboard.manager.analytics.daily_activity') }}</h2>
+                    <div class="flex flex-1 items-center justify-center">
+                    <svg viewBox="0 0 440 220" dir="ltr" class="dashboard-line-chart mx-auto h-auto w-full max-w-2xl overflow-hidden" role="img" aria-label="{{ __('dashboard.manager.analytics.daily_activity') }}">
                         <line x1="{{ app()->isLocale('ar') ? 400 : 58 }}" y1="42" x2="{{ app()->isLocale('ar') ? 400 : 58 }}" y2="178" stroke="rgba(255,255,255,.3)" stroke-width="1.5" />
                         <line x1="58" y1="178" x2="400" y2="178" stroke="rgba(255,255,255,.3)" stroke-width="1.5" />
                         @foreach (range(0, $trendTicks) as $tick)
@@ -953,7 +966,7 @@ new class extends Component {
                                 $gridY = 178 - ($ratio * 128);
                             @endphp
                             <line x1="58" y1="{{ $gridY }}" x2="400" y2="{{ $gridY }}" stroke="rgba(255,255,255,.09)" stroke-width="1" />
-                            <text x="{{ app()->isLocale('ar') ? 414 : 49 }}" y="{{ $gridY + 3 }}" text-anchor="{{ app()->isLocale('ar') ? 'start' : 'end' }}" fill="#a3a3a3" font-size="9">{{ $axisLabel($trendMax * $ratio) }}</text>
+                            <text x="{{ app()->isLocale('ar') ? 408 : 49 }}" y="{{ $gridY + 3 }}" text-anchor="{{ app()->isLocale('ar') ? 'start' : 'end' }}" fill="#a3a3a3" font-size="9">{{ $axisLabel($trendMax * $ratio) }}</text>
                         @endforeach
                         @foreach ($dailyTrend as $index => $day)
                             <line x1="{{ $trendX($index) }}" y1="50" x2="{{ $trendX($index) }}" y2="178" stroke="rgba(255,255,255,.09)" stroke-width="1" />
@@ -979,6 +992,7 @@ new class extends Component {
                         @endforeach
                         <text x="{{ app()->isLocale('ar') ? 428 : 20 }}" y="110" text-anchor="middle" fill="#a3a3a3" font-size="10" transform="rotate({{ app()->isLocale('ar') ? 90 : -90 }} {{ app()->isLocale('ar') ? 428 : 20 }} 110)">{{ __('dashboard.manager.analytics.count_axis') }}</text>
                     </svg>
+                    </div>
                 </article>
             </section>
 
@@ -995,7 +1009,7 @@ new class extends Component {
                                 @endphp
                                 <button type="button" wire:click="showManagerStudent({{ $entry['student']->id }})" class="dashboard-leaderboard__card dashboard-leaderboard__card--{{ $rankStyle }} dashboard-leaderboard__card--rank-{{ $entry['rank'] }} group">
                                     <span class="dashboard-leaderboard__rank">{{ $entry['rank'] }}</span>
-                                    <x-student-avatar :student="$entry['student']" size="lg" class="mx-auto transition-transform duration-200 group-hover:scale-110" />
+                                    <x-student-avatar :student="$entry['student']" size="lg" class="dashboard-leaderboard__avatar mx-auto transition-transform duration-200 group-hover:scale-110" />
                                     <span class="mt-3 block line-clamp-2 font-semibold text-white">{{ $entry['student']->full_name }}</span>
                                     <span class="mt-2 block text-sm text-neutral-200">{{ number_format($entry['points']) }} {{ app()->isLocale('ar') ? ($entry['points'] > 10 ? 'نقطة' : 'نقاط') : __('dashboard.manager.analytics.points') }}</span>
                                 </button>
@@ -1076,7 +1090,7 @@ new class extends Component {
                     $magnitude = 10 ** floor(log10($value));
                     foreach ([$magnitude / 10, $magnitude, $magnitude * 10] as $base) {
                         foreach ([1, 2, 2.5, 5, 10] as $factor) {
-                            $step = $base * $factor;
+                            $step = max(1, ceil($base * $factor));
                             $ticks = (int) ceil($value / $step);
                             if ($ticks < 4 || $ticks > 9) continue;
                             $maximum = $ticks * $step;
@@ -1120,7 +1134,7 @@ new class extends Component {
                                     $gridY = 178 - ($ratio * 128);
                                 @endphp
                                 <line x1="58" y1="{{ $gridY }}" x2="400" y2="{{ $gridY }}" stroke="rgba(255,255,255,.09)" stroke-width="1" />
-                                <text x="{{ app()->isLocale('ar') ? 414 : 49 }}" y="{{ $gridY + 3 }}" text-anchor="{{ app()->isLocale('ar') ? 'start' : 'end' }}" fill="#a3a3a3" font-size="9">{{ $teacherAxisLabel($teacherTrendMax * $ratio) }}</text>
+                                <text x="{{ app()->isLocale('ar') ? 408 : 49 }}" y="{{ $gridY + 3 }}" text-anchor="{{ app()->isLocale('ar') ? 'start' : 'end' }}" fill="#a3a3a3" font-size="9">{{ $teacherAxisLabel($teacherTrendMax * $ratio) }}</text>
                             @endforeach
                             @foreach ($teacherDailyTrend as $index => $day)<line x1="{{ $teacherTrendX($index) }}" y1="50" x2="{{ $teacherTrendX($index) }}" y2="178" stroke="rgba(255,255,255,.09)" stroke-width="1" />@endforeach
                             <polyline points="{{ $teacherPagesLine }}" fill="none" stroke="#34d399" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />

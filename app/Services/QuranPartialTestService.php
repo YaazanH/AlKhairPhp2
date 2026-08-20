@@ -46,6 +46,29 @@ class QuranPartialTestService
         });
     }
 
+    public function createForExternalMemorization(Enrollment $enrollment, QuranJuz $juz): QuranPartialTest
+    {
+        if (! $enrollment->student->externalMemorizedJuzs()->whereKey($juz->id)->exists()) {
+            throw new LogicException(__('workflow.quran_partial_tests.errors.juz_not_eligible'));
+        }
+
+        if (QuranPartialTest::query()->where('student_id', $enrollment->student_id)->where('juz_id', $juz->id)->exists()) {
+            throw new LogicException(__('workflow.quran_partial_tests.errors.open_cycle_exists'));
+        }
+
+        return DB::transaction(function () use ($enrollment, $juz): QuranPartialTest {
+            $test = QuranPartialTest::query()->create([
+                'created_by' => auth()->id(), 'enrollment_id' => $enrollment->id, 'juz_id' => $juz->id,
+                'status' => 'in_progress', 'student_id' => $enrollment->student_id,
+            ]);
+            foreach (range(1, 4) as $partNumber) {
+                $test->parts()->create(['part_number' => $partNumber, 'status' => 'pending']);
+            }
+
+            return $test->fresh(['enrollment.group.course', 'juz', 'parts', 'student.parentProfile']);
+        });
+    }
+
     public function eligibleJuzIdsForStudent(Student $student): Collection
     {
         $completedPages = $student->pageAchievements()
@@ -58,6 +81,7 @@ class QuranPartialTestService
             ->pluck('juz_id')
             ->map(fn (int $juzId) => (int) $juzId)
             ->all();
+        $externalJuzIds = $student->externalMemorizedJuzs()->pluck('quran_juzs.id')->map(fn ($id) => (int) $id)->all();
 
         $legacyBlockedJuzIds = QuranTest::query()
             ->where('student_id', $student->id)
@@ -78,8 +102,8 @@ class QuranPartialTestService
         return QuranJuz::query()
             ->orderBy('juz_number')
             ->get()
-            ->filter(function (QuranJuz $juz) use ($completedPages, $existingJuzIds, $legacyBlockedJuzIds, $legacyPartialCounts): bool {
-                if (in_array($juz->id, $existingJuzIds, true) || in_array($juz->id, $legacyBlockedJuzIds, true)) {
+            ->filter(function (QuranJuz $juz) use ($completedPages, $existingJuzIds, $externalJuzIds, $legacyBlockedJuzIds, $legacyPartialCounts): bool {
+                if (in_array($juz->id, $existingJuzIds, true) || in_array($juz->id, $externalJuzIds, true) || in_array($juz->id, $legacyBlockedJuzIds, true)) {
                     return false;
                 }
 

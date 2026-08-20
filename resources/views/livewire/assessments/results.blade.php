@@ -81,6 +81,10 @@ new class extends Component {
     {
         $groupIds = $this->assessmentGroupIds();
         $assessmentGroups = $this->assessmentGroups();
+        $availableGroupIds = $this->scopeGroupsQuery(
+            Group::query()->where('is_active', true)->whereHas('course', fn ($query) => $query->where('is_active', true))
+        )->pluck('id')->map(fn ($id) => (int) $id)->sort()->values();
+        $assessmentGroupIds = $assessmentGroups->pluck('id')->map(fn ($id) => (int) $id)->sort()->values();
 
         if ($this->selectedGroupId !== null && ! $assessmentGroups->contains('id', $this->selectedGroupId)) {
             $this->selectedGroupId = null;
@@ -133,6 +137,8 @@ new class extends Component {
             'assessmentRecord' => $this->currentAssessment->fresh(['group.course', 'groups.course', 'type']),
             'assessmentGroups' => $assessmentGroups,
             'assessmentGroupCount' => $assessmentGroups->count(),
+            'usesAllGroups' => $this->currentAssessment->group_scope === 'all'
+                || ($this->currentAssessment->group_scope === null && $availableGroupIds->isNotEmpty() && $assessmentGroupIds->all() === $availableGroupIds->all()),
             'assessmentPointsByEnrollment' => $this->assessmentPointsByEnrollment(),
             'enrollments' => $enrollments,
             'quickEntryEnrollments' => Enrollment::query()
@@ -505,7 +511,7 @@ new class extends Component {
                 <div class="mt-1 text-sm text-neutral-400">
                     {{ $assessmentRecord->type?->name ?: __('workflow.common.not_available') }} |
                     {{ $assessmentGroups->isNotEmpty()
-                        ? $assessmentGroups->pluck('name')->implode(', ')
+                        ? ($usesAllGroups ? __('crud.common.filters.all_groups') : $assessmentGroups->pluck('name')->implode(', '))
                         : ($assessmentRecord->group?->name ?: __('workflow.common.not_available')) }}
                 </div>
                 <div class="mt-1 text-sm text-neutral-400">{{ __('workflow.common.labels.total', ['value' => $assessmentRecord->total_mark !== null ? number_format((float) $assessmentRecord->total_mark, 2) : __('workflow.common.not_available')]) }} | {{ __('workflow.common.labels.pass', ['value' => $assessmentRecord->pass_mark !== null ? number_format((float) $assessmentRecord->pass_mark, 2) : __('workflow.common.not_available')]) }}</div>
@@ -640,9 +646,11 @@ new class extends Component {
                         <option value="absent">{{ __('workflow.common.result_status.absent') }}</option>
                         <option value="passed">{{ __('workflow.common.result_status.passed') }}</option>
                         <option value="failed">{{ __('workflow.common.result_status.failed') }}</option>
-                        <option value="absent">{{ __('workflow.common.result_status.absent') }}</option>
                     </select>
                 </div>
+                @if ($selectedGroup)
+                    <a href="{{ route('assessments.results.pdf', ['assessment' => $assessmentRecord, 'group_id' => $selectedGroup->id]) }}" target="_blank" rel="noopener" class="pill-link pill-link--compact">{{ __('workflow.assessments.results.pdf_export') }}</a>
+                @endif
             </div>
         </div>
 
@@ -687,7 +695,7 @@ new class extends Component {
                                 <div class="student-inline">
                                     <x-student-avatar :student="$enrollment->student" size="sm" />
                                     <div class="student-inline__body">
-                                        <div class="student-inline__name">{{ $enrollment->student?->first_name }} {{ $enrollment->student?->last_name }}</div>
+                                        <div class="student-inline__name">{{ $enrollment->student?->full_name }}</div>
                                         <div class="student-inline__meta">{{ $enrollment->student?->school_name ?: __('workflow.common.no_school_recorded') }}</div>
                                     </div>
                                 </div>

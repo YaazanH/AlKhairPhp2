@@ -365,6 +365,27 @@ select:focus[data-flux-control] {
     color: var(--app-text);
 }
 
+.searchable-select__option--columns {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) max-content;
+    align-items: center;
+    gap: 1rem;
+}
+
+.searchable-select__option-name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.searchable-select__option-number {
+    justify-self: end;
+    min-width: max-content;
+    text-align: end;
+    font-variant-numeric: tabular-nums;
+}
+
 .print-template-render {
     position: relative;
     overflow: hidden;
@@ -767,6 +788,20 @@ html:not(.dark) .app-backdrop__orb--plum {
     background: rgba(15, 12, 9, 0.82) !important;
     box-shadow: 24px 0 60px rgba(0, 0, 0, 0.28);
     backdrop-filter: blur(24px);
+    overflow-anchor: none;
+}
+
+.app-sidebar-account {
+    position: sticky;
+    z-index: 20;
+    bottom: 0;
+    padding-top: 0.5rem;
+    background: linear-gradient(to top, rgba(15, 12, 9, 0.98) 72%, transparent);
+    overflow-anchor: none;
+}
+
+html:not(.dark) .app-sidebar-account {
+    background: linear-gradient(to top, rgba(255, 252, 245, 0.98) 72%, transparent);
 }
 
 .app-sidebar-toggle-button {
@@ -1588,6 +1623,23 @@ html:not(.dark) .app-pagination__page--dots {
     direction: ltr;
 }
 
+.phone-country-options {
+    display: grid;
+    grid-template-columns: 2rem max-content max-content;
+}
+
+.phone-country-option {
+    display: grid;
+    grid-column: 1 / -1;
+    grid-template-columns: subgrid;
+    align-items: center;
+    text-align: left;
+}
+
+html[dir='rtl'] .phone-country-option {
+    text-align: right;
+}
+
 .dashboard-leaderboard__card {
     position: relative;
     width: 100%;
@@ -1633,17 +1685,48 @@ html[dir='rtl'] .dashboard-leaderboard__card {
 
 .dashboard-leaderboard__rank {
     position: absolute;
-    top: 0.65rem;
-    inset-inline-end: 0.75rem;
+    z-index: 2;
+    top: -0.8rem;
+    left: -0.6rem;
     display: grid;
-    width: 1.8rem;
-    height: 1.8rem;
+    width: 2.7rem;
+    height: 2.7rem;
     place-items: center;
-    border-radius: 999px;
-    background: rgba(0, 0, 0, 0.24);
-    color: white;
-    font-size: 0.75rem;
+    border: 2px solid rgba(255, 255, 255, 0.52);
+    border-radius: 0.85rem 0.85rem 0.85rem 0.2rem;
+    color: #1c1917;
+    font-size: 0.9rem;
     font-weight: 800;
+    box-shadow: 0 8px 18px rgba(0, 0, 0, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.7);
+    transform: rotate(-7deg);
+}
+
+.dashboard-leaderboard__card--gold .dashboard-leaderboard__rank {
+    background: linear-gradient(145deg, #fef08a, #f59e0b);
+}
+
+.dashboard-leaderboard__card--silver .dashboard-leaderboard__rank {
+    background: linear-gradient(145deg, #f8fafc, #94a3b8);
+}
+
+.dashboard-leaderboard__card--bronze .dashboard-leaderboard__rank {
+    background: linear-gradient(145deg, #fdba74, #b45309);
+}
+
+.dashboard-leaderboard__avatar,
+.dashboard-leaderboard__avatar .student-avatar__image,
+.dashboard-leaderboard__avatar .student-avatar__fallback {
+    border-radius: 1rem !important;
+}
+
+/* Page titles stay concise across the administration workspace. */
+.page-hero .eyebrow,
+.page-hero h1 + p {
+    display: none;
+}
+
+.page-hero .eyebrow + h1 {
+    margin-top: 0 !important;
 }
 
 .dashboard-bar-chart__bar {
@@ -1988,6 +2071,7 @@ html:not(.dark) .admin-modal__dialog {
 }
 
 .admin-modal__dialog--xl { max-width: 34rem; }
+.admin-modal__dialog--fit { width: fit-content; max-width: calc(100vw - 2rem); }
 .admin-modal__dialog--2xl { max-width: 44rem; }
 .admin-modal__dialog--3xl { max-width: 52rem; }
 .admin-modal__dialog--4xl { max-width: 64rem; }
@@ -2277,6 +2361,29 @@ html:not(.dark) .stat-card .kpi-label {
     font-weight: 700;
     letter-spacing: 0.18em;
     text-transform: uppercase;
+}
+
+html[lang^='ar'] .kpi-label,
+html[dir='rtl'] .kpi-label {
+    letter-spacing: 0 !important;
+    text-transform: none !important;
+}
+
+.stat-card > .metric-description,
+.stat-card > p {
+    display: none;
+}
+
+.settings-admin-page .page-hero .eyebrow,
+.settings-admin-page .page-hero p,
+.settings-admin-page .admin-toolbar__subtitle,
+.settings-admin-page .admin-grid-meta__summary,
+.settings-admin-page .admin-modal__description,
+.settings-admin-page h2 + p,
+.settings-admin-page h3 + p,
+.settings-admin-page p[class*='text-neutral-500'],
+.settings-admin-page p[class*='text-neutral-400'] {
+    display: none;
 }
 
 .report-panel,
@@ -4657,6 +4764,35 @@ body.print-template-editor-expanded {
     flex-wrap: nowrap;
 }
 
+.id-card-print-template-row {
+    display: grid;
+    grid-template-columns: minmax(14rem, 1fr) auto auto;
+    gap: 0.75rem;
+    align-items: end;
+}
+
+.id-card-print-hero__copy {
+    text-align: right !important;
+}
+
+.id-card-print-template-row .admin-form-field--full {
+    grid-column: auto;
+}
+
+.id-card-filter-row .admin-toolbar__controls {
+    display: grid;
+    grid-template-columns: minmax(13rem, 1fr) minmax(10rem, auto) minmax(10rem, auto) auto;
+    align-items: end;
+    gap: 0.75rem;
+}
+
+@media (max-width: 767px) {
+    .id-card-print-template-row,
+    .id-card-filter-row .admin-toolbar__controls {
+        grid-template-columns: 1fr;
+    }
+}
+
 [dir='rtl'] .id-card-student-card,
 [dir='rtl'] .print-template-student-card__content,
 [dir='rtl'] .admin-builder-header {
@@ -4954,8 +5090,9 @@ body.print-template-editor-expanded {
 
     .settings-tabs {
         display: flex;
+        flex-wrap: wrap;
         gap: 0.55rem;
-        overflow-x: auto;
+        overflow-x: visible;
         padding-bottom: 0.2rem;
         scroll-snap-type: x proximity;
         scrollbar-width: none;
@@ -4966,9 +5103,9 @@ body.print-template-editor-expanded {
     }
 
     .settings-tab {
-        min-width: 11rem;
+        min-width: min(11rem, 100%);
         min-height: 3.35rem;
-        flex: 0 0 auto;
+        flex: 1 1 9rem;
         scroll-snap-align: start;
         padding: 0.75rem 0.85rem;
     }
