@@ -2,9 +2,11 @@
 
 use App\Http\Controllers\Api\V1\AuthTokenController;
 use App\Http\Controllers\Api\V1\FinanceWriteController;
+use App\Http\Controllers\Api\V1\MobileContextController;
 use App\Http\Controllers\Api\V1\OperationalWriteController;
 use App\Http\Controllers\Api\V1\ParentMobileController;
 use App\Http\Controllers\Api\V1\RecordsController;
+use App\Http\Controllers\Api\V1\StudentRecordsController;
 use App\Http\Controllers\Api\V1\ReportOverviewController;
 use App\Http\Controllers\Api\V1\TeacherDailySummaryController;
 use App\Http\Controllers\Api\V1\WriteRecordsController;
@@ -33,6 +35,26 @@ Route::middleware('auth:sanctum')->prefix('v1')->group(function () {
         Route::get('activities', 'activities');
         Route::get('invoices', 'invoices');
     });
+    // Role-aware mobile reads. Additive: the parent/* routes below are
+    // unchanged, these simply serve the same data to student, teacher,
+    // supervisor, assistant-supervisor and admin accounts.
+    Route::controller(MobileContextController::class)->group(function () {
+        Route::get('me', 'me');
+        Route::get('mobile/summary', 'summary');
+        Route::get('lookups', 'lookups');
+        Route::get('groups/{group}', 'group');
+    });
+    Route::prefix('students/{student}')->controller(StudentRecordsController::class)->group(function () {
+        Route::get('attendance', 'attendance');
+        Route::get('memorization', 'memorization');
+        Route::get('points', 'points');
+        Route::get('notes', 'notes');
+        Route::get('assessments', 'assessments');
+        Route::get('quran-tests', 'quranTests');
+        Route::get('quran-progress', 'quranProgress');
+    });
+    Route::get('students/{student}', [StudentRecordsController::class, 'show']);
+
     Route::prefix('parent')->controller(ParentMobileController::class)->group(function () {
         Route::get('profile', 'profile');
         Route::get('summary', 'summary');
