@@ -7,6 +7,7 @@ return [
     ],
     'invoice' => [
         'title' => 'فاتورة',
+        'continued' => 'متابعة',
         'invoice_no' => 'رقم الفاتورة',
         'status' => 'الحالة: :status',
         'statuses' => [

@@ -216,47 +216,35 @@ new class extends Component {
         <div class="flash-success px-4 py-3 text-sm">{{ session('status') }}</div>
     @endif
 
-    <section class="admin-kpi-grid">
-        <article class="stat-card"><div class="kpi-label">{{ __('community_contacts.stats.all') }}</div><div class="metric-value mt-3">{{ number_format($totals['all']) }}</div></article>
-        <article class="stat-card"><div class="kpi-label">{{ __('community_contacts.stats.active') }}</div><div class="metric-value mt-3">{{ number_format($totals['active']) }}</div></article>
-        <article class="stat-card"><div class="kpi-label">{{ __('community_contacts.stats.inactive') }}</div><div class="metric-value mt-3">{{ number_format($totals['inactive']) }}</div></article>
-        <article class="stat-card"><div class="kpi-label">{{ __('community_contacts.stats.categories') }}</div><div class="metric-value mt-3">{{ number_format($totals['categories']) }}</div></article>
-    </section>
+    <section class="surface-table">
+        <div class="admin-grid-meta admin-grid-meta--controls community-contacts-grid-meta">
+            <div class="admin-grid-meta__title">{{ __('community_contacts.table.title') }}</div>
+            <div class="admin-toolbar__controls admin-toolbar__controls--compact community-contacts-toolbar">
+            <input wire:model.live.debounce.300ms="search" type="search" class="w-48 rounded-xl px-4 py-3 text-sm" placeholder="{{ __('community_contacts.filters.search') }}">
 
-    <section class="surface-panel p-5 lg:p-6">
-        <div class="admin-toolbar">
-            <div>
-                <div class="admin-toolbar__title">{{ __('community_contacts.sections.directory.title') }}</div>
-                <p class="admin-toolbar__subtitle">{{ __('community_contacts.sections.directory.copy', ['count' => number_format($filteredCount)]) }}</p>
-            </div>
-
-            @can('community-contacts.create')
-                <button type="button" wire:click="openCreateModal" class="pill-link pill-link--accent">{{ __('community_contacts.actions.create') }}</button>
-            @endcan
-        </div>
-
-        <div class="mt-5 grid gap-3 lg:grid-cols-[minmax(0,1fr)_14rem_12rem_auto]">
-            <input wire:model.live.debounce.300ms="search" type="search" class="rounded-xl px-4 py-3 text-sm" placeholder="{{ __('community_contacts.filters.search') }}">
-
-            <select wire:model.live="categoryFilter" class="rounded-xl px-4 py-3 text-sm">
+            <select wire:model.live="categoryFilter" class="w-36 rounded-xl px-3 py-3 text-sm">
                 <option value="all">{{ __('community_contacts.filters.all_categories') }}</option>
                 @foreach ($categories as $categoryOption)
                     <option value="{{ $categoryOption }}">{{ $categoryOption }}</option>
                 @endforeach
             </select>
 
-            <select wire:model.live="statusFilter" class="rounded-xl px-4 py-3 text-sm">
+            <select wire:model.live="statusFilter" class="w-36 rounded-xl px-3 py-3 text-sm">
                 <option value="all">{{ __('community_contacts.filters.all_statuses') }}</option>
                 <option value="active">{{ __('community_contacts.statuses.active') }}</option>
                 <option value="inactive">{{ __('community_contacts.statuses.inactive') }}</option>
             </select>
 
-            <button type="button" wire:click="clearFilters" class="pill-link">{{ __('crud.common.actions.reset') }}</button>
+            <button type="button" wire:click="clearFilters" class="pill-link whitespace-nowrap px-5">{{ __('crud.common.actions.reset') }}</button>
+            @can('community-contacts.create')
+                <button type="button" wire:click="openCreateModal" class="pill-link pill-link--accent whitespace-nowrap px-5">{{ __('community_contacts.actions.create') }}</button>
+            @endcan
+            </div>
         </div>
 
-        <div class="mt-5 overflow-hidden rounded-2xl border border-white/10">
-            <table class="min-w-full divide-y divide-white/10 text-sm">
-                <thead class="bg-white/5 text-xs uppercase tracking-[0.2em] text-neutral-400">
+        <div class="overflow-x-auto">
+            <table class="text-sm">
+                <thead>
                     <tr>
                         <th class="px-5 py-4 text-left">{{ __('community_contacts.table.headers.name') }}</th>
                         <th class="px-5 py-4 text-left">{{ __('community_contacts.table.headers.category') }}</th>
@@ -293,12 +281,12 @@ new class extends Component {
                                 </span>
                             </td>
                             <td class="px-5 py-4">
-                                <div class="flex justify-end gap-2">
+                                <div class="community-contact-row-actions flex justify-end gap-2">
                                     @can('community-contacts.update')
-                                        <button type="button" wire:click="edit({{ $contact->id }})" class="pill-link pill-link--compact">{{ __('crud.common.actions.edit') }}</button>
+                                        <button type="button" wire:click="edit({{ $contact->id }})" class="pill-link pill-link--compact whitespace-nowrap px-4">{{ __('crud.common.actions.edit') }}</button>
                                     @endcan
                                     @can('community-contacts.delete')
-                                        <button type="button" wire:click="delete({{ $contact->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link pill-link--compact pill-link--danger">{{ __('crud.common.actions.delete') }}</button>
+                                        <button type="button" wire:click="delete({{ $contact->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link pill-link--compact pill-link--danger whitespace-nowrap px-4">{{ __('crud.common.actions.delete') }}</button>
                                     @endcan
                                 </div>
                             </td>
@@ -312,7 +300,7 @@ new class extends Component {
             </table>
         </div>
 
-        <div class="mt-5">
+        <div class="border-t border-white/8 px-5 py-4">
             {{ $contacts->links() }}
         </div>
     </section>

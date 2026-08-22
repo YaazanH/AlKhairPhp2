@@ -162,7 +162,7 @@ new class extends Component {
                     <p class="admin-toolbar__subtitle">{{ __('barcodes.import.form.subtitle') }}</p>
                 </div>
                 <div class="admin-toolbar__actions">
-                    <span class="status-chip status-chip--gold">{{ __('barcodes.import.context.today', ['date' => $attendance_date ?: now()->toDateString()]) }}</span>
+                    <span class="status-chip status-chip--gold" dir="ltr">{{ __('barcodes.import.context.today', ['date' => $attendance_date ? \Carbon\Carbon::parse($attendance_date)->format('d-m-Y') : now()->format('d-m-Y')]) }}</span>
                 </div>
             </div>
 

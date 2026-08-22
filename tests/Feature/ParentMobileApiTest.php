@@ -365,7 +365,7 @@ class ParentMobileApiTest extends TestCase
             'group_id' => $group->id,
             'assessment_type_id' => $assessmentType->id,
             'title' => 'Mobile Quiz',
-            'scheduled_at' => '2026-09-13 10:00:00',
+            'due_at' => '2026-09-13',
             'total_mark' => 100,
             'pass_mark' => 50,
             'is_active' => true,

@@ -123,10 +123,10 @@ class PrintTemplateRenderService
         $customDate = $element['styling']['custom_date'] ?? null;
 
         if (($element['styling']['date_mode'] ?? 'today') === 'custom' && $customDate) {
-            return Carbon::parse($customDate)->format('Y-m-d');
+            return Carbon::parse($customDate)->format('d-m-Y');
         }
 
-        return now()->format('Y-m-d');
+        return now()->format('d-m-Y');
     }
 
     protected function replaceRuntimeTokens(string $content, array $tokens): string
@@ -159,6 +159,10 @@ class PrintTemplateRenderService
             preg_match_all('/[\x{0621}-\x{064A}]/u', $text, $letters);
             preg_match_all('/\s/u', $text, $spaces);
             $visualLength = count($letters[0]) + (count($spaces[0]) * 0.45);
+
+            if ($visualLength < ($lineCapacity * 0.35)) {
+                return $text;
+            }
 
             preg_match_all(
                 '/([\x{0626}\x{0628}\x{062A}-\x{062E}\x{0633}-\x{063A}\x{0641}-\x{0647}\x{0649}\x{064A}])(?=[\x{0622}-\x{064A}])/u',

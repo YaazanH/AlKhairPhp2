@@ -706,21 +706,17 @@ new class extends Component {
         </article>
     </div>
 
-    <section class="surface-panel p-5 lg:p-6">
-        <div class="admin-toolbar">
-            <div>
-                <div class="admin-toolbar__title">{{ __('crud.parents.table.title') }}</div>
-                <p class="admin-toolbar__subtitle">{{ __('crud.parents.form.help') }}</p>
-            </div>
-
+    <section class="surface-table">
+        <div class="admin-grid-meta admin-grid-meta--controls">
+            <div class="admin-grid-meta__title">{{ __('crud.parents.table.title') }}</div>
             <div class="admin-toolbar__controls">
                 <div class="admin-filter-field">
-                    <label for="parent-search">{{ __('crud.common.filters.search') }}</label>
+                    <label class="sr-only" for="parent-search">{{ __('crud.common.filters.search') }}</label>
                     <input id="parent-search" wire:model.live.debounce.300ms="search" type="text" placeholder="{{ __('crud.common.filters.search_placeholder') }}">
                 </div>
 
                 <div class="admin-filter-field">
-                    <label for="parent-status-filter">{{ __('crud.common.filters.status') }}</label>
+                    <label class="sr-only" for="parent-status-filter">{{ __('crud.common.filters.status') }}</label>
                     <select id="parent-status-filter" wire:model.live="statusFilter">
                         <option value="all">{{ __('crud.common.filters.all_statuses') }}</option>
                         <option value="active">{{ __('crud.common.status_options.active') }}</option>
@@ -736,15 +732,6 @@ new class extends Component {
                     @endcan
                     <a href="{{ route('parents.export', ['search' => $search, 'status' => $statusFilter]) }}" class="pill-link">{{ __('crud.common.actions.export') }}</a>
                 </div>
-            </div>
-        </div>
-    </section>
-
-    <section class="surface-table">
-        <div class="admin-grid-meta">
-            <div>
-                <div class="admin-grid-meta__title">{{ __('crud.parents.table.title') }}</div>
-                <div class="admin-grid-meta__summary">{{ __('crud.common.badges.in_view', ['count' => number_format($filteredCount)]) }}</div>
             </div>
         </div>
 

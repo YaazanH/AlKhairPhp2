@@ -2,27 +2,32 @@
 
 namespace Tests\Feature;
 
-use App\Models\AttendanceStatus;
 use App\Models\AcademicYear;
 use App\Models\AppSetting;
+use App\Models\Assessment;
+use App\Models\AssessmentType;
+use App\Models\AttendanceStatus;
 use App\Models\Course;
 use App\Models\Enrollment;
 use App\Models\FatherJob;
 use App\Models\GradeLevel;
 use App\Models\Group;
-use App\Models\GroupSchedule;
 use App\Models\GroupAttendanceDay;
+use App\Models\GroupSchedule;
 use App\Models\MemorizationSession;
 use App\Models\MemorizationSessionPage;
 use App\Models\ParentProfile;
 use App\Models\PrintTemplate;
+use App\Models\QuranJuz;
 use App\Models\School;
 use App\Models\Student;
+use App\Models\StudentAttendanceDay;
 use App\Models\StudentFile;
 use App\Models\Teacher;
+use App\Models\TeacherAttendanceDay;
+use App\Models\TeacherAttendanceRecord;
 use App\Models\User;
 use App\Services\ParentNumberService;
-use App\Services\StudentNumberService;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -72,10 +77,19 @@ class ManagementCrudTest extends TestCase
     {
         $this->signIn();
 
+        $academicYear = AcademicYear::create([
+            'name' => '2026/2027',
+            'starts_on' => '2026-08-01',
+            'ends_on' => '2027-07-31',
+            'is_current' => true,
+            'is_active' => true,
+        ]);
+
         Volt::test('courses.index')
+            ->assertSet('academicYearFilter', (string) $academicYear->id)
+            ->set('academic_year_id', $academicYear->id)
             ->set('name', 'Quran Foundations')
             ->set('description', 'Foundational memorization track')
-            ->set('is_active', true)
             ->call('save')
             ->assertHasNoErrors();
 
@@ -88,15 +102,29 @@ class ManagementCrudTest extends TestCase
         Volt::test('courses.index')
             ->call('edit', $course->id)
             ->set('description', 'Updated course description')
-            ->set('is_active', false)
             ->call('save')
             ->assertHasNoErrors();
+
+        Volt::test('courses.index')
+            ->call('edit', $course->id)
+            ->call('deactivate', $course->id)
+            ->assertSet('showFormModal', false);
 
         $this->assertDatabaseHas('courses', [
             'id' => $course->id,
             'description' => 'Updated course description',
             'is_active' => false,
         ]);
+
+        Volt::test('courses.index')
+            ->call('openArchive', $course->id)
+            ->assertSee(__('crud.courses.archive.title', ['course' => $course->name]))
+            ->assertSee(__('crud.courses.actions.reactivate'))
+            ->call('reactivate', $course->id)
+            ->assertHasNoErrors()
+            ->assertSet('showArchiveModal', false);
+
+        $this->assertTrue($course->fresh()->is_active);
 
         Volt::test('parents.index')
             ->set('father_name', 'Ahmad Ali')
@@ -178,6 +206,269 @@ class ManagementCrudTest extends TestCase
         $this->assertSoftDeleted('teachers', ['id' => $teacher->id]);
         $this->assertDatabaseMissing('users', ['id' => $parentUserId]);
         $this->assertDatabaseMissing('users', ['id' => $teacherUserId]);
+    }
+
+    public function test_finishing_a_course_archives_related_records_and_reactivation_restores_only_changed_records(): void
+    {
+        $this->signIn();
+
+        $academicYear = AcademicYear::create([
+            'name' => 'Lifecycle 2026/2027',
+            'starts_on' => '2026-08-01',
+            'ends_on' => '2027-07-31',
+            'is_current' => true,
+            'is_active' => true,
+        ]);
+        $course = Course::create([
+            'academic_year_id' => $academicYear->id,
+            'name' => 'Lifecycle Course',
+            'is_active' => true,
+            'awards_points' => true,
+        ]);
+        $teacher = Teacher::create([
+            'first_name' => 'Lifecycle',
+            'last_name' => 'Teacher',
+            'phone' => '0944000098',
+            'course_id' => $course->id,
+            'status' => 'active',
+            'is_helping' => true,
+        ]);
+        $activeGroup = Group::create([
+            'course_id' => $course->id,
+            'academic_year_id' => $academicYear->id,
+            'teacher_id' => $teacher->id,
+            'name' => 'Lifecycle Active Group',
+            'capacity' => 20,
+            'is_active' => true,
+        ]);
+        $inactiveGroup = Group::create([
+            'course_id' => $course->id,
+            'academic_year_id' => $academicYear->id,
+            'teacher_id' => $teacher->id,
+            'name' => 'Lifecycle Inactive Group',
+            'capacity' => 20,
+            'is_active' => false,
+        ]);
+        $student = Student::create([
+            'first_name' => 'Lifecycle',
+            'last_name' => 'Student',
+            'birth_date' => '2013-01-01',
+            'status' => 'active',
+        ]);
+        $activeEnrollment = Enrollment::create([
+            'student_id' => $student->id,
+            'group_id' => $activeGroup->id,
+            'enrolled_at' => '2026-08-10',
+            'status' => 'active',
+        ]);
+        $historicalEnrollment = Enrollment::create([
+            'student_id' => $student->id,
+            'group_id' => $inactiveGroup->id,
+            'enrolled_at' => '2026-08-01',
+            'left_at' => '2026-08-05',
+            'status' => 'completed',
+        ]);
+        $assessmentType = AssessmentType::create([
+            'name' => 'Lifecycle Assessment',
+            'code' => 'lifecycle-assessment',
+            'is_scored' => true,
+            'is_active' => true,
+        ]);
+        $activeAssessment = Assessment::create([
+            'group_id' => $activeGroup->id,
+            'assessment_type_id' => $assessmentType->id,
+            'title' => 'Active lifecycle assessment',
+            'is_active' => true,
+        ]);
+        $inactiveAssessment = Assessment::create([
+            'group_id' => $inactiveGroup->id,
+            'assessment_type_id' => $assessmentType->id,
+            'title' => 'Historical lifecycle assessment',
+            'is_active' => false,
+        ]);
+        $attendanceStatus = AttendanceStatus::create([
+            'name' => 'Lifecycle present',
+            'code' => 'lifecycle-present',
+            'scope' => 'both',
+            'is_present' => true,
+            'is_active' => true,
+        ]);
+        $studentAttendanceDay = StudentAttendanceDay::create([
+            'attendance_date' => '2026-08-15',
+            'course_id' => $course->id,
+            'status' => 'open',
+        ]);
+        $groupAttendanceDay = GroupAttendanceDay::create([
+            'group_id' => $activeGroup->id,
+            'student_attendance_day_id' => $studentAttendanceDay->id,
+            'attendance_date' => '2026-08-15',
+            'status' => 'open',
+        ]);
+        $teacherAttendanceDay = TeacherAttendanceDay::create([
+            'attendance_date' => '2026-08-15',
+            'status' => 'open',
+        ]);
+        $teacherAttendanceRecord = TeacherAttendanceRecord::create([
+            'teacher_attendance_day_id' => $teacherAttendanceDay->id,
+            'teacher_id' => $teacher->id,
+            'attendance_status_id' => $attendanceStatus->id,
+        ]);
+
+        Volt::test('courses.index')
+            ->call('deactivate', $course->id)
+            ->assertHasNoErrors();
+
+        $this->assertFalse($course->fresh()->is_active);
+        $this->assertFalse($course->fresh()->awards_points);
+        $this->assertTrue($course->fresh()->course_finished_was_awarding_points);
+        $this->assertNotNull($course->fresh()->finished_at);
+        $this->assertFalse($activeGroup->fresh()->is_active);
+        $this->assertNotNull($activeGroup->fresh()->course_finished_at);
+        $this->assertTrue($activeGroup->fresh()->course_finished_was_active);
+        $this->assertFalse($inactiveGroup->fresh()->is_active);
+        $this->assertNotNull($inactiveGroup->fresh()->course_finished_at);
+        $this->assertFalse($inactiveGroup->fresh()->course_finished_was_active);
+        $this->assertSame('completed', $activeEnrollment->fresh()->status);
+        $this->assertNotNull($activeEnrollment->fresh()->course_finished_at);
+        $this->assertSame('active', $activeEnrollment->fresh()->course_finished_previous_status);
+        $this->assertNull($activeEnrollment->fresh()->course_finished_previous_left_at);
+        $this->assertSame('completed', $historicalEnrollment->fresh()->status);
+        $this->assertNotNull($historicalEnrollment->fresh()->course_finished_at);
+        $this->assertSame('completed', $historicalEnrollment->fresh()->course_finished_previous_status);
+        $this->assertSame('2026-08-05', $historicalEnrollment->fresh()->course_finished_previous_left_at?->toDateString());
+        $this->assertFalse($activeAssessment->fresh()->is_active);
+        $this->assertNotNull($activeAssessment->fresh()->course_finished_at);
+        $this->assertFalse($inactiveAssessment->fresh()->is_active);
+        $this->assertNull($inactiveAssessment->fresh()->course_finished_at);
+        $this->assertSame('closed', $studentAttendanceDay->fresh()->status);
+        $this->assertNotNull($studentAttendanceDay->fresh()->course_finished_at);
+        $this->assertTrue($studentAttendanceDay->fresh()->course_finished_was_open);
+        $this->assertSame('closed', $groupAttendanceDay->fresh()->status);
+        $this->assertSame($course->id, $teacherAttendanceRecord->fresh()->archived_course_id);
+        $this->assertNotNull($teacherAttendanceRecord->fresh()->course_finished_at);
+
+        Volt::test('groups.show', ['group' => $activeGroup])
+            ->call('openEdit')
+            ->assertHasErrors('group');
+
+        Volt::test('groups.schedules', ['group' => $activeGroup])
+            ->set('day_of_week', '6')
+            ->set('starts_at', '15:00')
+            ->set('ends_at', '17:00')
+            ->call('save')
+            ->assertHasErrors('group');
+
+        Volt::test('student-attendance.show', ['studentAttendanceDay' => $studentAttendanceDay])
+            ->call('toggleDayStatus')
+            ->assertHasErrors('day');
+
+        Volt::test('courses.index')
+            ->call('openArchive', $course->id)
+            ->assertSet('editingAcademicYearIsActive', true);
+
+        Volt::test('courses.index')
+            ->call('openArchive', $course->id)
+            ->assertSee(__('crud.courses.actions.reactivate'))
+            ->call('reactivate', $course->id)
+            ->assertHasNoErrors()
+            ->assertSet('showArchiveModal', false);
+
+        $this->assertTrue($course->fresh()->is_active);
+        $this->assertTrue($course->fresh()->awards_points);
+        $this->assertNull($course->fresh()->course_finished_was_awarding_points);
+        $this->assertNull($course->fresh()->finished_at);
+        $this->assertTrue($activeGroup->fresh()->is_active);
+        $this->assertNull($activeGroup->fresh()->course_finished_at);
+        $this->assertNull($activeGroup->fresh()->course_finished_was_active);
+        $this->assertFalse($inactiveGroup->fresh()->is_active);
+        $this->assertNull($inactiveGroup->fresh()->course_finished_at);
+        $this->assertNull($inactiveGroup->fresh()->course_finished_was_active);
+        $this->assertSame('active', $activeEnrollment->fresh()->status);
+        $this->assertNull($activeEnrollment->fresh()->left_at);
+        $this->assertNull($activeEnrollment->fresh()->course_finished_previous_status);
+        $this->assertSame('completed', $historicalEnrollment->fresh()->status);
+        $this->assertSame('2026-08-05', $historicalEnrollment->fresh()->left_at?->toDateString());
+        $this->assertNull($historicalEnrollment->fresh()->course_finished_previous_status);
+        $this->assertTrue($activeAssessment->fresh()->is_active);
+        $this->assertFalse($inactiveAssessment->fresh()->is_active);
+        $this->assertSame('open', $studentAttendanceDay->fresh()->status);
+        $this->assertNull($studentAttendanceDay->fresh()->course_finished_at);
+        $this->assertFalse($studentAttendanceDay->fresh()->course_finished_was_open);
+        $this->assertSame('open', $groupAttendanceDay->fresh()->status);
+        $this->assertNull($teacherAttendanceRecord->fresh()->archived_course_id);
+        $this->assertNull($teacherAttendanceRecord->fresh()->course_finished_at);
+    }
+
+    public function test_copying_a_course_copies_course_and_group_metadata_without_enrollments(): void
+    {
+        $this->signIn();
+
+        $academicYear = AcademicYear::create([
+            'name' => 'Copy metadata 2026/2027',
+            'starts_on' => '2026-08-01',
+            'ends_on' => '2027-07-31',
+            'is_current' => true,
+            'is_active' => true,
+        ]);
+        $course = Course::create([
+            'academic_year_id' => $academicYear->id,
+            'name' => 'Metadata source course',
+            'description' => 'Keep this course description',
+            'starts_on' => '2026-09-01',
+            'ends_on' => '2027-05-31',
+            'is_active' => true,
+            'awards_points' => false,
+        ]);
+        $teacher = Teacher::create([
+            'first_name' => 'Metadata',
+            'last_name' => 'Teacher',
+            'phone' => '0944000088',
+            'course_id' => $course->id,
+            'status' => 'active',
+            'is_helping' => true,
+        ]);
+        $group = Group::create([
+            'course_id' => $course->id,
+            'academic_year_id' => $academicYear->id,
+            'teacher_id' => $teacher->id,
+            'name' => 'Metadata source group',
+            'capacity' => 27,
+            'starts_on' => '2026-09-03',
+            'ends_on' => '2027-05-28',
+            'monthly_fee' => 125,
+            'is_active' => true,
+        ]);
+        $student = Student::create([
+            'first_name' => 'Not',
+            'last_name' => 'Copied',
+            'birth_date' => '2013-01-01',
+            'status' => 'active',
+        ]);
+        Enrollment::create([
+            'student_id' => $student->id,
+            'group_id' => $group->id,
+            'enrolled_at' => '2026-09-03',
+            'status' => 'active',
+        ]);
+
+        Volt::test('courses.index')
+            ->call('edit', $course->id)
+            ->call('duplicate', $course->id)
+            ->assertHasNoErrors()
+            ->assertSet('showFormModal', false);
+
+        $copy = Course::query()->whereKeyNot($course->id)->where('description', 'Keep this course description')->firstOrFail();
+        $copiedGroup = $copy->groups()->firstOrFail();
+
+        $this->assertSame($course->academic_year_id, $copy->academic_year_id);
+        $this->assertSame($course->starts_on?->toDateString(), $copy->starts_on?->toDateString());
+        $this->assertSame($course->ends_on?->toDateString(), $copy->ends_on?->toDateString());
+        $this->assertFalse($copy->awards_points);
+        $this->assertTrue($copy->is_active);
+        $this->assertSame(27, $copiedGroup->capacity);
+        $this->assertSame('125.00', $copiedGroup->monthly_fee);
+        $this->assertTrue($copiedGroup->is_active);
+        $this->assertSame(0, $copiedGroup->enrollments()->count());
     }
 
     public function test_profile_account_access_is_managed_separately_from_profile_data(): void
@@ -696,7 +987,7 @@ class ManagementCrudTest extends TestCase
         $this->assertSame('active', $enrollment->status);
     }
 
-    public function test_group_create_modal_defaults_to_current_year_and_create_and_new_preserves_course(): void
+    public function test_group_create_modal_derives_the_current_year_and_create_and_new_preserves_course(): void
     {
         $this->signIn();
 
@@ -713,7 +1004,7 @@ class ManagementCrudTest extends TestCase
             'is_active' => true,
         ]);
 
-        $olderYear = AcademicYear::create([
+        AcademicYear::create([
             'name' => '2025/2026',
             'starts_on' => '2025-08-01',
             'ends_on' => '2026-07-31',
@@ -733,7 +1024,6 @@ class ManagementCrudTest extends TestCase
             ->call('openCreateModal')
             ->assertSet('academic_year_id', $currentYear->id)
             ->set('course_id', $course->id)
-            ->set('academic_year_id', $olderYear->id)
             ->set('teacher_id', $teacher->id)
             ->set('name', 'Legacy Group A')
             ->set('capacity', '20')
@@ -748,7 +1038,7 @@ class ManagementCrudTest extends TestCase
 
         $this->assertDatabaseHas('groups', [
             'course_id' => $course->id,
-            'academic_year_id' => $olderYear->id,
+            'academic_year_id' => $currentYear->id,
             'name' => 'Legacy Group A',
         ]);
     }
@@ -830,8 +1120,15 @@ class ManagementCrudTest extends TestCase
         ]);
 
         $course = Course::create([
+            'academic_year_id' => $academicYear->id,
             'name' => 'Roster Course',
             'is_active' => true,
+        ]);
+
+        $currentJuz = QuranJuz::create([
+            'juz_number' => 7,
+            'from_page' => 122,
+            'to_page' => 141,
         ]);
 
         $teacher = Teacher::create([
@@ -865,6 +1162,7 @@ class ManagementCrudTest extends TestCase
             'student_number' => 'S000777',
             'birth_date' => '2013-01-01',
             'grade_level_id' => $gradeLevel->id,
+            'quran_current_juz_id' => $currentJuz->id,
             'status' => 'active',
         ]);
 
@@ -897,6 +1195,29 @@ class ManagementCrudTest extends TestCase
             ->assertSee('Fares Hamdan')
             ->assertSee('Mona Hamdan')
             ->assertSee('+963 999 000 001');
+
+        Volt::test('groups.show', ['group' => $group])
+            ->assertSee($student->student_number)
+            ->assertSee('Grade 7')
+            ->assertSee('7')
+            ->assertSee('01-09-2026')
+            ->assertSee('Fares Hamdan')
+            ->assertSee('+963 999 000 001')
+            ->assertDontSee('min-w-[88rem]', false)
+            ->set('showScheduleModal', true)
+            ->assertSee('sm:grid-cols-[minmax(9rem,1fr)_minmax(9rem,1fr)_minmax(9rem,1fr)_max-content]', false);
+
+        $rosterPdfHtml = view('exports.group-roster-pdf', [
+            'enrollments' => Enrollment::query()->where('group_id', $group->id)->with(['student.parentProfile', 'student.user', 'student.gradeLevel', 'student.quranCurrentJuz'])->get(),
+            'group' => $group->fresh(['teacher']),
+            'logoImage' => null,
+        ])->render();
+
+        $this->assertStringContainsString('.title-row td', $rosterPdfHtml);
+        $this->assertStringContainsString('border: 0;', $rosterPdfHtml);
+        $this->assertStringContainsString('.report-table { margin-top: 4mm; }', $rosterPdfHtml);
+        $this->assertStringContainsString('رقم الطالب', $rosterPdfHtml);
+        $this->assertStringNotContainsString('>باركود</th>', $rosterPdfHtml);
     }
 
     public function test_group_quick_summary_shows_attendance_and_memorized_pages_for_the_selected_date(): void

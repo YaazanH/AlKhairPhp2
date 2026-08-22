@@ -179,9 +179,11 @@ new class extends Component {
                     <label class="mb-1 block text-sm font-medium">{{ __('finance.exchange.to_amount') }}</label>
                     <div class="relative">
                         <input wire:model="to_amount" type="text" inputmode="decimal" data-thousand-separator @readonly(! $to_amount_is_manual) class="w-full rounded-xl py-3 ps-4 pe-12 text-sm {{ $to_amount_is_manual ? '' : 'opacity-75' }}">
-                        <button type="button" wire:click="enableManualToAmount" class="absolute inset-y-1 end-1 grid w-9 place-items-center rounded-lg text-neutral-400 hover:bg-white/10 hover:text-white" title="{{ __('finance.exchange.edit_to_amount') }}" aria-label="{{ __('finance.exchange.edit_to_amount') }}">
-                            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 3.487 3.651 3.651M5.25 18.75l4.224-.845a2.25 2.25 0 0 0 1.075-.59L19.72 8.143a2.582 2.582 0 0 0-3.652-3.652L6.897 13.663a2.25 2.25 0 0 0-.59 1.075L5.25 18.75Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 5.25 18.75 9"/></svg>
-                        </button>
+                        @if (filled($from_amount) && filled($to_amount))
+                            <button type="button" wire:click="enableManualToAmount" class="absolute inset-y-1 end-1 grid w-9 place-items-center rounded-lg text-neutral-400 hover:bg-white/10 hover:text-white" title="{{ __('finance.exchange.edit_to_amount') }}" aria-label="{{ __('finance.exchange.edit_to_amount') }}">
+                                <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 3.487 3.651 3.651M5.25 18.75l4.224-.845a2.25 2.25 0 0 0 1.075-.59L19.72 8.143a2.582 2.582 0 0 0-3.652-3.652L6.897 13.663a2.25 2.25 0 0 0-.59 1.075L5.25 18.75Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 5.25 18.75 9"/></svg>
+                            </button>
+                        @endif
                     </div>
                 </div>
                 <div><label class="mb-1 block text-sm font-medium">{{ __('finance.common.notes') }}</label><input wire:model="notes" type="text" class="w-full rounded-xl px-4 py-3 text-sm"></div>

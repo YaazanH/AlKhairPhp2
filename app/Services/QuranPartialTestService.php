@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Enrollment;
+use App\Models\QuranFinalTest;
 use App\Models\QuranJuz;
 use App\Models\QuranPartialTest;
 use App\Models\QuranPartialTestAttempt;
@@ -189,13 +190,18 @@ class QuranPartialTestService
     {
         return DB::transaction(function () use ($attempt, $teacher, $data): QuranPartialTestAttempt {
             $mistakeCount = (int) $data['mistake_count'];
-            $attempt->update([
+            $payload = [
                 'mistake_count' => $mistakeCount,
-                'notes' => blank($data['notes'] ?? null) ? null : $data['notes'],
                 'status' => app(QuranPartialTestRuleService::class)->statusForMistakeCount($mistakeCount),
                 'teacher_id' => $teacher->id,
                 'tested_on' => $data['tested_on'],
-            ]);
+            ];
+
+            if (array_key_exists('notes', $data)) {
+                $payload['notes'] = blank($data['notes']) ? null : $data['notes'];
+            }
+
+            $attempt->update($payload);
 
             $part = $attempt->part()->with(['attempts', 'partialTest.parts.attempts', 'partialTest.enrollment.student.gradeLevel'])->firstOrFail();
             $passedAttempt = $part->attempts->where('status', 'passed')->sortBy([['tested_on', 'asc'], ['id', 'asc']])->first();
@@ -228,6 +234,9 @@ class QuranPartialTestService
 
     public function deleteAttempt(QuranPartialTestAttempt $attempt): void
     {
+        $partialTest = $attempt->part()->with('partialTest')->firstOrFail()->partialTest;
+        $this->ensureNoRelatedFinalTest($partialTest);
+
         DB::transaction(function () use ($attempt): void {
             $part = $attempt->part()->with(['partialTest.enrollment.student.gradeLevel'])->firstOrFail();
             $attempt->delete();
@@ -270,6 +279,8 @@ class QuranPartialTestService
 
     public function deleteTest(QuranPartialTest $partialTest): void
     {
+        $this->ensureNoRelatedFinalTest($partialTest);
+
         DB::transaction(function () use ($partialTest): void {
             $partialTest->loadMissing(['parts', 'enrollment.student']);
             $ledger = app(PointLedgerService::class);
@@ -284,5 +295,15 @@ class QuranPartialTestService
                 $ledger->syncEnrollmentCaches($enrollment->fresh(['student']));
             }
         });
+    }
+
+    protected function ensureNoRelatedFinalTest(QuranPartialTest $partialTest): void
+    {
+        if (QuranFinalTest::query()
+            ->where('student_id', $partialTest->student_id)
+            ->where('juz_id', $partialTest->juz_id)
+            ->exists()) {
+            throw new LogicException(__('workflow.quran_partial_tests.errors.final_saber_exists'));
+        }
     }
 }

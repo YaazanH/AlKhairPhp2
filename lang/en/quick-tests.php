@@ -1,7 +1,8 @@
 <?php
 
 return [
-    'title' => 'Quick Test Entry',
+    'title' => 'Enter Saber',
+    'saber_type' => 'Saber type',
     'partial' => 'Partial saber',
     'final' => 'Final saber',
     'student' => 'Student',
@@ -12,9 +13,10 @@ return [
     'no_quarters' => 'No quarter is currently available.',
     'quarter' => 'Quarter :number',
     'mistakes' => 'Number of mistakes',
+    'date' => 'Date',
     'mark' => 'Mark',
     'save' => 'Save',
     'partial_saved' => 'The partial-saber result was saved.',
     'final_saved' => 'The final-saber result was saved.',
-    'teacher_required' => 'This permission can only be used by an account linked to a teacher.',
+    'teacher_required' => 'No teacher is linked to this account or the selected student group.',
 ];

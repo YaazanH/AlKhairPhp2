@@ -55,12 +55,12 @@ class StudentCardFieldRegistry
             'birth_date' => [
                 'label' => __('id_cards.fields.birth_date'),
                 'element_types' => ['text'],
-                'preview' => fn (Student $student): string => $student->birth_date?->format('Y-m-d') ?: __('id_cards.common.not_available'),
+                'preview' => fn (Student $student): string => $student->birth_date?->format('d-m-Y') ?: __('id_cards.common.not_available'),
             ],
             'joined_at' => [
                 'label' => __('id_cards.fields.joined_at'),
                 'element_types' => ['text'],
-                'preview' => fn (Student $student): string => $student->joined_at?->format('Y-m-d') ?: __('id_cards.common.not_available'),
+                'preview' => fn (Student $student): string => $student->joined_at?->format('d-m-Y') ?: __('id_cards.common.not_available'),
             ],
             'gender' => [
                 'label' => __('id_cards.fields.gender'),

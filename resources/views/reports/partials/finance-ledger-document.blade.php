@@ -154,6 +154,8 @@
         font-size: 20px;
         margin-top: 4px;
     }
+    .ledger-report-doc__debit-value { color: #b42318; }
+    .ledger-report-doc__credit-value { color: #16713d; }
     .ledger-report-doc__authorization {
         align-items: end;
         direction: ltr;
@@ -168,7 +170,6 @@
     .ledger-report-doc__signature-mark { height: 116px; }
     .ledger-report-doc__signature-image-space { height: 109px; text-align: center; }
     .ledger-report-doc__signature img { display: block; margin: 0 auto; max-height: 98px; max-width: 70%; object-fit: contain; }
-    .ledger-report-doc__signature-line { border-top: 1px solid #315b3b; display: block; height: 0; line-height: 0; width: 100%; }
     .ledger-report-doc__custom-text {
         background: rgba(255, 255, 255, 0.78);
         border: 1px dashed #dce6db;
@@ -197,6 +198,7 @@
     }
     .ledger-report-doc thead th {
         background: #e9f2e8;
+        border-bottom: 3px double #dce6db;
         color: #31543b;
         font-size: 12px;
         font-weight: 800;
@@ -205,6 +207,10 @@
     .ledger-report-doc tbody tr:last-child td {
         border-bottom: 0;
     }
+    .ledger-report-doc tbody tr:nth-child(even) td {
+        background: rgba(220, 239, 220, .4);
+    }
+    .ledger-report-doc__middle-cell { vertical-align: middle !important; }
     .ledger-report-doc__empty {
         color: #637365;
         padding: 36px;
@@ -335,7 +341,16 @@
                         @forelse ($report['rows'] as $row)
                             <tr>
                                 @foreach ($report['columns'] as $column)
-                                    <td>{{ $service->ledgerColumnValue($row, $column) }}</td>
+                                    @php($columnValue = $service->ledgerColumnValue($row, $column))
+                                    <td class="{{ in_array($column, ['transaction_date', 'expense', 'income', 'running_balance'], true) ? 'ledger-report-doc__middle-cell' : '' }}">
+                                        @if ($column === 'expense' && filled($columnValue))
+                                            <span class="ledger-report-doc__debit-value">{{ $columnValue }}</span>
+                                        @elseif ($column === 'income' && filled($columnValue))
+                                            <span class="ledger-report-doc__credit-value">{{ $columnValue }}</span>
+                                        @else
+                                            {{ $columnValue }}
+                                        @endif
+                                    </td>
                                 @endforeach
                             </tr>
                         @empty
@@ -349,14 +364,14 @@
 
             <section class="ledger-report-doc__summary-grid">
                 @if ($template['include_opening_balance'] ?? false)<div class="ledger-report-doc__summary-card"><span class="ledger-report-doc__meta-label">{{ $service->bilingual('Opening balance', 'الرصيد الافتتاحي', $language) }}</span><strong>{{ data_get($report, 'formatted.opening_balance') }}</strong></div>@endif
-                <div class="ledger-report-doc__summary-card"><span class="ledger-report-doc__meta-label">{{ $service->bilingual('Income', 'الإيرادات', $language) }}</span><strong>{{ data_get($report, 'formatted.income') }}</strong></div>
-                <div class="ledger-report-doc__summary-card"><span class="ledger-report-doc__meta-label">{{ $service->bilingual('Expense', 'المصاريف', $language) }}</span><strong>{{ data_get($report, 'formatted.expense') }}</strong></div>
+                <div class="ledger-report-doc__summary-card"><span class="ledger-report-doc__meta-label">{{ $service->bilingual('Total income', 'إجمالي الإيرادات', $language) }}</span><strong>{{ data_get($report, 'formatted.income') }}</strong></div>
+                <div class="ledger-report-doc__summary-card"><span class="ledger-report-doc__meta-label">{{ $service->bilingual('Total expense', 'إجمالي المصاريف', $language) }}</span><strong>{{ data_get($report, 'formatted.expense') }}</strong></div>
                 @if ($template['include_closing_balance'] ?? false)<div class="ledger-report-doc__summary-card"><span class="ledger-report-doc__meta-label">{{ $service->bilingual('Closing balance', 'الرصيد الختامي', $language) }}</span><strong>{{ data_get($report, 'formatted.closing_balance') }}</strong></div>@endif
             </section>
 
             <section class="ledger-report-doc__authorization">
                 <div class="ledger-report-doc__stamp">@if($report['report_stamp_url'] ?? null)<img src="{{ $report['report_stamp_url'] }}" alt="">@endif</div>
-                <div class="ledger-report-doc__signature"><div class="ledger-report-doc__signature-mark"><div class="ledger-report-doc__signature-image-space">@if($report['issuer_signature_url'] ?? null)<img src="{{ $report['issuer_signature_url'] }}" alt="">@endif</div><div class="ledger-report-doc__signature-line">&nbsp;</div></div></div>
+                <div class="ledger-report-doc__signature"><div class="ledger-report-doc__signature-mark"><div class="ledger-report-doc__signature-image-space">@if($report['issuer_signature_url'] ?? null)<img src="{{ $report['issuer_signature_url'] }}" alt="">@endif</div></div></div>
             </section>
 
             @if (! empty($template['footer_text']) || ($template['show_page_numbers'] ?? false))

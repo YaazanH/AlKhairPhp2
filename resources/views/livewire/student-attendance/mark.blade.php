@@ -235,8 +235,13 @@ new class extends Component
 
 <div class="page-stack">
     <section class="page-hero p-6 lg:p-8">
-        <div class="eyebrow">{{ __('ui.nav.student_attendance') }}</div>
-        <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('workflow.student_attendance.marking.title') }}</h1>
+        <div class="flex flex-wrap items-start justify-between gap-4">
+            <div>
+                <div class="eyebrow">{{ __('ui.nav.student_attendance') }}</div>
+                <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('workflow.student_attendance.marking.title') }}</h1>
+            </div>
+            <a href="{{ route('student-attendance.show', $groupDayRecord->studentAttendanceDay) }}" wire:navigate class="pill-link pill-link--compact">{{ __('workflow.student_attendance.marking.back') }}</a>
+        </div>
         <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ __('workflow.student_attendance.marking.subtitle') }}</p>
         <div class="mt-6 flex flex-wrap gap-3">
             <span class="badge-soft">{{ $groupDayRecord->studentAttendanceDay?->attendance_date?->format('d-m-Y') }}</span>
@@ -244,10 +249,6 @@ new class extends Component
             <span class="badge-soft">{{ $groupDayRecord->group?->course?->name ?: __('workflow.common.no_course') }}</span>
         </div>
     </section>
-
-    <div>
-        <a href="{{ route('student-attendance.show', $groupDayRecord->studentAttendanceDay) }}" wire:navigate class="pill-link pill-link--compact">{{ __('workflow.student_attendance.marking.back') }}</a>
-    </div>
 
     @if (session('status'))
         <div class="flash-success px-4 py-3 text-sm">{{ session('status') }}</div>
@@ -276,34 +277,13 @@ new class extends Component
         </div>
     @endif
 
-    <div class="grid gap-6 xl:grid-cols-[minmax(0,1fr)_24rem]">
-        <section class="surface-panel p-5 lg:p-6">
-            <div class="admin-toolbar__title">{{ __('workflow.student_attendance.form.title') }}</div>
-            <p class="admin-toolbar__subtitle">{{ __('workflow.student_attendance.form.auto_save_help') }}</p>
-        </section>
-
-        <aside class="space-y-6">
-            <section class="surface-panel p-5">
-                <div class="admin-toolbar__title">{{ __('workflow.student_attendance.context.title') }}</div>
-                <div class="mt-4 space-y-3 text-sm text-neutral-300">
-                    <div>
-                        <div class="text-xs uppercase tracking-[0.18em] text-neutral-500">{{ __('workflow.student_attendance.context.teacher') }}</div>
-                        <div class="mt-1 text-white">
-                            {{ $groupDayRecord->group?->teacher ? $groupDayRecord->group->teacher->first_name.' '.$groupDayRecord->group->teacher->last_name : __('workflow.common.no_teacher_assigned') }}
-                        </div>
-                    </div>
-                    <div>
-                        <div class="text-xs uppercase tracking-[0.18em] text-neutral-500">{{ __('workflow.student_attendance.context.course') }}</div>
-                        <div class="mt-1 text-white">{{ $groupDayRecord->group?->course?->name ?: __('workflow.common.no_course') }}</div>
-                    </div>
-                    <div>
-                        <div class="text-xs uppercase tracking-[0.18em] text-neutral-500">{{ __('workflow.student_attendance.context.academic_year') }}</div>
-                        <div class="mt-1 text-white">{{ $groupDayRecord->group?->academicYear?->name ?: __('workflow.common.no_academic_year') }}</div>
-                    </div>
-                </div>
-            </section>
-        </aside>
-    </div>
+    <section class="surface-panel p-5">
+        <div class="grid gap-4 text-sm text-neutral-300 md:grid-cols-3">
+            <div><span class="text-neutral-500">{{ __('workflow.student_attendance.context.teacher') }}:</span> <span class="text-white">{{ $groupDayRecord->group?->teacher ? $groupDayRecord->group->teacher->first_name.' '.$groupDayRecord->group->teacher->last_name : __('workflow.common.no_teacher_assigned') }}</span></div>
+            <div><span class="text-neutral-500">{{ __('workflow.student_attendance.context.course') }}:</span> <span class="text-white">{{ $groupDayRecord->group?->course?->name ?: __('workflow.common.no_course') }}</span></div>
+            <div><span class="text-neutral-500">{{ __('workflow.student_attendance.context.academic_year') }}:</span> <span class="text-white">{{ $groupDayRecord->group?->academicYear?->name ?: __('workflow.common.no_academic_year') }}</span></div>
+        </div>
+    </section>
 
     <section class="surface-table">
         <div class="admin-grid-meta">

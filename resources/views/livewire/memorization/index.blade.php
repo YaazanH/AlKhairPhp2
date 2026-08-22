@@ -27,7 +27,6 @@ new class extends Component {
     public string $entry_type = 'new';
     public string $from_page = '';
     public string $to_page = '';
-    public string $notes = '';
     public string $search = '';
     public string $entryTypeFilter = 'all';
     public string $sortField = 'recorded_on';
@@ -108,11 +107,6 @@ new class extends Component {
             'sessions' => $sessionsQuery->paginate($this->perPage),
             'filteredCount' => (clone $sessionsQuery)->count(),
             'studentOptions' => $studentOptions,
-            'enrollmentOptions' => $this->availableEnrollmentsQuery()
-                ->with(['group.course'])
-                ->orderByDesc('enrolled_at')
-                ->orderByDesc('id')
-                ->get(),
             'teachers' => $this->currentTeacher()
                 ? collect()
                 : $this->scopeTeachersQuery(
@@ -122,11 +116,6 @@ new class extends Component {
                         ->orderBy('last_name')
                 )->get(),
             'currentTeacher' => $this->currentTeacher(),
-            'stats' => [
-                'students' => $studentOptions->count(),
-                'pages' => (int) $this->scopeMemorizationSessionsQuery(MemorizationSession::query())->sum('pages_count'),
-                'sessions' => $this->scopeMemorizationSessionsQuery(MemorizationSession::query())->count(),
-            ],
         ];
     }
 
@@ -158,14 +147,10 @@ new class extends Component {
 
     public function updatedSelectedStudentId(): void
     {
-        $enrollmentIds = $this->availableEnrollmentsQuery()
-            ->pluck('id')
-            ->map(fn ($id) => (int) $id)
-            ->all();
-
-        $this->selectedEnrollmentId = count($enrollmentIds) === 1
-            ? $enrollmentIds[0]
-            : null;
+        $this->selectedEnrollmentId = $this->availableEnrollmentsQuery()
+            ->orderByDesc('enrolled_at')
+            ->orderByDesc('id')
+            ->value('id');
 
         if ($this->editingSessionId) {
             $this->editingSessionId = null;
@@ -182,6 +167,7 @@ new class extends Component {
     public function openCreateModal(): void
     {
         $this->authorizePermission('memorization.record');
+        \App\Support\OperationalFeatureSettings::ensureMemorizationAndSabersEnabled();
 
         $this->resetForm();
         $this->showFormModal = true;
@@ -209,7 +195,6 @@ new class extends Component {
         $this->entry_type = $session->entry_type;
         $this->from_page = (string) $session->from_page;
         $this->to_page = (string) $session->to_page;
-        $this->notes = $session->notes ?? '';
         $this->showFormModal = true;
 
         $this->resetValidation();
@@ -219,6 +204,10 @@ new class extends Component {
     {
         $this->authorizePermission('memorization.record');
 
+        if (! $this->editingSessionId) {
+            \App\Support\OperationalFeatureSettings::ensureMemorizationAndSabersEnabled();
+        }
+
         $validated = $this->validate([
             'selectedStudentId' => ['required', 'exists:students,id'],
             'selectedEnrollmentId' => ['nullable', 'exists:enrollments,id'],
@@ -227,7 +216,6 @@ new class extends Component {
             'entry_type' => ['required', 'in:new,review,correction'],
             'from_page' => ['required', 'integer', 'between:1,604'],
             'to_page' => ['required', 'integer', 'between:1,604', 'gte:from_page'],
-            'notes' => ['nullable', 'string'],
         ], [], [
             'selectedStudentId' => __('workflow.memorization.workbench.form.student'),
             'selectedEnrollmentId' => __('workflow.memorization.workbench.form.group'),
@@ -237,6 +225,8 @@ new class extends Component {
         $this->authorizeScopedStudentAccess($student);
 
         $availableEnrollmentIds = $this->availableEnrollmentsQuery()
+            ->orderByDesc('enrolled_at')
+            ->orderByDesc('id')
             ->pluck('id')
             ->map(fn ($id) => (int) $id)
             ->all();
@@ -248,12 +238,6 @@ new class extends Component {
         }
 
         if (! $validated['selectedEnrollmentId']) {
-            if (count($availableEnrollmentIds) > 1) {
-                $this->addError('selectedEnrollmentId', __('workflow.memorization.errors.select_group'));
-
-                return;
-            }
-
             $validated['selectedEnrollmentId'] = $availableEnrollmentIds[0];
             $this->selectedEnrollmentId = $validated['selectedEnrollmentId'];
         }
@@ -287,7 +271,6 @@ new class extends Component {
             'entry_type' => $validated['entry_type'],
             'from_page' => $validated['from_page'],
             'to_page' => $validated['to_page'],
-            'notes' => $validated['notes'] ?? null,
         ];
 
         $service = app(MemorizationService::class);
@@ -386,7 +369,6 @@ new class extends Component {
         $this->entry_type = 'new';
         $this->from_page = '';
         $this->to_page = '';
-        $this->notes = '';
 
         $this->closeDuplicateModal();
         $this->resetValidation();
@@ -503,33 +485,23 @@ new class extends Component {
     <section class="page-hero p-6 lg:p-8">
         <div class="eyebrow">{{ __('ui.nav.tracking') }}</div>
         <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('workflow.memorization.workbench.title') }}</h1>
-        <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ __('workflow.memorization.workbench.subtitle') }}</p>
-        <div class="mt-6 flex flex-wrap gap-3">
-            <span class="badge-soft">{{ __('workflow.memorization.workbench.stats.students') }}: {{ number_format($stats['students']) }}</span>
-            <span class="badge-soft badge-soft--emerald">{{ __('workflow.memorization.workbench.stats.pages') }}: {{ number_format($stats['pages']) }}</span>
-            <span class="badge-soft">{{ __('workflow.memorization.workbench.stats.sessions') }}: {{ number_format($stats['sessions']) }}</span>
-        </div>
     </section>
 
     @if (session('status'))
         <div class="flash-success px-4 py-3 text-sm">{{ session('status') }}</div>
     @endif
 
-    <section class="surface-panel p-5 lg:p-6">
-        <div class="admin-toolbar">
-            <div>
-                <div class="admin-toolbar__title">{{ __('workflow.memorization.workbench.table.title') }}</div>
-                <p class="admin-toolbar__subtitle">{{ __('workflow.memorization.workbench.form.help') }}</p>
-            </div>
-
-            <div class="admin-toolbar__controls">
+    <section class="surface-table">
+        <div class="admin-grid-meta admin-grid-meta--controls">
+            <div class="admin-grid-meta__title">{{ __('workflow.memorization.workbench.table.title') }}</div>
+            <div class="admin-toolbar__controls admin-toolbar__controls--compact">
                 <div class="admin-filter-field">
-                    <label for="memorization-search">{{ __('crud.common.filters.search') }}</label>
+                    <label class="sr-only" for="memorization-search">{{ __('crud.common.filters.search') }}</label>
                     <input id="memorization-search" wire:model.live.debounce.300ms="search" type="text" placeholder="{{ __('crud.common.filters.search_placeholder') }}">
                 </div>
 
                 <div class="admin-filter-field">
-                    <label for="memorization-entry-filter">{{ __('workflow.memorization.workbench.filters.entry_type') }}</label>
+                    <label class="sr-only" for="memorization-entry-filter">{{ __('workflow.memorization.workbench.filters.entry_type') }}</label>
                     <select id="memorization-entry-filter" wire:model.live="entryTypeFilter">
                         <option value="all">{{ __('workflow.memorization.workbench.filters.all_types') }}</option>
                         <option value="new">{{ __('workflow.common.entry_type.new') }}</option>
@@ -543,15 +515,6 @@ new class extends Component {
                         <button type="button" wire:click="openCreateModal" class="pill-link pill-link--accent">{{ __('workflow.memorization.workbench.create') }}</button>
                     @endcan
                 </div>
-            </div>
-        </div>
-    </section>
-
-    <section class="surface-table">
-        <div class="admin-grid-meta">
-            <div>
-                <div class="admin-grid-meta__title">{{ __('workflow.memorization.workbench.table.title') }}</div>
-                <div class="admin-grid-meta__summary">{{ __('crud.common.badges.in_view', ['count' => number_format($filteredCount)]) }}</div>
             </div>
         </div>
 
@@ -646,13 +609,6 @@ new class extends Component {
         max-width="5xl"
     >
         <form wire:submit="save" class="space-y-4">
-            @if ($currentTeacher)
-                <div class="soft-callout px-4 py-4 text-sm leading-6">
-                    <div class="font-semibold text-white">{{ __('workflow.memorization.workbench.teacher_badge', ['name' => $currentTeacher->first_name.' '.$currentTeacher->last_name]) }}</div>
-                    <div class="mt-2 text-neutral-300">{{ __('workflow.memorization.workbench.form.teacher_locked') }}</div>
-                </div>
-            @endif
-
             <div class="grid gap-4 md:grid-cols-2">
                 <div>
                     <label for="memorization-student" class="mb-1 block text-sm font-medium">{{ __('workflow.memorization.workbench.form.student') }}</label>
@@ -675,30 +631,13 @@ new class extends Component {
                     @enderror
                 </div>
 
-                <div>
-                    <label for="memorization-enrollment" class="mb-1 block text-sm font-medium">{{ __('workflow.memorization.workbench.form.group') }}</label>
-                    <select id="memorization-enrollment" wire:model="selectedEnrollmentId" class="w-full rounded-xl px-4 py-3 text-sm" @disabled($enrollmentOptions->isEmpty())>
-                        <option value="">{{ __('workflow.memorization.workbench.form.select_group') }}</option>
-                        @foreach ($enrollmentOptions as $enrollment)
-                            <option value="{{ $enrollment->id }}">
-                                {{ $enrollment->group?->name ?: __('workflow.common.no_group') }}
-                                @if ($enrollment->group?->course?->name)
-                                    - {{ $enrollment->group->course->name }}
-                                @endif
-                            </option>
-                        @endforeach
-                    </select>
-                    @if ($selectedStudentId && $enrollmentOptions->count() === 1)
-                        <div class="mt-1 text-xs text-neutral-500">{{ __('workflow.memorization.workbench.form.group_auto') }}</div>
-                    @endif
-                    @error('selectedEnrollmentId')
-                        <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
-                    @enderror
-                </div>
-            </div>
-
-            @if (! $currentTeacher)
-                <div>
+                @if ($currentTeacher)
+                    <div>
+                        <label for="memorization-teacher-readonly" class="mb-1 block text-sm font-medium">{{ __('workflow.memorization.form.teacher') }}</label>
+                        <input id="memorization-teacher-readonly" type="text" value="{{ $currentTeacher->first_name }} {{ $currentTeacher->last_name }}" readonly class="w-full rounded-xl px-4 py-3 text-sm">
+                    </div>
+                @else
+                    <div>
                     <label for="memorization-teacher" class="mb-1 block text-sm font-medium">{{ __('workflow.memorization.form.teacher') }}</label>
                     <select id="memorization-teacher" wire:model="teacher_id" class="w-full rounded-xl px-4 py-3 text-sm">
                         <option value="">{{ __('workflow.memorization.form.select_teacher') }}</option>
@@ -709,10 +648,19 @@ new class extends Component {
                     @error('teacher_id')
                         <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                     @enderror
-                </div>
-            @endif
+                    </div>
+                @endif
+            </div>
 
-            <div class="grid gap-4 md:grid-cols-[12rem_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)]">
+            <div class="grid gap-4 md:grid-cols-2">
+                <div>
+                    <label for="memorization-recorded-on" class="mb-1 block text-sm font-medium">{{ __('workflow.memorization.form.recorded_on') }}</label>
+                    <input id="memorization-recorded-on" wire:model="recorded_on" value="{{ $recorded_on }}" type="date" class="w-full rounded-xl px-4 py-3 text-sm">
+                    @error('recorded_on')
+                        <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
+                    @enderror
+                </div>
+
                 <div>
                     <label for="memorization-entry-type" class="mb-1 block text-sm font-medium">{{ __('workflow.memorization.form.entry_type') }}</label>
                     <select id="memorization-entry-type" wire:model="entry_type" class="w-full rounded-xl px-4 py-3 text-sm">
@@ -724,15 +672,9 @@ new class extends Component {
                         <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                     @enderror
                 </div>
+            </div>
 
-                <div>
-                    <label for="memorization-recorded-on" class="mb-1 block text-sm font-medium">{{ __('workflow.memorization.form.recorded_on') }}</label>
-                    <input id="memorization-recorded-on" wire:model="recorded_on" type="date" class="w-full rounded-xl px-4 py-3 text-sm">
-                    @error('recorded_on')
-                        <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
-                    @enderror
-                </div>
-
+            <div class="grid gap-4 md:grid-cols-2">
                 <div>
                     <label for="memorization-from-page" class="mb-1 block text-sm font-medium">{{ __('workflow.memorization.form.from_page') }}</label>
                     <input id="memorization-from-page" wire:model="from_page" type="number" min="1" max="604" class="w-full rounded-xl px-4 py-3 text-sm">
@@ -748,14 +690,6 @@ new class extends Component {
                         <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                     @enderror
                 </div>
-            </div>
-
-            <div>
-                <label for="memorization-notes" class="mb-1 block text-sm font-medium">{{ __('workflow.memorization.form.notes') }}</label>
-                <textarea id="memorization-notes" wire:model="notes" rows="4" class="w-full rounded-xl px-4 py-3 text-sm"></textarea>
-                @error('notes')
-                    <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
-                @enderror
             </div>
 
             <div class="flex flex-wrap items-center gap-3">

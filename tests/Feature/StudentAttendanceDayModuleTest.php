@@ -603,6 +603,7 @@ class StudentAttendanceDayModuleTest extends TestCase
             'status' => 'active',
         ]);
         $enrollment = $this->makeEnrollment($teacher->id, 'Export Attendance Group');
+        $this->makeEnrollment($teacher->id, 'Second Export Attendance Group', true, $enrollment->group->course);
         $enrollment->student->update(['student_number' => 'ST-EXPORT-1']);
         $present = AttendanceStatus::query()->where('code', 'present')->firstOrFail();
         $service = app(StudentAttendanceDayService::class);
@@ -615,6 +616,12 @@ class StudentAttendanceDayModuleTest extends TestCase
             ->assertSeeText(__('workflow.student_attendance.export.action'))
             ->assertSeeText('Export Attendance Group');
 
+        Volt::test('student-attendance.index')
+            ->assertSee('admin-modal-portal', false)
+            ->call('openExportModal')
+            ->assertSet('showExportModal', true)
+            ->assertSee('admin-modal--full-viewport', false);
+
         $response = $this->get(route('student-attendance.export', [
             'course_id' => $enrollment->group->course_id,
             'date_from' => '2026-10-01',
@@ -623,6 +630,7 @@ class StudentAttendanceDayModuleTest extends TestCase
 
         $response->assertOk()->assertHeader('content-type', 'application/pdf');
         $this->assertStringStartsWith('%PDF-', $response->getContent());
+        $this->assertSame(2, preg_match_all('/\/Type\s*\/Page\b/', $response->getContent()));
     }
 
     private function teacherContext(string $groupName, bool $otherTeacher = false): array

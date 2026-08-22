@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\AcademicYear;
 use App\Models\Assessment;
+use App\Models\AssessmentResult;
 use App\Models\AssessmentScoreBand;
 use App\Models\AssessmentType;
 use App\Models\Course;
@@ -222,8 +223,9 @@ class AssessmentWorkflowTest extends TestCase
             ->assertSet('total_mark', '100')
             ->assertSet('pass_mark', '60')
             ->set('title', 'Shared Quiz')
-            ->set('scheduled_at', '2026-10-01T10:00')
-            ->assertSet('due_at', '2026-10-08T10:00')
+            ->assertSee(__('workflow.assessments.index.form.due_at'))
+            ->assertDontSee(__('workflow.assessments.index.form.scheduled_at'))
+            ->set('due_at', '2026-10-01')
             ->call('save')
             ->assertHasNoErrors();
 
@@ -233,6 +235,8 @@ class AssessmentWorkflowTest extends TestCase
         $this->assertSame('100.00', $assessment->total_mark);
         $this->assertSame('60.00', $assessment->pass_mark);
         $this->assertSame('multiple', $assessment->group_scope);
+        $this->assertSame('2026-10-01', $assessment->due_at?->format('Y-m-d'));
+        $this->assertNull($assessment->scheduled_at);
         $this->assertDatabaseHas('assessment_groups', [
             'assessment_id' => $assessment->id,
             'group_id' => $firstEnrollment->group_id,
@@ -242,17 +246,40 @@ class AssessmentWorkflowTest extends TestCase
             'group_id' => $secondGroup->id,
         ]);
 
+        Volt::test('assessments.index')
+            ->call('edit', $assessment->id)
+            ->set('returnToResults', true)
+            ->assertSet('editingId', $assessment->id)
+            ->assertSet('returnToResults', true)
+            ->call('save')
+            ->assertHasNoErrors()
+            ->assertRedirect(route('assessments.results', $assessment));
+
         $resultsComponent = Volt::test('assessments.results', ['assessment' => $assessment])
+            ->assertSeeInOrder([$assessment->title, __('workflow.common.back_to_assessments')])
+            ->assertSee('assessment-results-title', false)
+            ->assertSee('assessment-results-back', false)
             ->assertSee('Assessment Group')
             ->assertSee('Second Assessment Group')
+            ->assertSee(__('workflow.assessments.results.student_entry.title'))
+            ->assertDontSee('<div class="admin-toolbar__title">'.__('workflow.assessments.results.groups.choose_title').'</div>', false)
+            ->assertSee('assessment-group-selector', false)
+            ->assertDontSee(__('workflow.assessments.results.groups.scores_entered', ['count' => 0]))
+            ->assertSee(__('workflow.assessments.results.pdf_export'))
+            ->assertSee(__('workflow.assessments.results.pdf.average_mark'))
             ->assertSet('selectedGroupId', null)
             ->set('quick_enrollment_id', (string) $firstEnrollment->id)
             ->set('quick_score', '80')
             ->call('saveQuickResult')
+            ->assertDontSee(__('workflow.assessments.results.groups.scores_entered', ['count' => 1]))
+            ->assertViewHas('assessmentAverage', fn ($average) => (float) $average === 80.0)
             ->assertHasNoErrors();
 
         $resultsComponent
             ->call('selectGroup', $secondGroup->id)
+            ->assertDontSee($course->name)
+            ->assertDontSee($teacher->first_name.' '.$teacher->last_name)
+            ->assertDontSee('wire:model.live.debounce.300ms="result_scores.', false)
             ->set('result_scores.'.$secondEnrollment->id, '40')
             ->call('saveResults')
             ->assertHasNoErrors();
@@ -283,7 +310,7 @@ class AssessmentWorkflowTest extends TestCase
         $this->assertSame(1, $pdfInspector->setSourceFile(StreamReader::createByString($groupPdfResponse->getContent())));
     }
 
-    public function test_assessments_are_sorted_by_due_date_descending_with_undated_records_last(): void
+    public function test_assessments_are_sorted_by_date_descending_with_undated_records_last(): void
     {
         [$undatedAssessment, $enrollment] = $this->assessmentContext();
 
@@ -390,6 +417,79 @@ class AssessmentWorkflowTest extends TestCase
         $this->get(route('assessments.index', absolute: false))->assertOk();
         $this->get(route('assessments.results', $assignedAssessment, absolute: false))->assertOk();
         $this->get(route('assessments.results', $otherAssessment, absolute: false))->assertForbidden();
+    }
+
+    public function test_quick_result_modal_keeps_group_separate_and_zero_removes_the_result(): void
+    {
+        [$assessment, $enrollment] = $this->assessmentContext();
+
+        $component = Volt::test('assessments.results', ['assessment' => $assessment])
+            ->assertSet('showQuickResultModal', false)
+            ->call('openQuickResultModal')
+            ->assertSet('showQuickResultModal', true)
+            ->assertSee('assessment-selected-group', false)
+            ->set('quick_enrollment_id', (string) $enrollment->id)
+            ->assertSee($enrollment->group->name)
+            ->set('quick_score', '75')
+            ->call('saveQuickResult')
+            ->assertHasNoErrors()
+            ->assertSet('showQuickResultModal', true)
+            ->assertSet('quick_enrollment_id', '')
+            ->assertSet('quick_score', '');
+
+        $result = AssessmentResult::query()
+            ->where('assessment_id', $assessment->id)
+            ->where('enrollment_id', $enrollment->id)
+            ->firstOrFail();
+
+        $component
+            ->set('quick_enrollment_id', (string) $enrollment->id)
+            ->set('quick_score', '0')
+            ->call('saveQuickResult')
+            ->assertHasNoErrors()
+            ->assertSet('showQuickResultModal', true)
+            ->assertSet('quick_enrollment_id', '')
+            ->assertSet('quick_score', '');
+
+        $this->assertDatabaseMissing('assessment_results', ['id' => $result->id]);
+        $this->assertDatabaseMissing('assessment_results', [
+            'assessment_id' => $assessment->id,
+            'enrollment_id' => $enrollment->id,
+        ]);
+    }
+
+    public function test_assessment_delete_is_only_available_in_edit_and_is_blocked_when_results_exist(): void
+    {
+        [$assessment, $enrollment] = $this->assessmentContext();
+
+        Volt::test('assessments.results', ['assessment' => $assessment])
+            ->set('quick_enrollment_id', (string) $enrollment->id)
+            ->set('quick_score', '80')
+            ->call('saveQuickResult')
+            ->assertDontSee('wire:click="deleteAssessment"', false);
+
+        Volt::test('assessments.index')
+            ->call('edit', $assessment->id)
+            ->assertSee('wire:click="delete('.$assessment->id.')"', false)
+            ->assertSee('disabled', false)
+            ->call('delete', $assessment->id)
+            ->assertHasErrors(['delete']);
+
+        $this->assertDatabaseHas('assessments', ['id' => $assessment->id]);
+    }
+
+    public function test_assessment_form_always_saves_assessments_as_active(): void
+    {
+        [$assessment] = $this->assessmentContext();
+        $assessment->update(['is_active' => false]);
+
+        Volt::test('assessments.index')
+            ->call('edit', $assessment->id)
+            ->assertDontSee('wire:model="is_active"', false)
+            ->call('save')
+            ->assertHasNoErrors();
+
+        $this->assertTrue($assessment->fresh()->is_active);
     }
 
     private function assessmentContext(bool $authenticate = true): array

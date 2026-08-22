@@ -235,13 +235,13 @@ class ParentMobileController extends Controller
             ->when($filters['date_from'] ?? null, fn (Builder $query, string $date) => $query
                 ->where(function (Builder $inner) use ($date) {
                     $inner
-                        ->whereHas('assessment', fn (Builder $assessment) => $assessment->whereDate('scheduled_at', '>=', $date))
+                        ->whereHas('assessment', fn (Builder $assessment) => $assessment->whereDate('due_at', '>=', $date))
                         ->orWhereDate('created_at', '>=', $date);
                 }))
             ->when($filters['date_to'] ?? null, fn (Builder $query, string $date) => $query
                 ->where(function (Builder $inner) use ($date) {
                     $inner
-                        ->whereHas('assessment', fn (Builder $assessment) => $assessment->whereDate('scheduled_at', '<=', $date))
+                        ->whereHas('assessment', fn (Builder $assessment) => $assessment->whereDate('due_at', '<=', $date))
                         ->orWhereDate('created_at', '<=', $date);
                 }))
             ->latest('id')

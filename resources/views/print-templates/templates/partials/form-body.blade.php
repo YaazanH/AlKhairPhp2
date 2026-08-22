@@ -24,29 +24,7 @@
     @endif
 
     <section class="surface-panel print-template-setup-panel">
-        <div class="admin-builder-header">
-            <div>
-                <div class="eyebrow">{{ __('print_templates.templates.form.sections.details') }}</div>
-                <h2 class="font-display mt-3 text-2xl text-white">{{ __('print_templates.templates.form.sections.details') }}</h2>
-                <p class="mt-3 max-w-3xl text-sm leading-7 text-neutral-300">{{ __('print_templates.templates.form.data_sources_help') }}</p>
-            </div>
-            <div class="flex flex-col items-end gap-3">
-                <label class="admin-checkbox">
-                    <input type="checkbox" name="is_active" value="1" @checked(old('is_active', $template->is_active))>
-                    <span>{{ __('print_templates.templates.form.fields.is_active') }}</span>
-                </label>
-                <label class="admin-checkbox">
-                    <input type="checkbox" name="is_student_card" value="1" @checked(old('is_student_card', $template->is_student_card))>
-                    <span>{{ __('print_templates.templates.form.fields.is_student_card') }}</span>
-                </label>
-                <label class="admin-checkbox">
-                    <input type="checkbox" name="is_report_card" value="1" @checked(old('is_report_card', $template->is_report_card))>
-                    <span>{{ __('print_templates.templates.form.fields.is_report_card') }}</span>
-                </label>
-            </div>
-        </div>
-
-        <div class="mt-6 print-template-setup-panel__grid">
+        <div class="print-template-setup-panel__grid">
             <div class="print-template-setup-panel__details">
                 <div class="admin-form-field admin-form-field--full">
                     <label for="print-template-name">{{ __('print_templates.templates.form.fields.name') }}</label>
@@ -69,9 +47,18 @@
                     </div>
                 </div>
 
-                <details class="relative admin-form-field--full">
-                    <summary class="pill-link w-fit cursor-pointer">{{ __('print_templates.templates.form.fields.paper_settings') }}</summary>
-                    <div class="surface-panel absolute end-0 z-30 mt-2 grid w-full max-w-2xl gap-4 p-4 md:grid-cols-2">
+                <dialog id="print-template-settings" class="print-template-settings-dialog">
+                    <div class="print-template-settings-dialog__panel">
+                        <div class="admin-builder-header mb-5">
+                            <h2 class="font-display text-2xl text-white">{{ __('print_templates.templates.form.fields.paper_settings') }}</h2>
+                            <button type="button" class="admin-modal__close" onclick="this.closest('dialog').close()" aria-label="{{ __('crud.common.actions.close') }}">&times;</button>
+                        </div>
+                        <div class="mb-5 flex flex-wrap gap-5">
+                            <label class="admin-checkbox"><input type="checkbox" name="is_active" value="1" @checked(old('is_active', $template->is_active))><span>{{ __('print_templates.templates.form.fields.is_active') }}</span></label>
+                            <label class="admin-checkbox"><input type="checkbox" name="is_student_card" value="1" @checked(old('is_student_card', $template->is_student_card))><span>{{ __('print_templates.templates.form.fields.is_student_card') }}</span></label>
+                            <label class="admin-checkbox"><input type="checkbox" name="is_report_card" value="1" @checked(old('is_report_card', $template->is_report_card))><span>{{ __('print_templates.templates.form.fields.is_report_card') }}</span></label>
+                        </div>
+                        <div class="grid gap-4 md:grid-cols-2">
                 <div class="admin-form-field">
                     <label for="print-template-paper-size">{{ __('print_templates.templates.form.fields.paper_size') }}</label>
                     <select id="print-template-paper-size" name="paper_size" required>
@@ -131,13 +118,13 @@
                         </div>
                     @endif
                 </div>
+                        </div>
+                        <div class="mt-5 flex justify-end"><button type="button" class="pill-link pill-link--accent" onclick="this.closest('dialog').close()">{{ __('crud.common.actions.close') }}</button></div>
                     </div>
-                </details>
+                </dialog>
             </div>
 
             <div class="print-template-source-card">
-                <div class="eyebrow">{{ __('print_templates.templates.form.sections.data_sources') }}</div>
-                <p class="mt-3 text-sm leading-7 text-neutral-300">{{ __('print_templates.templates.form.student_card_help') }}</p>
                 <div class="mt-3 grid gap-3">
                     <div class="admin-form-field">
                         <label for="print-template-data-source">{{ __('print_templates.templates.form.sections.data_sources') }}</label>
@@ -161,22 +148,15 @@
     <section class="surface-panel print-template-studio">
         <div class="print-template-studio__header">
             <div>
-                <div class="eyebrow">{{ __('print_templates.templates.form.sections.builder') }}</div>
-                <h2 class="font-display mt-3 text-2xl text-white">{{ __('print_templates.templates.form.sections.builder') }}</h2>
-                <p class="mt-3 max-w-3xl text-sm leading-7 text-neutral-300">{{ __('print_templates.templates.form.workspace_hint') }}</p>
+                <h2 class="font-display text-2xl text-white">{{ __('print_templates.templates.form.sections.builder') }}</h2>
             </div>
             <div class="flex items-center gap-2">
                 <span class="badge-soft" data-print-template-stage-dims></span>
-                <button type="button" class="pill-link pill-link--compact print-template-expand-button" data-print-template-expand title="{{ __('print_templates.templates.form.buttons.expand_editor') }}" aria-label="{{ __('print_templates.templates.form.buttons.expand_editor') }}">
-                    <span aria-hidden="true">⛶</span>
-                    <span data-print-template-expand-label>{{ __('print_templates.templates.form.buttons.expand_editor') }}</span>
-                </button>
             </div>
         </div>
 
         <div class="print-template-command-bar">
             <div>
-                <div class="eyebrow">{{ __('print_templates.templates.form.sections.elements') }}</div>
                 <div class="print-template-command-bar__title">{{ __('print_templates.templates.form.sections.elements') }}</div>
             </div>
             <div class="print-template-command-bar__actions">
@@ -195,7 +175,6 @@
             <details class="print-template-panel print-template-panel--layers" open data-print-template-layers-panel>
                 <summary class="print-template-panel__summary">
                     <div>
-                        <div class="eyebrow">{{ __('print_templates.templates.form.sections.layers') }}</div>
                         <div class="admin-section-card__title">{{ __('print_templates.templates.form.sections.layers') }}</div>
                     </div>
                     <span class="print-template-layer-toggle" aria-hidden="true">
@@ -212,7 +191,6 @@
             <section class="print-template-panel print-template-panel--inspector">
                 <div class="print-template-panel__header">
                     <div>
-                        <div class="eyebrow">{{ __('print_templates.templates.form.sections.inspector') }}</div>
                         <div class="admin-section-card__title">{{ __('print_templates.templates.form.sections.inspector') }}</div>
                     </div>
                 </div>
@@ -223,13 +201,7 @@
         </div>
 
         <div class="print-template-canvas-card">
-            <div class="print-template-panel__header">
-                <div>
-                    <div class="eyebrow">{{ __('print_templates.templates.form.sections.live_preview') }}</div>
-                    <div class="admin-section-card__title">{{ __('print_templates.templates.form.sections.live_preview') }}</div>
-                </div>
-            </div>
-            <div class="mt-4 id-card-builder-preview-shell print-template-canvas-card__shell">
+            <div class="id-card-builder-preview-shell print-template-canvas-card__shell">
                 <div class="id-card-builder-preview-surface print-template-canvas-card__surface">
                     <div
                         class="id-card-builder-stage"

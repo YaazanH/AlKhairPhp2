@@ -77,7 +77,7 @@ return [
             'pages_count' => '{1} صفحة واحدة|[2,*] :count صفحة',
             'no_groups' => 'لا يوجد مجموعات نشطة في الدورة الافتراضية.',
             'student_highlights' => 'ملخص الطالب',
-            'final_tests' => 'الأسبار النهائية',
+            'final_tests' => 'السبورة النهائية',
         ],
         'cards' => [
             'people' => [
@@ -126,7 +126,7 @@ return [
                 'days_attended' => 'أيام الحضور',
                 'points' => 'النقاط',
                 'pages' => 'الصفحات المحفوظة',
-                'final_tests' => 'الأسبار النهائية',
+                'final_tests' => 'السبورة النهائية',
                 'final_exam_score' => 'علامة الامتحان النهائي',
                 'page_number' => 'رقم الصفحة',
                 'date' => 'التاريخ',

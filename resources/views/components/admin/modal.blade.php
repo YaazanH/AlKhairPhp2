@@ -5,6 +5,7 @@
     'closeMethod' => null,
     'maxWidth' => '4xl',
     'compact' => false,
+    'fullViewport' => false,
 ])
 
 @php
@@ -22,7 +23,7 @@
 @endphp
 
 @if ($show)
-    <div class="admin-modal">
+    <div class="admin-modal {{ $fullViewport ? 'admin-modal--full-viewport' : '' }}">
         <div class="admin-modal__backdrop"></div>
         <div class="admin-modal__viewport">
             <div class="admin-modal__dialog {{ $widthClass }} {{ ($compact || $maxWidth === '8xl') ? 'admin-modal__dialog--compact' : '' }}">
@@ -32,13 +33,10 @@
                             <h2 class="admin-modal__title">{{ $title }}</h2>
                         @endif
 
-                        @if ($description)
-                            <p class="admin-modal__description">{{ $description }}</p>
-                        @endif
                     </div>
 
                     @if ($closeMethod)
-                        <button type="button" wire:click="{{ $closeMethod }}" class="admin-modal__close" aria-label="Close">
+                        <button type="button" wire:click.prevent.stop="{{ $closeMethod }}" class="admin-modal__close" aria-label="{{ __('crud.common.actions.close') }}">
                             <span aria-hidden="true">&times;</span>
                         </button>
                     @endif

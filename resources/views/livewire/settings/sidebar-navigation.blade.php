@@ -242,7 +242,7 @@ new class extends Component {
     <form wire:submit="save" class="space-y-6" x-data="{ draggedItem: null, draggedGroup: null }">
         <section class="surface-panel p-5 lg:p-6">
             <div class="admin-toolbar">
-                <div class="admin-toolbar__title">{{ __('settings.sidebar_navigation.title') }}</div>
+                <div></div>
                 <div class="admin-toolbar__actions">
                     <button type="button" wire:click="addGroup" class="pill-link pill-link--compact text-xl" aria-label="{{ __('settings.sidebar_navigation.actions.add_group') }}">+</button>
                 </div>

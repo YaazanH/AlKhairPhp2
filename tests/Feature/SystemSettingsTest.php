@@ -26,6 +26,7 @@ use App\Models\TeacherAttendanceRecord;
 use App\Models\User;
 use App\Services\CourseCompletionRuleService;
 use App\Services\SidebarNavigationService;
+use App\Support\OperationalFeatureSettings;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -36,6 +37,67 @@ use Tests\TestCase;
 class SystemSettingsTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_academic_years_are_sorted_by_start_date_and_cannot_finish_before_their_courses(): void
+    {
+        $this->signIn();
+
+        $olderYear = AcademicYear::query()->create([
+            'name' => 'Academic Year Older',
+            'starts_on' => '2024-08-01',
+            'ends_on' => '2025-07-31',
+            'is_current' => false,
+            'is_active' => true,
+        ]);
+        $newerYear = AcademicYear::query()->create([
+            'name' => 'Academic Year Newer',
+            'starts_on' => '2028-08-01',
+            'ends_on' => '2029-07-31',
+            'is_current' => true,
+            'is_active' => true,
+        ]);
+        $course = Course::query()->create([
+            'academic_year_id' => $newerYear->id,
+            'name' => 'Unfinished Academic Year Course',
+            'is_active' => true,
+        ]);
+
+        $component = Volt::test('settings.organization')
+            ->assertSeeInOrder([$newerYear->name, $olderYear->name])
+            ->assertSee(__('crud.common.actions.open'))
+            ->call('editAcademicYear', $newerYear->id)
+            ->assertSet('academic_year_courses_count', 1)
+            ->assertSet('academic_year_unfinished_courses_count', 1)
+            ->call('finishAcademicYear')
+            ->assertHasErrors('academicYearFinish');
+
+        app(\App\Services\CourseLifecycleService::class)->finish($course);
+
+        $component
+            ->call('editAcademicYear', $newerYear->id)
+            ->assertSet('academic_year_unfinished_courses_count', 0)
+            ->call('finishAcademicYear')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('academic_years', [
+            'id' => $newerYear->id,
+            'is_active' => false,
+            'is_current' => false,
+        ]);
+        $this->assertSame(1, AcademicYear::query()->where('is_current', true)->count());
+        $this->assertDatabaseHas('academic_years', [
+            'starts_on' => '2029-08-01 00:00:00',
+            'is_active' => true,
+            'is_current' => true,
+        ]);
+
+        Volt::test('settings.organization')
+            ->call('editAcademicYear', $newerYear->id)
+            ->assertSet('academic_year_is_active', false)
+            ->assertSee('disabled', false)
+            ->call('saveAcademicYear')
+            ->assertHasErrors('academicYear');
+    }
 
     public function test_linked_attendance_status_can_be_deleted_without_deleting_history(): void
     {
@@ -139,6 +201,22 @@ class SystemSettingsTest extends TestCase
             ->assertSee(__('settings.points.title'));
     }
 
+    public function test_settings_navigation_and_saber_rules_use_the_single_table_layout(): void
+    {
+        $this->signIn();
+
+        $this->get(route('settings.organization'))
+            ->assertOk()
+            ->assertSee('settings-tab__title', false);
+
+        Volt::test('settings.tracking')
+            ->assertSee('data-saber-rule-card="partial"', false)
+            ->assertSee('data-saber-rule-card="final-failed"', false)
+            ->assertSee('data-saber-rule-card="final-passed"', false)
+            ->assertDontSee('<fieldset', false)
+            ->assertDontSee('<th>'.__('settings.tracking.table.rule').'</th>', false);
+    }
+
     public function test_manager_can_manage_organization_settings(): void
     {
         $this->signIn();
@@ -170,6 +248,9 @@ class SystemSettingsTest extends TestCase
             ->set('school_address', 'Damascus')
             ->set('school_timezone', 'Asia/Damascus')
             ->set('school_currency', 'SYP')
+            ->set('barcode_scanner_enabled', false)
+            ->set('memorization_saber_entries_enabled', false)
+            ->set('activity_entries_enabled', false)
             ->call('saveOrganizationSettings')
             ->assertHasNoErrors();
 
@@ -203,6 +284,21 @@ class SystemSettingsTest extends TestCase
             'value' => '5',
         ]);
 
+        $this->assertDatabaseHas('app_settings', [
+            'group' => 'general',
+            'key' => 'memorization_saber_entries_enabled',
+            'value' => '0',
+        ]);
+
+        $this->assertDatabaseHas('app_settings', [
+            'group' => 'general',
+            'key' => 'activity_entries_enabled',
+            'value' => '0',
+        ]);
+
+        $this->assertFalse(OperationalFeatureSettings::memorizationAndSabersEnabled());
+        $this->assertFalse(OperationalFeatureSettings::activitiesEnabled());
+
         $this->assertSame('S'.str_pad((string) $student->id, 6, '0', STR_PAD_LEFT), $student->fresh()->student_number);
         $this->assertSame('F'.str_pad((string) $parent->id, 5, '0', STR_PAD_LEFT), $parent->fresh()->parent_number);
 
@@ -235,15 +331,15 @@ class SystemSettingsTest extends TestCase
 
         Volt::test('settings.organization')
             ->call('editAcademicYear', $academicYear->id)
-            ->set('academic_year_is_active', false)
-            ->call('saveAcademicYear')
+            ->call('finishAcademicYear')
             ->assertHasNoErrors();
 
         $this->assertDatabaseHas('academic_years', [
             'id' => $academicYear->id,
             'is_active' => false,
-            'is_current' => true,
+            'is_current' => false,
         ]);
+        $this->assertSame(1, AcademicYear::query()->where('is_current', true)->count());
 
         Volt::test('settings.organization')
             ->set('grade_level_name', 'Grade 5')
@@ -769,7 +865,6 @@ class SystemSettingsTest extends TestCase
             ->set('pull_request_prefix', 'PUL')
             ->set('expense_request_prefix', 'EXP')
             ->set('revenue_request_prefix', 'REV')
-            ->set('return_request_prefix', 'RET')
             ->set('exchange_prefix', 'EXC')
             ->call('saveFinanceSettings')
             ->assertHasNoErrors();

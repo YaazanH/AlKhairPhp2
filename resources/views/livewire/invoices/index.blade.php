@@ -263,18 +263,11 @@ new class extends Component {
                     <div class="admin-modal__header">
                         <div>
                             <div class="admin-modal__title">{{ $editingId ? __('invoices.index.form.edit_title') : __('invoices.index.form.create_title') }}</div>
-                            <p class="admin-modal__description">{{ __('invoices.index.form.subtitle') }}</p>
                         </div>
-                        <button type="button" wire:click="cancel" class="admin-modal__close" aria-label="{{ __('crud.common.actions.cancel') }}">×</button>
+                        <button type="button" wire:click.prevent.stop="cancel" class="admin-modal__close" aria-label="{{ __('crud.common.actions.cancel') }}">×</button>
                     </div>
                     <div class="admin-modal__body">
             @if (auth()->user()->can('invoices.create') || auth()->user()->can('invoices.update'))
-                <div class="mb-5 md:hidden">
-                    <div class="eyebrow">{{ __('invoices.index.form.eyebrow') }}</div>
-                    <h2 class="font-display mt-3 text-2xl text-white">{{ $editingId ? __('invoices.index.form.edit_title') : __('invoices.index.form.create_title') }}</h2>
-                    <p class="mt-3 text-sm leading-7 text-neutral-300">{{ __('invoices.index.form.subtitle') }}</p>
-                </div>
-
                 <form wire:submit="save" class="space-y-4">
                     <input wire:model="invoice_type" type="hidden">
 

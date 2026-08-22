@@ -388,23 +388,11 @@ new class extends Component {
                     <div class="admin-modal__header">
                         <div>
                             <div class="admin-modal__title">{{ $editingId ? __('notes.form.edit_title') : __('notes.form.create_title') }}</div>
-                            <p class="admin-modal__description">{{ $teacherMode ? __('notes.form.teacher_help') : __('notes.form.manager_help') }}</p>
                         </div>
-                        <button type="button" wire:click="cancel" class="admin-modal__close" aria-label="{{ __('crud.common.actions.cancel') }}">×</button>
+                        <button type="button" wire:click.prevent.stop="cancel" class="admin-modal__close" aria-label="{{ __('crud.common.actions.cancel') }}">×</button>
                     </div>
                     <div class="admin-modal__body">
             @if (auth()->user()->can('student-notes.create') || auth()->user()->can('student-notes.update'))
-                <div class="mb-4 md:hidden">
-                    <h2 class="text-lg font-semibold">{{ $editingId ? __('notes.form.edit_title') : __('notes.form.create_title') }}</h2>
-                    <p class="text-sm text-neutral-500">
-                        @if ($teacherMode)
-                            {{ __('notes.form.teacher_help') }}
-                        @else
-                            {{ __('notes.form.manager_help') }}
-                        @endif
-                    </p>
-                </div>
-
                 <form wire:submit="save" class="space-y-4">
                     <div>
                         <label class="mb-1 block text-sm font-medium">{{ __('notes.form.fields.student') }}</label>
@@ -488,55 +476,55 @@ new class extends Component {
         @endif
 
         <section class="surface-table">
-            <div class="admin-grid-meta">
-                <div>
-                    <div class="admin-grid-meta__title">{{ __('notes.log.title') }}</div>
-                    <div class="admin-grid-meta__summary">{{ __('notes.log.subtitle') }}</div>
-                </div>
+            <div class="admin-grid-meta admin-grid-meta--controls">
+                <div class="admin-grid-meta__title">{{ __('notes.log.title') }}</div>
 
-                <div class="grid gap-3 md:grid-cols-3">
-                    <select wire:model.live="filter_student_id" class="rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
-                        <option value="">{{ __('notes.log.filters.all_students') }}</option>
-                        @foreach ($students as $student)
-                            <option
-                                value="{{ $student->id }}"
-                                data-search="{{ trim(implode(' ', array_filter([$student->student_number, $student->first_name, $student->last_name]))) }}"
-                            >{{ $student->full_name }}</option>
-                        @endforeach
-                    </select>
+                <div class="admin-toolbar__controls admin-toolbar__controls--compact">
+                    <div class="admin-filter-field">
+                        <label class="sr-only" for="student-notes-student-filter">{{ __('notes.log.filters.all_students') }}</label>
+                        <select id="student-notes-student-filter" wire:model.live="filter_student_id">
+                            <option value="">{{ __('notes.log.filters.all_students') }}</option>
+                            @foreach ($students as $student)
+                                <option
+                                    value="{{ $student->id }}"
+                                    data-search="{{ trim(implode(' ', array_filter([$student->student_number, $student->first_name, $student->last_name]))) }}"
+                                >{{ $student->full_name }}</option>
+                            @endforeach
+                        </select>
+                    </div>
 
-                    <select wire:model.live="filter_source" class="rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
-                        <option value="">{{ __('notes.log.filters.all_sources') }}</option>
-                        @foreach ($filterSourceOptions as $value => $label)
-                            <option value="{{ $value }}">{{ $label }}</option>
-                        @endforeach
-                    </select>
+                    <div class="admin-filter-field">
+                        <label class="sr-only" for="student-notes-source-filter">{{ __('notes.log.filters.all_sources') }}</label>
+                        <select id="student-notes-source-filter" wire:model.live="filter_source">
+                            <option value="">{{ __('notes.log.filters.all_sources') }}</option>
+                            @foreach ($filterSourceOptions as $value => $label)
+                                <option value="{{ $value }}">{{ $label }}</option>
+                            @endforeach
+                        </select>
+                    </div>
 
-                    <div class="flex gap-3">
-                        <select wire:model.live="filter_visibility" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                    <div class="admin-filter-field">
+                        <label class="sr-only" for="student-notes-visibility-filter">{{ __('notes.log.filters.all_visibility') }}</label>
+                        <select id="student-notes-visibility-filter" wire:model.live="filter_visibility">
                             <option value="">{{ __('notes.log.filters.all_visibility') }}</option>
                             @foreach ($visibilityOptions as $value => $label)
                                 <option value="{{ $value }}">{{ $label }}</option>
                             @endforeach
                         </select>
-
-                        <button type="button" wire:click="clearFilters" class="rounded-lg border border-neutral-300 px-3 py-2 text-sm font-medium dark:border-neutral-700">
-                            {{ __('notes.log.filters.clear') }}
-                        </button>
                     </div>
-                </div>
 
-                @can('student-notes.create')
-                    <button type="button" wire:click="create" class="pill-link pill-link--accent">
-                        {{ __('notes.form.create_title') }}
-                    </button>
-                @endcan
+                    @can('student-notes.create')
+                        <div class="admin-toolbar__actions">
+                            <button type="button" wire:click="create" class="pill-link pill-link--accent">
+                                {{ __('notes.form.create_title') }}
+                            </button>
+                        </div>
+                    @endcan
+                </div>
             </div>
 
             @if ($notes->isEmpty())
-                <div class="px-5 py-10 text-sm text-neutral-500">
-                    {{ __('notes.log.empty') }}
-                </div>
+                <div class="admin-empty-state">{{ __('notes.log.empty') }}</div>
             @else
                 <div class="divide-y divide-neutral-200 dark:divide-neutral-700">
                     @foreach ($notes as $note)

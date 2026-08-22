@@ -456,6 +456,43 @@ new class extends Component
         session()->flash('status', __('settings.tracking.messages.final_test_rules_saved'));
     }
 
+    public function saveSaberRules(): void
+    {
+        $this->authorizePermission('settings.manage');
+
+        $validated = $this->validate([
+            'partial_test_fail_threshold' => ['required', 'integer', 'min:1', 'max:999'],
+            'final_test_failed_from' => ['required', 'numeric', 'between:0,100'],
+            'final_test_failed_to' => ['required', 'numeric', 'between:0,100'],
+            'final_test_passed_from' => ['required', 'numeric', 'between:0,100'],
+            'final_test_passed_to' => ['required', 'numeric', 'between:0,100'],
+        ]);
+
+        $failedFrom = (float) $validated['final_test_failed_from'];
+        $failedTo = (float) $validated['final_test_failed_to'];
+        $passedFrom = (float) $validated['final_test_passed_from'];
+        $passedTo = (float) $validated['final_test_passed_to'];
+
+        if ($failedFrom > $failedTo || $passedFrom > $passedTo) {
+            $this->addError('final_test_failed_from', __('settings.tracking.errors.final_test_rules_order'));
+            return;
+        }
+
+        if (max($failedFrom, $passedFrom) <= min($failedTo, $passedTo)) {
+            $this->addError('final_test_passed_from', __('settings.tracking.errors.final_test_rules_overlap'));
+            return;
+        }
+
+        app(QuranPartialTestRuleService::class)->store((int) $validated['partial_test_fail_threshold']);
+        app(QuranFinalTestRuleService::class)->store([
+            'failed' => ['from' => $failedFrom, 'to' => $failedTo],
+            'passed' => ['from' => $passedFrom, 'to' => $passedTo],
+        ]);
+        $this->loadPartialTestRuleSettings();
+        $this->loadFinalTestRuleSettings();
+        session()->flash('status', __('settings.tracking.messages.final_test_rules_saved'));
+    }
+
     public function with(): array
     {
         return [
@@ -540,6 +577,8 @@ new class extends Component
     @if (session('status'))
         <div class="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">{{ session('status') }}</div>
     @endif
+
+    <livewire:settings.points :embedded="true" />
 
     <div class="space-y-6">
         <section class="hidden">
@@ -645,12 +684,45 @@ new class extends Component
                 </div>
             </div>
 
-            <section class="surface-table">
-                <div class="admin-grid-meta"><div class="admin-grid-meta__title">{{ __('settings.tracking.sections.saber_rules') }}</div></div>
-                <table class="text-sm"><thead><tr><th>{{ __('settings.tracking.table.type') }}</th><th>{{ __('settings.tracking.table.rule') }}</th><th>{{ __('settings.tracking.table.actions') }}</th></tr></thead><tbody>
-                    <tr><td class="px-5 py-4 font-semibold">{{ __('settings.tracking.sections.partial_test_rule.title') }}</td><td class="px-5 py-4"><form id="partial-saber-rule" wire:submit="savePartialTestRules"><input wire:model="partial_test_fail_threshold" type="number" min="1" max="999" class="w-full rounded-lg px-3 py-2" aria-label="{{ __('settings.tracking.fields.fail_at_mistakes') }}"></form></td><td class="px-5 py-4"><button form="partial-saber-rule" class="pill-link pill-link--accent">{{ __('crud.common.actions.save') }}</button></td></tr>
-                    <tr><td class="px-5 py-4 font-semibold">{{ __('settings.tracking.sections.final_test_rule.title') }}</td><td class="px-5 py-4"><form id="final-saber-rule" wire:submit="saveFinalTestRules" class="grid gap-3 sm:grid-cols-4"><input wire:model="final_test_failed_from" type="number" min="0" max="100" step="0.01" class="rounded-lg px-3 py-2" placeholder="{{ __('settings.tracking.sections.final_test_rule.failed_title') }} {{ __('settings.tracking.fields.from_score') }}"><input wire:model="final_test_failed_to" type="number" min="0" max="100" step="0.01" class="rounded-lg px-3 py-2" placeholder="{{ __('settings.tracking.sections.final_test_rule.failed_title') }} {{ __('settings.tracking.fields.to_score') }}"><input wire:model="final_test_passed_from" type="number" min="0" max="100" step="0.01" class="rounded-lg px-3 py-2" placeholder="{{ __('settings.tracking.sections.final_test_rule.passed_title') }} {{ __('settings.tracking.fields.from_score') }}"><input wire:model="final_test_passed_to" type="number" min="0" max="100" step="0.01" class="rounded-lg px-3 py-2" placeholder="{{ __('settings.tracking.sections.final_test_rule.passed_title') }} {{ __('settings.tracking.fields.to_score') }}"></form></td><td class="px-5 py-4"><button form="final-saber-rule" class="pill-link pill-link--accent">{{ __('crud.common.actions.save') }}</button></td></tr>
-                </tbody></table>
+            <section class="overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700">
+                <div class="border-b border-neutral-200 bg-neutral-50 px-5 py-4 text-sm font-medium dark:border-neutral-700 dark:bg-neutral-900/60">{{ __('settings.tracking.sections.saber_rules') }}</div>
+                <form wire:submit="saveSaberRules" class="divide-y divide-neutral-200 dark:divide-neutral-700">
+                    <div data-saber-rule-card="partial" class="grid gap-4 px-5 py-4 md:grid-cols-[minmax(12rem,1fr)_minmax(12rem,20rem)] md:items-center">
+                        <div>
+                            <div class="font-semibold text-white">{{ __('settings.tracking.sections.partial_test_rule.title') }}</div>
+                            <div class="mt-1 text-sm text-neutral-400">{{ __('settings.tracking.fields.fail_at_mistakes') }}</div>
+                        </div>
+                        <div>
+                            <input wire:model="partial_test_fail_threshold" type="number" min="1" max="999" class="h-12 w-full rounded-xl px-4 text-base">
+                            @error('partial_test_fail_threshold') <div class="mt-2 text-sm text-red-400">{{ $message }}</div> @enderror
+                        </div>
+                    </div>
+
+                    @foreach ([
+                        'failed' => __('settings.tracking.sections.final_test_rule.failed_title'),
+                        'passed' => __('settings.tracking.sections.final_test_rule.passed_title'),
+                    ] as $range => $rangeTitle)
+                        <div data-saber-rule-card="final-{{ $range }}" class="grid gap-4 px-5 py-4 md:grid-cols-[minmax(12rem,1fr)_minmax(12rem,20rem)] md:items-center">
+                            <div>
+                                <div class="font-semibold text-white">{{ __('settings.tracking.sections.final_test_rule.title') }}</div>
+                                <div class="mt-1 text-sm text-neutral-400">{{ $rangeTitle }}</div>
+                            </div>
+                            <div class="grid grid-cols-2 gap-3">
+                                <label>
+                                    <span class="mb-1 block text-xs font-medium text-neutral-400">{{ __('settings.tracking.fields.from_score') }}</span>
+                                    <input wire:model="final_test_{{ $range }}_from" type="number" min="0" max="100" step="0.01" class="h-11 w-full rounded-xl px-3">
+                                </label>
+                                <label>
+                                    <span class="mb-1 block text-xs font-medium text-neutral-400">{{ __('settings.tracking.fields.to_score') }}</span>
+                                    <input wire:model="final_test_{{ $range }}_to" type="number" min="0" max="100" step="0.01" class="h-11 w-full rounded-xl px-3">
+                                </label>
+                            </div>
+                        </div>
+                    @endforeach
+                    @error('final_test_failed_from') <div class="px-5 py-3 text-sm text-red-400">{{ $message }}</div> @enderror
+                    @error('final_test_passed_from') <div class="px-5 py-3 text-sm text-red-400">{{ $message }}</div> @enderror
+                    <div class="flex justify-end px-5 py-4"><button class="pill-link pill-link--accent">{{ __('crud.common.actions.save') }}</button></div>
+                </form>
             </section>
 
         </section>
@@ -695,6 +767,4 @@ new class extends Component
         </form>
     </x-admin.modal>
 
-
-    <livewire:settings.points :embedded="true" />
 </div>

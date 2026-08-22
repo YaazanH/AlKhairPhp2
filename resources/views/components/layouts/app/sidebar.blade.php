@@ -199,7 +199,6 @@
                     <div class="admin-modal__header">
                         <div>
                             <h2 id="admin-confirm-title" class="admin-modal__title">{{ __('crud.common.confirm_delete.title') }}</h2>
-                            <p id="admin-confirm-message" class="admin-modal__description">{{ __('crud.common.confirm_delete.message') }}</p>
                         </div>
 
                         <button type="button" data-admin-confirm-close class="admin-modal__close" aria-label="{{ __('crud.common.actions.close') }}">
@@ -208,6 +207,7 @@
                     </div>
 
                     <div class="admin-modal__body">
+                        <p id="admin-confirm-message" class="mb-5 leading-7 text-neutral-300">{{ __('crud.common.confirm_delete.message') }}</p>
                         <div class="admin-action-cluster admin-action-cluster--end">
                             <button id="admin-confirm-cancel" type="button" class="pill-link">
                                 {{ __('crud.common.actions.cancel') }}

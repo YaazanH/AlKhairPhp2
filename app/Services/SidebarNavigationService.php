@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\AppSetting;
 use App\Models\Group;
 use App\Models\User;
+use App\Support\OperationalFeatureSettings;
 
 class SidebarNavigationService
 {
@@ -45,11 +46,11 @@ class SidebarNavigationService
             'enrollments' => $this->item('ui.nav.enrollments', 'clipboard-document-list', 'enrollments.index', ['enrollments.*'], 'academics', 30, ['enrollments.view']),
 
             'student_attendance' => $this->item('ui.nav.student_attendance', 'calendar-days', 'student-attendance.index', ['student-attendance.*', 'groups.attendance', 'barcode-actions.import'], 'tracking_attendance', 10, ['attendance.student.view']),
-            'teacher_attendance' => $this->item('ui.nav.teacher_attendance', 'clipboard-document-check', 'teachers.attendance', ['teachers.attendance'], 'tracking_attendance', 20, ['attendance.teacher.view']),
+            'teacher_attendance' => $this->item('ui.nav.teacher_attendance', 'clipboard-document-check', 'teacher-attendance.index', ['teacher-attendance.*'], 'tracking_attendance', 20, ['attendance.teacher.view']),
 
             'memorization' => $this->item('ui.nav.memorization', 'book-open-text', 'memorization.index', ['memorization.index', 'enrollments.memorization'], 'tracking_quran', 10, ['memorization.view']),
             'enter_memorize' => $this->item('ui.nav.enter_memorize', 'pencil-square', 'memorization.quick-entry', ['memorization.quick-entry'], 'tracking_quran', 20, ['memorization.record']),
-            'quran_tests_quick_entry' => $this->item('ui.nav.quran_tests_quick_entry', 'bolt', 'quran-tests.quick-entry', ['quran-tests.quick-entry'], 'tracking_quran', 25),
+            'quran_tests_quick_entry' => $this->item('ui.nav.quran_tests_quick_entry', 'book-open-pencil', 'saber-entry.index', ['saber-entry.*'], 'tracking_quran', 25, ['quran-tests.quick-entry']),
             'quran_partial_tests' => $this->item('ui.nav.quran_partial_tests', 'squares-2x2', 'quran-partial-tests.index', ['quran-partial-tests.*'], 'tracking_quran', 30, ['quran-partial-tests.view']),
             'quran_final_tests' => $this->item('ui.nav.quran_final_tests', 'check-badge', 'quran-final-tests.index', ['quran-final-tests.*'], 'tracking_quran', 40, ['quran-final-tests.view']),
             'quran_tests' => $this->item('ui.nav.quran_tests', 'document-check', 'quran-tests.index', ['quran-tests.*', 'enrollments.quran-tests'], 'tracking_quran', 50, ['quran-awqaf-tests.view']),
@@ -254,6 +255,10 @@ class SidebarNavigationService
                     continue;
                 }
 
+                if (in_array($itemKey, ['activities', 'family_activities'], true) && ! OperationalFeatureSettings::activitiesEnabled()) {
+                    continue;
+                }
+
                 $isTeacherCurriculum = $itemKey === 'curricula' && ! $user->can('curricula.manage');
                 $teacherGroup = $itemKey === 'groups' ? $activeTeacherGroup : null;
                 $configuredGroupKey = $isTeacherCurriculum
@@ -325,11 +330,6 @@ class SidebarNavigationService
 
     protected function userCanSeeItem(User $user, array $itemDefinition): bool
     {
-        if (($itemDefinition['route_name'] ?? null) === 'quran-tests.quick-entry') {
-            return $user->teacherProfile !== null
-                && $user->hasPermissionTo('quran-tests.quick-entry');
-        }
-
         if (($itemDefinition['route_name'] ?? null) === 'curricula.index') {
             return app(CurriculumAccessService::class)->canView($user);
         }

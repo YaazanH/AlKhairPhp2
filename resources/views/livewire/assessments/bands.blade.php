@@ -200,9 +200,8 @@ new class extends Component {
                         <div class="admin-modal__header">
                             <div>
                                 <div class="admin-modal__title">{{ $editingId ? __('workflow.assessments.bands.form.edit_title') : __('workflow.assessments.bands.form.create_title') }}</div>
-                                <p class="admin-modal__description">{{ __('workflow.assessments.bands.form.help') }}</p>
                             </div>
-                            <button type="button" wire:click="cancel" class="admin-modal__close" aria-label="{{ __('crud.common.actions.cancel') }}">×</button>
+                            <button type="button" wire:click.prevent.stop="cancel" class="admin-modal__close" aria-label="{{ __('crud.common.actions.cancel') }}">×</button>
                         </div>
 
                         <div class="admin-modal__body">
@@ -281,10 +280,10 @@ new class extends Component {
             </section>
         @endif
 
-        <section class="surface-table">
-            <div class="admin-grid-meta">
+        <section class="overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700">
+            <div class="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-200 px-5 py-4 dark:border-neutral-700">
                 <div>
-                    <div class="admin-grid-meta__title">{{ __('workflow.assessments.bands.table.title') }}</div>
+                    <div class="text-sm font-medium">{{ __('workflow.assessments.bands.table.title') }}</div>
                     <div class="admin-grid-meta__summary">{{ __('crud.common.badges.in_view', ['count' => number_format($bands->count())]) }}</div>
                 </div>
 
@@ -299,7 +298,7 @@ new class extends Component {
                 <div class="admin-empty-state">{{ __('workflow.assessments.bands.table.empty') }}</div>
             @else
                 <div class="overflow-x-auto">
-                    <table class="text-sm">
+                    <table class="min-w-full divide-y divide-neutral-200 text-sm dark:divide-neutral-700">
                         <thead>
                             <tr>
                                 <th class="px-5 py-3 text-left font-medium">{{ __('workflow.assessments.bands.table.headers.band') }}</th>

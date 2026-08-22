@@ -15,7 +15,7 @@
 
 <div
     wire:key="phone-input-{{ $inputId }}-{{ md5((string) $value) }}"
-    class="grid grid-cols-[minmax(5.5rem,0.4fr)_minmax(0,1.6fr)] gap-2"
+    class="grid grid-cols-[max-content_minmax(0,1fr)] gap-2"
     dir="ltr"
     x-data="{
         open: false,
@@ -89,7 +89,7 @@
     <div class="relative" x-on:click.outside="open = false" x-on:keydown.escape.window="open = false">
         <button
             type="button"
-            class="flex w-full items-center justify-between rounded-xl px-3 py-3 text-sm"
+            class="phone-country-trigger inline-flex w-auto items-center justify-between gap-2 rounded-xl px-3 py-3 text-sm"
             dir="{{ $isRtl ? 'rtl' : 'ltr' }}"
             style="unicode-bidi: isolate;"
             x-on:click="open = ! open; if (open) $nextTick(() => $refs.countrySearch.focus())"
@@ -97,9 +97,7 @@
             aria-haspopup="listbox"
             aria-label="{{ __('phone.country_code') }}"
         >
-            <span class="flex min-w-0 items-center gap-2">
-                <span class="truncate" x-text="selectedDial"></span>
-            </span>
+            <bdi dir="ltr" class="whitespace-nowrap" x-text="selectedDial"></bdi>
             <svg class="h-4 w-4 text-neutral-400" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.168l3.71-3.938a.75.75 0 1 1 1.08 1.04l-4.25 4.5a.75.75 0 0 1-1.08 0l-4.25-4.5a.75.75 0 0 1 .02-1.06Z" clip-rule="evenodd" /></svg>
         </button>
 
@@ -107,7 +105,7 @@
             x-cloak
             x-show="open"
             x-transition
-            class="absolute left-0 z-50 mt-2 w-max min-w-80 max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border border-neutral-700 bg-neutral-900 shadow-2xl"
+            class="absolute left-0 z-50 mt-2 w-max max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border border-neutral-700 bg-neutral-900 shadow-2xl"
         >
             <div class="border-b border-neutral-700 p-2">
                 <input x-ref="countrySearch" x-model="search" type="search" class="w-full rounded-lg px-3 py-2 text-sm" placeholder="{{ __('phone.search_country') }}">
@@ -116,14 +114,16 @@
                 <template x-for="country in filteredCountries" :key="country.region">
                     <button
                         type="button"
-                        class="phone-country-option w-full gap-3 px-3 py-2 text-sm hover:bg-white/10"
+                        class="phone-country-option w-full px-3 py-2 text-sm hover:bg-white/10"
                         x-on:click="chooseCountry(country)"
                         x-bind:class="country.region === region ? 'bg-white/10 text-emerald-300' : 'text-neutral-200'"
                         role="option"
                     >
-                        <img x-bind:src="`https://flagcdn.com/32x24/${country.region.toLowerCase()}.png`" x-bind:alt="country.name" class="h-6 w-8 shrink-0 rounded-md object-cover">
-                        <span class="whitespace-nowrap text-xs text-neutral-400" x-text="country.dial_code"></span>
-                        <span class="whitespace-nowrap" x-text="country.name"></span>
+                        <span class="phone-country-flag" aria-hidden="true">
+                            <img x-bind:src="country.flag" x-bind:alt="country.name">
+                        </span>
+                        <bdi dir="ltr" class="phone-country-dial whitespace-nowrap text-xs text-neutral-400" x-text="country.dial_code"></bdi>
+                        <span class="phone-country-name whitespace-nowrap" x-text="country.name"></span>
                     </button>
                 </template>
             </div>

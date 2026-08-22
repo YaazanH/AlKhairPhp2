@@ -558,7 +558,7 @@ new class extends Component
                                         <div>{{ $this->pointPolicyRuleOptions()[$this->pointPolicyRuleKey($pointPolicy->source_type, $pointPolicy->trigger_key)] ?? $pointPolicy->source_type.' / '.$pointPolicy->trigger_key }}</div>
                                         <div class="mt-1 text-xs text-neutral-500">
                                             {{ $pointPolicy->period_type === 'date_window'
-                                                ? __('settings.points.labels.date_window', ['from' => $pointPolicy->active_from?->toDateString() ?: __('crud.common.not_available'), 'to' => $pointPolicy->active_until?->toDateString() ?: __('crud.common.not_available')])
+                                                ? __('settings.points.labels.date_window', ['from' => $pointPolicy->active_from?->format('d-m-Y') ?: __('crud.common.not_available'), 'to' => $pointPolicy->active_until?->format('d-m-Y') ?: __('crud.common.not_available')])
                                                 : __('settings.points.labels.global_policy') }}
                                         </div>
                                     </td>

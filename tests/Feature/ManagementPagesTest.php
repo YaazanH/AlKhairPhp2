@@ -15,6 +15,7 @@ use App\Models\QuranJuz;
 use App\Models\Student;
 use App\Models\Teacher;
 use App\Models\User;
+use App\Services\SidebarNavigationService;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Route;
@@ -33,12 +34,12 @@ class ManagementPagesTest extends TestCase
 
         $this->get(route('students.index', absolute: false))
             ->assertOk()
-            ->assertSeeText(__('ui.nav.bulk_student_photos'));
+            ->assertDontSeeText(__('ui.nav.bulk_student_photos'));
         $this->get(route('student-attendance.index', absolute: false))
             ->assertOk()
             ->assertSeeText(__('ui.nav.scanner_import'));
 
-        $items = app(\App\Services\SidebarNavigationService::class)->defaultItems();
+        $items = app(SidebarNavigationService::class)->defaultItems();
         $this->assertArrayNotHasKey('bulk_student_photos', $items);
         $this->assertArrayNotHasKey('scanner_import', $items);
         $this->assertArrayNotHasKey('awqaf_subject_tests', $items);
@@ -242,7 +243,6 @@ class ManagementPagesTest extends TestCase
         foreach ([
             route('students.index', absolute: false),
             route('students.files', $teacherStudent, absolute: false),
-            route('groups.index', absolute: false),
             route('groups.attendance', $teacherGroup, absolute: false),
             route('student-attendance.index', absolute: false),
             route('groups.schedules', $teacherGroup, absolute: false),
@@ -258,6 +258,9 @@ class ManagementPagesTest extends TestCase
         ] as $path) {
             $this->get($path)->assertOk();
         }
+
+        $this->get(route('groups.index', absolute: false))
+            ->assertRedirect(route('groups.show', $teacherGroup, absolute: false));
 
         foreach ([
             route('reports.index', absolute: false),

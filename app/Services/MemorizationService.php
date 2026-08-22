@@ -58,8 +58,13 @@ class MemorizationService
                 'from_page' => min($pageNumbers),
                 'to_page' => max($pageNumbers),
                 'pages_count' => count($pageNumbers),
-                'notes' => ($validated['notes'] ?? null) ?: null,
             ];
+
+            if (array_key_exists('notes', $validated)) {
+                $payload['notes'] = $validated['notes'] ?: null;
+            } elseif (! $session) {
+                $payload['notes'] = null;
+            }
 
             if ($session) {
                 $session->update($payload);

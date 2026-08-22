@@ -17,6 +17,7 @@ new class extends Component {
     public function mount(): void
     {
         $this->authorizePermission('activities.responses.view');
+        abort_unless(\App\Support\OperationalFeatureSettings::activitiesEnabled(), 404);
     }
 
     public function with(): array
@@ -89,6 +90,7 @@ new class extends Component {
     public function respond(int $activityId, int $studentId, string $response): void
     {
         $this->authorizePermission('activities.responses.respond');
+        \App\Support\OperationalFeatureSettings::ensureActivitiesEnabled();
 
         if (! in_array($response, ['registered', 'declined'], true)) {
             abort(404);

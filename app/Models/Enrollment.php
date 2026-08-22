@@ -2,8 +2,8 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -20,6 +20,9 @@ class Enrollment extends Model
         'enrolled_at',
         'status',
         'left_at',
+        'course_finished_at',
+        'course_finished_previous_status',
+        'course_finished_previous_left_at',
         'final_points_cached',
         'memorized_pages_cached',
         'notes',
@@ -30,6 +33,8 @@ class Enrollment extends Model
         return [
             'enrolled_at' => 'date',
             'left_at' => 'date',
+            'course_finished_at' => 'datetime',
+            'course_finished_previous_left_at' => 'date',
             'final_points_cached' => 'integer',
             'memorized_pages_cached' => 'integer',
         ];

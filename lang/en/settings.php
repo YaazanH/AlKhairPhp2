@@ -5,6 +5,7 @@ return [
         'states' => [
             'active' => 'Active',
             'inactive' => 'Inactive',
+            'finished' => 'Finished',
         ],
         'actions' => [
             'save' => 'Save',
@@ -197,7 +198,7 @@ return [
                 'empty' => 'No print page sizes yet.',
             ],
             'default_avatars' => [
-                'title' => 'Default profile images',
+                'title' => 'Default account image',
                 'copy' => 'Used when a user, student, teacher, or parent has no uploaded profile photo.',
             ],
             'student_dashboard_cards' => [
@@ -207,7 +208,12 @@ return [
             ],
         ],
         'fields' => [
-            'school_name' => 'School name',
+            'school_name' => 'Main page name',
+            'barcode_scanner' => 'Barcode scanner',
+            'barcode_status' => 'Barcode status',
+            'memorization_saber_entries' => 'New memorisation and saber entries',
+            'memorization_saber_status' => 'Adding pages status',
+            'activities' => 'Activities and family activities',
             'school_phone' => 'Phone',
             'school_email' => 'Email',
             'email_domain' => 'Generated email domain',
@@ -225,7 +231,7 @@ return [
             'school_timezone' => 'Timezone',
             'school_currency' => 'Currency',
             'school_address' => 'Address',
-            'main_page_logo' => 'Main page logo',
+            'main_page_logo' => 'Mosque logo',
             'main_page_logo_help' => 'Saved immediately after selection and used in PDFs at a maximum height of 23 mm. If empty, PDFs show no logo.',
             'code' => 'Code',
             'name' => 'Name',
@@ -250,6 +256,7 @@ return [
         'table' => [
             'name' => 'Name',
             'dates' => 'Dates',
+            'courses' => 'Courses',
             'groups' => 'Groups',
             'usage' => 'Usage',
             'teachers' => 'Teachers',
@@ -304,6 +311,10 @@ return [
             'update_print_page_size' => 'Update page size',
             'save_student_dashboard_cards' => 'Save student card templates',
         ],
+        'features' => [
+            'memorization_disabled' => 'New memorisation and saber entries are currently disabled in general settings.',
+            'activities_disabled' => 'Activities and family activities are currently disabled in general settings.',
+        ],
         'messages' => [
             'settings_saved' => 'Dashboard settings saved successfully.',
             'barcode_scanner_updated' => 'Barcode scanner availability updated.',
@@ -313,6 +324,7 @@ return [
             'academic_year_created' => 'Academic year created successfully.',
             'academic_year_updated' => 'Academic year updated successfully.',
             'academic_year_deleted' => 'Academic year deleted successfully.',
+            'academic_year_finished' => 'Academic year finished successfully.',
             'grade_level_created' => 'Grade level created successfully.',
             'grade_level_updated' => 'Grade level updated successfully.',
             'grade_level_deleted' => 'Grade level deleted successfully.',
@@ -338,7 +350,9 @@ return [
             'student_dashboard_card_templates_saved' => 'Student dashboard card templates saved successfully.',
         ],
         'errors' => [
-            'academic_year_delete_linked' => 'This academic year cannot be deleted while groups are linked to it.',
+            'academic_year_delete_linked' => 'This academic year cannot be deleted while courses or groups are linked to it.',
+            'academic_year_finish_courses' => 'Finish every course in this academic year before finishing the academic year.',
+            'academic_year_finished_read_only' => 'Finished academic-year data cannot be edited.',
             'grade_level_delete_linked' => 'This grade level cannot be deleted while it is linked to groups, students, or point policies.',
             'school_delete_linked' => 'This school cannot be deleted while students use it.',
             'father_job_delete_linked' => 'This father job cannot be deleted while parents use it.',

@@ -3,11 +3,11 @@
 use App\Livewire\Concerns\AuthorizesPermissions;
 use App\Livewire\Concerns\AuthorizesTeacherAssignments;
 use App\Models\AttendanceStatus;
+use App\Models\Course;
 use App\Models\Group;
 use App\Models\Teacher;
 use App\Models\TeacherAttendanceDay;
 use App\Models\TeacherAttendanceExclusion;
-use App\Models\TeacherAttendanceRecord;
 use App\Services\TeacherAttendanceDayService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
@@ -22,6 +22,7 @@ new class extends Component {
     use WithPagination;
 
     public string $attendance_date = '';
+    public string $course_id = '';
     public string $day_status = 'open';
     public string $default_attendance_status_id = '';
     public string $notes = '';
@@ -37,6 +38,9 @@ new class extends Component {
     {
         $this->authorizePermission('attendance.teacher.view');
         $this->attendance_date = now()->toDateString();
+        $this->course_id = (string) ($this->availableCoursesQuery()->where('is_default', true)->value('courses.id')
+            ?? $this->availableCoursesQuery()->value('courses.id')
+            ?? '');
         $this->export_date_from = now()->startOfMonth()->toDateString();
         $this->export_date_to = now()->toDateString();
     }
@@ -58,19 +62,15 @@ new class extends Component {
             ->latest('attendance_date')
             ->latest('id');
 
-        $scheduledTeacherCount = filled($this->attendance_date)
-            ? $this->scheduledTeachersForDate($this->attendance_date)->count()
+        $scheduledTeacherCount = filled($this->attendance_date) && filled($this->course_id)
+            ? $this->scheduledTeachersForDate($this->attendance_date, (int) $this->course_id)->count()
             : 0;
 
         return [
             'days' => $daysQuery->paginate($this->perPage),
             'filteredCount' => (clone $daysQuery)->count(),
-            'stats' => [
-                'days' => $this->scopeTeacherAttendanceDaysQuery(TeacherAttendanceDay::query())->count(),
-                'teachers' => $this->scopeTeacherAttendanceRecordsQuery(TeacherAttendanceRecord::query())->count(),
-                'open' => $this->scopeTeacherAttendanceDaysQuery(TeacherAttendanceDay::query()->where('status', 'open'))->count(),
-            ],
             'scheduledTeacherCount' => $scheduledTeacherCount,
+            'courseOptions' => $this->availableCoursesQuery()->orderBy('name')->get(['id', 'name']),
             'defaultStatusOptions' => AttendanceStatus::query()
                 ->where('is_active', true)
                 ->whereIn('scope', ['teacher', 'both'])
@@ -96,9 +96,11 @@ new class extends Component {
         $this->authorizePermission('attendance.teacher.take');
 
         $this->attendance_date = now()->toDateString();
+        $this->course_id = (string) ($this->availableCoursesQuery()->where('is_default', true)->value('courses.id')
+            ?? $this->availableCoursesQuery()->value('courses.id')
+            ?? '');
         $this->day_status = 'open';
         $this->default_attendance_status_id = (string) ($this->defaultTeacherAttendanceStatusId() ?? '');
-        $this->notes = '';
         $this->showFormModal = true;
         $this->resetValidation();
     }
@@ -114,6 +116,11 @@ new class extends Component {
         $this->showExportModal = false;
     }
 
+    public function openExportModal(): void
+    {
+        $this->showExportModal = true;
+    }
+
     public function saveDay()
     {
         $this->authorizePermission('attendance.teacher.take');
@@ -126,21 +133,22 @@ new class extends Component {
 
         $validated = $this->validate([
             'attendance_date' => ['required', 'date'],
-            'day_status' => ['required', 'in:open,closed'],
+            'course_id' => ['required', 'integer', Rule::exists('courses', 'id')],
             'default_attendance_status_id' => [
                 'required',
                 'integer',
                 Rule::exists('attendance_statuses', 'id')->where(fn ($query) => $query->where('is_active', true)->whereIn('scope', ['teacher', 'both'])),
             ],
-            'notes' => ['nullable', 'string'],
         ]);
+
+        abort_unless($this->availableCoursesQuery()->whereKey((int) $validated['course_id'])->exists(), 403);
 
         $day = app(TeacherAttendanceDayService::class)->createOrSyncDay(
             $validated['attendance_date'],
-            $this->scheduledTeachersForDate($validated['attendance_date']),
+            $this->scheduledTeachersForDate($validated['attendance_date'], (int) $validated['course_id']),
             auth()->user(),
-            $validated['notes'] ?: null,
-            $validated['day_status'],
+            null,
+            'open',
             (int) $validated['default_attendance_status_id'],
         );
 
@@ -148,7 +156,7 @@ new class extends Component {
 
         $this->closeCreateModal();
 
-        return redirect()->route('teachers.attendance.show', $day);
+        return redirect()->route('teacher-attendance.show', $day);
     }
 
     public function deleteDay(int $dayId): void
@@ -181,7 +189,7 @@ new class extends Component {
                 ->value('id');
     }
 
-    protected function scheduledTeachersForDate(string $attendanceDate)
+    protected function scheduledTeachersForDate(string $attendanceDate, ?int $courseId = null)
     {
         try {
             $dayOfWeek = Carbon::parse($attendanceDate)->dayOfWeek;
@@ -193,6 +201,7 @@ new class extends Component {
             Group::query()
                 ->select(['teacher_id', 'assistant_teacher_id'])
                 ->where('is_active', true)
+                ->when($courseId, fn (Builder $query) => $query->where('course_id', $courseId))
                 ->whereHas('schedules', fn ($query) => $query
                     ->where('is_active', true)
                     ->where('day_of_week', $dayOfWeek))
@@ -235,6 +244,13 @@ new class extends Component {
                 ->orderBy('last_name')
         )->get();
     }
+
+    protected function availableCoursesQuery(): Builder
+    {
+        return Course::query()
+            ->where('is_active', true)
+            ->whereHas('groups', fn (Builder $query) => $this->scopeGroupsQuery($query->where('is_active', true)));
+    }
 }; ?>
 
 <div class="page-stack">
@@ -242,31 +258,23 @@ new class extends Component {
         <div class="eyebrow">{{ __('ui.nav.tracking') }}</div>
         <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('workflow.teacher_attendance.days.title') }}</h1>
         <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ __('workflow.teacher_attendance.days.subtitle') }}</p>
-        <div class="mt-6 flex flex-wrap gap-3">
-            <span class="badge-soft">{{ __('workflow.teacher_attendance.days.stats.days') }}: {{ number_format($stats['days']) }}</span>
-            <span class="badge-soft badge-soft--emerald">{{ __('workflow.teacher_attendance.days.stats.teachers') }}: {{ number_format($stats['teachers']) }}</span>
-            <span class="badge-soft">{{ __('workflow.teacher_attendance.days.stats.open') }}: {{ number_format($stats['open']) }}</span>
-        </div>
     </section>
 
     @if (session('status'))
         <div class="flash-success px-4 py-3 text-sm">{{ session('status') }}</div>
     @endif
 
-    <section class="surface-panel p-5 lg:p-6">
-        <div class="admin-toolbar">
-            <div>
-                <div class="admin-toolbar__title">{{ __('workflow.teacher_attendance.days.table.title') }}</div>
-            </div>
-
+    <section class="surface-table">
+        <div class="admin-grid-meta admin-grid-meta--controls attendance-days-toolbar">
+            <div class="admin-grid-meta__title">{{ __('workflow.teacher_attendance.days.table.title') }}</div>
             <div class="admin-toolbar__controls">
                 <div class="admin-filter-field">
-                    <label for="teacher-attendance-search">{{ __('crud.common.filters.search') }}</label>
-                    <input id="teacher-attendance-search" wire:model.live.debounce.300ms="search" type="text" placeholder="YYYY-MM-DD">
+                    <label class="sr-only" for="teacher-attendance-search">{{ __('crud.common.filters.search') }}</label>
+                    <input id="teacher-attendance-search" wire:model.live.debounce.300ms="search" type="text" placeholder="DD-MM-YYYY">
                 </div>
 
                 <div class="admin-filter-field">
-                    <label for="teacher-attendance-status-filter">{{ __('workflow.teacher_attendance.days.form.status') }}</label>
+                    <label class="sr-only" for="teacher-attendance-status-filter">{{ __('workflow.teacher_attendance.days.form.status') }}</label>
                     <select id="teacher-attendance-status-filter" wire:model.live="statusFilter">
                         <option value="all">{{ __('crud.common.filters.all_statuses') }}</option>
                         <option value="open">{{ __('workflow.common.day_status.open') }}</option>
@@ -275,20 +283,11 @@ new class extends Component {
                 </div>
 
                 <div class="admin-toolbar__actions">
-                    <button type="button" wire:click="$set('showExportModal', true)" class="pill-link">{{ __('workflow.teacher_attendance.export.action') }}</button>
                     @can('attendance.teacher.take')
                         <button type="button" wire:click="openCreateModal" class="pill-link pill-link--accent">{{ __('workflow.teacher_attendance.days.create') }}</button>
                     @endcan
+                    <button type="button" wire:click="openExportModal" class="pill-link">{{ __('workflow.teacher_attendance.export.action') }}</button>
                 </div>
-            </div>
-        </div>
-    </section>
-
-    <section class="surface-table">
-        <div class="admin-grid-meta">
-            <div>
-                <div class="admin-grid-meta__title">{{ __('workflow.teacher_attendance.days.table.title') }}</div>
-                <div class="admin-grid-meta__summary">{{ __('crud.common.badges.in_view', ['count' => number_format($filteredCount)]) }}</div>
             </div>
         </div>
 
@@ -324,7 +323,7 @@ new class extends Component {
                                 </td>
                                 <td class="px-5 py-4 lg:px-6">
                                     <div class="flex flex-wrap justify-end gap-2">
-                                        <a href="{{ route('teachers.attendance.show', $day) }}" wire:navigate class="pill-link pill-link--compact">
+                                        <a href="{{ route('teacher-attendance.show', $day) }}" wire:navigate class="pill-link pill-link--compact">
                                             {{ __('workflow.teacher_attendance.days.table.view') }}
                                         </a>
                                     </div>
@@ -346,48 +345,50 @@ new class extends Component {
     <x-admin.modal
         :show="$showFormModal"
         :title="__('workflow.teacher_attendance.days.form.title')"
-        :description="__('workflow.teacher_attendance.days.form.help')"
         close-method="closeCreateModal"
-        max-width="4xl"
+        max-width="3xl"
+        compact
     >
         <form wire:submit="saveDay" class="space-y-4">
             <div class="grid gap-4 md:grid-cols-2">
                 <div>
+                    <label for="teacher-attendance-day-course" class="mb-1 block text-sm font-medium">{{ __('workflow.teacher_attendance.days.form.course') }}</label>
+                    <select id="teacher-attendance-day-course" wire:model.live="course_id" class="h-12 min-h-12 w-full rounded-xl px-4 py-0 text-sm">
+                        <option value="">{{ __('workflow.teacher_attendance.days.form.select_course') }}</option>
+                        @foreach ($courseOptions as $course)
+                            <option value="{{ $course->id }}">{{ $course->name }}</option>
+                        @endforeach
+                    </select>
+                    @error('course_id')
+                        <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
+                    @enderror
+                </div>
+
+                <div class="flex h-12 min-h-12 box-border items-center self-end rounded-xl border border-white/10 bg-white/5 px-4 text-sm font-semibold">
+                    {{ __(app()->isLocale('ar') && $scheduledTeacherCount > 10 ? 'workflow.teacher_attendance.days.form.scheduled_teacher_singular_help' : 'workflow.teacher_attendance.days.form.scheduled_teachers_help', ['count' => number_format($scheduledTeacherCount)]) }}
+                </div>
+            </div>
+
+            <div class="grid gap-4 md:grid-cols-2">
+                <div>
                     <label for="teacher-attendance-day-date" class="mb-1 block text-sm font-medium">{{ __('workflow.teacher_attendance.days.form.attendance_date') }}</label>
-                    <input id="teacher-attendance-day-date" wire:model.live="attendance_date" type="date" class="w-full rounded-xl px-4 py-3 text-sm">
+                    <input id="teacher-attendance-day-date" wire:model.live="attendance_date" value="{{ $attendance_date }}" type="date" class="h-12 min-h-12 w-full appearance-none rounded-xl px-4 py-0 text-sm">
                     @error('attendance_date')
                         <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                     @enderror
                 </div>
-
                 <div>
-                    <label for="teacher-attendance-day-status" class="mb-1 block text-sm font-medium">{{ __('workflow.teacher_attendance.days.form.status') }}</label>
-                    <select id="teacher-attendance-day-status" wire:model="day_status" class="w-full rounded-xl px-4 py-3 text-sm">
-                        <option value="open">{{ __('workflow.common.day_status.open') }}</option>
-                        <option value="closed">{{ __('workflow.common.day_status.closed') }}</option>
+                    <label for="teacher-attendance-day-default-status" class="mb-1 block text-sm font-medium">{{ __('workflow.teacher_attendance.days.form.default_status') }}</label>
+                    <select id="teacher-attendance-day-default-status" wire:model="default_attendance_status_id" class="h-12 min-h-12 w-full rounded-xl px-4 py-0 text-sm">
+                        <option value="">{{ __('workflow.teacher_attendance.days.form.no_default_status') }}</option>
+                        @foreach ($defaultStatusOptions as $status)
+                            <option value="{{ $status->id }}">{{ $status->name }}{{ $status->is_default ? ' - '.__('settings.tracking.labels.default_attendance_status') : '' }}</option>
+                        @endforeach
                     </select>
-                    @error('day_status')
+                    @error('default_attendance_status_id')
                         <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                     @enderror
                 </div>
-            </div>
-
-            <div>
-                <label for="teacher-attendance-day-default-status" class="mb-1 block text-sm font-medium">{{ __('workflow.teacher_attendance.days.form.default_status') }}</label>
-                <select id="teacher-attendance-day-default-status" wire:model="default_attendance_status_id" class="w-full rounded-xl px-4 py-3 text-sm">
-                    <option value="">{{ __('workflow.teacher_attendance.days.form.no_default_status') }}</option>
-                    @foreach ($defaultStatusOptions as $status)
-                        <option value="{{ $status->id }}">{{ $status->name }}{{ $status->is_default ? ' - '.__('settings.tracking.labels.default_attendance_status') : '' }}</option>
-                    @endforeach
-                </select>
-                <div class="mt-1 text-xs text-neutral-400">{{ __('workflow.teacher_attendance.days.form.default_status_help') }}</div>
-                @error('default_attendance_status_id')
-                    <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
-                @enderror
-            </div>
-
-            <div class="soft-callout p-4 text-sm">
-                {{ __('workflow.teacher_attendance.days.form.scheduled_teachers_help', ['count' => number_format($scheduledTeacherCount)]) }}
             </div>
 
             <div class="flex flex-wrap items-center gap-3">
@@ -397,11 +398,15 @@ new class extends Component {
         </form>
     </x-admin.modal>
 
-    <x-admin.modal :show="$showExportModal" :title="__('workflow.teacher_attendance.export.title')" close-method="closeExportModal" max-width="2xl">
-        <div class="grid gap-4 sm:grid-cols-2">
-            <div><label class="mb-1 block text-sm font-medium">{{ __('workflow.teacher_attendance.export.from') }}</label><input wire:model.live="export_date_from" type="date" class="w-full rounded-xl px-4 py-3"></div>
-            <div><label class="mb-1 block text-sm font-medium">{{ __('workflow.teacher_attendance.export.to') }}</label><input wire:model.live="export_date_to" type="date" class="w-full rounded-xl px-4 py-3"></div>
-        </div>
-        <div class="mt-5 flex justify-end"><a href="{{ route('teachers.attendance.export', ['date_from' => $export_date_from, 'date_to' => $export_date_to]) }}" target="_blank" class="pill-link pill-link--accent">{{ __('workflow.teacher_attendance.export.action') }}</a></div>
-    </x-admin.modal>
+    @teleport('body')
+    <div class="admin-modal-portal">
+        <x-admin.modal :show="$showExportModal" :title="__('workflow.teacher_attendance.export.title')" close-method="closeExportModal" max-width="2xl" full-viewport>
+            <div class="grid gap-4 sm:grid-cols-2">
+                <div><label class="mb-1 block text-sm font-medium">{{ __('workflow.teacher_attendance.export.from') }}</label><input wire:model.live="export_date_from" type="date" class="w-full rounded-xl px-4 py-3"></div>
+                <div><label class="mb-1 block text-sm font-medium">{{ __('workflow.teacher_attendance.export.to') }}</label><input wire:model.live="export_date_to" type="date" class="w-full rounded-xl px-4 py-3"></div>
+            </div>
+            <div class="attendance-export-actions mt-5 flex justify-end"><a href="{{ route('teacher-attendance.export', ['date_from' => $export_date_from, 'date_to' => $export_date_to]) }}" target="_blank" class="pill-link pill-link--accent">{{ __('workflow.teacher_attendance.export.action') }}</a></div>
+        </x-admin.modal>
+    </div>
+    @endteleport
 </div>

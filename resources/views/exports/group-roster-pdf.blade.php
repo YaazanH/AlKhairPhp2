@@ -5,7 +5,6 @@
     $groupLine = trim(implode(' - ', array_filter([
         $group->name,
         $teacherName,
-        $group->academicYear?->name,
     ])));
 @endphp
 <!doctype html>
@@ -23,13 +22,13 @@
         }
 
         .page-header {
-            background: #c5e0b4;
-            border-bottom: 1.5px solid #000;
+            background: #cfe7d6;
+            border: 0;
             padding: 2mm 3mm;
         }
 
         .title-row {
-            background: #c5e0b4;
+            background: #cfe7d6;
             border-collapse: collapse;
             table-layout: fixed;
             width: 100%;
@@ -71,11 +70,13 @@
 
         .header-spacer { width: 22%; }
 
+        .title-row td {
+            border: 0;
+        }
+
         .meta-label {
             font-weight: bold;
         }
-
-        body > table { margin-top: 4mm; }
 
         table {
             border-collapse: collapse;
@@ -89,20 +90,23 @@
 
         th {
             background: #dfece2;
-            border-bottom: 1.5px solid #000;
+            border: 1px solid #aebbb1;
+            border-bottom: 3px double #aebbb1;
             font-size: 11.5px;
             font-weight: bold;
-            padding: 1.5px 4px;
+            padding: 7px 4px;
             text-align: center;
         }
 
         td {
-            border-bottom: 0.4px solid #d9d9d9;
+            border: 1px solid #aebbb1;
             font-size: 10.5px;
-            padding: 6px 4px;
+            padding: 7px 4px;
             text-align: center;
             vertical-align: middle;
         }
+
+        .report-table { margin-top: 4mm; }
 
         tbody tr:nth-child(even) td {
             background: #f1f7f2;
@@ -120,7 +124,7 @@
         }
 
         .footer {
-            background: #c5e0b4;
+            background: #cfe7d6;
             color: #555;
             font-size: 9px;
             padding: 2mm 0;
@@ -132,10 +136,10 @@
     <htmlpageheader name="roster-header"><div class="page-header"><table class="title-row" dir="ltr"><tr><td class="header-spacer"></td><td class="header-copy" dir="rtl"><h1>قائمة بيانات الطلاب</h1><div class="group-line">{{ $groupLine !== '' ? $groupLine : $group->name }}</div></td><td class="logo" dir="rtl">@if ($logo)<img src="{{ $logo }}" alt="">@endif</td></tr></table></div></htmlpageheader>
     <htmlpagefooter name="roster-footer"><div class="footer">صفحة {PAGENO} من {nbpg}</div></htmlpagefooter>
 
-    <table>
+    <table class="report-table">
         <thead>
             <tr>
-                <th style="width: 13%;">باركود</th>
+                <th style="width: 13%;">رقم الطالب</th>
                 <th style="width: 21%;">اسم الطالب</th>
                 <th style="width: 9%;">الصف</th>
                 <th style="width: 7%;">الجزء</th>

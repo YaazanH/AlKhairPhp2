@@ -30,6 +30,7 @@ class AdminExportController extends Controller
         abort_unless($request->user()?->can('courses.view'), 403);
 
         $query = Course::query()
+            ->with('academicYear')
             ->withCount('groups')
             ->orderBy('name');
 
@@ -42,15 +43,23 @@ class AdminExportController extends Controller
             });
         }
 
-        if (in_array($request->string('status')->value(), ['active', 'inactive'], true)) {
-            $query->where('is_active', $request->string('status')->value() === 'active');
+        match ($request->string('status')->value()) {
+            'active' => $query->where('is_active', true)->whereNull('course_finished_at'),
+            'inactive' => $query->where('is_active', false)->whereNull('course_finished_at'),
+            'finished' => $query->whereNotNull('course_finished_at'),
+            default => null,
+        };
+
+        if ($request->filled('academic_year_id') && $request->string('academic_year_id')->value() !== 'all') {
+            $query->where('academic_year_id', $request->integer('academic_year_id'));
         }
 
-        return $this->streamXlsx('courses', ['Name', 'Description', 'Starts On', 'Ends On', 'Groups', 'Points', 'Status'], $query->get()->map(fn (Course $course) => [
+        return $this->streamXlsx('courses', ['Name', 'Description', 'Starts On', 'Ends On', 'Academic Year', 'Groups', 'Points', 'Status'], $query->get()->map(fn (Course $course) => [
             $course->name,
             $course->description,
-            $course->starts_on?->format('Y-m-d'),
-            $course->ends_on?->format('Y-m-d'),
+            $course->starts_on?->format('d-m-Y'),
+            $course->ends_on?->format('d-m-Y'),
+            $course->academicYear?->name,
             $course->groups_count,
             $course->awards_points ? 'Enabled' : 'Disabled',
             $course->is_active ? 'Active' : 'Inactive',
@@ -220,7 +229,7 @@ class AdminExportController extends Controller
             $group->teacher ? trim($group->teacher->first_name.' '.$group->teacher->last_name) : null,
             $group->academicYear?->name,
             $group->enrollments_count,
-            $group->is_active ? 'Active' : 'Inactive',
+            $group->course_finished_at ? 'Finished' : ($group->is_active ? 'Active' : 'Inactive'),
         ])->all());
     }
 
@@ -244,7 +253,7 @@ class AdminExportController extends Controller
                 $enrollment->student?->parentProfile?->father_phone,
                 $enrollment->student?->parentProfile?->mother_phone,
                 $enrollment->student?->parentProfile?->home_phone,
-                $enrollment->enrolled_at?->format('Y-m-d'),
+                $enrollment->enrolled_at?->format('d-m-Y'),
                 ucfirst($enrollment->status),
             ])
             ->all();
@@ -340,8 +349,8 @@ class AdminExportController extends Controller
             $enrollment->student?->full_name,
             $enrollment->group?->name,
             $enrollment->group?->course?->name,
-            $enrollment->enrolled_at?->format('Y-m-d'),
-            $enrollment->left_at?->format('Y-m-d'),
+            $enrollment->enrolled_at?->format('d-m-Y'),
+            $enrollment->left_at?->format('d-m-Y'),
             ucfirst($enrollment->status),
         ])->all());
     }

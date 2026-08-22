@@ -7,6 +7,7 @@ return [
     ],
     'invoice' => [
         'title' => 'Invoice',
+        'continued' => 'Continued',
         'invoice_no' => 'Invoice No',
         'status' => 'Status: :status',
         'statuses' => [

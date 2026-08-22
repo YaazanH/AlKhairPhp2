@@ -13,7 +13,7 @@
 <div class="surface-panel p-4">
     <div class="grid gap-4">
         @unless($showWebsiteSettings)
-        <section class="rounded-2xl border border-white/8 bg-white/4 p-3" aria-label="{{ __('ui.common.settings') }}">
+        <section aria-label="{{ __('ui.common.settings') }}">
             <div class="settings-tabs">
                 <a href="{{ route('settings.organization') }}" wire:navigate class="settings-tab {{ $resolvedCurrent === 'settings.organization' ? 'is-active' : '' }}">
                     <span class="settings-tab__title">{{ __('settings.navigation.organization.title') }}</span>
@@ -54,7 +54,7 @@
 
         @if($showWebsiteSettings)
         @can('website.manage')
-            <section class="rounded-2xl border border-white/8 bg-white/4 p-3" aria-label="{{ __('ui.nav.public_website_settings') }}">
+            <section aria-label="{{ __('ui.nav.public_website_settings') }}">
                 <div class="settings-tabs">
                     <a href="{{ route('settings.website') }}" wire:navigate class="settings-tab {{ $resolvedCurrent === 'settings.website' ? 'is-active' : '' }}">
                         <span class="settings-tab__title">{{ __('site.admin.nav.website') }}</span>

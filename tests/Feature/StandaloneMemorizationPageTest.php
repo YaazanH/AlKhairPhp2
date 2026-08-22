@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\AcademicYear;
 use App\Models\Course;
 use App\Models\Enrollment;
 use App\Models\Group;
@@ -9,6 +10,7 @@ use App\Models\ParentProfile;
 use App\Models\Student;
 use App\Models\Teacher;
 use App\Models\User;
+use App\Services\MemorizationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Volt\Volt;
 use Tests\TestCase;
@@ -22,6 +24,9 @@ class StandaloneMemorizationPageTest extends TestCase
         [, $teacher, $enrollment] = $this->teacherMemorizationContext();
 
         Volt::test('memorization.index')
+            ->call('openCreateModal')
+            ->assertDontSee('memorization-enrollment', false)
+            ->assertDontSee('memorization-notes', false)
             ->set('selectedStudentId', $enrollment->student_id)
             ->set('recorded_on', '2026-09-03')
             ->set('entry_type', 'new')
@@ -40,7 +45,7 @@ class StandaloneMemorizationPageTest extends TestCase
         ]);
     }
 
-    public function test_teacher_workbench_requires_group_selection_when_student_has_multiple_active_enrollments(): void
+    public function test_teacher_workbench_automatically_uses_the_newest_active_enrollment(): void
     {
         [, , $enrollment] = $this->teacherMemorizationContext();
 
@@ -64,12 +69,20 @@ class StandaloneMemorizationPageTest extends TestCase
 
         Volt::test('memorization.index')
             ->set('selectedStudentId', $enrollment->student_id)
+            ->assertSet('selectedEnrollmentId', $secondGroup->enrollments()->value('id'))
             ->set('recorded_on', '2026-09-05')
             ->set('entry_type', 'new')
             ->set('from_page', '14')
             ->set('to_page', '16')
             ->call('save')
-            ->assertHasErrors(['selectedEnrollmentId']);
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('memorization_sessions', [
+            'enrollment_id' => $secondGroup->enrollments()->value('id'),
+            'student_id' => $enrollment->student_id,
+            'from_page' => 14,
+            'to_page' => 16,
+        ]);
     }
 
     public function test_teacher_workbench_warns_about_duplicate_pages_and_can_save_only_the_unique_pages(): void
@@ -171,7 +184,7 @@ class StandaloneMemorizationPageTest extends TestCase
             'is_active' => true,
         ]);
 
-        $yearId = \App\Models\AcademicYear::query()->where('is_current', true)->value('id');
+        $yearId = AcademicYear::query()->where('is_current', true)->value('id');
 
         $otherGroup = Group::create([
             'course_id' => $otherCourse->id,
@@ -346,6 +359,33 @@ class StandaloneMemorizationPageTest extends TestCase
             ->assertDontSee('Inactive Course Student');
     }
 
+    public function test_editing_memorization_preserves_historic_notes_after_the_notes_field_is_removed(): void
+    {
+        [, $teacher, $enrollment] = $this->teacherMemorizationContext();
+
+        $session = app(MemorizationService::class)->saveSession($enrollment, [
+            'teacher_id' => $teacher->id,
+            'recorded_on' => '2026-09-03',
+            'entry_type' => 'new',
+            'from_page' => 11,
+            'to_page' => 13,
+            'notes' => 'Historic memorization note',
+        ]);
+
+        Volt::test('memorization.index')
+            ->call('editSession', $session->id)
+            ->assertDontSee('memorization-notes', false)
+            ->set('recorded_on', '2026-09-04')
+            ->call('save')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('memorization_sessions', [
+            'id' => $session->id,
+            'notes' => 'Historic memorization note',
+            'recorded_on' => '2026-09-04 00:00:00',
+        ]);
+    }
+
     private function teacherMemorizationContext(): array
     {
         $this->seed();
@@ -381,7 +421,7 @@ class StandaloneMemorizationPageTest extends TestCase
             'is_active' => true,
         ]);
 
-        $yearId = \App\Models\AcademicYear::query()->where('is_current', true)->value('id');
+        $yearId = AcademicYear::query()->where('is_current', true)->value('id');
 
         $group = Group::create([
             'course_id' => $course->id,

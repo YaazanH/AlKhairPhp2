@@ -23,6 +23,9 @@ class TeacherAttendanceExportController extends Controller
             $listedDays = (clone $records)->distinct('teacher_attendance_day_id')->count('teacher_attendance_day_id');
             $present = (clone $records)->whereHas('status', fn ($query) => $query->where('is_present', true))->count();
             $role = $teacher->accessRole?->name ?: $teacher->jobTitle?->name ?: $teacher->job_title;
+            if (in_array($role, ['super_admin', 'superadmin', 'admin', 'manager'], true)) {
+                $role = 'manager';
+            }
             $translatedRole = $role ? __('ui.roles.'.$role) : '';
             if ($role && $translatedRole === 'ui.roles.'.$role) {
                 $translatedRole = str_replace(['_', '-'], ' ', $role);
@@ -33,8 +36,15 @@ class TeacherAttendanceExportController extends Controller
         $course = Course::query()->where('is_default', true)->first();
         $logo = app(PdfBrandingService::class)->logoSource();
         $html = view('reports.teacher-attendance', compact('teachers', 'course', 'validated', 'logo'))->render();
-        $mpdf = new Mpdf(PdfOptions::make(['format' => 'A4', 'orientation' => 'P']));
-        $mpdf->SetDirectionality('rtl'); $mpdf->WriteHTML($html);
+        $mpdf = new Mpdf(PdfOptions::make([
+            'format' => 'A4',
+            'orientation' => 'P',
+            'setAutoTopMargin' => 'stretch',
+            'autoMarginPadding' => 4,
+        ]));
+        $mpdf->SetDirectionality(app()->isLocale('ar') ? 'rtl' : 'ltr');
+        $mpdf->WriteHTML($html);
+
         return response($mpdf->Output('', 'S'), 200, ['Content-Type' => 'application/pdf', 'Content-Disposition' => 'inline; filename="teacher-attendance.pdf"']);
     }
 }

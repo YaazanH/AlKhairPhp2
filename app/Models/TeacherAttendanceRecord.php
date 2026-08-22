@@ -13,6 +13,8 @@ class TeacherAttendanceRecord extends Model
     protected $fillable = [
         'teacher_attendance_day_id',
         'teacher_id',
+        'archived_course_id',
+        'course_finished_at',
         'attendance_status_id',
         'notes',
     ];
@@ -20,6 +22,18 @@ class TeacherAttendanceRecord extends Model
     public function attendanceDay(): BelongsTo
     {
         return $this->belongsTo(TeacherAttendanceDay::class, 'teacher_attendance_day_id');
+    }
+
+    protected function casts(): array
+    {
+        return [
+            'course_finished_at' => 'datetime',
+        ];
+    }
+
+    public function archivedCourse(): BelongsTo
+    {
+        return $this->belongsTo(Course::class, 'archived_course_id');
     }
 
     public function status(): BelongsTo

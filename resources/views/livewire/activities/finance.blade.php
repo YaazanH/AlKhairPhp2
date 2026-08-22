@@ -40,6 +40,7 @@ new class extends Component {
     public function mount(Activity $activity): void
     {
         $this->authorizePermission('activities.finance.view');
+        abort_unless(\App\Support\OperationalFeatureSettings::activitiesEnabled(), 404);
         $this->currentActivity = Activity::query()->with(['group.course', 'targetGroups.course'])->findOrFail($activity->id);
         $this->resetRegistrationForm();
         $this->payment_paid_at = now()->toDateString();

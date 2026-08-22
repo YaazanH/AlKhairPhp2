@@ -2,8 +2,8 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Casts\Attribute;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -17,6 +17,8 @@ class StudentAttendanceDay extends Model
         'attendance_date',
         'course_id',
         'status',
+        'course_finished_at',
+        'course_finished_was_open',
         'notes',
         'created_by',
     ];
@@ -25,6 +27,8 @@ class StudentAttendanceDay extends Model
     {
         return [
             'attendance_date' => 'date',
+            'course_finished_at' => 'datetime',
+            'course_finished_was_open' => 'boolean',
         ];
     }
 

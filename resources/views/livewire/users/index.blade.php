@@ -379,7 +379,6 @@ new class extends Component
     <section class="page-hero p-6 lg:p-8">
         <div class="eyebrow">{{ __('ui.nav.people') }}</div>
         <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('access.users.title') }}</h1>
-        <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ __('access.users.subtitle') }}</p>
     </section>
 
     @if (session('status'))
@@ -391,48 +390,6 @@ new class extends Component
             {{ __('access.profile_accounts.messages.credentials', session('generated_credentials')) }}
         </div>
     @endif
-
-    <section class="surface-panel p-5 lg:p-6">
-        <div class="admin-toolbar">
-            <div>
-                <div class="admin-toolbar__title">{{ __('access.users.title') }}</div>
-                <p class="admin-toolbar__subtitle">{{ __('access.users.subtitle') }}</p>
-            </div>
-
-            <div class="admin-toolbar__controls">
-                <div class="admin-filter-field">
-                    <label for="user-search">{{ __('crud.common.filters.search') }}</label>
-                    <input id="user-search" wire:model.live.debounce.300ms="search" type="text" placeholder="{{ __('crud.common.filters.search_placeholder') }}">
-                </div>
-
-                <div class="admin-filter-field">
-                    <label for="user-role-filter">{{ __('access.users.filters.role') }}</label>
-                    <select id="user-role-filter" wire:model.live="roleFilter">
-                        <option value="all">{{ __('access.users.filters.all_roles') }}</option>
-                        @foreach ($availableRoles as $availableRole)
-                            <option value="{{ $availableRole->name }}">{{ __('ui.roles.'.$availableRole->name) === 'ui.roles.'.$availableRole->name ? \Illuminate\Support\Str::of($availableRole->name)->replace('_', ' ')->headline()->toString() : __('ui.roles.'.$availableRole->name) }}</option>
-                        @endforeach
-                    </select>
-                </div>
-
-                <div class="admin-filter-field">
-                    <label for="user-status-filter">{{ __('crud.common.filters.status') }}</label>
-                    <select id="user-status-filter" wire:model.live="statusFilter">
-                        <option value="all">{{ __('crud.common.filters.all_statuses') }}</option>
-                        <option value="active">{{ __('crud.common.status_options.active') }}</option>
-                        <option value="inactive">{{ __('crud.common.status_options.inactive') }}</option>
-                    </select>
-                </div>
-
-                <div class="admin-toolbar__actions">
-                    @can('users.create')
-                        <button type="button" wire:click="openCreateModal" class="pill-link pill-link--accent">{{ __('crud.common.actions.create') }}</button>
-                    @endcan
-                    <a href="{{ route('users.export', ['search' => $search, 'role' => $roleFilter, 'status' => $statusFilter]) }}" class="pill-link">{{ __('crud.common.actions.export') }}</a>
-                </div>
-            </div>
-        </div>
-    </section>
 
     @php
         $linkedProfilesCount = $users->filter(fn (User $user): bool => $user->teacherProfile || $user->parentProfile || $user->studentProfile)->count();
@@ -455,10 +412,36 @@ new class extends Component
     </section>
 
     <section class="surface-table">
-        <div class="admin-grid-meta">
-            <div>
-                <div class="admin-grid-meta__title">{{ __('access.users.title') }}</div>
-                <div class="admin-grid-meta__summary">{{ __('crud.common.badges.in_view', ['count' => number_format($filteredCount)]) }}</div>
+        <div class="admin-grid-meta admin-grid-meta--controls">
+            <div class="admin-grid-meta__title">{{ __('access.users.title') }}</div>
+            <div class="admin-toolbar__controls">
+                <div class="admin-filter-field">
+                    <label class="sr-only" for="user-search">{{ __('crud.common.filters.search') }}</label>
+                    <input id="user-search" wire:model.live.debounce.300ms="search" type="text" placeholder="{{ __('crud.common.filters.search_placeholder') }}">
+                </div>
+                <div class="admin-filter-field">
+                    <label class="sr-only" for="user-role-filter">{{ __('access.users.filters.role') }}</label>
+                    <select id="user-role-filter" wire:model.live="roleFilter">
+                        <option value="all">{{ __('access.users.filters.all_roles') }}</option>
+                        @foreach ($availableRoles as $availableRole)
+                            <option value="{{ $availableRole->name }}">{{ __('ui.roles.'.$availableRole->name) === 'ui.roles.'.$availableRole->name ? \Illuminate\Support\Str::of($availableRole->name)->replace('_', ' ')->headline()->toString() : __('ui.roles.'.$availableRole->name) }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="admin-filter-field">
+                    <label class="sr-only" for="user-status-filter">{{ __('crud.common.filters.status') }}</label>
+                    <select id="user-status-filter" wire:model.live="statusFilter">
+                        <option value="all">{{ __('crud.common.filters.all_statuses') }}</option>
+                        <option value="active">{{ __('crud.common.status_options.active') }}</option>
+                        <option value="inactive">{{ __('crud.common.status_options.inactive') }}</option>
+                    </select>
+                </div>
+                <div class="admin-toolbar__actions">
+                    @can('users.create')
+                        <button type="button" wire:click="openCreateModal" class="pill-link pill-link--accent">{{ __('crud.common.actions.create') }}</button>
+                    @endcan
+                    <a href="{{ route('users.export', ['search' => $search, 'role' => $roleFilter, 'status' => $statusFilter]) }}" class="pill-link">{{ __('crud.common.actions.export') }}</a>
+                </div>
             </div>
         </div>
 

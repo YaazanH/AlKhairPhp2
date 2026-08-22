@@ -53,8 +53,8 @@
         <table>
             <thead>
                 <tr>
-                    <th>{{ __('print.invoice.headers.description') }}</th>
                     <th>#</th>
+                    <th>{{ __('print.invoice.headers.description') }}</th>
                     <th>{{ __('print.invoice.headers.qty') }}</th>
                     <th>{{ __('print.invoice.headers.unit_price') }}</th>
                     <th>{{ __('print.invoice.headers.amount') }}</th>
@@ -63,13 +63,13 @@
             <tbody>
                 @forelse ($invoice->items as $item)
                     <tr>
+                        <td>{{ $item->line_no ?: $loop->iteration }}</td>
                         <td>
                             {{ $item->item_name ?: $item->description }}
                             @if ($item->student)
                                 <div class="subtitle">{{ $item->student->full_name }}</div>
                             @endif
                         </td>
-                        <td>{{ $item->line_no ?: $loop->iteration }}</td>
                         <td>{{ number_format((float) $item->quantity, 2) }}</td>
                         <td>{{ number_format((float) $item->unit_price, 2) }}</td>
                         <td>{{ number_format((float) $item->amount, 2) }}</td>

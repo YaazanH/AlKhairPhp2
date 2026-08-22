@@ -158,24 +158,37 @@ class DashboardTest extends TestCase
             ->assertOk()
             ->assertSee('Management Dashboard')
             ->assertSee('Quran Foundations')
+            ->assertSee('dashboard-course-context__course', false)
             ->assertSee('Number of Students per Group')
             ->assertSee('Comparison between Attendance and Memorisation')
             ->assertSee('Top 3 Students')
+            ->assertSee('dashboard-leaderboard__rank-image', false)
+            ->assertSee('images/dashboard/leaderboard/medal-1.png', false)
             ->assertSee('Top Groups by Memorisation')
             ->assertDontSee('Latest five attendance days')
-            ->assertSee('Count')
+            ->assertDontSee('Count')
             ->assertSee('Groups')
             ->assertSee('Boys A')
             ->assertSee('Memorized pages: 5')
             ->assertSee('Students attended: 1')
             ->assertSee('dashboard-line-point__tooltip', false)
             ->assertSee('dashboard-line-chart', false)
+            ->assertSee('viewBox="0 0 458 220"', false)
             ->assertSee('dashboard-treemap', false)
+            ->assertSee('inset-inline-start: calc(100% - .4375rem)', false)
             ->assertSee('mx-auto mt-8 grid w-full max-w-xl', false)
             ->assertDontSee('stroke-dasharray', false)
+            ->assertDontSee('<div class="eyebrow">Curricula</div>', false)
             ->assertDontSee('Recent Groups')
             ->assertDontSee('Students with an active enrollment in the default course')
             ->assertDontSee('Excluded Group');
+
+        $dashboardCss = file_get_contents(resource_path('css/app.css'));
+        $this->assertStringContainsString('.dashboard-leaderboard__rank-image {', $dashboardCss);
+        $this->assertStringNotContainsString('--dashboard-rank-ribbon:', $dashboardCss);
+        $this->assertFileExists(public_path('images/dashboard/leaderboard/medal-1.png'));
+        $this->assertFileExists(public_path('images/dashboard/leaderboard/medal-2.png'));
+        $this->assertFileExists(public_path('images/dashboard/leaderboard/medal-3.png'));
 
         Volt::test('dashboard')
             ->call('showManagerStudent', $student->id)
@@ -355,7 +368,8 @@ class DashboardTest extends TestCase
             ->get('/dashboard')
             ->assertOk()
             ->assertSee('Assigned Special Course')
-            ->assertSee('Assigned Special Course · Supervisor Group')
+            ->assertSee('dashboard-course-context__course', false)
+            ->assertSee('dashboard-course-context__group', false)
             ->assertDontSee('Hidden Academic Year')
             ->assertSee('Supervisor Group')
             ->assertSee("Copy today's summary")
@@ -364,6 +378,7 @@ class DashboardTest extends TestCase
             ->assertSee('Top 5 Students by Memorization')
             ->assertSee('Top Students by Points')
             ->assertSee('Curriculum progress')
+            ->assertDontSee('<div class="eyebrow">Curricula</div>', false)
             ->assertDontSee('Latest Memorization Entries')
             ->assertSee('Ranked Student')
             ->assertSee('dashboard-line-chart', false);

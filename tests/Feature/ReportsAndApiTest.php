@@ -37,6 +37,7 @@ use App\Models\User;
 use App\Services\MemorizationRankingService;
 use App\Services\ReportingService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Laravel\Sanctum\Sanctum;
 use Livewire\Volt\Volt;
 use Tests\TestCase;
@@ -70,9 +71,18 @@ class ReportsAndApiTest extends TestCase
             ->assertDontSee('Reports and exports')
             ->assertDontSee('Scope the dataset')
             ->assertDontSee('Use academic, group, and date filters')
+            ->assertDontSee('report-field-label', false)
             ->assertSee('grid grid-cols-2 gap-3', false)
-            ->assertSee('aspect-square w-28', false)
+            ->assertSee('report-attendance-average', false)
+            ->assertSee('mb-4 flex items-center justify-between gap-4', false)
+            ->assertSee('report-attendance-average flex h-12 w-fit shrink-0 items-center justify-between', false)
+            ->assertDontSee('Attendance days recorded: 1')
+            ->assertDontSee('<label class="mb-2 block text-sm font-medium text-neutral-200">Assessment type</label>', false)
             ->assertSee('Students’ progress detail')
+            ->assertSee('Export as XLSX')
+            ->assertDontSee('Comparison reports')
+            ->assertDontSee('Review memorization, passed final sabers, attendance, points, and groups in one table.')
+            ->assertDontSee('Compare group ranking first, then student ranking below it, using one shared course, group, and date-range filter.')
             ->assertDontSee('Student Quran tests')
             ->assertDontSee('Students in scope');
 
@@ -80,8 +90,12 @@ class ReportsAndApiTest extends TestCase
             ->get(route('reports.rankings', absolute: false))
             ->assertOk()
             ->assertSee('Group and student rankings')
-            ->assertSee('Group movement between ranges')
-            ->assertSee('Student movement between ranges');
+            ->assertSee('Group Leaderboard')
+            ->assertSee('Student Leaderboard');
+
+        Volt::test('reports.rankings')
+            ->assertViewHas('studentComparison', fn (array $comparison) => $comparison['rows'] instanceof LengthAwarePaginator
+                && $comparison['rows']->perPage() === 15);
 
         Sanctum::actingAs($manager);
 
@@ -782,7 +796,7 @@ class ReportsAndApiTest extends TestCase
             'group_id' => $group->id,
             'assessment_type_id' => $quizTypeId,
             'title' => 'Monthly Quiz',
-            'scheduled_at' => '2026-09-11 10:00:00',
+            'due_at' => '2026-09-11',
             'total_mark' => 100,
             'pass_mark' => 60,
             'is_active' => true,

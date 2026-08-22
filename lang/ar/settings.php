@@ -5,6 +5,7 @@ return [
         'states' => [
             'active' => 'نشط',
             'inactive' => 'غير نشط',
+            'finished' => 'منتهية',
         ],
         'actions' => [
             'save' => 'حفظ',
@@ -197,7 +198,7 @@ return [
                 'empty' => 'لا توجد أحجام صفحات طباعة بعد.',
             ],
             'default_avatars' => [
-                'title' => 'الصور الافتراضية للملفات',
+                'title' => 'الصورة الافتراضية للحسابات',
                 'copy' => 'تستخدم عند عدم وجود صورة مرفوعة للمستخدم أو الطالب أو الأستاذ أو ولي الأمر.',
             ],
             'student_dashboard_cards' => [
@@ -208,6 +209,11 @@ return [
         ],
         'fields' => [
             'school_name' => 'اسم الصفحة الرئيسية',
+            'barcode_scanner' => 'قارئ الباركود',
+            'barcode_status' => 'حالة الباركود',
+            'memorization_saber_entries' => 'إضافة الحفظ والسبورة الجديدة',
+            'memorization_saber_status' => 'حالة إضافة الصفحات',
+            'activities' => 'الأنشطة وأنشطة الأسرة',
             'school_phone' => 'الهاتف',
             'school_email' => 'البريد الإلكتروني',
             'email_domain' => 'نطاق البريد المولد',
@@ -225,7 +231,7 @@ return [
             'school_timezone' => 'المنطقة الزمنية',
             'school_currency' => 'العملة',
             'school_address' => 'العنوان',
-            'main_page_logo' => 'شعار الصفحة الرئيسية',
+            'main_page_logo' => 'شعار المسجد',
             'main_page_logo_help' => 'يُحفظ مباشرة بعد اختياره ويُستخدم في ملفات PDF بارتفاع أقصى 23 مم. عند عدم رفع شعار لن يظهر أي شعار.',
             'code' => 'الرمز',
             'name' => 'الاسم',
@@ -250,6 +256,7 @@ return [
         'table' => [
             'name' => 'الاسم',
             'dates' => 'التواريخ',
+            'courses' => 'الدورات',
             'groups' => 'المجموعات',
             'usage' => 'الاستخدام',
             'teachers' => 'الاساتذة',
@@ -304,6 +311,10 @@ return [
             'update_print_page_size' => 'تحديث حجم الصفحة',
             'save_student_dashboard_cards' => 'حفظ قوالب بطاقات الطلاب',
         ],
+        'features' => [
+            'memorization_disabled' => 'إضافة الحفظ والسبورة الجديدة متوقفة حالياً من الإعدادات العامة.',
+            'activities_disabled' => 'الأنشطة وأنشطة الأسرة متوقفة حالياً من الإعدادات العامة.',
+        ],
         'messages' => [
             'settings_saved' => 'تم حفظ إعدادات الصفحة الرئيسية بنجاح.',
             'barcode_scanner_updated' => 'تم تحديث حالة قارئ الباركود.',
@@ -313,6 +324,7 @@ return [
             'academic_year_created' => 'تم إنشاء السنة الدراسية بنجاح.',
             'academic_year_updated' => 'تم تحديث السنة الدراسية بنجاح.',
             'academic_year_deleted' => 'تم حذف السنة الدراسية بنجاح.',
+            'academic_year_finished' => 'تم إنهاء السنة الدراسية بنجاح.',
             'grade_level_created' => 'تم إنشاء المرحلة الدراسية بنجاح.',
             'grade_level_updated' => 'تم تحديث المرحلة الدراسية بنجاح.',
             'grade_level_deleted' => 'تم حذف المرحلة الدراسية بنجاح.',
@@ -338,7 +350,9 @@ return [
             'student_dashboard_card_templates_saved' => 'تم حفظ قوالب بطاقات لوحة الطالب بنجاح.',
         ],
         'errors' => [
-            'academic_year_delete_linked' => 'لا يمكن حذف هذه السنة الدراسية ما دامت هناك مجموعات مرتبطة بها.',
+            'academic_year_delete_linked' => 'لا يمكن حذف هذه السنة الدراسية ما دامت هناك دورات أو مجموعات مرتبطة بها.',
+            'academic_year_finish_courses' => 'يجب إنهاء جميع دورات هذه السنة الدراسية قبل إنهاء السنة.',
+            'academic_year_finished_read_only' => 'لا يمكن تعديل بيانات سنة دراسية منتهية.',
             'grade_level_delete_linked' => 'لا يمكن حذف هذه المرحلة الدراسية ما دامت مرتبطة بمجموعات أو طلاب أو سياسات نقاط.',
             'school_delete_linked' => 'لا يمكن حذف هذه المدرسة ما دام هناك طلاب يستخدمونها.',
             'father_job_delete_linked' => 'لا يمكن حذف عمل الأب هذا ما دام هناك أولياء أمور يستخدمونه.',
@@ -412,7 +426,7 @@ return [
             'quran_test_type' => [
                 'create' => 'نوع اختبار قرآن جديد',
                 'edit' => 'تعديل نوع اختبار القرآن',
-                'copy' => 'تتحكم هذه الأنواع في شاشة اختبارات القرآن القديمة الخاصة بالنهائي والأوقاف. أما الأسبار الجزئية فلها سير عمل مستقل.',
+                'copy' => 'تتحكم هذه الأنواع في شاشة اختبارات القرآن القديمة الخاصة بالنهائي والأوقاف. أما السبورة الجزئية فلها سير عمل مستقل.',
                 'table' => 'أنواع اختبارات القرآن',
             ],
             'partial_test_rule' => [
@@ -496,7 +510,7 @@ return [
             'final_test_rules_order' => 'يجب أن يبدأ كل نطاق من نطاقات درجات السبر النهائي قبل نهايته.',
             'final_test_rules_overlap' => 'لا يمكن أن يتداخل نطاق النجاح مع نطاق الرسوب في السبر النهائي.',
             'quran_test_type_delete_linked' => 'لا يمكن حذف نوع اختبار القرآن هذا ما دامت سجلات الاختبارات تستخدمه.',
-            'quran_test_type_reserved' => 'الرمز `partial` محجوز لسير عمل الأسبار الجزئية المستقل، ولا يمكن إنشاؤه من هذه الشاشة.',
+            'quran_test_type_reserved' => 'الرمز `partial` محجوز لسير عمل السبورة الجزئية المستقل، ولا يمكن إنشاؤه من هذه الشاشة.',
         ],
     ],
     'course_completion' => [
@@ -515,7 +529,7 @@ return [
             ],
         ],
         'fields' => [
-            'required_passed_final_tests' => 'عدد الأسبار النهائية الناجحة المطلوبة',
+            'required_passed_final_tests' => 'عدد السبورة النهائية الناجحة المطلوبة',
             'required_memorized_pages' => 'عدد الصفحات المحفوظة',
             'final_rule_operator' => 'الشرط',
             'required_passed_quizzes' => 'عدد الاختبارات القصيرة الناجحة المطلوبة',
@@ -544,7 +558,7 @@ return [
         ],
         'criteria' => [
             'final_saber_pages_progress' => 'السبر النهائي :tests_actual/:tests_required :operator الصفحات المحفوظة :pages_actual/:pages_required',
-            'final_tests_progress' => 'الأسبار النهائية الناجحة :actual/:required',
+            'final_tests_progress' => 'السبورة النهائية الناجحة :actual/:required',
             'quizzes_progress' => 'الاختبارات القصيرة الناجحة :actual/:required',
             'assessment_type_progress' => ':type نتائج ناجحة :actual/:required',
             'attendance_progress' => 'سجلات الحضور :actual/:required',
@@ -597,8 +611,8 @@ return [
         'guides' => [
             'quran_tests' => [
                 'title' => 'مفاتيح نقاط اختبارات القرآن',
-                'copy' => 'استخدم أزواج `source_type` و `trigger_key` التالية عندما تريد منح نقاط تلقائية لسير عمل الأسبار الجزئية الجديد أو لأسبار النهائي والأوقاف الحالية.',
-                'score_ranges' => 'استخدم `from_value` و `to_value` فقط عندما تعتمد السياسة على القيمة المسجلة في المحاولة. في أجزاء السبر الجزئي تكون هذه القيمة هي عدد الأخطاء، بينما تبقى الأسبار النهائية والأوقاف معتمدة على الدرجات. أما اكتمال دورة السبر الجزئي فلا يملك قيمة رقمية مستقلة، لذلك اترك النطاق فارغاً مع `quran_partial_test + partial_passed`.',
+                'copy' => 'استخدم أزواج `source_type` و `trigger_key` التالية عندما تريد منح نقاط تلقائية لسير عمل السبورة الجزئية الجديد أو لسبورة النهائي والأوقاف الحالية.',
+                'score_ranges' => 'استخدم `from_value` و `to_value` فقط عندما تعتمد السياسة على القيمة المسجلة في المحاولة. في أجزاء السبر الجزئي تكون هذه القيمة هي عدد الأخطاء، بينما تبقى السبورة النهائية والأوقاف معتمدة على الدرجات. أما اكتمال دورة السبر الجزئي فلا يملك قيمة رقمية مستقلة، لذلك اترك النطاق فارغاً مع `quran_partial_test + partial_passed`.',
                 'items' => [
                     'partial_part' => [
                         'title' => 'نجاح جزء واحد',

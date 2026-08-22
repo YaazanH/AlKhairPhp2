@@ -30,7 +30,7 @@ return [
     ],
     'read_only' => 'You can review notes, but you do not have permission to create or update them.',
     'log' => [
-        'title' => 'Student note log',
+        'title' => 'Student Notes',
         'subtitle' => 'Filter by student, source, or visibility to review the history.',
         'empty' => 'No student notes match the current filters.',
         'filters' => [

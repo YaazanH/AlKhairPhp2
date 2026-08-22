@@ -320,7 +320,7 @@ new class extends Component {
     <section class="surface-table">
         <div class="admin-grid-meta">
             <div class="admin-grid-meta__title">{{ __('access.common.roles') }}</div>
-            <div class="flex flex-wrap items-end gap-3"><div class="admin-filter-field"><label for="role-search">{{ __('access.roles.fields.search') }}</label><input id="role-search" wire:model.live.debounce.300ms="role_search" type="text" placeholder="{{ __('access.roles.fields.search') }}"></div><button type="button" wire:click="openCreateRoleModal" class="pill-link pill-link--accent">{{ __('access.roles.actions.create') }}</button></div>
+            <div class="flex flex-wrap items-end gap-3"><div class="admin-filter-field"><label class="sr-only" for="role-search">{{ __('access.roles.fields.search') }}</label><input id="role-search" wire:model.live.debounce.300ms="role_search" type="text" placeholder="{{ __('access.roles.fields.search') }}"></div><button type="button" wire:click="openCreateRoleModal" class="pill-link pill-link--accent">{{ __('access.roles.actions.create') }}</button></div>
         </div>
 
         @if ($roles->isEmpty())
@@ -461,18 +461,18 @@ new class extends Component {
                 </div>
 
                 <div class="admin-filter-field">
-                    <label for="permission-search">{{ __('access.roles.fields.permission_search') }}</label>
+                    <label class="sr-only" for="permission-search">{{ __('access.roles.fields.permission_search') }}</label>
                     <input id="permission-search" wire:model.live.debounce.300ms="permission_search" type="text" placeholder="{{ __('access.roles.fields.permission_search') }}">
                 </div>
 
                 <div class="space-y-4">
                     @foreach ($permissionGroups as $group => $permissions)
-                        <div class="rounded-3xl border border-white/10 bg-white/5 p-4">
-                            <div class="text-sm font-semibold text-white">{{ $group }}</div>
-                            <div class="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                        <div class="overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700">
+                            <div class="border-b border-neutral-200 bg-neutral-50 px-5 py-4 text-sm font-medium dark:border-neutral-700 dark:bg-neutral-900/60">{{ $group }}</div>
+                            <div class="divide-y divide-neutral-200 dark:divide-neutral-700">
                                 @foreach ($permissions as $permission)
-                                    <label class="flex items-start gap-3 text-sm text-neutral-200">
-                                        <input wire:model="selected_permissions" type="checkbox" value="{{ $permission->name }}" class="mt-0.5 rounded">
+                                    <label class="flex items-center gap-3 px-5 py-3 text-sm text-neutral-200">
+                                        <input wire:model="selected_permissions" type="checkbox" value="{{ $permission->name }}" class="rounded">
                                         <span>{{ $this->permissionLabel($permission->name) }}</span>
                                     </label>
                                 @endforeach

@@ -126,6 +126,10 @@ class StudentAttendanceDayService
 
     public function setDayStatus(StudentAttendanceDay $day, string $status): StudentAttendanceDay
     {
+        if ($day->fresh()->course_finished_at) {
+            throw new InvalidArgumentException(__('workflow.student_attendance.messages.archived_day_locked'));
+        }
+
         if (! in_array($status, ['open', 'closed'], true)) {
             throw new InvalidArgumentException('Student attendance day status must be open or closed.');
         }

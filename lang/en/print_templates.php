@@ -133,7 +133,7 @@ return [
                 'width_mm' => 'Width (mm)',
                 'height_mm' => 'Height (mm)',
                 'paper_size' => 'Printing paper',
-                'paper_settings' => 'Paper settings',
+                'paper_settings' => 'Settings',
                 'orientation' => 'Orientation',
                 'margin_top' => 'Top margin',
                 'margin_right' => 'Right margin',
