@@ -49,7 +49,6 @@ new class extends Component {
 
     public function with(): array
     {
-        $baseQuery = $this->scopeEnrollmentsQuery(Enrollment::query());
         $filteredQuery = $this->scopeEnrollmentsQuery(Enrollment::query())
             ->with(['group.course', 'student'])
             ->when(filled($this->search), function ($query) {
@@ -86,11 +85,6 @@ new class extends Component {
                     ->when($this->courseFilter !== 'all', fn ($query) => $query->where('course_id', (int) $this->courseFilter))
                     ->orderBy('name')
             )->get(['id', 'course_id', 'name']),
-            'totals' => [
-                'all' => $baseQuery->count(),
-                'active' => $this->scopeEnrollmentsQuery(Enrollment::query()->where('status', 'active'))->count(),
-                'completed' => $this->scopeEnrollmentsQuery(Enrollment::query()->where('status', 'completed'))->count(),
-            ],
             'filteredCount' => $filteredCount,
             'statuses' => ['active', 'completed', 'cancelled'],
         ];
@@ -396,49 +390,23 @@ new class extends Component {
         <div class="eyebrow">{{ __('crud.enrollments.hero.eyebrow') }}</div>
         <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('crud.enrollments.hero.title') }}</h1>
         <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ __('crud.enrollments.hero.subtitle') }}</p>
-        <div class="mt-6 flex flex-wrap gap-3">
-            <span class="badge-soft">{{ __('crud.enrollments.hero.badges.students_available', ['count' => number_format($students->count())]) }}</span>
-            <span class="badge-soft badge-soft--emerald">{{ __('crud.enrollments.hero.badges.groups_available', ['count' => number_format($groups->count())]) }}</span>
-        </div>
     </section>
 
     @if (session('status'))
         <div class="flash-success px-4 py-3 text-sm">{{ session('status') }}</div>
     @endif
 
-    <div class="grid gap-4 md:grid-cols-3">
-        <article class="stat-card">
-            <div class="kpi-label">{{ __('crud.enrollments.stats.all.label') }}</div>
-            <div class="metric-value mt-6">{{ number_format($totals['all']) }}</div>
-            <p class="mt-4 text-sm leading-6 text-neutral-300">{{ __('crud.enrollments.stats.all.description') }}</p>
-        </article>
-        <article class="stat-card">
-            <div class="kpi-label">{{ __('crud.enrollments.stats.active.label') }}</div>
-            <div class="metric-value mt-6">{{ number_format($totals['active']) }}</div>
-            <p class="mt-4 text-sm leading-6 text-neutral-300">{{ __('crud.enrollments.stats.active.description') }}</p>
-        </article>
-        <article class="stat-card">
-            <div class="kpi-label">{{ __('crud.enrollments.stats.completed.label') }}</div>
-            <div class="metric-value mt-6">{{ number_format($totals['completed']) }}</div>
-            <p class="mt-4 text-sm leading-6 text-neutral-300">{{ __('crud.enrollments.stats.completed.description') }}</p>
-        </article>
-    </div>
-
-    <section class="surface-panel p-5 lg:p-6">
-        <div class="admin-toolbar">
-            <div>
-                <div class="admin-toolbar__title">{{ __('crud.enrollments.table.title') }}</div>
-                <p class="admin-toolbar__subtitle">{{ __('crud.enrollments.form.help') }}</p>
-            </div>
-
+    <section class="surface-table">
+        <div class="admin-grid-meta admin-grid-meta--controls">
+            <div class="admin-grid-meta__title">{{ __('crud.enrollments.table.title') }}</div>
             <div class="admin-toolbar__controls">
                 <div class="admin-filter-field">
-                    <label for="enrollment-search">{{ __('crud.common.filters.search') }}</label>
+                    <label class="sr-only" for="enrollment-search">{{ __('crud.common.filters.search') }}</label>
                     <input id="enrollment-search" wire:model.live.debounce.300ms="search" type="text" placeholder="{{ __('crud.common.filters.search_placeholder') }}">
                 </div>
 
                 <div class="admin-filter-field">
-                    <label for="enrollment-status-filter">{{ __('crud.common.filters.status') }}</label>
+                    <label class="sr-only" for="enrollment-status-filter">{{ __('crud.common.filters.status') }}</label>
                     <select id="enrollment-status-filter" wire:model.live="statusFilter">
                         <option value="all">{{ __('crud.common.filters.all_statuses') }}</option>
                         @foreach ($statuses as $enrollmentStatus)
@@ -448,7 +416,7 @@ new class extends Component {
                 </div>
 
                 <div class="admin-filter-field">
-                    <label for="enrollment-course-filter">{{ __('crud.common.filters.course') }}</label>
+                    <label class="sr-only" for="enrollment-course-filter">{{ __('crud.common.filters.course') }}</label>
                     <select id="enrollment-course-filter" wire:model.live="courseFilter">
                         <option value="all">{{ __('crud.common.filters.all_courses') }}</option>
                         @foreach ($filterCourses as $course)
@@ -458,7 +426,7 @@ new class extends Component {
                 </div>
 
                 <div class="admin-filter-field">
-                    <label for="enrollment-group-filter">{{ __('crud.common.filters.group') }}</label>
+                    <label class="sr-only" for="enrollment-group-filter">{{ __('crud.common.filters.group') }}</label>
                     <select id="enrollment-group-filter" wire:model.live="groupFilter">
                         <option value="all">{{ __('crud.common.filters.all_groups') }}</option>
                         @foreach ($filterGroups as $group)
@@ -473,15 +441,6 @@ new class extends Component {
                     @endcan
                     <a href="{{ route('enrollments.export', ['search' => $search, 'status' => $statusFilter, 'course_id' => $courseFilter, 'group_id' => $groupFilter]) }}" class="pill-link">{{ __('crud.common.actions.export') }}</a>
                 </div>
-            </div>
-        </div>
-    </section>
-
-    <section class="surface-table">
-        <div class="admin-grid-meta">
-            <div>
-                <div class="admin-grid-meta__title">{{ __('crud.enrollments.table.title') }}</div>
-                <div class="admin-grid-meta__summary">{{ __('crud.common.badges.in_view', ['count' => number_format($filteredCount)]) }}</div>
             </div>
         </div>
 
@@ -574,11 +533,11 @@ new class extends Component {
     <x-admin.modal
         :show="$showFormModal"
         :title="$editingId ? __('crud.enrollments.form.edit_title') : __('crud.enrollments.form.create_title')"
-        :description="__('crud.enrollments.form.help')"
         close-method="cancel"
-        max-width="4xl"
+        max-width="xl"
+        compact
     >
-        <form wire:submit="save" class="space-y-4">
+        <form wire:submit="save" class="space-y-3">
             <div>
                 <label for="enrollment-student" class="mb-1 block text-sm font-medium">{{ __('crud.enrollments.form.fields.student') }}</label>
                 <select id="enrollment-student" wire:model="student_id" class="w-full rounded-xl px-4 py-3 text-sm">

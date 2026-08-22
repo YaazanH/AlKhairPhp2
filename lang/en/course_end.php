@@ -5,6 +5,7 @@ return [
     'title' => 'End of course',
     'preview_notice' => 'Rules are calculated for this preview only. Student point ledgers are not changed.',
     'back' => 'Back to courses',
+    'back_to_end' => 'Back to end of course',
     'highlights' => [
         'students' => 'Enrolled students',
         'points_before' => 'Points before rules',
@@ -15,6 +16,10 @@ return [
     'students_title' => 'Student course results',
     'sorted_notice' => 'Sorted by calculated points after rules',
     'final_tests_title' => 'Final saber',
+    'final_tests_report_title' => 'Final saber statement',
+    'final_tests_total' => 'Sabered juz:',
+    'date_label' => 'Date:',
+    'continued' => 'Continued',
     'empty' => 'No enrolled students were found for this course.',
     'table' => [
         'name' => 'Name', 'group' => 'Group', 'points_after' => 'Total points',
@@ -26,4 +31,5 @@ return [
     'report_cards_help' => 'Create a reusable print template and print it only for students with a passed final saber.',
     'create_template' => 'Create report-card template',
     'print_cards' => 'Print report cards',
+    'print_window_title' => 'Print report card',
 ];

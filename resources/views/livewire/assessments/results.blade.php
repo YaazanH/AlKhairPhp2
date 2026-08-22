@@ -12,19 +12,31 @@ use App\Services\PointLedgerService;
 use Illuminate\Support\Facades\DB;
 use Livewire\Volt\Component;
 
-new class extends Component {
+new class extends Component
+{
     use AuthorizesPermissions;
     use AuthorizesTeacherAssignments;
 
     public Assessment $currentAssessment;
+
     public array $result_scores = [];
+
     public array $result_statuses = [];
+
     public string $search = '';
+
     public string $resultStatusFilter = 'all';
+
     public ?int $selectedGroupId = null;
+
     public string $quick_enrollment_id = '';
+
     public string $quick_score = '';
+
+    public bool $showQuickResultModal = false;
+
     public string $sortField = 'student';
+
     public string $sortDirection = 'asc';
 
     protected array $sortableFields = [
@@ -49,32 +61,6 @@ new class extends Component {
         }
 
         $this->loadResults();
-    }
-
-    public function deleteAssessment(): void
-    {
-        $this->authorizePermission('assessments.delete');
-        $assessment = $this->currentAssessment->fresh(['results.enrollment.student', 'groupDetails']);
-        $this->authorizeTeacherAssessmentAccess($assessment);
-
-        DB::transaction(function () use ($assessment): void {
-            $ledger = app(PointLedgerService::class);
-            $enrollments = $assessment->results->pluck('enrollment')->filter()->unique('id');
-            foreach ($assessment->results as $result) {
-                $ledger->voidSourceTransactions('assessment_result', $result->id, __('workflow.assessments.index.messages.deleted_void_reason'));
-            }
-            $assessment->results()->delete();
-            $assessment->groupDetails()->delete();
-            $assessment->delete();
-            foreach ($enrollments as $enrollment) {
-                if ($freshEnrollment = $enrollment->fresh(['student'])) {
-                    $ledger->syncEnrollmentCaches($freshEnrollment);
-                }
-            }
-        });
-
-        session()->flash('status', __('workflow.assessments.index.messages.deleted'));
-        $this->redirect(route('assessments.index'), navigate: true);
     }
 
     public function with(): array
@@ -133,22 +119,30 @@ new class extends Component {
             $enrollments = $this->sortedEnrollments($enrollmentsQuery->get());
         }
 
+        $quickEntryEnrollments = Enrollment::query()
+            ->with(['student', 'group.course'])
+            ->whereIn('group_id', $assessmentGroups->pluck('id'))
+            ->where('status', 'active')
+            ->get()
+            ->sortBy(fn (Enrollment $enrollment) => mb_strtolower((string) ($enrollment->student?->full_name ?? '')))
+            ->values();
+
         return [
             'assessmentRecord' => $this->currentAssessment->fresh(['group.course', 'groups.course', 'type']),
             'assessmentGroups' => $assessmentGroups,
-            'assessmentGroupCount' => $assessmentGroups->count(),
             'usesAllGroups' => $this->currentAssessment->group_scope === 'all'
                 || ($this->currentAssessment->group_scope === null && $availableGroupIds->isNotEmpty() && $assessmentGroupIds->all() === $availableGroupIds->all()),
             'assessmentPointsByEnrollment' => $this->assessmentPointsByEnrollment(),
             'enrollments' => $enrollments,
-            'quickEntryEnrollments' => Enrollment::query()
-                ->with(['student', 'group.course'])
-                ->whereIn('group_id', $assessmentGroups->pluck('id'))
-                ->where('status', 'active')
-                ->get()
-                ->sortBy(fn (Enrollment $enrollment) => mb_strtolower((string) ($enrollment->student?->full_name ?? '')))
-                ->values(),
+            'quickEntryEnrollments' => $quickEntryEnrollments,
+            'quickSelectedEnrollment' => filled($this->quick_enrollment_id)
+                ? $quickEntryEnrollments->firstWhere('id', (int) $this->quick_enrollment_id)
+                : null,
             'selectedGroup' => $selectedGroup,
+            'assessmentAverage' => AssessmentResult::query()
+                ->where('assessment_id', $this->currentAssessment->id)
+                ->whereNotNull('score')
+                ->avg('score'),
             'totalActiveEnrollments' => $assessmentGroups->sum('active_enrollments_count'),
             'totalSavedResults' => $assessmentGroups->sum('assessment_results_count'),
         ];
@@ -317,6 +311,23 @@ new class extends Component {
         }
     }
 
+    public function openQuickResultModal(): void
+    {
+        $this->authorizePermission('assessment-results.record');
+        $this->quick_enrollment_id = '';
+        $this->quick_score = '';
+        $this->showQuickResultModal = true;
+        $this->resetValidation(['quick_enrollment_id', 'quick_score']);
+    }
+
+    public function closeQuickResultModal(): void
+    {
+        $this->showQuickResultModal = false;
+        $this->quick_enrollment_id = '';
+        $this->quick_score = '';
+        $this->resetValidation(['quick_enrollment_id', 'quick_score']);
+    }
+
     public function saveQuickResult(): void
     {
         $this->authorizePermission('assessment-results.record');
@@ -337,6 +348,30 @@ new class extends Component {
 
         $teacherId = auth()->user()?->teacherProfile?->id ?: $enrollment->group?->teacher_id;
         $numericScore = (float) $validated['quick_score'];
+
+        if ($numericScore === 0.0) {
+            $result = AssessmentResult::query()
+                ->where('assessment_id', $this->currentAssessment->id)
+                ->where('enrollment_id', $enrollment->id)
+                ->first();
+
+            if ($result) {
+                DB::transaction(function () use ($result, $enrollment): void {
+                    $ledger = app(PointLedgerService::class);
+                    $ledger->voidSourceTransactions('assessment_result', $result->id, __('workflow.assessments.results.messages.score_removed'));
+                    $result->delete();
+                    $ledger->syncEnrollmentCaches($enrollment->fresh(['student']));
+                });
+            }
+
+            $this->quick_enrollment_id = '';
+            $this->quick_score = '';
+            $this->loadResults();
+            session()->flash('status', __('workflow.assessments.results.messages.score_removed'));
+
+            return;
+        }
+
         $result = AssessmentResult::query()->updateOrCreate(
             [
                 'assessment_id' => $this->currentAssessment->id,
@@ -408,7 +443,9 @@ new class extends Component {
                     'enrollments as active_enrollments_count' => fn ($query) => $query->where('status', 'active'),
                     'enrollments as assessment_results_count' => fn ($query) => $query
                         ->where('status', 'active')
-                        ->whereHas('assessmentResults', fn ($resultQuery) => $resultQuery->where('assessment_id', $assessmentId)),
+                        ->whereHas('assessmentResults', fn ($resultQuery) => $resultQuery
+                            ->where('assessment_id', $assessmentId)
+                            ->whereIn('status', ['passed', 'failed'])),
                 ])
                 ->whereIn('id', $groupIds)
         )
@@ -499,11 +536,12 @@ new class extends Component {
 
 <div class="page-stack">
     <section class="page-hero p-6 lg:p-8">
-        <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div>
-                <a href="{{ route('assessments.index') }}" wire:navigate class="text-sm font-medium text-neutral-200/80 hover:text-white">{{ __('workflow.common.back_to_assessments') }}</a>
-                <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ $assessmentRecord->title }}</h1>
-                <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ __('workflow.assessments.results.subtitle') }}</p>
+                <h1 class="assessment-results-title font-display text-4xl leading-none text-white md:text-5xl">{{ $assessmentRecord->title }}</h1>
+                <div class="mt-7">
+                    <a href="{{ route('assessments.index') }}" wire:navigate class="assessment-results-back pill-link w-fit">{{ __('workflow.common.back_to_assessments') }}</a>
+                </div>
             </div>
 
             <div class="surface-panel px-5 py-4">
@@ -514,11 +552,11 @@ new class extends Component {
                         ? ($usesAllGroups ? __('crud.common.filters.all_groups') : $assessmentGroups->pluck('name')->implode(', '))
                         : ($assessmentRecord->group?->name ?: __('workflow.common.not_available')) }}
                 </div>
-                <div class="mt-1 text-sm text-neutral-400">{{ __('workflow.common.labels.total', ['value' => $assessmentRecord->total_mark !== null ? number_format((float) $assessmentRecord->total_mark, 2) : __('workflow.common.not_available')]) }} | {{ __('workflow.common.labels.pass', ['value' => $assessmentRecord->pass_mark !== null ? number_format((float) $assessmentRecord->pass_mark, 2) : __('workflow.common.not_available')]) }}</div>
+                <div class="mt-1 text-sm text-neutral-400">{{ __('workflow.common.labels.maximum_mark', ['value' => $assessmentRecord->total_mark !== null ? number_format((float) $assessmentRecord->total_mark, 2) : __('workflow.common.not_available')]) }} | {{ __('workflow.common.labels.pass', ['value' => $assessmentRecord->pass_mark !== null ? number_format((float) $assessmentRecord->pass_mark, 2) : __('workflow.common.not_available')]) }}</div>
                 <div class="mt-3 flex flex-wrap gap-2">
-                    <a href="{{ route('assessments.results.pdf', $assessmentRecord) }}" target="_blank" rel="noopener" class="pill-link pill-link--compact">{{ __('workflow.assessments.results.pdf_export') }}</a>
-                    @can('assessments.update')<a href="{{ route('assessments.index', ['edit' => $assessmentRecord->id]) }}" wire:navigate class="pill-link pill-link--compact">{{ __('crud.common.actions.edit') }}</a>@endcan
-                    @can('assessments.delete')<button type="button" wire:click="deleteAssessment" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link pill-link--compact border-red-400/25 text-red-200">{{ __('crud.common.actions.delete') }}</button>@endcan
+                    <a href="{{ route('assessments.results.pdf', $assessmentRecord) }}" target="_blank" rel="noopener" class="pill-link pill-link--compact w-fit whitespace-nowrap">{{ __('workflow.assessments.results.pdf_export') }}</a>
+                    @can('assessment-results.record')<button type="button" wire:click="openQuickResultModal" class="pill-link pill-link--compact pill-link--accent">{{ __('workflow.assessments.results.student_entry.title') }}</button>@endcan
+                    @can('assessments.update')<a href="{{ route('assessments.index', ['edit' => $assessmentRecord->id, 'return_to' => 'results']) }}" wire:navigate class="pill-link pill-link--compact">{{ __('crud.common.actions.edit') }}</a>@endcan
                 </div>
             </div>
         </div>
@@ -527,52 +565,6 @@ new class extends Component {
     @if (session('status'))
         <div class="flash-success px-4 py-3 text-sm">{{ session('status') }}</div>
     @endif
-
-    @can('assessment-results.record')
-        <section class="surface-panel p-5 lg:p-6">
-            <div class="admin-toolbar">
-                <div>
-                    <div class="admin-toolbar__title">{{ __('workflow.assessments.results.student_entry.title') }}</div>
-                    <p class="admin-toolbar__subtitle">{{ __('workflow.assessments.results.student_entry.help') }}</p>
-                </div>
-                <span class="badge-soft badge-soft--emerald">{{ __('workflow.assessments.results.student_entry.all_groups') }}</span>
-            </div>
-
-            <form wire:submit="saveQuickResult" class="mt-5 grid gap-4 lg:grid-cols-[minmax(18rem,1fr)_10rem_auto] lg:items-end" data-searchable-refresh>
-                <div>
-                    <label for="assessment-student-entry" class="mb-1 block text-sm font-medium">{{ __('workflow.assessments.results.quick_entry.student') }}</label>
-                    <select
-                        id="assessment-student-entry"
-                        wire:model.live="quick_enrollment_id"
-                        class="searchable-select w-full rounded-xl px-4 py-3 text-sm"
-                        data-search-placeholder="{{ __('workflow.assessments.results.student_entry.search_placeholder') }}"
-                    >
-                        <option value="">{{ __('workflow.assessments.results.quick_entry.select_student') }}</option>
-                        @foreach ($quickEntryEnrollments as $enrollment)
-                            <option
-                                value="{{ $enrollment->id }}"
-                                data-search="{{ trim(implode(' ', array_filter([$enrollment->student?->student_number, $enrollment->student?->first_name, $enrollment->student?->last_name]))) }}"
-                            >
-                                {{ $enrollment->student?->full_name }}
-                                · {{ $enrollment->group?->name }}
-                            </option>
-                        @endforeach
-                    </select>
-                    @error('quick_enrollment_id') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
-                </div>
-
-                <div>
-                    <label for="assessment-student-score" class="mb-1 block text-sm font-medium">{{ __('workflow.assessments.results.quick_entry.score') }}</label>
-                    <input id="assessment-student-score" wire:model="quick_score" type="number" min="0" max="{{ $assessmentRecord->total_mark !== null ? (float) $assessmentRecord->total_mark : 100 }}" step="0.01" class="w-full rounded-xl px-4 py-3 text-sm">
-                    @error('quick_score') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
-                </div>
-
-                <button type="submit" class="pill-link pill-link--accent justify-center lg:mb-px">
-                    {{ __('workflow.assessments.results.quick_entry.save') }}
-                </button>
-            </form>
-        </section>
-    @endcan
 
     <section class="admin-kpi-grid">
         <article class="stat-card">
@@ -584,47 +576,34 @@ new class extends Component {
             <div class="metric-value mt-3">{{ number_format($totalSavedResults) }}</div>
         </article>
         <article class="stat-card">
-            <div class="kpi-label">{{ __('workflow.assessments.results.stats.groups') }}</div>
-            <div class="metric-value mt-3">{{ number_format($assessmentGroupCount) }}</div>
+            <div class="kpi-label">{{ __('workflow.assessments.results.pdf.average_mark') }}</div>
+            <div class="metric-value mt-3">{{ $assessmentAverage !== null ? number_format((float) $assessmentAverage, 2) : '—' }}</div>
         </article>
     </section>
 
     <section class="surface-panel p-5 lg:p-6">
-        <div class="admin-toolbar">
-            <div>
-                <div class="admin-toolbar__title">{{ __('workflow.assessments.results.groups.choose_title') }}</div>
-                <p class="admin-toolbar__subtitle">{{ __('workflow.assessments.results.groups.choose_help') }}</p>
-            </div>
-        </div>
-
         @if ($assessmentGroups->isEmpty())
             <div class="admin-empty-state">{{ __('workflow.assessments.results.groups.empty') }}</div>
         @else
-            <div class="mt-5 flex flex-wrap gap-3">
+            <div class="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(min(100%,14rem),1fr))]">
                 @foreach ($assessmentGroups as $group)
                     <button
                         type="button"
                         wire:click="selectGroup({{ $group->id }})"
-                        class="{{ (int) $selectedGroupId === (int) $group->id ? 'pill-link pill-link--accent' : 'pill-link' }}"
+                        aria-pressed="{{ (int) $selectedGroupId === (int) $group->id ? 'true' : 'false' }}"
+                        class="assessment-group-selector flex w-full flex-col items-start rounded-2xl border px-4 py-3 text-start transition {{ (int) $selectedGroupId === (int) $group->id ? 'border-emerald-400/45 bg-emerald-500/15 text-white shadow-lg shadow-emerald-950/20' : 'border-white/10 bg-white/4 text-neutral-200 hover:border-white/20 hover:bg-white/7' }}"
                     >
-                        <span>{{ $group->name }}</span>
-                        <span class="opacity-70">{{ $group->assessment_results_count }}/{{ $group->active_enrollments_count }}</span>
+                        <span class="font-semibold">{{ $group->name }}</span>
+                        <span class="mt-1 text-xs text-neutral-400">{{ number_format($group->assessment_results_count) }}</span>
                     </button>
                 @endforeach
             </div>
 
-            @if ($selectedGroup)
-                <div class="mt-5 flex flex-wrap gap-3 border-t border-white/10 pt-5">
-                    <span class="badge-soft badge-soft--emerald">{{ $selectedGroup->course?->name ?: __('workflow.common.no_course') }}</span>
-                    <span class="badge-soft">{{ $selectedGroup->teacher ? $selectedGroup->teacher->first_name.' '.$selectedGroup->teacher->last_name : __('workflow.common.no_teacher_assigned') }}</span>
-                    <span class="badge-soft">{{ __('workflow.assessments.results.groups.progress', ['saved' => number_format((int) $selectedGroup->assessment_results_count), 'total' => number_format((int) $selectedGroup->active_enrollments_count)]) }}</span>
-                </div>
-            @endif
         @endif
     </section>
 
     <section class="surface-table">
-        <div class="admin-grid-meta">
+        <div class="admin-grid-meta admin-grid-meta--controls assessment-results-toolbar">
             <div>
                 <div class="admin-grid-meta__title">
                     {{ __('workflow.assessments.results.table.title') }}
@@ -636,11 +615,11 @@ new class extends Component {
             </div>
             <div class="admin-toolbar__controls">
                 <div class="admin-filter-field">
-                    <label for="assessment-result-search">{{ __('crud.common.filters.search') }}</label>
+                    <label class="sr-only" for="assessment-result-search">{{ __('crud.common.filters.search') }}</label>
                     <input id="assessment-result-search" wire:model.live.debounce.300ms="search" type="text" placeholder="{{ __('workflow.assessments.results.filters.search_placeholder') }}">
                 </div>
                 <div class="admin-filter-field">
-                    <label for="assessment-result-status-filter">{{ __('workflow.assessments.results.filters.status') }}</label>
+                    <label class="sr-only" for="assessment-result-status-filter">{{ __('workflow.assessments.results.filters.status') }}</label>
                     <select id="assessment-result-status-filter" wire:model.live="resultStatusFilter">
                         <option value="all">{{ __('workflow.assessments.results.filters.all_statuses') }}</option>
                         <option value="absent">{{ __('workflow.common.result_status.absent') }}</option>
@@ -649,7 +628,7 @@ new class extends Component {
                     </select>
                 </div>
                 @if ($selectedGroup)
-                    <a href="{{ route('assessments.results.pdf', ['assessment' => $assessmentRecord, 'group_id' => $selectedGroup->id]) }}" target="_blank" rel="noopener" class="pill-link pill-link--compact">{{ __('workflow.assessments.results.pdf_export') }}</a>
+                    <a href="{{ route('assessments.results.pdf', ['assessment' => $assessmentRecord, 'group_id' => $selectedGroup->id]) }}" target="_blank" rel="noopener" class="pill-link h-[3.125rem] w-fit items-center justify-center whitespace-nowrap px-4">{{ __('workflow.assessments.results.pdf_export') }}</a>
                 @endif
             </div>
         </div>
@@ -680,9 +659,6 @@ new class extends Component {
                             </button>
                         </th>
                         <th class="px-5 py-3 text-left font-medium">{{ __('workflow.assessments.results.table.headers.cached_points') }}</th>
-                        @can('assessment-results.record')
-                            <th class="px-5 py-3 text-right font-medium">{{ __('workflow.assessments.results.table.headers.actions') }}</th>
-                        @endcan
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-white/6">
@@ -700,27 +676,17 @@ new class extends Component {
                                     </div>
                                 </div>
                             </td>
-                            <td class="px-5 py-3">
-                                <input wire:model.live.debounce.300ms="result_scores.{{ $enrollment->id }}" wire:keydown.enter="saveEnrollmentResult({{ $enrollment->id }})" type="number" min="0" max="{{ $assessmentRecord->total_mark !== null ? (float) $assessmentRecord->total_mark : 100 }}" step="0.01" placeholder="0" class="w-28 rounded-xl px-3 py-2 text-sm">
-                                @error('result_scores.'.$enrollment->id) <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
-                            </td>
+                            <td class="px-5 py-3">{{ ($result = $enrollment->assessmentResults->first()) ? number_format((float) $result->score, 2) : '—' }}</td>
                             <td class="px-5 py-3">
                                 <span class="{{ $this->resultStatusClass($displayStatus) }}">
                                     {{ __('workflow.common.result_status.'.$displayStatus) }}
                                 </span>
                             </td>
                             <td class="px-5 py-3"><span class="status-chip status-chip--slate">{{ $assessmentPointsByEnrollment[$enrollment->id] ?? 0 }}</span></td>
-                            @can('assessment-results.record')
-                                <td class="px-5 py-3 text-right">
-                                    <button type="button" wire:click="saveEnrollmentResult({{ $enrollment->id }})" class="pill-link pill-link--compact">
-                                        {{ __('workflow.assessments.results.quick_entry.save') }}
-                                    </button>
-                                </td>
-                            @endcan
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="5" class="px-5 py-10 text-center text-sm text-neutral-500">{{ __('workflow.assessments.results.table.empty') }}</td>
+                            <td colspan="4" class="px-5 py-10 text-center text-sm text-neutral-500">{{ __('workflow.assessments.results.table.empty') }}</td>
                         </tr>
                     @endforelse
                 </tbody>
@@ -729,14 +695,51 @@ new class extends Component {
         @endif
     </section>
 
-    @if ($selectedGroup)
     @can('assessment-results.record')
-        <div class="admin-action-cluster admin-action-cluster--end">
-            <button wire:click="saveResults" type="button" class="pill-link pill-link--accent">
-                {{ __('workflow.common.actions.save_assessment_results') }}
-            </button>
-        </div>
+        <x-admin.modal
+            :show="$showQuickResultModal"
+            :title="__('workflow.assessments.results.student_entry.title')"
+            close-method="closeQuickResultModal"
+            max-width="xl"
+            compact
+        >
+            <form wire:submit="saveQuickResult" class="space-y-4" data-searchable-refresh>
+                <div class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_12rem] sm:items-end">
+                    <div>
+                        <label for="assessment-student-entry" class="mb-1 block text-sm font-medium">{{ __('workflow.assessments.results.quick_entry.student') }}</label>
+                        <select
+                            id="assessment-student-entry"
+                            wire:model.live="quick_enrollment_id"
+                            class="searchable-select h-11 w-full rounded-xl px-4 text-sm"
+                            data-search-placeholder="{{ __('workflow.assessments.results.student_entry.search_placeholder') }}"
+                        >
+                            <option value="">{{ __('workflow.assessments.results.quick_entry.select_student') }}</option>
+                            @foreach ($quickEntryEnrollments as $enrollment)
+                                <option
+                                    value="{{ $enrollment->id }}"
+                                    data-search="{{ trim(implode(' ', array_filter([$enrollment->student?->student_number, $enrollment->student?->first_name, $enrollment->student?->last_name]))) }}"
+                                >{{ $enrollment->student?->full_name }}</option>
+                            @endforeach
+                        </select>
+                        @error('quick_enrollment_id') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
+                    </div>
+                    <div>
+                        <label class="mb-1 block text-sm font-medium">{{ __('workflow.assessments.index.form.group') }}</label>
+                        <div id="assessment-selected-group" class="flex h-11 items-center rounded-xl border border-white/10 px-4 text-sm text-neutral-200">{{ $quickSelectedEnrollment?->group?->name ?: '—' }}</div>
+                    </div>
+                </div>
+
+                <div>
+                    <label for="assessment-student-score" class="mb-1 block text-sm font-medium">{{ __('workflow.assessments.results.quick_entry.score') }}</label>
+                    <input id="assessment-student-score" wire:model="quick_score" type="number" min="0" max="{{ $assessmentRecord->total_mark !== null ? (float) $assessmentRecord->total_mark : 100 }}" step="0.01" class="h-11 w-full rounded-xl px-4 text-sm">
+                    @error('quick_score') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
+                </div>
+
+                <div>
+                    <button type="submit" class="pill-link pill-link--accent justify-center">{{ __('crud.common.actions.add_and_new') }}</button>
+                </div>
+            </form>
+        </x-admin.modal>
     @endcan
-    @endif
 
 </div>

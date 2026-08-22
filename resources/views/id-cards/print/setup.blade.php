@@ -48,21 +48,14 @@
                 </section>
 
                 <section class="surface-panel p-5 lg:p-6">
-                    <div class="admin-builder-header text-start">
-                        <div>
-                            <div class="eyebrow">{{ __('id_cards.print.setup.sections.students') }}</div>
-                            <h2 class="font-display mt-3 text-2xl text-white">{{ __('id_cards.print.setup.sections.students') }}</h2>
-                        </div>
-                        <span class="badge-soft" data-id-card-selected-count>{{ __('id_cards.print.setup.selected', ['count' => 0]) }}</span>
-                    </div>
-
-                    <div class="mt-6 admin-toolbar">
+                    <div class="admin-toolbar">
                         <div class="admin-toolbar__controls">
                             <div class="admin-filter-field">
-                                <label for="id-card-student-search">{{ __('id_cards.print.setup.fields.search') }}</label>
+                                <label class="sr-only" for="id-card-student-search">{{ __('id_cards.print.setup.fields.search') }}</label>
                                 <input id="id-card-student-search" type="search" placeholder="{{ __('id_cards.print.setup.placeholders.search') }}" data-id-card-student-search>
                             </div>
                             <div class="admin-toolbar__actions">
+                                <span class="badge-soft" data-id-card-selected-count>{{ __('id_cards.print.setup.selected', ['count' => 0]) }}</span>
                                 <button type="button" class="pill-link pill-link--compact" data-id-card-select-visible>{{ __('id_cards.print.setup.buttons.select_all') }}</button>
                                 <button type="button" class="pill-link pill-link--compact" data-id-card-clear-selection>{{ __('id_cards.print.setup.buttons.clear') }}</button>
                             </div>

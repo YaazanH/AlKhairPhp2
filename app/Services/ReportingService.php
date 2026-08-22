@@ -33,7 +33,7 @@ class ReportingService
             ->orderByDesc('id')
             ->get()
             ->map(fn (AssessmentResult $result) => [
-                $result->assessment?->scheduled_at?->format('d-m-Y H:i'),
+                $result->assessment?->due_at?->format('d-m-Y'),
                 $result->assessment?->group?->academicYear?->name,
                 $result->assessment?->group?->name,
                 $result->assessment?->group?->course?->name,
@@ -551,7 +551,7 @@ class ReportingService
         $query = app(AccessScopeService::class)->scopeAssessmentResults(AssessmentResult::query(), auth()->user());
 
         $query->whereHas('assessment', function (Builder $builder) use ($filters) {
-            $this->applyDateRange($builder, 'scheduled_at', $filters);
+            $this->applyDateRange($builder, 'due_at', $filters);
 
             if ($filters['assessment_type_id']) {
                 $builder->where('assessment_type_id', $filters['assessment_type_id']);

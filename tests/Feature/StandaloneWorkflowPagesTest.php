@@ -77,6 +77,7 @@ class StandaloneWorkflowPagesTest extends TestCase
 
         Volt::test('quran-partial-tests.index')
             ->set('selectedStudentId', $enrollment->student_id)
+            ->assertSet('juz_id', $juz->id)
             ->set('selectedEnrollmentId', $enrollment->id)
             ->set('juz_id', $juz->id)
             ->call('save')
@@ -221,6 +222,7 @@ class StandaloneWorkflowPagesTest extends TestCase
 
         Volt::test('quran-final-tests.index')
             ->set('selectedStudentId', $enrollment->student_id)
+            ->assertSet('juz_id', $juz->id)
             ->set('selectedEnrollmentId', $enrollment->id)
             ->set('juz_id', $juz->id)
             ->call('save')
@@ -353,8 +355,13 @@ class StandaloneWorkflowPagesTest extends TestCase
 
         Volt::test('quran-partial-tests.show', ['partialTest' => $partialTest])
             ->call('openEditAttempt', $partialAttempt->id)
+            ->assertSet('editingAttemptId', $partialAttempt->id)
+            ->assertSet('selectedPartId', $part->id)
+            ->assertSet('showAttemptModal', true)
             ->set('mistake_count', '2')
+            ->assertSet('mistake_count', '2')
             ->call('saveAttempt')
+            ->assertSet('showAttemptModal', false)
             ->assertHasNoErrors();
 
         $this->assertDatabaseHas('quran_partial_test_attempts', ['id' => $partialAttempt->id, 'mistake_count' => 2, 'status' => 'passed']);
@@ -383,6 +390,88 @@ class StandaloneWorkflowPagesTest extends TestCase
 
         $this->assertDatabaseHas('quran_final_test_attempts', ['id' => $finalAttempt->id, 'score' => 95.5, 'status' => 'passed']);
         $this->assertDatabaseHas('quran_final_tests', ['id' => $finalTest->id, 'status' => 'passed']);
+    }
+
+    public function test_editing_a_final_saber_attempt_preserves_historic_notes_after_the_notes_field_is_removed(): void
+    {
+        [$teacher, $enrollment] = $this->teacherContext();
+        auth()->user()->syncRoles(['super_admin']);
+        $juz = QuranJuz::query()->where('juz_number', 1)->firstOrFail();
+        $finalTest = QuranFinalTest::query()->create([
+            'created_by' => auth()->id(),
+            'enrollment_id' => $enrollment->id,
+            'juz_id' => $juz->id,
+            'status' => 'in_progress',
+            'student_id' => $enrollment->student_id,
+        ]);
+        $attempt = $finalTest->attempts()->create([
+            'attempt_no' => 1,
+            'notes' => 'Historic final saber note',
+            'score' => 60,
+            'status' => 'failed',
+            'teacher_id' => $teacher->id,
+            'tested_on' => '2026-09-11',
+        ]);
+
+        Volt::test('quran-final-tests.show', ['finalTest' => $finalTest])
+            ->assertDontSee('final-attempt-notes', false);
+
+        app(QuranFinalTestService::class)->updateAttempt($attempt, $teacher, [
+            'score' => 95.5,
+            'tested_on' => '2026-09-12',
+        ]);
+
+        $this->assertDatabaseHas('quran_final_test_attempts', [
+            'id' => $attempt->id,
+            'notes' => 'Historic final saber note',
+            'score' => 95.5,
+        ]);
+    }
+
+    public function test_partial_saber_and_quarter_attempts_cannot_be_deleted_after_a_related_final_saber_exists(): void
+    {
+        [$teacher, $enrollment] = $this->teacherContext();
+        auth()->user()->syncRoles(['super_admin']);
+        $juz = QuranJuz::query()->where('juz_number', 1)->firstOrFail();
+
+        $partialTest = QuranPartialTest::query()->create([
+            'created_by' => auth()->id(),
+            'enrollment_id' => $enrollment->id,
+            'juz_id' => $juz->id,
+            'status' => 'passed',
+            'student_id' => $enrollment->student_id,
+        ]);
+        $part = $partialTest->parts()->create([
+            'part_number' => 1,
+            'status' => 'passed',
+        ]);
+        $attempt = $part->attempts()->create([
+            'attempt_no' => 1,
+            'mistake_count' => 1,
+            'status' => 'passed',
+            'teacher_id' => $teacher->id,
+            'tested_on' => '2026-09-10',
+        ]);
+
+        QuranFinalTest::query()->create([
+            'created_by' => auth()->id(),
+            'enrollment_id' => $enrollment->id,
+            'juz_id' => $juz->id,
+            'status' => 'in_progress',
+            'student_id' => $enrollment->student_id,
+        ]);
+
+        Volt::test('quran-partial-tests.show', ['partialTest' => $partialTest])
+            ->assertSeeText(__('workflow.quran_partial_tests.part.quarters.1'))
+            ->call('openEditAttempt', $attempt->id)
+            ->assertDontSee('partial-attempt-notes', false)
+            ->call('deleteAttempt')
+            ->assertHasErrors(['attempt'])
+            ->call('deleteTest')
+            ->assertHasErrors(['deleteTest']);
+
+        $this->assertDatabaseHas('quran_partial_tests', ['id' => $partialTest->id]);
+        $this->assertDatabaseHas('quran_partial_test_attempts', ['id' => $attempt->id]);
     }
 
     public function test_final_test_workbench_warns_when_same_juz_already_has_an_open_cycle(): void
@@ -592,10 +681,17 @@ class StandaloneWorkflowPagesTest extends TestCase
         ]);
 
         Volt::test('points.index')
+            ->assertDontSee('Workbench Manager Group Parent')
+            ->assertDontSee(__('workflow.points.workbench.table.headers.void_reason'))
             ->set('selectedStudentId', $enrollment->student_id)
             ->set('manual_point_type_id', $bonus->id)
-            ->call('saveManual')
-            ->assertHasNoErrors();
+            ->call('saveManualAndNew')
+            ->assertHasNoErrors()
+            ->assertSet('showFormModal', true)
+            ->assertSet('selectedStudentId', null)
+            ->assertSet('manual_point_type_id', $bonus->id)
+            ->set('stateFilter', 'all')
+            ->assertSee(__('workflow.points.workbench.table.headers.void_reason'));
 
         $transaction = PointTransaction::query()->where('source_type', 'manual')->firstOrFail();
 
@@ -638,12 +734,16 @@ class StandaloneWorkflowPagesTest extends TestCase
             ->set('selectedEnrollmentId', $enrollment->id)
             ->set('juz_id', $juz->id)
             ->call('save')
+            ->assertHasErrors(['score' => 'required_if'])
+            ->set('score', '90')
+            ->call('save')
             ->assertHasNoErrors();
 
         $this->assertDatabaseHas('quran_tests', [
             'enrollment_id' => $enrollment->id,
             'juz_id' => $juz->id,
             'teacher_id' => $enrollment->group->teacher_id,
+            'score' => 90,
         ]);
 
         $this->assertFalse(
@@ -772,7 +872,7 @@ class StandaloneWorkflowPagesTest extends TestCase
             ->assertSee($firstEnrollment->student->parentProfile->father_name)
             ->assertSee($firstEnrollment->student->birth_date?->format('Y'))
             ->assertSee('2')
-            ->assertSee(__('workflow.quran_tests.eligible_modal.summary', ['count' => 1]));
+            ->assertDontSee(__('workflow.quran_tests.eligible_modal.summary', ['count' => 1]));
     }
 
     private function teacherContext(): array

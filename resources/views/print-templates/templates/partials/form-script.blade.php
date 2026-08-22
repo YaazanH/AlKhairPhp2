@@ -22,9 +22,6 @@
         const removeBackgroundInput = document.querySelector('[data-print-template-remove-background]');
         const backgroundFileName = document.querySelector('[data-print-template-file-name]');
         const dimsBadge = document.querySelector('[data-print-template-stage-dims]');
-        const studio = document.querySelector('.print-template-studio');
-        const expandButton = document.querySelector('[data-print-template-expand]');
-        const expandLabel = document.querySelector('[data-print-template-expand-label]');
         const barcodePreviewUrl = @json(route('id-cards.barcode-preview'));
 
         const labels = {
@@ -42,8 +39,6 @@
             imageFit: @json(__('print_templates.templates.form.image_fit')),
             preview: @json(__('print_templates.templates.form.preview_fallbacks')),
             placeholderPicker: @json(__('print_templates.templates.form.element.placeholder_picker')),
-            expandEditor: @json(__('print_templates.templates.form.buttons.expand_editor')),
-            collapseEditor: @json(__('print_templates.templates.form.buttons.collapse_editor')),
         };
 
         const state = {
@@ -95,6 +90,7 @@
                 const letters = (line.match(/[\u0621-\u064a]/g) || []).length;
                 const spaces = (line.match(/\s/g) || []).length;
                 const visualLength = letters + (spaces * 0.45);
+                if (visualLength < (capacity * 0.35)) return line;
                 const matches = [...line.matchAll(/([\u0626\u0628\u062a-\u062e\u0633-\u063a\u0641-\u0647\u0649\u064a])(?=[\u0622-\u064a])/g)];
                 if (!matches.length) return line;
 
@@ -137,16 +133,8 @@
             return shell ? Math.max(shell.clientWidth - 56, 320) : 700;
         }
 
-        function previewHeight() {
-            const shell = stage.closest('.print-template-canvas-card__shell');
-
-            return shell ? Math.max(shell.clientHeight - 56, 240) : 520;
-        }
-
         function scale() {
-            const maximumScale = studio?.classList.contains('print-template-studio--expanded') ? 14 : 9;
-
-            return Math.max(1.2, Math.min(maximumScale, previewWidth() / widthMm(), previewHeight() / heightMm()));
+            return Math.max(1.2, Math.min(9, previewWidth() / widthMm()));
         }
 
         function metrics() {
@@ -657,7 +645,7 @@
             const usesContent = ['custom_text', 'date_text', 'page_number'].includes(element.type);
 
             inspector.innerHTML = `
-                <div class="admin-form-field"><label>${h(labels.element.type)}</label><select class="w-full rounded-xl px-4 py-3 text-sm" data-i="type">${typeOptions}</select></div>
+                <div class="admin-form-field${element.type === 'custom_text' ? ' admin-form-field--full' : ''}"><label>${h(labels.element.type)}</label><select class="w-full rounded-xl px-4 py-3 text-sm" data-i="type">${typeOptions}</select></div>
                 ${usesContent ? `<div class="admin-form-field admin-form-field--full"><label>${h(labels.element.content)}</label><textarea rows="4" class="w-full rounded-xl px-4 py-3 text-sm" data-i="content">${h(element.content || '')}</textarea>${element.type === 'custom_text' ? `<p class="mt-1 text-xs text-neutral-400">${h(labels.element.placeholder_help)}</p>` : ''}</div>${element.type === 'custom_text' ? placeholderButtons() : ''}` : ''}
                 ${isFieldElement(element.type) ? `<div class="admin-form-field"><label>${h(labels.element.source)}</label><select class="w-full rounded-xl px-4 py-3 text-sm" data-i="source">${sourceSelect(element)}</select></div><div class="admin-form-field"><label>${h(labels.element.field)}</label><select class="w-full rounded-xl px-4 py-3 text-sm" data-i="field">${fieldSelect(element)}</select></div>` : ''}
                 <div class="admin-form-field"><label>${h(labels.element.x)}</label><input class="w-full rounded-xl px-4 py-3 text-sm" type="number" step="0.01" min="0" value="${h(element.x)}" data-n="x"></div>
@@ -1028,16 +1016,6 @@
         window.addEventListener('resize', () => {
             renderStage();
             syncLayerPanelForViewport();
-        });
-
-        expandButton?.addEventListener('click', () => {
-            const expanded = studio.classList.toggle('print-template-studio--expanded');
-            document.body.classList.toggle('print-template-editor-expanded', expanded);
-            expandButton.setAttribute('aria-pressed', expanded ? 'true' : 'false');
-            expandButton.title = expanded ? labels.collapseEditor : labels.expandEditor;
-            expandButton.setAttribute('aria-label', expandButton.title);
-            if (expandLabel) expandLabel.textContent = expanded ? labels.collapseEditor : labels.expandEditor;
-            requestAnimationFrame(renderStage);
         });
 
         syncSourcesToControls();

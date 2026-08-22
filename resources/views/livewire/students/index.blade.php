@@ -115,7 +115,6 @@ new class extends Component {
             ->where('is_current', true)
             ->value('id');
 
-        $baseQuery = $this->scopeStudentsQuery(Student::query());
         $filteredQuery = $this->scopeStudentsQuery(Student::query())
             ->with(['parentProfile', 'gradeLevel', 'quranCurrentJuz'])
             ->withCount('enrollments')
@@ -148,13 +147,7 @@ new class extends Component {
             'fatherJobs' => FatherJob::query()->where('is_active', true)->orderBy('name')->get(['name']),
             'juzs' => QuranJuz::query()->orderBy('juz_number')->get(['id', 'juz_number', 'from_page', 'to_page']),
             'schools' => School::query()->where('is_active', true)->orderBy('name')->get(['name']),
-            'totals' => [
-                'all' => $baseQuery->count(),
-                'active' => $this->scopeStudentsQuery(Student::query()->where('status', 'active'))->count(),
-                'graduated' => $this->scopeStudentsQuery(Student::query()->where('status', 'graduated'))->count(),
-            ],
             'filteredCount' => $filteredCount,
-            'genders' => StudentGender::query()->where('is_active', true)->orderBy('sort_order')->orderBy('name')->get(['code', 'name']),
             'statuses' => ['active', 'inactive', 'graduated', 'blocked'],
             'bulkCourses' => Course::query()
                 ->where('is_active', true)
@@ -1473,11 +1466,6 @@ new class extends Component {
         <div class="eyebrow">{{ __('crud.students.hero.eyebrow') }}</div>
         <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('crud.students.hero.title') }}</h1>
         <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ __('crud.students.hero.subtitle') }}</p>
-        <div class="mt-6 flex flex-wrap gap-3">
-            <span class="badge-soft">{{ __('crud.students.hero.badges.active_parents', ['count' => number_format($parents->count())]) }}</span>
-            <span class="badge-soft badge-soft--emerald">{{ __('crud.students.hero.badges.grade_levels', ['count' => number_format($gradeLevels->count())]) }}</span>
-            <span class="badge-soft">{{ __('crud.students.hero.badges.juz_references', ['count' => number_format($juzs->count())]) }}</span>
-        </div>
     </section>
 
     @if (session('status'))
@@ -1490,41 +1478,17 @@ new class extends Component {
         </div>
     @endif
 
-    <div class="grid gap-4 md:grid-cols-3">
-        <article class="stat-card">
-            <div class="kpi-label">{{ __('crud.students.stats.all.label') }}</div>
-            <div class="metric-value mt-6">{{ number_format($totals['all']) }}</div>
-            <p class="mt-4 text-sm leading-6 text-neutral-300">{{ __('crud.students.stats.all.description') }}</p>
-        </article>
-
-        <article class="stat-card">
-            <div class="kpi-label">{{ __('crud.students.stats.active.label') }}</div>
-            <div class="metric-value mt-6">{{ number_format($totals['active']) }}</div>
-            <p class="mt-4 text-sm leading-6 text-neutral-300">{{ __('crud.students.stats.active.description') }}</p>
-        </article>
-
-        <article class="stat-card">
-            <div class="kpi-label">{{ __('crud.students.stats.graduated.label') }}</div>
-            <div class="metric-value mt-6">{{ number_format($totals['graduated']) }}</div>
-            <p class="mt-4 text-sm leading-6 text-neutral-300">{{ __('crud.students.stats.graduated.description') }}</p>
-        </article>
-    </div>
-
-    <section class="surface-panel p-5 lg:p-6">
-        <div class="admin-toolbar">
-            <div>
-                <div class="admin-toolbar__title">{{ __('crud.students.table.title') }}</div>
-                <p class="admin-toolbar__subtitle">{{ __('crud.students.form.help') }}</p>
-            </div>
-
+    <section class="surface-table">
+        <div class="admin-grid-meta admin-grid-meta--controls">
+            <div class="admin-grid-meta__title">{{ __('crud.students.table.title') }}</div>
             <div class="admin-toolbar__controls">
                 <div class="admin-filter-field">
-                    <label for="student-search">{{ __('crud.common.filters.search') }}</label>
+                    <label class="sr-only" for="student-search">{{ __('crud.common.filters.search') }}</label>
                     <input id="student-search" wire:model.live.debounce.300ms="search" type="text" placeholder="{{ __('crud.students.filters.search_placeholder') }}">
                 </div>
 
                 <div class="admin-filter-field">
-                    <label for="student-status-filter">{{ __('crud.common.filters.status') }}</label>
+                    <label class="sr-only" for="student-status-filter">{{ __('crud.common.filters.status') }}</label>
                     <select id="student-status-filter" wire:model.live="statusFilter">
                         <option value="all">{{ __('crud.common.filters.all_statuses') }}</option>
                         @foreach ($statuses as $studentStatus)
@@ -1534,22 +1498,11 @@ new class extends Component {
                 </div>
 
                 <div class="admin-toolbar__actions">
-                    @can('students.update')
-                    @endcan
                     @can('students.create')
                         <button type="button" wire:click="openCreateModal" class="pill-link pill-link--accent">{{ __('crud.common.actions.create') }}</button>
                     @endcan
                     <a href="{{ route('students.export', ['search' => $search, 'status' => $statusFilter]) }}" class="pill-link">{{ __('crud.common.actions.export') }}</a>
                 </div>
-            </div>
-        </div>
-    </section>
-
-    <section class="surface-table">
-        <div class="admin-grid-meta">
-            <div>
-                <div class="admin-grid-meta__title">{{ __('crud.students.table.title') }}</div>
-                <div class="admin-grid-meta__summary">{{ __('crud.common.badges.in_view', ['count' => number_format($filteredCount)]) }}</div>
             </div>
         </div>
 
@@ -1857,7 +1810,15 @@ new class extends Component {
                         <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                     @enderror
                 </div>
+            </div>
 
+            @php
+                $connectedParent = $editingId && $parent_id ? $parents->firstWhere('id', (int) $parent_id) : null;
+            @endphp
+            <div @class([
+                'grid gap-4',
+                'md:grid-cols-2' => ! ($editingId && $parent_id),
+            ])>
                 <div>
                     <label for="student-phone" class="mb-1 block text-sm font-medium">{{ __('crud.students.form.fields.phone') }}</label>
                     <div class="flex items-center gap-2">
@@ -1866,16 +1827,52 @@ new class extends Component {
                             <a href="{{ route('students.files', $editingId) }}" wire:navigate class="pill-link pill-link--compact">{{ __('crud.common.actions.media') }}</a>
                         @endif
                     </div>
-                    <p class="mt-1 text-xs text-neutral-500">{{ __('crud.students.form.student_phone_help') }}</p>
                     @error('student_phone')
                         <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                     @enderror
                 </div>
+
+                @unless ($editingId && $parent_id)
+                    <div>
+                        <label for="student-parent" class="mb-1 block text-sm font-medium">{{ __('crud.students.form.fields.parent') }}</label>
+                        <div class="flex items-center gap-2">
+                            <select
+                                id="student-parent"
+                                wire:model="parent_id"
+                                data-search-hint-target="student-last-name"
+                                class="min-w-0 flex-1 rounded-xl px-4 py-3 text-sm"
+                            >
+                                <option value="">{{ __('crud.students.form.placeholders.select_parent') }}</option>
+                                @foreach ($parents as $parent)
+                                    @php
+                                        $studentLastNames = $parent->students->pluck('last_name')->filter()->unique()->values();
+                                        $parentSearch = collect([
+                                            $parent->father_name,
+                                            $parent->mother_name,
+                                            $parent->father_phone,
+                                            $parent->mother_phone,
+                                            $parent->home_phone,
+                                            $studentLastNames->implode(' '),
+                                        ])->filter()->implode(' ');
+                                    @endphp
+                                    <option value="{{ $parent->id }}" data-search="{{ $parentSearch }}">
+                                        {{ $parent->father_name }}
+                                    </option>
+                                @endforeach
+                            </select>
+                            @can('parents.create')
+                                <button type="button" wire:click="{{ $showQuickParentForm ? 'closeQuickParentForm' : 'openQuickParentForm' }}" class="pill-link pill-link--compact shrink-0">
+                                    {{ $showQuickParentForm ? __('crud.students.form.parent_shortcut.cancel') : '+' }}
+                                </button>
+                            @endcan
+                        </div>
+                        @error('parent_id')
+                            <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
+                        @enderror
+                    </div>
+                @endunless
             </div>
 
-            @php
-                $connectedParent = $editingId && $parent_id ? $parents->firstWhere('id', (int) $parent_id) : null;
-            @endphp
             @if ($editingId && $parent_id)
                 <div class="rounded-3xl border border-white/10 bg-white/5 p-4">
                     <div class="flex flex-wrap items-center justify-between gap-3">
@@ -1898,51 +1895,11 @@ new class extends Component {
                         <p class="mt-3 text-sm text-neutral-400">{{ __('crud.students.form.parent_shortcut.edit_help') }}</p>
                     @endunless
                 </div>
-            @else
-            <div>
-                <div class="mb-1 flex flex-wrap items-center justify-between gap-3">
-                    <label for="student-parent" class="block text-sm font-medium">{{ __('crud.students.form.fields.parent') }}</label>
-                    @can('parents.create')
-                        <button type="button" wire:click="{{ $showQuickParentForm ? 'closeQuickParentForm' : 'openQuickParentForm' }}" class="pill-link pill-link--compact">
-                            {{ $showQuickParentForm ? __('crud.students.form.parent_shortcut.cancel') : '+' }}
-                        </button>
-                    @endcan
-                </div>
-                <select
-                    id="student-parent"
-                    wire:model="parent_id"
-                    data-search-hint-target="student-last-name"
-                    class="w-full rounded-xl px-4 py-3 text-sm"
-                >
-                    <option value="">{{ __('crud.students.form.placeholders.select_parent') }}</option>
-                    @foreach ($parents as $parent)
-                        @php
-                            $studentLastNames = $parent->students->pluck('last_name')->filter()->unique()->values();
-                            $parentSearch = collect([
-                                $parent->father_name,
-                                $parent->mother_name,
-                                $parent->father_phone,
-                                $parent->mother_phone,
-                                $parent->home_phone,
-                                $studentLastNames->implode(' '),
-                            ])->filter()->implode(' ');
-                        @endphp
-                        <option value="{{ $parent->id }}" data-search="{{ $parentSearch }}">
-                            {{ $parent->father_name }}
-                        </option>
-                    @endforeach
-                </select>
-                <p class="mt-1 text-xs text-neutral-500">{{ __('crud.students.form.parent_search_help') }}</p>
-                @error('parent_id')
-                    <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
-                @enderror
-            </div>
             @endif
 
             @if ($showQuickParentForm)
                 <div class="rounded-3xl border border-white/10 bg-white/5 p-4">
                     <div class="text-sm font-semibold text-white">{{ $editingId && $parent_id ? __('crud.students.form.parent_shortcut.edit_title') : __('crud.students.form.parent_shortcut.title') }}</div>
-                    <p class="mt-2 text-sm leading-6 text-neutral-400">{{ $editingId && $parent_id ? __('crud.students.form.parent_shortcut.edit_help') : __('crud.students.form.parent_shortcut.help') }}</p>
 
                     <div class="mt-4 grid gap-4 md:grid-cols-2">
                         <div>
@@ -2033,7 +1990,7 @@ new class extends Component {
                 </div>
             @endif
 
-            <div class="grid gap-4 md:grid-cols-2">
+            <div class="grid gap-4 md:grid-cols-3">
                 <div>
                     <label for="student-birth-date" class="mb-1 block text-sm font-medium">{{ __('crud.students.form.fields.birth_year') }}</label>
                     <input id="student-birth-date" wire:model="birth_date" type="number" min="1900" max="{{ now()->format('Y') + 1 }}" step="1" class="w-full rounded-xl px-4 py-3 text-sm">
@@ -2043,20 +2000,18 @@ new class extends Component {
                 </div>
 
                 <div>
-                    <label for="student-gender" class="mb-1 block text-sm font-medium">{{ __('crud.students.form.fields.gender') }}</label>
-                    <select id="student-gender" wire:model="gender" class="w-full rounded-xl px-4 py-3 text-sm">
-                        <option value="">{{ __('crud.students.form.placeholders.select_gender') }}</option>
-                        @foreach ($genders as $studentGender)
-                            <option value="{{ $studentGender->code }}">{{ $studentGender->name }}</option>
+                    <label for="student-grade-level" class="mb-1 block text-sm font-medium">{{ __('crud.students.form.fields.grade_level') }}</label>
+                    <select id="student-grade-level" wire:model="grade_level_id" class="w-full rounded-xl px-4 py-3 text-sm">
+                        <option value="">{{ __('crud.students.form.placeholders.select_grade') }}</option>
+                        @foreach ($gradeLevels as $gradeLevel)
+                            <option value="{{ $gradeLevel->id }}">{{ $gradeLevel->name }}</option>
                         @endforeach
                     </select>
-                    @error('gender')
+                    @error('grade_level_id')
                         <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                     @enderror
                 </div>
-            </div>
 
-            <div class="grid gap-4 md:grid-cols-2">
                 <div>
                     <label for="student-school" class="mb-1 block text-sm font-medium">{{ __('crud.students.form.fields.school') }}</label>
                     <div class="flex gap-2">
@@ -2077,49 +2032,35 @@ new class extends Component {
                         <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                     @enderror
                 </div>
-
-                <div>
-                    <label for="student-grade-level" class="mb-1 block text-sm font-medium">{{ __('crud.students.form.fields.grade_level') }}</label>
-                    <select id="student-grade-level" wire:model="grade_level_id" class="w-full rounded-xl px-4 py-3 text-sm">
-                        <option value="">{{ __('crud.students.form.placeholders.select_grade') }}</option>
-                        @foreach ($gradeLevels as $gradeLevel)
-                            <option value="{{ $gradeLevel->id }}">{{ $gradeLevel->name }}</option>
-                        @endforeach
-                    </select>
-                    @error('grade_level_id')
-                        <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
-                    @enderror
-                </div>
             </div>
 
-            @if (! $editingId)
-                <div>
-                    <label for="student-enrollment-group" class="mb-1 block text-sm font-medium">{{ __('crud.students.form.fields.group') }}</label>
-                    <select id="student-enrollment-group" wire:model="enrollment_group_id" class="w-full rounded-xl px-4 py-3 text-sm">
-                        <option value="">{{ __('crud.students.form.placeholders.select_group') }}</option>
-                        @foreach ($enrollmentGroups as $group)
-                            <option value="{{ $group->id }}">
-                                {{ $group->name }}
-                                @if ($group->course)
-                                    - {{ $group->course->name }}
-                                @endif
-                                @if ($group->gradeLevel)
-                                    - {{ $group->gradeLevel->name }}
-                                @endif
-                                @if ($group->academicYear)
-                                    - {{ $group->academicYear->name }}
-                                @endif
-                            </option>
-                        @endforeach
-                    </select>
-                    <p class="mt-2 text-xs text-neutral-400">{{ __('crud.students.form.group_help') }}</p>
-                    @error('enrollment_group_id')
-                        <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
-                    @enderror
-                </div>
-            @endif
-
             <div class="grid gap-4 md:grid-cols-2">
+                @if (! $editingId)
+                    <div>
+                        <label for="student-enrollment-group" class="mb-1 block text-sm font-medium">{{ __('crud.students.form.fields.group') }}</label>
+                        <select id="student-enrollment-group" wire:model="enrollment_group_id" class="w-full rounded-xl px-4 py-3 text-sm">
+                            <option value="">{{ __('crud.students.form.placeholders.select_group') }}</option>
+                            @foreach ($enrollmentGroups as $group)
+                                <option value="{{ $group->id }}">
+                                    {{ $group->name }}
+                                    @if ($group->course)
+                                        - {{ $group->course->name }}
+                                    @endif
+                                    @if ($group->gradeLevel)
+                                        - {{ $group->gradeLevel->name }}
+                                    @endif
+                                    @if ($group->academicYear)
+                                        - {{ $group->academicYear->name }}
+                                    @endif
+                                </option>
+                            @endforeach
+                        </select>
+                        @error('enrollment_group_id')
+                            <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
+                        @enderror
+                    </div>
+                @endif
+
                 <div>
                     <label for="student-juz" class="mb-1 block text-sm font-medium">{{ __('crud.students.form.fields.current_juz') }}</label>
                     <input id="student-juz" wire:model="quran_current_juz_number" type="number" inputmode="numeric" min="1" max="30" step="1" class="w-full rounded-xl px-4 py-3 text-sm" placeholder="{{ __('crud.students.form.placeholders.select_juz') }}">

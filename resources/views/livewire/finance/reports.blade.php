@@ -262,7 +262,12 @@ new class extends Component {
                 <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ __('finance.reports.subtitle') }}</p>
             </div>
             @can('finance.report-templates.manage')
-                <button type="button" wire:click="openReportSettings" class="pill-link pill-link--accent">{{ __('finance.reports.report_settings') }}</button>
+                <button type="button" wire:click="openReportSettings" title="{{ __('finance.reports.report_settings') }}" aria-label="{{ __('finance.reports.report_settings') }}" class="financial-report-symbol-button pill-link pill-link--accent">
+                    <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="3"></circle>
+                        <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.38a2 2 0 0 0-.73-2.73l-.15-.09a2 2 0 0 1-1-1.74v-.51a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2Z"></path>
+                    </svg>
+                </button>
             @endcan
         </div>
     </section>
@@ -272,9 +277,10 @@ new class extends Component {
             <section class="surface-table" style="order: 4">
                 <div class="admin-grid-meta">
                     <div class="admin-grid-meta__title">{{ __('finance.reports.generated_reports') }}</div>
-                    <div class="admin-toolbar__controls">
-                        <span class="badge-soft">{{ number_format($generatedReports->count()) }}</span>
-                        <button type="button" wire:click="openCreateReport" @disabled(! $canGenerateReport) @if(! $canGenerateReport) title="{{ __('finance.reports.signature_required') }}" @endif class="pill-link pill-link--accent disabled:cursor-not-allowed disabled:opacity-50">{{ __('finance.reports.generate_report') }}</button>
+                    <div class="admin-toolbar__controls financial-report-symbol-controls">
+                        <button type="button" wire:click="openCreateReport" @disabled(! $canGenerateReport) title="{{ $canGenerateReport ? __('finance.reports.generate_report') : __('finance.reports.signature_required') }}" aria-label="{{ __('finance.reports.generate_report') }}" class="financial-report-symbol-button pill-link pill-link--accent disabled:cursor-not-allowed disabled:opacity-50">
+                            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>
+                        </button>
                     </div>
                 </div>
                 @error('createReport')<div class="mx-5 mb-4 rounded-xl border border-red-400/25 bg-red-500/10 px-4 py-3 text-sm text-red-100">{{ $message }}</div>@enderror
@@ -301,7 +307,7 @@ new class extends Component {
                                     <td class="px-5 py-3">{{ data_get($generatedReport->filters, 'cash_box_name', data_get($generatedReport->report_data, 'cash_box.name', '-')) }}</td>
                                     <td class="px-5 py-3">{{ data_get($generatedReport->filters, 'currency_code', data_get($generatedReport->report_data, 'currency.code', '-')) }}</td>
                                     <td class="px-5 py-3">{{ $generatedReport->generatedBy?->name ?: (data_get($generatedReport->report_data, 'issuer_name') ?: '-') }}</td>
-                                    <td class="px-5 py-3">{{ $generatedReport->created_at?->format('d-m-Y H:i') }}</td>
+                                    <td class="px-5 py-3">{{ $generatedReport->created_at?->format('d-m-Y') }}</td>
                                     <td class="px-5 py-3">
                                         <div class="admin-action-cluster admin-action-cluster--end">
                                             <a href="{{ route('finance.reports.generated.show', $generatedReport) }}" target="_blank" rel="noopener" class="pill-link pill-link--compact">{{ __('finance.reports.review_saved_report') }}</a>

@@ -38,11 +38,11 @@ new class extends Component {
         <form wire:submit="deleteUser" class="space-y-6">
             <div>
                 <flux:heading size="lg">{{ __('settings.account.delete.confirm_title') }}</flux:heading>
-
-                <flux:subheading>
-                    {{ __('settings.account.delete.confirm_description') }}
-                </flux:subheading>
             </div>
+
+            <p class="rounded-xl border border-red-500/20 bg-red-500/5 px-4 py-3 text-sm leading-6 text-neutral-300">
+                {{ __('settings.account.delete.confirm_description') }}
+            </p>
 
             <flux:input wire:model="password" id="password" label="{{ __('settings.account.delete.fields.password') }}" type="password" name="password" />
 

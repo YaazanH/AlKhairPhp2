@@ -91,6 +91,22 @@ class QuranWorkflowTest extends TestCase
             'teacher_id' => $teacher->id,
             'attendance_status_id' => $present->id,
         ]);
+
+        Volt::test('teachers.attendance')
+            ->assertSee('admin-modal-portal', false)
+            ->call('openExportModal')
+            ->assertSet('showExportModal', true)
+            ->assertSee('admin-modal--full-viewport', false);
+
+        $this->get(route('teacher-attendance.index', absolute: false))->assertOk();
+
+        $response = $this->get(route('teacher-attendance.export', [
+            'date_from' => $attendanceDate,
+            'date_to' => $attendanceDate,
+        ], absolute: false));
+
+        $response->assertOk()->assertHeader('content-type', 'application/pdf');
+        $this->assertStringStartsWith('%PDF-', $response->getContent());
     }
 
     public function test_teacher_attendance_preloads_scheduled_teachers_and_allows_manual_additions(): void
@@ -237,13 +253,17 @@ class QuranWorkflowTest extends TestCase
 
         $laterDayComponent = Volt::test('teachers.attendance-show', ['teacherAttendanceDay' => $laterDay]);
         $this->assertStringContainsString('teacher-attendance-record-'.$scheduledTeacher->id, $laterDayComponent->html());
+        $this->assertStringContainsString('teacher-attendance-actions-column', $laterDayComponent->html());
         $laterDayComponent->call('toggleDayStatus')->assertHasNoErrors();
         $this->assertStringNotContainsString('teacher-attendance-record-'.$scheduledTeacher->id, $laterDayComponent->html());
         $this->assertStringNotContainsString('wire:click="removeTeacher('.$scheduledTeacher->id.')"', $laterDayComponent->html());
+        $this->assertStringNotContainsString('teacher-attendance-actions-column', $laterDayComponent->html());
+        $this->assertStringContainsString('teacher-attendance-records-table--closed', $laterDayComponent->html());
         $this->assertStringNotContainsString('wire:click="openManualTeacherModal"', $laterDayComponent->html());
         $this->assertStringContainsString($present->name, $laterDayComponent->html());
         $laterDayComponent->call('toggleDayStatus')->assertHasNoErrors();
         $this->assertStringContainsString('teacher-attendance-record-'.$scheduledTeacher->id, $laterDayComponent->html());
+        $this->assertStringContainsString('teacher-attendance-actions-column', $laterDayComponent->html());
         $this->assertStringContainsString('wire:click="openManualTeacherModal"', $laterDayComponent->html());
     }
 

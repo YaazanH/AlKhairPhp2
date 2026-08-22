@@ -24,6 +24,7 @@ class Assessment extends Model
         'total_mark',
         'pass_mark',
         'is_active',
+        'course_finished_at',
         'created_by',
     ];
 
@@ -35,6 +36,7 @@ class Assessment extends Model
             'total_mark' => 'decimal:2',
             'pass_mark' => 'decimal:2',
             'is_active' => 'boolean',
+            'course_finished_at' => 'datetime',
         ];
     }
 

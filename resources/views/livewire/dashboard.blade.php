@@ -355,7 +355,7 @@ new class extends Component {
                     'links' => collect([
                         ['label' => __('ui.nav.groups'), 'route' => auth()->user()->can('groups.view') ? route('groups.index') : null],
                         ['label' => __('ui.nav.enrollments'), 'route' => auth()->user()->can('enrollments.view') ? route('enrollments.index') : null],
-                        ['label' => __('ui.nav.teacher_attendance'), 'route' => auth()->user()->can('attendance.teacher.view') ? route('teachers.attendance') : null],
+                        ['label' => __('ui.nav.teacher_attendance'), 'route' => auth()->user()->can('attendance.teacher.view') ? route('teacher-attendance.index') : null],
                         ['label' => __('ui.nav.assessments'), 'route' => auth()->user()->can('assessments.view') ? route('assessments.index') : null],
                         ['label' => __('ui.nav.student_notes'), 'route' => auth()->user()->can('student-notes.view') ? route('student-notes.index') : null],
                     ])->filter(fn (array $link) => $link['route']),
@@ -511,8 +511,9 @@ new class extends Component {
             'profileName' => $teacher->first_name.' '.$teacher->last_name,
             'profileJob' => $accessRoleLabel,
             'currentAcademicYearName' => $group
-                ? collect([$group->course?->name, $group->name])->filter()->implode(' · ')
+                ? ($group->course?->name ?: $this->dashboardCourseName())
                 : $this->dashboardCourseName(),
+            'dashboardGroupName' => $group?->name,
             'profileMeta' => $accessRoleLabel,
             'stats' => [
                 [
@@ -848,7 +849,13 @@ new class extends Component {
         <div class="dashboard-split grid gap-6 xl:grid-cols-[minmax(0,1.35fr)_22rem] xl:items-start">
             <div>
                 <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ $heading }}</h1>
-                <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ $currentAcademicYearName }}</p>
+                <div class="dashboard-course-context mt-4 flex max-w-3xl flex-wrap items-center gap-x-3 gap-y-2 text-base leading-7 text-neutral-200">
+                    <span class="dashboard-course-context__course">{{ $currentAcademicYearName }}</span>
+                    @if ($teacherGroupDashboard && filled($dashboardGroupName ?? null))
+                        <span class="dashboard-course-context__separator" aria-hidden="true">·</span>
+                        <span class="dashboard-course-context__group">{{ $dashboardGroupName }}</span>
+                    @endif
+                </div>
                 @if ($dashboardRole === 'unassigned')
                     <p class="mt-4 max-w-2xl text-sm leading-7 text-neutral-300">{{ $intro }}</p>
                 @endif
@@ -942,8 +949,8 @@ new class extends Component {
                                     <div class="truncate text-xs text-neutral-300">{{ $group['name'] }}</div>
                                     <div class="relative h-5">
                                         <span class="absolute inset-y-1/2 start-0 h-px -translate-y-1/2 rounded-full opacity-70" style="width: {{ ($group['students'] / $lollipopMax) * 100 }}%; background: {{ $chartColor($index) }}"></span>
-                                        <span class="absolute top-1/2 h-3.5 w-3.5 -translate-y-1/2 translate-x-1/2 rounded-full border-2 border-neutral-950 shadow" style="inset-inline-start: calc({{ ($group['students'] / $lollipopMax) * 100 }}% - .875rem); background: {{ $chartColor($index) }}"></span>
-                                        <span class="absolute top-1/2 h-2.5 w-2.5 -translate-y-1/2 translate-x-1/2 rounded-full border-2 border-neutral-950 bg-sky-300 shadow" style="inset-inline-start: calc({{ ($group['average_attendance'] / $lollipopMax) * 100 }}% - .625rem)" title="{{ __('dashboard.manager.analytics.average_attendance') }}: {{ number_format($group['average_attendance'], 1) }}"></span>
+                                        <span class="absolute top-1/2 h-3.5 w-3.5 -translate-y-1/2 rounded-full border-2 border-neutral-950 shadow" style="inset-inline-start: calc({{ ($group['students'] / $lollipopMax) * 100 }}% - .4375rem); background: {{ $chartColor($index) }}"></span>
+                                        <span class="absolute top-1/2 h-2.5 w-2.5 -translate-y-1/2 rounded-full border-2 border-neutral-950 bg-sky-300 shadow" style="inset-inline-start: calc({{ ($group['average_attendance'] / $lollipopMax) * 100 }}% - .3125rem)" title="{{ __('dashboard.manager.analytics.average_attendance') }}: {{ number_format($group['average_attendance'], 1) }}"></span>
                                     </div>
                                     <div class="min-w-8 text-end text-xs font-semibold text-white">{{ number_format($group['students']) }}</div>
                                 </div>
@@ -956,8 +963,8 @@ new class extends Component {
 
                 <article class="surface-panel flex min-h-[22rem] flex-col p-5 lg:p-6">
                     <h2 class="font-display mt-2 text-2xl text-white">{{ __('dashboard.manager.analytics.daily_activity') }}</h2>
-                    <div class="flex flex-1 items-center justify-center">
-                    <svg viewBox="0 0 440 220" dir="ltr" class="dashboard-line-chart mx-auto h-auto w-full max-w-2xl overflow-hidden" role="img" aria-label="{{ __('dashboard.manager.analytics.daily_activity') }}">
+                    <div class="dashboard-line-chart-shell flex flex-1 items-center justify-center">
+                    <svg viewBox="0 0 458 220" dir="ltr" class="dashboard-line-chart mx-auto h-auto w-full max-w-2xl overflow-hidden" role="img" aria-label="{{ __('dashboard.manager.analytics.daily_activity') }}">
                         <line x1="{{ app()->isLocale('ar') ? 400 : 58 }}" y1="42" x2="{{ app()->isLocale('ar') ? 400 : 58 }}" y2="178" stroke="rgba(255,255,255,.3)" stroke-width="1.5" />
                         <line x1="58" y1="178" x2="400" y2="178" stroke="rgba(255,255,255,.3)" stroke-width="1.5" />
                         @foreach (range(0, $trendTicks) as $tick)
@@ -966,7 +973,7 @@ new class extends Component {
                                 $gridY = 178 - ($ratio * 128);
                             @endphp
                             <line x1="58" y1="{{ $gridY }}" x2="400" y2="{{ $gridY }}" stroke="rgba(255,255,255,.09)" stroke-width="1" />
-                            <text x="{{ app()->isLocale('ar') ? 408 : 49 }}" y="{{ $gridY + 3 }}" text-anchor="{{ app()->isLocale('ar') ? 'start' : 'end' }}" fill="#a3a3a3" font-size="9">{{ $axisLabel($trendMax * $ratio) }}</text>
+                            <text x="{{ app()->isLocale('ar') ? 412 : 46 }}" y="{{ $gridY + 3 }}" text-anchor="{{ app()->isLocale('ar') ? 'start' : 'end' }}" direction="ltr" fill="#a3a3a3" font-size="9">{{ $axisLabel($trendMax * $ratio) }}</text>
                         @endforeach
                         @foreach ($dailyTrend as $index => $day)
                             <line x1="{{ $trendX($index) }}" y1="50" x2="{{ $trendX($index) }}" y2="178" stroke="rgba(255,255,255,.09)" stroke-width="1" />
@@ -990,7 +997,6 @@ new class extends Component {
                             </g>
                             <text x="{{ $trendX($index) }}" y="202" text-anchor="middle" fill="#a3a3a3" font-size="9">{{ $day['label'] }}</text>
                         @endforeach
-                        <text x="{{ app()->isLocale('ar') ? 428 : 20 }}" y="110" text-anchor="middle" fill="#a3a3a3" font-size="10" transform="rotate({{ app()->isLocale('ar') ? 90 : -90 }} {{ app()->isLocale('ar') ? 428 : 20 }} 110)">{{ __('dashboard.manager.analytics.count_axis') }}</text>
                     </svg>
                     </div>
                 </article>
@@ -1008,7 +1014,9 @@ new class extends Component {
                                     $rankStyle = [1 => 'gold', 2 => 'silver', 3 => 'bronze'][$entry['rank']];
                                 @endphp
                                 <button type="button" wire:click="showManagerStudent({{ $entry['student']->id }})" class="dashboard-leaderboard__card dashboard-leaderboard__card--{{ $rankStyle }} dashboard-leaderboard__card--rank-{{ $entry['rank'] }} group">
-                                    <span class="dashboard-leaderboard__rank">{{ $entry['rank'] }}</span>
+                                    <span class="dashboard-leaderboard__rank">
+                                        <img src="{{ asset('images/dashboard/leaderboard/medal-'.$entry['rank'].'.png') }}" alt="{{ $entry['rank'] }}" class="dashboard-leaderboard__rank-image">
+                                    </span>
                                     <x-student-avatar :student="$entry['student']" size="lg" class="dashboard-leaderboard__avatar mx-auto transition-transform duration-200 group-hover:scale-110" />
                                     <span class="mt-3 block line-clamp-2 font-semibold text-white">{{ $entry['student']->full_name }}</span>
                                     <span class="mt-2 block text-sm text-neutral-200">{{ number_format($entry['points']) }} {{ app()->isLocale('ar') ? ($entry['points'] > 10 ? 'نقطة' : 'نقاط') : __('dashboard.manager.analytics.points') }}</span>
@@ -1060,7 +1068,6 @@ new class extends Component {
             </section>
 
             <section class="surface-panel mt-6 p-5 lg:p-6">
-                <div class="eyebrow">{{ __('curricula.title') }}</div>
                 <h2 class="font-display mt-2 text-2xl text-white">{{ __('curricula.progress.title') }}</h2>
                 @if ($curriculumProgress->isEmpty())
                     <div class="admin-empty-state mt-5">{{ __('curricula.progress.empty') }}</div>
@@ -1160,7 +1167,7 @@ new class extends Component {
                                     <div class="truncate text-sm text-neutral-200">{{ $row['student']->full_name }}</div>
                                     <div class="relative h-5">
                                         <span class="absolute inset-y-1/2 start-0 h-px -translate-y-1/2 rounded-full bg-emerald-400/75" style="width: {{ ($row['pages'] / $teacherLollipopMax) * 100 }}%"></span>
-                                        <span class="absolute top-1/2 h-3.5 w-3.5 -translate-y-1/2 translate-x-1/2 rounded-full border-2 border-neutral-950 bg-emerald-400 shadow" style="inset-inline-start: calc({{ ($row['pages'] / $teacherLollipopMax) * 100 }}% - .875rem)"></span>
+                                        <span class="absolute top-1/2 h-3.5 w-3.5 -translate-y-1/2 rounded-full border-2 border-neutral-950 bg-emerald-400 shadow" style="inset-inline-start: calc({{ ($row['pages'] / $teacherLollipopMax) * 100 }}% - .4375rem)"></span>
                                     </div>
                                     <div class="min-w-10 text-end text-sm font-semibold text-white">{{ number_format($row['pages']) }}</div>
                                 </div>
@@ -1186,7 +1193,7 @@ new class extends Component {
                 </article>
 
                 <article class="surface-panel grid place-items-center p-5 lg:p-6">
-                    <div class="text-center"><div class="eyebrow">{{ __('curricula.title') }}</div><h2 class="font-display mt-2 text-2xl text-white">{{ __('curricula.progress.title') }}</h2></div>
+                    <h2 class="font-display mt-2 text-center text-2xl text-white">{{ __('curricula.progress.title') }}</h2>
                     @if (($teacherCurriculumSummary['total'] ?? 0) === 0)
                         <div class="admin-empty-state mt-5">{{ __('curricula.progress.empty') }}</div>
                     @else

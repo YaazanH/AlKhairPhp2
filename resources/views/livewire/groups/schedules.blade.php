@@ -65,6 +65,9 @@ new class extends Component {
     public function save(): void
     {
         $this->authorizePermission('group-schedules.manage');
+        if (! $this->ensureGroupIsEditable()) {
+            return;
+        }
 
         $validated = $this->validate();
         $validated['group_id'] = $this->currentGroup->id;
@@ -86,6 +89,9 @@ new class extends Component {
     public function edit(int $scheduleId): void
     {
         $this->authorizePermission('group-schedules.manage');
+        if (! $this->ensureGroupIsEditable()) {
+            return;
+        }
 
         $schedule = GroupSchedule::query()
             ->where('group_id', $this->currentGroup->id)
@@ -116,6 +122,9 @@ new class extends Component {
     public function delete(int $scheduleId): void
     {
         $this->authorizePermission('group-schedules.manage');
+        if (! $this->ensureGroupIsEditable()) {
+            return;
+        }
 
         $schedule = GroupSchedule::query()
             ->where('group_id', $this->currentGroup->id)
@@ -141,6 +150,19 @@ new class extends Component {
             5 => __('schedules.group.days.5'),
             6 => __('schedules.group.days.6'),
         ];
+    }
+
+    protected function ensureGroupIsEditable(): bool
+    {
+        $group = $this->currentGroup->fresh('course');
+
+        if (! $group->course_finished_at && ($group->course?->is_active ?? true)) {
+            return true;
+        }
+
+        $this->addError('group', __('crud.groups.errors.course_archived'));
+
+        return false;
     }
 }; ?>
 
@@ -173,6 +195,10 @@ new class extends Component {
         </div>
     @endif
 
+    @error('group')
+        <div class="flash-error px-4 py-3 text-sm">{{ $message }}</div>
+    @enderror
+
     <section class="admin-kpi-grid">
         <article class="stat-card">
             <div class="kpi-label">{{ __('schedules.group.table.title') }}</div>
@@ -190,7 +216,7 @@ new class extends Component {
 
     <div class="grid gap-6 xl:grid-cols-[26rem_minmax(0,1fr)]">
         <section class="surface-panel p-5 lg:p-6">
-            @if (auth()->user()->can('group-schedules.manage'))
+            @if (auth()->user()->can('group-schedules.manage') && ! $groupRecord->course_finished_at && ($groupRecord->course?->is_active ?? true))
                 <div class="admin-section-card__header">
                     <div class="admin-section-card__title">{{ $editingScheduleId ? __('schedules.group.form.edit_title') : __('schedules.group.form.create_title') }}</div>
                     <p class="admin-section-card__copy">{{ __('schedules.group.form.help') }}</p>
@@ -255,7 +281,7 @@ new class extends Component {
             @else
                 <div class="soft-callout px-4 py-4 text-sm leading-6">
                     <div class="font-semibold text-white">{{ __('schedules.group.read_only.title') }}</div>
-                    <p class="mt-2 text-neutral-300">{{ __('schedules.group.read_only.body') }}</p>
+                    <p class="mt-2 text-neutral-300">{{ ($groupRecord->course_finished_at || ! ($groupRecord->course?->is_active ?? true)) ? __('crud.groups.errors.course_archived') : __('schedules.group.read_only.body') }}</p>
                 </div>
             @endif
         </section>
@@ -281,7 +307,7 @@ new class extends Component {
                                 <th class="px-5 py-4 text-left lg:px-6">{{ __('schedules.group.table.headers.time') }}</th>
                                 <th class="px-5 py-4 text-left lg:px-6">{{ __('schedules.group.table.headers.room') }}</th>
                                 <th class="px-5 py-4 text-left lg:px-6">{{ __('schedules.group.table.headers.status') }}</th>
-                                @if (auth()->user()->can('group-schedules.manage'))
+                                @if (auth()->user()->can('group-schedules.manage') && ! $groupRecord->course_finished_at && ($groupRecord->course?->is_active ?? true))
                                     <th class="px-5 py-4 text-right lg:px-6">{{ __('schedules.group.table.headers.actions') }}</th>
                                 @endif
                             </tr>
@@ -297,7 +323,7 @@ new class extends Component {
                                             {{ $schedule->is_active ? __('crud.common.status_options.active') : __('crud.common.status_options.inactive') }}
                                         </span>
                                     </td>
-                                    @if (auth()->user()->can('group-schedules.manage'))
+                                    @if (auth()->user()->can('group-schedules.manage') && ! $groupRecord->course_finished_at && ($groupRecord->course?->is_active ?? true))
                                         <td class="px-5 py-4 lg:px-6">
                                             <div class="admin-action-cluster admin-action-cluster--end">
                                                 <button type="button" wire:click="edit({{ $schedule->id }})" class="pill-link pill-link--compact">

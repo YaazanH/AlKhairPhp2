@@ -153,7 +153,7 @@ class PrintTemplateFieldRegistry
             'activity' => [
                 'title' => $this->field('title', ['text', 'barcode'], fn (Activity $activity) => $activity->title),
                 'description' => $this->field('description', ['text'], fn (Activity $activity) => $activity->description ?: __('print_templates.common.not_available')),
-                'activity_date' => $this->field('activity_date', ['text'], fn (Activity $activity) => $activity->activity_date?->format('Y-m-d') ?: __('print_templates.common.not_available')),
+                'activity_date' => $this->field('activity_date', ['text'], fn (Activity $activity) => $activity->activity_date?->format('d-m-Y') ?: __('print_templates.common.not_available')),
                 'fee_amount' => $this->field('fee_amount', ['text'], fn (Activity $activity) => number_format((float) $activity->fee_amount, 2)),
                 'group_name' => $this->field('group_name', ['text'], fn (Activity $activity) => $activity->group?->name ?: __('print_templates.common.not_available')),
             ],
@@ -368,7 +368,7 @@ class PrintTemplateFieldRegistry
             'teacher' => trim($model->first_name.' '.$model->last_name),
             'parent' => (string) $model->father_name,
             'user' => trim($model->name.' '.($model->username ? '('.$model->username.')' : '')),
-            'activity' => trim($model->title.' '.($model->activity_date ? '('.$model->activity_date->format('Y-m-d').')' : '')),
+            'activity' => trim($model->title.' '.($model->activity_date ? '('.$model->activity_date->format('d-m-Y').')' : '')),
             'finance_request' => trim($model->request_no.' '.ucfirst((string) $model->type)),
             'revenue' => trim($model->request_no.' '.($model->maskedCounterpartyName() ?: app(FinanceService::class)->financeRequestTypeLabel($model->type))),
             default => (string) $model->getKey(),
@@ -409,6 +409,7 @@ class PrintTemplateFieldRegistry
                 'course_id' => (int) $model->group?->course_id,
                 'student_name' => (string) ($model->student?->full_name ?? ''),
                 'course_name' => (string) ($model->group?->course?->name ?? ''),
+                'group_name' => (string) ($model->group?->name ?? ''),
             ],
             'teacher' => [
                 'activity_ids' => $this->teacherActivityIds($model),
@@ -527,7 +528,7 @@ class PrintTemplateFieldRegistry
             ? $student->latestStudentCardPrint
             : $student->latestStudentCardPrint()->first();
 
-        return $latestPrint?->printed_at?->format('Y-m-d H:i');
+        return $latestPrint?->printed_at?->format('d-m-Y H:i');
     }
 
     protected function teacherActivityIds(Teacher $teacher): array

@@ -36,6 +36,8 @@ class Group extends Model
         'ends_on',
         'monthly_fee',
         'is_active',
+        'course_finished_at',
+        'course_finished_was_active',
     ];
 
     protected function casts(): array
@@ -46,6 +48,8 @@ class Group extends Model
             'ends_on' => 'date',
             'monthly_fee' => 'decimal:2',
             'is_active' => 'boolean',
+            'course_finished_at' => 'datetime',
+            'course_finished_was_active' => 'boolean',
         ];
     }
 

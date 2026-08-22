@@ -171,7 +171,9 @@ class QuranFinalTestService
             }
 
             $attempt->update([
-                'notes' => blank($data['notes'] ?? null) ? null : $data['notes'],
+                'notes' => array_key_exists('notes', $data)
+                    ? (blank($data['notes']) ? null : $data['notes'])
+                    : $attempt->notes,
                 'score' => $score,
                 'status' => $status,
                 'teacher_id' => $teacher->id,

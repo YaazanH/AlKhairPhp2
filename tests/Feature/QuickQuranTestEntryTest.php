@@ -22,16 +22,25 @@ class QuickQuranTestEntryTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_quick_entry_requires_an_explicit_permission_and_linked_teacher(): void
+    public function test_quick_entry_requires_permission_and_is_visible_to_super_admins_without_teacher_profiles(): void
     {
         $this->seed();
 
         $manager = User::factory()->create();
         $manager->assignRole('manager');
         $this->actingAs($manager)
-            ->get(route('quran-tests.quick-entry', absolute: false))
+            ->get(route('saber-entry.index', absolute: false))
             ->assertForbidden();
         $this->assertFalse($this->sidebarHasQuickEntry($manager));
+
+        $superAdmin = User::factory()->create();
+        $superAdmin->assignRole('super_admin');
+
+        $this->actingAs($superAdmin)
+            ->get(route('saber-entry.index', absolute: false))
+            ->assertOk();
+        $this->assertTrue($this->sidebarHasQuickEntry($superAdmin));
+        $this->assertSame('book-open-pencil', $this->quickEntrySidebarItem($superAdmin)['icon']);
 
         $teacherUser = User::factory()->create();
         $teacherUser->assignRole('teacher');
@@ -44,14 +53,14 @@ class QuickQuranTestEntryTest extends TestCase
         ]);
 
         $this->actingAs($teacherUser)
-            ->get(route('quran-tests.quick-entry', absolute: false))
+            ->get(route('saber-entry.index', absolute: false))
             ->assertForbidden();
         $this->assertFalse($this->sidebarHasQuickEntry($teacherUser));
 
         $teacherUser->givePermissionTo('quran-tests.quick-entry');
 
         $this->actingAs($teacherUser)
-            ->get(route('quran-tests.quick-entry', absolute: false))
+            ->get(route('saber-entry.index', absolute: false))
             ->assertOk();
         $this->assertTrue($this->sidebarHasQuickEntry($teacherUser->fresh()));
     }
@@ -74,20 +83,38 @@ class QuickQuranTestEntryTest extends TestCase
         Volt::test('quran-tests.quick-entry')
             ->set('partialStudentId', $student->id)
             ->assertSet('partialJuzId', $juz->id)
-            ->set('partialQuarters', [1, 3])
+            ->set('partialQuarter', 1)
             ->set('mistakeCount', '1')
             ->call('savePartial')
-            ->assertHasNoErrors();
+            ->assertHasNoErrors()
+            ->assertSet('partialStudentId', null)
+            ->assertSet('partialJuzId', null)
+            ->assertSet('partialQuarter', null)
+            ->assertSet('mistakeCount', '');
 
         $this->assertDatabaseHas('quran_partial_test_attempts', [
             'quran_partial_test_part_id' => $partialTest->parts()->where('part_number', 1)->value('id'),
             'teacher_id' => $teacher->id,
             'mistake_count' => 1,
         ]);
-        $this->assertDatabaseHas('quran_partial_test_attempts', [
+        $this->assertDatabaseMissing('quran_partial_test_attempts', [
             'quran_partial_test_part_id' => $partialTest->parts()->where('part_number', 3)->value('id'),
-            'teacher_id' => $teacher->id,
-            'mistake_count' => 1,
+        ]);
+
+        $partialAttempt = $partialTest->parts()->where('part_number', 1)->firstOrFail()->attempts()->firstOrFail();
+        Volt::test('quran-partial-tests.show', ['partialTest' => $partialTest])
+            ->call('openEditAttempt', $partialAttempt->id)
+            ->assertSet('showAttemptModal', true)
+            ->assertSet('teacher_id', $teacher->id)
+            ->assertSet('tested_on', now()->toDateString())
+            ->assertSet('mistake_count', '1')
+            ->set('mistake_count', '2')
+            ->call('saveAttempt')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('quran_partial_test_attempts', [
+            'id' => $partialAttempt->id,
+            'mistake_count' => 2,
         ]);
 
         $finalTest = QuranFinalTest::query()->create([
@@ -102,15 +129,111 @@ class QuickQuranTestEntryTest extends TestCase
             ->set('tab', 'final')
             ->set('finalStudentId', $student->id)
             ->assertSet('finalJuzId', $juz->id)
+            ->assertSet('finalTestedOn', now()->toDateString())
+            ->set('finalTestedOn', '2026-08-21')
             ->set('finalMark', '95')
             ->call('saveFinal')
-            ->assertHasNoErrors();
+            ->assertHasNoErrors()
+            ->assertSet('finalStudentId', null)
+            ->assertSet('finalJuzId', null)
+            ->assertSet('finalTestedOn', now()->toDateString())
+            ->assertSet('finalMark', '');
 
         $this->assertDatabaseHas('quran_final_test_attempts', [
             'quran_final_test_id' => $finalTest->id,
             'teacher_id' => $teacher->id,
             'score' => 95,
+            'tested_on' => '2026-08-21 00:00:00',
         ]);
+
+        $finalAttempt = $finalTest->attempts()->firstOrFail();
+        Volt::test('quran-final-tests.show', ['finalTest' => $finalTest])
+            ->call('openEditAttempt', $finalAttempt->id)
+            ->assertSet('showAttemptModal', true)
+            ->assertSet('teacher_id', $teacher->id)
+            ->assertSet('tested_on', '2026-08-21')
+            ->assertSet('score', '95')
+            ->set('score', '94')
+            ->call('saveAttempt')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('quran_final_test_attempts', [
+            'id' => $finalAttempt->id,
+            'score' => 94,
+        ]);
+
+        foreach (['quran-partial-tests.index', 'quran-final-tests.index'] as $component) {
+            Volt::test($component)
+                ->assertSee('Quick Entry Course')
+                ->assertDontSee('Quick Entry Group')
+                ->assertDontSee('Quick Parent');
+        }
+    }
+
+    public function test_quick_entry_hides_the_type_selector_when_only_one_saber_type_is_allowed(): void
+    {
+        $this->seed();
+
+        $partialOnly = User::factory()->create();
+        $partialOnly->givePermissionTo(['quran-tests.quick-entry', 'quran-partial-tests.record']);
+
+        $this->actingAs($partialOnly);
+        Volt::test('quran-tests.quick-entry')
+            ->assertSet('tab', 'partial')
+            ->assertSet('canRecordPartial', true)
+            ->assertSet('canRecordFinal', false)
+            ->assertDontSee('quick-saber-type-switch', false);
+
+        $finalOnly = User::factory()->create();
+        $finalOnly->givePermissionTo(['quran-tests.quick-entry', 'quran-final-tests.record']);
+
+        $this->actingAs($finalOnly);
+        Volt::test('quran-tests.quick-entry')
+            ->assertSet('tab', 'final')
+            ->assertSet('canRecordPartial', false)
+            ->assertSet('canRecordFinal', true)
+            ->assertSet('finalTestedOn', now()->toDateString())
+            ->assertSet('finalMark', '')
+            ->assertDontSee('quick-saber-type-switch', false);
+    }
+
+    public function test_quick_entry_records_under_the_teacher_linked_to_the_logged_in_account(): void
+    {
+        [$teacherUser, $accountTeacher, $student, $enrollment, $juz] = $this->context();
+        $teacherUser->syncRoles('manager');
+
+        $groupTeacherUser = User::factory()->create();
+        $groupTeacher = Teacher::query()->create([
+            'user_id' => $groupTeacherUser->id,
+            'first_name' => 'Group',
+            'last_name' => 'Teacher',
+            'phone' => '0944000203',
+            'status' => 'active',
+        ]);
+        $enrollment->group()->update(['teacher_id' => $groupTeacher->id]);
+
+        $partialTest = QuranPartialTest::query()->create([
+            'created_by' => $teacherUser->id,
+            'enrollment_id' => $enrollment->id,
+            'juz_id' => $juz->id,
+            'status' => 'in_progress',
+            'student_id' => $student->id,
+        ]);
+        foreach (range(1, 4) as $partNumber) {
+            $partialTest->parts()->create(['part_number' => $partNumber, 'status' => 'pending']);
+        }
+
+        $this->actingAs($teacherUser->fresh());
+        Volt::test('quran-tests.quick-entry')
+            ->set('partialStudentId', $student->id)
+            ->set('partialQuarter', 1)
+            ->set('mistakeCount', '0')
+            ->call('savePartial')
+            ->assertHasNoErrors();
+
+        $attempt = $partialTest->parts()->where('part_number', 1)->firstOrFail()->attempts()->firstOrFail();
+        $this->assertSame($accountTeacher->id, $attempt->teacher_id);
+        $this->assertNotSame($groupTeacher->id, $attempt->teacher_id);
     }
 
     private function context(): array
@@ -162,9 +285,14 @@ class QuickQuranTestEntryTest extends TestCase
 
     private function sidebarHasQuickEntry(User $user): bool
     {
+        return $this->quickEntrySidebarItem($user) !== null;
+    }
+
+    private function quickEntrySidebarItem(User $user): ?array
+    {
         return collect(app(SidebarNavigationService::class)->sidebarFor($user))
             ->pluck('items')
             ->flatten(1)
-            ->contains('key', 'quran_tests_quick_entry');
+            ->firstWhere('key', 'quran_tests_quick_entry');
     }
 }

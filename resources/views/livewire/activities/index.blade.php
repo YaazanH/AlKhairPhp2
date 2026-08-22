@@ -29,6 +29,7 @@ new class extends Component {
     public function mount(): void
     {
         $this->authorizePermission('activities.view');
+        abort_unless(\App\Support\OperationalFeatureSettings::activitiesEnabled(), 404);
 
         $this->activity_date = now()->toDateString();
     }
@@ -76,6 +77,7 @@ new class extends Component {
     public function create(): void
     {
         $this->authorizePermission('activities.create');
+        \App\Support\OperationalFeatureSettings::ensureActivitiesEnabled();
 
         $this->cancel(closeForm: false);
         $this->showForm = true;
@@ -84,6 +86,10 @@ new class extends Component {
     public function save(): void
     {
         $this->authorizePermission($this->editingId ? 'activities.update' : 'activities.create');
+
+        if (! $this->editingId) {
+            \App\Support\OperationalFeatureSettings::ensureActivitiesEnabled();
+        }
 
         $validated = $this->validate();
 
@@ -227,17 +233,11 @@ new class extends Component {
                     <div class="admin-modal__header">
                         <div>
                             <div class="admin-modal__title">{{ $editingId ? __('activities.index.form.edit_title') : __('activities.index.form.create_title') }}</div>
-                            <p class="admin-modal__description">{{ __('activities.index.form.help') }}</p>
                         </div>
-                        <button type="button" wire:click="cancel" class="admin-modal__close" aria-label="{{ __('crud.common.actions.cancel') }}">×</button>
+                        <button type="button" wire:click.prevent.stop="cancel" class="admin-modal__close" aria-label="{{ __('crud.common.actions.cancel') }}">×</button>
                     </div>
                     <div class="admin-modal__body">
             @if (auth()->user()->can('activities.create') || auth()->user()->can('activities.update'))
-                <div class="mb-4 md:hidden">
-                    <h2 class="text-lg font-semibold text-white">{{ $editingId ? __('activities.index.form.edit_title') : __('activities.index.form.create_title') }}</h2>
-                    <p class="text-sm text-neutral-400">{{ __('activities.index.form.help') }}</p>
-                </div>
-
                 <form wire:submit="save" class="space-y-4">
                     <div>
                         <label for="activity-title" class="mb-1 block text-sm font-medium">{{ __('activities.index.form.fields.title') }}</label>

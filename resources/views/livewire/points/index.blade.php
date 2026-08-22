@@ -2,7 +2,6 @@
 
 use App\Livewire\Concerns\AuthorizesPermissions;
 use App\Livewire\Concerns\AuthorizesTeacherAssignments;
-use App\Livewire\Concerns\SupportsCreateAndNew;
 use App\Models\Enrollment;
 use App\Models\PointTransaction;
 use App\Models\PointType;
@@ -15,7 +14,6 @@ use Livewire\WithPagination;
 new class extends Component {
     use AuthorizesPermissions;
     use AuthorizesTeacherAssignments;
-    use SupportsCreateAndNew;
     use WithPagination;
 
     public ?int $editingTransactionId = null;
@@ -104,13 +102,6 @@ new class extends Component {
                 ->where(fn (Builder $query) => $query->where('allow_negative', true)->orWhere('default_points', '>', 0))
                 ->orderBy('name')
                 ->get(),
-            'stats' => [
-                'students' => $studentOptions->count(),
-                'active_total' => (int) $this->scopePointTransactionsQuery(
-                    PointTransaction::query()->effectiveActive()
-                )->sum('points'),
-                'transactions' => $this->scopePointTransactionsQuery(PointTransaction::query())->count(),
-            ],
         ];
     }
 
@@ -287,6 +278,26 @@ new class extends Component {
         $this->closeFormModal();
     }
 
+    public function saveManualAndNew(): void
+    {
+        $preservedPointTypeId = $this->manual_point_type_id;
+        $errorCount = $this->getErrorBag()->count();
+
+        $this->saveManual();
+
+        if ($this->getErrorBag()->count() > $errorCount) {
+            return;
+        }
+
+        $this->editingTransactionId = null;
+        $this->selectedStudentId = null;
+        $this->selectedEnrollmentId = null;
+        $this->manual_point_type_id = $preservedPointTypeId;
+        $this->showFormModal = true;
+
+        $this->resetValidation();
+    }
+
     public function openVoidModal(int $transactionId): void
     {
         $this->authorizePermission('points.void');
@@ -433,33 +444,23 @@ new class extends Component {
     <section class="page-hero p-6 lg:p-8">
         <div class="eyebrow">{{ __('ui.nav.tracking') }}</div>
         <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('workflow.points.workbench.title') }}</h1>
-        <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ __('workflow.points.workbench.subtitle') }}</p>
-        <div class="mt-6 flex flex-wrap gap-3">
-            <span class="badge-soft">{{ __('workflow.points.workbench.stats.students') }}: {{ number_format($stats['students']) }}</span>
-            <span class="badge-soft badge-soft--emerald">{{ __('workflow.points.workbench.stats.active_total') }}: {{ number_format($stats['active_total']) }}</span>
-            <span class="badge-soft">{{ __('workflow.points.workbench.stats.transactions') }}: {{ number_format($stats['transactions']) }}</span>
-        </div>
     </section>
 
     @if (session('status'))
         <div class="flash-success px-4 py-3 text-sm">{{ session('status') }}</div>
     @endif
 
-    <section class="surface-panel p-5 lg:p-6">
-        <div class="admin-toolbar">
-            <div>
-                <div class="admin-toolbar__title">{{ __('workflow.points.workbench.table.title') }}</div>
-                <p class="admin-toolbar__subtitle">{{ __('workflow.points.workbench.form.help') }}</p>
-            </div>
-
-            <div class="admin-toolbar__controls">
+    <section class="surface-table">
+        <div class="admin-grid-meta admin-grid-meta--controls">
+            <div class="admin-grid-meta__title">{{ __('workflow.points.workbench.table.title') }}</div>
+            <div class="admin-toolbar__controls admin-toolbar__controls--compact">
                 <div class="admin-filter-field">
-                    <label for="points-search">{{ __('crud.common.filters.search') }}</label>
+                    <label class="sr-only" for="points-search">{{ __('crud.common.filters.search') }}</label>
                     <input id="points-search" wire:model.live.debounce.300ms="search" type="text" placeholder="{{ __('crud.common.filters.search_placeholder') }}">
                 </div>
 
                 <div class="admin-filter-field">
-                    <label for="points-state-filter">{{ __('workflow.points.workbench.filters.state') }}</label>
+                    <label class="sr-only" for="points-state-filter">{{ __('workflow.points.workbench.filters.state') }}</label>
                     <select id="points-state-filter" wire:model.live="stateFilter">
                         <option value="all">{{ __('workflow.points.workbench.filters.all_states') }}</option>
                         <option value="active">{{ __('workflow.common.ledger_state.active') }}</option>
@@ -474,35 +475,26 @@ new class extends Component {
                 </div>
             </div>
         </div>
-    </section>
-
-    <section class="surface-table">
-        <div class="admin-grid-meta">
-            <div>
-                <div class="admin-grid-meta__title">{{ __('workflow.points.workbench.table.title') }}</div>
-                <div class="admin-grid-meta__summary">{{ __('crud.common.badges.in_view', ['count' => number_format($filteredCount)]) }}</div>
-            </div>
-        </div>
 
         @if ($transactions->isEmpty())
             <div class="admin-empty-state">{{ __('workflow.points.workbench.table.empty') }}</div>
         @else
-            <div class="overflow-x-auto">
-                <table class="text-sm">
+            <div class="overflow-hidden">
+                <table class="w-full table-fixed text-sm">
                     <thead>
                         <tr>
-                            <th class="px-5 py-4 text-left lg:px-6">
+                            <th class="w-[18%] px-3 py-4 text-left">
                                 <button type="button" wire:click="sortBy('student')" class="inline-flex items-center gap-2 font-medium text-inherit">
                                     {{ __('workflow.points.workbench.table.headers.student') }} <span>{{ $this->sortIndicator('student') }}</span>
                                 </button>
                             </th>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.points.workbench.table.headers.group') }}</th>
-                            <th class="px-5 py-4 text-left lg:px-6">
+                            <th class="w-[18%] px-3 py-4 text-left">{{ __('workflow.points.workbench.table.headers.group') }}</th>
+                            <th class="w-[14%] px-3 py-4 text-left">
                                 <button type="button" wire:click="sortBy('entered_at')" class="inline-flex items-center gap-2 font-medium text-inherit">
                                     {{ __('workflow.points.workbench.table.headers.entered_at') }} <span>{{ $this->sortIndicator('entered_at') }}</span>
                                 </button>
                             </th>
-                            <th class="px-5 py-4 text-left lg:px-6">
+                            <th class="w-[14%] px-3 py-4 text-left">
                                 <button type="button" wire:click="sortBy('point_type')" class="inline-flex items-center gap-2 font-medium text-inherit">
                                     {{ __('workflow.points.workbench.table.headers.type') }} <span>{{ $this->sortIndicator('point_type') }}</span>
                                 </button>
@@ -518,7 +510,9 @@ new class extends Component {
                                     {{ __('workflow.points.workbench.table.headers.state') }} <span>{{ $this->sortIndicator('state') }}</span>
                                 </button>
                             </th>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.points.workbench.table.headers.void_reason') }}</th>
+                            @if ($stateFilter !== 'active')
+                                <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.points.workbench.table.headers.void_reason') }}</th>
+                            @endif
                             <th class="px-5 py-4 text-right lg:px-6">{{ __('workflow.points.workbench.table.headers.actions') }}</th>
                         </tr>
                     </thead>
@@ -532,25 +526,24 @@ new class extends Component {
                                 $state = $transaction->effectiveState();
                             @endphp
                             <tr class="{{ $state !== 'active' ? 'opacity-60' : '' }}">
-                                <td class="px-5 py-4 lg:px-6">
+                                <td class="px-3 py-4">
                                     @if ($transaction->student)
                                         <div class="student-inline">
                                             <x-student-avatar :student="$transaction->student" size="sm" />
                                             <div class="student-inline__body">
-                                                <div class="student-inline__name">{{ $transaction->student->full_name }}</div>
-                                                <div class="student-inline__meta">{{ $transaction->student->parentProfile?->father_name ?: __('crud.common.not_available') }}</div>
+                                                <div class="student-inline__name whitespace-nowrap">{{ trim($transaction->student->first_name.' '.$transaction->student->last_name) }}</div>
                                             </div>
                                         </div>
                                     @else
                                         <span class="text-white">{{ __('crud.common.not_available') }}</span>
                                     @endif
                                 </td>
-                                <td class="px-5 py-4 text-neutral-300 lg:px-6">
-                                    <div class="font-medium text-white">{{ $transaction->enrollment?->group?->name ?: __('workflow.common.no_group') }}</div>
-                                    <div class="mt-1 text-xs uppercase tracking-[0.18em] text-neutral-500">{{ $transaction->enrollment?->group?->course?->name ?: __('workflow.common.no_course') }}</div>
+                                <td class="px-3 py-4 text-neutral-300">
+                                    <div class="truncate font-medium text-white" title="{{ $transaction->enrollment?->group?->name }}">{{ $transaction->enrollment?->group?->name ?: __('workflow.common.no_group') }}</div>
+                                    <div class="mt-1 truncate text-xs uppercase tracking-[0.12em] text-neutral-500" title="{{ $transaction->enrollment?->group?->course?->name }}">{{ $transaction->enrollment?->group?->course?->name ?: __('workflow.common.no_course') }}</div>
                                 </td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $transaction->entered_at?->format('d-m-Y H:i') }}</td>
-                                <td class="px-5 py-4 text-white lg:px-6">{{ $transaction->pointType?->name ?: __('workflow.common.not_available') }}</td>
+                                <td class="whitespace-nowrap px-5 py-4 text-white lg:px-6">{{ $transaction->pointType?->name ?: __('workflow.common.not_available') }}</td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $sourceLabel }}</td>
                                 <td class="px-5 py-4 lg:px-6">
                                     <span class="{{ $transaction->points >= 0 ? 'status-chip status-chip--emerald' : 'status-chip status-chip--rose' }}">{{ $transaction->points }}</span>
@@ -560,13 +553,15 @@ new class extends Component {
                                         {{ __('workflow.common.ledger_state.'.$state) }}
                                     </span>
                                 </td>
-                                <td class="max-w-xs px-5 py-4 text-neutral-300 lg:px-6">
-                                    @if ($transaction->voided_at)
-                                        <div class="line-clamp-2">{{ $transaction->void_reason ?: __('crud.common.not_available') }}</div>
-                                    @else
-                                        <span class="text-neutral-500">{{ __('crud.common.not_available') }}</span>
-                                    @endif
-                                </td>
+                                @if ($stateFilter !== 'active')
+                                    <td class="max-w-xs px-5 py-4 text-neutral-300 lg:px-6">
+                                        @if ($transaction->voided_at)
+                                            <div class="line-clamp-2">{{ $transaction->void_reason ?: __('crud.common.not_available') }}</div>
+                                        @else
+                                            <span class="text-neutral-500">{{ __('crud.common.not_available') }}</span>
+                                        @endif
+                                    </td>
+                                @endif
                                 <td class="px-5 py-4 lg:px-6">
                                     <div class="flex flex-wrap justify-end gap-2">
                                         @if (auth()->user()->can('points.create-manual') && $transaction->source_type === 'manual' && ! $transaction->voided_at)
@@ -594,12 +589,11 @@ new class extends Component {
     <x-admin.modal
         :show="$showFormModal"
         :title="$editingTransactionId ? __('workflow.points.workbench.form.edit_title') : __('workflow.points.workbench.form.title')"
-        :description="__('workflow.points.workbench.form.help')"
         close-method="closeFormModal"
-        max-width="5xl"
+        max-width="2xl"
     >
-        <form wire:submit="saveManual" class="space-y-4">
-            <div>
+        <form wire:submit="saveManual" class="space-y-3">
+            <div class="space-y-3">
                 <div>
                     <label for="points-workbench-student" class="mb-1 block text-sm font-medium">{{ __('workflow.points.workbench.form.student') }}</label>
                     <select id="points-workbench-student" wire:model.live="selectedStudentId" class="w-full rounded-xl px-4 py-3 text-sm" @disabled($editingTransactionId !== null)>
@@ -609,10 +603,7 @@ new class extends Component {
                                 value="{{ $student->id }}"
                                 data-search="{{ trim(implode(' ', array_filter([$student->student_number, $student->first_name, $student->last_name]))) }}"
                             >
-                                {{ $student->full_name }}
-                                @if ($student->parentProfile?->father_name)
-                                    - {{ $student->parentProfile->father_name }}
-                                @endif
+                                {{ trim($student->first_name.' '.$student->last_name) }}
                             </option>
                         @endforeach
                     </select>
@@ -621,26 +612,25 @@ new class extends Component {
                     @enderror
                 </div>
 
+                <div>
+                    <label for="points-workbench-type" class="mb-1 block text-sm font-medium">{{ __('workflow.points.form.point_type') }}</label>
+                    <select id="points-workbench-type" wire:model="manual_point_type_id" class="w-full rounded-xl px-4 py-3 text-sm">
+                        <option value="">{{ __('workflow.points.form.select_point_type') }}</option>
+                        @foreach ($manualPointTypes as $pointType)
+                            <option value="{{ $pointType->id }}">{{ $pointType->name }} ({{ $pointType->default_points > 0 ? '+'.$pointType->default_points : $pointType->default_points }})</option>
+                        @endforeach
+                    </select>
+                    @error('manual_point_type_id')
+                        <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
+                    @enderror
+                </div>
             </div>
 
-            <div>
-                <label for="points-workbench-type" class="mb-1 block text-sm font-medium">{{ __('workflow.points.form.point_type') }}</label>
-                <select id="points-workbench-type" wire:model="manual_point_type_id" class="w-full rounded-xl px-4 py-3 text-sm">
-                    <option value="">{{ __('workflow.points.form.select_point_type') }}</option>
-                    @foreach ($manualPointTypes as $pointType)
-                        <option value="{{ $pointType->id }}">{{ $pointType->name }} ({{ $pointType->default_points > 0 ? '+'.$pointType->default_points : $pointType->default_points }})</option>
-                    @endforeach
-                </select>
-                @error('manual_point_type_id')
-                    <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
-                @enderror
-            </div>
-
-            <div class="flex flex-wrap items-center gap-3">
+            <div class="flex flex-wrap items-center gap-2">
                 <button type="submit" class="pill-link pill-link--accent">
                     {{ $editingTransactionId ? __('workflow.common.actions.update_point_entry') : __('workflow.common.actions.save_point_entry') }}
                 </button>
-                <x-admin.create-and-new-button :show="! $editingTransactionId" click="saveAndNew('saveManual')" />
+                <x-admin.create-and-new-button :show="! $editingTransactionId" click="saveManualAndNew" />
                 <button type="button" wire:click="closeFormModal" class="pill-link">
                     {{ __('crud.common.actions.close') }}
                 </button>

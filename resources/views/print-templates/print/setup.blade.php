@@ -7,8 +7,11 @@
                 <div class="id-card-print-hero__copy">
                     <div class="eyebrow">{{ __('ui.nav.identity_tools') }}</div>
                     <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ $pageTitle ?? __('print_templates.print.title') }}</h1>
-                    <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ $pageSubtitle ?? __('print_templates.print.subtitle') }}</p>
+                    @if (filled($pageSubtitle ?? null))<p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ $pageSubtitle }}</p>@endif
                 </div>
+                @if ($courseReportMode ?? false)
+                    <a href="{{ route('courses.end', $selectedCourseId) }}" class="pill-link">{{ __('course_end.back_to_end') }}</a>
+                @endif
                 @if ($studentCardMode ?? false)
                     <div class="admin-form-field relative z-50 min-w-64 overflow-visible">
                         <label for="student-card-course">{{ __('crud.students.bulk_status.fields.course') }}</label>
@@ -48,8 +51,8 @@
                 @if (($studentCardMode ?? false) || ($courseReportMode ?? false))<input type="hidden" name="course_id" value="{{ $selectedCourseId }}">@endif
 
                 <div class="grid gap-6">
-                    <section class="surface-panel {{ ($studentCardMode ?? false) ? 'p-4' : 'p-5 lg:p-6' }}">
-                        @unless ($studentCardMode ?? false)
+                    <section class="surface-panel {{ (($studentCardMode ?? false) || ($courseReportMode ?? false)) ? 'p-4' : 'p-5 lg:p-6' }}">
+                        @unless (($studentCardMode ?? false) || ($courseReportMode ?? false))
                         <div class="admin-builder-header">
                             <div>
                                 <div class="eyebrow">{{ __('print_templates.print.setup.sections.template') }}</div>
@@ -58,30 +61,32 @@
                         </div>
                         @endunless
 
-                        <div class="{{ ($studentCardMode ?? false) ? 'id-card-print-template-row' : 'mt-6 admin-form-grid' }}">
+                        <div class="{{ (($studentCardMode ?? false) || ($courseReportMode ?? false)) ? 'id-card-print-template-row' : 'mt-6 admin-form-grid' }}">
                             <div class="admin-form-field admin-form-field--full">
-                                @unless ($studentCardMode ?? false)<label for="print-template-print-template">{{ __('print_templates.print.setup.fields.template') }}</label>@endunless
+                                @unless (($studentCardMode ?? false) || ($courseReportMode ?? false))<label for="print-template-print-template">{{ __('print_templates.print.setup.fields.template') }}</label>@endunless
                                 <select id="print-template-print-template" name="template_id" data-print-template-select>
                                     @foreach ($templates as $template)
-                                        <option value="{{ $template->id }}" @selected((string) request('template') === (string) $template->id)>{{ $template->name }} | {{ number_format($template->width_mm, 2) }} × {{ number_format($template->height_mm, 2) }} mm</option>
+                                        <option value="{{ $template->id }}" @selected((string) request('template') === (string) $template->id)>{{ $template->name }}@unless($courseReportMode ?? false) | {{ number_format($template->width_mm, 2) }} × {{ number_format($template->height_mm, 2) }} mm @endunless</option>
                                     @endforeach
                                 </select>
                             </div>
 
-                            <div class="admin-form-field admin-form-field--full {{ ($studentCardMode ?? false) ? 'hidden' : '' }}" data-copy-count-panel>
+                            <div class="admin-form-field admin-form-field--full {{ (($studentCardMode ?? false) || ($courseReportMode ?? false)) ? 'hidden' : '' }}" data-copy-count-panel>
                                 <label for="print-template-copy-count">{{ __('print_templates.print.setup.fields.copy_count') }}</label>
                                 <input id="print-template-copy-count" name="copy_count" type="number" min="1" max="1000" value="{{ old('copy_count', 1) }}">
                             </div>
 
-                            @unless ($studentCardMode ?? false)
+                            @unless (($studentCardMode ?? false) || ($courseReportMode ?? false))
                             <div class="admin-form-field admin-form-field--full">
                                 <label>{{ __('print_templates.templates.form.fields.paper_size') }}</label>
                                 <div class="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-neutral-200" data-template-paper-label></div>
                             </div>
                             @endunless
 
-                            @if ($studentCardMode ?? false)
+                            @if (($studentCardMode ?? false) || ($courseReportMode ?? false))
                                 <button type="submit" class="pill-link pill-link--accent">{{ __('print_templates.print.setup.buttons.preview') }}</button>
+                            @endif
+                            @if ($studentCardMode ?? false)
                                 <button
                                     type="button"
                                     class="pill-link"
@@ -98,7 +103,7 @@
                             @endforeach
                         </div>
 
-                        @unless ($studentCardMode ?? false)
+                        @unless (($studentCardMode ?? false) || ($courseReportMode ?? false))
                         <div class="mt-6 admin-action-cluster">
                             <button type="submit" class="pill-link pill-link--accent">{{ __('print_templates.print.setup.buttons.preview') }}</button>
                             <a href="{{ $cancelUrl }}" class="pill-link">{{ __('crud.common.actions.cancel') }}</a>
@@ -110,17 +115,17 @@
                     </section>
 
                     <section class="surface-panel p-5 lg:p-6">
-                        <div class="admin-builder-header">
+                        @unless (($studentCardMode ?? false) || ($courseReportMode ?? false))<div class="admin-builder-header">
                             <div>
                                 @unless ($studentCardMode ?? false)<div class="eyebrow">{{ __('print_templates.print.setup.sections.sources') }}</div>@endunless
                                 <h2 class="font-display {{ ($studentCardMode ?? false) ? '' : 'mt-3' }} text-2xl text-white">{{ ($studentCardMode ?? false) ? __('print_templates.print.setup.sections.selected_students') : __('print_templates.print.setup.sections.sources') }}</h2>
                             </div>
-                        </div>
+                        </div>@endunless
 
                         <div class="mt-4 grid gap-5">
                             @foreach ($entities as $entity => $payload)
-                                <section class="{{ ($studentCardMode ?? false) ? '' : 'admin-section-card' }}" data-source-panel="{{ $entity }}" hidden>
-                                    @unless ($studentCardMode ?? false)
+                                <section class="{{ (($studentCardMode ?? false) || ($courseReportMode ?? false)) ? '' : 'admin-section-card' }}" data-source-panel="{{ $entity }}" hidden>
+                                    @unless (($studentCardMode ?? false) || ($courseReportMode ?? false))
                                     <div class="admin-builder-header">
                                         <div>
                                             <div class="eyebrow">{{ $payload['label'] }}</div>
@@ -152,12 +157,12 @@
                                         <div class="admin-toolbar print-template-source-toolbar {{ ($studentCardMode ?? false) ? 'id-card-filter-row' : '' }} mt-4 rounded-2xl border border-white/10 bg-white/5 p-4">
                                             <div class="admin-toolbar__controls">
                                                 <div class="admin-filter-field">
-                                                    <label>{{ __('crud.common.filters.search') }}</label>
+                                                    <label @class(['sr-only' => ($studentCardMode ?? false) || ($courseReportMode ?? false)])>{{ __('crud.common.filters.search') }}</label>
                                                     <input type="search" data-source-search="{{ $entity }}" placeholder="{{ __('crud.common.filters.search_placeholder') }}">
                                                 </div>
                                                 @if ($entity === 'student')
                                                     <div class="admin-filter-field">
-                                                        <label>{{ __('print_templates.print.setup.fields.filter_group') }}</label>
+                                                        <label @class(['sr-only' => ($studentCardMode ?? false) || ($courseReportMode ?? false)])>{{ __('print_templates.print.setup.fields.filter_group') }}</label>
                                                         <select data-source-group-filter="{{ $entity }}">
                                                             <option value="">{{ __('print_templates.print.setup.fields.all_groups') }}</option>
                                                             @foreach ($studentFilters['groups'] as $group)
@@ -168,7 +173,7 @@
                                                     @unless ($studentCardMode ?? false)<div class="admin-filter-field"><label>{{ __('print_templates.print.setup.fields.filter_status') }}</label><select data-source-status-filter="{{ $entity }}"><option value="">{{ __('print_templates.print.setup.fields.all_students') }}</option><option value="active">{{ __('print_templates.print.setup.fields.active_students') }}</option><option value="not_active">{{ __('print_templates.print.setup.fields.non_active_students') }}</option></select></div>@endunless
                                                     @if ($studentCardMode ?? false)
                                                         <div class="admin-filter-field">
-                                                            <label>{{ __('print_templates.print.setup.fields.filter_printed') }}</label>
+                                                            <label class="sr-only">{{ __('print_templates.print.setup.fields.filter_printed') }}</label>
                                                             <select data-source-printed-filter="{{ $entity }}">
                                                                 <option value="printed">{{ __('print_templates.print.setup.fields.printed_students') }}</option>
                                                                 <option value="not_printed" selected>{{ __('print_templates.print.setup.fields.not_printed_students') }}</option>
@@ -184,15 +189,15 @@
                                         </div>
 
                                         @if (($courseReportMode ?? false) && $entity === 'course_student')
-                                            <div class="mt-4 overflow-x-auto rounded-2xl border border-white/10">
+                                            <div class="mt-4 overflow-x-auto">
                                                 <table class="w-full text-sm">
-                                                    <thead><tr><th class="px-3 py-3 text-start">✓</th><th class="px-3 py-3 text-start">{{ __('print_templates.fields.student_name') }}</th><th class="px-3 py-3 text-start">{{ __('print_templates.fields.course_name') }}</th><th class="px-3 py-3 text-start">{{ __('print_templates.fields.special_note') }}</th></tr></thead>
+                                                    <thead><tr><th class="px-3 py-3 text-start">✓</th><th class="px-3 py-3 text-start">{{ __('print_templates.fields.student_name') }}</th><th class="px-3 py-3 text-start">{{ __('print_templates.fields.group_name') }}</th><th class="px-3 py-3 text-start">{{ __('print_templates.fields.special_note') }}</th></tr></thead>
                                                     <tbody class="divide-y divide-white/10">
                                                     @foreach ($payload['options'] as $option)
                                                         <tr class="is-selected" data-source-card="{{ $entity }}" data-search="{{ $option['search'] }}" data-record-id="{{ $option['id'] }}" role="checkbox" tabindex="0" aria-checked="true">
                                                             <td class="px-3 py-3"><input type="checkbox" name="sources[{{ $entity }}][multiple][]" value="{{ $option['id'] }}" class="h-4 w-4 rounded border-neutral-300" data-source-checkbox="{{ $entity }}" checked></td>
                                                             <td class="px-3 py-3 text-white">{{ $option['meta']['student_name'] }}</td>
-                                                            <td class="px-3 py-3 text-neutral-300">{{ $option['meta']['course_name'] }}</td>
+                                                            <td class="px-3 py-3 text-neutral-300">{{ $option['meta']['group_name'] }}</td>
                                                             <td class="min-w-64 px-3 py-3"><textarea name="special_notes[{{ $option['id'] }}]" rows="2" class="w-full rounded-lg" placeholder="{{ __('print_templates.fields.special_note') }}">{{ old('special_notes.'.$option['id']) }}</textarea></td>
                                                         </tr>
                                                     @endforeach

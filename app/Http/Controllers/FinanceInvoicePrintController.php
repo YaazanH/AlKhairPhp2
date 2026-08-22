@@ -3,10 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Models\Invoice;
+use App\Services\DataMatrixSvgRenderer;
 use App\Services\FinanceReportService;
+use App\Support\PdfOptions;
 use Illuminate\Http\Response;
-use Mpdf\Config\ConfigVariables;
-use Mpdf\Config\FontVariables;
 use Mpdf\Mpdf;
 
 class FinanceInvoicePrintController extends Controller
@@ -16,20 +16,30 @@ class FinanceInvoicePrintController extends Controller
         abort_unless(request()->user()?->can('finance.expense-requests.view') || request()->user()?->can('invoices.view'), 403);
         abort_unless($invoice->invoice_type === 'finance', 404);
 
-        $invoice->load(['items', 'financeRequest.acceptedCurrency', 'finalisedBy']);
-        $fontDirectories = (new ConfigVariables)->getDefaults()['fontDir'];
-        $fontData = (new FontVariables)->getDefaults()['fontdata'];
-        $mpdf = new Mpdf([
-            'format' => 'A5', 'orientation' => 'P', 'mode' => 'utf-8', 'default_font' => 'dubai',
-            'fontDir' => array_merge($fontDirectories, [public_path('fonts/dubai'), public_path('fonts/barcode')]),
-            'fontdata' => $fontData + [
-                'dubai' => ['R' => 'Dubai-Regular.ttf', 'M' => 'Dubai-Medium.ttf', 'B' => 'Dubai-Bold.ttf', 'L' => 'Dubai-Light.ttf', 'useOTL' => 0xFF, 'useKashida' => 75],
-                'code39' => ['R' => '3OF9_NEW.TTF'],
-            ],
-            'margin_top' => 12, 'margin_right' => 12, 'margin_bottom' => 12, 'margin_left' => 12,
-        ]);
-        $mpdf->SetDirectionality('rtl');
+        $invoice->load(['items', 'invoiceKind', 'financeRequest.acceptedCurrency', 'finalisedBy']);
+        $mpdf = new Mpdf(PdfOptions::make([
+            'autoLangToFont' => false,
+            'autoScriptToLang' => false,
+            'format' => 'A5',
+            'orientation' => 'P',
+            'margin_top' => 0,
+            'margin_right' => 10,
+            'margin_bottom' => 16,
+            'margin_left' => 10,
+            'margin_header' => 0,
+            'margin_footer' => 0,
+            'setAutoTopMargin' => 'stretch',
+            'autoMarginPadding' => 3,
+        ]));
+        $mpdf->autoLangToFont = false;
+        $mpdf->autoScriptToLang = false;
+        $mpdf->autoArabic = true;
+        $mpdf->useSubstitutions = true;
+        $mpdf->SetDirectionality(app()->isLocale('ar') ? 'rtl' : 'ltr');
+        $matrixValue = $invoice->original_invoice_no ?: $invoice->invoice_no;
+        $matrixSvg = app(DataMatrixSvgRenderer::class)->render($matrixValue);
         $mpdf->WriteHTML(view('print.finance-invoice-a5', [
+            'dataMatrixImage' => 'data:image/svg+xml;base64,'.base64_encode($matrixSvg),
             'invoice' => $invoice,
             'isPdf' => true,
             'logoImage' => app(FinanceReportService::class)->defaultReportLogoPdfSource(),

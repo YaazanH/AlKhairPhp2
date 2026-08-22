@@ -324,7 +324,7 @@ new class extends Component {
     @if (session('status')) <div class="flash-success px-4 py-3 text-sm">{{ session('status') }}</div> @endif
 
     <section class="surface-panel p-5 lg:p-6">
-        <div class="mb-5 flex items-center justify-between gap-3"><div><div class="eyebrow">{{ __('finance.dashboard.funds') }}</div><h2 class="font-display mt-2 text-2xl text-white">{{ __('finance.dashboard.fund_balances') }}</h2></div>@can('finance.cash-box.transfer')<button wire:click="openTransferModal" class="pill-link pill-link--accent" title="{{ __('finance.dashboard.move_money') }}" aria-label="{{ __('finance.dashboard.move_money') }}"><svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M7.5 7.5h11.25m0 0L15 3.75m3.75 3.75L15 11.25M16.5 16.5H5.25m0 0L9 20.25M5.25 16.5L9 12.75"/></svg></button>@endcan</div>
+        <div class="mb-5 flex items-center justify-between gap-3"><h2 class="font-display text-2xl text-white">{{ __('finance.dashboard.fund_balances') }}</h2>@can('finance.cash-box.transfer')<button wire:click="openTransferModal" class="pill-link pill-link--accent" title="{{ __('finance.dashboard.move_money') }}" aria-label="{{ __('finance.dashboard.move_money') }}"><svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M7.5 7.5h11.25m0 0L15 3.75m3.75 3.75L15 11.25M16.5 16.5H5.25m0 0L9 20.25M5.25 16.5L9 12.75"/></svg></button>@endcan</div>
         <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">@foreach ($report['balances'] as $fund)<article class="stat-card"><div class="kpi-label">{{ $fund['cash_box']->name }}</div><div class="metric-value mt-3"><bdi dir="ltr">{{ app(FinanceService::class)->formatCurrencyAmount($fund['local_total'], $report['summary']['local_currency']) }}</bdi></div><div class="mt-3 space-y-1 text-sm text-neutral-300">@foreach ($fund['currencies'] as $row)<div class="flex justify-between gap-3"><span>{{ $row['currency']->code }}</span><bdi dir="ltr">{{ app(FinanceService::class)->formatCurrencyAmount($row['balance'], $row['currency']) }}</bdi></div>@endforeach</div></article>@endforeach</div>
     </section>
 
@@ -333,8 +333,7 @@ new class extends Component {
             @if ($pieTotal > 0)
                 <div class="grid min-w-0 gap-5 lg:grid-cols-[minmax(0,.8fr)_minmax(17rem,1.2fr)] lg:items-center">
                     <div class="min-w-0 self-start">
-                        <div class="eyebrow">{{ __('finance.dashboard.expense_categories') }}</div>
-                        <h2 class="font-display mt-2 text-2xl text-white">{{ __('finance.dashboard.expense_chart') }}</h2>
+                        <h2 class="font-display text-2xl text-white">{{ __('finance.dashboard.expense_chart') }}</h2>
                         <div class="mt-4 space-y-2 pe-1">
                             @foreach ($report['category_totals'] as $index => $row)
                                 <div class="flex min-w-0 items-center justify-between gap-2 text-xs">
@@ -357,8 +356,7 @@ new class extends Component {
                     </svg>
                 </div>
             @else
-                <div class="eyebrow">{{ __('finance.dashboard.expense_categories') }}</div>
-                <h2 class="font-display mt-2 text-2xl text-white">{{ __('finance.dashboard.expense_chart') }}</h2>
+                <h2 class="font-display text-2xl text-white">{{ __('finance.dashboard.expense_chart') }}</h2>
                 <div class="admin-empty-state mt-5">{{ __('finance.dashboard.no_expenses') }}</div>
             @endif
         </div>

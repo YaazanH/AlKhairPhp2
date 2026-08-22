@@ -324,7 +324,7 @@ return [
         'new' => 'New income',
     ],
     'reports' => [
-        'title' => 'Financial Report',
+        'title' => 'Financial Reports',
         'subtitle' => 'Review balances, pending withdrawal requests, and where money went by financial year or quarter.',
         'cash_balances' => 'Fund balances',
         'cash_balances_subtitle' => 'Current balance using active exchange rates.',
@@ -358,7 +358,7 @@ return [
         'generated_reports' => 'Saved Financial Reports',
         'generated_reports_subtitle' => 'Saved ledger outputs keep the selected filters and rendered data so you can review or reprint them later.',
         'generated_reports_unavailable' => 'Saved report history is unavailable until the latest finance report migrations are installed. Ledger export still works.',
-        'review_saved_report' => 'Review saved report',
+        'review_saved_report' => 'View',
         'delete_saved_report' => 'Delete saved report',
         'saved_report_deleted' => 'Saved report deleted.',
         'saved_report_not_found' => 'No saved financial report matches that report number.',

@@ -122,7 +122,7 @@ class ExportPrintLayerTest extends TestCase
         $path = tempnam(sys_get_temp_dir(), 'export-test-');
         file_put_contents($path, $content);
 
-        $zip = new ZipArchive();
+        $zip = new ZipArchive;
         $this->assertTrue($zip->open($path) === true);
 
         $sheetXml = $zip->getFromName('xl/worksheets/sheet1.xml');
@@ -255,7 +255,7 @@ class ExportPrintLayerTest extends TestCase
             'group_id' => $group->id,
             'is_active' => true,
             'pass_mark' => 50,
-            'scheduled_at' => '2026-10-05 09:00:00',
+            'due_at' => '2026-10-05',
             'title' => 'Midterm Quiz',
             'total_mark' => 100,
         ]);

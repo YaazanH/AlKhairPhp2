@@ -89,7 +89,9 @@ new class extends Component {
                 });
             })
             ->when($this->courseFilter !== 'all', fn ($query) => $query->where('course_id', (int) $this->courseFilter))
-            ->when(in_array($this->statusFilter, ['active', 'inactive'], true), fn ($query) => $query->where('is_active', $this->statusFilter === 'active'))
+            ->when($this->statusFilter === 'active', fn ($query) => $query->where('is_active', true)->whereNull('course_finished_at'))
+            ->when($this->statusFilter === 'inactive', fn ($query) => $query->where('is_active', false)->whereNull('course_finished_at'))
+            ->when($this->statusFilter === 'finished', fn ($query) => $query->whereNotNull('course_finished_at'))
             ->orderByDesc('is_active')
             ->orderBy('name');
 
@@ -97,7 +99,7 @@ new class extends Component {
 
         return [
             'groups' => $filteredQuery->paginate($this->perPage),
-            'courses' => Course::query()->where('is_active', true)->orderBy('name')->get(['id', 'name', 'starts_on', 'ends_on']),
+            'courses' => Course::query()->where('is_active', true)->orderBy('name')->get(['id', 'academic_year_id', 'name', 'starts_on', 'ends_on']),
             'academicYears' => AcademicYear::query()->where('is_active', true)->orderByDesc('starts_on')->get(['id', 'name']),
             'teachers' => $this->availableTeachersQuery()->orderBy('first_name')->orderBy('last_name')->get(['id', 'first_name', 'last_name']),
             'gradeLevels' => GradeLevel::query()->where('is_active', true)->orderBy('sort_order')->get(['id', 'name']),
@@ -160,6 +162,8 @@ new class extends Component {
 
     public function updatedCourseId(): void
     {
+        $this->academic_year_id = $this->academicYearIdForCourse($this->course_id);
+
         if ($this->curriculum_id && ! Curriculum::query()->whereKey($this->curriculum_id)->where('is_active', true)->exists()) {
             $this->curriculum_id = null;
         }
@@ -218,6 +222,8 @@ new class extends Component {
     public function save(): void
     {
         $this->authorizePermission($this->editingId ? 'groups.update' : 'groups.create');
+
+        $this->academic_year_id = $this->academicYearIdForCourse($this->course_id);
 
         if ($this->editingId) {
             $this->authorizeScopedGroupAccess(Group::query()->findOrFail($this->editingId));
@@ -566,11 +572,34 @@ new class extends Component {
                 ->value('id');
     }
 
+    protected function academicYearIdForCourse(?int $courseId): ?int
+    {
+        $course = $courseId ? Course::query()->find($courseId) : null;
+
+        if ($course?->academic_year_id) {
+            return (int) $course->academic_year_id;
+        }
+
+        if ($course?->starts_on) {
+            $matchingYearId = AcademicYear::query()
+                ->whereDate('starts_on', '<=', $course->starts_on)
+                ->whereDate('ends_on', '>=', $course->starts_on)
+                ->orderByDesc('is_current')
+                ->value('id');
+
+            if ($matchingYearId) {
+                return (int) $matchingYearId;
+            }
+        }
+
+        return $this->defaultAcademicYearId();
+    }
+
     protected function resetForm(?int $courseId = null): void
     {
         $this->editingId = null;
         $this->course_id = $courseId;
-        $this->academic_year_id = $this->defaultAcademicYearId();
+        $this->academic_year_id = $this->academicYearIdForCourse($courseId);
         $this->teacher_id = null;
         $this->assistant_teacher_id = null;
         $this->grade_level_id = null;
@@ -652,55 +681,33 @@ new class extends Component {
         <div class="eyebrow">{{ __('crud.groups.hero.eyebrow') }}</div>
         <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('crud.groups.hero.title') }}</h1>
         <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ __('crud.groups.hero.subtitle') }}</p>
-        <div class="mt-6 flex flex-wrap gap-3">
-            <span class="badge-soft">{{ __('crud.groups.hero.badges.active_courses', ['count' => number_format($courses->count())]) }}</span>
-            <span class="badge-soft badge-soft--emerald">{{ __('crud.groups.hero.badges.academic_years', ['count' => number_format($academicYears->count())]) }}</span>
-            <span class="badge-soft">{{ __('crud.groups.hero.badges.teachers_available', ['count' => number_format($teachers->count())]) }}</span>
-        </div>
     </section>
 
     @if (session('status'))
         <div class="flash-success px-4 py-3 text-sm">{{ session('status') }}</div>
     @endif
 
-    <div class="grid gap-4 md:grid-cols-2">
-        <article class="stat-card">
-            <div class="kpi-label">{{ __('crud.groups.stats.all.label') }}</div>
-            <div class="metric-value mt-6">{{ number_format($totals['all']) }}</div>
-            <p class="mt-4 text-sm leading-6 text-neutral-300">{{ __('crud.groups.stats.all.description') }}</p>
-        </article>
-
-        <article class="stat-card">
-            <div class="kpi-label">{{ __('crud.groups.stats.active.label') }}</div>
-            <div class="metric-value mt-6">{{ number_format($totals['active']) }}</div>
-            <p class="mt-4 text-sm leading-6 text-neutral-300">{{ __('crud.groups.stats.active.description') }}</p>
-        </article>
-    </div>
-
-    <section class="surface-panel p-5 lg:p-6">
-        <div class="admin-toolbar">
-            <div>
-                <div class="admin-toolbar__title">{{ __('crud.groups.table.title') }}</div>
-                <p class="admin-toolbar__subtitle">{{ __('crud.groups.form.help') }}</p>
-            </div>
-
+    <section class="surface-table">
+        <div class="admin-grid-meta admin-grid-meta--controls">
+            <div class="admin-grid-meta__title">{{ __('crud.groups.table.title') }}</div>
             <div class="admin-toolbar__controls">
                 <div class="admin-filter-field">
-                    <label for="group-search">{{ __('crud.common.filters.search') }}</label>
+                    <label class="sr-only" for="group-search">{{ __('crud.common.filters.search') }}</label>
                     <input id="group-search" wire:model.live.debounce.300ms="search" type="text" placeholder="{{ __('crud.common.filters.search_placeholder') }}">
                 </div>
 
                 <div class="admin-filter-field">
-                    <label for="group-status-filter">{{ __('crud.common.filters.status') }}</label>
+                    <label class="sr-only" for="group-status-filter">{{ __('crud.common.filters.status') }}</label>
                     <select id="group-status-filter" wire:model.live="statusFilter">
                         <option value="all">{{ __('crud.common.filters.all_statuses') }}</option>
                         <option value="active">{{ __('crud.common.status_options.active') }}</option>
                         <option value="inactive">{{ __('crud.common.status_options.inactive') }}</option>
+                        <option value="finished">{{ __('crud.common.status_options.finished') }}</option>
                     </select>
                 </div>
 
                 <div class="admin-filter-field">
-                    <label for="group-course-filter">{{ __('crud.common.filters.course') }}</label>
+                    <label class="sr-only" for="group-course-filter">{{ __('crud.common.filters.course') }}</label>
                     <select id="group-course-filter" wire:model.live="courseFilter">
                         <option value="all">{{ __('crud.common.filters.all_courses') }}</option>
                         @foreach ($courses as $course)
@@ -715,15 +722,6 @@ new class extends Component {
                     @endcan
                     <a href="{{ route('groups.export', ['search' => $search, 'status' => $statusFilter, 'course_id' => $courseFilter]) }}" class="pill-link">{{ __('crud.common.actions.export') }}</a>
                 </div>
-            </div>
-        </div>
-    </section>
-
-    <section class="surface-table">
-        <div class="admin-grid-meta">
-            <div>
-                <div class="admin-grid-meta__title">{{ __('crud.groups.table.title') }}</div>
-                <div class="admin-grid-meta__summary">{{ __('crud.common.badges.in_view', ['count' => number_format($filteredCount)]) }}</div>
             </div>
         </div>
 
@@ -741,7 +739,6 @@ new class extends Component {
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.groups.table.headers.group') }}</th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.groups.table.headers.course') }}</th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.groups.table.headers.teacher') }}</th>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.groups.table.headers.year') }}</th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.groups.table.headers.grade') }}</th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.groups.table.headers.students') }}</th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.groups.table.headers.status') }}</th>
@@ -751,7 +748,11 @@ new class extends Component {
                     <tbody class="divide-y divide-white/6">
                         @foreach ($groups as $group)
                             @php
+                                $groupIsFinished = $group->course_finished_at !== null;
                                 $groupStatusClass = $group->is_active ? 'status-chip status-chip--emerald' : 'status-chip status-chip--slate';
+                                $groupStatusLabel = $group->is_active
+                                    ? __('crud.common.status_options.active')
+                                    : ($groupIsFinished ? __('crud.common.status_options.finished') : __('crud.common.status_options.inactive'));
                             @endphp
                             <tr>
                                 <td class="px-5 py-4 lg:px-6">
@@ -762,10 +763,9 @@ new class extends Component {
                                 </td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $group->course?->name ?: __('crud.common.not_available') }}</td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $group->teacher ? $group->teacher->first_name.' '.$group->teacher->last_name : __('crud.common.not_available') }}</td>
-                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $group->academicYear?->name ?: __('crud.common.not_available') }}</td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $group->gradeLevel?->name ?: __('crud.common.not_available') }}</td>
                                 <td class="px-5 py-4 text-white lg:px-6">{{ $group->enrollments_count }}</td>
-                                <td class="px-5 py-4 lg:px-6"><span class="{{ $groupStatusClass }}">{{ $group->is_active ? __('crud.common.status_options.active') : __('crud.common.status_options.inactive') }}</span></td>
+                                <td class="px-5 py-4 lg:px-6"><span class="{{ $groupStatusClass }}">{{ $groupStatusLabel }}</span></td>
                                 <td class="px-5 py-4 text-right lg:px-6">
                                     <a href="{{ route('groups.show', $group) }}" wire:navigate class="pill-link pill-link--compact">{{ __('crud.common.actions.open') }}</a>
                                 </td>
@@ -786,12 +786,11 @@ new class extends Component {
     <x-admin.modal
         :show="$showFormModal"
         :title="$editingId ? __('crud.groups.form.edit_title') : __('crud.groups.form.create_title')"
-        :description="__('crud.groups.form.help')"
         close-method="cancel"
         max-width="5xl"
     >
         <form wire:submit="save" class="space-y-4">
-            <div class="grid gap-4 md:grid-cols-2">
+            <div>
                 <div>
                     <label for="group-course" class="mb-1 block text-sm font-medium">{{ __('crud.groups.form.fields.course') }}</label>
                     <select id="group-course" wire:model="course_id" class="w-full rounded-xl px-4 py-3 text-sm">
@@ -805,18 +804,6 @@ new class extends Component {
                     @enderror
                 </div>
 
-                <div>
-                    <label for="group-academic-year" class="mb-1 block text-sm font-medium">{{ __('crud.groups.form.fields.academic_year') }}</label>
-                    <select id="group-academic-year" wire:model="academic_year_id" class="w-full rounded-xl px-4 py-3 text-sm">
-                        <option value="">{{ __('crud.groups.form.placeholders.select_academic_year') }}</option>
-                        @foreach ($academicYears as $academicYear)
-                            <option value="{{ $academicYear->id }}">{{ $academicYear->name }}</option>
-                        @endforeach
-                    </select>
-                    @error('academic_year_id')
-                        <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
-                    @enderror
-                </div>
             </div>
 
             <div class="grid gap-4 md:grid-cols-2">
@@ -1150,9 +1137,16 @@ new class extends Component {
                         <div class="admin-empty-state">{{ __('crud.groups.roster.table.empty') }}</div>
                     @else
                         <div class="overflow-x-auto">
-                            <table class="text-sm">
+                            <table class="w-full table-fixed text-sm">
+                                <colgroup>
+                                    <col class="w-12">
+                                    @for ($column = 0; $column < (auth()->user()?->can('enrollments.delete') ? 10 : 9); $column++)
+                                        <col>
+                                    @endfor
+                                </colgroup>
                                 <thead>
                                     <tr>
+                                        <th class="px-2 py-4 text-center">#</th>
                                         <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.groups.roster.table.headers.student') }}</th>
                                         <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.groups.roster.table.headers.student_number') }}</th>
                                         <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.groups.roster.table.headers.student_phone') }}</th>
@@ -1177,6 +1171,7 @@ new class extends Component {
                                             };
                                         @endphp
                                         <tr>
+                                            <td class="px-2 py-4 text-center text-neutral-400">{{ $loop->iteration }}</td>
                                             <td class="px-5 py-4 lg:px-6">
                                                 @if ($enrollment->student)
                                                     <div class="student-inline">

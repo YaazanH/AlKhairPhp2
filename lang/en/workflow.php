@@ -56,6 +56,7 @@ return [
             'active_total' => 'Active total',
             'due' => 'Due: :value',
             'total' => 'Total: :value',
+            'maximum_mark' => 'Maximum mark: :value',
             'pass' => 'Pass: :value',
         ],
         'actions' => [
@@ -107,7 +108,7 @@ return [
                 'open' => 'Open days',
             ],
             'form' => [
-                'title' => 'Attendance day setup',
+                'title' => 'Create student attendance day',
                 'help' => 'Choose the course first, then the system creates sessions only for active groups in that course that are scheduled on the selected date. Extra groups from the same course can be added manually from the day details page.',
                 'course' => 'Course',
                 'select_course' => 'Select course',
@@ -117,7 +118,7 @@ return [
                 'status' => 'Day status',
                 'default_status' => 'Default student status',
                 'default_status_help' => 'Applied to every active enrollment when the attendance day is created. Existing marks are not overwritten.',
-                'scheduled_groups_help' => ':count scheduled groups will be created for the selected date. You can add extra groups manually after opening the day.',
+                'scheduled_groups_help' => ':count groups',
                 'no_default_status' => 'Create an active student attendance status before creating attendance days.',
                 'notes' => 'Notes',
             ],
@@ -198,6 +199,7 @@ return [
         'messages' => [
             'saved' => 'Student attendance saved successfully.',
             'closed_day_locked' => 'This attendance day is closed. Reopen the day before changing student attendance.',
+            'archived_day_locked' => 'This attendance day belongs to an archived course and cannot be changed.',
             'enrollment_not_in_day' => 'This student enrollment is not part of this attendance day.',
             'void_reason' => 'Attendance status updated.',
             'deleted_void_reason' => 'Attendance day deleted.',
@@ -269,7 +271,7 @@ return [
     ],
     'teacher_attendance' => [
         'export' => [
-            'title' => 'Export teacher attendance', 'action' => 'Export attendance', 'from' => 'Date from', 'to' => 'Date to',
+            'title' => 'Export teacher attendance', 'report_title' => 'Teacher Attendance', 'action' => 'Export attendance', 'from' => 'From', 'to' => 'To',
             'role' => 'Role', 'percentage' => 'Attendance percentage',
         ],
         'title' => 'Teacher Attendance',
@@ -287,13 +289,16 @@ return [
                 'open' => 'Open days',
             ],
             'form' => [
-                'title' => 'Teacher attendance day setup',
+                'title' => 'Create teacher attendance day',
                 'help' => 'The system preloads teachers assigned to active groups scheduled on the selected date and also adds helping teachers who are not assigned to any active group. Extra teachers can be added manually after opening the day.',
                 'attendance_date' => 'Attendance date',
+                'course' => 'Course',
+                'select_course' => 'Select course',
                 'status' => 'Day status',
                 'default_status' => 'Default teacher status',
                 'default_status_help' => 'Applied to scheduled teachers when the attendance day is created. Existing records are not overwritten.',
-                'scheduled_teachers_help' => ':count teachers will be added for the selected date from scheduled groups and unassigned helping teachers. You can add extra teachers manually after opening the day.',
+                'scheduled_teachers_help' => ':count teachers',
+                'scheduled_teacher_singular_help' => ':count teachers',
                 'no_default_status' => 'Create an active teacher attendance status before creating teacher attendance days.',
                 'notes' => 'Notes',
             ],
@@ -343,6 +348,8 @@ return [
         ],
         'errors' => [
             'day_closed' => 'Attendance cannot be changed while this day is closed. Reopen it first.',
+            'archived_record_locked' => 'This teacher attendance record belongs to an archived course and cannot be changed.',
+            'archived_day_locked' => 'This attendance day contains archived course records and cannot be deleted.',
             'teacher_not_helping' => 'Only teachers available in your current scope can be added to teacher attendance.',
         ],
         'form' => [
@@ -418,7 +425,7 @@ return [
             ],
         ],
         'quick_entry' => [
-            'title' => 'Enter Memorize',
+            'title' => 'Enter Memorisation',
             'subtitle' => 'A fast entry screen for today\'s new memorized pages.',
             'card_eyebrow' => 'Fast entry',
             'card_title' => 'Record today\'s pages',
@@ -531,7 +538,7 @@ return [
                 'all_types' => 'All test types',
             ],
             'form' => [
-                'title' => 'Quran test entry',
+                'title' => 'Record Awqaf saber',
                 'help' => 'Choose the student first, then select the active group only if the student has more than one active enrollment. Only juzs with a passed final saber and no awqaf record are shown.',
                 'student' => 'Student',
                 'group' => 'Group',
@@ -541,7 +548,7 @@ return [
                 'teacher_locked' => 'Your linked teacher account will be saved automatically for this test.',
             ],
             'table' => [
-                'title' => 'Quran test entries',
+                'title' => 'Awqaf saber entries',
                 'empty' => 'No Quran tests match the current scope yet.',
                 'headers' => [
                     'student' => 'Student',
@@ -617,7 +624,7 @@ return [
         ],
     ],
     'quran_partial_tests' => [
-        'title' => 'Partial Saber',
+        'title' => 'Trial Saber',
         'subtitle' => 'Create one partial cycle per student and juz, then record the four parts until the cycle passes.',
         'stats' => [
             'tests' => 'Partial cycles',
@@ -638,12 +645,12 @@ return [
         'actions' => [
             'create' => 'New partial saber',
             'open' => 'Open details',
-            'back' => 'Back to partial saber',
+            'back' => 'Back to trial saber',
             'record_attempt' => 'Record attempt',
             'save_attempt' => 'Save attempt',
         ],
         'form' => [
-            'title' => 'New partial saber',
+            'title' => 'New trial saber',
             'help' => 'Choose the student first. Only juz that the student fully memorized and has not started as a partial cycle yet will appear.',
             'student' => 'Student',
             'group' => 'Group',
@@ -664,6 +671,7 @@ return [
             'deleted_void_reason' => 'Partial saber deleted.',
         ],
         'errors' => [
+            'final_saber_exists' => 'This trial saber and its attempts cannot be deleted because a final saber exists for the same student and juz.',
             'no_active_enrollment' => 'This student does not have an active enrollment in your current scope.',
             'select_group' => 'Select the active group you want to create this partial saber under.',
             'juz_not_eligible' => 'This juz is not available for a new partial cycle for the selected student.',
@@ -671,7 +679,7 @@ return [
             'part_already_passed' => 'This part is already passed and cannot be attempted again.',
         ],
         'table' => [
-            'title' => 'Partial saber cycles',
+            'title' => 'Trial saber',
             'copy' => 'Each row represents one juz-level partial cycle with four trackable parts.',
             'empty' => 'No partial sabers match the current scope yet.',
             'headers' => [
@@ -685,12 +693,18 @@ return [
             ],
         ],
         'details' => [
-            'title' => 'Partial Saber Details',
+            'title' => 'Trial Saber Details',
             'subtitle' => 'Record attempt history for each of the four parts. Once a part passes, it is locked.',
             'parts_passed' => ':count of 4 parts passed',
         ],
         'part' => [
             'label' => 'Part :number',
+            'quarters' => [
+                1 => 'First quarter',
+                2 => 'Second quarter',
+                3 => 'Third quarter',
+                4 => 'Fourth quarter',
+            ],
             'retries' => 'Retries: :count',
             'no_attempts' => 'No attempts have been recorded for this part yet.',
         ],
@@ -891,7 +905,7 @@ return [
         'title' => 'Point Ledger',
         'subtitle' => 'Review automatic and manual point entries for one enrollment, and void mistakes without deleting history.',
         'workbench' => [
-            'title' => 'Point Ledger Workbench',
+            'title' => "Points' Records",
             'subtitle' => 'Review point history across accessible students and add manual entries from one standalone page.',
             'create' => 'New point entry',
             'edit' => 'Edit point entry',
@@ -915,7 +929,7 @@ return [
                 'group_auto' => 'The active group was selected automatically.',
             ],
             'table' => [
-                'title' => 'Point entries',
+                'title' => "Points' Records",
                 'empty' => 'No point entries match the current scope yet.',
                 'headers' => [
                     'student' => 'Student',
@@ -1013,6 +1027,7 @@ return [
             'errors' => [
                 'delete_results' => 'This assessment cannot be deleted while results exist.',
                 'no_groups_selected' => 'Select at least one group for this assessment.',
+                'single_course_required' => 'All assessment groups must belong to one course.',
             ],
             'form' => [
                 'create_title' => 'New assessment',
@@ -1027,8 +1042,8 @@ return [
                 'assessment_type' => 'Assessment type',
                 'title' => 'Name',
                 'scheduled_at' => 'Scheduled at',
-                'due_at' => 'Due at',
-                'total_mark' => 'Total mark',
+                'due_at' => 'Date',
+                'total_mark' => 'Maximum mark',
                 'pass_mark' => 'Pass mark',
                 'marks_from_bands' => 'The total and passing marks are calculated automatically from the active score-band ranges for the selected assessment type.',
                 'description' => 'Description',
@@ -1057,7 +1072,7 @@ return [
                 'more_groups' => '+:count more',
                 'headers' => [
                     'assessment' => 'Assessment',
-                    'schedule' => 'Schedule',
+                    'schedule' => 'Date',
                     'marks' => 'Marks',
                     'results' => 'Results',
                     'status' => 'Status',
@@ -1096,7 +1111,7 @@ return [
             ],
             'read_only' => 'You can review score bands, but you do not have permission to change them.',
             'table' => [
-                'title' => 'Score bands',
+                'title' => 'Assessment Score Bands',
                 'empty' => 'No score bands configured yet.',
                 'headers' => [
                     'band' => 'Band',
@@ -1110,10 +1125,10 @@ return [
         'results' => [
             'title' => 'Assessment Results',
             'subtitle' => 'Choose a group, find students by name, and enter scores from one quick roster.',
-            'pdf_export' => 'Export PDF',
+            'pdf_export' => 'PDF',
             'pdf' => [
                 'due_date' => 'Date',
-                'average_mark' => 'Average marks',
+                'average_mark' => 'Average',
                 'number' => '#',
             ],
             'stats' => [
@@ -1122,6 +1137,7 @@ return [
             'messages' => [
                 'saved' => 'Assessment results saved successfully.',
                 'quick_saved' => 'Assessment result saved successfully.',
+                'score_removed' => 'The score was removed and the student was marked as not attended.',
                 'void_reason' => 'Assessment result updated.',
                 'automatic_points' => 'Automatic :type points for score :score',
             ],
@@ -1133,6 +1149,7 @@ return [
                 'choose_title' => 'Choose a group',
                 'choose_help' => 'Each group has its own student list, ordered by name. The counter shows saved results out of active students.',
                 'progress' => ':saved of :total results saved',
+                'scores_entered' => 'Scores entered: :count',
                 'empty' => 'No groups are linked to this assessment.',
                 'select_first' => 'Select a group above to load its students and record results.',
                 'open' => 'Open results',
@@ -1155,7 +1172,7 @@ return [
                 'save' => 'Save result',
             ],
             'student_entry' => [
-                'title' => 'Add a result by student',
+                'title' => 'Add result',
                 'help' => 'Search every group in this assessment, choose the student, and enter the mark directly.',
                 'all_groups' => 'All assessment groups',
                 'search_placeholder' => 'Search by student name, number, or group',

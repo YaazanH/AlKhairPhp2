@@ -133,7 +133,7 @@ return [
                 'width_mm' => 'العرض (مم)',
                 'height_mm' => 'الارتفاع (مم)',
                 'paper_size' => 'ورق الطباعة',
-                'paper_settings' => 'إعدادات الورق',
+                'paper_settings' => 'الإعدادات',
                 'orientation' => 'الاتجاه',
                 'margin_top' => 'الهامش العلوي',
                 'margin_right' => 'الهامش الأيمن',

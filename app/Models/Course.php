@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Services\PointLedgerService;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
@@ -30,13 +31,16 @@ class Course extends Model
     }
 
     protected $fillable = [
+        'academic_year_id',
         'name',
         'description',
         'starts_on',
         'ends_on',
+        'finished_at',
         'is_active',
         'is_default',
         'awards_points',
+        'course_finished_was_awarding_points',
     ];
 
     protected function casts(): array
@@ -44,10 +48,17 @@ class Course extends Model
         return [
             'starts_on' => 'date',
             'ends_on' => 'date',
+            'finished_at' => 'datetime',
             'is_active' => 'boolean',
             'is_default' => 'boolean',
             'awards_points' => 'boolean',
+            'course_finished_was_awarding_points' => 'boolean',
         ];
+    }
+
+    public function academicYear(): BelongsTo
+    {
+        return $this->belongsTo(AcademicYear::class);
     }
 
     public function groups(): HasMany

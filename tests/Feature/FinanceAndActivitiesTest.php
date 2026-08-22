@@ -462,7 +462,7 @@ class FinanceAndActivitiesTest extends TestCase
             ->assertOk()
             ->assertSee('Revenue Receipt')
             ->assertSee($revenueRequest->request_no)
-            ->assertSee(now()->format('Y-m-d'))
+            ->assertSee(now()->format('d-m-Y'))
             ->assertSee('Page 1')
             ->assertSee('width: 105mm', false)
             ->assertSee('padding: 7mm 8mm 9mm 6mm', false);
@@ -485,7 +485,6 @@ class FinanceAndActivitiesTest extends TestCase
             ->set('pull_request_prefix', 'wdr')
             ->set('expense_request_prefix', 'cst')
             ->set('revenue_request_prefix', 'inc')
-            ->set('return_request_prefix', 'rfd')
             ->set('exchange_prefix', 'fx')
             ->set('report_prefix', 'rpt')
             ->call('saveFinanceSettings')
@@ -497,7 +496,7 @@ class FinanceAndActivitiesTest extends TestCase
         $this->assertSame('WDR-000001', $financeService->nextRequestNumber(FinanceRequest::TYPE_PULL));
         $this->assertSame('CST-000001', $financeService->nextRequestNumber(FinanceRequest::TYPE_EXPENSE));
         $this->assertSame('INC-000001', $financeService->nextRequestNumber(FinanceRequest::TYPE_REVENUE));
-        $this->assertSame('RFD-000001', $financeService->nextRequestNumber(FinanceRequest::TYPE_RETURN));
+        $this->assertSame('RET-000001', $financeService->nextRequestNumber(FinanceRequest::TYPE_RETURN));
         $this->assertSame('FX-000001', $financeService->nextExchangeNumber());
         $this->assertSame('RPT', app(FinanceReportService::class)->reportPrefix());
         $this->assertFalse(Route::has('finance.reports.export'));
@@ -1309,11 +1308,40 @@ class FinanceAndActivitiesTest extends TestCase
         $this->assertStringContainsString('.summary { border-collapse: collapse;', $rtlExportHtml);
         $this->assertStringContainsString('table-layout:fixed; width:100%;', $rtlExportHtml);
         $this->assertStringContainsString('class="stamp-block"', $rtlExportHtml);
-        $this->assertStringContainsString('class="signature-line"', $rtlExportHtml);
+        $this->assertStringNotContainsString('signature-line', $rtlExportHtml);
         $this->assertStringContainsString('max-height:40mm; max-width:40mm', $rtlExportHtml);
         $this->assertStringContainsString('.signature-block { text-align:center; vertical-align:bottom; width:50%; }', $rtlExportHtml);
-        $this->assertStringContainsString('.signature-line { border-top:1px solid #315b3b; display:block;', $rtlExportHtml);
-        $this->assertStringContainsString('<div class="signature-line">&nbsp;</div>', $rtlExportHtml);
+        $this->assertStringContainsString('إجمالي المصاريف', $rtlExportHtml);
+        $this->assertStringContainsString('إجمالي الإيرادات', $rtlExportHtml);
+        $this->assertStringContainsString('class="debit-value"', $rtlExportHtml);
+        $this->assertStringContainsString('class="credit-value"', $rtlExportHtml);
+        $this->assertStringContainsString('@page { margin: 0 12mm 18mm; margin-header: 0;', $rtlExportHtml);
+        $this->assertStringNotContainsString('continuation-header-gap', $rtlExportHtml);
+        $this->assertSame(AcademicYear::query()->where('is_current', true)->value('name'), $report['academic_year']);
+        $this->assertStringContainsString('العام الأكاديمي', $rtlExportHtml);
+        $this->assertStringNotContainsString('<td class="meta-label">الدورة</td>', $rtlExportHtml);
+        $this->assertStringContainsString('.meta-wrap { background: transparent; margin: 0 0 1.65mm -1mm; padding: 0; }', $rtlExportHtml);
+        $this->assertStringContainsString('.meta-qr { direction: ltr !important; padding-left: 0 !important; text-align: left !important; width: 15mm; }', $rtlExportHtml);
+        $this->assertStringContainsString("output(\$qrCode, 56, 'transparent', 'black')", file_get_contents(resource_path('views/reports/finance-ledger-pdf-export.blade.php')));
+        $this->assertStringContainsString('.meta-qr img { display: block; height: 6.3mm; margin: 0; width: 6.3mm; }', $rtlExportHtml);
+        $this->assertStringContainsString('.meta-table { table-layout: fixed; }', $rtlExportHtml);
+        $this->assertStringContainsString('white-space: nowrap;', $rtlExportHtml);
+        $this->assertStringContainsString('<colgroup><col style="width:9%"><col style="width:22%"><col style="width:9%"><col style="width:20%"><col style="width:9%"><col style="width:23%"><col style="width:8%"></colgroup>', $rtlExportHtml);
+        $this->assertStringNotContainsString('border-bottom: 1px solid #bad1be;', $rtlExportHtml);
+        $this->assertStringContainsString('border-bottom: 3px double #9fbea5;', $rtlExportHtml);
+        $this->assertStringContainsString('background: rgba(220, 239, 220, .4);', $rtlExportHtml);
+        $this->assertStringContainsString('.ledger td.date, .ledger td.money { vertical-align: middle; }', $rtlExportHtml);
+        $this->assertStringContainsString('.ledger-page-gap th { background: transparent; border: 0; height: 2.1mm;', $rtlExportHtml);
+        $this->assertStringContainsString('<tr class="ledger-page-gap"><th colspan="5"></th></tr>', $rtlExportHtml);
+        $this->assertStringContainsString('.title { color: #164d27; font-size: 20pt;', $rtlExportHtml);
+        $this->assertStringContainsString('class="footer-notice"><span>سري وهام - غير معد للمداولة</span></td>', $rtlExportHtml);
+        $this->assertStringContainsString('padding-right: 0 !important; text-align: right;', $rtlExportHtml);
+        $this->assertStringContainsString('padding-left: 0 !important; text-align: left;', $rtlExportHtml);
+        $this->assertStringContainsString('.footer-table td { background: #dcefdc; border: 0; height: 8mm; padding: 0;', $rtlExportHtml);
+        $this->assertStringNotContainsString('class="notice"', $rtlExportHtml);
+        $this->assertStringContainsString('<th>الوصف</th>', $rtlExportHtml);
+        $this->assertStringNotContainsString('التصنيف والوصف', $rtlExportHtml);
+        $this->assertStringNotContainsString('statement-gap', $rtlExportHtml);
 
         $reportWithBackground = $report;
         $reportWithBackground['template']['background_image_pdf_src'] = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
@@ -1342,7 +1370,10 @@ class FinanceAndActivitiesTest extends TestCase
 
         $this->get(route('finance.reports.index'))
             ->assertOk()
-            ->assertSee('wire:click="openCreateReport"', false);
+            ->assertSee('wire:click="openCreateReport"', false)
+            ->assertSee('wire:click="openReportSettings"', false)
+            ->assertSee('financial-report-symbol-button', false)
+            ->assertDontSee('<span class="text-xl font-semibold text-white">', false);
 
         $pdfResponse = $this->get(route('finance.reports.ledger.export', [
             'cash_box_id' => $cashBox->id,
@@ -1380,7 +1411,7 @@ class FinanceAndActivitiesTest extends TestCase
         $this->assertStringStartsWith('%PDF', (string) $savedPdfResponse->getContent());
         $this->assertGreaterThan(1000, strlen((string) $savedPdfResponse->getContent()));
         $this->assertNotSame('legacy-pdf', Storage::disk('local')->get($generatedReport->pdf_path));
-        $this->assertSame('mpdf-fixed-ledger-v9', FinanceGeneratedReport::query()->findOrFail($generatedReport->id)->report_data['pdf_renderer']);
+        $this->assertSame('mpdf-fixed-ledger-v27', FinanceGeneratedReport::query()->findOrFail($generatedReport->id)->report_data['pdf_renderer']);
 
         $this->get(route('finance.reports.generated.show', ['generatedReport' => $generatedReport, 'format' => 'xlsx']))
             ->assertOk()
@@ -1479,6 +1510,38 @@ class FinanceAndActivitiesTest extends TestCase
 
         $component->call('finishLegacyReportImport')->assertHasNoErrors();
         $this->assertTrue((bool) AppSetting::groupValues('finance')->get('legacy_report_import_finished'));
+    }
+
+    public function test_finance_settings_accept_numeric_pre_2023_reports_and_delete_them_by_original_number(): void
+    {
+        $this->signIn();
+        Storage::fake('local');
+
+        Volt::test('settings.finance')
+            ->set('legacy_report_pdf', UploadedFile::fake()->create('report-0042.pdf', 100, 'application/pdf'))
+            ->set('legacy_report_number', '0042')
+            ->set('legacy_report_period_mode', 'quarter')
+            ->set('legacy_report_year', 2022)
+            ->set('legacy_report_quarter', '4')
+            ->set('legacy_report_cash_box', 'Legacy fund')
+            ->set('legacy_report_currency', 'SYP')
+            ->set('legacy_report_generated_at', '2022-12-31')
+            ->call('importLegacyReport')
+            ->assertHasNoErrors();
+
+        $report = FinanceGeneratedReport::query()->firstOrFail();
+        $this->assertSame('0042', data_get($report->report_data, 'original_report_number'));
+        $this->assertSame('2022-10-01', data_get($report->filters, 'date_from'));
+        $this->assertSame('2022-12-31', data_get($report->filters, 'date_to'));
+        Storage::disk('local')->assertExists($report->pdf_path);
+
+        Volt::test('settings.finance')
+            ->set('report_lookup_no', '0042')
+            ->call('deleteGeneratedReport')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseMissing('finance_generated_reports', ['id' => $report->id]);
+        Storage::disk('local')->assertMissing($report->pdf_path);
     }
 
     public function test_multi_fund_ledger_is_saved_and_can_be_reopened(): void

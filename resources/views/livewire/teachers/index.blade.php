@@ -678,21 +678,17 @@ new class extends Component {
         </article>
     </div>
 
-    <section class="surface-panel p-5 lg:p-6">
-        <div class="admin-toolbar">
-            <div>
-                <div class="admin-toolbar__title">{{ __('crud.teachers.table.title') }}</div>
-                <p class="admin-toolbar__subtitle">{{ __('crud.teachers.form.help') }}</p>
-            </div>
-
+    <section class="surface-table">
+        <div class="admin-grid-meta admin-grid-meta--controls">
+            <div class="admin-grid-meta__title">{{ __('crud.teachers.table.title') }}</div>
             <div class="admin-toolbar__controls">
                 <div class="admin-filter-field">
-                    <label for="teacher-search">{{ __('crud.common.filters.search') }}</label>
+                    <label class="sr-only" for="teacher-search">{{ __('crud.common.filters.search') }}</label>
                     <input id="teacher-search" wire:model.live.debounce.300ms="search" type="text" placeholder="{{ __('crud.common.filters.search_placeholder') }}">
                 </div>
 
                 <div class="admin-filter-field">
-                    <label for="teacher-status-filter">{{ __('crud.common.filters.status') }}</label>
+                    <label class="sr-only" for="teacher-status-filter">{{ __('crud.common.filters.status') }}</label>
                     <select id="teacher-status-filter" wire:model.live="statusFilter">
                         <option value="all">{{ __('crud.common.filters.all_statuses') }}</option>
                         @foreach ($statuses as $teacherStatus)
@@ -702,7 +698,7 @@ new class extends Component {
                 </div>
 
                 <div class="admin-filter-field">
-                    <label for="teacher-helping-filter">{{ __('crud.teachers.filters.helping') }}</label>
+                    <label class="sr-only" for="teacher-helping-filter">{{ __('crud.teachers.filters.helping') }}</label>
                     <select id="teacher-helping-filter" wire:model.live="helpingFilter">
                         @foreach ($helpingOptions as $helpingOption)
                             <option value="{{ $helpingOption }}">{{ __('crud.teachers.helping_options.' . $helpingOption) }}</option>
@@ -716,15 +712,6 @@ new class extends Component {
                     @endcan
                     <a href="{{ route('teachers.export', ['search' => $search, 'status' => $statusFilter, 'helping' => $helpingFilter]) }}" class="pill-link">{{ __('crud.common.actions.export') }}</a>
                 </div>
-            </div>
-        </div>
-    </section>
-
-    <section class="surface-table">
-        <div class="admin-grid-meta">
-            <div>
-                <div class="admin-grid-meta__title">{{ __('crud.teachers.table.title') }}</div>
-                <div class="admin-grid-meta__summary">{{ __('crud.common.badges.in_view', ['count' => number_format($filteredCount)]) }}</div>
             </div>
         </div>
 

@@ -3,9 +3,9 @@
 namespace App\Http\Controllers\PrintTemplates;
 
 use App\Http\Controllers\Controller;
-use App\Models\FinanceRequest;
 use App\Models\Course;
 use App\Models\Enrollment;
+use App\Models\FinanceRequest;
 use App\Models\Group;
 use App\Models\PrintTemplate;
 use App\Models\StudentCardPrint;
@@ -27,8 +27,7 @@ class PrintTemplatePrintController extends Controller
         protected PrintTemplateRenderService $renderService,
         protected PrintTemplateFieldRegistry $fieldRegistry,
         protected PrintTemplateDataSourceService $dataSourceService,
-    ) {
-    }
+    ) {}
 
     public function create(): View
     {
@@ -251,9 +250,11 @@ class PrintTemplatePrintController extends Controller
                             ->filter(fn (array $option) => $courseStudentIds->contains((int) $option['id'])))
                         ->when($studentCardMode && $courseId && in_array($entity, ['student', 'course_student'], true), function ($options) use ($courseId) {
                             $printedStudentIds = StudentCardPrint::query()->where('course_id', $courseId)->pluck('student_id')->map(fn ($id) => (int) $id);
+
                             return $options->map(function (array $option) use ($printedStudentIds): array {
                                 $studentId = (int) ($option['meta']['student_ids'][0] ?? $option['id']);
                                 $option['meta']['card_printed'] = $printedStudentIds->contains($studentId);
+
                                 return $option;
                             });
                         })
@@ -283,8 +284,8 @@ class PrintTemplatePrintController extends Controller
                 : __('print_templates.print.empty.templates_title'),
             'entities' => $entities,
             'courseReportMode' => $courseReportMode,
-            'pageTitle' => $studentCardMode ? __('id_cards.print.title') : __('print_templates.print.title'),
-            'pageSubtitle' => $studentCardMode ? __('id_cards.print.subtitle') : __('print_templates.print.subtitle'),
+            'pageTitle' => $studentCardMode ? __('id_cards.print.title') : ($courseReportMode ? __('course_end.print_window_title') : __('print_templates.print.title')),
+            'pageSubtitle' => $studentCardMode ? __('id_cards.print.subtitle') : ($courseReportMode ? '' : __('print_templates.print.subtitle')),
             'previewRoute' => $studentCardMode ? route('id-cards.print.preview') : route('print-templates.print.preview'),
             'studentCardMode' => $studentCardMode,
             'selectedCourseId' => $courseId,

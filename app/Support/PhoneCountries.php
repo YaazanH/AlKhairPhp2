@@ -5,8 +5,8 @@ namespace App\Support;
 use Giggsey\Locale\Locale;
 use Illuminate\Support\Collection;
 use libphonenumber\PhoneNumberFormat;
-use libphonenumber\PhoneNumberUtil;
 use libphonenumber\PhoneNumberType;
+use libphonenumber\PhoneNumberUtil;
 
 class PhoneCountries
 {
@@ -46,7 +46,7 @@ class PhoneCountries
 
                 return [
                     'dial_code' => $dialCode,
-                    'flag' => self::flag($region),
+                    'flag' => 'https://purecatamphetamine.github.io/country-flag-icons/3x2/'.$region.'.svg',
                     'name' => $name,
                     'pattern' => preg_replace('/\d/u', '#', $nationalPattern),
                     'region' => $region,
@@ -54,13 +54,6 @@ class PhoneCountries
             })
             ->sortBy('name', SORT_NATURAL | SORT_FLAG_CASE)
             ->values();
-    }
-
-    protected static function flag(string $region): string
-    {
-        return collect(mb_str_split(strtoupper($region)))
-            ->map(fn (string $letter): string => mb_chr(127397 + ord($letter)))
-            ->implode('');
     }
 
     protected static function ensurePackageAutoloaded(): void

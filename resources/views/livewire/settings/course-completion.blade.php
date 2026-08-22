@@ -159,10 +159,11 @@ new class extends Component {
             <div class="admin-toolbar"><div class="admin-toolbar__title">{{ __('settings.course_completion.sections.rules.title') }}</div></div>
 
             <form wire:submit="saveRules" class="mt-5 space-y-4">
+                <div class="rounded-2xl border border-white/10 bg-white/5 p-4">
                 <div class="grid gap-4 md:grid-cols-[1fr_8rem_1fr]">
                     <div>
-                        <div class="mb-1 flex items-center justify-between gap-2"><label class="block text-sm font-medium">{{ __('settings.course_completion.fields.required_passed_final_tests') }}</label><button type="button" wire:click="openGradeRule('final')" class="pill-link pill-link--compact" aria-label="{{ __('settings.course_completion.labels.choose_grades') }}">…</button></div>
-                        <input wire:model="required_passed_final_tests" type="number" min="0" class="w-full rounded-xl px-4 py-3 text-sm">
+                        <label class="mb-1 block text-sm font-medium">{{ __('settings.course_completion.fields.required_passed_final_tests') }}</label>
+                        <div class="flex items-center gap-2"><input wire:model="required_passed_final_tests" type="number" min="0" class="min-w-0 flex-1 rounded-xl px-4 py-3 text-sm"><button type="button" wire:click="openGradeRule('final')" class="pill-link pill-link--compact" aria-label="{{ __('settings.course_completion.labels.choose_grades') }}">…</button></div>
                         @error('required_passed_final_tests') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
                     </div>
                     <div>
@@ -175,9 +176,10 @@ new class extends Component {
                     </div>
                 </div>
 
-                <div>
+                <div class="mt-4">
                     <label class="mb-1 block text-sm font-medium">{{ __('settings.course_completion.fields.required_present_attendance') }}</label>
                     <input wire:model="required_present_attendance" type="number" min="0" class="w-full rounded-xl px-4 py-3 text-sm">
+                </div>
                 </div>
 
                 <div class="rounded-2xl border border-white/10 bg-white/5 p-4">
@@ -208,18 +210,6 @@ new class extends Component {
                     <button type="submit" class="pill-link pill-link--accent">{{ __('settings.course_completion.actions.save_rules') }}</button>
                 </div>
             </form>
-        </section>
-
-        <section class="surface-panel p-5 lg:p-6">
-            <div class="admin-toolbar"><div class="admin-toolbar__title">{{ __('settings.course_completion.sections.apply.title') }}</div></div>
-            <form wire:submit="applyRules" class="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-5 xl:items-end">
-                <div><label class="mb-1 block text-sm font-medium">{{ __('settings.course_completion.fields.academic_year') }}</label><select wire:model.live="academic_year_id" class="w-full rounded-xl px-4 py-3"><option value="">{{ __('settings.course_completion.options.all_academic_years') }}</option>@foreach($academicYears as $year)<option value="{{ $year->id }}">{{ $year->name }}</option>@endforeach</select></div>
-                <div><label class="mb-1 block text-sm font-medium">{{ __('settings.course_completion.fields.course') }}</label><select wire:model.live="course_id" class="w-full rounded-xl px-4 py-3"><option value="">{{ __('settings.course_completion.options.all_courses') }}</option>@foreach($courses as $course)<option value="{{ $course->id }}">{{ $course->name }}</option>@endforeach</select></div>
-                <div><label class="mb-1 block text-sm font-medium">{{ __('settings.course_completion.fields.group') }}</label><select wire:model="group_id" class="w-full rounded-xl px-4 py-3"><option value="">{{ __('settings.course_completion.options.all_groups') }}</option>@foreach($groups as $group)<option value="{{ $group->id }}">{{ $group->name }}</option>@endforeach</select></div>
-                <div><label class="mb-1 block text-sm font-medium">{{ __('settings.course_completion.fields.enrollment_status') }}</label><select wire:model="enrollment_status" class="w-full rounded-xl px-4 py-3">@foreach(['active','completed','inactive','cancelled','all'] as $status)<option value="{{ $status }}">{{ __('settings.course_completion.statuses.'.$status) }}</option>@endforeach</select></div>
-                <button type="submit" wire:confirm="{{ __('settings.course_completion.actions.apply_confirm') }}" class="pill-link pill-link--accent">{{ __('settings.course_completion.actions.apply_rules') }}</button>
-            </form>
-            @error('scope')<div class="mt-3 text-sm text-red-400">{{ $message }}</div>@enderror
         </section>
 
     </div>

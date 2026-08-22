@@ -2,12 +2,12 @@
 
 namespace Tests\Feature;
 
-use App\Models\Activity;
-use App\Models\IdCardTemplate;
 use App\Models\AcademicYear;
+use App\Models\Activity;
 use App\Models\Course;
 use App\Models\Enrollment;
 use App\Models\Group;
+use App\Models\IdCardTemplate;
 use App\Models\ParentProfile;
 use App\Models\PrintTemplate;
 use App\Models\Student;
@@ -439,7 +439,7 @@ class IdCardBuilderTest extends TestCase
             ->assertSee('data-source-printed-filter="student"', false)
             ->assertSee('data-toggle-selected-print-status', false)
             ->assertSee('data-card-printed="1"', false)
-            ->assertSee(__('print_templates.print.setup.sections.selected_students'))
+            ->assertDontSee(__('print_templates.print.setup.sections.selected_students'))
             ->assertSee('Card Group')
             ->assertSee(__('print_templates.print.setup.fields.printed_flag'))
             ->assertSee(__('print_templates.print.setup.buttons.mark_printed'))
@@ -659,6 +659,7 @@ class IdCardBuilderTest extends TestCase
             'name' => 'Large Card',
             'width_mm' => 85.6,
             'height_mm' => 53.98,
+            'paper_size' => 'a6',
             'data_sources' => [
                 ['entity' => 'student', 'mode' => 'multiple'],
             ],

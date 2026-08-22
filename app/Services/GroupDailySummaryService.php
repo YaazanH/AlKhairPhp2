@@ -162,7 +162,8 @@ class GroupDailySummaryService
                 .$summary['partial_tests']->map(fn (object $test) => __('crud.groups.quick_summary.tests.partial_line', [
                     'student' => $test->student_name,
                     'juz' => $test->juz_number,
-                    'quarter' => collect($test->part_numbers)
+                    'quarter' => collect($test->part_numbers ?? [$test->part_number ?? null])
+                        ->filter()
                         ->map(fn (int $partNumber) => __('crud.groups.quick_summary.tests.quarters.'.$partNumber))
                         ->implode('، '),
                 ]))->implode(PHP_EOL);

@@ -145,8 +145,10 @@ new class extends Component
             'awqafEnrollmentId' => ['required', 'exists:enrollments,id'],
             'awqafJuzId' => ['required', 'exists:quran_juzs,id'],
             'awqafTestedOn' => ['required', 'date'],
-            'awqafScore' => ['nullable', 'numeric', 'between:0,100'],
+            'awqafScore' => ['required_if:awqafStatus,passed', 'nullable', 'numeric', 'between:0,100'],
             'awqafStatus' => ['required', 'in:passed,failed,cancelled'],
+        ], [], [
+            'awqafScore' => __('workflow.quran_tests.form.score'),
         ]);
 
         abort_unless($this->currentStudent, 404);
@@ -222,8 +224,11 @@ new class extends Component
             ->orderByDesc('enrolled_at')
             ->orderByDesc('id')
             ->get();
+        $visibleEnrollments = $enrollments
+            ->whereIn('status', ['active', 'completed'])
+            ->values();
         $enrollmentIds = $enrollments->pluck('id')->all();
-        $activeEnrollment = $enrollments->firstWhere('status', 'active') ?: $enrollments->first();
+        $activeEnrollment = $visibleEnrollments->firstWhere('status', 'active') ?: $visibleEnrollments->first();
         $defaultCourseId = Course::query()->where('is_default', true)->where('is_active', true)->value('id');
         $highlightEnrollmentIds = $defaultCourseId
             ? $enrollments->filter(fn (Enrollment $enrollment) => (int) $enrollment->group?->course_id === (int) $defaultCourseId)->pluck('id')->all()
@@ -393,7 +398,7 @@ new class extends Component
             'points' => $pointTransactions,
             'assessments' => $nonFinalAssessmentResults,
             'final-assessments' => $finalAssessmentResults,
-            'enrollments' => $enrollments,
+            'enrollments' => $visibleEnrollments,
             'notes' => $parentVisibleNotes,
             default => collect(),
         };
@@ -410,7 +415,7 @@ new class extends Component
             'studentOptions' => $studentOptions,
             'studentRecord' => $studentRecord,
             'activeEnrollment' => $activeEnrollment,
-            'enrollments' => $enrollments,
+            'enrollments' => $visibleEnrollments,
             'memorizationRows' => $memorizationRows,
             'assessmentResults' => $nonFinalAssessmentResults,
             'finalAssessmentResults' => $finalAssessmentResults,
@@ -481,26 +486,23 @@ new class extends Component
 
 <div class="page-stack">
     <section class="page-hero student-progress-hero p-6 lg:p-8">
-        <a href="{{ route('students.index') }}" wire:navigate class="text-sm font-medium text-neutral-200/80 hover:text-white">{{ __('ui.nav.students') }}</a>
-        <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('workflow.student_progress.title') }}</h1>
-        <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ __('workflow.student_progress.subtitle') }}</p>
+        <h1 class="font-display text-4xl leading-none text-white md:text-5xl">{{ __('workflow.student_progress.title') }}</h1>
     </section>
 
     @if (session('status'))
         <div class="flash-success px-4 py-3 text-sm">{{ session('status') }}</div>
     @endif
 
-    <section class="surface-panel surface-panel--soft p-5 lg:p-6">
-        <div class="admin-toolbar__title">{{ __('workflow.student_progress.selection.title') }}</div>
+    <section class="student-progress-selection-card surface-panel surface-panel--soft p-5 lg:p-6">
         @if ($studentOptions->isEmpty())
-            <div class="admin-empty-state mt-4">{{ __('workflow.student_progress.selection.no_students') }}</div>
+            <div class="admin-empty-state">{{ __('workflow.student_progress.selection.no_students') }}</div>
         @else
-            <div class="admin-filter-field mt-4">
-                <label for="student-progress-student">{{ __('workflow.student_progress.selection.student') }}</label>
+            <div class="admin-filter-field">
+                <label for="student-progress-student" class="sr-only">{{ __('workflow.student_progress.selection.search') }}</label>
                 <select id="student-progress-student" wire:model.live="selectedStudentId" data-search-placeholder="{{ __('workflow.student_progress.selection.search_placeholder') }}" class="w-full rounded-xl px-4 py-3 text-sm">
-                    <option value="">{{ __('workflow.student_progress.selection.select_student') }}</option>
+                    <option value="">{{ __('workflow.student_progress.selection.search_placeholder') }}</option>
                     @foreach ($studentOptions as $option)
-                        <option value="{{ $option->id }}" data-search="{{ $option->search }}" data-option-name="{{ $option->full_name }}" data-option-number="{{ $option->student_number }}">{{ $option->full_name }}{{ $option->student_number ? ' '.$option->student_number : '' }}</option>
+                        <option value="{{ $option->id }}" data-search="{{ $option->search }}" data-option-name="{{ $option->full_name }}" data-option-number="{{ $option->student_number }}">{{ $option->full_name }}</option>
                     @endforeach
                 </select>
             </div>
@@ -508,13 +510,13 @@ new class extends Component
     </section>
 
     @if ($currentStudent)
-        <section class="surface-panel surface-panel--soft p-5 lg:p-6">
+        <section class="student-progress-profile surface-panel surface-panel--soft p-5 lg:p-6">
             @php($studentPhotoUrl = $studentRecord->photo_path ? asset('storage/'.ltrim($studentRecord->photo_path, '/')) : null)
-            <div class="grid gap-5 lg:grid-cols-[7rem_minmax(0,1fr)] lg:items-start">
-                <div class="h-28 w-28 overflow-hidden rounded-3xl border border-white/10 bg-white/5">
+            <div class="student-progress-profile__grid">
+                <div class="student-progress-profile__photo overflow-hidden rounded-3xl border border-white/10 bg-white/5">
                     @if ($studentPhotoUrl)<img src="{{ $studentPhotoUrl }}" alt="{{ $studentRecord->full_name }}" class="h-full w-full object-cover">@else<div class="flex h-full w-full items-center justify-center text-4xl font-semibold text-white">{{ \Illuminate\Support\Str::upper(\Illuminate\Support\Str::substr($studentRecord->first_name ?: 'S', 0, 1)) }}</div>@endif
                 </div>
-                <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <div class="student-progress-profile__fields grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                     <div class="rounded-2xl border border-white/8 bg-white/4 p-3"><div class="kpi-label">{{ __('workflow.student_progress.profile.student_no') }}</div><div class="mt-2 text-sm font-semibold text-white">{{ $studentRecord->student_number ?: __('crud.common.not_available') }}</div></div>
                     <div class="rounded-2xl border border-white/8 bg-white/4 p-3"><div class="kpi-label">{{ __('workflow.student_progress.profile.student_name') }}</div><div class="mt-2 text-sm font-semibold text-white">{{ $studentRecord->full_name }}</div></div>
                     <div class="relative rounded-2xl border border-white/8 bg-white/4 p-3"><div class="kpi-label pe-7">{{ __('workflow.student_progress.profile.father_name') }}</div>@if ($studentRecord->parentProfile)<button type="button" wire:click="showDetails('parent')" class="absolute end-2 top-2 inline-flex h-6 w-6 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-neutral-300 transition hover:bg-white/10 hover:text-white" title="{{ __('workflow.student_progress.actions.details') }}" aria-label="{{ __('workflow.student_progress.actions.details') }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="h-3.5 w-3.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12s3.75-6.75 9.75-6.75S21.75 12 21.75 12 18 18.75 12 18.75 2.25 12 2.25 12Z"/><circle cx="12" cy="12" r="2.25"/></svg></button>@endif<div class="mt-2 text-sm font-semibold text-white">{{ $studentRecord->parentProfile?->father_name ?: __('crud.common.not_available') }}</div></div>
@@ -645,8 +647,8 @@ new class extends Component
                 <div class="grid gap-4 sm:grid-cols-2">
                     <div><label class="mb-1 block text-sm font-medium">{{ __('workflow.quran_tests.form.tested_on') }}</label><input wire:model="awqafTestedOn" type="date" class="w-full rounded-xl px-4 py-3 text-sm">@error('awqafTestedOn')<div class="mt-1 text-sm text-red-400">{{ $message }}</div>@enderror</div>
                     <div><label class="mb-1 block text-sm font-medium">{{ __('workflow.quran_tests.form.juz') }}</label><div class="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white">{{ $awqafJuzId ? __('workflow.common.labels.juz_number', ['number' => $quranJuzProgress->first(fn ($row) => (int) $row->juz->id === (int) $awqafJuzId)?->juz->juz_number]) : '-' }}</div>@error('awqafJuzId')<div class="mt-1 text-sm text-red-400">{{ $message }}</div>@enderror</div>
-                    <div><label class="mb-1 block text-sm font-medium">{{ __('workflow.quran_tests.form.score') }}</label><input wire:model="awqafScore" type="number" min="0" max="100" step="0.01" class="w-full rounded-xl px-4 py-3 text-sm">@error('awqafScore')<div class="mt-1 text-sm text-red-400">{{ $message }}</div>@enderror</div>
-                    <div><label class="mb-1 block text-sm font-medium">{{ __('workflow.quran_tests.form.result_status') }}</label><select wire:model="awqafStatus" class="w-full rounded-xl px-4 py-3 text-sm"><option value="passed">{{ __('workflow.common.result_status.passed') }}</option><option value="failed">{{ __('workflow.common.result_status.failed') }}</option><option value="cancelled">{{ __('workflow.common.result_status.cancelled') }}</option></select>@error('awqafStatus')<div class="mt-1 text-sm text-red-400">{{ $message }}</div>@enderror</div>
+                    <div><label class="mb-1 block text-sm font-medium">{{ __('workflow.quran_tests.form.score') }}</label><input wire:model="awqafScore" type="number" min="0" max="100" step="0.01" @required($awqafStatus === 'passed') class="w-full rounded-xl px-4 py-3 text-sm">@error('awqafScore')<div class="mt-1 text-sm text-red-400">{{ $message }}</div>@enderror</div>
+                    <div><label class="mb-1 block text-sm font-medium">{{ __('workflow.quran_tests.form.result_status') }}</label><select wire:model.live="awqafStatus" class="w-full rounded-xl px-4 py-3 text-sm"><option value="passed">{{ __('workflow.common.result_status.passed') }}</option><option value="failed">{{ __('workflow.common.result_status.failed') }}</option><option value="cancelled">{{ __('workflow.common.result_status.cancelled') }}</option></select>@error('awqafStatus')<div class="mt-1 text-sm text-red-400">{{ $message }}</div>@enderror</div>
                 </div>
                 @error('awqafEnrollmentId')<div class="text-sm text-red-400">{{ $message }}</div>@enderror
                 <div class="flex justify-end gap-3"><button type="button" wire:click="closeAwqafTest" class="pill-link">{{ __('crud.common.actions.cancel') }}</button><button class="pill-link pill-link--accent">{{ __('workflow.common.actions.save_quran_test') }}</button></div>

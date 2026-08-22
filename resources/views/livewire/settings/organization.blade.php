@@ -55,6 +55,8 @@ new class extends Component {
     public $pdf_logo_upload = null;
     public bool $showOrganizationModal = false;
     public bool $barcode_scanner_enabled = true;
+    public bool $memorization_saber_entries_enabled = true;
+    public bool $activity_entries_enabled = true;
 
     public ?int $academic_year_editing_id = null;
     public string $academic_year_name = '';
@@ -62,6 +64,8 @@ new class extends Component {
     public string $academic_year_ends_on = '';
     public bool $academic_year_is_current = false;
     public bool $academic_year_is_active = true;
+    public int $academic_year_courses_count = 0;
+    public int $academic_year_unfinished_courses_count = 0;
     public bool $showAcademicYearModal = false;
 
     public ?int $grade_level_editing_id = null;
@@ -119,9 +123,13 @@ new class extends Component {
     {
         return [
             'academicYears' => AcademicYear::query()
-                ->withCount('groups')
-                ->orderByDesc('is_current')
+                ->withCount([
+                    'courses',
+                    'groups',
+                    'courses as unfinished_courses_count' => fn ($query) => $query->whereNull('finished_at'),
+                ])
                 ->orderByDesc('starts_on')
+                ->orderByDesc('id')
                 ->paginate(10, ['*'], 'academic_years_page'),
             'gradeLevels' => GradeLevel::query()
                 ->withCount(['groups', 'students', 'pointPolicies'])
@@ -180,15 +188,27 @@ new class extends Component {
     {
         $this->authorizePermission('settings.manage');
 
-        $academicYear = AcademicYear::query()->withCount('groups')->findOrFail($academicYearId);
+        $academicYear = AcademicYear::query()->withCount(['courses', 'groups'])->findOrFail($academicYearId);
 
-        if ($academicYear->groups_count > 0) {
+        if ($academicYear->courses_count > 0 || $academicYear->groups_count > 0) {
             $this->addError('academicYearDelete', __('settings.organization.errors.academic_year_delete_linked'));
 
             return;
         }
 
+        $wasCurrent = $academicYear->is_current;
         $academicYear->delete();
+
+        if ($wasCurrent) {
+            $replacement = AcademicYear::query()
+                ->where('is_active', true)
+                ->orderByDesc('starts_on')
+                ->first();
+
+            $replacement
+                ? $replacement->update(['is_current' => true])
+                : $this->createNextAcademicYear($academicYear);
+        }
         $this->resetPage('academic_years_page');
 
         if ($this->academic_year_editing_id === $academicYearId) {
@@ -196,6 +216,41 @@ new class extends Component {
         }
 
         session()->flash('status', __('settings.organization.messages.academic_year_deleted'));
+    }
+
+    public function finishAcademicYear(): void
+    {
+        $this->authorizePermission('settings.manage');
+
+        if (! $this->academic_year_editing_id) {
+            return;
+        }
+
+        $academicYear = AcademicYear::query()
+            ->withCount(['courses as unfinished_courses_count' => fn ($query) => $query->whereNull('finished_at')])
+            ->findOrFail($this->academic_year_editing_id);
+
+        if ($academicYear->unfinished_courses_count > 0) {
+            $this->addError('academicYearFinish', __('settings.organization.errors.academic_year_finish_courses'));
+
+            return;
+        }
+
+        DB::transaction(function () use ($academicYear): void {
+            $wasCurrent = $academicYear->is_current;
+
+            $academicYear->update([
+                'is_active' => false,
+                'is_current' => false,
+            ]);
+
+            if ($wasCurrent) {
+                $this->createNextAcademicYear($academicYear);
+            }
+        });
+
+        session()->flash('status', __('settings.organization.messages.academic_year_finished'));
+        $this->cancelAcademicYear();
     }
 
     public function deleteGradeLevel(int $gradeLevelId): void
@@ -535,7 +590,12 @@ new class extends Component {
     {
         $this->authorizePermission('settings.manage');
 
-        $academicYear = AcademicYear::query()->findOrFail($academicYearId);
+        $academicYear = AcademicYear::query()
+            ->withCount([
+                'courses',
+                'courses as unfinished_courses_count' => fn ($query) => $query->whereNull('finished_at'),
+            ])
+            ->findOrFail($academicYearId);
 
         $this->academic_year_editing_id = $academicYear->id;
         $this->academic_year_name = $academicYear->name;
@@ -543,6 +603,8 @@ new class extends Component {
         $this->academic_year_ends_on = $academicYear->ends_on?->format('Y-m-d') ?? '';
         $this->academic_year_is_current = $academicYear->is_current;
         $this->academic_year_is_active = $academicYear->is_active;
+        $this->academic_year_courses_count = (int) $academicYear->courses_count;
+        $this->academic_year_unfinished_courses_count = (int) $academicYear->unfinished_courses_count;
         $this->showAcademicYearModal = true;
 
         $this->resetValidation();
@@ -615,14 +677,34 @@ new class extends Component {
     {
         $this->authorizePermission('settings.manage');
 
+        $existingAcademicYear = $this->academic_year_editing_id
+            ? AcademicYear::query()->findOrFail($this->academic_year_editing_id)
+            : null;
+
+        if ($existingAcademicYear && ! $existingAcademicYear->is_active) {
+            $this->addError('academicYear', __('settings.organization.errors.academic_year_finished_read_only'));
+
+            return;
+        }
+
         $validated = $this->validate($this->academicYearRules());
+
+        $otherCurrentExists = AcademicYear::query()
+            ->when($existingAcademicYear, fn ($query) => $query->whereKeyNot($existingAcademicYear->id))
+            ->where('is_current', true)
+            ->exists();
+        $isCurrent = (bool) $validated['academic_year_is_current'];
+
+        if (! $otherCurrentExists && ($existingAcademicYear?->is_current || ! AcademicYear::query()->where('is_current', true)->exists())) {
+            $isCurrent = true;
+        }
 
         $academicYear = AcademicYear::query()->updateOrCreate(
             ['id' => $this->academic_year_editing_id],
             [
                 'ends_on' => $validated['academic_year_ends_on'],
-                'is_active' => $validated['academic_year_is_active'],
-                'is_current' => $validated['academic_year_is_current'],
+                'is_active' => true,
+                'is_current' => $isCurrent,
                 'name' => $validated['academic_year_name'],
                 'starts_on' => $validated['academic_year_starts_on'],
             ],
@@ -641,6 +723,28 @@ new class extends Component {
                 : __('settings.organization.messages.academic_year_created'),
         );
         $this->cancelAcademicYear();
+    }
+
+    protected function createNextAcademicYear(AcademicYear $academicYear): AcademicYear
+    {
+        $startsOn = ($academicYear->ends_on ?: $academicYear->starts_on ?: now())->copy()->addDay();
+        $endsOn = $startsOn->copy()->addYear()->subDay();
+        $baseName = $startsOn->format('Y').'/'.$endsOn->format('Y');
+        $name = $baseName;
+        $suffix = 2;
+
+        while (AcademicYear::query()->where('name', $name)->exists()) {
+            $name = $baseName.' ('.$suffix.')';
+            $suffix++;
+        }
+
+        return AcademicYear::query()->create([
+            'name' => $name,
+            'starts_on' => $startsOn,
+            'ends_on' => $endsOn,
+            'is_current' => true,
+            'is_active' => true,
+        ]);
     }
 
     public function saveGradeLevel(): void
@@ -749,6 +853,10 @@ new class extends Component {
             'default_teacher_avatar_upload' => ['nullable', 'image', 'max:2048'],
             'default_parent_avatar_upload' => ['nullable', 'image', 'max:2048'],
             'pdf_logo_upload' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,svg', 'max:4096'],
+            'default_student_gender_id' => ['required', 'exists:student_genders,id'],
+            'barcode_scanner_enabled' => ['boolean'],
+            'memorization_saber_entries_enabled' => ['boolean'],
+            'activity_entries_enabled' => ['boolean'],
         ]);
 
         $generalSettings = AppSetting::groupValues('general');
@@ -787,6 +895,10 @@ new class extends Component {
                 ['type' => $config['type'], 'value' => blank($validated[$key]) ? null : $validated[$key]],
             );
         }
+
+        AppSetting::storeValue('dashboard', 'barcode_scanner_enabled', $validated['barcode_scanner_enabled'], 'boolean');
+        AppSetting::storeValue('general', 'memorization_saber_entries_enabled', $validated['memorization_saber_entries_enabled'], 'boolean');
+        AppSetting::storeValue('general', 'activity_entries_enabled', $validated['activity_entries_enabled'], 'boolean');
 
         foreach ([
             'user' => 'default_user_avatar',
@@ -890,6 +1002,8 @@ new class extends Component {
         $this->academic_year_ends_on = '';
         $this->academic_year_is_current = false;
         $this->academic_year_is_active = true;
+        $this->academic_year_courses_count = 0;
+        $this->academic_year_unfinished_courses_count = 0;
         $this->showAcademicYearModal = false;
         $this->resetValidation();
     }
@@ -1088,6 +1202,8 @@ new class extends Component {
         $this->default_parent_avatar_path = (string) ($media->get('default_parent_avatar_path') ?? '');
         $this->pdf_logo_path = (string) ($settings->get('pdf_logo_path') ?? '');
         $this->barcode_scanner_enabled = (bool) (AppSetting::groupValues('dashboard')->get('barcode_scanner_enabled') ?? true);
+        $this->memorization_saber_entries_enabled = (bool) ($settings->get('memorization_saber_entries_enabled') ?? true);
+        $this->activity_entries_enabled = (bool) ($settings->get('activity_entries_enabled') ?? true);
         $this->default_student_gender_id = StudentGender::query()->where('is_active', true)->where('is_default', true)->value('id')
             ?? StudentGender::query()->where('is_active', true)->orderBy('sort_order')->value('id');
     }
@@ -1110,51 +1226,64 @@ new class extends Component {
                 <div class="admin-toolbar__title">{{ __('settings.organization.sections.profile.title') }}</div>
             </div>
             <div class="admin-toolbar__actions">
-                <button type="button" wire:click="toggleBarcodeScanner" class="pill-link {{ $barcode_scanner_enabled ? 'pill-link--accent' : '' }}">{{ $barcode_scanner_enabled ? __('settings.organization.actions.disable_barcode_scanner') : __('settings.organization.actions.enable_barcode_scanner') }}</button>
                 <button type="button" wire:click="openOrganizationModal" class="pill-link">{{ __('settings.organization.actions.save_settings') }}</button>
             </div>
         </div>
 
-        @php
-            $studentNumberDigits = max(0, (int) $student_number_length);
-            $studentNumberPreviewOne = ($student_number_prefix ?: '').($studentNumberDigits > 0 ? str_pad('1', $studentNumberDigits, '0', STR_PAD_LEFT) : '1');
-            $studentNumberPreviewHundredTwenty = ($student_number_prefix ?: '').($studentNumberDigits > 0 ? str_pad('120', $studentNumberDigits, '0', STR_PAD_LEFT) : '120');
-            $parentNumberDigits = max(0, (int) $parent_number_length);
-            $parentNumberPreviewOne = ($parent_number_prefix ?: '').($parentNumberDigits > 0 ? str_pad('1', $parentNumberDigits, '0', STR_PAD_LEFT) : '1');
-            $parentNumberPreviewHundredTwenty = ($parent_number_prefix ?: '').($parentNumberDigits > 0 ? str_pad('120', $parentNumberDigits, '0', STR_PAD_LEFT) : '120');
-        @endphp
+        <div class="mt-5 grid gap-4 lg:grid-cols-2">
+            <div class="grid gap-4 sm:grid-cols-2">
+                @foreach ([
+                    [__('settings.organization.fields.school_name'), $school_name ?: __('crud.common.not_available'), false],
+                    [__('settings.organization.fields.school_email'), $school_email ?: __('crud.common.not_available'), false],
+                    [__('settings.organization.fields.email_domain'), $email_domain ?: 'alkhair.local', true],
+                    [__('settings.organization.fields.school_timezone'), $school_timezone ?: __('crud.common.not_available'), false],
+                ] as [$settingLabel, $settingValue, $monospace])
+                    <div class="rounded-2xl border border-white/10 bg-white/5 p-4">
+                        <div class="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-400">{{ $settingLabel }}</div>
+                        <div class="mt-2 truncate text-sm font-semibold text-white {{ $monospace ? 'font-mono' : '' }}">{{ $settingValue }}</div>
+                    </div>
+                @endforeach
+            </div>
 
-        <div class="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <div class="rounded-2xl border border-white/10 bg-white/5 p-4">
-                <div class="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-400">{{ __('settings.organization.fields.school_name') }}</div>
-                <div class="mt-2 truncate text-sm font-semibold text-white">{{ $school_name ?: __('crud.common.not_available') }}</div>
-            </div>
-            <div class="rounded-2xl border border-white/10 bg-white/5 p-4">
-                <div class="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-400">{{ __('settings.organization.fields.school_email') }}</div>
-                <div class="mt-2 truncate text-sm font-semibold text-white">{{ $school_email ?: __('crud.common.not_available') }}</div>
-            </div>
-            <div class="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 p-4">
-                <div class="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-200">{{ __('settings.organization.fields.email_domain') }}</div>
-                <div class="mt-2 truncate font-mono text-sm font-semibold text-white">{{ $email_domain ?: 'alkhair.local' }}</div>
-                <p class="mt-2 text-xs leading-5 text-emerald-100/80">{{ __('settings.organization.fields.email_domain_help') }}</p>
-            </div>
-            <div class="rounded-2xl border border-white/10 bg-white/5 p-4">
-                <div class="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-400">{{ __('settings.organization.fields.school_timezone') }}</div>
-                <div class="mt-2 truncate text-sm font-semibold text-white">{{ $school_timezone ?: __('crud.common.not_available') }}</div>
-            </div>
-            <div class="rounded-2xl border border-sky-400/20 bg-sky-500/10 p-4">
-                <div class="text-xs font-semibold uppercase tracking-[0.18em] text-sky-200">{{ __('settings.organization.fields.student_number_preview') }}</div>
-                <div class="mt-2 font-mono text-sm font-semibold text-white">{{ $studentNumberPreviewOne }}</div>
-                <p class="mt-2 text-xs leading-5 text-sky-100/80">{{ $studentNumberPreviewHundredTwenty }}</p>
-            </div>
-            <div class="rounded-2xl border border-amber-400/20 bg-amber-500/10 p-4">
-                <div class="text-xs font-semibold uppercase tracking-[0.18em] text-amber-200">{{ __('settings.organization.fields.parent_number_preview') }}</div>
-                <div class="mt-2 font-mono text-sm font-semibold text-white">{{ $parentNumberPreviewOne }}</div>
-                <p class="mt-2 text-xs leading-5 text-amber-100/80">{{ $parentNumberPreviewHundredTwenty }}</p>
+            <div class="grid gap-4 sm:grid-cols-2">
+                @foreach ([
+                    [__('settings.organization.fields.memorization_saber_status'), $memorization_saber_entries_enabled],
+                    [__('settings.organization.fields.barcode_status'), $barcode_scanner_enabled],
+                ] as [$settingLabel, $settingEnabled])
+                    <div class="rounded-2xl border border-white/10 bg-white/5 p-4">
+                        <div class="flex items-center justify-between gap-3">
+                            <div class="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-400">{{ $settingLabel }}</div>
+                            <span class="{{ $settingEnabled ? 'status-chip status-chip--emerald' : 'status-chip status-chip--slate' }}">{{ $settingEnabled ? __('settings.common.states.active') : __('settings.common.states.inactive') }}</span>
+                        </div>
+                    </div>
+                @endforeach
+                <div class="rounded-2xl border border-white/10 bg-white/5 p-4">
+                    <div class="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-400">{{ __('settings.organization.fields.student_number_prefix') }}</div>
+                    <div class="mt-2 font-mono text-sm font-semibold text-white">{{ app(\App\Services\StudentNumberService::class)->formatForId(1) }}</div>
+                </div>
+                <div class="rounded-2xl border border-white/10 bg-white/5 p-4">
+                    <div class="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-400">{{ __('settings.organization.fields.parent_number_prefix') }}</div>
+                    <div class="mt-2 font-mono text-sm font-semibold text-white">{{ app(\App\Services\ParentNumberService::class)->formatForId(1) }}</div>
+                </div>
             </div>
         </div>
 
-        <div class="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div class="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+            <div class="rounded-2xl border border-white/10 bg-white/5 p-4">
+                <div class="flex items-center gap-3">
+                    <span class="flex h-14 w-20 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white/5">
+                        @if ($pdf_logo_path)
+                            <img src="{{ asset('storage/'.ltrim($pdf_logo_path, '/')) }}" alt="{{ __('settings.organization.fields.main_page_logo') }}" class="h-full w-full object-contain">
+                        @else
+                            <span class="student-avatar__fallback">◇</span>
+                        @endif
+                    </span>
+                    <div>
+                        <div class="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-400">{{ __('settings.organization.fields.main_page_logo') }}</div>
+                        <div class="mt-1 text-sm font-semibold text-white">{{ $pdf_logo_path ? __('settings.organization.labels.default_avatar_set') : __('settings.organization.labels.default_avatar_missing') }}</div>
+                    </div>
+                </div>
+            </div>
             @foreach ([
                 'user' => $default_user_avatar_path,
                 'student' => $default_student_avatar_path,
@@ -1208,7 +1337,6 @@ new class extends Component {
                         <div>
                             <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.email_domain') }}</label>
                             <input wire:model="email_domain" type="text" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm lowercase dark:border-neutral-700 dark:bg-neutral-900" placeholder="alkhair.org">
-                            <p class="mt-1 text-xs text-neutral-500">{{ __('settings.organization.fields.email_domain_help') }}</p>
                             @error('email_domain') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
                         </div>
                     </div>
@@ -1334,7 +1462,7 @@ new class extends Component {
         </section>
 
         <section class="space-y-6">
-            <div class="hidden" aria-hidden="true">
+            <div class="overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700">
                 <div class="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-200 px-5 py-4 dark:border-neutral-700">
                     <div>
                         <div class="text-sm font-medium">{{ __('settings.organization.sections.academic_year.table') }}</div>
@@ -1347,21 +1475,18 @@ new class extends Component {
                 @else
                     <div class="overflow-x-auto">
                         <table class="min-w-full divide-y divide-neutral-200 text-sm dark:divide-neutral-700">
-                            <thead class="bg-neutral-50 dark:bg-neutral-900/60"><tr><th class="px-5 py-3 text-left font-medium">{{ __('settings.organization.table.name') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.organization.table.dates') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.organization.table.groups') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.organization.table.state') }}</th><th class="px-5 py-3 text-right font-medium">{{ __('settings.organization.table.actions') }}</th></tr></thead>
+                            <thead class="bg-neutral-50 dark:bg-neutral-900/60"><tr><th class="px-5 py-3 text-left font-medium">{{ __('settings.organization.table.name') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.organization.table.dates') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.organization.fields.current_academic_year') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.organization.table.courses') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.organization.table.state') }}</th><th class="px-5 py-3 text-right font-medium">{{ __('settings.organization.table.actions') }}</th></tr></thead>
                             <tbody class="divide-y divide-neutral-200 dark:divide-neutral-700">
                                 @foreach ($academicYears as $academicYear)
                                     <tr>
-                                        <td class="px-5 py-3">
-                                            <div class="font-medium">{{ $academicYear->name }}</div>
-                                            <div class="text-xs text-neutral-500">{{ $academicYear->is_current ? __('settings.organization.labels.current_year') : __('settings.organization.labels.not_current') }}</div>
-                                        </td>
+                                        <td class="px-5 py-3"><div class="font-medium">{{ $academicYear->name }}</div></td>
                                         <td class="px-5 py-3">{{ __('settings.organization.labels.date_range', ['start' => $academicYear->starts_on?->format('d-m-Y'), 'end' => $academicYear->ends_on?->format('d-m-Y')]) }}</td>
-                                        <td class="px-5 py-3">{{ $academicYear->groups_count }}</td>
-                                        <td class="px-5 py-3">{{ $academicYear->is_active ? __('settings.common.states.active') : __('settings.common.states.inactive') }}</td>
+                                        <td class="px-5 py-3">@if ($academicYear->is_current)<span class="status-chip status-chip--emerald">{{ __('settings.organization.labels.current_year') }}</span>@else—@endif</td>
+                                        <td class="px-5 py-3">{{ $academicYear->courses_count }}</td>
+                                        <td class="px-5 py-3">{{ $academicYear->is_active ? __('settings.common.states.active') : __('settings.common.states.finished') }}</td>
                                         <td class="px-5 py-3">
                                             <div class="flex justify-end gap-2">
-                                                <button type="button" wire:click="editAcademicYear({{ $academicYear->id }})" class="rounded-lg border border-neutral-300 px-3 py-1.5 dark:border-neutral-700">{{ __('crud.common.actions.edit') }}</button>
-                                                <button type="button" wire:click="deleteAcademicYear({{ $academicYear->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="rounded-lg border border-red-300 px-3 py-1.5 text-red-700 dark:border-red-800 dark:text-red-300">{{ __('crud.common.actions.delete') }}</button>
+                                                <button type="button" wire:click="editAcademicYear({{ $academicYear->id }})" class="pill-link pill-link--compact">{{ __('crud.common.actions.open') }}</button>
                                             </div>
                                         </td>
                                     </tr>
@@ -1584,7 +1709,6 @@ new class extends Component {
                 <div>
                     <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.email_domain') }}</label>
                     <input wire:model="email_domain" type="text" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm lowercase dark:border-neutral-700 dark:bg-neutral-900" placeholder="alkhair.org">
-                    <p class="mt-1 text-xs text-neutral-500">{{ __('settings.organization.fields.email_domain_help') }}</p>
                     @error('email_domain') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
                 </div>
             </div>
@@ -1626,6 +1750,16 @@ new class extends Component {
                     @error('school_currency') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
                 </div>
             </div>
+            <div>
+                <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.school_address') }}</label>
+                <textarea wire:model="school_address" rows="3" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900"></textarea>
+                @error('school_address') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+            </div>
+            <section class="grid gap-3 rounded-2xl border border-white/10 bg-white/5 p-4 md:grid-cols-3">
+                <label class="flex items-center gap-3 text-sm"><input wire:model="barcode_scanner_enabled" type="checkbox" class="rounded border-neutral-300 text-emerald-600"><span>{{ __('settings.organization.fields.barcode_scanner') }}</span></label>
+                <label class="flex items-center gap-3 text-sm"><input wire:model="memorization_saber_entries_enabled" type="checkbox" class="rounded border-neutral-300 text-emerald-600"><span>{{ __('settings.organization.fields.memorization_saber_entries') }}</span></label>
+                <label class="flex items-center gap-3 text-sm"><input wire:model="activity_entries_enabled" type="checkbox" class="rounded border-neutral-300 text-emerald-600"><span>{{ __('settings.organization.fields.activities') }}</span></label>
+            </section>
             <section class="rounded-3xl border border-white/10 bg-white/5 p-4">
                 <div class="mb-5 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 p-4">
                     <div class="flex flex-col gap-4 sm:flex-row sm:items-center">
@@ -1683,11 +1817,6 @@ new class extends Component {
                     @endforeach
                 </div>
             </section>
-            <div>
-                <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.school_address') }}</label>
-                <textarea wire:model="school_address" rows="3" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900"></textarea>
-                @error('school_address') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
-            </div>
             <div class="flex justify-end gap-3">
                 <button type="button" wire:click="closeOrganizationModal" class="pill-link">{{ __('crud.common.actions.cancel') }}</button>
                 <button type="submit" class="pill-link pill-link--accent">{{ __('settings.organization.actions.save_settings') }}</button>
@@ -1697,29 +1826,39 @@ new class extends Component {
 
     <x-admin.modal :show="$showAcademicYearModal" :title="$academic_year_editing_id ? __('settings.organization.sections.academic_year.edit') : __('settings.organization.sections.academic_year.create')" :description="__('settings.organization.sections.academic_year.copy')" close-method="closeAcademicYearModal" max-width="3xl">
         <form wire:submit="saveAcademicYear" class="space-y-4">
+            @error('academicYear') <div class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{{ $message }}</div> @enderror
             <div>
                 <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.name') }}</label>
-                <input wire:model="academic_year_name" type="text" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                <input wire:model="academic_year_name" type="text" @disabled($academic_year_editing_id && ! $academic_year_is_active) class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60 dark:border-neutral-700 dark:bg-neutral-900">
                 @error('academic_year_name') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
             </div>
             <div class="grid gap-4 md:grid-cols-2">
                 <div>
                     <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.starts_on') }}</label>
-                    <input wire:model="academic_year_starts_on" type="date" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                    <input wire:model="academic_year_starts_on" type="date" @disabled($academic_year_editing_id && ! $academic_year_is_active) class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60 dark:border-neutral-700 dark:bg-neutral-900">
                     @error('academic_year_starts_on') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
                 </div>
                 <div>
                     <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.ends_on') }}</label>
-                    <input wire:model="academic_year_ends_on" type="date" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                    <input wire:model="academic_year_ends_on" type="date" @disabled($academic_year_editing_id && ! $academic_year_is_active) class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60 dark:border-neutral-700 dark:bg-neutral-900">
                     @error('academic_year_ends_on') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
                 </div>
             </div>
-            <label class="flex items-center gap-3 text-sm"><input wire:model="academic_year_is_current" type="checkbox" class="rounded border-neutral-300 text-neutral-900"><span>{{ __('settings.organization.fields.current_academic_year') }}</span></label>
-            <label class="flex items-center gap-3 text-sm"><input wire:model="academic_year_is_active" type="checkbox" class="rounded border-neutral-300 text-neutral-900"><span>{{ __('settings.organization.fields.is_active') }}</span></label>
+            @if (! $academic_year_editing_id || $academic_year_is_active)
+                <label class="flex items-center gap-3 text-sm"><input wire:model="academic_year_is_current" type="checkbox" class="rounded border-neutral-300 text-neutral-900"><span>{{ __('settings.organization.fields.current_academic_year') }}</span></label>
+            @endif
             @error('academicYearDelete') <div class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{{ $message }}</div> @enderror
-            <div class="flex justify-end gap-3">
-                <button type="button" wire:click="closeAcademicYearModal" class="pill-link">{{ __('crud.common.actions.cancel') }}</button>
-                <button type="submit" class="pill-link pill-link--accent">{{ $academic_year_editing_id ? __('settings.organization.actions.update_year') : __('settings.organization.actions.create_year') }}</button>
+            @error('academicYearFinish') <div class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{{ $message }}</div> @enderror
+            <div class="flex flex-wrap justify-end gap-3">
+                @if ($academic_year_editing_id)
+                    <button type="button" wire:click="deleteAcademicYear({{ $academic_year_editing_id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" @disabled($academic_year_courses_count > 0) class="pill-link pill-link--danger disabled:cursor-not-allowed disabled:opacity-40">{{ __('crud.common.actions.delete') }}</button>
+                    @if ($academic_year_is_active)
+                        <button type="button" wire:click="finishAcademicYear" @disabled($academic_year_unfinished_courses_count > 0) class="pill-link border-amber-400/30 text-amber-200 disabled:cursor-not-allowed disabled:opacity-40">{{ __('crud.courses.actions.finish') }}</button>
+                    @endif
+                @endif
+                @if (! $academic_year_editing_id || $academic_year_is_active)
+                    <button type="submit" class="pill-link pill-link--accent">{{ $academic_year_editing_id ? __('settings.organization.actions.update_year') : __('settings.organization.actions.create_year') }}</button>
+                @endif
                 <x-admin.create-and-new-button :show="! $academic_year_editing_id" click="saveAndNew('saveAcademicYear', 'openAcademicYearModal')" />
             </div>
         </form>

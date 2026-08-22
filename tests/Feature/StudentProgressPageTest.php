@@ -42,6 +42,7 @@ class StudentProgressPageTest extends TestCase
 
         $this->get(route('students.progress', $ownStudent, absolute: false))
             ->assertOk()
+            ->assertSee('student-progress-profile__photo', false)
             ->assertSeeText('Parent Student')
             ->assertSeeText('Parent Group')
             ->assertSeeText('Weekly Quiz')
@@ -287,12 +288,66 @@ class StudentProgressPageTest extends TestCase
 
         $this->get(route('students.progress', absolute: false))
             ->assertOk()
-            ->assertSeeText('اختيار الطالب')
-            ->assertSeeText('اختر الطالب')
+            ->assertDontSeeText(__('workflow.student_progress.selection.title'))
+            ->assertDontSeeText(__('workflow.student_progress.selection.select_student'))
+            ->assertSeeText(__('workflow.student_progress.selection.search_placeholder'))
             ->assertSeeText('Parent Student')
             ->assertSeeText('Other Student')
             ->assertSee('data-option-name="Parent Student"', false)
             ->assertSeeText('اختر طالباً من الأعلى لعرض صفحة التقدم الكاملة.');
+    }
+
+    public function test_progress_enrollments_only_show_active_and_completed_rows(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        [$parentUser, $student] = $this->makeScopedProgressData();
+        $activeEnrollment = Enrollment::query()->where('student_id', $student->id)->firstOrFail();
+        $teacher = $activeEnrollment->group->teacher;
+        $academicYear = $activeEnrollment->group->academicYear;
+        $course = $activeEnrollment->group->course;
+
+        $completedGroup = Group::create([
+            'course_id' => $course->id,
+            'academic_year_id' => $academicYear->id,
+            'teacher_id' => $teacher->id,
+            'name' => 'Completed Progress Group',
+            'capacity' => 12,
+            'is_active' => false,
+        ]);
+        $cancelledGroup = Group::create([
+            'course_id' => $course->id,
+            'academic_year_id' => $academicYear->id,
+            'teacher_id' => $teacher->id,
+            'name' => 'Cancelled Progress Group',
+            'capacity' => 12,
+            'is_active' => false,
+        ]);
+
+        Enrollment::create([
+            'student_id' => $student->id,
+            'group_id' => $completedGroup->id,
+            'enrolled_at' => '2026-08-01',
+            'left_at' => '2026-08-31',
+            'status' => 'completed',
+        ]);
+        Enrollment::create([
+            'student_id' => $student->id,
+            'group_id' => $cancelledGroup->id,
+            'enrolled_at' => '2026-07-01',
+            'left_at' => '2026-07-02',
+            'status' => 'cancelled',
+        ]);
+
+        $this->actingAs($parentUser);
+
+        Volt::test('students.progress', ['student' => $student])
+            ->assertViewHas('enrollments', fn ($enrollments) => $enrollments->pluck('status')->sort()->values()->all() === ['active', 'completed'])
+            ->assertSeeText('Completed Progress Group')
+            ->assertDontSeeText('Cancelled Progress Group')
+            ->call('showDetails', 'enrollments')
+            ->assertSeeText('Completed Progress Group')
+            ->assertDontSeeText('Cancelled Progress Group');
     }
 
     public function test_juz_is_only_finished_after_the_final_test_is_passed(): void
@@ -358,6 +413,8 @@ class StudentProgressPageTest extends TestCase
             ->assertSeeText(__('workflow.student_progress.juz_progress.add_awqaf_test'))
             ->call('openAwqafTest', $juz->id)
             ->assertSet('showAwqafTestModal', true)
+            ->call('saveAwqafTest')
+            ->assertHasErrors(['awqafScore' => 'required_if'])
             ->set('awqafTestedOn', '2026-09-16')
             ->set('awqafScore', '60')
             ->set('awqafStatus', 'failed')

@@ -12,7 +12,7 @@ class CurriculumLesson extends Model
 {
     use HasFactory, SoftDeletes;
 
-    protected $fillable = ['curriculum_subject_id', 'curriculum_resource_id', 'name', 'page_count', 'importance', 'sort_order'];
+    protected $fillable = ['curriculum_subject_id', 'curriculum_resource_id', 'chapter_number', 'name', 'page_count', 'importance', 'sort_order'];
 
     protected function casts(): array
     {

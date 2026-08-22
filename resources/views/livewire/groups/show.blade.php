@@ -2,7 +2,6 @@
 
 use App\Livewire\Concerns\AuthorizesPermissions;
 use App\Livewire\Concerns\AuthorizesTeacherAssignments;
-use App\Models\AcademicYear;
 use App\Models\AppSetting;
 use App\Models\Course;
 use App\Models\Curriculum;
@@ -70,7 +69,6 @@ new class extends Component {
             'availableStudents' => $availableStudents,
             'schedules' => GroupSchedule::query()->where('group_id', $group->id)->orderBy('day_of_week')->orderBy('starts_at')->get(),
             'courses' => Course::query()->where('is_active', true)->orderBy('name')->get(),
-            'academicYears' => AcademicYear::query()->orderByDesc('starts_on')->get(),
             'teachers' => $this->availableTeachersQuery()->orderBy('first_name')->orderBy('last_name')->get(),
             'gradeLevels' => GradeLevel::query()->where('is_active', true)->orderBy('name')->get(),
             'curricula' => Curriculum::query()->where('is_active', true)->where('course_id', $this->course_id ?: $group->course_id)->orderBy('name')->get(),
@@ -82,6 +80,10 @@ new class extends Component {
     public function openEdit(): void
     {
         $this->authorizePermission('groups.update');
+        if (! $this->ensureGroupIsEditable()) {
+            return;
+        }
+
         $group = $this->currentGroup->fresh();
         foreach (['name','course_id','academic_year_id','teacher_id','assistant_teacher_id','grade_level_id','curriculum_id','capacity','starts_on','ends_on','monthly_fee'] as $field) {
             $value = $group->{$field};
@@ -95,6 +97,8 @@ new class extends Component {
 
     public function updatedCourseId(): void
     {
+        $this->academic_year_id = (string) (Course::query()->whereKey($this->course_id)->value('academic_year_id') ?? '');
+
         if ($this->curriculum_id && ! Curriculum::query()->whereKey($this->curriculum_id)->where('course_id', $this->course_id)->exists()) {
             $this->curriculum_id = '';
         }
@@ -103,6 +107,11 @@ new class extends Component {
     public function saveGroup(): void
     {
         $this->authorizePermission('groups.update');
+        if (! $this->ensureGroupIsEditable()) {
+            return;
+        }
+
+        $this->academic_year_id = (string) (Course::query()->whereKey($this->course_id)->value('academic_year_id') ?? '');
         $data = $this->validate([
             'name' => ['required','string','max:255'], 'course_id' => ['required','integer','exists:courses,id'],
             'academic_year_id' => ['required','integer','exists:academic_years,id'], 'teacher_id' => ['nullable','integer','exists:teachers,id'],
@@ -130,6 +139,10 @@ new class extends Component {
     public function deactivate(): void
     {
         $this->authorizePermission('groups.update');
+        if (! $this->ensureGroupIsEditable()) {
+            return;
+        }
+
         DB::transaction(function (): void {
             $this->currentGroup->update(['is_active' => false]);
             Enrollment::query()->where('group_id', $this->currentGroup->id)->where('status', 'active')->update(['status' => 'cancelled', 'left_at' => now()->toDateString()]);
@@ -147,6 +160,10 @@ new class extends Component {
     public function deleteGroup()
     {
         $this->authorizePermission('groups.delete');
+        if (! $this->ensureGroupIsEditable()) {
+            return;
+        }
+
         $group = $this->currentGroup->loadCount(['enrollments','schedules']);
         if ($group->enrollments_count || $group->schedules_count) { $this->addError('delete', __('crud.groups.errors.delete_linked')); return; }
         $group->delete();
@@ -156,6 +173,10 @@ new class extends Component {
     public function addStudent(bool $addAnother = false): void
     {
         $this->authorizePermission('enrollments.create');
+        if (! $this->ensureGroupIsEditable()) {
+            return;
+        }
+
         $data = $this->validate(['roster_student_id' => ['required','integer','exists:students,id'], 'roster_enrolled_at' => ['required','date']]);
         $student = Student::query()->findOrFail($data['roster_student_id']);
         $this->authorizeScopedStudentAccess($student);
@@ -171,6 +192,10 @@ new class extends Component {
     public function saveSchedule(): void
     {
         $this->authorizePermission('group-schedules.manage');
+        if (! $this->ensureGroupIsEditable()) {
+            return;
+        }
+
         $data = $this->validate(['day_of_week' => ['required','integer','between:0,6'], 'starts_at' => ['required','date_format:H:i'], 'ends_at' => ['required','date_format:H:i','after:starts_at'], 'room_name' => ['nullable','string','max:255'], 'schedule_is_active' => ['boolean']]);
         GroupSchedule::query()->updateOrCreate(['id' => $this->editingScheduleId, 'group_id' => $this->currentGroup->id], ['day_of_week' => $data['day_of_week'], 'starts_at' => $data['starts_at'], 'ends_at' => $data['ends_at'], 'room_name' => $data['room_name'] ?: null, 'is_active' => $data['schedule_is_active']]);
         $this->resetSchedule();
@@ -179,11 +204,24 @@ new class extends Component {
     public function editSchedule(int $id): void
     {
         $this->authorizePermission('group-schedules.manage');
+        if (! $this->ensureGroupIsEditable()) {
+            return;
+        }
+
         $schedule = GroupSchedule::query()->where('group_id', $this->currentGroup->id)->findOrFail($id);
         $this->editingScheduleId = $schedule->id; $this->day_of_week = (string) $schedule->day_of_week; $this->starts_at = $schedule->starts_at->format('H:i'); $this->ends_at = $schedule->ends_at->format('H:i'); $this->room_name = $schedule->room_name ?? ''; $this->schedule_is_active = $schedule->is_active;
     }
 
-    public function deleteSchedule(int $id): void { $this->authorizePermission('group-schedules.manage'); GroupSchedule::query()->where('group_id', $this->currentGroup->id)->findOrFail($id)->delete(); $this->resetSchedule(); }
+    public function deleteSchedule(int $id): void
+    {
+        $this->authorizePermission('group-schedules.manage');
+        if (! $this->ensureGroupIsEditable()) {
+            return;
+        }
+
+        GroupSchedule::query()->where('group_id', $this->currentGroup->id)->findOrFail($id)->delete();
+        $this->resetSchedule();
+    }
     public function resetSchedule(): void { $this->editingScheduleId = null; $this->day_of_week = '6'; $this->starts_at = $this->ends_at = $this->room_name = ''; $this->schedule_is_active = true; }
 
     public function copyProgress(): void
@@ -207,6 +245,19 @@ new class extends Component {
         return $this->availableTeachersQuery()->whereKey($teacherId)->exists();
     }
 
+    protected function ensureGroupIsEditable(): bool
+    {
+        $group = $this->currentGroup->fresh('course');
+
+        if (! $group->course_finished_at && ($group->course?->is_active ?? true)) {
+            return true;
+        }
+
+        $this->addError('group', __('crud.groups.errors.course_archived'));
+
+        return false;
+    }
+
 }; ?>
 
 @php
@@ -217,22 +268,123 @@ new class extends Component {
 @endphp
 
 <div class="page-stack">
-    <section class="page-hero p-6 lg:p-8"><div class="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between"><div>@unless($isAssignedTeacher)<a href="{{ route('groups.index') }}" wire:navigate class="text-sm text-neutral-300">← {{ __('crud.common.actions.back') }}</a>@endunless<h1 class="font-display mt-4 text-4xl text-white md:text-5xl">{{ $groupRecord->name }}</h1><div class="mt-3 space-y-1 text-sm text-neutral-300"><div>{{ __('crud.groups.table.headers.teacher') }}: {{ $teacherName }}</div><div>{{ __('crud.groups.form.fields.assistant_teacher') }}: {{ $assistantName }}</div><div>{{ __('crud.groups.table.headers.course') }}: {{ $groupRecord->course?->name ?: __('crud.common.not_available') }}</div></div></div><div class="flex flex-wrap gap-3">@if($isAssignedTeacher)<div class="surface-panel flex min-w-48 flex-col gap-3 p-4"><input wire:model="progressDate" type="date" class="rounded-xl px-3 py-2 text-sm"><button wire:click="copyProgress" class="pill-link pill-link--accent pill-link--compact">{{ app()->isLocale('ar') ? 'نسخ الملخص' : 'Copy summary' }}</button></div>@endif<div class="surface-panel flex flex-wrap gap-2 p-4">@can('groups.update')<button wire:click="openEdit" class="pill-link pill-link--compact">{{ __('crud.common.actions.edit') }}</button><button wire:click="$set('showScheduleModal', true)" class="pill-link pill-link--compact">{{ __('crud.groups.actions.schedule') }}</button><button wire:click="deactivate" wire:confirm="{{ __('crud.common.confirm_deactivate.message') }}" class="pill-link pill-link--compact">{{ __('crud.common.actions.deactivate') }}</button>@endcan @can('groups.delete')<button wire:click="deleteGroup" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link pill-link--compact border-red-400/30 text-red-200">{{ __('crud.common.actions.delete') }}</button>@endcan</div></div></div></section>
-    @if(session('status'))<div class="flash-success px-4 py-3 text-sm">{{ session('status') }}</div>@endif @error('delete')<div class="flash-error px-4 py-3 text-sm">{{ $message }}</div>@enderror
-    <section class="admin-kpi-grid"><article class="stat-card"><div class="kpi-label">{{ __('crud.groups.form.fields.capacity') }}</div><div class="metric-value mt-3">{{ $groupRecord->capacity ?: '—' }}</div></article><article class="stat-card"><div class="kpi-label">{{ __('crud.groups.table.headers.students') }}</div><div class="metric-value mt-3">{{ number_format($groupRecord->active_students_count) }}</div></article><article class="stat-card"><div class="kpi-label">{{ __('crud.groups.form.fields.grade_level') }}</div><div class="metric-value mt-3 text-2xl">{{ $groupRecord->gradeLevel?->name ?: '—' }}</div></article></section>
-    <section class="surface-panel overflow-hidden"><div class="admin-toolbar p-5"><div><div class="admin-toolbar__title">{{ __('crud.groups.roster.title') }}</div></div><div class="admin-toolbar__actions"><a target="_blank" href="{{ route('groups.roster.pdf', $groupRecord) }}" class="pill-link pill-link--compact">PDF</a>@can('enrollments.create')<button wire:click="$set('showAddStudentModal', true)" class="pill-link pill-link--accent pill-link--compact">{{ __('crud.groups.roster.add_student') }}</button>@endcan</div></div><div class="overflow-x-auto"><table class="w-full text-sm"><thead><tr><th class="w-px whitespace-nowrap px-4 py-3 text-justify">#</th><th class="px-4 py-3 text-center">{{ __('crud.students.table.headers.name') }}</th><th class="w-px whitespace-nowrap px-4 py-3 text-justify">{{ __('crud.students.table.headers.student_number') }}</th><th class="w-px whitespace-nowrap px-4 py-3 text-justify">{{ __('crud.students.table.headers.grade') }}</th><th class="w-px whitespace-nowrap px-4 py-3 text-justify">{{ __('crud.groups.roster.fields.enrolled_at') }}</th></tr></thead><tbody class="divide-y divide-white/5">@forelse($roster as $enrollment)<tr><td class="w-px whitespace-nowrap px-4 py-3 text-justify">{{ $roster->firstItem()+$loop->index }}</td><td class="px-4 py-3 text-white {{ app()->isLocale('ar') ? 'text-right' : 'text-left' }}">{{ $enrollment->student?->full_name }}</td><td class="w-px whitespace-nowrap px-4 py-3 text-justify">{{ $enrollment->student?->student_number }}</td><td class="w-px whitespace-nowrap px-4 py-3 text-justify">{{ $enrollment->student?->gradeLevel?->name ?: '—' }}</td><td class="w-px whitespace-nowrap px-4 py-3 text-justify">{{ $enrollment->enrolled_at?->format('Y-m-d') }}</td></tr>@empty<tr><td colspan="5" class="admin-empty-state">{{ __('crud.groups.roster.empty') }}</td></tr>@endforelse</tbody></table></div>@if($roster->hasPages())<div class="border-t border-white/10 p-4">{{ $roster->links() }}</div>@endif</section>
-    @unless($isAssignedTeacher)<section class="surface-panel p-5"><div class="flex flex-wrap items-end gap-3"><div><label class="mb-1 block text-sm">{{ __('crud.common.fields.date') }}</label><input wire:model="progressDate" type="date" class="rounded-xl px-4 py-2"></div><button wire:click="copyProgress" class="pill-link pill-link--accent">{{ app()->isLocale('ar') ? 'نسخ الملخص' : 'Copy summary' }} ({{ $progressDate }})</button></div></section>@endunless
+    <section class="page-hero p-6 lg:p-8">
+        <div class="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+                @unless($isAssignedTeacher)<a href="{{ route('groups.index') }}" wire:navigate class="text-sm text-neutral-300">← {{ __('crud.common.actions.back') }}</a>@endunless
+                <h1 class="font-display mt-4 text-4xl text-white md:text-5xl">{{ $groupRecord->name }}</h1>
+                <div class="mt-3 space-y-1 text-sm text-neutral-300">
+                    <div>{{ __('crud.groups.table.headers.teacher') }}: {{ $teacherName }}</div>
+                    <div>{{ __('crud.groups.form.fields.assistant_teacher') }}: {{ $assistantName }}</div>
+                    <div>{{ __('crud.groups.table.headers.course') }}: {{ $groupRecord->course?->name ?: __('crud.common.not_available') }}</div>
+                </div>
+            </div>
 
+            <div class="flex w-full flex-col gap-3 lg:w-96 lg:items-stretch">
+                <div class="surface-panel flex w-full flex-wrap gap-2 p-4">
+                    @if (! $groupRecord->course_finished_at && ($groupRecord->course?->is_active ?? true))
+                        @can('groups.update')
+                            <button wire:click="openEdit" class="pill-link pill-link--compact">{{ __('crud.common.actions.edit') }}</button>
+                            <button wire:click="$set('showScheduleModal', true)" class="pill-link pill-link--compact">{{ __('crud.groups.actions.schedule') }}</button>
+                            <button wire:click="deactivate" wire:confirm="{{ __('crud.common.confirm_deactivate.message') }}" class="pill-link pill-link--compact">{{ __('crud.common.actions.deactivate') }}</button>
+                        @endcan
+                    @endif
+                </div>
+
+                <div class="surface-panel flex w-full flex-col gap-3 p-4">
+                    <input wire:model="progressDate" type="date" aria-label="{{ __('crud.common.fields.date') }}" class="w-full rounded-xl px-3 py-2 text-sm">
+                    <button wire:click="copyProgress" class="pill-link pill-link--accent pill-link--compact w-fit self-end">
+                        {{ app()->isLocale('ar') ? 'نسخ الملخص' : 'Copy summary' }}
+                    </button>
+                </div>
+            </div>
+        </div>
+    </section>
+    @if(session('status'))<div class="flash-success px-4 py-3 text-sm">{{ session('status') }}</div>@endif
+    @error('group')<div class="flash-error px-4 py-3 text-sm">{{ $message }}</div>@enderror
+    <section class="admin-kpi-grid"><article class="stat-card"><div class="kpi-label">{{ __('crud.groups.form.fields.capacity') }}</div><div class="metric-value mt-3">{{ $groupRecord->capacity ?: '—' }}</div></article><article class="stat-card"><div class="kpi-label">{{ __('crud.groups.table.headers.students') }}</div><div class="metric-value mt-3">{{ number_format($groupRecord->active_students_count) }}</div></article><article class="stat-card"><div class="kpi-label">{{ __('crud.groups.form.fields.grade_level') }}</div><div class="metric-value mt-3 text-2xl">{{ $groupRecord->gradeLevel?->name ?: '—' }}</div></article></section>
+    <section class="surface-panel overflow-hidden">
+        <div class="admin-toolbar p-5">
+            <div><div class="admin-toolbar__title">{{ __('crud.groups.roster.title') }}</div></div>
+            <div class="admin-toolbar__actions">
+                <a target="_blank" href="{{ route('groups.roster.pdf', $groupRecord) }}" class="pill-link pill-link--compact">PDF</a>
+                @if (! $groupRecord->course_finished_at && ($groupRecord->course?->is_active ?? true))
+                    @can('enrollments.create')
+                        <button wire:click="$set('showAddStudentModal', true)" class="pill-link pill-link--accent pill-link--compact w-fit">{{ __('crud.groups.roster.add_student') }}</button>
+                    @endcan
+                @endif
+            </div>
+        </div>
+        <div class="overflow-hidden">
+            <table class="w-full table-fixed text-sm">
+                <colgroup>
+                    <col style="width: 4%">
+                    <col style="width: 23%">
+                    <col style="width: 13%">
+                    <col style="width: 12%">
+                    <col style="width: 7%">
+                    <col style="width: 13%">
+                    <col style="width: 16%">
+                    <col style="width: 12%">
+                </colgroup>
+                <thead>
+                    <tr>
+                        <th class="px-2 py-3 text-center">#</th>
+                        <th class="px-3 py-3 {{ app()->isLocale('ar') ? 'text-right' : 'text-left' }}">{{ __('crud.students.table.headers.name') }}</th>
+                        <th class="px-3 py-3 text-center">{{ __('crud.students.table.headers.student_number') }}</th>
+                        <th class="px-3 py-3 text-center">{{ __('crud.students.table.headers.grade') }}</th>
+                        <th class="px-2 py-3 text-center">{{ __('crud.groups.roster.table.headers.current_juz') }}</th>
+                        <th class="px-3 py-3 text-center">{{ __('crud.groups.roster.fields.enrolled_at') }}</th>
+                        <th class="px-3 py-3 {{ app()->isLocale('ar') ? 'text-right' : 'text-left' }}">{{ __('crud.groups.roster.table.headers.parent_name') }}</th>
+                        <th class="px-3 py-3 text-center">{{ __('crud.groups.roster.table.headers.father_mobile') }}</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-white/5">
+                    @forelse($roster as $enrollment)
+                        <tr>
+                            <td class="px-2 py-3 text-center">{{ $roster->firstItem()+$loop->index }}</td>
+                            <td class="break-words px-3 py-3 text-white {{ app()->isLocale('ar') ? 'text-right' : 'text-left' }}">{{ $enrollment->student?->full_name ?: '—' }}</td>
+                            <td class="break-all px-3 py-3 text-center">{{ $enrollment->student?->student_number ?: '—' }}</td>
+                            <td class="break-words px-3 py-3 text-center">{{ $enrollment->student?->gradeLevel?->name ?: '—' }}</td>
+                            <td class="px-2 py-3 text-center">{{ $enrollment->student?->quranCurrentJuz?->juz_number ?: '—' }}</td>
+                            <td class="px-3 py-3 text-center" dir="ltr">{{ $enrollment->enrolled_at?->format('d-m-Y') ?: '—' }}</td>
+                            <td class="break-words px-3 py-3 {{ app()->isLocale('ar') ? 'text-right' : 'text-left' }}">{{ $enrollment->student?->parentProfile?->father_name ?: '—' }}</td>
+                            <td class="break-all px-3 py-3 text-center" dir="ltr">{{ $enrollment->student?->parentProfile?->father_phone ?: '—' }}</td>
+                        </tr>
+                    @empty
+                        <tr><td colspan="8" class="admin-empty-state">{{ __('crud.groups.roster.empty') }}</td></tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
+        @if($roster->hasPages())<div class="border-t border-white/10 p-4">{{ $roster->links() }}</div>@endif
+    </section>
     <x-admin.modal :show="$showAddStudentModal" :title="__('crud.groups.roster.add_student')" close-method="showAddStudentModal" max-width="2xl"><div class="space-y-4"><div><label class="mb-1 block text-sm">{{ __('crud.students.table.headers.name') }}</label><select wire:model="roster_student_id" class="w-full rounded-xl px-4 py-3"><option value="">{{ __('crud.common.select') }}</option>@foreach($availableStudents as $student)<option value="{{ $student->id }}">{{ $student->full_name }}</option>@endforeach</select>@error('roster_student_id')<div class="text-sm text-red-400">{{ $message }}</div>@enderror</div><div><label class="mb-1 block text-sm">{{ __('crud.groups.roster.fields.enrolled_at') }}</label><input wire:model="roster_enrolled_at" type="date" class="w-full rounded-xl px-4 py-3"></div><div class="flex gap-2"><button wire:click="addStudent(false)" class="pill-link pill-link--accent">{{ __('crud.groups.roster.add_student') }}</button><button wire:click="addStudent(true)" class="pill-link">{{ __('crud.common.actions.add_and_new') }}</button></div></div></x-admin.modal>
 
-    <x-admin.modal :show="$showScheduleModal" :title="__('crud.groups.actions.schedule')" close-method="showScheduleModal" max-width="6xl"><form wire:submit="saveSchedule" class="grid gap-3 md:grid-cols-4"><select wire:model="day_of_week" class="rounded-xl px-3 py-2">@foreach($days as $value=>$label)<option value="{{ $value }}">{{ $label }}</option>@endforeach</select><label class="text-sm">{{ __('schedules.group.form.fields.from') }}<input wire:model="starts_at" type="time" class="mt-1 w-full rounded-xl px-3 py-2"></label><label class="text-sm">{{ __('schedules.group.form.fields.to') }}<input wire:model="ends_at" type="time" class="mt-1 w-full rounded-xl px-3 py-2"></label><button class="pill-link pill-link--accent">{{ $editingScheduleId ? __('crud.common.actions.update') : __('crud.common.actions.create') }}</button></form><div class="mt-6 overflow-x-auto"><table class="w-full text-sm"><thead><tr><th class="p-3">{{ __('schedules.group.form.fields.day') }}</th><th class="p-3">{{ __('schedules.group.form.fields.starts_at') }}</th><th class="p-3">{{ __('schedules.group.form.fields.ends_at') }}</th><th class="p-3"></th></tr></thead><tbody>@foreach($schedules as $schedule)<tr><td class="p-3">{{ $days[$schedule->day_of_week] }}</td><td class="p-3">{{ $schedule->starts_at->format('H:i') }}</td><td class="p-3">{{ $schedule->ends_at->format('H:i') }}</td><td class="p-3 text-end"><button wire:click="editSchedule({{ $schedule->id }})" class="pill-link pill-link--compact">{{ __('crud.common.actions.edit') }}</button><button wire:click="deleteSchedule({{ $schedule->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link pill-link--compact">{{ __('crud.common.actions.delete') }}</button></td></tr>@endforeach</tbody></table></div></x-admin.modal>
+    <x-admin.modal :show="$showScheduleModal" :title="__('crud.groups.actions.schedule')" close-method="showScheduleModal" max-width="6xl">
+        <form wire:submit="saveSchedule" class="grid gap-3 sm:grid-cols-[minmax(9rem,1fr)_minmax(9rem,1fr)_minmax(9rem,1fr)_max-content] sm:items-end">
+            <label class="text-sm">
+                <span class="mb-1 block">{{ __('schedules.group.form.fields.day') }}</span>
+                <select wire:model="day_of_week" class="h-12 w-full rounded-xl px-3 text-sm">@foreach($days as $value=>$label)<option value="{{ $value }}">{{ $label }}</option>@endforeach</select>
+            </label>
+            <label class="text-sm">
+                <span class="mb-1 block">{{ __('schedules.group.form.fields.from') }}</span>
+                <input wire:model="starts_at" type="time" class="h-12 w-full rounded-xl px-3 text-sm">
+            </label>
+            <label class="text-sm">
+                <span class="mb-1 block">{{ __('schedules.group.form.fields.to') }}</span>
+                <input wire:model="ends_at" type="time" class="h-12 w-full rounded-xl px-3 text-sm">
+            </label>
+            <button class="pill-link pill-link--accent h-12 w-fit self-end whitespace-nowrap px-5">{{ $editingScheduleId ? __('crud.common.actions.update') : __('crud.common.actions.create') }}</button>
+        </form>
+        <div class="mt-6 overflow-x-auto"><table class="w-full text-sm"><thead><tr><th class="p-3">{{ __('schedules.group.form.fields.day') }}</th><th class="p-3">{{ __('schedules.group.form.fields.starts_at') }}</th><th class="p-3">{{ __('schedules.group.form.fields.ends_at') }}</th><th class="p-3"></th></tr></thead><tbody>@foreach($schedules as $schedule)<tr><td class="p-3">{{ $days[$schedule->day_of_week] }}</td><td class="p-3">{{ $schedule->starts_at->format('H:i') }}</td><td class="p-3">{{ $schedule->ends_at->format('H:i') }}</td><td class="p-3 text-end"><button wire:click="editSchedule({{ $schedule->id }})" class="pill-link pill-link--compact w-fit">{{ __('crud.common.actions.edit') }}</button><button wire:click="deleteSchedule({{ $schedule->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link pill-link--compact w-fit">{{ __('crud.common.actions.delete') }}</button></td></tr>@endforeach</tbody></table></div>
+    </x-admin.modal>
 
     <x-admin.modal :show="$showEditModal" :title="__('crud.groups.form.edit_title')" close-method="showEditModal" max-width="5xl">
         <form wire:submit="saveGroup" class="space-y-4">
             <div class="grid gap-4 md:grid-cols-2">
                 <label class="block text-sm">{{ __('crud.groups.form.fields.name') }}<input wire:model="name" class="mt-1 w-full rounded-xl px-4 py-3"></label>
                 <label class="block text-sm">{{ __('crud.groups.form.fields.course') }}<select wire:model.live="course_id" class="mt-1 w-full rounded-xl px-4 py-3">@foreach($courses as $course)<option value="{{ $course->id }}">{{ $course->name }}</option>@endforeach</select></label>
-                <label class="block text-sm">{{ __('crud.groups.form.fields.academic_year') }}<select wire:model="academic_year_id" class="mt-1 w-full rounded-xl px-4 py-3">@foreach($academicYears as $year)<option value="{{ $year->id }}">{{ $year->name }}</option>@endforeach</select></label>
                 <label class="block text-sm">{{ __('crud.groups.form.fields.grade_level') }}<select wire:model="grade_level_id" class="mt-1 w-full rounded-xl px-4 py-3"><option value="">—</option>@foreach($gradeLevels as $grade)<option value="{{ $grade->id }}">{{ $grade->name }}</option>@endforeach</select></label>
                 <label class="block text-sm">{{ __('crud.groups.form.fields.teacher') }}<select wire:model="teacher_id" class="mt-1 w-full rounded-xl px-4 py-3"><option value="">—</option>@foreach($teachers as $teacher)<option value="{{ $teacher->id }}">{{ $teacher->first_name }} {{ $teacher->last_name }}</option>@endforeach</select></label>
                 <label class="block text-sm">{{ __('crud.groups.form.fields.assistant_teacher') }}<select wire:model="assistant_teacher_id" class="mt-1 w-full rounded-xl px-4 py-3"><option value="">—</option>@foreach($teachers as $teacher)<option value="{{ $teacher->id }}">{{ $teacher->first_name }} {{ $teacher->last_name }}</option>@endforeach</select></label>
@@ -243,7 +395,16 @@ new class extends Component {
                 <label class="block text-sm">{{ __('crud.groups.form.fields.ends_on') }}<input wire:model="ends_on" type="date" class="mt-1 w-full rounded-xl px-4 py-3"></label>
                 <label class="block text-sm">{{ __('crud.groups.dashboard_card.fields.template') }}<select wire:model="dashboard_card_template_id" class="mt-1 w-full rounded-xl px-4 py-3"><option value="">{{ __('crud.groups.dashboard_card.placeholders.none') }}</option>@foreach($dashboardCardTemplates as $template)<option value="{{ $template->id }}">{{ $template->name }}</option>@endforeach</select></label>
             </div>
-            <div class="flex gap-2"><button class="pill-link pill-link--accent">{{ __('crud.common.actions.update') }}</button><button type="button" wire:click="$set('showEditModal', false)" class="pill-link">{{ __('crud.common.actions.close') }}</button></div>
+            @error('delete')<div class="flash-error px-4 py-3 text-sm">{{ $message }}</div>@enderror
+            <div class="flex flex-wrap items-center justify-between gap-2">
+                <div class="flex flex-wrap gap-2">
+                    <button class="pill-link pill-link--accent">{{ __('crud.common.actions.update') }}</button>
+                    <button type="button" wire:click="$set('showEditModal', false)" class="pill-link">{{ __('crud.common.actions.close') }}</button>
+                </div>
+                @can('groups.delete')
+                    <button type="button" wire:click="deleteGroup" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link pill-link--danger">{{ __('crud.common.actions.delete') }}</button>
+                @endcan
+            </div>
         </form>
     </x-admin.modal>
 </div>

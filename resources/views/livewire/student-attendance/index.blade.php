@@ -6,7 +6,6 @@ use App\Models\AttendanceStatus;
 use App\Models\Course;
 use App\Models\Enrollment;
 use App\Models\Group;
-use App\Models\GroupAttendanceDay;
 use App\Models\StudentAttendanceDay;
 use App\Services\PointLedgerService;
 use App\Services\StudentAttendanceDayService;
@@ -92,11 +91,6 @@ new class extends Component
         return [
             'days' => $daysQuery->paginate($this->perPage),
             'filteredCount' => (clone $daysQuery)->count(),
-            'stats' => [
-                'days' => $this->scopeStudentAttendanceDaysQuery(StudentAttendanceDay::query())->count(),
-                'groups' => $this->scopeGroupAttendanceDaysQuery(GroupAttendanceDay::query())->count(),
-                'open' => $this->scopeStudentAttendanceDaysQuery(StudentAttendanceDay::query()->where('status', 'open'))->count(),
-            ],
             'courseOptions' => $this->availableCoursesQuery()
                 ->orderBy('name')
                 ->get(['id', 'name']),
@@ -130,7 +124,6 @@ new class extends Component
         $this->course_id = (string) ($this->availableCoursesQuery()->where('is_default', true)->value('courses.id') ?? '');
         $this->day_status = 'open';
         $this->default_attendance_status_id = (string) ($this->defaultStudentAttendanceStatusId() ?? '');
-        $this->notes = '';
         $this->showFormModal = true;
         $this->resetValidation();
     }
@@ -144,6 +137,11 @@ new class extends Component
     public function closeExportModal(): void
     {
         $this->showExportModal = false;
+    }
+
+    public function openExportModal(): void
+    {
+        $this->showExportModal = true;
     }
 
     public function saveDay()
@@ -164,7 +162,6 @@ new class extends Component
                 'integer',
                 Rule::exists('attendance_statuses', 'id')->where(fn ($query) => $query->where('is_active', true)->whereIn('scope', ['student', 'both'])),
             ],
-            'notes' => ['nullable', 'string'],
         ]);
 
         $course = $this->availableCoursesQuery()
@@ -183,7 +180,7 @@ new class extends Component
             $validated['attendance_date'],
             $groups,
             auth()->user(),
-            $validated['notes'] ?: null,
+            null,
             'open',
             (int) $validated['default_attendance_status_id'],
             (int) $validated['course_id'],
@@ -291,31 +288,23 @@ new class extends Component
         <div class="eyebrow">{{ __('ui.nav.tracking') }}</div>
         <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('workflow.student_attendance.days.title') }}</h1>
         <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ __('workflow.student_attendance.days.subtitle') }}</p>
-        <div class="mt-6 flex flex-wrap gap-3">
-            <span class="badge-soft">{{ __('workflow.student_attendance.days.stats.days') }}: {{ number_format($stats['days']) }}</span>
-            <span class="badge-soft badge-soft--emerald">{{ __('workflow.student_attendance.days.stats.groups') }}: {{ number_format($stats['groups']) }}</span>
-            <span class="badge-soft">{{ __('workflow.student_attendance.days.stats.open') }}: {{ number_format($stats['open']) }}</span>
-        </div>
     </section>
 
     @if (session('status'))
         <div class="flash-success px-4 py-3 text-sm">{{ session('status') }}</div>
     @endif
 
-    <section class="surface-panel p-5 lg:p-6">
-        <div class="admin-toolbar">
-            <div>
-                <div class="admin-toolbar__title">{{ __('workflow.student_attendance.days.table.title') }}</div>
-            </div>
-
+    <section class="surface-table">
+        <div class="admin-grid-meta admin-grid-meta--controls attendance-days-toolbar">
+            <div class="admin-grid-meta__title">{{ __('workflow.student_attendance.days.table.title') }}</div>
             <div class="admin-toolbar__controls">
                 <div class="admin-filter-field">
-                    <label for="student-attendance-search">{{ __('crud.common.filters.search') }}</label>
-                    <input id="student-attendance-search" wire:model.live.debounce.300ms="search" type="text" placeholder="YYYY-MM-DD">
+                    <label class="sr-only" for="student-attendance-search">{{ __('crud.common.filters.search') }}</label>
+                    <input id="student-attendance-search" wire:model.live.debounce.300ms="search" type="text" placeholder="DD-MM-YYYY">
                 </div>
 
                 <div class="admin-filter-field">
-                    <label for="student-attendance-status">{{ __('workflow.student_attendance.days.form.status') }}</label>
+                    <label class="sr-only" for="student-attendance-status">{{ __('workflow.student_attendance.days.form.status') }}</label>
                     <select id="student-attendance-status" wire:model.live="statusFilter">
                         <option value="all">{{ __('crud.common.filters.all_statuses') }}</option>
                         <option value="open">{{ __('workflow.common.day_status.open') }}</option>
@@ -324,36 +313,31 @@ new class extends Component
                 </div>
 
                 <div class="admin-toolbar__actions">
-                    <button type="button" wire:click="$set('showExportModal', true)" class="pill-link">{{ __('workflow.student_attendance.export.action') }}</button>
+                    @can('attendance.student.take')
+                        <button type="button" wire:click="openCreateModal" class="pill-link pill-link--accent">{{ __('workflow.student_attendance.days.create') }}</button>
+                    @endcan
+                    <button type="button" wire:click="openExportModal" class="pill-link">{{ __('workflow.student_attendance.export.action') }}</button>
                     @can('barcode-scans.import')
                     @if ((bool) (\App\Models\AppSetting::groupValues('dashboard')->get('barcode_scanner_enabled') ?? true))
                         <a href="{{ route('barcode-actions.import') }}" wire:navigate class="pill-link">{{ __('ui.nav.scanner_import') }}</a>
                     @endif
                     @endcan
-                    @can('attendance.student.take')
-                        <button type="button" wire:click="openCreateModal" class="pill-link pill-link--accent">{{ __('workflow.student_attendance.days.create') }}</button>
-                    @endcan
                 </div>
             </div>
         </div>
-    </section>
 
-    <x-admin.modal :show="$showExportModal" :title="__('workflow.student_attendance.export.title')" close-method="closeExportModal" max-width="2xl">
-        <div class="grid gap-4 sm:grid-cols-2">
-            <div class="sm:col-span-2"><label class="mb-1 block text-sm font-medium">{{ __('workflow.student_attendance.export.course') }}</label><select wire:model.live="export_course_id" class="w-full rounded-xl px-4 py-3"><option value="">{{ __('workflow.student_attendance.export.select_course') }}</option>@foreach($exportCourseOptions as $course)<option value="{{ $course->id }}">{{ $course->name }}</option>@endforeach</select></div>
-            <div><label class="mb-1 block text-sm font-medium">{{ __('workflow.student_attendance.export.from') }}</label><input wire:model.live="export_date_from" type="date" class="w-full rounded-xl px-4 py-3"></div>
-            <div><label class="mb-1 block text-sm font-medium">{{ __('workflow.student_attendance.export.to') }}</label><input wire:model.live="export_date_to" type="date" class="w-full rounded-xl px-4 py-3"></div>
-        </div>
-        <div class="mt-5 flex justify-end"><a href="{{ route('student-attendance.export', ['course_id' => $export_course_id, 'date_from' => $export_date_from, 'date_to' => $export_date_to]) }}" target="_blank" class="pill-link pill-link--accent {{ $export_course_id === '' ? 'pointer-events-none opacity-50' : '' }}">{{ __('workflow.student_attendance.export.action') }}</a></div>
-    </x-admin.modal>
-
-    <section class="surface-table">
-        <div class="admin-grid-meta">
-            <div>
-                <div class="admin-grid-meta__title">{{ __('workflow.student_attendance.days.table.title') }}</div>
-                <div class="admin-grid-meta__summary">{{ __('crud.common.badges.in_view', ['count' => number_format($filteredCount)]) }}</div>
+    @teleport('body')
+    <div class="admin-modal-portal">
+        <x-admin.modal :show="$showExportModal" :title="__('workflow.student_attendance.export.title')" close-method="closeExportModal" max-width="2xl" full-viewport>
+            <div class="grid gap-4 sm:grid-cols-2">
+                <div class="sm:col-span-2"><label class="mb-1 block text-sm font-medium">{{ __('workflow.student_attendance.export.course') }}</label><select wire:model.live="export_course_id" class="w-full rounded-xl px-4 py-3"><option value="">{{ __('workflow.student_attendance.export.select_course') }}</option>@foreach($exportCourseOptions as $course)<option value="{{ $course->id }}">{{ $course->name }}</option>@endforeach</select></div>
+                <div><label class="mb-1 block text-sm font-medium">{{ __('workflow.student_attendance.export.from') }}</label><input wire:model.live="export_date_from" type="date" class="w-full rounded-xl px-4 py-3"></div>
+                <div><label class="mb-1 block text-sm font-medium">{{ __('workflow.student_attendance.export.to') }}</label><input wire:model.live="export_date_to" type="date" class="w-full rounded-xl px-4 py-3"></div>
             </div>
-        </div>
+            <div class="attendance-export-actions mt-5 flex justify-end"><a href="{{ route('student-attendance.export', ['course_id' => $export_course_id, 'date_from' => $export_date_from, 'date_to' => $export_date_to]) }}" target="_blank" class="pill-link pill-link--accent {{ $export_course_id === '' ? 'pointer-events-none opacity-50' : '' }}">{{ __('workflow.student_attendance.export.action') }}</a></div>
+        </x-admin.modal>
+    </div>
+    @endteleport
 
         @if ($days->isEmpty())
             <div class="admin-empty-state">{{ __('workflow.student_attendance.days.table.empty') }}</div>
@@ -419,15 +403,15 @@ new class extends Component
     <x-admin.modal
         :show="$showFormModal"
         :title="__('workflow.student_attendance.days.form.title')"
-        :description="__('workflow.student_attendance.days.form.help')"
         close-method="closeCreateModal"
-        max-width="4xl"
+        max-width="3xl"
+        compact
     >
         <form wire:submit="saveDay" class="space-y-4">
             <div class="grid gap-4 md:grid-cols-2">
                 <div>
                     <label for="attendance-day-course" class="mb-1 block text-sm font-medium">{{ __('workflow.student_attendance.days.form.course') }}</label>
-                    <select id="attendance-day-course" wire:model.live="course_id" class="w-full rounded-xl px-4 py-3 text-sm">
+                    <select id="attendance-day-course" wire:model.live="course_id" class="h-12 min-h-12 w-full rounded-xl px-4 py-0 text-sm">
                         <option value="">{{ __('workflow.student_attendance.days.form.select_course') }}</option>
                         @foreach ($courseOptions as $course)
                             <option value="{{ $course->id }}">{{ $course->name }}</option>
@@ -438,45 +422,31 @@ new class extends Component
                     @enderror
                 </div>
 
+                <div class="flex h-12 min-h-12 box-border items-center self-end rounded-xl border border-white/10 bg-white/5 px-4 text-sm font-semibold">
+                    {{ __('workflow.student_attendance.days.form.scheduled_groups_help', ['count' => number_format($scheduledGroupCount)]) }}
+                </div>
+            </div>
+
+            <div class="grid gap-4 md:grid-cols-2">
                 <div>
                     <label for="attendance-day-date" class="mb-1 block text-sm font-medium">{{ __('workflow.student_attendance.days.form.attendance_date') }}</label>
-                    <input id="attendance-day-date" wire:model.live="attendance_date" type="date" class="w-full rounded-xl px-4 py-3 text-sm">
+                    <input id="attendance-day-date" wire:model.live="attendance_date" value="{{ $attendance_date }}" type="date" class="h-12 min-h-12 w-full appearance-none rounded-xl px-4 py-0 text-sm">
                     @error('attendance_date')
                         <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                     @enderror
                 </div>
-            </div>
-
-            <div>
-                <label for="attendance-day-default-status" class="mb-1 block text-sm font-medium">{{ __('workflow.student_attendance.days.form.default_status') }}</label>
-                <select id="attendance-day-default-status" wire:model="default_attendance_status_id" class="w-full rounded-xl px-4 py-3 text-sm">
-                    <option value="">{{ __('workflow.student_attendance.days.form.no_default_status') }}</option>
-                    @foreach ($defaultStatusOptions as $status)
-                        <option value="{{ $status->id }}">{{ $status->name }}{{ $status->is_default ? ' - '.__('settings.tracking.labels.default_attendance_status') : '' }}</option>
-                    @endforeach
-                </select>
-                <div class="mt-1 text-xs text-neutral-400">{{ __('workflow.student_attendance.days.form.default_status_help') }}</div>
-                @error('default_attendance_status_id')
-                    <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
-                @enderror
-            </div>
-
-            @if ($course_id === '')
-                <div class="soft-callout p-4 text-sm">
-                    {{ __('workflow.student_attendance.days.form.course_required') }}
+                <div>
+                    <label for="attendance-day-default-status" class="mb-1 block text-sm font-medium">{{ __('workflow.student_attendance.days.form.default_status') }}</label>
+                    <select id="attendance-day-default-status" wire:model="default_attendance_status_id" class="h-12 min-h-12 w-full rounded-xl px-4 py-0 text-sm">
+                        <option value="">{{ __('workflow.student_attendance.days.form.no_default_status') }}</option>
+                        @foreach ($defaultStatusOptions as $status)
+                            <option value="{{ $status->id }}">{{ $status->name }}{{ $status->is_default ? ' - '.__('settings.tracking.labels.default_attendance_status') : '' }}</option>
+                        @endforeach
+                    </select>
+                    @error('default_attendance_status_id')
+                        <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
+                    @enderror
                 </div>
-            @else
-                <div class="soft-callout p-4 text-sm">
-                    {{ __('workflow.student_attendance.days.form.scheduled_groups_help', ['count' => number_format($scheduledGroupCount)]) }}
-                </div>
-            @endif
-
-            <div>
-                <label for="attendance-day-notes" class="mb-1 block text-sm font-medium">{{ __('workflow.student_attendance.days.form.notes') }}</label>
-                <textarea id="attendance-day-notes" wire:model="notes" rows="4" class="w-full rounded-xl px-4 py-3 text-sm"></textarea>
-                @error('notes')
-                    <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
-                @enderror
             </div>
 
             <div class="flex flex-wrap items-center gap-3">

@@ -32,7 +32,6 @@ new class extends Component {
     public string $pull_request_prefix = '';
     public string $expense_request_prefix = '';
     public string $revenue_request_prefix = '';
-    public string $return_request_prefix = '';
     public string $exchange_prefix = '';
     public string $transfer_prefix = '';
     public bool $maint_type_locked = false;
@@ -600,7 +599,6 @@ new class extends Component {
             'pull_request_prefix' => ['required', 'string', 'max:20'],
             'expense_request_prefix' => ['required', 'string', 'max:20'],
             'revenue_request_prefix' => ['required', 'string', 'max:20'],
-            'return_request_prefix' => ['required', 'string', 'max:20'],
             'exchange_prefix' => ['required', 'string', 'max:20'],
             'transfer_prefix' => ['required', 'string', 'max:20'],
             'report_prefix' => ['required', 'string', 'max:20', 'regex:/^[A-Za-z0-9 -]+$/'],
@@ -628,7 +626,6 @@ new class extends Component {
         AppSetting::storeValue('finance', 'pull_request_prefix', $this->normalizedFinancePrefix($validated['pull_request_prefix'], 'PUL'));
         AppSetting::storeValue('finance', 'expense_request_prefix', $this->normalizedFinancePrefix($validated['expense_request_prefix'], 'EXP'));
         AppSetting::storeValue('finance', 'revenue_request_prefix', $this->normalizedFinancePrefix($validated['revenue_request_prefix'], 'REV'));
-        AppSetting::storeValue('finance', 'return_request_prefix', $this->normalizedFinancePrefix($validated['return_request_prefix'], 'RET'));
         AppSetting::storeValue('finance', 'exchange_prefix', $this->normalizedFinancePrefix($validated['exchange_prefix'], 'EXC'));
         AppSetting::storeValue('finance', 'transfer_prefix', $this->normalizedFinancePrefix($validated['transfer_prefix'], 'TRSF'));
         AppSetting::storeValue('finance', 'report_prefix', $this->normalizedFinancePrefix($validated['report_prefix'], 'FINR'));
@@ -762,7 +759,7 @@ new class extends Component {
         $this->authorizePermission('finance.settings.manage');
 
         $validated = $this->validate([
-            'report_lookup_no' => ['required', 'string', 'max:50', 'regex:/^(?:[A-Z0-9]+-)?0*[1-9]\d*$/i'],
+            'report_lookup_no' => ['required', 'string', 'max:50'],
         ]);
 
         if (! FinanceGeneratedReport::storageIsReady()) {
@@ -771,10 +768,17 @@ new class extends Component {
             return;
         }
 
-        preg_match('/([1-9]\d*)$/', $validated['report_lookup_no'], $matches);
+        $lookup = trim($validated['report_lookup_no']);
         $generatedReport = FinanceGeneratedReport::query()
             ->where('report_type', 'ledger')
-            ->find((int) ($matches[1] ?? 0));
+            ->where('report_data->original_report_number', $lookup)
+            ->first();
+
+        if (! $generatedReport && preg_match('/([1-9]\d*)$/', $lookup, $matches)) {
+            $generatedReport = FinanceGeneratedReport::query()
+                ->where('report_type', 'ledger')
+                ->find((int) $matches[1]);
+        }
 
         if (! $generatedReport) {
             $this->addError('report_lookup_no', __('finance.reports.saved_report_not_found'));
@@ -822,7 +826,7 @@ new class extends Component {
             'legacy_report_pdf' => ['required', 'file', 'mimes:pdf', 'max:20480'],
             'legacy_report_number' => ['required', 'string', 'max:50'],
             'legacy_report_period_mode' => ['required', Rule::in(['quarter', 'custom'])],
-            'legacy_report_year' => ['required_if:legacy_report_period_mode,quarter', 'integer', 'between:2000,2100'],
+            'legacy_report_year' => ['required_if:legacy_report_period_mode,quarter', 'integer', 'between:1900,2100'],
             'legacy_report_quarter' => ['required_if:legacy_report_period_mode,quarter', Rule::in(['1', '2', '3', '4'])],
             'legacy_report_date_from' => ['required_if:legacy_report_period_mode,custom', 'nullable', 'date'],
             'legacy_report_date_to' => ['required_if:legacy_report_period_mode,custom', 'nullable', 'date', 'after_or_equal:legacy_report_date_from'],
@@ -996,7 +1000,6 @@ new class extends Component {
         $this->pull_request_prefix = $this->normalizedFinancePrefix((string) ($settings->get('pull_request_prefix') ?: 'PUL'), 'PUL');
         $this->expense_request_prefix = $this->normalizedFinancePrefix((string) ($settings->get('expense_request_prefix') ?: 'EXP'), 'EXP');
         $this->revenue_request_prefix = $this->normalizedFinancePrefix((string) ($settings->get('revenue_request_prefix') ?: 'REV'), 'REV');
-        $this->return_request_prefix = $this->normalizedFinancePrefix((string) ($settings->get('return_request_prefix') ?: 'RET'), 'RET');
         $this->exchange_prefix = $this->normalizedFinancePrefix((string) ($settings->get('exchange_prefix') ?: 'EXC'), 'EXC');
         $this->transfer_prefix = $this->normalizedFinancePrefix((string) ($settings->get('transfer_prefix') ?: 'TRSF'), 'TRSF');
         $this->report_prefix = $this->normalizedFinancePrefix((string) ($settings->get('report_prefix') ?: 'FINR'), 'FINR');
@@ -1081,11 +1084,6 @@ new class extends Component {
                         <label class="mb-1 block text-sm font-medium">{{ __('settings.finance.fields.revenue_request_prefix') }}</label>
                         <input wire:model="revenue_request_prefix" type="text" class="w-full rounded-xl px-4 py-3 text-sm uppercase">
                         @error('revenue_request_prefix') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
-                    </div>
-                    <div>
-                        <label class="mb-1 block text-sm font-medium">{{ __('settings.finance.fields.return_request_prefix') }}</label>
-                        <input wire:model="return_request_prefix" type="text" class="w-full rounded-xl px-4 py-3 text-sm uppercase">
-                        @error('return_request_prefix') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
                     </div>
                     <div>
                         <label class="mb-1 block text-sm font-medium">{{ __('settings.finance.fields.exchange_prefix') }}</label>
@@ -1332,7 +1330,7 @@ new class extends Component {
                 <div><label class="mb-1 block text-sm">{{ __('finance.common.date') }}</label><input wire:model="legacy_report_generated_at" type="date" class="w-full rounded-xl px-4 py-3"></div>
                 <div><label class="mb-1 block text-sm">{{ __('finance.fields.period') }}</label><select wire:model.live="legacy_report_period_mode" class="w-full rounded-xl px-4 py-3"><option value="quarter">{{ __('finance.reports.period_quarter') }}</option><option value="custom">{{ __('finance.reports.period_custom') }}</option></select></div>
                 @if ($legacy_report_period_mode === 'quarter')
-                    <div><label class="mb-1 block text-sm">{{ __('finance.fields.year') }}</label><input wire:model="legacy_report_year" type="number" min="2000" max="2100" class="w-full rounded-xl px-4 py-3"></div>
+                    <div><label class="mb-1 block text-sm">{{ __('finance.fields.year') }}</label><input wire:model="legacy_report_year" type="number" min="1900" max="2100" class="w-full rounded-xl px-4 py-3"></div>
                     <div><label class="mb-1 block text-sm">{{ __('finance.fields.quarter') }}</label><select wire:model="legacy_report_quarter" class="w-full rounded-xl px-4 py-3">@for($quarter = 1; $quarter <= 4; $quarter++)<option value="{{ $quarter }}">Q{{ $quarter }}</option>@endfor</select></div>
                 @else
                     <div><label class="mb-1 block text-sm">{{ __('finance.fields.from_date') }}</label><input wire:model="legacy_report_date_from" type="date" class="w-full rounded-xl px-4 py-3"></div>

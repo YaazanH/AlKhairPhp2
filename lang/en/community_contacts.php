@@ -46,6 +46,7 @@ return [
         'description' => 'Examples: plumber, bus driver, supplier, maintenance worker, machine owner, or any trusted helper.',
     ],
     'table' => [
+        'title' => 'Community Contacts',
         'headers' => [
             'name' => 'Name',
             'category' => 'Category',

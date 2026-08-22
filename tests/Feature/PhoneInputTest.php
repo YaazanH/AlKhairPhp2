@@ -16,16 +16,31 @@ class PhoneInputTest extends TestCase
         $syria = PhoneCountries::options()->firstWhere('region', 'SY');
 
         $this->assertSame('+963', $syria['dial_code']);
-        $this->assertSame('🇸🇾', $syria['flag']);
+        $this->assertSame('https://purecatamphetamine.github.io/country-flag-icons/3x2/SY.svg', $syria['flag']);
         $this->assertNotEmpty($syria['pattern']);
 
         $html = Blade::render('<x-phone-input model="phone" value="+12025550123" />');
 
         $this->assertStringContainsString("region: 'US'", $html);
         $this->assertStringContainsString('x-text="selectedDial"', $html);
-        $this->assertStringContainsString('flagcdn.com/32x24', $html);
+        $this->assertStringNotContainsString('selectedCountry.flag', $html);
+        $this->assertStringContainsString('purecatamphetamine.github.io', $html);
+        $this->assertStringContainsString('US.svg', $html);
+        $this->assertStringContainsString('class="phone-country-flag"', $html);
+        $css = file_get_contents(resource_path('css/app.css'));
+        $this->assertStringContainsString('.phone-country-flag {', $css);
+        $this->assertStringContainsString('border-radius: 4.2px;', $css);
+        $this->assertStringContainsString('height: 23.8px;', $css);
+        $this->assertStringContainsString('width: 36.4px;', $css);
+        $this->assertStringContainsString('object-fit: cover;', $css);
         $this->assertStringContainsString('x-text="country.name"', $html);
         $this->assertStringContainsString('x-text="country.dial_code"', $html);
+        $this->assertStringContainsString('phone-country-name', $html);
+        $this->assertStringContainsString('phone-country-dial', $html);
+        $this->assertMatchesRegularExpression('/phone-country-flag.*phone-country-dial.*phone-country-name/s', $html);
+        $this->assertStringContainsString('column-gap: 0.5rem;', $css);
+        $this->assertStringContainsString('direction: ltr;', $css);
+        $this->assertStringContainsString('text-align: left;', $css);
         $this->assertStringContainsString('phone-country-option', $html);
         $this->assertStringNotContainsString('<select', $html);
         $this->assertFalse(PhoneCountries::options()->contains('region', 'IL'));
@@ -33,6 +48,11 @@ class PhoneInputTest extends TestCase
         $this->assertFalse(PhoneCountries::options()->contains('region', 'TA'));
         $this->assertTrue(PhoneCountries::options()->contains('region', 'SH'));
         $this->assertSame('هونغ كونغ', PhoneCountries::options()->firstWhere('region', 'HK')['name']);
+
+        app()->setLocale('ar');
+        $arabicHtml = Blade::render('<x-phone-input model="phone" value="+963933333333" />');
+        $this->assertMatchesRegularExpression('/<button[^>]*class="phone-country-trigger[^"]*"[^>]*dir="rtl"/s', $arabicHtml);
+        $this->assertStringContainsString('<bdi dir="ltr" class="whitespace-nowrap" x-text="selectedDial"></bdi>', $arabicHtml);
     }
 
     public function test_phone_numbers_are_normalized_and_formatted_by_country(): void

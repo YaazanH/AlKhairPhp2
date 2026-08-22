@@ -216,11 +216,7 @@ new class extends Component
     <section class="page-hero p-6 lg:p-8">
         <div class="grid gap-6 xl:grid-cols-[minmax(0,1fr)_16rem] xl:items-end">
             <div>
-                <div class="eyebrow">{{ __('reports.student_activity.eyebrow') }}</div>
-                <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('reports.student_activity.title') }}</h1>
-                <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">
-                    {{ __('reports.student_activity.subtitle') }}
-                </p>
+                <h1 class="font-display text-4xl leading-none text-white md:text-5xl">{{ __('reports.student_activity.title') }}</h1>
             </div>
 
             <div class="flex xl:justify-end">
@@ -231,10 +227,9 @@ new class extends Component
 
     <div class="grid gap-6">
         <section class="order-2 surface-panel report-panel min-w-0 p-5 lg:p-6">
-            <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(9rem,1fr)_minmax(9rem,1fr)_minmax(8rem,.8fr)_minmax(8rem,.8fr)_auto_auto] xl:items-center">
                 <div>
-                    <label class="report-field-label mb-2 block text-sm font-medium">{{ __('reports.filters.course') }}</label>
-                    <select wire:model.live="course_id" class="report-control w-full rounded-xl px-3 py-2.5 text-sm">
+                    <select wire:model.live="course_id" aria-label="{{ __('reports.filters.course') }}" class="report-control w-full rounded-xl px-3 py-2.5 text-sm">
                         <option value="">{{ __('reports.filters.all_courses') }}</option>
                         @foreach ($courses as $course)
                             <option value="{{ $course->id }}">{{ $course->name }}</option>
@@ -243,8 +238,7 @@ new class extends Component
                 </div>
 
                 <div>
-                    <label class="report-field-label mb-2 block text-sm font-medium">{{ __('reports.filters.group') }}</label>
-                    <select wire:model.live="group_id" class="report-control w-full rounded-xl px-3 py-2.5 text-sm">
+                    <select wire:model.live="group_id" aria-label="{{ __('reports.filters.group') }}" class="report-control w-full rounded-xl px-3 py-2.5 text-sm">
                         <option value="">{{ __('reports.filters.all_groups') }}</option>
                         @foreach ($groups as $group)
                             <option value="{{ $group->id }}">{{ $group->name }}{{ $group->course ? ' | '.$group->course->name : '' }}</option>
@@ -253,23 +247,18 @@ new class extends Component
                 </div>
 
                 <div>
-                    <label class="report-field-label mb-2 block text-sm font-medium">{{ __('reports.filters.date_from') }}</label>
-                    <input wire:model.live="date_from" type="date" class="report-control w-full rounded-xl px-3 py-2.5 text-sm">
+                    <input wire:model.live="date_from" type="date" aria-label="{{ __('reports.filters.date_from') }}" data-date-placeholder="{{ __('reports.filters.date_from') }}" class="report-control w-full rounded-xl px-3 py-2.5 text-sm">
                 </div>
 
                 <div>
-                    <label class="report-field-label mb-2 block text-sm font-medium">{{ __('reports.filters.date_to') }}</label>
-                    <input wire:model.live="date_to" type="date" class="report-control w-full rounded-xl px-3 py-2.5 text-sm">
+                    <input wire:model.live="date_to" type="date" aria-label="{{ __('reports.filters.date_to') }}" data-date-placeholder="{{ __('reports.filters.date_to') }}" class="report-control w-full rounded-xl px-3 py-2.5 text-sm">
                 </div>
-            </div>
-
-            <div class="mt-3 flex flex-wrap justify-end gap-3">
-                <a href="{{ route('reports.exports.student-activity-summary', ['course_id' => $course_id, 'group_id' => $group_id, 'date_from' => $date_from, 'date_to' => $date_to]) }}" class="pill-link pill-link--accent justify-center">
-                    {{ __('reports.student_activity.export') }}
-                </a>
-                <button type="button" wire:click="clearFilters" class="pill-link justify-center">
+                <button type="button" wire:click="clearFilters" class="pill-link h-[3.125rem] justify-center whitespace-nowrap">
                     {{ __('reports.filters.clear') }}
                 </button>
+                <a href="{{ route('reports.exports.student-activity-summary', ['course_id' => $course_id, 'group_id' => $group_id, 'date_from' => $date_from, 'date_to' => $date_to]) }}" class="pill-link pill-link--accent h-[3.125rem] items-center justify-center whitespace-nowrap">
+                    {{ __('reports.student_activity.export') }}
+                </a>
             </div>
         </section>
 
@@ -299,8 +288,7 @@ new class extends Component
 
             <section class="order-3 surface-table">
                 <div class="soft-keyline border-b px-5 py-5 lg:px-6">
-                    <div class="eyebrow">{{ __('reports.student_activity.table_eyebrow') }}</div>
-                    <h2 class="font-display mt-3 text-2xl text-white">{{ __('reports.student_activity.table_title') }}</h2>
+                    <h2 class="font-display text-2xl text-white">{{ __('reports.student_activity.table_title') }}</h2>
                 </div>
 
                 @if ($rows->isEmpty())

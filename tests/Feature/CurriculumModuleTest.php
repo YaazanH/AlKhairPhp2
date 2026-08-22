@@ -7,6 +7,7 @@ use App\Models\Course;
 use App\Models\Curriculum;
 use App\Models\CurriculumLesson;
 use App\Models\CurriculumLessonTopic;
+use App\Models\CurriculumResource;
 use App\Models\CurriculumSubject;
 use App\Models\CurriculumSubjectDefinition;
 use App\Models\GradeLevel;
@@ -119,6 +120,33 @@ class CurriculumModuleTest extends TestCase
 
         $this->assertDatabaseHas('groups', ['name' => 'Curriculum Group', 'curriculum_id' => $curriculum->id]);
         $this->assertDatabaseHas('curriculum_lessons', ['name' => 'First lesson', 'page_count' => 8, 'importance' => 3]);
+    }
+
+    public function test_standalone_books_are_managed_inline_inside_their_popup(): void
+    {
+        $this->seed(RoleSeeder::class);
+        $manager = User::factory()->create();
+        $manager->assignRole('manager');
+        $this->actingAs($manager);
+
+        Volt::test('settings.curriculum-subjects')
+            ->assertSet('showStandaloneResourcesModal', false)
+            ->call('openStandaloneResources')
+            ->assertSet('showStandaloneResourcesModal', true)
+            ->call('openStandaloneResourceForm')
+            ->assertSet('showStandaloneResourceForm', true)
+            ->assertSet('showResourceModal', false)
+            ->set('bookName', 'Standalone handbook')
+            ->set('editionNumber', '2')
+            ->set('publishedOn', '2026')
+            ->call('saveResource')
+            ->assertHasNoErrors()
+            ->assertSet('showStandaloneResourcesModal', true)
+            ->assertSet('showStandaloneResourceForm', false);
+
+        $resource = CurriculumResource::query()->where('book_name', 'Standalone handbook')->firstOrFail();
+        $this->assertNull($resource->subject_definition_id);
+        $this->assertSame('الطبعة 2', $resource->edition_number);
     }
 
     public function test_supervisor_can_record_partial_progress_and_custom_lessons(): void

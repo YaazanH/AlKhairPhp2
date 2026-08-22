@@ -3,15 +3,6 @@
         <section class="page-hero p-6 lg:p-8">
             <div class="eyebrow">{{ __('ui.nav.identity_tools') }}</div>
             <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('print_templates.templates.title') }}</h1>
-            <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ __('print_templates.templates.subtitle') }}</p>
-            <div class="mt-6 admin-action-cluster">
-                @can('id-cards.templates.manage')
-                    <a href="{{ route('print-templates.templates.create') }}" class="pill-link pill-link--accent">{{ __('print_templates.templates.actions.create') }}</a>
-                @endcan
-                @can('id-cards.print')
-                    <a href="{{ route('print-templates.print.create') }}" class="pill-link">{{ __('print_templates.templates.actions.print') }}</a>
-                @endcan
-            </div>
         </section>
 
         @if (session('status'))
@@ -19,12 +10,16 @@
         @endif
 
         <section class="surface-table">
-            <div class="admin-grid-meta">
-                <div>
-                    <div class="eyebrow">{{ __('print_templates.templates.table.eyebrow') }}</div>
-                    <div class="admin-grid-meta__title">{{ __('print_templates.templates.title') }}</div>
+            <div class="admin-grid-meta admin-grid-meta--controls">
+                <div class="admin-grid-meta__title">{{ __('print_templates.templates.title') }}</div>
+                <div class="admin-toolbar__actions">
+                    @can('id-cards.templates.manage')
+                        <a href="{{ route('print-templates.templates.create') }}" class="pill-link pill-link--accent">{{ __('print_templates.templates.actions.create') }}</a>
+                    @endcan
+                    @can('id-cards.print')
+                        <a href="{{ route('print-templates.print.create') }}" class="pill-link">{{ __('print_templates.templates.actions.print') }}</a>
+                    @endcan
                 </div>
-                <span class="badge-soft">{{ number_format($templates->count()) }}</span>
             </div>
 
             @if ($templates->isEmpty())
@@ -47,12 +42,6 @@
                                 <tr>
                                     <td class="px-5 py-4 lg:px-6">
                                         <div class="font-semibold text-white">{{ $template->name }}</div>
-                                        <div class="mt-1 flex flex-wrap items-center gap-2 text-xs text-neutral-400">
-                                            <span>#{{ $template->id }}</span>
-                                            @if ($template->is_student_card)
-                                                <span class="status-chip status-chip--active">{{ __('print_templates.templates.labels.student_card') }}</span>
-                                            @endif
-                                        </div>
                                     </td>
                                     <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ number_format($template->width_mm, 2) }} × {{ number_format($template->height_mm, 2) }} mm</td>
                                     <td class="px-5 py-4 text-neutral-300 lg:px-6">

@@ -83,6 +83,7 @@ new class extends Component {
     public function save(): void
     {
         $this->authorizePermission('memorization.record');
+        \App\Support\OperationalFeatureSettings::ensureMemorizationAndSabersEnabled();
 
         $validated = $this->validate([
             'selectedStudentId' => ['required', 'exists:students,id'],
@@ -154,6 +155,7 @@ new class extends Component {
     public function confirmDuplicateSave(): void
     {
         $this->authorizePermission('memorization.record');
+        \App\Support\OperationalFeatureSettings::ensureMemorizationAndSabersEnabled();
 
         if ($this->pendingMemorizationPayload === [] || ! $this->pendingEnrollmentId) {
             return;
@@ -305,6 +307,10 @@ new class extends Component {
 }; ?>
 
 <div class="page-stack">
+    <section class="page-hero p-6 text-center lg:p-8">
+        <h1 class="font-display text-4xl leading-none text-white md:text-5xl">{{ __('workflow.memorization.quick_entry.title') }}</h1>
+    </section>
+
     @if (session('status'))
         <div class="flash-success px-4 py-3 text-sm">{{ session('status') }}</div>
     @endif
