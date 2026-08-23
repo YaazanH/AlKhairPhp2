@@ -16,9 +16,9 @@ class TeacherAttendanceDayService
     /**
      * @param  Collection<int, Teacher>  $teachers
      */
-    public function createOrSyncDay(string $attendanceDate, Collection $teachers, ?User $actor = null, ?string $notes = null, string $status = 'open', ?int $defaultAttendanceStatusId = null): TeacherAttendanceDay
+    public function createOrSyncDay(string $attendanceDate, Collection $teachers, ?User $actor = null, ?string $notes = null, string $status = 'open', ?int $defaultAttendanceStatusId = null, ?int $courseId = null): TeacherAttendanceDay
     {
-        return DB::transaction(function () use ($attendanceDate, $teachers, $actor, $notes, $status, $defaultAttendanceStatusId): TeacherAttendanceDay {
+        return DB::transaction(function () use ($attendanceDate, $teachers, $actor, $notes, $status, $defaultAttendanceStatusId, $courseId): TeacherAttendanceDay {
             $attendanceDate = Carbon::parse($attendanceDate)->toDateString();
 
             $day = TeacherAttendanceDay::query()
@@ -28,6 +28,7 @@ class TeacherAttendanceDayService
             if ($day) {
                 $day->fill([
                     'attendance_date' => $attendanceDate,
+                    'course_id' => $courseId ?: $day->course_id,
                     'status' => $status,
                     'notes' => $notes ?: null,
                     'created_by' => $day->created_by ?? $actor?->id,
@@ -35,6 +36,7 @@ class TeacherAttendanceDayService
             } else {
                 $day = TeacherAttendanceDay::query()->create([
                     'attendance_date' => $attendanceDate,
+                    'course_id' => $courseId,
                     'status' => $status,
                     'notes' => $notes ?: null,
                     'created_by' => $actor?->id,
@@ -76,14 +78,30 @@ class TeacherAttendanceDayService
 
     protected function resolveDefaultStatus(?int $attendanceStatusId): ?AttendanceStatus
     {
-        if (! $attendanceStatusId) {
-            return null;
-        }
-
         return AttendanceStatus::query()
-            ->whereKey($attendanceStatusId)
+            ->when($attendanceStatusId, fn ($query) => $query->whereKey($attendanceStatusId))
+            ->when(! $attendanceStatusId, fn ($query) => $query->orderByDesc('is_default')->orderByDesc('is_present')->orderBy('name'))
             ->where('is_active', true)
             ->whereIn('scope', ['teacher', 'both'])
             ->first();
+    }
+
+    public function fillMissingStatuses(TeacherAttendanceDay $day, ?int $attendanceStatusId = null): TeacherAttendanceDay
+    {
+        $status = $this->resolveDefaultStatus($attendanceStatusId);
+
+        if (! $status) {
+            return $day;
+        }
+
+        $day->records()
+            ->whereNull('attendance_status_id')
+            ->get()
+            ->each(fn (TeacherAttendanceRecord $record) => $record->update([
+                'attendance_status_id' => $status->id,
+                'notes' => $record->notes ?: __('workflow.teacher_attendance.messages.default_status_note', ['status' => $status->name]),
+            ]));
+
+        return $day->fresh(['records.status']);
     }
 }

@@ -75,6 +75,16 @@ class Student extends Model
         return trim($this->first_name.' '.$this->last_name);
     }
 
+    public function setFirstNameAttribute(mixed $value): void
+    {
+        $this->attributes['first_name'] = trim((string) $value);
+    }
+
+    public function setLastNameAttribute(mixed $value): void
+    {
+        $this->attributes['last_name'] = trim((string) $value);
+    }
+
     public function currentActiveEnrollment(): ?Enrollment
     {
         if ($this->relationLoaded('enrollments')) {

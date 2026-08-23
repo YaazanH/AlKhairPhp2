@@ -23,7 +23,7 @@ new class extends Component {
     public bool $showAttemptModal = false;
     public ?int $editingAttemptId = null;
     public bool $showCurrentJuzModal = false;
-    public ?int $newCurrentJuzId = null;
+    public string $newCurrentJuzNumber = '';
 
     public function mount(QuranFinalTest $finalTest): void
     {
@@ -179,18 +179,21 @@ new class extends Component {
     public function saveCurrentJuz(): void
     {
         $this->authorizePermission('quran-final-tests.record');
-        $validated = $this->validate(['newCurrentJuzId' => ['required', Rule::in($this->availableCurrentJuzs()->pluck('id')->all())]]);
-        $this->finalTest->student()->update(['quran_current_juz_id' => (int) $validated['newCurrentJuzId']]);
+        $availableJuzs = $this->availableCurrentJuzs();
+        $validated = $this->validate(['newCurrentJuzNumber' => ['required', 'integer', Rule::in($availableJuzs->pluck('juz_number')->map(fn ($number) => (string) $number)->all())]]);
+        $newCurrentJuz = $availableJuzs->firstWhere('juz_number', (int) $validated['newCurrentJuzNumber']);
+        abort_unless($newCurrentJuz, 422);
+        $this->finalTest->student()->update(['quran_current_juz_id' => $newCurrentJuz->id]);
         $this->showCurrentJuzModal = false;
-        $this->newCurrentJuzId = null;
+        $this->newCurrentJuzNumber = '';
         session()->flash('status', __('workflow.quran_final_tests.current_juz.updated'));
     }
 
     public function closeCurrentJuzModal(): void
     {
         $this->showCurrentJuzModal = false;
-        $this->newCurrentJuzId = null;
-        $this->resetValidation('newCurrentJuzId');
+        $this->newCurrentJuzNumber = '';
+        $this->resetValidation('newCurrentJuzNumber');
     }
 
     protected function availableRecordingTeachers()
@@ -254,7 +257,7 @@ new class extends Component {
 
             <div class="flex flex-wrap gap-3 lg:col-start-2">
                 @if ($finalTestRecord->status !== 'passed' && auth()->user()->can('quran-final-tests.record'))
-                    <button type="button" wire:click="openAttemptModal" class="pill-link pill-link--accent">{{ __('workflow.quran_final_tests.actions.record_attempt') }}</button>
+                    <button type="button" wire:click="openAttemptModal" class="pill-link pill-link--accent workflow-entry-action--hidden">{{ __('workflow.quran_final_tests.actions.record_attempt') }}</button>
                 @endif
                 <a href="{{ route('quran-final-tests.index') }}" wire:navigate class="pill-link">{{ __('workflow.quran_final_tests.actions.back') }}</a>
                 @can('quran-final-tests.delete')
@@ -376,12 +379,9 @@ new class extends Component {
     <x-admin.modal :show="$showCurrentJuzModal" :title="__('workflow.quran_final_tests.current_juz.title')" :description="__('workflow.quran_final_tests.current_juz.tested', ['juz' => $finalTestRecord->juz?->juz_number])" close-method="closeCurrentJuzModal" max-width="xl">
         <form wire:submit="saveCurrentJuz" class="space-y-3">
             <div>
-                <label for="new-current-juz" class="mb-1 block text-sm font-medium">{{ __('workflow.quran_final_tests.current_juz.select') }}</label>
-                <select id="new-current-juz" wire:model="newCurrentJuzId" class="w-full rounded-xl px-4 py-3 text-sm">
-                    <option value="">{{ __('workflow.quran_final_tests.current_juz.select') }}</option>
-                    @foreach ($availableCurrentJuzs as $juz)<option value="{{ $juz->id }}">{{ __('workflow.common.labels.juz_number', ['number' => $juz->juz_number]) }}</option>@endforeach
-                </select>
-                @error('newCurrentJuzId') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
+                <label for="new-current-juz" class="mb-1 block text-sm font-medium">{{ __('workflow.quran_final_tests.current_juz.enter') }}</label>
+                <input id="new-current-juz" wire:model="newCurrentJuzNumber" type="number" min="1" max="30" step="1" inputmode="numeric" class="w-full rounded-xl px-4 py-3 text-sm">
+                @error('newCurrentJuzNumber') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
             </div>
             <div class="flex justify-end"><button type="submit" class="pill-link pill-link--accent">{{ __('crud.common.actions.save') }}</button></div>
         </form>

@@ -206,6 +206,15 @@ new class extends Component
 
     protected function loadDay(): void
     {
+        if ($this->currentGroupDay->studentAttendanceDay) {
+            app(StudentAttendanceDayService::class)->fillMissingStatuses(
+                $this->currentGroupDay->studentAttendanceDay,
+                null,
+                auth()->user(),
+            );
+            $this->currentGroupDay = $this->currentGroupDay->fresh(['studentAttendanceDay', 'records']);
+        }
+
         $this->day_status = $this->currentGroupDay->studentAttendanceDay?->status ?? 'open';
         $this->notes = $this->currentGroupDay->notes ?? '';
         $this->selected_statuses = $this->currentGroupDay->records
@@ -242,34 +251,11 @@ new class extends Component
             </div>
             <a href="{{ route('student-attendance.show', $groupDayRecord->studentAttendanceDay) }}" wire:navigate class="pill-link pill-link--compact">{{ __('workflow.student_attendance.marking.back') }}</a>
         </div>
-        <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ __('workflow.student_attendance.marking.subtitle') }}</p>
-        <div class="mt-6 flex flex-wrap gap-3">
-            <span class="badge-soft">{{ $groupDayRecord->studentAttendanceDay?->attendance_date?->format('d-m-Y') }}</span>
-            <span class="badge-soft badge-soft--emerald">{{ $groupDayRecord->group?->name ?: __('workflow.common.no_group') }}</span>
-            <span class="badge-soft">{{ $groupDayRecord->group?->course?->name ?: __('workflow.common.no_course') }}</span>
-        </div>
     </section>
 
     @if (session('status'))
         <div class="flash-success px-4 py-3 text-sm">{{ session('status') }}</div>
     @endif
-
-    <div class="grid gap-4 md:grid-cols-3">
-        <article class="stat-card">
-            <div class="kpi-label">{{ __('workflow.student_attendance.stats.active_enrollments') }}</div>
-            <div class="metric-value mt-6">{{ number_format($activeEnrollmentCount) }}</div>
-        </article>
-
-        <article class="stat-card">
-            <div class="kpi-label">{{ __('workflow.student_attendance.stats.marked_today') }}</div>
-            <div class="metric-value mt-6">{{ number_format($markedCount) }}</div>
-        </article>
-
-        <article class="stat-card">
-            <div class="kpi-label">{{ __('workflow.student_attendance.form.day_status') }}</div>
-            <div class="metric-value mt-6">{{ __('workflow.common.day_status.'.$groupDayRecord->studentAttendanceDay?->status) }}</div>
-        </article>
-    </div>
 
     @if ($isDayClosed)
         <div class="soft-callout p-4 text-sm text-amber-100">
@@ -278,10 +264,11 @@ new class extends Component
     @endif
 
     <section class="surface-panel p-5">
-        <div class="grid gap-4 text-sm text-neutral-300 md:grid-cols-3">
+        <div class="grid gap-4 text-sm text-neutral-300 sm:grid-cols-2 lg:grid-cols-4">
+            <div><span class="text-neutral-500">{{ __('workflow.student_attendance.context.group') }}:</span> <span class="text-white">{{ $groupDayRecord->group?->name ?: __('workflow.common.no_group') }}</span></div>
             <div><span class="text-neutral-500">{{ __('workflow.student_attendance.context.teacher') }}:</span> <span class="text-white">{{ $groupDayRecord->group?->teacher ? $groupDayRecord->group->teacher->first_name.' '.$groupDayRecord->group->teacher->last_name : __('workflow.common.no_teacher_assigned') }}</span></div>
             <div><span class="text-neutral-500">{{ __('workflow.student_attendance.context.course') }}:</span> <span class="text-white">{{ $groupDayRecord->group?->course?->name ?: __('workflow.common.no_course') }}</span></div>
-            <div><span class="text-neutral-500">{{ __('workflow.student_attendance.context.academic_year') }}:</span> <span class="text-white">{{ $groupDayRecord->group?->academicYear?->name ?: __('workflow.common.no_academic_year') }}</span></div>
+            <div><span class="text-neutral-500">{{ __('workflow.student_attendance.context.date') }}:</span> <span class="text-white">{{ $groupDayRecord->studentAttendanceDay?->attendance_date?->format('d-m-Y') }}</span></div>
         </div>
     </section>
 
@@ -321,7 +308,7 @@ new class extends Component
                                 <td class="px-5 py-4 text-white lg:px-6">{{ $enrollment->final_points_cached }}</td>
                                 <td class="px-5 py-4 lg:px-6">
                                     @if ($isDayClosed)
-                                        <span class="text-neutral-200">{{ $statuses->firstWhere('id', (int) ($selected_statuses[$enrollment->id] ?? 0))?->name ?: __('workflow.student_attendance.table.not_marked') }}</span>
+                                        <span class="text-neutral-200">{{ $statuses->firstWhere('id', (int) ($selected_statuses[$enrollment->id] ?? 0))?->name ?: $statuses->firstWhere('is_default', true)?->name ?: $statuses->first()?->name ?: '-' }}</span>
                                     @else
                                         <select
                                             wire:model="selected_statuses.{{ $enrollment->id }}"
@@ -330,7 +317,6 @@ new class extends Component
                                             data-searchable="false"
                                             class="w-full rounded-xl px-4 py-3 text-sm"
                                         >
-                                            <option value="">{{ __('workflow.student_attendance.table.not_marked') }}</option>
                                             @foreach ($statuses as $status)
                                                 <option value="{{ $status->id }}">{{ $status->name }}</option>
                                             @endforeach

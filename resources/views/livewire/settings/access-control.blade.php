@@ -317,17 +317,17 @@ new class extends Component {
         <div class="rounded-2xl border border-red-500/25 bg-red-500/10 px-4 py-3 text-sm text-red-200">{{ $message }}</div>
     @enderror
 
-    <section class="surface-table">
-        <div class="admin-grid-meta">
+    <section class="overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700">
+        <div class="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-200 px-5 py-4 dark:border-neutral-700">
             <div class="admin-grid-meta__title">{{ __('access.common.roles') }}</div>
-            <div class="flex flex-wrap items-end gap-3"><div class="admin-filter-field"><label class="sr-only" for="role-search">{{ __('access.roles.fields.search') }}</label><input id="role-search" wire:model.live.debounce.300ms="role_search" type="text" placeholder="{{ __('access.roles.fields.search') }}"></div><button type="button" wire:click="openCreateRoleModal" class="pill-link pill-link--accent">{{ __('access.roles.actions.create') }}</button></div>
+            <div class="flex flex-wrap items-end gap-3" data-mobile-table-filter-controls><div class="admin-filter-field"><label class="sr-only" for="role-search">{{ __('access.roles.fields.search') }}</label><input id="role-search" wire:model.live.debounce.300ms="role_search" type="text" placeholder="{{ __('access.roles.fields.search') }}"></div><button type="button" wire:click="openCreateRoleModal" class="pill-link pill-link--accent">{{ __('access.roles.actions.create') }}</button></div>
         </div>
 
         @if ($roles->isEmpty())
             <div class="admin-empty-state">{{ __('access.roles.table.empty') }}</div>
         @else
             <div class="overflow-x-auto">
-                <table class="text-sm">
+                <table class="min-w-full divide-y divide-neutral-200 text-sm dark:divide-neutral-700">
                     <thead>
                         <tr>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('access.roles.table.headers.role') }}</th>
@@ -337,7 +337,7 @@ new class extends Component {
                             <th class="px-5 py-4 text-right lg:px-6">{{ __('access.roles.table.headers.actions') }}</th>
                         </tr>
                     </thead>
-                    <tbody class="divide-y divide-white/6">
+                    <tbody class="divide-y divide-neutral-200 dark:divide-neutral-700">
                         @foreach ($roles as $role)
                             @php
                                 $isSystemRole = RoleRegistry::isSystemRole($role->name);

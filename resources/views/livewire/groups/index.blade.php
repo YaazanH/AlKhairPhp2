@@ -15,7 +15,6 @@ use App\Models\Student;
 use App\Models\Teacher;
 use App\Services\GroupDailySummaryService;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
 use Livewire\Volt\Component;
 use Livewire\WithPagination;
@@ -55,14 +54,6 @@ new class extends Component {
     public function mount(): void
     {
         $this->authorizePermission('groups.view');
-        $teacherId = Auth::user()?->teacherProfile?->id;
-        $activeGroup = $teacherId ? Group::query()->where('is_active', true)
-            ->where(fn ($query) => $query->where('teacher_id', $teacherId)->orWhere('assistant_teacher_id', $teacherId))
-            ->orderByDesc('starts_on')->orderByDesc('id')->first() : null;
-        if ($activeGroup) {
-            $this->redirectRoute('groups.show', ['group' => $activeGroup], navigate: true);
-            return;
-        }
         $this->courseFilter = 'all';
         $this->resetForm();
         $this->quickSummaryDate = now()->toDateString();
@@ -762,7 +753,10 @@ new class extends Component {
                                     </div>
                                 </td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $group->course?->name ?: __('crud.common.not_available') }}</td>
-                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $group->teacher ? $group->teacher->first_name.' '.$group->teacher->last_name : __('crud.common.not_available') }}</td>
+                                <td class="px-5 py-4 text-neutral-300 lg:px-6">
+                                    <div>{{ $group->teacher ? $group->teacher->first_name.' '.$group->teacher->last_name : __('crud.common.not_available') }}</div>
+                                    @if ($group->assistantTeacher)<div class="mt-1 text-xs text-neutral-500">{{ $group->assistantTeacher->first_name }} {{ $group->assistantTeacher->last_name }}</div>@endif
+                                </td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $group->gradeLevel?->name ?: __('crud.common.not_available') }}</td>
                                 <td class="px-5 py-4 text-white lg:px-6">{{ $group->enrollments_count }}</td>
                                 <td class="px-5 py-4 lg:px-6"><span class="{{ $groupStatusClass }}">{{ $groupStatusLabel }}</span></td>

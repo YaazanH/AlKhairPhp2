@@ -16,9 +16,6 @@
                     @can('id-cards.templates.manage')
                         <a href="{{ route('print-templates.templates.create') }}" class="pill-link pill-link--accent">{{ __('print_templates.templates.actions.create') }}</a>
                     @endcan
-                    @can('id-cards.print')
-                        <a href="{{ route('print-templates.print.create') }}" class="pill-link">{{ __('print_templates.templates.actions.print') }}</a>
-                    @endcan
                 </div>
             </div>
 

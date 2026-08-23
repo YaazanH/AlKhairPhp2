@@ -44,6 +44,42 @@ class ManagementCrudTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_course_final_saber_pdf_keeps_a_four_millimetre_header_gap_and_aligned_metadata(): void
+    {
+        $html = view('reports.course-final-tests', [
+            'course' => new Course(['name' => 'PDF Course']),
+            'rows' => collect([
+                ['name' => 'PDF Student', 'juz' => 3, 'mark' => 95],
+            ]),
+            'logo' => null,
+        ])->render();
+
+        $this->assertStringContainsString('@page{margin:35mm 14mm 18mm', $html);
+        $this->assertStringContainsString('.header-title{font-family:dubai,sans-serif;font-size:20px;font-weight:bold}', $html);
+        $this->assertStringContainsString('.meta-label{font-family:dubaimedium,sans-serif;font-weight:normal', $html);
+        $this->assertStringContainsString('.header-meta[dir=rtl] .meta-label{text-align:left;padding-left:.8mm}', $html);
+        $this->assertStringContainsString('.header-meta[dir=rtl] .meta-value{text-align:right;padding-right:.8mm}', $html);
+        $this->assertStringContainsString('.report-page-gap th{background:#fff;border:0;font-size:0;height:4mm', $html);
+        $this->assertStringContainsString('<tr class="report-page-gap"><th colspan="5">&nbsp;</th></tr>', $html);
+        $this->assertStringContainsString('class="header-meta-table"', $html);
+        $this->assertStringContainsString('class="meta-label" style="text-align:', $html);
+        $this->assertStringContainsString(__('course_end.date_label'), $html);
+        $this->assertStringContainsString(__('course_end.final_tests_total'), $html);
+    }
+
+    public function test_student_names_are_trimmed_when_saved(): void
+    {
+        $student = Student::create([
+            'first_name' => '   Ahmad',
+            'last_name' => '  Khaled  ',
+            'birth_date' => '2013-01-01',
+            'status' => 'active',
+        ]);
+
+        $this->assertSame('Ahmad', $student->fresh()->first_name);
+        $this->assertSame('Khaled', $student->fresh()->last_name);
+    }
+
     public function test_students_with_the_same_first_and_last_names_use_the_fathers_full_name(): void
     {
         $firstParent = ParentProfile::create(['father_name' => 'Mahmoud Khaled Ali']);
@@ -1323,9 +1359,16 @@ class ManagementCrudTest extends TestCase
             ->assertSee('01-09-2026')
             ->assertSee('Fares Hamdan')
             ->assertSee('+963 999 000 001')
+            ->assertSee('group-show-details__grid', false)
+            ->assertSee('data-group-copy-summary', false)
+            ->assertSee('group-roster-table__name-value', false)
             ->assertDontSee('min-w-[88rem]', false)
             ->set('showScheduleModal', true)
             ->assertSee('sm:grid-cols-[minmax(9rem,1fr)_minmax(9rem,1fr)_minmax(9rem,1fr)_max-content]', false);
+
+        $groupCss = file_get_contents(resource_path('css/app.css'));
+        $this->assertStringContainsString('.group-roster-table th:nth-child(2)', $groupCss);
+        $this->assertStringContainsString('.group-roster-table th:nth-child(8)', $groupCss);
 
         $rosterPdfHtml = view('exports.group-roster-pdf', [
             'enrollments' => Enrollment::query()->where('group_id', $group->id)->with(['student.parentProfile', 'student.user', 'student.gradeLevel', 'student.quranCurrentJuz'])->get(),
@@ -1335,7 +1378,11 @@ class ManagementCrudTest extends TestCase
 
         $this->assertStringContainsString('.title-row td', $rosterPdfHtml);
         $this->assertStringContainsString('border: 0;', $rosterPdfHtml);
-        $this->assertStringContainsString('.report-table { margin-top: 4mm; }', $rosterPdfHtml);
+        $this->assertStringContainsString('@page { margin: 35mm 10mm 18mm;', $rosterPdfHtml);
+        $this->assertStringContainsString('height: 4mm;', $rosterPdfHtml);
+        $this->assertStringContainsString('<tr class="roster-page-gap"><th colspan="7">&nbsp;</th></tr>', $rosterPdfHtml);
+        $this->assertStringContainsString('<th style="width: 22%;">اسم الطالب</th>', $rosterPdfHtml);
+        $this->assertStringContainsString('<th style="width: 18%;">جوال الأب</th>', $rosterPdfHtml);
         $this->assertStringContainsString('رقم الطالب', $rosterPdfHtml);
         $this->assertStringNotContainsString('>باركود</th>', $rosterPdfHtml);
     }

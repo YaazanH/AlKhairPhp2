@@ -22,6 +22,8 @@
         const removeBackgroundInput = document.querySelector('[data-print-template-remove-background]');
         const backgroundFileName = document.querySelector('[data-print-template-file-name]');
         const dimsBadge = document.querySelector('[data-print-template-stage-dims]');
+        const studentCardCheckbox = document.querySelector('[data-template-student-card]');
+        const reportCardCheckbox = document.querySelector('[data-template-report-card]');
         const barcodePreviewUrl = @json(route('id-cards.barcode-preview'));
 
         const labels = {
@@ -776,6 +778,42 @@
                 renderAll();
             });
         });
+
+        function applyExclusiveTemplateType(selectedType) {
+            const picker = document.querySelector('[data-source-picker]');
+            const multiple = document.querySelector('[data-source-multiple-records]');
+            const selectedCheckbox = selectedType === 'report' ? reportCardCheckbox : studentCardCheckbox;
+
+            if (!selectedCheckbox?.checked) {
+                return;
+            }
+
+            if (selectedType === 'report' && studentCardCheckbox) {
+                studentCardCheckbox.checked = false;
+            }
+
+            if (selectedType === 'student' && reportCardCheckbox) {
+                reportCardCheckbox.checked = false;
+            }
+
+            if (picker) {
+                picker.value = selectedType === 'report' ? 'course_student' : 'student';
+            }
+
+            if (multiple) {
+                multiple.checked = true;
+            }
+
+            syncControlsToSources();
+            renderAll();
+        }
+
+        studentCardCheckbox?.addEventListener('change', () => applyExclusiveTemplateType('student'));
+        reportCardCheckbox?.addEventListener('change', () => applyExclusiveTemplateType('report'));
+
+        if (studentCardCheckbox?.checked && reportCardCheckbox?.checked) {
+            studentCardCheckbox.checked = false;
+        }
 
         [widthInput, heightInput].forEach((input) => input.addEventListener('input', () => {
             state.elements.forEach(fitElementToStage);

@@ -26,7 +26,7 @@
     <section class="surface-panel print-template-setup-panel">
         <div class="print-template-setup-panel__grid">
             <div class="print-template-setup-panel__details">
-                <div class="admin-form-field admin-form-field--full">
+                <div class="admin-form-field print-template-name-field">
                     <label for="print-template-name">{{ __('print_templates.templates.form.fields.name') }}</label>
                     <input id="print-template-name" name="name" value="{{ old('name', $template->name) }}" required class="print-template-input">
                 </div>
@@ -53,10 +53,10 @@
                             <h2 class="font-display text-2xl text-white">{{ __('print_templates.templates.form.fields.paper_settings') }}</h2>
                             <button type="button" class="admin-modal__close" onclick="this.closest('dialog').close()" aria-label="{{ __('crud.common.actions.close') }}">&times;</button>
                         </div>
-                        <div class="mb-5 flex flex-wrap gap-5">
+                        <div class="print-template-type-options mb-5">
                             <label class="admin-checkbox"><input type="checkbox" name="is_active" value="1" @checked(old('is_active', $template->is_active))><span>{{ __('print_templates.templates.form.fields.is_active') }}</span></label>
-                            <label class="admin-checkbox"><input type="checkbox" name="is_student_card" value="1" @checked(old('is_student_card', $template->is_student_card))><span>{{ __('print_templates.templates.form.fields.is_student_card') }}</span></label>
-                            <label class="admin-checkbox"><input type="checkbox" name="is_report_card" value="1" @checked(old('is_report_card', $template->is_report_card))><span>{{ __('print_templates.templates.form.fields.is_report_card') }}</span></label>
+                            <label class="admin-checkbox"><input type="checkbox" name="is_student_card" value="1" data-template-student-card @checked(old('is_student_card', $template->is_student_card))><span>{{ __('print_templates.templates.form.fields.is_student_card') }}</span></label>
+                            <label class="admin-checkbox"><input type="checkbox" name="is_report_card" value="1" data-template-report-card @checked(old('is_report_card', $template->is_report_card))><span>{{ __('print_templates.templates.form.fields.is_report_card') }}</span></label>
                         </div>
                         <div class="grid gap-4 md:grid-cols-2">
                 <div class="admin-form-field">
@@ -119,13 +119,16 @@
                     @endif
                 </div>
                         </div>
-                        <div class="mt-5 flex justify-end"><button type="button" class="pill-link pill-link--accent" onclick="this.closest('dialog').close()">{{ __('crud.common.actions.close') }}</button></div>
                     </div>
                 </dialog>
-            </div>
 
-            <div class="print-template-source-card">
-                <div class="mt-3 grid gap-3">
+                <dialog id="print-template-data-sources" class="print-template-settings-dialog">
+                    <div class="print-template-settings-dialog__panel">
+                        <div class="admin-builder-header mb-5">
+                            <h2 class="font-display text-2xl text-white">{{ __('print_templates.templates.form.sections.data_sources') }}</h2>
+                            <button type="button" class="admin-modal__close" onclick="this.closest('dialog').close()" aria-label="{{ __('crud.common.actions.close') }}">&times;</button>
+                        </div>
+                        <div class="grid gap-4">
                     <div class="admin-form-field">
                         <label for="print-template-data-source">{{ __('print_templates.templates.form.sections.data_sources') }}</label>
                         <select id="print-template-data-source" data-source-picker>
@@ -138,9 +141,11 @@
                         <input type="checkbox" data-source-multiple-records>
                         <span>{{ __('print_templates.templates.form.source_modes.multiple') }}</span>
                     </label>
+                        </div>
+                    </div>
+                </dialog>
                 </div>
             </div>
-        </div>
 
         <textarea name="data_sources_json" class="hidden" data-print-template-data-sources-input>{{ $initialDataSourcesJson }}</textarea>
     </section>
@@ -172,21 +177,23 @@
         </div>
 
         <div class="print-template-studio__workspace">
-            <details class="print-template-panel print-template-panel--layers" open data-print-template-layers-panel>
-                <summary class="print-template-panel__summary">
-                    <div>
-                        <div class="admin-section-card__title">{{ __('print_templates.templates.form.sections.layers') }}</div>
+            <div class="print-template-studio__layers">
+                <details class="print-template-panel print-template-panel--layers" open data-print-template-layers-panel>
+                    <summary class="print-template-panel__summary">
+                        <div>
+                            <div class="admin-section-card__title">{{ __('print_templates.templates.form.sections.layers') }}</div>
+                        </div>
+                        <span class="print-template-layer-toggle" aria-hidden="true">
+                            <span></span>
+                            <span></span>
+                            <span></span>
+                        </span>
+                    </summary>
+                    <div class="id-card-layer-list" data-print-template-layer-list>
+                        <div class="admin-empty-state">{{ __('print_templates.templates.form.empty_layers') }}</div>
                     </div>
-                    <span class="print-template-layer-toggle" aria-hidden="true">
-                        <span></span>
-                        <span></span>
-                        <span></span>
-                    </span>
-                </summary>
-                <div class="id-card-layer-list" data-print-template-layer-list>
-                    <div class="admin-empty-state">{{ __('print_templates.templates.form.empty_layers') }}</div>
-                </div>
-            </details>
+                </details>
+            </div>
 
             <section class="print-template-panel print-template-panel--inspector">
                 <div class="print-template-panel__header">

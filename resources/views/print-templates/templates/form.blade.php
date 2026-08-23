@@ -17,10 +17,13 @@
                 </div>
                 <div class="admin-action-cluster admin-action-cluster--end">
                     <button type="button" class="pill-link" onclick="document.getElementById('print-template-settings')?.showModal()">{{ __('print_templates.templates.form.fields.paper_settings') }}</button>
+                    <button type="button" class="pill-link" onclick="document.getElementById('print-template-data-sources')?.showModal()">{{ __('print_templates.templates.form.sections.data_sources') }}</button>
                     @if ($isEditing)
-                        @can('id-cards.print')
-                            <a href="{{ $template->is_student_card ? route('id-cards.print.create', ['template' => $template->id]) : route('print-templates.print.create', ['template' => $template->id]) }}" class="pill-link">{{ __('print_templates.templates.actions.print') }}</a>
-                        @endcan
+                        @if ($template->is_active && ! $template->is_student_card && ! $template->is_report_card)
+                            @can('id-cards.print')
+                                <a href="{{ route('print-templates.print.create', ['template' => $template->id]) }}" class="pill-link">{{ __('print_templates.templates.actions.print') }}</a>
+                            @endcan
+                        @endif
                         @can('id-cards.templates.manage')
                             <form method="POST" action="{{ route('print-templates.templates.copy', $template) }}">@csrf<button type="submit" class="pill-link">{{ __('print_templates.templates.actions.copy') }}</button></form>
                             <form method="POST" action="{{ route('print-templates.templates.destroy', $template) }}" data-admin-confirm-message="{{ __('print_templates.templates.confirm_delete') }}">@csrf @method('DELETE')<button type="submit" class="pill-link pill-link--danger">{{ __('crud.common.actions.delete') }}</button></form>

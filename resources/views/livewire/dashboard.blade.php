@@ -92,17 +92,28 @@ new class extends Component {
 
         $averageAttendanceByGroup = GroupAttendanceDay::query()
             ->whereIn('group_id', $groups->pluck('id'))
+            ->withCount('records')
             ->withCount(['records as present_students_count' => fn ($query) => $query
                 ->whereHas('status', fn ($statusQuery) => $statusQuery->where('is_present', true))])
             ->get()
             ->groupBy('group_id')
-            ->map(fn ($days) => round((float) $days->avg('present_students_count'), 1));
+            ->map(function ($days): array {
+                $recordedDays = $days->where('records_count', '>', 0);
+
+                return [
+                    'count' => round((float) $days->avg('present_students_count'), 1),
+                    'percentage' => $recordedDays->isEmpty()
+                        ? 0.0
+                        : round((float) $recordedDays->avg(fn (GroupAttendanceDay $day) => ($day->present_students_count / $day->records_count) * 100), 1),
+                ];
+            });
 
         $groupDistribution = $groups->map(fn (Group $group) => [
             'id' => $group->id,
             'name' => $group->name,
             'students' => (int) $group->active_students_count,
-            'average_attendance' => (float) ($averageAttendanceByGroup[$group->id] ?? 0),
+            'average_attendance' => (float) ($averageAttendanceByGroup[$group->id]['count'] ?? 0),
+            'average_attendance_percentage' => (float) ($averageAttendanceByGroup[$group->id]['percentage'] ?? 0),
         ]);
 
         $trendDates = GroupAttendanceDay::query()
@@ -929,7 +940,6 @@ new class extends Component {
                 $trendY = fn (int $value) => 178 - (($value / $trendMax) * 128);
                 $pagesLine = $dailyTrend->values()->map(fn (array $day, int $index) => $trendX($index).','.$trendY($day['pages']))->implode(' ');
                 $attendanceLine = $dailyTrend->values()->map(fn (array $day, int $index) => $trendX($index).','.$trendY($day['attendance']))->implode(' ');
-                $podiumOrder = collect([3, 1, 2])->map(fn (int $rank) => $leaderboard->firstWhere('rank', $rank))->filter();
                 $barHighest = max(1, (int) $groupPageTotals->max('pages'));
                 $barRawStep = $barHighest / 6;
                 $barMagnitude = 10 ** floor(log10($barRawStep));
@@ -945,12 +955,14 @@ new class extends Component {
                     @if ($groupStudentTotal > 0)
                         <div class="dashboard-treemap mt-5 space-y-2.5" role="img" aria-label="{{ __('dashboard.manager.analytics.group_distribution') }}">
                             @foreach ($lollipopGroups as $index => $group)
-                                <div class="grid grid-cols-[minmax(5rem,9rem)_minmax(0,1fr)_auto] items-center gap-3" title="{{ $group['name'] }} · {{ trans_choice('dashboard.manager.analytics.students_count', $group['students'], ['count' => number_format($group['students'])]) }}">
+                                <div class="grid grid-cols-[minmax(5rem,9rem)_minmax(0,1fr)_auto] items-center gap-3">
                                     <div class="truncate text-xs text-neutral-300">{{ $group['name'] }}</div>
                                     <div class="relative h-5">
                                         <span class="absolute inset-y-1/2 start-0 h-px -translate-y-1/2 rounded-full opacity-70" style="width: {{ ($group['students'] / $lollipopMax) * 100 }}%; background: {{ $chartColor($index) }}"></span>
                                         <span class="absolute top-1/2 h-3.5 w-3.5 -translate-y-1/2 rounded-full border-2 border-neutral-950 shadow" style="inset-inline-start: calc({{ ($group['students'] / $lollipopMax) * 100 }}% - .4375rem); background: {{ $chartColor($index) }}"></span>
-                                        <span class="absolute top-1/2 h-2.5 w-2.5 -translate-y-1/2 rounded-full border-2 border-neutral-950 bg-sky-300 shadow" style="inset-inline-start: calc({{ ($group['average_attendance'] / $lollipopMax) * 100 }}% - .3125rem)" title="{{ __('dashboard.manager.analytics.average_attendance') }}: {{ number_format($group['average_attendance'], 1) }}"></span>
+                                        <span class="dashboard-lollipop-attendance absolute top-1/2 h-2.5 w-2.5 -translate-y-1/2 rounded-full border-2 border-neutral-950 bg-sky-300 shadow" style="inset-inline-start: calc({{ ($group['average_attendance'] / $lollipopMax) * 100 }}% - .3125rem)" tabindex="0" aria-label="{{ number_format($group['average_attendance_percentage'], 1) }}%">
+                                            <span class="dashboard-lollipop-attendance__tooltip" aria-hidden="true">{{ number_format($group['average_attendance_percentage'], 1) }}%</span>
+                                        </span>
                                     </div>
                                     <div class="min-w-8 text-end text-xs font-semibold text-white">{{ number_format($group['students']) }}</div>
                                 </div>
@@ -1002,25 +1014,26 @@ new class extends Component {
                 </article>
             </section>
 
-            <section class="mt-6 grid gap-6 xl:grid-cols-2">
+            <section class="dashboard-ranking-grid mt-6 grid items-start gap-6 xl:grid-cols-2">
                 <article class="surface-panel p-5 lg:p-6">
                     <h2 class="font-display mt-2 text-2xl text-white">{{ __('dashboard.manager.analytics.top_students') }}</h2>
                     @if ($leaderboard->isEmpty())
                         <div class="admin-empty-state mt-5">{{ __('dashboard.manager.analytics.no_ranked_students') }}</div>
                     @else
-                        <div class="dashboard-leaderboard mt-8 grid grid-cols-3 items-end gap-3">
-                            @foreach ($podiumOrder as $entry)
-                                @php
-                                    $rankStyle = [1 => 'gold', 2 => 'silver', 3 => 'bronze'][$entry['rank']];
-                                @endphp
-                                <button type="button" wire:click="showManagerStudent({{ $entry['student']->id }})" class="dashboard-leaderboard__card dashboard-leaderboard__card--{{ $rankStyle }} dashboard-leaderboard__card--rank-{{ $entry['rank'] }} group">
-                                    <span class="dashboard-leaderboard__rank">
-                                        <img src="{{ asset('images/dashboard/leaderboard/medal-'.$entry['rank'].'.png') }}" alt="{{ $entry['rank'] }}" class="dashboard-leaderboard__rank-image">
-                                    </span>
-                                    <x-student-avatar :student="$entry['student']" size="lg" class="dashboard-leaderboard__avatar mx-auto transition-transform duration-200 group-hover:scale-110" />
-                                    <span class="mt-3 block line-clamp-2 font-semibold text-white">{{ $entry['student']->full_name }}</span>
-                                    <span class="mt-2 block text-sm text-neutral-200">{{ number_format($entry['points']) }} {{ app()->isLocale('ar') ? ($entry['points'] > 10 ? 'نقطة' : 'نقاط') : __('dashboard.manager.analytics.points') }}</span>
-                                </button>
+                        <div class="dashboard-leaderboard mt-5" role="list" aria-label="{{ __('dashboard.manager.analytics.top_students') }}">
+                            @foreach ($leaderboard as $entry)
+                                <div class="dashboard-leaderboard__entry dashboard-leaderboard__entry--rank-{{ $entry['rank'] }}" role="listitem">
+                                    <button type="button" wire:click="showManagerStudent({{ $entry['student']->id }})" class="dashboard-leaderboard__rank-button dashboard-leaderboard__rank-button--rank-{{ $entry['rank'] }}" title="{{ __('dashboard.manager.analytics.student_highlights') }}: {{ $entry['student']->full_name }}" aria-label="{{ __('dashboard.manager.analytics.student_highlights') }}: {{ $entry['student']->full_name }}">
+                                        <img src="{{ asset('images/dashboard/leaderboard/podium-stage.png') }}" alt="" class="dashboard-leaderboard__stage" aria-hidden="true">
+                                        <span class="dashboard-leaderboard__portrait dashboard-leaderboard__portrait--rank-{{ $entry['rank'] }}">
+                                            <x-student-avatar :student="$entry['student']" size="lg" class="dashboard-leaderboard__avatar" />
+                                        </span>
+                                        <span class="dashboard-leaderboard__details dashboard-leaderboard__details--rank-{{ $entry['rank'] }}">
+                                            <span class="dashboard-leaderboard__name">{{ $entry['student']->full_name }}</span>
+                                            <span class="dashboard-leaderboard__points">{{ number_format($entry['points']) }} {{ app()->isLocale('ar') ? ($entry['points'] > 10 ? 'نقطة' : 'نقاط') : __('dashboard.manager.analytics.points') }}</span>
+                                        </span>
+                                    </button>
+                                </div>
                             @endforeach
                         </div>
                     @endif

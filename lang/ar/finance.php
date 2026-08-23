@@ -364,6 +364,7 @@ return [
         'generate_report' => 'إنشاء التقرير',
         'template' => 'القالب',
         'generated_reports' => 'التقارير المالية المحفوظة',
+        'saved_reports_count' => ':count تقرير محفوظ',
         'generated_reports_subtitle' => 'يحتفظ كل تقرير محفوظ بالفلاتر المختارة والبيانات الناتجة حتى تتمكن من مراجعته أو إعادة طباعته لاحقاً.',
         'generated_reports_unavailable' => 'سجل التقارير المحفوظة غير متاح حتى يتم تثبيت آخر ترحيلات التقارير المالية. ما زال تصدير السجل يعمل.',
         'review_saved_report' => 'عرض',

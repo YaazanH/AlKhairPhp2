@@ -355,7 +355,7 @@ class FinanceAndActivitiesTest extends TestCase
             ->assertSee(__('print_templates.print.preview.title'))
             ->assertSee('PUL-000001')
             ->assertSee('Class materials')
-            ->assertSee('Pull Request Receipt');
+            ->assertDontSee('Pull Request Receipt');
 
         $this->get(route('finance.requests.print', ['financeRequest' => $request, 'choose' => 1]))
             ->assertOk()
@@ -460,7 +460,7 @@ class FinanceAndActivitiesTest extends TestCase
 
         $this->get(route('finance.requests.print', $revenueRequest))
             ->assertOk()
-            ->assertSee('Revenue Receipt')
+            ->assertDontSee('Revenue Receipt')
             ->assertSee($revenueRequest->request_no)
             ->assertSee(now()->format('d-m-Y'))
             ->assertSee('Page 1')
@@ -469,7 +469,7 @@ class FinanceAndActivitiesTest extends TestCase
 
         $this->get(route('finance.requests.print', ['financeRequest' => $revenueRequest, 'choose' => 1]))
             ->assertOk()
-            ->assertSee('Revenue Receipt')
+            ->assertDontSee('Revenue Receipt')
             ->assertDontSee(__('finance.print.title'));
     }
 
@@ -1363,7 +1363,7 @@ class FinanceAndActivitiesTest extends TestCase
 
         Volt::test('finance.reports')
             ->call('openCreateReport')
-            ->assertSee(__('finance.reports.ledger_export_title'))
+            ->assertDontSee(__('finance.reports.ledger_export_title'))
             ->assertSee(__('finance.reports.generated_reports'))
             ->assertSee($cashBox->name)
             ->assertDontSee('<select wire:model.live="ledger_currency_id"', false);
@@ -1977,6 +1977,7 @@ class FinanceAndActivitiesTest extends TestCase
             'requested_by' => auth()->id(),
         ]);
         $request = $service->acceptRequest($request, 20, $fund, auth()->user(), null, 1, '2026-08-01');
+        $originalExpenseNo = $request->expense_no;
 
         Volt::test('settings.finance')
             ->set('transaction_lookup_no', $request->request_no)
@@ -1994,9 +1995,9 @@ class FinanceAndActivitiesTest extends TestCase
         $request->refresh();
         $this->assertSame('25.00', $request->accepted_amount);
         $this->assertSame('25.00', $request->requested_amount);
-        $this->assertSame('EXP-000999', $request->expense_no);
+        $this->assertSame($originalExpenseNo, $request->expense_no);
         $this->assertSame('Updated reason', $request->requested_reason);
-        $this->assertSame('EXP-000999', $request->postedTransaction->fresh()->special_transaction_no);
+        $this->assertSame($originalExpenseNo, $request->postedTransaction->fresh()->special_transaction_no);
     }
 
     public function test_historical_finance_source_repair_uses_the_ledger_as_its_base(): void

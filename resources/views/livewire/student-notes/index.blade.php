@@ -454,13 +454,13 @@ new class extends Component {
                     </div>
 
                     <div class="flex gap-3">
-                        <button type="submit" class="rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white dark:bg-white dark:text-neutral-900">
+                        <button type="submit" class="pill-link pill-link--accent">
                             {{ $editingId ? __('notes.form.update_submit') : __('notes.form.create_submit') }}
                         </button>
                         <x-admin.create-and-new-button :show="! $editingId" click="saveAndNew('save', 'create')" />
 
                         @if ($editingId)
-                            <button type="button" wire:click="cancel" class="rounded-lg border border-neutral-300 px-4 py-2 text-sm font-medium dark:border-neutral-700">
+                            <button type="button" wire:click="cancel" class="pill-link">
                                 {{ __('crud.common.actions.cancel') }}
                             </button>
                         @endif

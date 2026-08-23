@@ -256,14 +256,6 @@ new class extends Component
             </div>
             <a href="{{ route('student-attendance.index') }}" wire:navigate class="pill-link pill-link--compact">{{ __('workflow.student_attendance.day_details.back') }}</a>
         </div>
-        <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ __('workflow.student_attendance.day_details.subtitle') }}</p>
-        <div class="mt-6 flex flex-wrap gap-3">
-            <span class="badge-soft">{{ $dayRecord->attendance_date?->format('d-m-Y') }}</span>
-            <span class="badge-soft badge-soft--emerald">{{ $dayRecord->course?->name ?: __('workflow.common.no_course') }}</span>
-            <span class="badge-soft badge-soft--emerald">{{ __('workflow.student_attendance.day_details.stats.groups') }}: {{ number_format($stats['groups']) }}</span>
-            <span class="badge-soft">{{ __('workflow.student_attendance.day_details.stats.students') }}: {{ number_format($stats['students']) }}</span>
-            <span class="badge-soft">{{ __('workflow.student_attendance.day_details.stats.marked') }}: {{ number_format($stats['marked']) }}</span>
-        </div>
     </section>
 
     @if (session('status'))
@@ -281,15 +273,16 @@ new class extends Component
                 :title="__('workflow.student_attendance.day_details.manual_add.title')"
                 :description="__('workflow.student_attendance.day_details.manual_add.help')"
                 close-method="closeManualGroupModal"
-                max-width="3xl"
+                max-width="xl"
+                compact
             >
-                <form wire:submit="addManualGroup" class="space-y-5">
+                <form wire:submit="addManualGroup" class="space-y-4">
                     <div>
                         <label for="manual-attendance-group" class="mb-1 block text-sm font-medium">{{ __('workflow.student_attendance.day_details.manual_add.group') }}</label>
                         <select id="manual-attendance-group" wire:model="manual_group_id" class="w-full rounded-xl px-4 py-3 text-sm">
                             <option value="">{{ __('workflow.student_attendance.day_details.manual_add.select_group') }}</option>
                             @foreach ($availableExtraGroups as $group)
-                                <option value="{{ $group->id }}">{{ $group->name }}{{ $group->course ? ' | '.$group->course->name : '' }}</option>
+                                <option value="{{ $group->id }}">{{ $group->name }}</option>
                             @endforeach
                         </select>
                         @error('manual_group_id')
@@ -298,8 +291,8 @@ new class extends Component
                     </div>
 
                     <div class="admin-action-cluster admin-action-cluster--end">
-                        <button type="button" wire:click="closeManualGroupModal" class="pill-link">{{ __('crud.common.actions.cancel') }}</button>
-                        <button type="submit" class="pill-link pill-link--accent">{{ __('workflow.student_attendance.day_details.manual_add.action') }}</button>
+                        <button type="button" wire:click="closeManualGroupModal" class="pill-link pill-link--compact">{{ __('crud.common.actions.cancel') }}</button>
+                        <button type="submit" class="pill-link pill-link--accent pill-link--compact">{{ __('workflow.student_attendance.day_details.manual_add.action') }}</button>
                     </div>
                 </form>
             </x-admin.modal>
@@ -309,7 +302,7 @@ new class extends Component
     <section class="surface-table">
         <div class="admin-grid-meta admin-grid-meta--controls">
             <div>
-                <div class="admin-grid-meta__title">{{ __('workflow.student_attendance.day_details.table.title') }}</div>
+                <div class="admin-grid-meta__title">{{ __('workflow.student_attendance.day_details.table.title') }} · {{ $dayRecord->course?->name ?: __('workflow.common.no_course') }}</div>
                 <div class="admin-grid-meta__summary">{{ __('crud.common.badges.in_view', ['count' => number_format($dayRecord->groupAttendanceDays->count())]) }}</div>
             </div>
             @if ($canAddManualGroup || $canQuickAttend || $canToggleDayStatus)
@@ -355,7 +348,6 @@ new class extends Component
                             <tr>
                                 <td class="px-5 py-4 lg:px-6">
                                     <div class="font-semibold text-white">{{ $groupDay->group?->name ?: __('workflow.common.no_group') }}</div>
-                                    <div class="mt-1 text-xs uppercase tracking-[0.18em] text-neutral-500">{{ $groupDay->group?->course?->name ?: __('workflow.common.no_course') }}</div>
                                 </td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">
                                     {{ $groupDay->group?->teacher ? $groupDay->group->teacher->first_name.' '.$groupDay->group->teacher->last_name : __('workflow.common.no_teacher_assigned') }}

@@ -260,7 +260,8 @@ class ManagementPagesTest extends TestCase
         }
 
         $this->get(route('groups.index', absolute: false))
-            ->assertRedirect(route('groups.show', $teacherGroup, absolute: false));
+            ->assertOk()
+            ->assertSeeText($teacherGroup->name);
 
         foreach ([
             route('reports.index', absolute: false),

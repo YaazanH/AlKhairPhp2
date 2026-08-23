@@ -538,25 +538,6 @@ function formattedDateValue(value) {
     return match ? `${match[3]}-${match[2]}-${match[1]}` : '';
 }
 
-function isoDateValue(value) {
-    const match = String(value || '').trim().match(/^(\d{2})[-/.](\d{2})[-/.](\d{4})$/);
-    if (!match) return null;
-
-    const [, day, month, year] = match;
-    const candidate = new Date(`${year}-${month}-${day}T00:00:00Z`);
-
-    if (
-        Number.isNaN(candidate.getTime())
-        || candidate.getUTCFullYear() !== Number(year)
-        || candidate.getUTCMonth() + 1 !== Number(month)
-        || candidate.getUTCDate() !== Number(day)
-    ) {
-        return null;
-    }
-
-    return `${year}-${month}-${day}`;
-}
-
 function isDateInputLayoutClass(className) {
     const normalizedClassName = className.replace(/^!/, '').replace(/^(?:sm|md|lg|xl|2xl):/, '');
 
@@ -577,6 +558,22 @@ function syncFormattedDateInputAppearance(input, wrapper, display) {
     } else {
         display.removeAttribute('data-flux-control');
     }
+}
+
+function openNativeDatePicker(input) {
+    if (input.disabled || input.readOnly) return;
+
+    if (typeof input.showPicker === 'function') {
+        try {
+            input.showPicker();
+
+            return;
+        } catch (_error) {
+            // Fall back to the native click for browsers without showPicker support.
+        }
+    }
+
+    input.click();
 }
 
 function enhanceDateInput(input) {
@@ -612,8 +609,9 @@ function enhanceDateInput(input) {
 
     const display = document.createElement('input');
     display.type = 'text';
-    display.inputMode = 'numeric';
+    display.inputMode = 'none';
     display.autocomplete = 'off';
+    display.readOnly = true;
     display.dir = 'ltr';
     display.placeholder = input.dataset.datePlaceholder || input.getAttribute('placeholder') || 'DD-MM-YYYY';
     display.className = 'formatted-date-input__display';
@@ -631,70 +629,24 @@ function enhanceDateInput(input) {
 
     let syncing = false;
     const sync = () => {
-        if (syncing || document.activeElement === display) return;
+        if (syncing) return;
         syncFormattedDateInputAppearance(input, wrapper, display);
         display.value = formattedDateValue(input.value);
         display.disabled = input.disabled;
-        display.readOnly = input.readOnly;
         picker.disabled = input.disabled || input.readOnly;
-    };
-    const commit = () => {
-        const value = display.value.trim();
-        if (value === '') {
-            syncing = true;
-            input.value = '';
-            input.dispatchEvent(new Event('input', { bubbles: true }));
-            input.dispatchEvent(new Event('change', { bubbles: true }));
-            syncing = false;
-            display.removeAttribute('aria-invalid');
-
-            return;
-        }
-
-        const isoValue = isoDateValue(value);
-        if (!isoValue) {
-            syncing = true;
-            input.value = '';
-            input.dispatchEvent(new Event('input', { bubbles: true }));
-            input.dispatchEvent(new Event('change', { bubbles: true }));
-            syncing = false;
-            display.setAttribute('aria-invalid', 'true');
-
-            return;
-        }
-
-        syncing = true;
-        input.value = isoValue;
-        input.dispatchEvent(new Event('input', { bubbles: true }));
-        input.dispatchEvent(new Event('change', { bubbles: true }));
-        syncing = false;
-        display.value = formattedDateValue(isoValue);
-        display.removeAttribute('aria-invalid');
     };
 
     input.formattedDateSync = sync;
-    display.addEventListener('blur', commit);
+    display.addEventListener('click', () => openNativeDatePicker(input));
     display.addEventListener('keydown', (event) => {
-        if (event.key === 'Enter') {
+        if (event.key === 'Enter' || event.key === ' ' || event.key === 'ArrowDown') {
             event.preventDefault();
-            commit();
+            openNativeDatePicker(input);
         }
     });
     input.addEventListener('input', sync);
     input.addEventListener('change', sync);
-    picker.addEventListener('click', () => {
-        if (typeof input.showPicker === 'function') {
-            try {
-                input.showPicker();
-
-                return;
-            } catch (_error) {
-                // Browsers can reject showPicker() when the field is obscured.
-            }
-        }
-
-        input.click();
-    });
+    picker.addEventListener('click', () => openNativeDatePicker(input));
     sync();
 }
 
@@ -737,6 +689,122 @@ if (document.body) {
     formattedDateObserver.observe(document.body, { childList: true, subtree: true });
 } else {
     document.addEventListener('DOMContentLoaded', () => formattedDateObserver.observe(document.body, { childList: true, subtree: true }));
+}
+
+function createMobileFilterIcon() {
+    const namespace = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(namespace, 'svg');
+    const circle = document.createElementNS(namespace, 'circle');
+    const path = document.createElementNS(namespace, 'path');
+
+    svg.setAttribute('viewBox', '0 0 24 24');
+    svg.setAttribute('fill', 'none');
+    svg.setAttribute('stroke', 'currentColor');
+    svg.setAttribute('stroke-width', '2');
+    svg.setAttribute('aria-hidden', 'true');
+    circle.setAttribute('cx', '11');
+    circle.setAttribute('cy', '11');
+    circle.setAttribute('r', '7');
+    path.setAttribute('d', 'm20 20-3.5-3.5');
+    svg.append(circle, path);
+
+    return svg;
+}
+
+function initializeMobileTableFilters(root = document) {
+    const toolbars = [];
+    const selector = '.admin-grid-meta--controls .admin-toolbar__controls, [data-mobile-table-filter-controls]';
+
+    if (root instanceof Element && root.matches(selector)) {
+        toolbars.push(root);
+    }
+    root.querySelectorAll?.(selector).forEach((toolbar) => toolbars.push(toolbar));
+
+    toolbars.forEach((toolbar) => {
+        if (toolbar.dataset.mobileTableFilters === 'true') return;
+
+        const criteria = Array.from(toolbar.children).filter((child) => (
+            child.matches('.admin-filter-field, input:not([type="hidden"]), select')
+            || child.querySelector('input:not([type="hidden"]), select')
+        ));
+
+        if (criteria.length === 0) return;
+
+        toolbar.dataset.mobileTableFilters = 'true';
+        toolbar.classList.add('mobile-table-filters');
+        criteria.forEach((criterion) => criterion.classList.add('mobile-table-filter-criterion'));
+
+        const isArabic = document.documentElement.dir === 'rtl' || document.documentElement.lang?.startsWith('ar');
+        const trigger = document.createElement('button');
+        trigger.type = 'button';
+        trigger.className = 'mobile-table-filter-trigger';
+        trigger.dataset.mobileTableFilterOpen = '';
+        trigger.setAttribute('aria-expanded', 'false');
+        trigger.append(createMobileFilterIcon(), document.createTextNode(isArabic ? 'بحث' : 'Search'));
+
+        const close = document.createElement('button');
+        close.type = 'button';
+        close.className = 'mobile-table-filter-close';
+        close.dataset.mobileTableFilterClose = '';
+        close.setAttribute('aria-label', isArabic ? 'إغلاق البحث' : 'Close search');
+        close.textContent = '×';
+
+        toolbar.prepend(trigger);
+        toolbar.append(close);
+    });
+}
+
+function closeMobileTableFilters(toolbar) {
+    if (!(toolbar instanceof Element)) return;
+
+    toolbar.classList.remove('mobile-table-filters--open');
+    toolbar.querySelector('[data-mobile-table-filter-open]')?.setAttribute('aria-expanded', 'false');
+    document.body.classList.remove('mobile-table-filters-active');
+}
+
+document.addEventListener('click', (event) => {
+    const openButton = event.target.closest?.('[data-mobile-table-filter-open]');
+    if (openButton) {
+        const toolbar = openButton.closest('.mobile-table-filters');
+        toolbar?.classList.add('mobile-table-filters--open');
+        openButton.setAttribute('aria-expanded', 'true');
+        document.body.classList.add('mobile-table-filters-active');
+
+        return;
+    }
+
+    const closeButton = event.target.closest?.('[data-mobile-table-filter-close]');
+    if (closeButton) {
+        closeMobileTableFilters(closeButton.closest('.mobile-table-filters'));
+    }
+});
+
+document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+        closeMobileTableFilters(document.querySelector('.mobile-table-filters--open'));
+    }
+});
+
+document.addEventListener('DOMContentLoaded', () => initializeMobileTableFilters());
+document.addEventListener('livewire:navigated', () => initializeMobileTableFilters());
+document.addEventListener('livewire:initialized', () => {
+    window.Livewire?.hook('morph.updated', ({ el }) => initializeMobileTableFilters(el));
+    window.Livewire?.hook('morph.added', ({ el }) => initializeMobileTableFilters(el));
+});
+
+const mobileTableFilterObserver = new MutationObserver((mutations) => {
+    if (mutations.some((mutation) => Array.from(mutation.addedNodes).some((node) => node instanceof Element && (
+        node.matches('.admin-toolbar__controls, [data-mobile-table-filter-controls]')
+        || node.querySelector('.admin-toolbar__controls, [data-mobile-table-filter-controls]')
+    )))) {
+        initializeMobileTableFilters();
+    }
+});
+
+if (document.body) {
+    mobileTableFilterObserver.observe(document.body, { childList: true, subtree: true });
+} else {
+    document.addEventListener('DOMContentLoaded', () => mobileTableFilterObserver.observe(document.body, { childList: true, subtree: true }));
 }
 
 const financeNumberInputSelector = 'input[data-thousand-separator]';

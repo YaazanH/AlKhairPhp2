@@ -402,16 +402,16 @@ new class extends Component {
             ->orderBy('first_name')
             ->get()
             ->map(function (Student $student): object {
-                $eligibleJuzCount = app(QuranProgressionService::class)
-                    ->eligibleAwqafJuzIdsForStudent($student->id)
-                    ->count();
+                $eligibleJuzIds = app(QuranProgressionService::class)->eligibleAwqafJuzIdsForStudent($student->id);
+                $eligibleJuzNumbers = QuranJuz::query()->whereIn('id', $eligibleJuzIds)->orderBy('juz_number')->pluck('juz_number');
 
                 return (object) [
                     'id' => $student->id,
                     'full_name' => $student->full_name,
                     'father_name' => $student->parentProfile?->father_name ?: __('crud.common.not_available'),
                     'birth_year' => $student->birth_date?->format('Y') ?: __('crud.common.not_available'),
-                    'eligible_juz_count' => $eligibleJuzCount,
+                    'eligible_juz_count' => $eligibleJuzNumbers->count(),
+                    'eligible_juz_numbers' => $eligibleJuzNumbers->implode('، '),
                 ];
             })
             ->filter(fn (object $row) => $row->eligible_juz_count > 0)
@@ -560,7 +560,7 @@ new class extends Component {
                     </select>
                 </div>
 
-                <div class="admin-toolbar__actions">
+                <div class="admin-toolbar__actions workflow-entry-action--hidden">
                     @canany(['quran-awqaf-tests.record', 'quran-tests.record'])
                         <button type="button" wire:click="openCreateModal" class="pill-link pill-link--accent">{{ __('workflow.quran_tests.workbench.create') }}</button>
                     @endcanany
@@ -620,7 +620,6 @@ new class extends Component {
                                             <x-student-avatar :student="$test->student" size="sm" />
                                             <div class="student-inline__body">
                                                 <div class="student-inline__name">{{ $test->student->full_name }}</div>
-                                                <div class="student-inline__meta">{{ $test->student->parentProfile?->father_name ?: __('crud.common.not_available') }}</div>
                                             </div>
                                         </div>
                                     @else
@@ -628,13 +627,12 @@ new class extends Component {
                                     @endif
                                 </td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">
-                                    <div class="font-medium text-white">{{ $test->enrollment?->group?->name ?: __('workflow.common.no_group') }}</div>
-                                    <div class="mt-1 text-xs uppercase tracking-[0.18em] text-neutral-500">{{ $test->enrollment?->group?->course?->name ?: __('workflow.common.no_course') }}</div>
+                                    <div class="font-medium text-white">{{ $test->enrollment?->group?->course?->name ?: __('workflow.common.no_course') }}</div>
                                 </td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $test->tested_on?->format('d-m-Y') }}</td>
                                 <td class="px-5 py-4 text-white lg:px-6">{{ __('workflow.common.labels.juz_number', ['number' => $test->juz?->juz_number ?: __('workflow.common.not_available')]) }}</td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $test->score !== null ? $test->score : __('workflow.common.not_available') }}</td>
-                                <td class="px-5 py-4 lg:px-6"><span class="status-chip status-chip--slate">{{ __('workflow.common.result_status.'.$test->status) }}</span></td>
+                                <td class="px-5 py-4 lg:px-6"><span class="status-chip {{ $test->status === 'passed' ? 'status-chip--emerald' : 'status-chip--slate' }}">{{ __('workflow.common.result_status.'.$test->status) }}</span></td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $test->teacher?->first_name }} {{ $test->teacher?->last_name }}</td>
                                 @can('quran-awqaf-tests.delete')
                                     <td class="px-5 py-4 text-right lg:px-6">
@@ -661,13 +659,12 @@ new class extends Component {
         close-method="closeEligibleAwqafModal"
         max-width="4xl"
     >
+        <x-slot:header-actions>
+            <a href="{{ route('quran-tests.eligible-awqaf.export') }}" class="pill-link pill-link--accent pill-link--compact">
+                {{ __('workflow.quran_tests.eligible_modal.download') }}
+            </a>
+        </x-slot:header-actions>
         <div class="space-y-3">
-            <div class="flex justify-end">
-                <a href="{{ route('quran-tests.eligible-awqaf.export') }}" class="pill-link pill-link--accent">
-                    {{ __('workflow.quran_tests.eligible_modal.download') }}
-                </a>
-            </div>
-
             @if ($eligibleAwqafStudents->isEmpty())
                 <div class="admin-empty-state">{{ __('workflow.quran_tests.eligible_modal.empty') }}</div>
             @else
@@ -687,7 +684,7 @@ new class extends Component {
                                     <td class="px-5 py-4 text-white">{{ $eligibleStudent->full_name }}</td>
                                     <td class="px-5 py-4 text-neutral-300">{{ $eligibleStudent->father_name }}</td>
                                     <td class="px-5 py-4 text-neutral-300">{{ $eligibleStudent->birth_year }}</td>
-                                    <td class="px-5 py-4 text-white">{{ $eligibleStudent->eligible_juz_count }}</td>
+                                    <td class="px-5 py-4 text-white">{{ $eligibleStudent->eligible_juz_numbers }}</td>
                                 </tr>
                             @endforeach
                         </tbody>
@@ -721,10 +718,7 @@ new class extends Component {
                                 value="{{ $student->id }}"
                                 data-search="{{ trim(implode(' ', array_filter([$student->student_number, $student->first_name, $student->last_name]))) }}"
                             >
-                                {{ $student->full_name }}
-                                @if ($student->parentProfile?->father_name)
-                                    - {{ $student->parentProfile->father_name }}
-                                @endif
+                                {{ trim($student->first_name.' '.$student->last_name) }}
                             </option>
                         @endforeach
                     </select>

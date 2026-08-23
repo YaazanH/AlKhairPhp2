@@ -190,6 +190,39 @@ class StudentAttendanceDayService
         });
     }
 
+    public function fillMissingStatuses(StudentAttendanceDay $day, ?int $attendanceStatusId = null, ?User $actor = null): StudentAttendanceDay
+    {
+        $statusId = $attendanceStatusId
+            ?: AttendanceStatus::query()
+                ->where('is_default', true)
+                ->where('is_active', true)
+                ->whereIn('scope', ['student', 'both'])
+                ->value('id')
+            ?: AttendanceStatus::query()
+                ->where('is_active', true)
+                ->whereIn('scope', ['student', 'both'])
+                ->orderByDesc('is_present')
+                ->orderBy('name')
+                ->value('id');
+
+        if (! $statusId) {
+            return $day;
+        }
+
+        $groups = Group::query()
+            ->whereIn('id', $day->groupAttendanceDays()->pluck('group_id'))
+            ->get();
+
+        $this->applyDefaultStudentStatus(
+            $groups,
+            $day->attendance_date->toDateString(),
+            (int) $statusId,
+            $actor,
+        );
+
+        return $day->fresh(['groupAttendanceDays.records.status']);
+    }
+
     /**
      * @param  Collection<int, Group>  $groups
      */

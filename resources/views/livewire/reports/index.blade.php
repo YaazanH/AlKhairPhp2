@@ -138,7 +138,7 @@ new class extends Component {
                     <select wire:model.live="course_id" aria-label="{{ __('reports.filters.course') }}" class="report-control w-full rounded-xl px-3 py-2.5 text-sm"><option value="">{{ __('reports.filters.all_courses') }}</option>@foreach ($courses as $course)<option value="{{ $course->id }}">{{ $course->name }}</option>@endforeach</select>
                 </div>
                 <div>
-                    <select wire:model.live="group_id" aria-label="{{ __('reports.filters.group') }}" class="report-control w-full rounded-xl px-3 py-2.5 text-sm"><option value="">{{ __('reports.filters.all_groups') }}</option>@foreach ($groups as $group)<option value="{{ $group->id }}">{{ $group->name }}{{ $group->course ? ' | '.$group->course->name : '' }}</option>@endforeach</select>
+                    <select wire:model.live="group_id" aria-label="{{ __('reports.filters.group') }}" class="report-control w-full rounded-xl px-3 py-2.5 text-sm"><option value="">{{ __('reports.filters.all_groups') }}</option>@foreach ($groups as $group)<option value="{{ $group->id }}">{{ $group->name }}</option>@endforeach</select>
                 </div>
                 <div>
                     <input wire:model.live="date_from" type="date" aria-label="{{ __('reports.filters.date_from') }}" data-date-placeholder="{{ __('reports.filters.date_from') }}" class="report-control w-full rounded-xl px-3 py-2.5 text-sm">
@@ -221,7 +221,7 @@ new class extends Component {
     </div>
 
     <div class="grid gap-6 xl:grid-cols-2">
-        <section class="surface-table">
+        <section class="surface-table report-leaderboard-table">
             <div class="soft-keyline border-b px-5 py-5 lg:px-6">
                 <h2 class="font-display text-2xl text-white">{{ __('reports.leaderboard.points_title') }}</h2>
             </div>
@@ -252,7 +252,7 @@ new class extends Component {
             @endif
         </section>
 
-        <section class="surface-table">
+        <section class="surface-table report-leaderboard-table">
             <div class="soft-keyline border-b px-5 py-5 lg:px-6">
                 <h2 class="font-display text-2xl text-white">{{ __('reports.leaderboard.memorization_title') }}</h2>
             </div>

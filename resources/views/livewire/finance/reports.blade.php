@@ -256,7 +256,7 @@ new class extends Component {
 
 <div class="page-stack">
     <section class="page-hero p-6 lg:p-8" style="order: 1">
-        <div class="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
+        <div class="flex flex-col gap-6 xl:flex-row xl:items-center xl:justify-between">
             <div>
                 <div class="eyebrow">{{ __('ui.nav.finance') }}</div>
                 <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('finance.reports.title') }}</h1>
@@ -277,7 +277,10 @@ new class extends Component {
         @if ($generatedReportsEnabled)
             <section class="surface-table" style="order: 4">
                 <div class="admin-grid-meta">
-                    <div class="admin-grid-meta__title">{{ __('finance.reports.generated_reports') }}</div>
+                    <div>
+                        <div class="admin-grid-meta__title">{{ __('finance.reports.generated_reports') }}</div>
+                        <div class="admin-grid-meta__summary">{{ __('finance.reports.saved_reports_count', ['count' => number_format($generatedReports->total())]) }}</div>
+                    </div>
                     <div class="admin-toolbar__controls financial-report-symbol-controls">
                         <button type="button" wire:click="openCreateReport" @disabled(! $canGenerateReport) title="{{ $canGenerateReport ? __('finance.reports.generate_report') : __('finance.reports.signature_required') }}" aria-label="{{ __('finance.reports.generate_report') }}" class="financial-report-symbol-button pill-link pill-link--accent disabled:cursor-not-allowed disabled:opacity-50">
                             <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>
@@ -350,21 +353,12 @@ new class extends Component {
             ];
         @endphp
         <x-admin.modal :show="$showCreateReportModal" :title="__('finance.reports.generate_report')" close-method="closeCreateReport" max-width="4xl">
-        <section class="surface-panel p-5 lg:p-6">
-            <div>
-                <div class="w-full sm:max-w-md">
-                    <div class="eyebrow">{{ __('finance.reports.ledger_export') }}</div>
-                    <h2 class="font-display mt-3 text-2xl text-white">{{ __('finance.reports.ledger_export_title') }}</h2>
-                    <p class="mt-2 text-sm leading-6 text-neutral-300">{{ __('finance.reports.ledger_export_subtitle') }}</p>
-                </div>
-            </div>
-
-            <div class="mt-5 grid gap-4">
+        <div class="grid gap-4">
                 <div>
                     <label class="mb-1 block text-sm font-medium">{{ __('finance.fields.cash_box') }}</label>
-                    <div class="grid gap-2 sm:grid-cols-2">
+                    <div class="finance-report-funds flex gap-2 overflow-x-auto pb-1">
                         @forelse ($ledgerCashBoxes as $cashBox)
-                            <label class="flex items-center gap-3 rounded-xl border border-white/10 px-4 py-3 text-sm"><input type="checkbox" wire:model.live="ledger_cash_box_ids" value="{{ $cashBox->id }}" class="rounded"><span>{{ $cashBox->name }}</span></label>
+                            <label class="flex shrink-0 items-center gap-3 rounded-xl border border-white/10 px-4 py-3 text-sm"><input type="checkbox" wire:model.live="ledger_cash_box_ids" value="{{ $cashBox->id }}" class="rounded"><span>{{ $cashBox->name }}</span></label>
                         @empty
                             <span>{{ __('finance.empty.no_cash_boxes') }}</span>
                         @endforelse
@@ -373,7 +367,7 @@ new class extends Component {
                 <div class="grid gap-4 md:grid-cols-3">
                     <div>
                         <label class="mb-1 block text-sm font-medium">{{ __('finance.fields.period') }}</label>
-                        <select wire:model.live="ledger_period_mode" data-searchable="false" class="w-full rounded-xl px-4 py-3 text-sm">
+                        <select wire:model.live="ledger_period_mode" data-searchable="false" class="h-[3.125rem] min-h-[3.125rem] w-full rounded-xl px-4 py-3 text-sm">
                             <option value="quarter">{{ __('finance.reports.period_quarter') }}</option>
                             <option value="custom">{{ __('finance.reports.period_custom') }}</option>
                         </select>
@@ -381,11 +375,11 @@ new class extends Component {
                     @if ($ledger_period_mode === 'quarter')
                         <div>
                             <label class="mb-1 block text-sm font-medium">{{ __('finance.fields.year') }}</label>
-                            <select wire:model.live="ledger_year" class="w-full rounded-xl px-4 py-3 text-sm">@forelse($ledgerPeriods as $period)<option value="{{ $period['year'] }}">{{ $period['year'] }}</option>@empty<option value="{{ $ledger_year }}">-</option>@endforelse</select>
+                            <select wire:model.live="ledger_year" class="h-[3.125rem] min-h-[3.125rem] w-full rounded-xl px-4 py-3 text-sm">@forelse($ledgerPeriods as $period)<option value="{{ $period['year'] }}">{{ $period['year'] }}</option>@empty<option value="{{ $ledger_year }}">-</option>@endforelse</select>
                         </div>
                         <div>
                             <label class="mb-1 block text-sm font-medium">{{ __('finance.fields.quarter') }}</label>
-                            <select wire:model.live="ledger_quarter" class="w-full rounded-xl px-4 py-3 text-sm">@foreach((collect($ledgerPeriods)->firstWhere('year', $ledger_year)['quarters'] ?? []) as $reportQuarter)<option value="{{ $reportQuarter }}">Q{{ $reportQuarter }}</option>@endforeach</select>
+                            <select wire:model.live="ledger_quarter" class="h-[3.125rem] min-h-[3.125rem] w-full rounded-xl px-4 py-3 text-sm">@foreach((collect($ledgerPeriods)->firstWhere('year', $ledger_year)['quarters'] ?? []) as $reportQuarter)<option value="{{ $reportQuarter }}">Q{{ $reportQuarter }}</option>@endforeach</select>
                         </div>
                     @else
                         <div>
@@ -398,12 +392,9 @@ new class extends Component {
                         </div>
                     @endif
                 </div>
-            </div>
-
             <div class="mt-5">
                 <label class="mb-1 block text-sm font-medium">{{ __('finance.reports.report_notes') }}</label>
                 <textarea wire:model.live="report_notes" rows="3" maxlength="4000" class="w-full rounded-xl px-4 py-3 text-sm"></textarea>
-                <p class="mt-1 text-xs text-neutral-400">{{ __('finance.reports.report_notes_help') }}</p>
             </div>
 
             <div class="mt-5 flex flex-wrap gap-3">
@@ -413,7 +404,7 @@ new class extends Component {
                     <span class="pill-link opacity-60">{{ __('finance.reports.choose_box_currency_first') }}</span>
                 @endif
             </div>
-        </section>
+        </div>
         </x-admin.modal>
     @endcan
 

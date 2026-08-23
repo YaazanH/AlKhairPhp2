@@ -510,7 +510,7 @@ new class extends Component {
                     </select>
                 </div>
 
-                <div class="admin-toolbar__actions">
+                <div class="admin-toolbar__actions workflow-entry-action--hidden">
                     @can('memorization.record')
                         <button type="button" wire:click="openCreateModal" class="pill-link pill-link--accent">{{ __('workflow.memorization.workbench.create') }}</button>
                     @endcan
@@ -565,7 +565,6 @@ new class extends Component {
                                             <x-student-avatar :student="$session->student" size="sm" />
                                             <div class="student-inline__body">
                                                 <div class="student-inline__name">{{ $session->student->full_name }}</div>
-                                                <div class="student-inline__meta">{{ $session->student->parentProfile?->father_name ?: __('crud.common.not_available') }}</div>
                                             </div>
                                         </div>
                                     @else
@@ -573,12 +572,17 @@ new class extends Component {
                                     @endif
                                 </td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">
-                                    <div class="font-medium text-white">{{ $session->enrollment?->group?->name ?: __('workflow.common.no_group') }}</div>
-                                    <div class="mt-1 text-xs uppercase tracking-[0.18em] text-neutral-500">{{ $session->enrollment?->group?->course?->name ?: __('workflow.common.no_course') }}</div>
+                                    <div class="font-medium text-white">{{ $session->enrollment?->group?->course?->name ?: __('workflow.common.no_course') }}</div>
                                 </td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $session->recorded_on?->format('d-m-Y') }}</td>
                                 <td class="px-5 py-4 lg:px-6"><span class="status-chip status-chip--slate">{{ __('workflow.common.entry_type.'.$session->entry_type) }}</span></td>
-                                <td class="px-5 py-4 text-white lg:px-6">{{ __('workflow.memorization.table.page_range', ['from' => $session->from_page, 'to' => $session->to_page, 'count' => $session->pages_count]) }}</td>
+                                <td class="px-5 py-4 text-white lg:px-6">
+                                    @if ((int) $session->from_page === (int) $session->to_page)
+                                        <bdi dir="ltr">{{ $session->from_page }}</bdi>
+                                    @else
+                                        <span dir="ltr" class="inline-flex items-center gap-1.5"><span>({{ $session->pages_count }})</span><bdi>{{ $session->from_page }} - {{ $session->to_page }}</bdi></span>
+                                    @endif
+                                </td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $session->teacher?->first_name }} {{ $session->teacher?->last_name }}</td>
                                 @can('memorization.record')
                                     <td class="px-5 py-4 lg:px-6">

@@ -219,49 +219,16 @@ new class extends Component
                 <h1 class="font-display text-4xl leading-none text-white md:text-5xl">{{ __('reports.student_activity.title') }}</h1>
             </div>
 
-            <div class="flex xl:justify-end">
+            <div class="flex flex-wrap gap-3 xl:justify-end">
                 <a href="{{ route('reports.index') }}" class="pill-link">{{ __('reports.rankings.filters.back_to_reports') }}</a>
+                <a href="{{ route('reports.exports.student-activity-summary', ['course_id' => $course_id, 'group_id' => $group_id, 'date_from' => $date_from, 'date_to' => $date_to]) }}" class="pill-link pill-link--accent">
+                    {{ __('reports.student_activity.export') }}
+                </a>
             </div>
         </div>
     </section>
 
     <div class="grid gap-6">
-        <section class="order-2 surface-panel report-panel min-w-0 p-5 lg:p-6">
-            <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(9rem,1fr)_minmax(9rem,1fr)_minmax(8rem,.8fr)_minmax(8rem,.8fr)_auto_auto] xl:items-center">
-                <div>
-                    <select wire:model.live="course_id" aria-label="{{ __('reports.filters.course') }}" class="report-control w-full rounded-xl px-3 py-2.5 text-sm">
-                        <option value="">{{ __('reports.filters.all_courses') }}</option>
-                        @foreach ($courses as $course)
-                            <option value="{{ $course->id }}">{{ $course->name }}</option>
-                        @endforeach
-                    </select>
-                </div>
-
-                <div>
-                    <select wire:model.live="group_id" aria-label="{{ __('reports.filters.group') }}" class="report-control w-full rounded-xl px-3 py-2.5 text-sm">
-                        <option value="">{{ __('reports.filters.all_groups') }}</option>
-                        @foreach ($groups as $group)
-                            <option value="{{ $group->id }}">{{ $group->name }}{{ $group->course ? ' | '.$group->course->name : '' }}</option>
-                        @endforeach
-                    </select>
-                </div>
-
-                <div>
-                    <input wire:model.live="date_from" type="date" aria-label="{{ __('reports.filters.date_from') }}" data-date-placeholder="{{ __('reports.filters.date_from') }}" class="report-control w-full rounded-xl px-3 py-2.5 text-sm">
-                </div>
-
-                <div>
-                    <input wire:model.live="date_to" type="date" aria-label="{{ __('reports.filters.date_to') }}" data-date-placeholder="{{ __('reports.filters.date_to') }}" class="report-control w-full rounded-xl px-3 py-2.5 text-sm">
-                </div>
-                <button type="button" wire:click="clearFilters" class="pill-link h-[3.125rem] justify-center whitespace-nowrap">
-                    {{ __('reports.filters.clear') }}
-                </button>
-                <a href="{{ route('reports.exports.student-activity-summary', ['course_id' => $course_id, 'group_id' => $group_id, 'date_from' => $date_from, 'date_to' => $date_to]) }}" class="pill-link pill-link--accent h-[3.125rem] items-center justify-center whitespace-nowrap">
-                    {{ __('reports.student_activity.export') }}
-                </a>
-            </div>
-        </section>
-
         <div class="contents">
             <section class="order-1 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
                 <article class="surface-panel report-kpi-card p-5">
@@ -286,19 +253,26 @@ new class extends Component
                 </article>
             </section>
 
-            <section class="order-3 surface-table">
-                <div class="soft-keyline border-b px-5 py-5 lg:px-6">
+            <section class="order-3 surface-table student-activity-report-table">
+                <div class="admin-grid-meta admin-grid-meta--controls soft-keyline border-b px-5 py-5 lg:px-6">
                     <h2 class="font-display text-2xl text-white">{{ __('reports.student_activity.table_title') }}</h2>
+                    <div class="admin-toolbar__controls student-activity-report-filters">
+                        <div class="admin-filter-field"><label class="sr-only" for="activity-course">{{ __('reports.filters.course') }}</label><select id="activity-course" wire:model.live="course_id"><option value="">{{ __('reports.filters.all_courses') }}</option>@foreach ($courses as $course)<option value="{{ $course->id }}">{{ $course->name }}</option>@endforeach</select></div>
+                        <div class="admin-filter-field"><label class="sr-only" for="activity-group">{{ __('reports.filters.group') }}</label><select id="activity-group" wire:model.live="group_id"><option value="">{{ __('reports.filters.all_groups') }}</option>@foreach ($groups as $group)<option value="{{ $group->id }}">{{ $group->name }}</option>@endforeach</select></div>
+                        <div class="admin-filter-field"><label class="sr-only" for="activity-from">{{ __('reports.filters.date_from') }}</label><input id="activity-from" wire:model.live="date_from" type="date" aria-label="{{ __('reports.filters.date_from') }}" data-date-placeholder="{{ __('reports.filters.date_from') }}"></div>
+                        <div class="admin-filter-field"><label class="sr-only" for="activity-to">{{ __('reports.filters.date_to') }}</label><input id="activity-to" wire:model.live="date_to" type="date" aria-label="{{ __('reports.filters.date_to') }}" data-date-placeholder="{{ __('reports.filters.date_to') }}"></div>
+                        <div class="admin-toolbar__actions"><button type="button" wire:click="clearFilters" class="pill-link h-[3.125rem] justify-center whitespace-nowrap">{{ __('reports.filters.clear') }}</button></div>
+                    </div>
                 </div>
 
                 @if ($rows->isEmpty())
                     <div class="px-6 py-14 text-sm leading-7 text-neutral-400">{{ __('reports.student_activity.empty') }}</div>
                 @else
                     <div class="overflow-x-auto">
-                        <table class="w-full table-fixed text-sm">
+                        <table class="w-full table-fixed text-sm student-activity-report-table__table">
                             <thead>
                                 <tr>
-                                    <th class="w-1/6 px-5 py-4 text-left lg:px-6">
+                                    <th class="px-5 py-4 text-left lg:px-6">
                                         <button type="button" wire:click="sortBy('student_name')" class="inline-flex items-center gap-2 font-medium text-inherit">
                                             <span>{{ __('reports.student_activity.headers.student') }}</span>
                                             @if ($sortIndicator = $this->sortIndicator('student_name'))
@@ -306,7 +280,8 @@ new class extends Component
                                             @endif
                                         </button>
                                     </th>
-                                    <th class="w-1/6 px-5 py-4 text-left lg:px-6">
+                                    <th class="px-5 py-4 text-left lg:px-6">{{ __('reports.student_activity.headers.current_juz') }}</th>
+                                    <th class="px-5 py-4 text-left lg:px-6">
                                         <button type="button" wire:click="sortBy('memorized_pages')" class="inline-flex items-center gap-2 font-medium text-inherit">
                                             <span>{{ __('reports.student_activity.headers.memorized_pages') }}</span>
                                             @if ($sortIndicator = $this->sortIndicator('memorized_pages'))
@@ -314,7 +289,8 @@ new class extends Component
                                             @endif
                                         </button>
                                     </th>
-                                    <th class="w-1/6 px-5 py-4 text-left lg:px-6">
+                                    <th class="px-5 py-4 text-left lg:px-6">{{ __('reports.student_activity.headers.latest_partial_quarters') }}</th>
+                                    <th class="px-5 py-4 text-left lg:px-6">
                                         <button type="button" wire:click="sortBy('passed_final_tests')" class="inline-flex items-center gap-2 font-medium text-inherit">
                                             <span>{{ __('reports.student_activity.headers.passed_final_tests') }}</span>
                                             @if ($sortIndicator = $this->sortIndicator('passed_final_tests'))
@@ -322,7 +298,7 @@ new class extends Component
                                             @endif
                                         </button>
                                     </th>
-                                    <th class="w-1/6 px-5 py-4 text-left lg:px-6">
+                                    <th class="px-5 py-4 text-left lg:px-6">
                                         <button type="button" wire:click="sortBy('attended_days')" class="inline-flex items-center gap-2 font-medium text-inherit">
                                             <span>{{ __('reports.student_activity.headers.attended_days') }}</span>
                                             @if ($sortIndicator = $this->sortIndicator('attended_days'))
@@ -330,7 +306,7 @@ new class extends Component
                                             @endif
                                         </button>
                                     </th>
-                                    <th class="w-1/6 px-5 py-4 text-left lg:px-6">
+                                    <th class="px-5 py-4 text-left lg:px-6">
                                         <button type="button" wire:click="sortBy('points')" class="inline-flex items-center gap-2 font-medium text-inherit">
                                             <span>{{ __('reports.student_activity.headers.points') }}</span>
                                             @if ($sortIndicator = $this->sortIndicator('points'))
@@ -338,7 +314,7 @@ new class extends Component
                                             @endif
                                         </button>
                                     </th>
-                                    <th class="w-1/6 px-5 py-4 text-left lg:px-6">
+                                    <th class="px-5 py-4 text-left lg:px-6">
                                         <button type="button" wire:click="sortBy('group')" class="inline-flex items-center gap-2 font-medium text-inherit">
                                             <span>{{ __('reports.student_activity.headers.group') }}</span>
                                             @if ($sortIndicator = $this->sortIndicator('group'))
@@ -352,7 +328,9 @@ new class extends Component
                                 @foreach ($rows as $row)
                                     <tr>
                                         <td class="px-5 py-4 font-medium text-white lg:px-6">{{ $row['student_name'] ?: __('reports.leaderboard.unknown_student') }}</td>
+                                        <td class="px-5 py-4 text-neutral-200 lg:px-6">{{ $row['current_juz'] ?: '-' }}</td>
                                         <td class="px-5 py-4 text-neutral-200 lg:px-6">{{ number_format($row['memorized_pages']) }}</td>
+                                        <td class="px-5 py-4 text-neutral-200 lg:px-6"><bdi dir="ltr">{{ $row['latest_partial_quarters'] }}/4</bdi></td>
                                         <td class="px-5 py-4 text-neutral-200 lg:px-6">{{ number_format($row['passed_final_tests']) }}</td>
                                         <td class="px-5 py-4 text-neutral-200 lg:px-6">{{ number_format($row['attended_days']) }}</td>
                                         <td class="px-5 py-4 text-neutral-200 lg:px-6">{{ number_format($row['points']) }}</td>

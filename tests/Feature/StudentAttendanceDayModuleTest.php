@@ -15,8 +15,10 @@ use App\Models\Student;
 use App\Models\StudentAttendanceDay;
 use App\Models\StudentAttendanceRecord;
 use App\Models\Teacher;
+use App\Models\TeacherAttendanceRecord;
 use App\Models\User;
 use App\Services\StudentAttendanceDayService;
+use App\Services\TeacherAttendanceDayService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Livewire\Volt\Volt;
@@ -166,6 +168,8 @@ class StudentAttendanceDayModuleTest extends TestCase
         ]);
 
         Volt::test('student-attendance.show', ['studentAttendanceDay' => $day])
+            ->call('openManualGroupModal')
+            ->assertSee('admin-modal__dialog--xl admin-modal__dialog--compact', false)
             ->set('manual_group_id', (string) $extraEnrollment->group_id)
             ->call('addManualGroup')
             ->assertHasNoErrors();
@@ -373,6 +377,11 @@ class StudentAttendanceDayModuleTest extends TestCase
 
         $enrollment = $this->makeEnrollment($teacher->id, 'Closed Lock Group');
         $present = AttendanceStatus::query()->where('code', 'present')->firstOrFail();
+        $attemptedStatus = AttendanceStatus::query()
+            ->where('is_active', true)
+            ->whereIn('scope', ['student', 'both'])
+            ->whereKeyNot($present->id)
+            ->firstOrFail();
 
         $day = app(StudentAttendanceDayService::class)->createOrSyncDay(
             '2026-10-10',
@@ -392,17 +401,18 @@ class StudentAttendanceDayModuleTest extends TestCase
         $this->actingAs($manager);
 
         Volt::test('student-attendance.mark', ['groupAttendanceDay' => $groupDay])
-            ->set('selected_statuses.'.$enrollment->id, (string) $present->id)
+            ->set('selected_statuses.'.$enrollment->id, (string) $attemptedStatus->id)
             ->call('saveEnrollmentStatus', $enrollment->id)
             ->assertHasErrors(['selected_statuses.'.$enrollment->id]);
 
         Volt::test('student-attendance.quick', ['studentAttendanceDay' => $day->fresh()])
-            ->set('selected_status_id', (string) $present->id)
+            ->set('selected_status_id', (string) $attemptedStatus->id)
             ->call('markEnrollment', $enrollment->id)
             ->assertHasErrors(['scan_value']);
 
-        $this->assertDatabaseMissing('student_attendance_records', [
+        $this->assertDatabaseHas('student_attendance_records', [
             'enrollment_id' => $enrollment->id,
+            'attendance_status_id' => $present->id,
         ]);
     }
 
@@ -631,6 +641,62 @@ class StudentAttendanceDayModuleTest extends TestCase
         $response->assertOk()->assertHeader('content-type', 'application/pdf');
         $this->assertStringStartsWith('%PDF-', $response->getContent());
         $this->assertSame(2, preg_match_all('/\/Type\s*\/Page\b/', $response->getContent()));
+    }
+
+    public function test_attendance_screens_replace_missing_statuses_with_the_configured_default(): void
+    {
+        $this->seed();
+
+        $manager = User::factory()->create();
+        $manager->assignRole('manager');
+        $teacher = Teacher::create([
+            'first_name' => 'Default',
+            'last_name' => 'Attendance',
+            'phone' => '0998111555',
+            'status' => 'active',
+        ]);
+        $enrollment = $this->makeEnrollment($teacher->id, 'Default Status Group');
+        $defaultStatus = AttendanceStatus::query()
+            ->where('is_active', true)
+            ->whereIn('scope', ['student', 'both'])
+            ->orderByDesc('is_default')
+            ->orderByDesc('is_present')
+            ->firstOrFail();
+
+        $studentDay = app(StudentAttendanceDayService::class)->createOrSyncDay(
+            '2026-10-15',
+            collect([$enrollment->group]),
+            $manager,
+            null,
+            'open',
+            $defaultStatus->id,
+        );
+        $groupDay = $studentDay->groupAttendanceDays()->firstOrFail();
+        $groupDay->records()->update(['attendance_status_id' => null]);
+
+        $this->actingAs($manager);
+        Volt::test('student-attendance.mark', ['groupAttendanceDay' => $groupDay]);
+
+        $this->assertDatabaseMissing('student_attendance_records', [
+            'group_attendance_day_id' => $groupDay->id,
+            'attendance_status_id' => null,
+        ]);
+
+        $teacherDay = app(TeacherAttendanceDayService::class)->createOrSyncDay(
+            '2026-10-16',
+            collect([$teacher]),
+            $manager,
+        );
+        TeacherAttendanceRecord::query()
+            ->where('teacher_attendance_day_id', $teacherDay->id)
+            ->update(['attendance_status_id' => null]);
+
+        Volt::test('teachers.attendance-show', ['teacherAttendanceDay' => $teacherDay]);
+
+        $this->assertDatabaseMissing('teacher_attendance_records', [
+            'teacher_attendance_day_id' => $teacherDay->id,
+            'attendance_status_id' => null,
+        ]);
     }
 
     private function teacherContext(string $groupName, bool $otherTeacher = false): array

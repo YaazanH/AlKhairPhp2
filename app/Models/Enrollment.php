@@ -25,6 +25,7 @@ class Enrollment extends Model
         'course_finished_previous_left_at',
         'final_points_cached',
         'memorized_pages_cached',
+        'report_card_special_note',
         'notes',
     ];
 

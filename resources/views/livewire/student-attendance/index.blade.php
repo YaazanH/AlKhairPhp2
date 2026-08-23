@@ -348,6 +348,7 @@ new class extends Component
                         <tr>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.days.table.headers.date') }}</th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.days.table.headers.course') }}</th>
+                            <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.days.table.headers.groups') }}</th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.days.table.headers.students') }}</th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.days.table.headers.attended') }}</th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.days.table.headers.status') }}</th>
@@ -370,8 +371,8 @@ new class extends Component
                                 </td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">
                                     <div>{{ $day->course?->name ?: __('workflow.common.no_course') }}</div>
-                                    <div class="mt-1 text-xs text-neutral-500">{{ __('workflow.student_attendance.days.stats.groups') }}: {{ number_format($groupCount) }}</div>
                                 </td>
+                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ number_format($groupCount) }}</td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ number_format($studentCount) }}</td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ number_format($attendedCount) }}</td>
                                 <td class="px-5 py-4 lg:px-6">
@@ -423,7 +424,7 @@ new class extends Component
                 </div>
 
                 <div class="flex h-12 min-h-12 box-border items-center self-end rounded-xl border border-white/10 bg-white/5 px-4 text-sm font-semibold">
-                    {{ __('workflow.student_attendance.days.form.scheduled_groups_help', ['count' => number_format($scheduledGroupCount)]) }}
+                    {{ number_format($scheduledGroupCount) }} {{ app()->isLocale('ar') && $scheduledGroupCount > 10 ? 'مجموعة' : __('workflow.student_attendance.days.form.scheduled_groups_unit') }}
                 </div>
             </div>
 

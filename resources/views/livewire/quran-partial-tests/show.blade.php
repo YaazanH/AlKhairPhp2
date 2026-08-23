@@ -281,7 +281,7 @@ new class extends Component {
                 <div class="admin-grid-meta admin-grid-meta--controls">
                     <div class="admin-grid-meta__title">{{ __('workflow.quran_partial_tests.part.quarters.'.$part->part_number) }}</div>
                     @if ($part->status !== 'passed' && auth()->user()->can('quran-partial-tests.record'))
-                        <button type="button" wire:click="openAttemptModal({{ $part->id }})" class="pill-link pill-link--accent">{{ __('workflow.quran_partial_tests.actions.record_attempt') }}</button>
+                        <button type="button" wire:click="openAttemptModal({{ $part->id }})" class="pill-link pill-link--accent workflow-entry-action--hidden">{{ __('workflow.quran_partial_tests.actions.record_attempt') }}</button>
                     @endif
                 </div>
 

@@ -38,10 +38,12 @@ new class extends Component {
     public string $payment_amount = '';
     public string $payment_reference_no = '';
     public string $payment_notes = '';
+    public bool $maintenanceMode = false;
 
     public function mount(Invoice $invoice): void
     {
         $this->authorizePermission('invoices.view');
+        $this->maintenanceMode = request()->boolean('maintenance') && (auth()->user()?->can('finance.entries.update') ?? false);
         $this->currentInvoice = Invoice::query()->with(['parentProfile'])->findOrFail($invoice->id);
         $this->authorizeScopedInvoiceAccess($this->currentInvoice);
         $this->paid_at = now()->toDateString();
@@ -141,6 +143,10 @@ new class extends Component {
         if ($newPath && $oldPath && $newPath !== $oldPath) Storage::disk('public')->delete($oldPath);
         $this->invoice_attachment = null;
         session()->flash('status', __('invoices.index.messages.updated'));
+
+        if ($this->maintenanceMode) {
+            $this->redirectRoute('finance.expense-requests.index', navigate: true);
+        }
     }
 
     public function editItem(int $itemId): void
@@ -254,11 +260,12 @@ new class extends Component {
     <section class="page-hero p-6 lg:p-8">
         <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-            <a href="{{ route('invoices.index') }}" wire:navigate class="text-sm font-medium text-neutral-200/80 hover:text-white">{{ __('invoices.detail.back') }}</a>
-            <div class="eyebrow mt-4">{{ __('ui.nav.finance') }}</div>
+            @unless ($maintenanceMode)<a href="{{ route('invoices.index') }}" wire:navigate class="text-sm font-medium text-neutral-200/80 hover:text-white">{{ __('invoices.detail.back') }}</a>@endunless
+            <div class="eyebrow {{ $maintenanceMode ? '' : 'mt-4' }}">{{ __('ui.nav.finance') }}</div>
             <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('invoices.detail.heading') }}</h1>
-            <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ __('invoices.detail.subheading') }}</p>
+            @unless ($maintenanceMode)<p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ __('invoices.detail.subheading') }}</p>@endunless
         </div>
+        @unless ($maintenanceMode)
         <div class="flex flex-col gap-3 lg:items-end">
             @if ($invoiceRecord->original_image_path)
                 <a href="{{ asset('storage/'.$invoiceRecord->original_image_path) }}" target="_blank" class="pill-link">
@@ -274,6 +281,7 @@ new class extends Component {
                 <div class="mt-1 text-sm text-neutral-400">{{ __('invoices.detail.summary.status', ['status' => $invoiceStatusLabel]) }}</div>
             </div>
         </div>
+        @endunless
         </div>
     </section>
 
@@ -287,7 +295,7 @@ new class extends Component {
         <article class="stat-card"><div class="kpi-label">{{ __('invoices.detail.summary.total') }}</div><div class="metric-value mt-3">{{ number_format((float) $invoiceRecord->total, 2) }}</div></article>
     </section>
 
-    @if (request()->boolean('maintenance') && auth()->user()?->can('finance.entries.update'))
+    @if ($maintenanceMode)
         <section class="surface-panel p-5 lg:p-6">
             <div class="admin-section-card__title">{{ __('invoices.index.form.edit_title') }}</div>
             <form wire:submit="saveInvoiceBasics" class="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -295,8 +303,8 @@ new class extends Component {
                 <label class="text-sm">{{ __('finance.fields.original_invoice_no') }}<input wire:model="original_invoice_no" class="mt-1 w-full rounded-xl px-4 py-3" dir="ltr"></label>
                 <label class="text-sm">{{ __('finance.fields.invoicer_name') }}<input wire:model="invoicer_name" class="mt-1 w-full rounded-xl px-4 py-3"></label>
                 <label class="text-sm">{{ __('finance.fields.date') }}<input wire:model="issue_date" type="date" class="mt-1 w-full rounded-xl px-4 py-3"></label>
-                <label class="text-sm md:col-span-2">{{ __('finance.fields.invoice_scan') }}<input wire:model="invoice_attachment" type="file" accept="image/*,application/pdf" class="mt-1 block w-full rounded-xl px-4 py-3"></label>
-                <label class="text-sm md:col-span-2 xl:col-span-4">{{ __('invoices.index.form.fields.notes') }}<textarea wire:model="invoice_notes" class="mt-1 w-full rounded-xl px-4 py-3"></textarea></label>
+                <label class="text-sm md:col-span-1 xl:col-span-2">{{ __('finance.fields.invoice_scan') }}<input wire:model="invoice_attachment" type="file" accept="image/*,application/pdf" class="mt-1 block h-[3.125rem] w-full rounded-xl px-4 py-3"></label>
+                <label class="text-sm md:col-span-1 xl:col-span-2">{{ __('invoices.index.form.fields.notes') }}<textarea wire:model="invoice_notes" rows="1" class="mt-1 h-[3.125rem] w-full resize-none rounded-xl px-4 py-3"></textarea></label>
                 <div class="md:col-span-2 xl:col-span-4 flex items-center justify-between gap-3">@if($invoiceRecord->original_image_path)<a href="{{ asset('storage/'.$invoiceRecord->original_image_path) }}" target="_blank" class="pill-link">{{ __('finance.actions.view_original') }}</a>@else<span></span>@endif<button class="pill-link pill-link--accent">{{ __('crud.common.actions.save') }}</button></div>
             </form>
         </section>
@@ -304,7 +312,7 @@ new class extends Component {
 
     <div class="grid gap-6 xl:grid-cols-[23rem_minmax(0,1fr)]">
         <section class="space-y-6">
-            @if (request()->boolean('maintenance') && auth()->user()?->can('finance.entries.update'))
+            @if ($maintenanceMode)
             <div class="surface-panel p-5 lg:p-6">
                 <div class="admin-section-card__header">
                     <div class="admin-section-card__title">{{ $editingItemId ? __('invoices.detail.item_form.edit_title') : __('invoices.detail.item_form.create_title') }}</div>

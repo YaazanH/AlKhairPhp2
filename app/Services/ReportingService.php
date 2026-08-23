@@ -149,7 +149,7 @@ class ReportingService
     {
         $filters = $this->normalizeFilters($filters);
         $enrollments = $this->scopedEnrollmentsQuery($filters)
-            ->with(['group.academicYear', 'group.course', 'student'])
+            ->with(['group.academicYear', 'group.course', 'student.quranCurrentJuz'])
             ->orderBy(
                 Group::query()
                     ->select('name')
@@ -203,9 +203,19 @@ class ReportingService
             ->groupBy('enrollment_id')
             ->pluck('total_tests', 'enrollment_id');
 
+        $latestPartialTests = app(AccessScopeService::class)
+            ->scopeQuranPartialTests(QuranPartialTest::query(), auth()->user())
+            ->with('parts')
+            ->whereIn('enrollment_id', $enrollmentIds)
+            ->latest('id')
+            ->get()
+            ->unique('enrollment_id')
+            ->keyBy('enrollment_id');
+
         return $enrollments
-            ->map(function (Enrollment $enrollment) use ($attendanceCounts, $memorizedPages, $passedFinalTests, $points) {
+            ->map(function (Enrollment $enrollment) use ($attendanceCounts, $latestPartialTests, $memorizedPages, $passedFinalTests, $points) {
                 $attendance = $attendanceCounts->get($enrollment->id);
+                $latestPartialTest = $latestPartialTests->get($enrollment->id);
 
                 return [
                     'academic_year' => $enrollment->group?->academicYear?->name,
@@ -214,6 +224,8 @@ class ReportingService
                     'course' => $enrollment->group?->course?->name,
                     'enrollment_id' => $enrollment->id,
                     'group' => $enrollment->group?->name,
+                    'current_juz' => $enrollment->student?->quranCurrentJuz?->juz_number,
+                    'latest_partial_quarters' => $latestPartialTest?->parts->where('status', 'passed')->count() ?? 0,
                     'memorized_pages' => (int) ($memorizedPages[$enrollment->id] ?? 0),
                     'points' => (int) ($points[$enrollment->id] ?? 0),
                     'passed_final_tests' => (int) ($passedFinalTests[$enrollment->id] ?? 0),
@@ -230,7 +242,9 @@ class ReportingService
         return collect($this->studentActivitySummary($filters))
             ->map(fn (array $row) => [
                 $row['student_name'],
+                $row['current_juz'],
                 $row['memorized_pages'],
+                $row['latest_partial_quarters'].'/4',
                 $row['passed_final_tests'],
                 $row['attended_days'],
                 $row['points'],
@@ -243,19 +257,7 @@ class ReportingService
 
     public function studentActivityAverageAttendance(array $filters = []): float
     {
-        $filters = $this->normalizeFilters($filters);
-        $records = $this->scopedStudentAttendanceRecordsQuery($filters);
-        $attendanceDays = (clone $records)->distinct()->count('group_attendance_day_id');
-
-        if ($attendanceDays === 0) {
-            return 0;
-        }
-
-        $presentStudents = (clone $records)
-            ->whereHas('status', fn (Builder $query) => $query->where('is_present', true))
-            ->count();
-
-        return round($presentStudents / $attendanceDays, 1);
+        return (float) $this->attendance($this->normalizeFilters($filters))['average_present_per_day'];
     }
 
     public function studentQuranTestSummary(array $filters = []): array

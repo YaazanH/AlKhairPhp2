@@ -5,7 +5,7 @@
     'viewAllAction',
 ])
 
-<div class="surface-table">
+<div class="surface-table student-progress-data-table">
     <div class="admin-grid-meta">
         <div class="admin-grid-meta__title">{{ $title }}</div>
         @unless ($empty)

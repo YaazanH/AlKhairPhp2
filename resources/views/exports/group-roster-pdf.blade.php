@@ -12,7 +12,7 @@
 <head>
     <meta charset="utf-8">
     <style>
-        @page { margin: 31mm 10mm 18mm; header: roster-header; footer: roster-footer; }
+        @page { margin: 35mm 10mm 18mm; header: roster-header; footer: roster-footer; }
         body {
             color: #000;
             direction: rtl;
@@ -98,6 +98,15 @@
             text-align: center;
         }
 
+        .roster-page-gap th {
+            background: #fff;
+            border: 0;
+            font-size: 0;
+            height: 4mm;
+            line-height: 4mm;
+            padding: 0;
+        }
+
         td {
             border: 1px solid #aebbb1;
             font-size: 10.5px;
@@ -105,8 +114,6 @@
             text-align: center;
             vertical-align: middle;
         }
-
-        .report-table { margin-top: 4mm; }
 
         tbody tr:nth-child(even) td {
             background: #f1f7f2;
@@ -138,14 +145,15 @@
 
     <table class="report-table">
         <thead>
+            <tr class="roster-page-gap"><th colspan="7">&nbsp;</th></tr>
             <tr>
-                <th style="width: 13%;">رقم الطالب</th>
-                <th style="width: 21%;">اسم الطالب</th>
-                <th style="width: 9%;">الصف</th>
+                <th style="width: 12%;">رقم الطالب</th>
+                <th style="width: 22%;">اسم الطالب</th>
+                <th style="width: 12%;">الصف</th>
                 <th style="width: 7%;">الجزء</th>
-                <th style="width: 17%;">جوال الطالب</th>
-                <th style="width: 17%;">جوال الأب</th>
-                <th style="width: 16%;">الرقم الأرضي</th>
+                <th style="width: 15%;">جوال الطالب</th>
+                <th style="width: 18%;">جوال الأب</th>
+                <th style="width: 14%;">الرقم الأرضي</th>
             </tr>
         </thead>
         <tbody>

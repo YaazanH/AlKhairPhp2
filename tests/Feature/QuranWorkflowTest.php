@@ -173,13 +173,14 @@ class QuranWorkflowTest extends TestCase
 
         $openDayComponent = Volt::test('teachers.attendance-show', ['teacherAttendanceDay' => $day])
             ->assertSee($scheduledTeacher->first_name.' '.$scheduledTeacher->last_name)
-            ->assertSee(__('workflow.teacher_attendance.day_details.stats.scheduled'));
+            ->assertDontSee(__('workflow.teacher_attendance.day_details.stats.scheduled'));
         $openDayHtml = $openDayComponent->html();
         $this->assertLessThan(strpos($openDayHtml, 'wire:click="openManualTeacherModal"'), strpos($openDayHtml, 'wire:click="toggleDayStatus"'));
         $this->assertLessThan(strpos($openDayHtml, 'wire:click="deleteDay"'), strpos($openDayHtml, 'wire:click="openManualTeacherModal"'));
 
         $openDayComponent
             ->call('openManualTeacherModal')
+            ->assertSee('admin-modal__dialog--xl admin-modal__dialog--compact', false)
             ->set('manual_teacher_id', (string) $extraTeacher->id)
             ->call('addManualTeacher')
             ->assertHasNoErrors();
@@ -615,7 +616,8 @@ class QuranWorkflowTest extends TestCase
             ->call('saveAttempt')
             ->assertHasNoErrors()
             ->assertSet('showCurrentJuzModal', true)
-            ->set('newCurrentJuzId', $newCurrentJuz->id)
+            ->assertSee('wire:model="newCurrentJuzNumber" type="number"', false)
+            ->set('newCurrentJuzNumber', (string) $newCurrentJuz->juz_number)
             ->call('saveCurrentJuz')
             ->assertHasNoErrors()
             ->assertSet('showCurrentJuzModal', false);

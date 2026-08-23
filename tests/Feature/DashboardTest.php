@@ -162,8 +162,12 @@ class DashboardTest extends TestCase
             ->assertSee('Number of Students per Group')
             ->assertSee('Comparison between Attendance and Memorisation')
             ->assertSee('Top 3 Students')
-            ->assertSee('dashboard-leaderboard__rank-image', false)
-            ->assertSee('images/dashboard/leaderboard/medal-1.png', false)
+            ->assertSee('dashboard-ranking-grid', false)
+            ->assertSee('dashboard-leaderboard__stage', false)
+            ->assertSee('images/dashboard/leaderboard/podium-stage.png', false)
+            ->assertSee('dashboard-leaderboard__rank-button--rank-1', false)
+            ->assertSee('dashboard-leaderboard__portrait--rank-1', false)
+            ->assertSee('wire:click="showManagerStudent('.$student->id.')"', false)
             ->assertSee('Top Groups by Memorisation')
             ->assertDontSee('Latest five attendance days')
             ->assertDontSee('Count')
@@ -172,6 +176,8 @@ class DashboardTest extends TestCase
             ->assertSee('Memorized pages: 5')
             ->assertSee('Students attended: 1')
             ->assertSee('dashboard-line-point__tooltip', false)
+            ->assertSee('dashboard-lollipop-attendance__tooltip', false)
+            ->assertSee('100.0%', false)
             ->assertSee('dashboard-line-chart', false)
             ->assertSee('viewBox="0 0 458 220"', false)
             ->assertSee('dashboard-treemap', false)
@@ -184,11 +190,15 @@ class DashboardTest extends TestCase
             ->assertDontSee('Excluded Group');
 
         $dashboardCss = file_get_contents(resource_path('css/app.css'));
-        $this->assertStringContainsString('.dashboard-leaderboard__rank-image {', $dashboardCss);
-        $this->assertStringNotContainsString('--dashboard-rank-ribbon:', $dashboardCss);
-        $this->assertFileExists(public_path('images/dashboard/leaderboard/medal-1.png'));
-        $this->assertFileExists(public_path('images/dashboard/leaderboard/medal-2.png'));
-        $this->assertFileExists(public_path('images/dashboard/leaderboard/medal-3.png'));
+        $this->assertStringContainsString('.dashboard-leaderboard__stage {', $dashboardCss);
+        $this->assertStringContainsString('aspect-ratio: 1586 / 820;', $dashboardCss);
+        $this->assertStringContainsString('height: 120.9756%;', $dashboardCss);
+        $this->assertStringContainsString('clip-path: inset(0 34% 17.34% 34%);', $dashboardCss);
+        $this->assertStringContainsString('clip-path: inset(0 0 17.34% 66%);', $dashboardCss);
+        $this->assertStringContainsString('clip-path: inset(0 66% 17.34% 0);', $dashboardCss);
+        $this->assertStringContainsString('.dashboard-leaderboard__rank-button:hover,', $dashboardCss);
+        $this->assertStringContainsString('.dashboard-leaderboard__rank-button:focus-visible .dashboard-leaderboard__portrait', $dashboardCss);
+        $this->assertFileExists(public_path('images/dashboard/leaderboard/podium-stage.png'));
 
         Volt::test('dashboard')
             ->call('showManagerStudent', $student->id)

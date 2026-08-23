@@ -80,7 +80,10 @@ class CurriculumModuleTest extends TestCase
         Volt::test('settings.curriculum-subjects')
             ->set('subjectName', 'Faith')
             ->call('saveSubject')
-            ->assertHasNoErrors();
+            ->assertHasNoErrors()
+            ->assertSee('curriculum-subject-table', false)
+            ->assertSee('data-curriculum-resource-index', false)
+            ->assertDontSee('0 '.__('curricula.fields.resources'));
 
         $definition = CurriculumSubjectDefinition::query()->firstOrFail();
         Volt::test('curricula.index')
@@ -133,6 +136,7 @@ class CurriculumModuleTest extends TestCase
             ->assertSet('showStandaloneResourcesModal', false)
             ->call('openStandaloneResources')
             ->assertSet('showStandaloneResourcesModal', true)
+            ->assertSee('curriculum-resource-table', false)
             ->call('openStandaloneResourceForm')
             ->assertSet('showStandaloneResourceForm', true)
             ->assertSet('showResourceModal', false)

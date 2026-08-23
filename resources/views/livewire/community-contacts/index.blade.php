@@ -220,7 +220,7 @@ new class extends Component {
         <div class="admin-grid-meta admin-grid-meta--controls community-contacts-grid-meta">
             <div class="admin-grid-meta__title">{{ __('community_contacts.table.title') }}</div>
             <div class="admin-toolbar__controls admin-toolbar__controls--compact community-contacts-toolbar">
-            <input wire:model.live.debounce.300ms="search" type="search" class="w-48 rounded-xl px-4 py-3 text-sm" placeholder="{{ __('community_contacts.filters.search') }}">
+            <input wire:model.live.debounce.300ms="search" type="search" class="community-contacts-search flex-1 rounded-xl px-4 py-3 text-sm" placeholder="{{ __('community_contacts.filters.search') }}">
 
             <select wire:model.live="categoryFilter" class="w-36 rounded-xl px-3 py-3 text-sm">
                 <option value="all">{{ __('community_contacts.filters.all_categories') }}</option>
@@ -300,9 +300,9 @@ new class extends Component {
             </table>
         </div>
 
-        <div class="border-t border-white/8 px-5 py-4">
-            {{ $contacts->links() }}
-        </div>
+        @if ($contacts->hasPages())
+            <div class="px-5 py-4">{{ $contacts->links() }}</div>
+        @endif
     </section>
 
     <x-admin.modal :show="$showFormModal" :title="$editingId ? __('community_contacts.form.edit') : __('community_contacts.form.create')" :description="__('community_contacts.form.description')" close-method="cancel" max-width="4xl">

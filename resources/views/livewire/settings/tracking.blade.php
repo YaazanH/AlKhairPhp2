@@ -66,13 +66,7 @@ new class extends Component
 
     public string $partial_test_fail_threshold = '5';
 
-    public string $final_test_failed_from = '0';
-
-    public string $final_test_failed_to = '59.99';
-
     public string $final_test_passed_from = '60';
-
-    public string $final_test_passed_to = '100';
 
     public function mount(): void
     {
@@ -417,39 +411,11 @@ new class extends Component
         $this->authorizePermission('settings.manage');
 
         $validated = $this->validate([
-            'final_test_failed_from' => ['required', 'numeric', 'between:0,100'],
-            'final_test_failed_to' => ['required', 'numeric', 'between:0,100'],
-            'final_test_passed_from' => ['required', 'numeric', 'between:0,100'],
-            'final_test_passed_to' => ['required', 'numeric', 'between:0,100'],
+            'final_test_passed_from' => ['required', 'numeric', 'min:0.01', 'max:100'],
         ]);
 
-        $failedFrom = (float) $validated['final_test_failed_from'];
-        $failedTo = (float) $validated['final_test_failed_to'];
         $passedFrom = (float) $validated['final_test_passed_from'];
-        $passedTo = (float) $validated['final_test_passed_to'];
-
-        if ($failedFrom > $failedTo) {
-            $this->addError('final_test_failed_from', __('settings.tracking.errors.final_test_rules_order'));
-
-            return;
-        }
-
-        if ($passedFrom > $passedTo) {
-            $this->addError('final_test_passed_from', __('settings.tracking.errors.final_test_rules_order'));
-
-            return;
-        }
-
-        if (max($failedFrom, $passedFrom) <= min($failedTo, $passedTo)) {
-            $this->addError('final_test_passed_from', __('settings.tracking.errors.final_test_rules_overlap'));
-
-            return;
-        }
-
-        app(QuranFinalTestRuleService::class)->store([
-            'failed' => ['from' => $failedFrom, 'to' => $failedTo],
-            'passed' => ['from' => $passedFrom, 'to' => $passedTo],
-        ]);
+        app(QuranFinalTestRuleService::class)->storePassingGrade($passedFrom);
 
         $this->loadFinalTestRuleSettings();
 
@@ -462,32 +428,13 @@ new class extends Component
 
         $validated = $this->validate([
             'partial_test_fail_threshold' => ['required', 'integer', 'min:1', 'max:999'],
-            'final_test_failed_from' => ['required', 'numeric', 'between:0,100'],
-            'final_test_failed_to' => ['required', 'numeric', 'between:0,100'],
-            'final_test_passed_from' => ['required', 'numeric', 'between:0,100'],
-            'final_test_passed_to' => ['required', 'numeric', 'between:0,100'],
+            'final_test_passed_from' => ['required', 'numeric', 'min:0.01', 'max:100'],
         ]);
 
-        $failedFrom = (float) $validated['final_test_failed_from'];
-        $failedTo = (float) $validated['final_test_failed_to'];
         $passedFrom = (float) $validated['final_test_passed_from'];
-        $passedTo = (float) $validated['final_test_passed_to'];
-
-        if ($failedFrom > $failedTo || $passedFrom > $passedTo) {
-            $this->addError('final_test_failed_from', __('settings.tracking.errors.final_test_rules_order'));
-            return;
-        }
-
-        if (max($failedFrom, $passedFrom) <= min($failedTo, $passedTo)) {
-            $this->addError('final_test_passed_from', __('settings.tracking.errors.final_test_rules_overlap'));
-            return;
-        }
 
         app(QuranPartialTestRuleService::class)->store((int) $validated['partial_test_fail_threshold']);
-        app(QuranFinalTestRuleService::class)->store([
-            'failed' => ['from' => $failedFrom, 'to' => $failedTo],
-            'passed' => ['from' => $passedFrom, 'to' => $passedTo],
-        ]);
+        app(QuranFinalTestRuleService::class)->storePassingGrade($passedFrom);
         $this->loadPartialTestRuleSettings();
         $this->loadFinalTestRuleSettings();
         session()->flash('status', __('settings.tracking.messages.final_test_rules_saved'));
@@ -551,10 +498,7 @@ new class extends Component
     {
         $ranges = app(QuranFinalTestRuleService::class)->ranges();
 
-        $this->final_test_failed_from = $this->formatRuleValue($ranges['failed']['from']);
-        $this->final_test_failed_to = $this->formatRuleValue($ranges['failed']['to']);
         $this->final_test_passed_from = $this->formatRuleValue($ranges['passed']['from']);
-        $this->final_test_passed_to = $this->formatRuleValue($ranges['passed']['to']);
     }
 
     protected function formatRuleValue(float $value): string
@@ -683,47 +627,6 @@ new class extends Component
                     </table>
                 </div>
             </div>
-
-            <section class="overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700">
-                <div class="border-b border-neutral-200 bg-neutral-50 px-5 py-4 text-sm font-medium dark:border-neutral-700 dark:bg-neutral-900/60">{{ __('settings.tracking.sections.saber_rules') }}</div>
-                <form wire:submit="saveSaberRules" class="divide-y divide-neutral-200 dark:divide-neutral-700">
-                    <div data-saber-rule-card="partial" class="grid gap-4 px-5 py-4 md:grid-cols-[minmax(12rem,1fr)_minmax(12rem,20rem)] md:items-center">
-                        <div>
-                            <div class="font-semibold text-white">{{ __('settings.tracking.sections.partial_test_rule.title') }}</div>
-                            <div class="mt-1 text-sm text-neutral-400">{{ __('settings.tracking.fields.fail_at_mistakes') }}</div>
-                        </div>
-                        <div>
-                            <input wire:model="partial_test_fail_threshold" type="number" min="1" max="999" class="h-12 w-full rounded-xl px-4 text-base">
-                            @error('partial_test_fail_threshold') <div class="mt-2 text-sm text-red-400">{{ $message }}</div> @enderror
-                        </div>
-                    </div>
-
-                    @foreach ([
-                        'failed' => __('settings.tracking.sections.final_test_rule.failed_title'),
-                        'passed' => __('settings.tracking.sections.final_test_rule.passed_title'),
-                    ] as $range => $rangeTitle)
-                        <div data-saber-rule-card="final-{{ $range }}" class="grid gap-4 px-5 py-4 md:grid-cols-[minmax(12rem,1fr)_minmax(12rem,20rem)] md:items-center">
-                            <div>
-                                <div class="font-semibold text-white">{{ __('settings.tracking.sections.final_test_rule.title') }}</div>
-                                <div class="mt-1 text-sm text-neutral-400">{{ $rangeTitle }}</div>
-                            </div>
-                            <div class="grid grid-cols-2 gap-3">
-                                <label>
-                                    <span class="mb-1 block text-xs font-medium text-neutral-400">{{ __('settings.tracking.fields.from_score') }}</span>
-                                    <input wire:model="final_test_{{ $range }}_from" type="number" min="0" max="100" step="0.01" class="h-11 w-full rounded-xl px-3">
-                                </label>
-                                <label>
-                                    <span class="mb-1 block text-xs font-medium text-neutral-400">{{ __('settings.tracking.fields.to_score') }}</span>
-                                    <input wire:model="final_test_{{ $range }}_to" type="number" min="0" max="100" step="0.01" class="h-11 w-full rounded-xl px-3">
-                                </label>
-                            </div>
-                        </div>
-                    @endforeach
-                    @error('final_test_failed_from') <div class="px-5 py-3 text-sm text-red-400">{{ $message }}</div> @enderror
-                    @error('final_test_passed_from') <div class="px-5 py-3 text-sm text-red-400">{{ $message }}</div> @enderror
-                    <div class="flex justify-end px-5 py-4"><button class="pill-link pill-link--accent">{{ __('crud.common.actions.save') }}</button></div>
-                </form>
-            </section>
 
         </section>
     </div>

@@ -267,7 +267,7 @@ new class extends Component {
         </div>
 
         <div class="border-b border-white/8 p-5">
-            <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
+            <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-6" data-mobile-table-filter-controls>
                 <div>
                     <label class="mb-1 block text-sm font-medium">{{ __('finance.fields.from_date') }}</label>
                     <input wire:model.live="filter_start_date" type="date" class="w-full rounded-xl px-4 py-3 text-sm">
