@@ -9,6 +9,8 @@ use App\Models\Group;
 use App\Models\StudentAttendanceDay;
 use App\Models\Teacher;
 use App\Models\TeacherAttendanceRecord;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -131,6 +133,11 @@ class CourseLifecycleService
         }
 
         DB::transaction(function () use ($course): void {
+            if (! $course->is_active && ! $course->finished_at) {
+                $this->adoptLegacyFinishedState($course);
+                $course->refresh();
+            }
+
             $groupIds = Group::query()
                 ->where('course_id', $course->id)
                 ->pluck('id');
@@ -204,6 +211,74 @@ class CourseLifecycleService
         });
     }
 
+    /**
+     * Add lifecycle markers to a course finished by the legacy implementation.
+     *
+     * The old implementation deactivated groups, active enrollments, and
+     * assessments without recording their previous state. Rows updated at the
+     * same time as the course are the records that implementation changed.
+     */
+    public function adoptLegacyFinishedState(Course $course): void
+    {
+        if ($course->is_active || $course->finished_at) {
+            return;
+        }
+
+        DB::transaction(function () use ($course): void {
+            $legacyFinishedAt = $course->updated_at?->copy() ?: now();
+            $groupIds = Group::query()
+                ->where('course_id', $course->id)
+                ->pluck('id');
+
+            $groupsToRestore = Group::query()
+                ->whereIn('id', $groupIds)
+                ->where('is_active', false)
+                ->get()
+                ->filter(fn (Group $group): bool => $this->changedWithLegacyCourse($group, $legacyFinishedAt))
+                ->pluck('id');
+
+            $enrollmentsToRestore = Enrollment::query()
+                ->whereIn('group_id', $groupIds)
+                ->where('status', 'completed')
+                ->whereDate('left_at', $legacyFinishedAt->toDateString())
+                ->get()
+                ->filter(fn (Enrollment $enrollment): bool => $this->changedWithLegacyCourse($enrollment, $legacyFinishedAt))
+                ->pluck('id');
+
+            $assessmentsToRestore = Assessment::query()
+                ->where('is_active', false)
+                ->where(function ($query) use ($groupIds): void {
+                    $query->whereIn('group_id', $groupIds)
+                        ->orWhereHas('groups', fn ($groups) => $groups->whereIn('groups.id', $groupIds));
+                })
+                ->get()
+                ->filter(fn (Assessment $assessment): bool => $this->changedWithLegacyCourse($assessment, $legacyFinishedAt))
+                ->pluck('id');
+
+            $this->finish($course);
+
+            $course->forceFill(['finished_at' => $legacyFinishedAt])->save();
+
+            Group::query()
+                ->whereIn('id', $groupsToRestore)
+                ->update(['course_finished_was_active' => true]);
+
+            Enrollment::query()
+                ->whereIn('id', $enrollmentsToRestore)
+                ->update([
+                    'course_finished_previous_status' => 'active',
+                    'course_finished_previous_left_at' => null,
+                ]);
+
+            Assessment::query()
+                ->whereIn('id', $assessmentsToRestore)
+                ->update([
+                    'course_finished_at' => $legacyFinishedAt,
+                    'is_active' => false,
+                ]);
+        });
+    }
+
     public function archiveSummary(Course $course): array
     {
         $groupIds = Group::query()->where('course_id', $course->id)->pluck('id');
@@ -218,5 +293,11 @@ class CourseLifecycleService
             'student_attendance' => StudentAttendanceDay::query()->where('course_id', $course->id)->whereNotNull('course_finished_at')->count(),
             'teacher_attendance' => TeacherAttendanceRecord::query()->where('archived_course_id', $course->id)->whereNotNull('course_finished_at')->count(),
         ];
+    }
+
+    protected function changedWithLegacyCourse(Model $model, Carbon $legacyFinishedAt): bool
+    {
+        return $model->updated_at
+            && abs($model->updated_at->diffInSeconds($legacyFinishedAt, false)) <= 10;
     }
 }

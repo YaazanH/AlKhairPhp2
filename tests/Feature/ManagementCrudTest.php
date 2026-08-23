@@ -27,10 +27,12 @@ use App\Models\Teacher;
 use App\Models\TeacherAttendanceDay;
 use App\Models\TeacherAttendanceRecord;
 use App\Models\User;
+use App\Services\CourseLifecycleService;
 use App\Services\ParentNumberService;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Volt\Volt;
@@ -397,6 +399,124 @@ class ManagementCrudTest extends TestCase
         $this->assertSame('open', $groupAttendanceDay->fresh()->status);
         $this->assertNull($teacherAttendanceRecord->fresh()->archived_course_id);
         $this->assertNull($teacherAttendanceRecord->fresh()->course_finished_at);
+    }
+
+    public function test_legacy_finished_courses_gain_archive_markers_and_restore_rows_changed_by_the_old_lifecycle(): void
+    {
+        $this->signIn();
+
+        $academicYear = AcademicYear::create([
+            'name' => 'Legacy lifecycle 2025/2026',
+            'starts_on' => '2025-08-01',
+            'ends_on' => '2026-07-31',
+            'is_current' => true,
+            'is_active' => true,
+        ]);
+        $course = Course::create([
+            'academic_year_id' => $academicYear->id,
+            'name' => 'Legacy Finished Course',
+            'is_active' => false,
+            'awards_points' => true,
+        ]);
+        $teacher = Teacher::create([
+            'first_name' => 'Legacy',
+            'last_name' => 'Teacher',
+            'phone' => '0944000097',
+            'course_id' => $course->id,
+            'status' => 'active',
+            'is_helping' => true,
+        ]);
+        $legacyGroup = Group::create([
+            'course_id' => $course->id,
+            'academic_year_id' => $academicYear->id,
+            'teacher_id' => $teacher->id,
+            'name' => 'Legacy Changed Group',
+            'capacity' => 20,
+            'is_active' => false,
+        ]);
+        $historicalGroup = Group::create([
+            'course_id' => $course->id,
+            'academic_year_id' => $academicYear->id,
+            'teacher_id' => $teacher->id,
+            'name' => 'Previously Inactive Group',
+            'capacity' => 20,
+            'is_active' => false,
+        ]);
+        $student = Student::create([
+            'first_name' => 'Legacy',
+            'last_name' => 'Student',
+            'birth_date' => '2013-01-01',
+            'status' => 'active',
+        ]);
+        $legacyEnrollment = Enrollment::create([
+            'student_id' => $student->id,
+            'group_id' => $legacyGroup->id,
+            'enrolled_at' => '2025-08-01',
+            'left_at' => '2026-07-31',
+            'status' => 'completed',
+        ]);
+        $historicalEnrollment = Enrollment::create([
+            'student_id' => $student->id,
+            'group_id' => $historicalGroup->id,
+            'enrolled_at' => '2025-08-01',
+            'left_at' => '2026-06-01',
+            'status' => 'completed',
+        ]);
+        $assessmentType = AssessmentType::create([
+            'name' => 'Legacy lifecycle assessment',
+            'code' => 'legacy-lifecycle-assessment',
+            'is_scored' => true,
+            'is_active' => true,
+        ]);
+        $legacyAssessment = Assessment::create([
+            'group_id' => $legacyGroup->id,
+            'assessment_type_id' => $assessmentType->id,
+            'title' => 'Legacy Changed Assessment',
+            'is_active' => false,
+        ]);
+        $historicalAssessment = Assessment::create([
+            'group_id' => $historicalGroup->id,
+            'assessment_type_id' => $assessmentType->id,
+            'title' => 'Previously Inactive Assessment',
+            'is_active' => false,
+        ]);
+
+        $legacyFinishedAt = Carbon::parse('2026-07-31 12:00:00');
+        $olderTimestamp = $legacyFinishedAt->copy()->subDay();
+        foreach ([$course, $legacyGroup, $legacyEnrollment, $legacyAssessment] as $legacyRecord) {
+            $legacyRecord->forceFill(['updated_at' => $legacyFinishedAt])->saveQuietly();
+        }
+        foreach ([$historicalGroup, $historicalEnrollment, $historicalAssessment] as $historicalRecord) {
+            $historicalRecord->forceFill(['updated_at' => $olderTimestamp])->saveQuietly();
+        }
+
+        $lifecycle = app(CourseLifecycleService::class);
+        $lifecycle->adoptLegacyFinishedState($course->fresh());
+
+        $this->assertNotNull($course->fresh()->finished_at);
+        $this->assertFalse($course->fresh()->awards_points);
+        $this->assertSame([
+            'groups' => 2,
+            'enrollments' => 2,
+            'assessments' => 1,
+            'student_attendance' => 0,
+            'teacher_attendance' => 0,
+        ], $lifecycle->archiveSummary($course->fresh()));
+
+        Volt::test('courses.index')
+            ->call('reactivate', $course->id)
+            ->assertHasNoErrors();
+
+        $this->assertTrue($course->fresh()->is_active);
+        $this->assertTrue($course->fresh()->awards_points);
+        $this->assertTrue($legacyGroup->fresh()->is_active);
+        $this->assertFalse($historicalGroup->fresh()->is_active);
+        $this->assertSame('active', $legacyEnrollment->fresh()->status);
+        $this->assertNull($legacyEnrollment->fresh()->left_at);
+        $this->assertSame('completed', $historicalEnrollment->fresh()->status);
+        $this->assertSame('2026-06-01', $historicalEnrollment->fresh()->left_at?->toDateString());
+        $this->assertTrue($legacyAssessment->fresh()->is_active);
+        $this->assertFalse($historicalAssessment->fresh()->is_active);
     }
 
     public function test_copying_a_course_copies_course_and_group_metadata_without_enrollments(): void

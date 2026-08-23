@@ -1462,6 +1462,40 @@ class FinanceAndActivitiesTest extends TestCase
             ->assertNotFound();
     }
 
+    public function test_finance_reports_table_paginates_every_saved_report_ten_at_a_time(): void
+    {
+        $this->signIn();
+
+        foreach (range(1, 11) as $reportNumber) {
+            $report = FinanceGeneratedReport::query()->create([
+                'report_type' => 'ledger',
+                'filters' => [
+                    'date_from' => '2026-01-01',
+                    'date_to' => '2026-03-31',
+                    'cash_box_name' => 'Pagination fund',
+                    'currency_code' => 'SYP',
+                ],
+                'report_data' => [
+                    'original_report_number' => 'PAGE-REPORT-'.$reportNumber,
+                    'issuer_name' => 'Pagination manager',
+                ],
+                'generated_by' => auth()->id(),
+            ]);
+            $report->forceFill([
+                'created_at' => now()->startOfDay()->addMinutes($reportNumber),
+                'updated_at' => now()->startOfDay()->addMinutes($reportNumber),
+            ])->saveQuietly();
+        }
+
+        Volt::test('finance.reports')
+            ->assertSee('PAGE-REPORT-11')
+            ->assertSee('PAGE-REPORT-2')
+            ->assertDontSee('>PAGE-REPORT-1</div>', false)
+            ->call('setPage', 2, 'generatedReportsPage')
+            ->assertSee('>PAGE-REPORT-1</div>', false)
+            ->assertDontSee('PAGE-REPORT-11');
+    }
+
     public function test_financial_report_generation_requires_the_current_users_signature(): void
     {
         $this->signIn();

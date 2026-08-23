@@ -10,10 +10,12 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Volt\Component;
 use Livewire\WithFileUploads;
+use Livewire\WithPagination;
 
 new class extends Component {
     use AuthorizesPermissions;
     use WithFileUploads;
+    use WithPagination;
 
     public string $ledger_period_mode = 'quarter';
     public int $ledger_year;
@@ -95,8 +97,7 @@ new class extends Component {
                     ->where('report_type', 'ledger')
                     ->with('generatedBy')
                     ->latest()
-                    ->limit(12)
-                    ->get()
+                    ->paginate(10, pageName: 'generatedReportsPage')
                 : collect(),
             'ledgerCashBoxes' => $financeService->accessibleCashBoxes(auth()->user())->get(),
             'ledgerCurrencies' => $this->ledgerCurrencies(),
@@ -322,6 +323,11 @@ new class extends Component {
                         </tbody>
                     </table>
                 </div>
+                @if ($generatedReports->hasPages())
+                    <div class="border-t border-white/10 px-5 py-4">
+                        {{ $generatedReports->links() }}
+                    </div>
+                @endif
             </section>
         @else
             <section class="surface-panel p-5 lg:p-6" style="order: 4">
