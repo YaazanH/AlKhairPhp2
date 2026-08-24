@@ -147,13 +147,13 @@
         <thead>
             <tr class="roster-page-gap"><th colspan="7">&nbsp;</th></tr>
             <tr>
-                <th style="width: 12%;">رقم الطالب</th>
-                <th style="width: 22%;">اسم الطالب</th>
-                <th style="width: 12%;">الصف</th>
-                <th style="width: 7%;">الجزء</th>
+                <th style="width: 13%;">رقم الطالب</th>
+                <th style="width: 18%;">اسم الطالب</th>
+                <th style="width: 15%;">الصف</th>
+                <th style="width: 10%;">الجزء</th>
                 <th style="width: 15%;">جوال الطالب</th>
-                <th style="width: 18%;">جوال الأب</th>
-                <th style="width: 14%;">الرقم الأرضي</th>
+                <th style="width: 16%;">جوال الأب</th>
+                <th style="width: 13%;">الرقم الأرضي</th>
             </tr>
         </thead>
         <tbody>

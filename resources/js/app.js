@@ -532,163 +532,69 @@ if (document.body) {
     });
 }
 
-function formattedDateValue(value) {
-    const match = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+function restoreNativeDateInput(input) {
+    if (!(input instanceof HTMLInputElement) || input.type !== 'date') return;
 
-    return match ? `${match[3]}-${match[2]}-${match[1]}` : '';
-}
-
-function isDateInputLayoutClass(className) {
-    const normalizedClassName = className.replace(/^!/, '').replace(/^(?:sm|md|lg|xl|2xl):/, '');
-
-    return /^(?:w-|min-w-|max-w-|m[trblxy]?-|self-|justify-self-|col-span-|row-span-)/.test(normalizedClassName);
-}
-
-function syncFormattedDateInputAppearance(input, wrapper, display) {
-    const inputClasses = Array.from(input.classList)
-        .filter((className) => className !== 'formatted-date-input__native');
-    const layoutClasses = inputClasses.filter(isDateInputLayoutClass);
-    const controlClasses = inputClasses.filter((className) => !isDateInputLayoutClass(className));
-
-    wrapper.className = ['formatted-date-input', ...layoutClasses].join(' ');
-    display.className = [...controlClasses, 'formatted-date-input__display'].join(' ');
-
-    if (input.hasAttribute('data-flux-control')) {
-        display.setAttribute('data-flux-control', '');
-    } else {
-        display.removeAttribute('data-flux-control');
-    }
-}
-
-function openNativeDatePicker(input) {
-    if (input.disabled || input.readOnly) return;
-
-    if (typeof input.showPicker === 'function') {
-        try {
-            input.showPicker();
-
-            return;
-        } catch (_error) {
-            // Fall back to the native click for browsers without showPicker support.
-        }
-    }
-
-    input.click();
-}
-
-function enhanceDateInput(input) {
-    if (!(input instanceof HTMLInputElement) || input.type !== 'date' || input.dataset.dateFormatNative === 'true') {
-        return;
-    }
-
-    const existingWrapper = input.nextElementSibling?.classList.contains('formatted-date-input')
+    const formattedWrapper = input.nextElementSibling?.classList.contains('formatted-date-input')
         ? input.nextElementSibling
         : null;
+    const wasFormatted = input.dataset.dateFormatBound === 'true'
+        || input.classList.contains('formatted-date-input__native');
 
-    if (input.dataset.dateFormatBound === 'true' && existingWrapper) {
-        const existingDisplay = existingWrapper.querySelector('.formatted-date-input__display');
+    formattedWrapper?.remove();
+    input.classList.remove('formatted-date-input__native');
+    delete input.dataset.dateFormatBound;
+    delete input.formattedDateSync;
 
-        if (existingDisplay instanceof HTMLInputElement) {
-            syncFormattedDateInputAppearance(input, existingWrapper, existingDisplay);
-        }
-
-        input.formattedDateSync?.();
-
-        return;
+    if (wasFormatted && input.getAttribute('tabindex') === '-1') {
+        input.removeAttribute('tabindex');
     }
 
-    existingWrapper?.remove();
-    input.dataset.dateFormatBound = 'true';
-    input.classList.add('formatted-date-input__native');
-    input.tabIndex = -1;
-    input.setAttribute('aria-hidden', 'true');
+    if (wasFormatted && input.getAttribute('aria-hidden') === 'true') {
+        input.removeAttribute('aria-hidden');
+    }
 
-    const wrapper = document.createElement('div');
-    wrapper.className = 'formatted-date-input';
-    wrapper.setAttribute('wire:ignore', '');
+    if (input.dataset.nativeDatePickerBound === 'true') return;
 
-    const display = document.createElement('input');
-    display.type = 'text';
-    display.inputMode = 'none';
-    display.autocomplete = 'off';
-    display.readOnly = true;
-    display.dir = 'ltr';
-    display.placeholder = input.dataset.datePlaceholder || input.getAttribute('placeholder') || 'DD-MM-YYYY';
-    display.className = 'formatted-date-input__display';
-    display.setAttribute('aria-label', input.getAttribute('aria-label') || display.placeholder);
+    input.dataset.nativeDatePickerBound = 'true';
+    input.addEventListener('click', () => {
+        if (input.disabled || input.readOnly || typeof input.showPicker !== 'function') return;
 
-    const picker = document.createElement('button');
-    picker.type = 'button';
-    picker.className = 'formatted-date-input__picker';
-    picker.setAttribute('aria-label', 'Choose date');
-    picker.textContent = '▦';
-
-    wrapper.append(display, picker);
-    input.insertAdjacentElement('afterend', wrapper);
-    syncFormattedDateInputAppearance(input, wrapper, display);
-
-    let syncing = false;
-    const sync = () => {
-        if (syncing) return;
-        syncFormattedDateInputAppearance(input, wrapper, display);
-        display.value = formattedDateValue(input.value);
-        display.disabled = input.disabled;
-        picker.disabled = input.disabled || input.readOnly;
-    };
-
-    input.formattedDateSync = sync;
-    display.addEventListener('click', () => openNativeDatePicker(input));
-    display.addEventListener('keydown', (event) => {
-        if (event.key === 'Enter' || event.key === ' ' || event.key === 'ArrowDown') {
-            event.preventDefault();
-            openNativeDatePicker(input);
+        try {
+            input.showPicker();
+        } catch (_error) {
+            // The visible native control still provides its browser picker fallback.
         }
     });
-    input.addEventListener('input', sync);
-    input.addEventListener('change', sync);
-    picker.addEventListener('click', () => openNativeDatePicker(input));
-    sync();
 }
 
-function initializeFormattedDateInputs(root = document) {
+function initializeNativeDateInputs(root = document) {
     if (root instanceof HTMLInputElement && root.type === 'date') {
-        enhanceDateInput(root);
+        restoreNativeDateInput(root);
     }
-    root.querySelectorAll?.('input[type="date"]').forEach(enhanceDateInput);
+
+    root.querySelectorAll?.('input[type="date"]').forEach(restoreNativeDateInput);
 }
 
-let formattedDateInitializationTimer = null;
-function scheduleFormattedDateInitialization() {
-    if (formattedDateInitializationTimer) window.clearTimeout(formattedDateInitializationTimer);
-    window.requestAnimationFrame(() => initializeFormattedDateInputs());
-    formattedDateInitializationTimer = window.setTimeout(() => {
-        formattedDateInitializationTimer = null;
-        initializeFormattedDateInputs();
-    }, 160);
-}
-
-document.addEventListener('DOMContentLoaded', () => initializeFormattedDateInputs());
-document.addEventListener('livewire:navigated', () => initializeFormattedDateInputs());
+document.addEventListener('DOMContentLoaded', () => initializeNativeDateInputs());
+document.addEventListener('livewire:navigated', () => initializeNativeDateInputs());
 document.addEventListener('livewire:initialized', () => {
-    scheduleFormattedDateInitialization();
-    window.Livewire?.hook('morph.updated', ({ el }) => {
-        if ((el instanceof HTMLInputElement && el.type === 'date') || el.querySelector?.('input[type="date"]')) {
-            scheduleFormattedDateInitialization();
-        }
-    });
-    window.Livewire?.hook('morph.added', ({ el }) => initializeFormattedDateInputs(el));
+    window.Livewire?.hook('morph.updated', ({ el }) => initializeNativeDateInputs(el));
+    window.Livewire?.hook('morph.added', ({ el }) => initializeNativeDateInputs(el));
 });
 
-const formattedDateObserver = new MutationObserver((mutations) => {
-    if (mutations.some((mutation) => Array.from(mutation.addedNodes).some((node) => node instanceof Element && (node.matches('input[type="date"]') || node.querySelector('input[type="date"]'))))) {
-        scheduleFormattedDateInitialization();
-    }
+const nativeDateInputObserver = new MutationObserver((mutations) => {
+    mutations.forEach((mutation) => {
+        mutation.addedNodes.forEach((node) => {
+            if (node instanceof Element) initializeNativeDateInputs(node);
+        });
+    });
 });
 
 if (document.body) {
-    formattedDateObserver.observe(document.body, { childList: true, subtree: true });
+    nativeDateInputObserver.observe(document.body, { childList: true, subtree: true });
 } else {
-    document.addEventListener('DOMContentLoaded', () => formattedDateObserver.observe(document.body, { childList: true, subtree: true }));
+    document.addEventListener('DOMContentLoaded', () => nativeDateInputObserver.observe(document.body, { childList: true, subtree: true }));
 }
 
 function createMobileFilterIcon() {

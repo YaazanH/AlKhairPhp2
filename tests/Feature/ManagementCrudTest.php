@@ -56,6 +56,7 @@ class ManagementCrudTest extends TestCase
 
         $this->assertStringContainsString('@page{margin:35mm 14mm 18mm', $html);
         $this->assertStringContainsString('.header-title{font-family:dubai,sans-serif;font-size:20px;font-weight:bold}', $html);
+        $this->assertStringContainsString('.report-table thead tr:not(.report-page-gap) th{font-family:dubai,sans-serif;font-weight:bold}', $html);
         $this->assertStringContainsString('.meta-label{font-family:dubaimedium,sans-serif;font-weight:normal', $html);
         $this->assertStringContainsString('.header-meta[dir=rtl] .meta-label{text-align:left;padding-left:.8mm}', $html);
         $this->assertStringContainsString('.header-meta[dir=rtl] .meta-value{text-align:right;padding-right:.8mm}', $html);
@@ -1369,6 +1370,10 @@ class ManagementCrudTest extends TestCase
         $groupCss = file_get_contents(resource_path('css/app.css'));
         $this->assertStringContainsString('.group-roster-table th:nth-child(2)', $groupCss);
         $this->assertStringContainsString('.group-roster-table th:nth-child(8)', $groupCss);
+        $this->assertStringContainsString('width: 5.12%;', $groupCss);
+        $this->assertStringContainsString('width: 12.88%;', $groupCss);
+        $this->assertStringContainsString('width: 12.6%;', $groupCss);
+        $this->assertStringContainsString('width: 15.4%;', $groupCss);
 
         $rosterPdfHtml = view('exports.group-roster-pdf', [
             'enrollments' => Enrollment::query()->where('group_id', $group->id)->with(['student.parentProfile', 'student.user', 'student.gradeLevel', 'student.quranCurrentJuz'])->get(),
@@ -1381,8 +1386,8 @@ class ManagementCrudTest extends TestCase
         $this->assertStringContainsString('@page { margin: 35mm 10mm 18mm;', $rosterPdfHtml);
         $this->assertStringContainsString('height: 4mm;', $rosterPdfHtml);
         $this->assertStringContainsString('<tr class="roster-page-gap"><th colspan="7">&nbsp;</th></tr>', $rosterPdfHtml);
-        $this->assertStringContainsString('<th style="width: 22%;">اسم الطالب</th>', $rosterPdfHtml);
-        $this->assertStringContainsString('<th style="width: 18%;">جوال الأب</th>', $rosterPdfHtml);
+        $this->assertStringContainsString('<th style="width: 18%;">اسم الطالب</th>', $rosterPdfHtml);
+        $this->assertStringContainsString('<th style="width: 16%;">جوال الأب</th>', $rosterPdfHtml);
         $this->assertStringContainsString('رقم الطالب', $rosterPdfHtml);
         $this->assertStringNotContainsString('>باركود</th>', $rosterPdfHtml);
     }

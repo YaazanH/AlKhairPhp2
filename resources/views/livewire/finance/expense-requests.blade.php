@@ -582,7 +582,7 @@ new class extends Component {
                     <td class="px-4 py-3"><div>{{ $category?->name ?: '-' }}</div><div class="text-xs text-neutral-500">{{ $category?->mode ? __('finance.pull_modes.'.$category->mode) : '-' }}</div></td>
                     <td class="px-4 py-3"><div class="max-w-xs">{{ $transaction->description ?: '-' }}</div>@if ($request)<div class="text-xs text-neutral-500">{{ $request->request_no }} · {{ $request->teacher ? trim($request->teacher->first_name.' '.$request->teacher->last_name) : ($request->requestedBy?->name ?: '-') }}</div>@endif</td>
                     <td class="px-4 py-3"><bdi dir="ltr" class="font-semibold text-white">{{ app(FinanceService::class)->formatCurrencyAmount($transaction->amount, $transaction->currency) }}</bdi></td>
-                    <td class="px-4 py-3"><span class="status-chip {{ in_array($rowStatus, ['active', 'settled'], true) ? 'status-chip--emerald' : 'status-chip--amber' }}">{{ $request ? __('finance.statuses.'.$rowStatus) : ($rowStatus === 'active' ? __('finance.common.active') : $rowStatus) }}</span></td>
+                    <td class="px-4 py-3"><span class="status-chip {{ in_array($rowStatus, ['active', 'settled'], true) ? 'status-chip--emerald' : 'status-chip--amber' }}">{{ $request ? ($rowStatus === 'accepted' ? __('finance.expense_statuses.accepted') : __('finance.statuses.'.$rowStatus)) : ($rowStatus === 'active' ? __('finance.common.active') : $rowStatus) }}</span></td>
                     <td class="px-4 py-3"><div class="admin-action-cluster admin-action-cluster--end">
                         @if ($request?->status === 'accepted')<button wire:click="openFinaliseModal({{ $request->id }})" class="pill-link pill-link--compact pill-link--accent">{{ __('finance.actions.finalise') }}</button>@endif
                         @if ($request?->invoice)
@@ -607,6 +607,16 @@ new class extends Component {
     </x-admin.modal>
 
     <x-admin.modal :show="$viewingInvoiceId !== null" :title="__('finance.actions.view_invoice')" close-method="$set('viewingInvoiceId', null)" max-width="3xl">
+        <x-slot:header-actions>
+            @if ($viewingInvoice?->original_image_path)
+                <a href="{{ asset('storage/'.$viewingInvoice->original_image_path) }}" target="_blank" rel="noopener" class="admin-modal__close" title="{{ __('finance.actions.view_attachment') }}" aria-label="{{ __('finance.actions.view_attachment') }}">
+                    <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12s3.5-6 9.75-6 9.75 6 9.75 6-3.5 6-9.75 6-9.75-6-9.75-6Z" />
+                        <circle cx="12" cy="12" r="2.75" />
+                    </svg>
+                </a>
+            @endif
+        </x-slot:header-actions>
         @if ($viewingInvoice)
             <div class="grid grid-cols-2 gap-x-5 gap-y-2 rounded-xl border border-white/8 bg-white/4 p-3 text-sm">
                 <div><span class="kpi-label">{{ __('finance.fields.invoice_no') }}:</span> <span class="text-white">{{ $viewingInvoice->invoice_no }}</span></div>
@@ -615,7 +625,7 @@ new class extends Component {
                 <div><span class="kpi-label">{{ __('finance.common.date') }}:</span> <span class="text-white">{{ $viewingInvoice->issue_date?->format('d-m-Y') ?: '—' }}</span></div>
             </div>
             <div class="mt-4 overflow-x-auto"><table class="w-full text-sm"><thead><tr><th class="px-4 py-3 text-left">#</th><th class="px-4 py-3 text-left">{{ __('finance.fields.item_name') }}</th><th class="px-4 py-3 text-left">{{ __('finance.fields.quantity') }}</th><th class="px-4 py-3 text-left">{{ __('finance.fields.unit_price') }}</th><th class="px-4 py-3 text-left">{{ __('finance.fields.amount') }}</th></tr></thead><tbody>@foreach ($viewingInvoice->items as $item)<tr><td class="px-4 py-3">{{ $item->line_no ?: $loop->iteration }}</td><td class="px-4 py-3">{{ $item->item_name }}</td><td class="px-4 py-3">{{ $item->quantity }}</td><td class="px-4 py-3">{{ $item->unit_price }}</td><td class="px-4 py-3">{{ $item->amount }}</td></tr>@endforeach</tbody><tfoot><tr><th colspan="4" class="px-4 py-3 text-right">{{ __('finance.fields.subtotal') }}</th><td class="px-4 py-3"><bdi dir="ltr">{{ app(FinanceService::class)->formatCurrencyAmount($viewingInvoice->subtotal, $viewingInvoice->financeRequest?->acceptedCurrency) }}</bdi></td></tr><tr><th colspan="4" class="px-4 py-3 text-right">{{ __('finance.fields.deduction') }}</th><td class="px-4 py-3"><bdi dir="ltr">{{ app(FinanceService::class)->formatCurrencyAmount(-(float) $viewingInvoice->discount, $viewingInvoice->financeRequest?->acceptedCurrency) }}</bdi></td></tr><tr><th colspan="4" class="px-4 py-3 text-right text-white">{{ __('finance.fields.grand_total') }}</th><td class="px-4 py-3 font-semibold text-white"><bdi dir="ltr">{{ app(FinanceService::class)->formatCurrencyAmount($viewingInvoice->total, $viewingInvoice->financeRequest?->acceptedCurrency) }}</bdi></td></tr></tfoot></table></div>
-            <div class="mt-4 flex flex-wrap justify-end gap-3"><a href="{{ route('finance.invoices.print', $viewingInvoice) }}" target="_blank" class="pill-link pill-link--accent">{{ __('finance.actions.print_a5') }}</a>@if ($viewingInvoice->original_image_path)<a href="{{ asset('storage/'.$viewingInvoice->original_image_path) }}" target="_blank" class="pill-link">{{ __('finance.actions.view_attachment') }}</a>@endif</div>
+            <div class="mt-4 flex flex-wrap justify-end gap-3"><a href="{{ route('finance.invoices.print', $viewingInvoice) }}" target="_blank" class="pill-link pill-link--accent">{{ __('finance.actions.print_a5') }}</a></div>
         @endif
     </x-admin.modal>
 </div>

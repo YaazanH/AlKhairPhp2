@@ -171,6 +171,31 @@ class FinanceAndActivitiesTest extends TestCase
         $this->assertNull($invoice->due_date);
         $this->assertNull($invoice->notes);
 
+        $systemInvoiceNumber = $invoice->invoice_no;
+        $invoiceItem = $invoice->items()->firstOrFail();
+        Volt::test('invoices.payments', ['invoice' => $invoice])
+            ->set('maintenanceMode', true)
+            ->assertDontSee('wire:model="invoice_no"', false)
+            ->assertSee('wire:model="invoice_deduction"', false)
+            ->assertSee(__('finance.actions.add'))
+            ->assertDontSee('<p class="admin-section-card__copy">'.__('invoices.detail.tables.items.title').'</p>', false)
+            ->call('editItem', $invoiceItem->id)
+            ->assertSee(__('crud.common.actions.save'))
+            ->call('cancelItem')
+            ->set('invoice_no', 'INV-MUST-NOT-CHANGE')
+            ->set('original_invoice_no', 'ORIGINAL-22')
+            ->set('invoicer_name', 'Updated supplies store')
+            ->set('issue_date', '2026-11-04')
+            ->set('invoice_deduction', '12')
+            ->set('invoice_notes', 'Updated invoice basics')
+            ->call('saveInvoiceBasics')
+            ->assertHasNoErrors();
+
+        $invoice->refresh();
+        $this->assertSame($systemInvoiceNumber, $invoice->invoice_no);
+        $this->assertSame('12.00', $invoice->discount);
+        $this->assertSame('18.00', $invoice->total);
+
         Volt::test('invoices.payments', ['invoice' => $invoice])
             ->set('invoice_deduction', '10')
             ->call('saveDeduction')
@@ -2049,10 +2074,14 @@ class FinanceAndActivitiesTest extends TestCase
         $this->assertSame($transaction->id, $request->posted_transaction_id);
     }
 
-    public function test_invoice_scan_and_editable_reference_fields_are_saved(): void
+    public function test_invoice_scan_reference_fields_are_saved_and_system_number_is_protected(): void
     {
         $this->signIn();
         Storage::fake('public');
+
+        Volt::test('invoices.index')
+            ->call('create')
+            ->assertDontSee('wire:model="invoice_no"', false);
 
         Volt::test('invoices.index')
             ->set('invoice_no', 'INV-CUSTOM-1')
@@ -2065,11 +2094,14 @@ class FinanceAndActivitiesTest extends TestCase
             ->call('save')
             ->assertHasNoErrors();
 
-        $invoice = Invoice::query()->where('invoice_no', 'INV-CUSTOM-1')->firstOrFail();
+        $invoice = Invoice::query()->where('original_invoice_no', 'PAPER-44')->firstOrFail();
+        $systemInvoiceNumber = $invoice->invoice_no;
+        $this->assertNotSame('INV-CUSTOM-1', $systemInvoiceNumber);
         Storage::disk('public')->assertExists($invoice->original_image_path);
 
         Volt::test('invoices.index')
             ->call('edit', $invoice->id)
+            ->assertDontSee('wire:model="invoice_no"', false)
             ->set('invoice_no', 'INV-CUSTOM-2')
             ->set('original_invoice_no', 'PAPER-45')
             ->set('invoicer_name', 'Updated issuer')
@@ -2077,7 +2109,7 @@ class FinanceAndActivitiesTest extends TestCase
             ->assertHasNoErrors();
 
         $invoice->refresh();
-        $this->assertSame('INV-CUSTOM-2', $invoice->invoice_no);
+        $this->assertSame($systemInvoiceNumber, $invoice->invoice_no);
         $this->assertSame('PAPER-45', $invoice->original_invoice_no);
         $this->assertSame('Updated issuer', $invoice->invoicer_name);
     }
@@ -2360,6 +2392,13 @@ class FinanceAndActivitiesTest extends TestCase
         $this->assertNotNull($invoice->fresh()->finalised_at);
         Storage::disk('public')->assertExists($invoice->original_image_path);
         $this->assertDatabaseHas('finance_transactions', ['id' => $request->posted_transaction_id, 'signed_amount' => -50]);
+
+        Volt::test('finance.expense-requests')
+            ->set('viewingInvoiceId', $invoice->id)
+            ->assertSee('class="admin-modal__close"', false)
+            ->assertSee('title="'.__('finance.actions.view_attachment').'"', false)
+            ->assertSee('<svg class="size-5"', false)
+            ->assertDontSee('class="pill-link">'.__('finance.actions.view_attachment').'</a>', false);
 
         Volt::test('finance.expense-requests')
             ->call('editInvoice', $invoice->id)

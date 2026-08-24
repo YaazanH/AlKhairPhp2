@@ -375,7 +375,7 @@ new class extends Component {
             <div class="grid gap-4 md:grid-cols-2">
                 <div>
                     <label for="teacher-attendance-day-date" class="mb-1 block text-sm font-medium">{{ __('workflow.teacher_attendance.days.form.attendance_date') }}</label>
-                    <input id="teacher-attendance-day-date" wire:model.live="attendance_date" value="{{ $attendance_date }}" type="date" class="h-12 min-h-12 w-full appearance-none rounded-xl px-4 py-0 text-sm">
+                    <input id="teacher-attendance-day-date" wire:model.live="attendance_date" value="{{ $attendance_date }}" type="date" class="h-12 min-h-12 w-full rounded-xl px-4 py-0 text-sm">
                     @error('attendance_date')
                         <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                     @enderror

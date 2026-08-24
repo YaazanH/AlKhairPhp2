@@ -78,6 +78,15 @@ return [
             'no_groups' => 'No active groups are available in the default course.',
             'student_highlights' => 'Student Highlights',
             'final_tests' => 'Final sabers',
+            'performance_map' => 'Student Performance Map',
+            'performance_map_hint' => 'Each point is a student. Select one to open their summary.',
+            'no_performance_students' => 'No active students are available for the performance map yet.',
+            'balanced_leaders' => 'Strong in both',
+            'high_points' => 'Higher points',
+            'high_memorization' => 'Higher memorisation',
+            'developing' => 'Building momentum',
+            'average_points' => 'Average points',
+            'average_pages' => 'Average pages',
         ],
         'cards' => [
             'people' => [

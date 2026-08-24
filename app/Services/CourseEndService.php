@@ -103,16 +103,29 @@ class CourseEndService
                 ->filter(fn ($test) => $test->attempts->contains('status', 'passed'))
                 ->map(function ($test) use ($enrollment): array {
                     $attempt = $test->attempts->firstWhere('status', 'passed');
+                    $score = (float) $attempt?->score;
 
                     return [
                         'name' => $enrollment->student?->full_name ?? '',
                         'student_id' => $enrollment->student_id,
                         'juz' => $test->juz?->juz_number,
-                        'mark' => $attempt?->score,
+                        'mark' => $score,
+                        'grade' => self::finalTestGradeKey($score),
                     ];
                 }))
             ->sort(fn (array $left, array $right) => [mb_strtolower($left['name']), (int) $left['juz']] <=> [mb_strtolower($right['name']), (int) $right['juz']])
             ->values();
+    }
+
+    public static function finalTestGradeKey(float $score): string
+    {
+        return match (true) {
+            $score >= 95 => 'excellent',
+            $score >= 90 => 'very_good',
+            $score >= 85 => 'good',
+            $score >= 80 => 'acceptable',
+            default => 'below_acceptable',
+        };
     }
 
     protected function enrollments(Course $course): Collection

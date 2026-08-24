@@ -121,25 +121,36 @@ new class extends Component {
     public function saveInvoiceBasics(): void
     {
         $this->authorizePermission('finance.entries.update');
+        $this->normalizeFinanceNumberProperty('invoice_deduction');
         $validated = $this->validate([
-            'invoice_no' => ['required', 'string', 'max:255', \Illuminate\Validation\Rule::unique('invoices', 'invoice_no')->ignore($this->currentInvoice->id)],
             'original_invoice_no' => ['nullable', 'string', 'max:255'],
             'invoicer_name' => ['required', 'string', 'max:255'],
             'issue_date' => ['required', 'date'],
+            'invoice_deduction' => ['required', 'numeric', 'min:0'],
             'invoice_notes' => ['nullable', 'string', 'max:4000'],
             'invoice_attachment' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png,webp', 'max:10240'],
         ]);
 
+        $subtotal = (float) InvoiceItem::query()->where('invoice_id', $this->currentInvoice->id)->sum('amount');
+        $deduction = round((float) $validated['invoice_deduction'], 2);
+
+        if ($deduction > $subtotal) {
+            $this->addError('invoice_deduction', __('finance.validation.deduction_exceeds_subtotal'));
+
+            return;
+        }
+
         $oldPath = $this->currentInvoice->original_image_path;
         $newPath = $validated['invoice_attachment']?->store('finance/invoices/scans', 'public');
         $this->currentInvoice->update([
-            'invoice_no' => $validated['invoice_no'],
             'original_invoice_no' => $validated['original_invoice_no'] ?: null,
             'invoicer_name' => $validated['invoicer_name'],
             'issue_date' => $validated['issue_date'],
+            'discount' => $deduction,
             'notes' => $validated['invoice_notes'] ?: null,
             'original_image_path' => $newPath ?: $oldPath,
         ]);
+        app(FinanceService::class)->syncInvoiceTotals($this->currentInvoice->fresh());
         if ($newPath && $oldPath && $newPath !== $oldPath) Storage::disk('public')->delete($oldPath);
         $this->invoice_attachment = null;
         session()->flash('status', __('invoices.index.messages.updated'));
@@ -299,13 +310,13 @@ new class extends Component {
         <section class="surface-panel p-5 lg:p-6">
             <div class="admin-section-card__title">{{ __('invoices.index.form.edit_title') }}</div>
             <form wire:submit="saveInvoiceBasics" class="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                <label class="text-sm">{{ __('finance.fields.invoice_no') }}<input wire:model="invoice_no" class="mt-1 w-full rounded-xl px-4 py-3" dir="ltr"></label>
                 <label class="text-sm">{{ __('finance.fields.original_invoice_no') }}<input wire:model="original_invoice_no" class="mt-1 w-full rounded-xl px-4 py-3" dir="ltr"></label>
                 <label class="text-sm">{{ __('finance.fields.invoicer_name') }}<input wire:model="invoicer_name" class="mt-1 w-full rounded-xl px-4 py-3"></label>
-                <label class="text-sm">{{ __('finance.fields.date') }}<input wire:model="issue_date" type="date" class="mt-1 w-full rounded-xl px-4 py-3"></label>
+                <label class="text-sm">{{ __('finance.common.date') }}<input wire:model="issue_date" type="date" class="mt-1 w-full rounded-xl px-4 py-3"></label>
+                <label class="text-sm">{{ __('finance.fields.deduction') }}<input wire:model="invoice_deduction" type="text" inputmode="decimal" data-thousand-separator class="mt-1 w-full rounded-xl px-4 py-3">@error('invoice_deduction') <span class="mt-1 block text-sm text-red-400">{{ $message }}</span> @enderror</label>
                 <label class="text-sm md:col-span-1 xl:col-span-2">{{ __('finance.fields.invoice_scan') }}<input wire:model="invoice_attachment" type="file" accept="image/*,application/pdf" class="mt-1 block h-[3.125rem] w-full rounded-xl px-4 py-3"></label>
                 <label class="text-sm md:col-span-1 xl:col-span-2">{{ __('invoices.index.form.fields.notes') }}<textarea wire:model="invoice_notes" rows="1" class="mt-1 h-[3.125rem] w-full resize-none rounded-xl px-4 py-3"></textarea></label>
-                <div class="md:col-span-2 xl:col-span-4 flex items-center justify-between gap-3">@if($invoiceRecord->original_image_path)<a href="{{ asset('storage/'.$invoiceRecord->original_image_path) }}" target="_blank" class="pill-link">{{ __('finance.actions.view_original') }}</a>@else<span></span>@endif<button class="pill-link pill-link--accent">{{ __('crud.common.actions.save') }}</button></div>
+                <div class="md:col-span-2 xl:col-span-4 flex justify-end"><button class="pill-link pill-link--accent">{{ __('crud.common.actions.save') }}</button></div>
             </form>
         </section>
     @endif
@@ -314,10 +325,7 @@ new class extends Component {
         <section class="space-y-6">
             @if ($maintenanceMode)
             <div class="surface-panel p-5 lg:p-6">
-                <div class="admin-section-card__header">
-                    <div class="admin-section-card__title">{{ $editingItemId ? __('invoices.detail.item_form.edit_title') : __('invoices.detail.item_form.create_title') }}</div>
-                    <p class="admin-section-card__copy">{{ __('invoices.detail.tables.items.title') }}</p>
-                </div>
+                <div class="admin-section-card__title">{{ $editingItemId ? __('invoices.detail.item_form.edit_title') : __('invoices.detail.item_form.create_title') }}</div>
                 <form wire:submit="saveItem" class="mt-5 space-y-4">
                     <div>
                         <label class="mb-1 block text-sm font-medium">{{ __('finance.fields.item_name') }}</label>
@@ -339,20 +347,11 @@ new class extends Component {
                     </div>
 
                     <div class="flex flex-wrap gap-3">
-                        <button type="submit" class="pill-link pill-link--accent">{{ $editingItemId ? __('invoices.detail.item_form.update') : __('invoices.detail.item_form.save') }}</button>
+                        <button type="submit" class="pill-link pill-link--accent">{{ $editingItemId ? __('crud.common.actions.save') : __('finance.actions.add') }}</button>
                         @if ($editingItemId)
                             <button type="button" wire:click="cancelItem" class="pill-link">{{ __('crud.common.actions.cancel') }}</button>
                         @endif
                     </div>
-                </form>
-            </div>
-
-            <div class="surface-panel p-5 lg:p-6">
-                <div class="admin-section-card__title">{{ __('finance.fields.deduction') }}</div>
-                <form wire:submit="saveDeduction" class="mt-4 space-y-3">
-                    <input wire:model="invoice_deduction" type="text" inputmode="decimal" data-thousand-separator class="w-full rounded-xl px-4 py-3 text-sm">
-                    @error('invoice_deduction') <div class="text-sm text-red-400">{{ $message }}</div> @enderror
-                    <button type="submit" class="pill-link pill-link--accent">{{ __('crud.common.actions.save') }}</button>
                 </form>
             </div>
 

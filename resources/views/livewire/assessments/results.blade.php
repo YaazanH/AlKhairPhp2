@@ -421,7 +421,7 @@ new class extends Component
         return match ($status) {
             'passed' => 'status-chip status-chip--emerald',
             'failed' => 'status-chip status-chip--rose',
-            'absent' => 'status-chip status-chip--gold',
+            'absent' => 'status-chip status-chip--amber',
             default => 'status-chip status-chip--slate',
         };
     }

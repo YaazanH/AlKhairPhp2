@@ -113,6 +113,22 @@ class DashboardTest extends TestCase
             'memorized_pages_cached' => 18,
         ]);
 
+        $belowAverageStudent = Student::create([
+            'parent_id' => ParentProfile::query()->firstOrFail()->id,
+            'first_name' => 'Nabil',
+            'last_name' => 'Below Average',
+            'birth_date' => '2015-03-10',
+            'status' => 'active',
+        ]);
+        Enrollment::create([
+            'student_id' => $belowAverageStudent->id,
+            'group_id' => $group->id,
+            'enrolled_at' => '2026-09-01',
+            'status' => 'active',
+            'final_points_cached' => 0,
+            'memorized_pages_cached' => 0,
+        ]);
+
         MemorizationSession::create([
             'enrollment_id' => $enrollment->id,
             'student_id' => $student->id,
@@ -161,13 +177,19 @@ class DashboardTest extends TestCase
             ->assertSee('dashboard-course-context__course', false)
             ->assertSee('Number of Students per Group')
             ->assertSee('Comparison between Attendance and Memorisation')
-            ->assertSee('Top 3 Students')
-            ->assertSee('dashboard-ranking-grid', false)
-            ->assertSee('dashboard-leaderboard__stage', false)
-            ->assertSee('images/dashboard/leaderboard/podium-stage.png', false)
-            ->assertSee('dashboard-leaderboard__rank-button--rank-1', false)
-            ->assertSee('dashboard-leaderboard__portrait--rank-1', false)
+            ->assertSee('Student Performance Map')
+            ->assertDontSee('Each point is a student. Select one to open their summary.')
+            ->assertSee('dashboard-ranking-grid mt-6 grid items-stretch', false)
+            ->assertSee('dashboard-performance-map__plot', false)
+            ->assertSee('dashboard-performance-map__point', false)
+            ->assertSee('dashboard-performance-map__point--above-average', false)
+            ->assertSee('dashboard-performance-map__point--below-average', false)
+            ->assertDontSee('dashboard-performance-map__x-axis', false)
+            ->assertDontSee('dashboard-performance-map__y-axis', false)
+            ->assertDontSee('Strong in both')
+            ->assertDontSee('Building momentum')
             ->assertSee('wire:click="showManagerStudent('.$student->id.')"', false)
+            ->assertDontSee('wire:click="showManagerStudent('.$belowAverageStudent->id.')"', false)
             ->assertSee('Top Groups by Memorisation')
             ->assertDontSee('Latest five attendance days')
             ->assertDontSee('Count')
@@ -190,15 +212,11 @@ class DashboardTest extends TestCase
             ->assertDontSee('Excluded Group');
 
         $dashboardCss = file_get_contents(resource_path('css/app.css'));
-        $this->assertStringContainsString('.dashboard-leaderboard__stage {', $dashboardCss);
-        $this->assertStringContainsString('aspect-ratio: 1586 / 820;', $dashboardCss);
-        $this->assertStringContainsString('height: 120.9756%;', $dashboardCss);
-        $this->assertStringContainsString('clip-path: inset(0 34% 17.34% 34%);', $dashboardCss);
-        $this->assertStringContainsString('clip-path: inset(0 0 17.34% 66%);', $dashboardCss);
-        $this->assertStringContainsString('clip-path: inset(0 66% 17.34% 0);', $dashboardCss);
-        $this->assertStringContainsString('.dashboard-leaderboard__rank-button:hover,', $dashboardCss);
-        $this->assertStringContainsString('.dashboard-leaderboard__rank-button:focus-visible .dashboard-leaderboard__portrait', $dashboardCss);
-        $this->assertFileExists(public_path('images/dashboard/leaderboard/podium-stage.png'));
+        $this->assertStringContainsString('.dashboard-performance-map__plot {', $dashboardCss);
+        $this->assertStringContainsString('.dashboard-performance-map__average-line--vertical {', $dashboardCss);
+        $this->assertStringContainsString('background-size: 20% 100%, 100% 20%', $dashboardCss);
+        $this->assertStringContainsString('.dashboard-performance-map__point--below-average {', $dashboardCss);
+        $this->assertStringContainsString('.dashboard-performance-map__point:hover .dashboard-performance-map__dot,', $dashboardCss);
 
         Volt::test('dashboard')
             ->call('showManagerStudent', $student->id)

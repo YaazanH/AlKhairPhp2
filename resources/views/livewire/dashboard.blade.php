@@ -169,11 +169,9 @@ new class extends Component {
             ->groupBy('student_id')
             ->orderByDesc('points')
             ->orderByDesc('pages')
-            ->limit(3)
             ->get();
         $students = Student::query()->whereIn('id', $studentTotals->pluck('student_id'))->get()->keyBy('id');
-        $leaderboard = $studentTotals->values()->map(fn ($row, int $index) => [
-            'rank' => $index + 1,
+        $studentPerformance = $studentTotals->values()->map(fn ($row) => [
             'student' => $students->get($row->student_id),
             'points' => (int) $row->points,
             'pages' => (int) $row->pages,
@@ -258,7 +256,7 @@ new class extends Component {
             'defaultCourse' => $defaultCourse,
             'groupDistribution' => $groupDistribution,
             'dailyTrend' => $dailyTrend,
-            'leaderboard' => $leaderboard,
+            'studentPerformance' => $studentPerformance,
             'groupPageTotals' => $groupPageTotals,
             'selectedManagerStudent' => $selectedStudent,
             'curriculumProgress' => $curriculumProgress,
@@ -947,6 +945,16 @@ new class extends Component {
                 $barNiceStep = ($barNormalizedStep <= 1 ? 1 : ($barNormalizedStep <= 2 ? 2 : ($barNormalizedStep <= 2.5 ? 2.5 : ($barNormalizedStep <= 5 ? 5 : 10)))) * $barMagnitude;
                 $barTicks = max(1, (int) ceil($barHighest / $barNiceStep));
                 $barMax = $barTicks * $barNiceStep;
+                $performanceMinimumPoints = min(0, (int) $studentPerformance->min('points'));
+                $performanceMaximumPoints = max(1, (int) $studentPerformance->max('points'));
+                $performanceMaximumPages = max(1, (int) $studentPerformance->max('pages'));
+                $performancePointsSpan = max(1, $performanceMaximumPoints - $performanceMinimumPoints);
+                $performanceAveragePoints = $studentPerformance->isEmpty() ? 0 : (float) $studentPerformance->avg('points');
+                $performanceAveragePages = $studentPerformance->isEmpty() ? 0 : (float) $studentPerformance->avg('pages');
+                $performanceX = fn (int $pages) => 7 + ((max(0, $pages) / $performanceMaximumPages) * 86);
+                $performanceY = fn (int $points) => 7 + (((max($performanceMinimumPoints, $points) - $performanceMinimumPoints) / $performancePointsSpan) * 86);
+                $performanceAverageX = $performanceX((int) round($performanceAveragePages));
+                $performanceAverageY = $performanceY((int) round($performanceAveragePoints));
             @endphp
 
             <section class="grid gap-6 xl:grid-cols-2">
@@ -1014,27 +1022,52 @@ new class extends Component {
                 </article>
             </section>
 
-            <section class="dashboard-ranking-grid mt-6 grid items-start gap-6 xl:grid-cols-2">
-                <article class="surface-panel p-5 lg:p-6">
-                    <h2 class="font-display mt-2 text-2xl text-white">{{ __('dashboard.manager.analytics.top_students') }}</h2>
-                    @if ($leaderboard->isEmpty())
-                        <div class="admin-empty-state mt-5">{{ __('dashboard.manager.analytics.no_ranked_students') }}</div>
+            <section class="dashboard-ranking-grid mt-6 grid items-stretch gap-6 xl:grid-cols-2">
+                <article class="surface-panel flex min-h-[26rem] flex-col p-5 lg:p-6">
+                    <h2 class="font-display mt-2 text-2xl text-white">{{ __('dashboard.manager.analytics.performance_map') }}</h2>
+                    @if ($studentPerformance->isEmpty())
+                        <div class="admin-empty-state mt-5 flex-1">{{ __('dashboard.manager.analytics.no_performance_students') }}</div>
                     @else
-                        <div class="dashboard-leaderboard mt-5" role="list" aria-label="{{ __('dashboard.manager.analytics.top_students') }}">
-                            @foreach ($leaderboard as $entry)
-                                <div class="dashboard-leaderboard__entry dashboard-leaderboard__entry--rank-{{ $entry['rank'] }}" role="listitem">
-                                    <button type="button" wire:click="showManagerStudent({{ $entry['student']->id }})" class="dashboard-leaderboard__rank-button dashboard-leaderboard__rank-button--rank-{{ $entry['rank'] }}" title="{{ __('dashboard.manager.analytics.student_highlights') }}: {{ $entry['student']->full_name }}" aria-label="{{ __('dashboard.manager.analytics.student_highlights') }}: {{ $entry['student']->full_name }}">
-                                        <img src="{{ asset('images/dashboard/leaderboard/podium-stage.png') }}" alt="" class="dashboard-leaderboard__stage" aria-hidden="true">
-                                        <span class="dashboard-leaderboard__portrait dashboard-leaderboard__portrait--rank-{{ $entry['rank'] }}">
-                                            <x-student-avatar :student="$entry['student']" size="lg" class="dashboard-leaderboard__avatar" />
+                        <div class="dashboard-performance-map mt-5 flex-1" role="group" aria-label="{{ __('dashboard.manager.analytics.performance_map') }}">
+                            <div class="dashboard-performance-map__plot">
+                                <span class="dashboard-performance-map__zone dashboard-performance-map__zone--high-points" dir="{{ app()->getLocale() === 'ar' ? 'rtl' : 'ltr' }}">{{ __('dashboard.manager.analytics.high_points') }}</span>
+                                <span class="dashboard-performance-map__zone dashboard-performance-map__zone--high-pages" dir="{{ app()->getLocale() === 'ar' ? 'rtl' : 'ltr' }}">{{ __('dashboard.manager.analytics.high_memorization') }}</span>
+                                <span class="dashboard-performance-map__average-line dashboard-performance-map__average-line--vertical" style="--average-position: {{ $performanceAverageX }}%"></span>
+                                <span class="dashboard-performance-map__average-line dashboard-performance-map__average-line--horizontal" style="--average-position: {{ $performanceAverageY }}%"></span>
+                                @foreach ($studentPerformance as $entry)
+                                    @php
+                                        $isAbovePerformanceAverage = $entry['points'] > $performanceAveragePoints
+                                            && $entry['pages'] > $performanceAveragePages;
+                                    @endphp
+                                    @if ($isAbovePerformanceAverage)
+                                        <button
+                                            type="button"
+                                            wire:click="showManagerStudent({{ $entry['student']->id }})"
+                                            class="dashboard-performance-map__point dashboard-performance-map__point--above-average"
+                                            style="--point-x: {{ $performanceX($entry['pages']) }}%; --point-y: {{ $performanceY($entry['points']) }}%"
+                                            aria-label="{{ $entry['student']->full_name }} — {{ number_format($entry['points']) }} {{ __('dashboard.manager.analytics.points') }}, {{ trans_choice('dashboard.manager.analytics.pages_count', $entry['pages'], ['count' => number_format($entry['pages'])]) }}"
+                                        >
+                                            <span class="dashboard-performance-map__dot" aria-hidden="true"></span>
+                                            <span class="dashboard-performance-map__tooltip" dir="{{ app()->getLocale() === 'ar' ? 'rtl' : 'ltr' }}">
+                                                <strong>{{ $entry['student']->full_name }}</strong>
+                                                <small>{{ number_format($entry['points']) }} {{ __('dashboard.manager.analytics.points') }} · {{ trans_choice('dashboard.manager.analytics.pages_count', $entry['pages'], ['count' => number_format($entry['pages'])]) }}</small>
+                                            </span>
+                                        </button>
+                                    @else
+                                        <span
+                                            class="dashboard-performance-map__point dashboard-performance-map__point--below-average"
+                                            style="--point-x: {{ $performanceX($entry['pages']) }}%; --point-y: {{ $performanceY($entry['points']) }}%"
+                                            aria-hidden="true"
+                                        >
+                                            <span class="dashboard-performance-map__dot"></span>
                                         </span>
-                                        <span class="dashboard-leaderboard__details dashboard-leaderboard__details--rank-{{ $entry['rank'] }}">
-                                            <span class="dashboard-leaderboard__name">{{ $entry['student']->full_name }}</span>
-                                            <span class="dashboard-leaderboard__points">{{ number_format($entry['points']) }} {{ app()->isLocale('ar') ? ($entry['points'] > 10 ? 'نقطة' : 'نقاط') : __('dashboard.manager.analytics.points') }}</span>
-                                        </span>
-                                    </button>
-                                </div>
-                            @endforeach
+                                    @endif
+                                @endforeach
+                            </div>
+                            <div class="dashboard-performance-map__averages" dir="{{ app()->getLocale() === 'ar' ? 'rtl' : 'ltr' }}">
+                                <span>{{ __('dashboard.manager.analytics.average_points') }}: <bdi>{{ number_format($performanceAveragePoints, 1) }}</bdi></span>
+                                <span>{{ __('dashboard.manager.analytics.average_pages') }}: <bdi>{{ number_format($performanceAveragePages, 1) }}</bdi></span>
+                            </div>
                         </div>
                     @endif
                 </article>

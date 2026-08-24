@@ -53,7 +53,11 @@ class ReportCardMetricsTest extends TestCase
         $this->actingAs($manager)
             ->get(route('courses.end', $course))
             ->assertOk()
-            ->assertSee($reportCardSetupUrl, false);
+            ->assertSee($reportCardSetupUrl, false)
+            ->assertSee('course-end-final-tests-dual', false)
+            ->assertSee('width: 5rem;', false)
+            ->assertSee('.course-end-final-tests-table .course-end-final-tests-spacer { width: 8%; padding: 0; }', false)
+            ->assertSee('course-end-final-tests-spacer', false);
 
         $this->actingAs($manager)
             ->get($reportCardSetupUrl)
@@ -141,6 +145,7 @@ class ReportCardMetricsTest extends TestCase
         $this->assertEquals(2.0, $row['daily_memorization_average']);
         $this->assertEquals(6.0, $row['weekly_memorization_average']);
         $this->assertSame(1, $row['final_tests']);
+        $this->assertSame('very_good', app(CourseEndService::class)->finalTestRows($course)->first()['grade']);
         $this->assertEquals(80.0, $row['assessment_average']);
         $this->assertEquals(90.0, $row['final_score']);
         $this->assertSame(2, $row['cheques_count']);

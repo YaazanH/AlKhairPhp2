@@ -503,6 +503,9 @@ return [
         'pending' => 'معلق',
         'settled' => 'منتهٍ',
     ],
+    'expense_statuses' => [
+        'accepted' => 'معلّق',
+    ],
     'request_types' => [
         'expense' => 'مصروف',
         'pull' => 'طلب سحب',

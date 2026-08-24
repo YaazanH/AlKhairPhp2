@@ -495,6 +495,9 @@ return [
         'pending' => 'Pending',
         'settled' => 'Finalised',
     ],
+    'expense_statuses' => [
+        'accepted' => 'Accepted — pending finalisation',
+    ],
     'request_types' => [
         'expense' => 'Expense',
         'pull' => 'Withdrawal request',

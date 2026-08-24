@@ -83,9 +83,20 @@ class CurriculumModuleTest extends TestCase
             ->assertHasNoErrors()
             ->assertSee('curriculum-subject-table', false)
             ->assertSee('data-curriculum-resource-index', false)
+            ->assertSee('curriculum-resource-index', false)
             ->assertDontSee('0 '.__('curricula.fields.resources'));
 
         $definition = CurriculumSubjectDefinition::query()->firstOrFail();
+        Volt::test('settings.curriculum-subjects')
+            ->assertSee('curriculum-subject-pencil', false)
+            ->assertDontSee('wire:click="deleteSubject('.$definition->id.')"', false)
+            ->call('editSubject', $definition->id)
+            ->assertSet('showSubjectModal', true)
+            ->assertSee('wire:click="deleteSubject('.$definition->id.')"', false);
+        $subjectsCss = file_get_contents(resource_path('css/app.css'));
+        $this->assertStringContainsString('.curriculum-subject-pencil {', $subjectsCss);
+        $this->assertStringContainsString('transform: scaleX(-1);', $subjectsCss);
+
         Volt::test('curricula.index')
             ->call('openCurriculum')
             ->set('curriculumName', 'Grade curriculum')
@@ -151,6 +162,17 @@ class CurriculumModuleTest extends TestCase
         $resource = CurriculumResource::query()->where('book_name', 'Standalone handbook')->firstOrFail();
         $this->assertNull($resource->subject_definition_id);
         $this->assertSame('الطبعة 2', $resource->edition_number);
+
+        Volt::test('settings.curriculum-subjects')
+            ->call('openStandaloneResources')
+            ->assertDontSee('wire:click="deleteResource('.$resource->id.')"', false)
+            ->call('editStandaloneResource', $resource->id)
+            ->assertSet('showStandaloneResourceForm', true)
+            ->assertSee('wire:click="deleteResource('.$resource->id.')"', false)
+            ->call('deleteResource', $resource->id)
+            ->assertSet('showStandaloneResourceForm', false);
+
+        $this->assertSoftDeleted('curriculum_resources', ['id' => $resource->id]);
     }
 
     public function test_supervisor_can_record_partial_progress_and_custom_lessons(): void
