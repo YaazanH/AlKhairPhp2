@@ -886,6 +886,10 @@ html:not(.dark) .app-sidebar-toggle-button span {
     font-weight: 300;
 }
 
+.dashboard-line-chart .dashboard-line-point__tooltip-value {
+    font-weight: 800;
+}
+
 .dashboard-treemap__tile {
     transition: filter 180ms ease, transform 180ms ease;
 }
@@ -1304,7 +1308,7 @@ html[dir='rtl'] .group-show-details {
 
 .group-roster-table th:nth-child(5),
 .group-roster-table td:nth-child(5) {
-    width: 13%;
+    width: 11.7%;
 }
 
 .group-roster-table th:nth-child(6),
@@ -1319,7 +1323,7 @@ html[dir='rtl'] .group-show-details {
 
 .group-roster-table th:nth-child(8),
 .group-roster-table td:nth-child(8) {
-    width: 15.4%;
+    width: 16.7%;
 }
 
 .group-roster-table :is(th, td) {
@@ -1341,6 +1345,18 @@ html:not([dir='rtl']) .group-roster-table .group-roster-table__name-value {
 .group-roster-table__name-value {
     display: block;
     width: 100%;
+}
+
+.teacher-dashboard-secondary-grid > *,
+.teacher-memorization-ranking-card,
+.teacher-points-card,
+.teacher-curriculum-card {
+    min-width: 0;
+    max-width: 100%;
+}
+
+.teacher-points-mobile {
+    display: none;
 }
 
 .curriculum-resource-index {
@@ -1584,6 +1600,20 @@ html[dir='rtl'] .surface-table thead th > button[wire\:click^='sortBy'] {
     content: '-';
 }
 
+html[dir='rtl'] [data-user-form] .admin-collapsible__summary::before {
+    content: '›';
+    order: 999;
+    transform: rotate(180deg);
+    background: transparent;
+    font-size: 1.35rem;
+    transition: transform 150ms ease;
+}
+
+html[dir='rtl'] [data-user-form] .admin-collapsible[open] > .admin-collapsible__summary::before {
+    content: '›';
+    transform: rotate(90deg);
+}
+
 .admin-collapsible__count {
     flex: 0 0 auto;
     border-radius: 9999px;
@@ -1619,6 +1649,310 @@ html:not(.dark) .admin-collapsible__summary::before {
 html:not(.dark) .admin-collapsible__count {
     background: rgba(18, 109, 59, 0.1);
     color: #153d25;
+}
+
+.role-permission-groups {
+    display: grid;
+    gap: 0.85rem;
+}
+
+.role-sort-row,
+.nav-sort-group,
+.nav-sort-item {
+    transition:
+        margin-top 180ms ease,
+        transform 180ms ease,
+        opacity 180ms ease,
+        border-color 180ms ease,
+        background-color 180ms ease,
+        box-shadow 180ms ease;
+}
+
+.role-sort-row--dragging,
+.nav-sort-group--dragging,
+.nav-sort-item--dragging {
+    transform: scale(0.985);
+    opacity: 0.42;
+}
+
+.role-sort-row > td {
+    transition: padding-top 180ms ease;
+}
+
+.role-sort-row--drop-target > td {
+    padding-top: 1.8rem;
+    background-image: linear-gradient(
+        to bottom,
+        transparent 0,
+        transparent 0.35rem,
+        rgba(128, 219, 164, 0.78) 0.35rem,
+        rgba(128, 219, 164, 0.78) 0.48rem,
+        transparent 0.48rem
+    );
+    background-repeat: no-repeat;
+    background-size: 100% 0.85rem;
+}
+
+.nav-sort-group--drop-target {
+    position: relative;
+    margin-top: 2.25rem !important;
+}
+
+.nav-sort-item--drop-target {
+    position: relative;
+    margin-top: 1.5rem !important;
+}
+
+.nav-sort-group--drop-target::before,
+.nav-sort-item--drop-target::before {
+    position: absolute;
+    z-index: 2;
+    right: 0.75rem;
+    left: 0.75rem;
+    height: 0.14rem;
+    border-radius: 9999px;
+    background: rgba(128, 219, 164, 0.8);
+    box-shadow: 0 0 0.65rem rgba(128, 219, 164, 0.28);
+    content: '';
+    pointer-events: none;
+    animation: sort-drop-gap-highlight 700ms ease-in-out infinite alternate;
+}
+
+.nav-sort-group--drop-target::before {
+    top: -1.2rem;
+}
+
+.nav-sort-item--drop-target::before {
+    top: -0.82rem;
+}
+
+@keyframes sort-drop-gap-highlight {
+    from {
+        opacity: 0.58;
+        transform: scaleX(0.96);
+    }
+
+    to {
+        opacity: 1;
+        transform: scaleX(1);
+    }
+}
+
+.role-sort-row--settled,
+.nav-sort-group--settled,
+.nav-sort-item--settled {
+    animation: sort-drop-settle 300ms ease-out;
+}
+
+@keyframes sort-drop-settle {
+    0% {
+        transform: scale(0.985);
+        background-color: rgba(73, 184, 117, 0.13);
+    }
+
+    55% {
+        transform: scale(1.008);
+    }
+
+    100% {
+        transform: scale(1);
+        background-color: transparent;
+    }
+}
+
+.role-sort-handle,
+.nav-sort-handle {
+    display: inline-grid;
+    width: 1.8rem;
+    height: 1.8rem;
+    flex: 0 0 auto;
+    cursor: grab;
+    user-select: none;
+    place-items: center;
+    border: 0;
+    background: transparent;
+    color: rgba(209, 213, 219, 0.55);
+    font-size: 1.05rem;
+    line-height: 1;
+    transition: color 150ms ease, transform 150ms ease;
+}
+
+.role-sort-handle:hover,
+.nav-sort-handle:hover {
+    transform: scale(1.08);
+    color: rgba(236, 253, 245, 0.92);
+}
+
+.role-sort-handle:active,
+.nav-sort-handle:active {
+    cursor: grabbing;
+}
+
+.role-sort-handle--locked {
+    cursor: not-allowed;
+    color: rgba(209, 213, 219, 0.23);
+    font-size: 0.58rem;
+}
+
+.role-sort-handle--locked:hover {
+    transform: none;
+    color: rgba(209, 213, 219, 0.3);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .role-sort-row,
+    .nav-sort-group,
+    .nav-sort-item,
+    .role-sort-row > td,
+    .role-sort-row--settled,
+    .nav-sort-group--settled,
+    .nav-sort-item--settled,
+    .role-sort-handle,
+    .nav-sort-handle {
+        transition: none;
+        animation: none;
+    }
+
+    .nav-sort-group--drop-target::before,
+    .nav-sort-item--drop-target::before {
+        animation: none;
+    }
+}
+
+.role-permission-group {
+    min-width: 0;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.065);
+    border-radius: 0.9rem;
+    background: rgba(255, 255, 255, 0.008);
+}
+
+.role-permission-group[open] {
+    background: rgba(255, 255, 255, 0.012);
+}
+
+.role-permission-group__summary {
+    display: flex;
+    min-height: 3.25rem;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.85rem 1rem;
+    color: var(--app-text);
+    cursor: pointer;
+    font-size: 0.9rem;
+    font-weight: 700;
+    list-style: none;
+}
+
+.role-permission-group__summary::-webkit-details-marker {
+    display: none;
+}
+
+.role-permission-group__title {
+    min-width: 0;
+    line-height: 1.45;
+    overflow-wrap: anywhere;
+}
+
+.role-permission-group__arrow {
+    display: grid;
+    width: 1.75rem;
+    height: 1.75rem;
+    flex: 0 0 auto;
+    transform: rotate(0deg);
+    place-items: center;
+    background: transparent;
+    color: var(--app-muted);
+    font-size: 1.3rem;
+    line-height: 1;
+    transition: transform 150ms ease, background 150ms ease;
+}
+
+.role-permission-group[open] .role-permission-group__arrow {
+    transform: rotate(90deg);
+}
+
+html[dir='rtl'] .role-permission-group__arrow {
+    transform: rotate(0deg);
+}
+
+html[dir='rtl'] .role-permission-group[open] .role-permission-group__arrow {
+    transform: rotate(-90deg);
+}
+
+.role-permission-group__body {
+    overflow-x: auto;
+    border-top: 1px solid rgba(255, 255, 255, 0.045);
+    padding: 0.45rem 0.6rem 0.6rem;
+}
+
+.role-permission-grid {
+    display: grid;
+    min-width: 100%;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(15rem, 1fr);
+    grid-template-rows: repeat(4, auto);
+    gap: 0 0.35rem;
+    background: transparent;
+}
+
+.role-permission-option {
+    display: flex;
+    min-width: 15rem;
+    min-height: 2.75rem;
+    align-items: flex-start;
+    gap: 0.7rem;
+    border-radius: 0.55rem;
+    background: transparent;
+    padding: 0.55rem 0.7rem;
+    color: var(--app-text);
+    cursor: pointer;
+    font-size: 0.82rem;
+    line-height: 1.5;
+    transition: background 140ms ease;
+}
+
+.role-permission-option:hover {
+    background: rgba(255, 255, 255, 0.025);
+}
+
+.role-permission-option input {
+    flex: 0 0 auto;
+    margin-top: 0.18rem;
+    accent-color: #8aa493;
+}
+
+.role-permission-option span {
+    min-width: 0;
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
+html:not(.dark) .role-permission-group {
+    border-color: rgba(17, 81, 43, 0.09);
+    background: rgba(17, 81, 43, 0.008);
+}
+
+html:not(.dark) .role-permission-group__arrow {
+    background: transparent;
+    color: var(--app-accent);
+}
+
+html:not(.dark) .role-permission-group__body {
+    border-color: rgba(17, 81, 43, 0.07);
+}
+
+html:not(.dark) .role-permission-grid {
+    background: transparent;
+}
+
+html:not(.dark) .role-permission-option {
+    background: transparent;
+}
+
+html:not(.dark) .role-permission-option:hover {
+    background: rgba(17, 81, 43, 0.03);
 }
 
 .eyebrow {
@@ -1956,6 +2290,10 @@ html[dir='rtl'] .admin-grid-meta--controls .admin-toolbar__controls.admin-toolba
     display: none;
 }
 
+.points-ledger-mobile {
+    display: none;
+}
+
 .points-ledger-table .points-ledger-col--student,
 .points-ledger-table .points-ledger-col--group {
     width: 15%;
@@ -2004,6 +2342,14 @@ html[dir='rtl'] .admin-grid-meta--controls .admin-toolbar__controls.admin-toolba
 
 .points-ledger-table[data-has-void-reason='true'] .points-ledger-col--actions {
     width: 9%;
+}
+
+.points-ledger-entered-at {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.4rem;
+    direction: ltr;
+    white-space: nowrap;
 }
 
 .assessment-results-dual {
@@ -2880,6 +3226,15 @@ html:not(.dark) .dashboard-performance-map__zone {
     transition: opacity 150ms ease, transform 150ms ease;
 }
 
+.dashboard-chart-tooltip--compact {
+    max-width: none;
+    border-radius: 0.5rem;
+    padding: 0.28rem 0.48rem;
+    font-size: 0.7rem;
+    font-weight: 700;
+    line-height: 1;
+}
+
 .dashboard-bar-chart__bar:hover .dashboard-chart-tooltip {
     opacity: 1;
     transform: translateX(-50%) translateY(0);
@@ -2963,6 +3318,20 @@ html:not(.dark) .admin-section-card__title {
 
 .admin-form-field--full {
     grid-column: 1 / -1;
+}
+
+@media (min-width: 1024px) {
+    [data-teacher-identity-grid] {
+        grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
+    }
+
+    [data-teacher-identity-grid] > [data-teacher-identity-third] {
+        grid-column: span 2;
+    }
+
+    [data-teacher-identity-grid] > [data-teacher-identity-half] {
+        grid-column: span 3;
+    }
 }
 
 .admin-locale-field--en {
@@ -4339,6 +4708,14 @@ html:not(.dark) .barcode-import-page [class*='bg-black/'] {
     border-radius: 9999px;
     background: currentColor;
     opacity: 0.9;
+}
+
+.assessment-result-status-chip {
+    width: 5.25rem;
+    max-width: 5.25rem;
+    justify-content: center;
+    box-sizing: border-box;
+    white-space: nowrap;
 }
 
 .status-chip--gold {
@@ -6459,6 +6836,13 @@ html:not(.dark) .public-gallery-slider {
         min-width: 0;
     }
 
+    .group-show-hero-layout > :first-child,
+    .group-show-hero-widgets,
+    .group-show-details,
+    .group-show-action-stack {
+        flex: 0 0 auto;
+    }
+
     .group-show-action-stack > .surface-panel {
         width: 100%;
     }
@@ -6488,8 +6872,218 @@ html:not(.dark) .public-gallery-slider {
         min-width: 7.5rem;
     }
 
+    .group-roster-table th:nth-child(5),
+    .group-roster-table td:nth-child(5) {
+        width: 6.75rem !important;
+        min-width: 6.75rem;
+    }
+
+    .group-roster-table th:nth-child(8),
+    .group-roster-table td:nth-child(8) {
+        width: 8.25rem !important;
+        min-width: 8.25rem;
+    }
+
+    .teacher-memorization-ranking-card {
+        overflow: hidden;
+    }
+
+    .teacher-memorization-ranking-row {
+        grid-template-columns: minmax(0, 1fr) minmax(4.5rem, 0.85fr) auto;
+        gap: 0.65rem;
+    }
+
+    .teacher-points-card {
+        width: 100%;
+        overflow: hidden !important;
+    }
+
+    .teacher-points-card__header {
+        width: 100%;
+        align-items: flex-start;
+        gap: 0.75rem;
+    }
+
+    .teacher-points-card__header > * {
+        min-width: 0;
+    }
+
+    .teacher-points-desktop {
+        display: none !important;
+    }
+
+    .teacher-points-mobile {
+        display: grid;
+        gap: 0.75rem;
+        padding: 0 1rem 1rem;
+    }
+
+    .teacher-points-mobile__item {
+        min-width: 0;
+        border: 1px solid rgba(151, 219, 174, 0.14);
+        border-radius: 1rem;
+        background: rgba(255, 255, 255, 0.025);
+        padding: 0.9rem;
+    }
+
+    .teacher-points-mobile__metrics {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 0.5rem;
+        margin-top: 0.8rem;
+        border-top: 1px solid rgba(255, 255, 255, 0.07);
+        padding-top: 0.75rem;
+    }
+
+    .teacher-points-mobile__metrics > div {
+        min-width: 0;
+        text-align: center;
+    }
+
+    .teacher-points-mobile__metrics dt {
+        color: var(--app-muted);
+        font-size: 0.68rem;
+        font-weight: 700;
+        line-height: 1.3;
+        overflow-wrap: anywhere;
+    }
+
+    .teacher-points-mobile__metrics dd {
+        margin-top: 0.35rem;
+        color: var(--app-text);
+        font-size: 0.95rem;
+        font-weight: 700;
+    }
+
+    .teacher-curriculum-card {
+        min-height: 0;
+        overflow: hidden;
+    }
+
+    .teacher-curriculum-card .admin-empty-state {
+        width: 100%;
+        padding: 1.5rem 0.75rem;
+        text-align: center;
+    }
+
     .surface-table .assessment-index-desktop {
         display: none !important;
+    }
+
+    .points-ledger-surface {
+        overflow: hidden !important;
+    }
+
+    .points-ledger-desktop {
+        display: none !important;
+    }
+
+    .points-ledger-mobile {
+        display: grid;
+        gap: 0.75rem;
+        padding: 0 1rem 1rem;
+    }
+
+    .points-ledger-mobile__item {
+        min-width: 0;
+        overflow: hidden;
+        border: 1px solid rgba(151, 219, 174, 0.14);
+        border-radius: 1rem;
+        background: rgba(255, 255, 255, 0.025);
+        padding: 0.9rem;
+    }
+
+    .points-ledger-mobile__item--inactive {
+        opacity: 0.62;
+    }
+
+    .points-ledger-mobile__header {
+        display: flex;
+        min-width: 0;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.75rem;
+    }
+
+    .points-ledger-mobile__header > :first-child {
+        min-width: 0;
+    }
+
+    .points-ledger-mobile__header > .status-chip {
+        flex: 0 0 auto;
+    }
+
+    .points-ledger-mobile__student-name,
+    .points-ledger-mobile__group,
+    .points-ledger-mobile__metrics dd {
+        overflow-wrap: anywhere;
+    }
+
+    .points-ledger-mobile__student-name {
+        color: var(--app-text);
+        font-weight: 700;
+        line-height: 1.4;
+    }
+
+    .points-ledger-mobile__group {
+        margin-top: 0.8rem;
+        border-top: 1px solid rgba(255, 255, 255, 0.07);
+        padding-top: 0.7rem;
+        color: var(--app-text);
+        font-size: 0.85rem;
+        font-weight: 650;
+        line-height: 1.4;
+    }
+
+    .points-ledger-mobile__group small {
+        display: block;
+        margin-top: 0.2rem;
+        color: var(--app-muted);
+        font-size: 0.69rem;
+        font-weight: 500;
+    }
+
+    .points-ledger-mobile__metrics {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.75rem 0.65rem;
+        margin-top: 0.8rem;
+    }
+
+    .points-ledger-mobile__metrics > div {
+        min-width: 0;
+    }
+
+    .points-ledger-mobile__metrics dt {
+        color: var(--app-muted);
+        font-size: 0.66rem;
+        font-weight: 700;
+        line-height: 1.35;
+    }
+
+    .points-ledger-mobile__metrics dd {
+        margin-top: 0.3rem;
+        color: var(--app-text);
+        font-size: 0.82rem;
+        font-weight: 600;
+        line-height: 1.45;
+    }
+
+    .points-ledger-mobile__metrics .status-chip {
+        max-width: 100%;
+        white-space: normal;
+    }
+
+    .points-ledger-mobile__void-reason {
+        grid-column: 1 / -1;
+    }
+
+    .points-ledger-mobile__actions {
+        display: flex;
+        justify-content: flex-end;
+        margin-top: 0.85rem;
+        border-top: 1px solid rgba(255, 255, 255, 0.07);
+        padding-top: 0.75rem;
     }
 
     .assessment-index-mobile {
@@ -6532,6 +7126,13 @@ html:not(.dark) .public-gallery-slider {
         max-width: 100%;
         padding: 0.28rem 0.4rem;
         white-space: normal;
+    }
+
+    .assessment-results-data-table .assessment-result-status-chip {
+        width: 5.25rem;
+        max-width: 5.25rem;
+        justify-content: center;
+        white-space: nowrap;
     }
 
     .student-progress-data-table,

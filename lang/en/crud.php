@@ -489,6 +489,7 @@ return [
             'delete_linked' => 'This student cannot be deleted while enrollments still exist.',
             'delete_memorization' => 'This student cannot be deleted because memorization or Quran page progress exists.',
             'duplicate_profile' => 'A similar student already exists: :name (:number). Open that record instead of creating a duplicate.',
+            'juz_number_range' => 'Please choose a number between 1 and 30.',
         ],
         'duplicate_active' => [
             'title' => 'Student already exists',

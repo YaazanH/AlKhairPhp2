@@ -265,6 +265,9 @@ new class extends Component {
     $assistantName = $groupRecord->assistantTeacher ? trim($groupRecord->assistantTeacher->first_name.' '.$groupRecord->assistantTeacher->last_name) : __('crud.common.not_available');
     $viewerTeacherId = auth()->user()?->teacherProfile?->id;
     $isAssignedTeacher = $viewerTeacherId && in_array($viewerTeacherId, [$groupRecord->teacher_id, $groupRecord->assistant_teacher_id], true);
+    $groupIsEditable = ! $groupRecord->course_finished_at && ($groupRecord->course?->is_active ?? true);
+    $canManageGroup = $groupIsEditable && (bool) auth()->user()?->can('groups.update');
+    $showGroupActionStack = $canManageGroup || ! $isAssignedTeacher;
 @endphp
 
 <div class="page-stack">
@@ -297,26 +300,26 @@ new class extends Component {
                     </dl>
                 </div>
 
-                <div class="group-show-action-stack flex w-fit max-w-full flex-col gap-3">
-                    <div class="group-show-actions surface-panel flex w-fit max-w-full flex-wrap items-center gap-2 p-3">
-                        @if (! $groupRecord->course_finished_at && ($groupRecord->course?->is_active ?? true))
-                            @can('groups.update')
+                @if($showGroupActionStack)
+                    <div class="group-show-action-stack flex w-fit max-w-full flex-col gap-3">
+                        @if($canManageGroup)
+                            <div class="group-show-actions surface-panel flex w-fit max-w-full flex-wrap items-center gap-2 p-3">
                                 <button wire:click="openEdit" class="pill-link pill-link--compact">{{ __('crud.common.actions.edit') }}</button>
                                 <button wire:click="$set('showScheduleModal', true)" class="pill-link pill-link--compact">{{ __('crud.groups.actions.schedule') }}</button>
                                 <button wire:click="deactivate" wire:confirm="{{ __('crud.common.confirm_deactivate.message') }}" class="pill-link pill-link--compact">{{ __('crud.common.actions.deactivate') }}</button>
-                            @endcan
+                            </div>
                         @endif
-                    </div>
 
-                    @unless($isAssignedTeacher)
-                        <div data-group-copy-summary class="group-show-summary surface-panel flex w-full flex-col gap-2 p-3">
-                            <input wire:model="progressDate" type="date" aria-label="{{ __('crud.common.fields.date') }}" class="min-w-0 flex-1 rounded-xl px-3 py-2 text-sm">
-                            <button wire:click="copyProgress" class="pill-link pill-link--accent pill-link--compact w-fit flex-none">
-                                {{ app()->isLocale('ar') ? 'نسخ' : 'Copy' }}
-                            </button>
-                        </div>
-                    @endunless
-                </div>
+                        @unless($isAssignedTeacher)
+                            <div data-group-copy-summary class="group-show-summary surface-panel flex w-full flex-col gap-2 p-3">
+                                <input wire:model="progressDate" type="date" aria-label="{{ __('crud.common.fields.date') }}" class="min-w-0 flex-1 rounded-xl px-3 py-2 text-sm">
+                                <button wire:click="copyProgress" class="pill-link pill-link--accent pill-link--compact w-fit flex-none">
+                                    {{ app()->isLocale('ar') ? 'نسخ' : 'Copy' }}
+                                </button>
+                            </div>
+                        @endunless
+                    </div>
+                @endif
             </div>
         </div>
     </section>

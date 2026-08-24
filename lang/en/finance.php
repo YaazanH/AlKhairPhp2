@@ -62,7 +62,6 @@ return [
         'expense_chart' => 'Expenses by category',
         'no_expenses' => 'No expenses in this period.',
         'pending_withdrawals' => 'Pending withdrawal requests',
-        'pending_withdrawals_help' => 'Only requests awaiting review are shown.',
         'previous_requests' => 'Previous requests',
         'quarter_totals' => 'Quarter totals',
         'quarter_expense_comparison' => 'Quarterly expense comparison',

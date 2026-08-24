@@ -527,7 +527,7 @@ new class extends Component
         @else
             <div class="admin-filter-field">
                 <label for="student-progress-student" class="sr-only">{{ __('workflow.student_progress.selection.search') }}</label>
-                <select id="student-progress-student" wire:model.live="selectedStudentId" data-search-input="true" data-hide-placeholder-option="true" data-search-placeholder="{{ __('workflow.student_progress.selection.search_placeholder') }}" class="w-full rounded-xl px-4 py-3 text-sm">
+                <select id="student-progress-student" wire:model.live="selectedStudentId" data-search-input="true" data-open-on-focus="true" data-hide-placeholder-option="true" data-search-placeholder="{{ __('workflow.student_progress.selection.search_placeholder') }}" class="w-full rounded-xl px-4 py-3 text-sm">
                     <option value="">{{ __('workflow.student_progress.selection.search_placeholder') }}</option>
                     @foreach ($studentOptions as $option)
                         <option value="{{ $option->id }}" data-search="{{ $option->search }}" data-option-name="{{ $option->full_name }}" data-option-number="{{ $option->student_number }}">{{ $option->full_name }}</option>

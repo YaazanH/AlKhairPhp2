@@ -324,12 +324,15 @@ new class extends Component {
                                     </td>
                                     <td class="px-5 py-3">
                                         <div class="admin-action-cluster">
-                                            <span class="status-chip {{ $band->is_fail ? 'status-chip--rose' : 'status-chip--emerald' }}">
-                                                {{ $band->is_fail ? __('workflow.common.flags.fail') : __('workflow.common.flags.pass') }}
-                                            </span>
-                                            <span class="status-chip {{ $band->is_active ? 'status-chip--gold' : 'status-chip--slate' }}">
-                                                {{ $band->is_active ? __('workflow.common.flags.active') : __('workflow.common.flags.inactive') }}
-                                            </span>
+                                            @if ($band->is_active)
+                                                <span class="status-chip {{ $band->is_fail ? 'status-chip--rose' : 'status-chip--emerald' }}" data-assessment-band-status="{{ $band->id }}" data-state="{{ $band->is_fail ? 'fail' : 'pass' }}">
+                                                    {{ $band->is_fail ? __('workflow.common.flags.fail') : __('workflow.common.flags.pass') }}
+                                                </span>
+                                            @else
+                                                <span class="status-chip status-chip--slate" data-assessment-band-status="{{ $band->id }}" data-state="inactive">
+                                                    {{ __('workflow.common.flags.inactive') }}
+                                                </span>
+                                            @endif
                                         </div>
                                     </td>
                                     <td class="px-5 py-3">

@@ -346,11 +346,17 @@ class StudentProgressPageTest extends TestCase
             ->assertDontSeeText(__('workflow.student_progress.selection.select_student'))
             ->assertSeeText(__('workflow.student_progress.selection.search_placeholder'))
             ->assertSee('data-search-input="true"', false)
+            ->assertSee('data-open-on-focus="true"', false)
             ->assertSee('data-hide-placeholder-option="true"', false)
             ->assertSeeText('Parent Student')
             ->assertSeeText('Other Student')
             ->assertSee('data-option-name="Parent Student"', false)
             ->assertSeeText('اختر طالباً من الأعلى لعرض صفحة التقدم الكاملة.');
+
+        $searchableSelectScript = file_get_contents(resource_path('js/app.js'));
+        $this->assertStringContainsString("const openOnFocus = select.dataset.openOnFocus === 'true'", $searchableSelectScript);
+        $this->assertStringContainsString("search.addEventListener('focus'", $searchableSelectScript);
+        $this->assertStringContainsString("buildSearchableSelectOptions(select, list, '')", $searchableSelectScript);
     }
 
     public function test_progress_enrollments_only_show_active_and_completed_rows(): void

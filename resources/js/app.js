@@ -381,6 +381,7 @@ function enhanceSearchableSelect(select) {
     wrapper.setAttribute('wire:ignore', '');
 
     const searchInputMode = select.dataset.searchInput === 'true';
+    const openOnFocus = select.dataset.openOnFocus === 'true';
 
     if (searchInputMode) {
         wrapper.classList.add('searchable-select--input');
@@ -468,6 +469,19 @@ function enhanceSearchableSelect(select) {
     sync();
 
     if (searchInputMode) {
+        search.addEventListener('focus', () => {
+            if (!openOnFocus) {
+                return;
+            }
+
+            closeOtherSearchableSelects(wrapper);
+            wrapper.classList.add('searchable-select--open');
+            panel.removeAttribute('hidden');
+            search.setAttribute('aria-expanded', 'true');
+            buildSearchableSelectOptions(select, list, '');
+            requestAnimationFrame(() => search.select());
+        });
+
         search.addEventListener('input', () => {
             const hasQuery = search.value.trim() !== '';
 
@@ -477,8 +491,16 @@ function enhanceSearchableSelect(select) {
                     select.dispatchEvent(new Event('change', { bubbles: true }));
                 }
 
-                closeSearchableSelect(wrapper);
-                search.setAttribute('aria-expanded', 'false');
+                if (openOnFocus && document.activeElement === search) {
+                    closeOtherSearchableSelects(wrapper);
+                    wrapper.classList.add('searchable-select--open');
+                    panel.removeAttribute('hidden');
+                    search.setAttribute('aria-expanded', 'true');
+                    buildSearchableSelectOptions(select, list, '');
+                } else {
+                    closeSearchableSelect(wrapper);
+                    search.setAttribute('aria-expanded', 'false');
+                }
 
                 return;
             }

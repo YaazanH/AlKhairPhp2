@@ -62,7 +62,6 @@ return [
         'expense_chart' => 'المصاريف حسب الفئة',
         'no_expenses' => 'لا توجد مصاريف في هذه الفترة.',
         'pending_withdrawals' => 'طلبات السحب المعلقة',
-        'pending_withdrawals_help' => 'تظهر فقط الطلبات التي تنتظر المراجعة.',
         'previous_requests' => 'الطلبات السابقة',
         'quarter_totals' => 'إجماليات الأرباع',
         'quarter_expense_comparison' => 'مقارنة مصروفات الأرباع',

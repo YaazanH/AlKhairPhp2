@@ -62,14 +62,26 @@ new class extends Component {
         $systemRolesCount = (clone $rolesQuery)
             ->whereIn('name', RoleRegistry::systemRoles())
             ->count();
+        $permissionGroups = $permissions
+            ->groupBy(fn (Permission $permission): string => $this->permissionGroupLabel($permission->name));
+        $collator = class_exists(\Collator::class) ? new \Collator(app()->getLocale()) : null;
+        $permissionGroups = $permissionGroups->sortKeysUsing(function (string $left, string $right) use ($collator): int {
+            if ($collator) {
+                return $collator->compare($left, $right) ?: strcmp($left, $right);
+            }
+
+            return strnatcmp(
+                Str::lower(\App\Support\ArabicSearch::normalize($left)),
+                Str::lower(\App\Support\ArabicSearch::normalize($right)),
+            );
+        });
 
         return [
             'roles' => $rolesQuery->paginate($this->perPage),
             'filteredRolesCount' => $filteredRolesCount,
             'systemRolesCount' => $systemRolesCount,
             'customRolesCount' => max($filteredRolesCount - $systemRolesCount, 0),
-            'permissionGroups' => $permissions
-                ->groupBy(fn (Permission $permission): string => $this->permissionGroupLabel($permission->name)),
+            'permissionGroups' => $permissionGroups,
             'selectedRoleRecord' => $this->selected_role !== ''
                 ? Role::query()->withCount(['users', 'permissions'])->where('name', $this->selected_role)->first()
                 : null,
@@ -188,6 +200,11 @@ new class extends Component {
                 $role->syncPermissions($cloneRole->permissions->pluck('name')->all());
             }
 
+            $orderedRoles = RoleRegistry::sortCollection(
+                Role::query()->where('id', '!=', $role->id)->get()
+            )->push($role);
+            $this->persistRoleOrder($orderedRoles);
+
             $message = __('access.roles.messages.created');
         }
 
@@ -198,7 +215,7 @@ new class extends Component {
         session()->flash('status', $message);
     }
 
-    public function deleteRole(string $roleName): void
+    public function deleteRole(string $roleName): bool
     {
         $this->authorizePermission('roles.manage');
 
@@ -207,13 +224,13 @@ new class extends Component {
         if ($this->isSystemRole($role->name)) {
             $this->addError('role_delete', __('access.roles.errors.protected'));
 
-            return;
+            return false;
         }
 
         if ($role->users()->exists()) {
             $this->addError('role_delete', __('access.roles.errors.delete_linked'));
 
-            return;
+            return false;
         }
 
         $role->delete();
@@ -224,6 +241,47 @@ new class extends Component {
         }
 
         session()->flash('status', __('access.roles.messages.deleted'));
+
+        return true;
+    }
+
+    public function moveRole(string $roleName, string $beforeRoleName): void
+    {
+        $this->authorizePermission('roles.manage');
+
+        if (
+            $roleName === $beforeRoleName
+            || in_array($roleName, RoleRegistry::fixedBoundaryRoles(), true)
+            || in_array($beforeRoleName, [RoleRegistry::SUPER_ADMIN, RoleRegistry::STUDENT], true)
+        ) {
+            return;
+        }
+
+        $roles = RoleRegistry::sortCollection(Role::query()->get());
+
+        if (! $roles->contains('name', $roleName) || ! $roles->contains('name', $beforeRoleName)) {
+            return;
+        }
+
+        $role = $roles->firstWhere('name', $roleName);
+        $orderedRoles = $roles
+            ->reject(fn (Role $candidate): bool => $candidate->name === $roleName)
+            ->values();
+        $position = $orderedRoles->search(fn (Role $candidate): bool => $candidate->name === $beforeRoleName);
+        $orderedRoles->splice($position === false ? $orderedRoles->count() : $position, 0, [$role]);
+
+        $this->persistRoleOrder($orderedRoles);
+    }
+
+    public function deleteEditingRole(): void
+    {
+        if ($this->editing_role === '') {
+            return;
+        }
+
+        if ($this->deleteRole($this->editing_role)) {
+            $this->closeRoleModal();
+        }
     }
 
     public function save(): void
@@ -275,11 +333,36 @@ new class extends Component {
             : Str::of($permissionName)->replace(['.', '-'], ' ')->headline()->toString();
     }
 
+    protected function roleLabel(string $roleName): string
+    {
+        $translationKey = 'ui.roles.'.$roleName;
+        $translated = __($translationKey);
+
+        return $translated === $translationKey
+            ? Str::of($roleName)->replace('_', ' ')->headline()->toString()
+            : $translated;
+    }
+
+    protected function persistRoleOrder($roles): void
+    {
+        $roles = RoleRegistry::pinFixedRolePositions(collect($roles));
+        $count = $roles->count();
+
+        foreach ($roles as $index => $role) {
+            $role->forceFill(['level' => ($count - $index) * 100])->saveQuietly();
+        }
+    }
+
     protected function rolesQuery()
     {
         return Role::query()
             ->withCount(['users', 'permissions'])
             ->when(filled($this->role_search), fn ($query) => $query->where('name', 'like', '%'.$this->role_search.'%'))
+            ->orderByRaw(
+                'case when name = ? then 0 when name = ? then 2 when name = ? then 3 else 1 end',
+                [RoleRegistry::SUPER_ADMIN, RoleRegistry::PARENT, RoleRegistry::STUDENT],
+            )
+            ->orderByDesc('level')
             ->orderByRaw("
                 case
                     when name = ? then 0
@@ -313,11 +396,7 @@ new class extends Component {
         <div class="flash-success px-4 py-3 text-sm">{{ session('status') }}</div>
     @endif
 
-    @error('role_delete')
-        <div class="rounded-2xl border border-red-500/25 bg-red-500/10 px-4 py-3 text-sm text-red-200">{{ $message }}</div>
-    @enderror
-
-    <section class="overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700">
+    <section class="overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700" x-data="{ draggedRole: null, roleDropTarget: null, settledRole: null }">
         <div class="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-200 px-5 py-4 dark:border-neutral-700">
             <div class="admin-grid-meta__title">{{ __('access.common.roles') }}</div>
             <div class="flex flex-wrap items-end gap-3" data-mobile-table-filter-controls><div class="admin-filter-field"><label class="sr-only" for="role-search">{{ __('access.roles.fields.search') }}</label><input id="role-search" wire:model.live.debounce.300ms="role_search" type="text" placeholder="{{ __('access.roles.fields.search') }}"></div><button type="button" wire:click="openCreateRoleModal" class="pill-link pill-link--accent">{{ __('access.roles.actions.create') }}</button></div>
@@ -341,11 +420,43 @@ new class extends Component {
                         @foreach ($roles as $role)
                             @php
                                 $isSystemRole = RoleRegistry::isSystemRole($role->name);
+                                $hasFixedPosition = in_array($role->name, RoleRegistry::fixedBoundaryRoles(), true);
+                                $canReceiveRoleDrop = ! in_array($role->name, [RoleRegistry::SUPER_ADMIN, RoleRegistry::STUDENT], true);
                             @endphp
-                            <tr>
+                            <tr
+                                wire:key="role-row-{{ $role->id }}"
+                                class="role-sort-row"
+                                :class="{
+                                    'role-sort-row--dragging': draggedRole === @js($role->name),
+                                    'role-sort-row--drop-target': roleDropTarget === @js($role->name),
+                                    'role-sort-row--settled': settledRole === @js($role->name)
+                                }"
+                                @if ($canReceiveRoleDrop)
+                                    @dragenter.prevent="if (draggedRole && draggedRole !== @js($role->name)) roleDropTarget = @js($role->name)"
+                                    @dragover.prevent
+                                    @drop.prevent="if (draggedRole && draggedRole !== @js($role->name)) { const movingRole = draggedRole; roleDropTarget = @js($role->name); $wire.moveRole(movingRole, @js($role->name)).then(() => { draggedRole = null; roleDropTarget = null; settledRole = movingRole; setTimeout(() => settledRole = null, 320) }) }"
+                                @endif
+                            >
                                 <td class="px-5 py-4 lg:px-6">
-                                    <div class="font-semibold text-white"><x-admin.role-label :name="$role->name" /></div>
-                                    <div class="mt-1 text-xs uppercase tracking-[0.18em] text-neutral-500">{{ $role->name }}</div>
+                                    <div class="flex items-center gap-3">
+                                        @if ($hasFixedPosition)
+                                            <span class="role-sort-handle role-sort-handle--locked" title="{{ __('access.roles.actions.fixed_order') }}" aria-label="{{ __('access.roles.actions.fixed_order') }}">◆</span>
+                                        @else
+                                            <button
+                                                type="button"
+                                                draggable="true"
+                                                @dragstart.stop="draggedRole = @js($role->name); roleDropTarget = null"
+                                                @dragend="draggedRole = null; roleDropTarget = null"
+                                                class="role-sort-handle"
+                                                title="{{ __('access.roles.actions.reorder') }}"
+                                                aria-label="{{ __('access.roles.actions.reorder') }}"
+                                            >⠿</button>
+                                        @endif
+                                        <div class="min-w-0">
+                                            <div class="font-semibold text-white"><x-admin.role-label :name="$role->name" /></div>
+                                            <div class="mt-1 text-xs uppercase tracking-[0.18em] text-neutral-500">{{ $role->name }}</div>
+                                        </div>
+                                    </div>
                                 </td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ number_format($role->users_count) }}</td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ number_format($role->permissions_count) }}</td>
@@ -362,11 +473,6 @@ new class extends Component {
                                         <button type="button" wire:click="openEditRoleModal('{{ $role->name }}')" class="pill-link pill-link--compact">
                                             {{ __('access.roles.actions.edit') }}
                                         </button>
-                                        @unless ($isSystemRole)
-                                            <button type="button" wire:click="deleteRole('{{ $role->name }}')" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link pill-link--compact border-red-400/25 text-red-200 hover:border-red-300/35 hover:bg-red-500/12">
-                                                {{ __('access.roles.actions.delete') }}
-                                            </button>
-                                        @endunless
                                     </div>
                                 </td>
                             </tr>
@@ -386,7 +492,6 @@ new class extends Component {
     <x-admin.modal
         :show="$showRoleModal"
         :title="$editing_role !== '' ? __('access.roles.actions.edit') : __('access.roles.actions.create')"
-        :description="$editing_role !== '' && $this->isSystemRole($editing_role) ? __('access.roles.help.system_role') : __('access.roles.help.custom_role')"
         close-method="closeRoleModal"
         max-width="2xl"
     >
@@ -397,9 +502,6 @@ new class extends Component {
                 @error('role_name')
                     <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                 @enderror
-                @if (filled($role_name))
-                    <div class="mt-2 text-xs text-neutral-400">{{ __('access.roles.help.machine_name', ['name' => \Illuminate\Support\Str::of($role_name)->trim()->snake()->toString()]) }}</div>
-                @endif
             </div>
 
             @if ($editing_role === '')
@@ -411,79 +513,86 @@ new class extends Component {
                             <option value="{{ $role->name }}"><x-admin.role-label :name="$role->name" /></option>
                         @endforeach
                     </select>
-                    <div class="mt-2 text-xs text-neutral-400">{{ __('access.roles.help.clone_from') }}</div>
                     @error('clone_role')
                         <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                     @enderror
                 </div>
             @endif
 
+            @error('role_delete')
+                <div class="rounded-xl border border-red-500/25 bg-red-500/10 px-4 py-3 text-sm text-red-200">{{ $message }}</div>
+            @enderror
+
             <div class="flex flex-wrap items-center gap-3">
                 <button type="button" wire:click="saveRole" class="pill-link pill-link--accent">
                     {{ $editing_role !== '' ? __('access.roles.actions.edit') : __('access.roles.actions.create') }}
                 </button>
                 <x-admin.create-and-new-button :show="$editing_role === ''" click="saveAndNew('saveRole', 'openCreateRoleModal')" />
-                <button type="button" wire:click="closeRoleModal" class="pill-link">
-                    {{ __('access.roles.actions.cancel') }}
-                </button>
+                @if ($editing_role === '')
+                    <button type="button" wire:click="closeRoleModal" class="pill-link">
+                        {{ __('access.roles.actions.cancel') }}
+                    </button>
+                @elseif (! $this->isSystemRole($editing_role))
+                    <button type="button" wire:click="deleteEditingRole" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link pill-link--danger">
+                        {{ __('access.roles.actions.delete') }}
+                    </button>
+                @endif
             </div>
         </div>
     </x-admin.modal>
 
     <x-admin.modal
         :show="$showPermissionsModal"
-        :title="__('access.roles.editor.title')"
-        :description="$selectedRoleRecord ? __('access.roles.editor.subtitle') : __('access.roles.editor.empty')"
+        :title="$selectedRoleRecord ? $this->roleLabel($selectedRoleRecord->name) : ''"
         close-method="closePermissionsModal"
         max-width="6xl"
     >
+        <x-slot:header-actions>
+            @if ($selectedRoleRecord)
+                <button type="button" wire:click="save" class="admin-modal__close" title="{{ __('access.roles.actions.save') }}" aria-label="{{ __('access.roles.actions.save') }}" data-permissions-save-icon>
+                    <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M5 3.75h11.25L19.5 7v13.25H5V3.75Z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M8 3.75v5.5h8v-5.5M8.25 20.25v-6.5h8v6.5" />
+                    </svg>
+                </button>
+            @endif
+        </x-slot:header-actions>
         @if ($selectedRoleRecord)
             <div class="space-y-5">
-                <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                    <div>
-                        <h2 class="font-display text-2xl text-white"><x-admin.role-label :name="$selectedRoleRecord->name" /></h2>
-                        <div class="mt-3 flex flex-wrap gap-2">
-                            <span class="status-chip status-chip--slate">{{ __('access.roles.editor.counts', ['permissions' => number_format($selectedRoleRecord->permissions_count), 'users' => number_format($selectedRoleRecord->users_count)]) }}</span>
-                            <span class="status-chip {{ $this->isSystemRole($selectedRoleRecord->name) ? 'status-chip--gold' : 'status-chip--emerald' }}">
-                                {{ $this->isSystemRole($selectedRoleRecord->name) ? __('access.roles.types.system') : __('access.roles.types.custom') }}
-                            </span>
-                        </div>
-                        <p class="mt-3 text-sm leading-7 text-neutral-300">
-                            {{ $this->isSystemRole($selectedRoleRecord->name) ? __('access.roles.help.system_role') : __('access.roles.help.custom_role') }}
-                        </p>
+                @if ($selectedRoleRecord->name === RoleRegistry::SUPER_ADMIN)
+                    <div class="rounded-2xl border border-amber-400/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+                        {{ __('access.roles.help.super_admin') }}
                     </div>
-
-                    @if ($selectedRoleRecord->name === RoleRegistry::SUPER_ADMIN)
-                        <div class="rounded-2xl border border-amber-400/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
-                            {{ __('access.roles.help.super_admin') }}
-                        </div>
-                    @endif
-                </div>
+                @endif
 
                 <div class="admin-filter-field">
                     <label class="sr-only" for="permission-search">{{ __('access.roles.fields.permission_search') }}</label>
                     <input id="permission-search" wire:model.live.debounce.300ms="permission_search" type="text" placeholder="{{ __('access.roles.fields.permission_search') }}">
                 </div>
 
-                <div class="space-y-4">
+                <div class="role-permission-groups">
                     @foreach ($permissionGroups as $group => $permissions)
-                        <div class="overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700">
-                            <div class="border-b border-neutral-200 bg-neutral-50 px-5 py-4 text-sm font-medium dark:border-neutral-700 dark:bg-neutral-900/60">{{ $group }}</div>
-                            <div class="divide-y divide-neutral-200 dark:divide-neutral-700">
+                        <details
+                            class="role-permission-group"
+                            wire:key="role-permission-group-{{ md5($group) }}"
+                            @if (filled($permission_search)) open @endif
+                        >
+                            <summary class="role-permission-group__summary">
+                                <span class="role-permission-group__title">{{ $group }}</span>
+                                <span class="role-permission-group__arrow" aria-hidden="true">{{ app()->isLocale('ar') ? '‹' : '›' }}</span>
+                            </summary>
+                            <div class="role-permission-group__body">
+                                <div class="role-permission-grid" data-permission-group-rows="4">
                                 @foreach ($permissions as $permission)
-                                    <label class="flex items-center gap-3 px-5 py-3 text-sm text-neutral-200">
+                                    <label class="role-permission-option">
                                         <input wire:model="selected_permissions" type="checkbox" value="{{ $permission->name }}" class="rounded">
                                         <span>{{ $this->permissionLabel($permission->name) }}</span>
                                     </label>
                                 @endforeach
+                                </div>
                             </div>
-                        </div>
+                        </details>
                     @endforeach
-                </div>
-
-                <div class="flex flex-wrap items-center gap-3">
-                    <button type="button" wire:click="save" class="pill-link pill-link--accent">{{ __('access.roles.actions.save') }}</button>
-                    <button type="button" wire:click="closePermissionsModal" class="pill-link">{{ __('access.roles.actions.cancel') }}</button>
                 </div>
             </div>
         @else

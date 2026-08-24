@@ -463,7 +463,7 @@ new class extends Component {
         <div class="flash-success px-4 py-3 text-sm">{{ session('status') }}</div>
     @endif
 
-    <section class="surface-table">
+    <section class="surface-table points-ledger-surface">
         <div class="admin-grid-meta admin-grid-meta--controls">
             <div class="admin-grid-meta__title">{{ __('workflow.points.workbench.table.title') }}</div>
             <div class="admin-toolbar__controls admin-toolbar__controls--compact">
@@ -492,7 +492,7 @@ new class extends Component {
         @if ($transactions->isEmpty())
             <div class="admin-empty-state">{{ __('workflow.points.workbench.table.empty') }}</div>
         @else
-            <div class="overflow-hidden">
+            <div class="points-ledger-desktop overflow-hidden">
                 <table class="points-ledger-table w-full table-fixed text-sm" data-has-void-reason="{{ $stateFilter !== 'active' ? 'true' : 'false' }}">
                     <colgroup>
                         <col class="points-ledger-col--student">
@@ -568,7 +568,12 @@ new class extends Component {
                                     <div class="truncate font-medium text-white" title="{{ $transaction->enrollment?->group?->name }}">{{ $transaction->enrollment?->group?->name ?: __('workflow.common.no_group') }}</div>
                                     <div class="mt-1 truncate text-xs uppercase tracking-[0.12em] text-neutral-500" title="{{ $transaction->enrollment?->group?->course?->name }}">{{ $transaction->enrollment?->group?->course?->name ?: __('workflow.common.no_course') }}</div>
                                 </td>
-                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $transaction->entered_at?->format('d-m-Y H:i') }}</td>
+                                <td class="px-5 py-4 text-neutral-300 lg:px-6">
+                                    <span class="points-ledger-entered-at" dir="ltr">
+                                        <span>{{ $transaction->entered_at?->format('d-m-Y') }}</span>
+                                        <span>{{ $transaction->entered_at?->format('H:i') }}</span>
+                                    </span>
+                                </td>
                                 <td class="whitespace-nowrap px-5 py-4 text-white lg:px-6">{{ $transaction->pointType?->name ?: __('workflow.common.not_available') }}</td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $sourceLabel }}</td>
                                 <td class="px-5 py-4 lg:px-6">
@@ -601,6 +606,85 @@ new class extends Component {
                         @endforeach
                     </tbody>
                 </table>
+            </div>
+
+            <div class="points-ledger-mobile">
+                @foreach ($transactions as $transaction)
+                    @php
+                        $sourceTranslationKey = 'workflow.common.source_type.' . $transaction->source_type;
+                        $sourceLabel = trans()->has($sourceTranslationKey)
+                            ? __($sourceTranslationKey)
+                            : str($transaction->source_type)->headline();
+                        $state = $transaction->effectiveState();
+                    @endphp
+                    <article class="points-ledger-mobile__item {{ $state !== 'active' ? 'points-ledger-mobile__item--inactive' : '' }}" wire:key="points-mobile-{{ $transaction->id }}">
+                        <div class="points-ledger-mobile__header">
+                            @if ($transaction->student)
+                                <div class="student-inline min-w-0">
+                                    <x-student-avatar :student="$transaction->student" size="sm" />
+                                    <div class="student-inline__body min-w-0">
+                                        <div class="points-ledger-mobile__student-name">{{ trim($transaction->student->first_name.' '.$transaction->student->last_name) }}</div>
+                                    </div>
+                                </div>
+                            @else
+                                <span class="text-white">{{ __('crud.common.not_available') }}</span>
+                            @endif
+
+                            <span class="{{ $transaction->points >= 0 ? 'status-chip status-chip--emerald' : 'status-chip status-chip--rose' }}">
+                                <bdi>{{ $transaction->points }}</bdi>
+                            </span>
+                        </div>
+
+                        <div class="points-ledger-mobile__group">
+                            <div>{{ $transaction->enrollment?->group?->name ?: __('workflow.common.no_group') }}</div>
+                            <small>{{ $transaction->enrollment?->group?->course?->name ?: __('workflow.common.no_course') }}</small>
+                        </div>
+
+                        <dl class="points-ledger-mobile__metrics">
+                            <div>
+                                <dt>{{ __('workflow.points.workbench.table.headers.entered_at') }}</dt>
+                                <dd>
+                                    <span class="points-ledger-entered-at" dir="ltr">
+                                        <span>{{ $transaction->entered_at?->format('d-m-Y') }}</span>
+                                        <span>{{ $transaction->entered_at?->format('H:i') }}</span>
+                                    </span>
+                                </dd>
+                            </div>
+                            <div>
+                                <dt>{{ __('workflow.points.workbench.table.headers.type') }}</dt>
+                                <dd>{{ $transaction->pointType?->name ?: __('workflow.common.not_available') }}</dd>
+                            </div>
+                            <div>
+                                <dt>{{ __('workflow.points.workbench.table.headers.source') }}</dt>
+                                <dd>{{ $sourceLabel }}</dd>
+                            </div>
+                            <div>
+                                <dt>{{ __('workflow.points.workbench.table.headers.state') }}</dt>
+                                <dd>
+                                    <span class="{{ $state === 'active' ? 'status-chip status-chip--emerald' : 'status-chip status-chip--slate' }}">
+                                        {{ __('workflow.common.ledger_state.'.$state) }}
+                                    </span>
+                                </dd>
+                            </div>
+                            @if ($stateFilter !== 'active')
+                                <div class="points-ledger-mobile__void-reason">
+                                    <dt>{{ __('workflow.points.workbench.table.headers.void_reason') }}</dt>
+                                    <dd>{{ $transaction->voided_at ? ($transaction->void_reason ?: __('crud.common.not_available')) : __('crud.common.not_available') }}</dd>
+                                </div>
+                            @endif
+                        </dl>
+
+                        @if ((auth()->user()->can('points.create-manual') && $transaction->source_type === 'manual' && ! $transaction->voided_at) || (auth()->user()->can('points.void') && ! $transaction->voided_at))
+                            <div class="points-ledger-mobile__actions">
+                                @if (auth()->user()->can('points.create-manual') && $transaction->source_type === 'manual')
+                                    <button type="button" wire:click="editManual({{ $transaction->id }})" class="pill-link pill-link--compact">{{ __('workflow.common.actions.edit') }}</button>
+                                @else
+                                    <button type="button" wire:click="openVoidModal({{ $transaction->id }})" class="pill-link pill-link--compact pill-link--danger">{{ __('crud.common.actions.delete') }}</button>
+                                @endif
+                            </div>
+                        @endif
+                    </article>
+                @endforeach
             </div>
 
             @if ($transactions->hasPages())

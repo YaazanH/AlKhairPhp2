@@ -239,7 +239,7 @@ new class extends Component {
         <div class="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">{{ session('status') }}</div>
     @endif
 
-    <form wire:submit="save" class="space-y-6" x-data="{ draggedItem: null, draggedGroup: null }">
+    <form wire:submit="save" class="space-y-6" x-data="{ draggedItem: null, draggedGroup: null, itemDropTarget: null, groupDropTarget: null, settledItem: null, settledGroup: null }">
         <section class="surface-panel p-5 lg:p-6">
             <div class="admin-toolbar">
                 <div></div>
@@ -250,12 +250,34 @@ new class extends Component {
 
             <div class="mt-5 space-y-4">
                 @foreach ($availableGroups as $group)
-                    <details class="rounded-2xl border border-white/10 bg-white/4 p-4" open x-data="{ editing: {{ $group['is_custom'] && $group['title'] === '' ? 'true' : 'false' }} }" draggable="true" @dragstart.self="draggedGroup='{{ $group['key'] }}'" @dragover.prevent @drop.prevent="if(draggedGroup){$wire.moveGroup(draggedGroup,'{{ $group['key'] }}');draggedGroup=null}">
-                        <summary class="flex cursor-pointer list-none items-center gap-3"><span class="cursor-grab text-neutral-400" aria-hidden="true">⠿</span><span class="min-w-0 flex-1 text-sm font-semibold text-white">{{ $group['title'] ?: $group['default_title'] ?: __('settings.sidebar_navigation.labels.custom_group') }}</span><button type="button" @click.prevent="editing=!editing" class="pill-link pill-link--compact" aria-label="{{ __('crud.common.actions.edit') }}">✎</button>@if ($group['is_custom'])<button type="button" wire:click="removeGroup('{{ $group['key'] }}')" class="pill-link pill-link--compact pill-link--danger">{{ __('crud.common.actions.delete') }}</button>@endif</summary>
+                    <details
+                        class="nav-sort-group rounded-2xl border border-white/10 bg-white/4 p-4"
+                        :class="{
+                            'nav-sort-group--dragging': draggedGroup === @js($group['key']),
+                            'nav-sort-group--drop-target': groupDropTarget === @js($group['key']),
+                            'nav-sort-group--settled': settledGroup === @js($group['key'])
+                        }"
+                        open
+                        x-data="{ editing: {{ $group['is_custom'] && $group['title'] === '' ? 'true' : 'false' }} }"
+                        @dragenter.prevent="if (draggedGroup && draggedGroup !== @js($group['key'])) groupDropTarget = @js($group['key'])"
+                        @dragover.prevent
+                        @drop.prevent="if (draggedGroup && draggedGroup !== @js($group['key'])) { const movingGroup = draggedGroup; groupDropTarget = @js($group['key']); $wire.moveGroup(movingGroup, @js($group['key'])).then(() => { draggedGroup = null; groupDropTarget = null; settledGroup = movingGroup; setTimeout(() => settledGroup = null, 320) }) }"
+                    >
+                        <summary class="flex cursor-pointer list-none items-center gap-3"><span draggable="true" @dragstart.stop="draggedGroup = @js($group['key']); groupDropTarget = null" @dragend="draggedGroup = null; groupDropTarget = null" class="nav-sort-handle" aria-hidden="true">⠿</span><span class="min-w-0 flex-1 text-sm font-semibold text-white">{{ $group['title'] ?: $group['default_title'] ?: __('settings.sidebar_navigation.labels.custom_group') }}</span><button type="button" @click.prevent="editing=!editing" class="pill-link pill-link--compact" aria-label="{{ __('crud.common.actions.edit') }}">✎</button>@if ($group['is_custom'])<button type="button" wire:click="removeGroup('{{ $group['key'] }}')" class="pill-link pill-link--compact pill-link--danger">{{ __('crud.common.actions.delete') }}</button>@endif</summary>
                         <div x-show="editing" x-cloak class="mt-4"><input wire:model="group_settings.{{ $group['key'] }}.title" type="text" class="w-full rounded-xl px-4 py-3 text-sm" placeholder="{{ __('settings.sidebar_navigation.fields.use_default_title') }}"></div>
-                        <div class="mt-4 space-y-2 rounded-xl border border-dashed border-white/10 p-2" @dragover.prevent @drop.prevent="if(draggedItem){$wire.moveItem(draggedItem,'{{ $group['key'] }}');draggedItem=null}">
+                        <div class="mt-4 space-y-2 rounded-xl border border-dashed border-white/10 p-2" @dragover.prevent @drop.prevent.stop="if(draggedItem){ const movingItem = draggedItem; $wire.moveItem(movingItem, @js($group['key'])).then(() => { draggedItem = null; itemDropTarget = null; settledItem = movingItem; setTimeout(() => settledItem = null, 320) }) }">
                             @foreach (collect($availableItems)->where('group_key', $group['key']) as $item)
-                                <div draggable="true" @dragstart.stop="draggedItem='{{ $item['key'] }}'" @dragover.prevent @drop.prevent.stop="if(draggedItem){$wire.moveItem(draggedItem,'{{ $group['key'] }}','{{ $item['key'] }}');draggedItem=null}" class="flex cursor-grab items-center gap-3 rounded-xl border border-white/10 bg-white/5 px-4 py-3"><span class="text-neutral-400" aria-hidden="true">⠿</span><span class="text-sm text-white">{{ $item['label'] }}</span></div>
+                                <div
+                                    class="nav-sort-item flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 px-4 py-3"
+                                    :class="{
+                                        'nav-sort-item--dragging': draggedItem === @js($item['key']),
+                                        'nav-sort-item--drop-target': itemDropTarget === @js($item['key']),
+                                        'nav-sort-item--settled': settledItem === @js($item['key'])
+                                    }"
+                                    @dragenter.prevent.stop="if (draggedItem && draggedItem !== @js($item['key'])) itemDropTarget = @js($item['key'])"
+                                    @dragover.prevent.stop
+                                    @drop.prevent.stop="if (draggedItem && draggedItem !== @js($item['key'])) { const movingItem = draggedItem; itemDropTarget = @js($item['key']); $wire.moveItem(movingItem, @js($group['key']), @js($item['key'])).then(() => { draggedItem = null; itemDropTarget = null; settledItem = movingItem; setTimeout(() => settledItem = null, 320) }) }"
+                                ><span draggable="true" @dragstart.stop="draggedItem = @js($item['key']); itemDropTarget = null" @dragend="draggedItem = null; itemDropTarget = null" class="nav-sort-handle" aria-hidden="true">⠿</span><span class="text-sm text-white">{{ $item['label'] }}</span></div>
                             @endforeach
                         </div>
                     </details>

@@ -585,6 +585,9 @@ class SystemSettingsTest extends TestCase
         $user = $this->signIn();
 
         Volt::test('settings.sidebar-navigation')
+            ->assertSee('nav-sort-group--dragging', false)
+            ->assertSee('nav-sort-item--drop-target', false)
+            ->assertSee('nav-sort-item--settled', false)
             ->set('group_settings.platform.title', 'Home Area')
             ->set('group_settings.platform.sort_order', '5')
             ->set('item_settings.reports.group_key', 'finance')
@@ -604,6 +607,14 @@ class SystemSettingsTest extends TestCase
         $this->assertSame(5, $groups['platform']['sort_order']);
         $this->assertSame('finance', $items['reports']['group_key']);
         $this->assertSame(99, $items['reports']['sort_order']);
+
+        $css = file_get_contents(resource_path('css/app.css'));
+        $this->assertStringContainsString('.nav-sort-group--dragging', $css);
+        $this->assertStringContainsString('.nav-sort-item--drop-target', $css);
+        $this->assertStringContainsString('.nav-sort-group--drop-target::before', $css);
+        $this->assertStringContainsString('margin-top: 1.5rem !important;', $css);
+        $this->assertStringContainsString('@keyframes sort-drop-gap-highlight', $css);
+        $this->assertStringContainsString('@keyframes sort-drop-settle', $css);
     }
 
     public function test_authorized_user_can_add_a_custom_sidebar_group_and_assign_pages_to_it(): void

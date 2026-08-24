@@ -703,7 +703,7 @@ return [
             'update_policy' => 'تحديث السياسة',
         ],
         'messages' => [
-            'automatic_multiplier_saved' => 'تم حفظ مضاعف النقاط الإيجابية التلقائية بنجاح.',
+            'automatic_multiplier_saved' => 'تم حفظ مضاعفة النقاط بنجاح.',
             'point_type_created' => 'تم إنشاء نوع النقطة بنجاح.',
             'point_type_updated' => 'تم تحديث نوع النقطة بنجاح.',
             'point_type_deleted' => 'تم حذف نوع النقطة بنجاح.',
@@ -718,7 +718,7 @@ return [
             'range_invalid' => 'يجب أن تكون القيمة العظمى أكبر من أو تساوي القيمة الصغرى.',
         ],
         'multiplier' => [
-            'title' => 'مضاعف النقاط الإيجابية التلقائية',
+            'title' => 'مضاعفة النقاط',
             'value' => 'المضاعف',
         ],
     ],

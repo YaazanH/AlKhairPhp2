@@ -2299,6 +2299,8 @@ class FinanceAndActivitiesTest extends TestCase
 
         Volt::test('finance.dashboard')
             ->assertSee('% ·', false)
+            ->assertDontSee('تظهر فقط الطلبات التي تنتظر المراجعة.')
+            ->assertDontSee('Only requests awaiting review are shown.')
             ->assertSee('lg:grid-cols-[minmax(0,.8fr)_minmax(17rem,1.2fr)]', false)
             ->assertSee('xl:h-[22rem] xl:w-[22rem]', false);
     }

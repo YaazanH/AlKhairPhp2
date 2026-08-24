@@ -967,9 +967,9 @@ new class extends Component {
                 $trendMax = $trendScale['maximum'];
                 $trendTicks = $trendScale['ticks'];
                 $trendX = fn (int $index) => app()->isLocale('ar')
-                    ? 400 - ($index * (342 / max($dailyTrend->count() - 1, 1)))
-                    : 58 + ($index * (342 / max($dailyTrend->count() - 1, 1)));
-                $trendY = fn (int $value) => 178 - (($value / $trendMax) * 128);
+                    ? 424 - ($index * (390 / max($dailyTrend->count() - 1, 1)))
+                    : 34 + ($index * (390 / max($dailyTrend->count() - 1, 1)));
+                $trendY = fn (int $value) => 180 - (($value / $trendMax) * 152);
                 $pagesLine = $dailyTrend->values()->map(fn (array $day, int $index) => $trendX($index).','.$trendY($day['pages']))->implode(' ');
                 $attendanceLine = $dailyTrend->values()->map(fn (array $day, int $index) => $trendX($index).','.$trendY($day['attendance']))->implode(' ');
                 $barHighest = max(1, (int) $groupPageTotals->max('pages'));
@@ -1018,39 +1018,39 @@ new class extends Component {
 
                 <article class="surface-panel flex min-h-[22rem] flex-col p-5 lg:p-6">
                     <h2 class="font-display mt-2 text-2xl text-white">{{ __('dashboard.manager.analytics.daily_activity') }}</h2>
-                    <div class="dashboard-line-chart-shell flex flex-1 items-center justify-center">
-                    <svg viewBox="0 0 458 220" dir="ltr" class="dashboard-line-chart mx-auto h-auto w-full max-w-2xl overflow-hidden" role="img" aria-label="{{ __('dashboard.manager.analytics.daily_activity') }}">
-                        <line x1="{{ app()->isLocale('ar') ? 400 : 58 }}" y1="42" x2="{{ app()->isLocale('ar') ? 400 : 58 }}" y2="178" stroke="rgba(255,255,255,.3)" stroke-width="1.5" />
-                        <line x1="58" y1="178" x2="400" y2="178" stroke="rgba(255,255,255,.3)" stroke-width="1.5" />
+                    <div class="dashboard-line-chart-shell flex flex-1 items-center justify-center" data-dashboard-expanded-line-chart>
+                    <svg viewBox="0 0 458 220" dir="ltr" class="dashboard-line-chart mx-auto h-auto w-full max-w-none overflow-hidden" role="img" aria-label="{{ __('dashboard.manager.analytics.daily_activity') }}">
+                        <line x1="{{ app()->isLocale('ar') ? 424 : 34 }}" y1="28" x2="{{ app()->isLocale('ar') ? 424 : 34 }}" y2="180" stroke="rgba(255,255,255,.3)" stroke-width="1.5" />
+                        <line x1="34" y1="180" x2="424" y2="180" stroke="rgba(255,255,255,.3)" stroke-width="1.5" />
                         @foreach (range(0, $trendTicks) as $tick)
                             @php
                                 $ratio = $tick / $trendTicks;
-                                $gridY = 178 - ($ratio * 128);
+                                $gridY = 180 - ($ratio * 152);
                             @endphp
-                            <line x1="58" y1="{{ $gridY }}" x2="400" y2="{{ $gridY }}" stroke="rgba(255,255,255,.09)" stroke-width="1" />
-                            <text x="{{ app()->isLocale('ar') ? 412 : 46 }}" y="{{ $gridY + 3 }}" text-anchor="{{ app()->isLocale('ar') ? 'start' : 'end' }}" direction="ltr" fill="#a3a3a3" font-size="9">{{ $axisLabel($trendMax * $ratio) }}</text>
+                            <line x1="34" y1="{{ $gridY }}" x2="424" y2="{{ $gridY }}" stroke="rgba(255,255,255,.09)" stroke-width="1" />
+                            <text x="{{ app()->isLocale('ar') ? 436 : 22 }}" y="{{ $gridY + 3 }}" text-anchor="{{ app()->isLocale('ar') ? 'start' : 'end' }}" direction="ltr" fill="#a3a3a3" font-size="9">{{ $axisLabel($trendMax * $ratio) }}</text>
                         @endforeach
                         @foreach ($dailyTrend as $index => $day)
-                            <line x1="{{ $trendX($index) }}" y1="50" x2="{{ $trendX($index) }}" y2="178" stroke="rgba(255,255,255,.09)" stroke-width="1" />
+                            <line x1="{{ $trendX($index) }}" y1="28" x2="{{ $trendX($index) }}" y2="180" stroke="rgba(255,255,255,.09)" stroke-width="1" />
                         @endforeach
                         <polyline points="{{ $pagesLine }}" fill="none" stroke="#34d399" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
                         <polyline points="{{ $attendanceLine }}" fill="none" stroke="#38bdf8" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
                         @foreach ($dailyTrend as $index => $day)
-                            <g class="dashboard-line-point" tabindex="0">
+                            <g class="dashboard-line-point" tabindex="0" aria-label="{{ $day['label'] }} · {{ __('dashboard.manager.analytics.memorized_pages') }}: {{ number_format($day['pages']) }}">
                                 <circle cx="{{ $trendX($index) }}" cy="{{ $trendY($day['pages']) }}" r="6" fill="#34d399" class="dashboard-chart-point origin-center" />
-                                <g class="dashboard-line-point__tooltip" transform="translate({{ $trendX($index) }}, {{ max(18, $trendY($day['pages']) - 13) }})">
-                                    <rect x="-68" y="-25" width="136" height="25" rx="6" fill="rgba(10,10,10,.96)" stroke="rgba(255,255,255,.18)" />
-                                    <text x="0" y="-9" text-anchor="middle" fill="white" font-size="9">{{ $day['label'] }} · {{ __('dashboard.manager.analytics.memorized_pages') }}: {{ number_format($day['pages']) }}</text>
+                                <g class="dashboard-line-point__tooltip" transform="translate({{ $trendX($index) }}, {{ max(16, $trendY($day['pages']) - 12) }})" data-dashboard-line-tooltip-value-only>
+                                    <rect x="-15" y="-15" width="30" height="15" rx="4" fill="rgba(10,10,10,.96)" stroke="rgba(255,255,255,.16)" stroke-width="0.5" />
+                                    <text x="0" y="-4.5" text-anchor="middle" fill="white" font-size="8" font-weight="800" class="dashboard-line-point__tooltip-value">{{ number_format($day['pages']) }}</text>
                                 </g>
                             </g>
-                            <g class="dashboard-line-point" tabindex="0">
+                            <g class="dashboard-line-point" tabindex="0" aria-label="{{ $day['label'] }} · {{ __('dashboard.manager.analytics.students_attended') }}: {{ number_format($day['attendance']) }}">
                                 <circle cx="{{ $trendX($index) }}" cy="{{ $trendY($day['attendance']) }}" r="6" fill="#38bdf8" class="dashboard-chart-point origin-center" />
-                                <g class="dashboard-line-point__tooltip" transform="translate({{ $trendX($index) }}, {{ min(210, $trendY($day['attendance']) + 38) }})">
-                                    <rect x="-68" y="-25" width="136" height="25" rx="6" fill="rgba(10,10,10,.96)" stroke="rgba(255,255,255,.18)" />
-                                    <text x="0" y="-9" text-anchor="middle" fill="white" font-size="9">{{ $day['label'] }} · {{ __('dashboard.manager.analytics.students_attended') }}: {{ number_format($day['attendance']) }}</text>
+                                <g class="dashboard-line-point__tooltip" transform="translate({{ $trendX($index) }}, {{ min(214, $trendY($day['attendance']) + 28) }})" data-dashboard-line-tooltip-value-only>
+                                    <rect x="-15" y="-15" width="30" height="15" rx="4" fill="rgba(10,10,10,.96)" stroke="rgba(255,255,255,.16)" stroke-width="0.5" />
+                                    <text x="0" y="-4.5" text-anchor="middle" fill="white" font-size="8" font-weight="800" class="dashboard-line-point__tooltip-value">{{ number_format($day['attendance']) }}</text>
                                 </g>
                             </g>
-                            <text x="{{ $trendX($index) }}" y="202" text-anchor="middle" fill="#a3a3a3" font-size="9">{{ $day['label'] }}</text>
+                            <text x="{{ $trendX($index) }}" y="205" text-anchor="middle" fill="#a3a3a3" font-size="9">{{ $day['label'] }}</text>
                         @endforeach
                     </svg>
                     </div>
@@ -1124,17 +1124,17 @@ new class extends Component {
                     @endif
                 </article>
 
-                <article class="surface-panel flex min-h-[26rem] flex-col p-5 lg:p-6">
+                <article class="surface-panel flex min-h-[26rem] flex-col justify-center p-5 lg:p-6" data-dashboard-vertically-centered-bar-card>
                     <h2 class="font-display mt-2 text-2xl text-white">{{ __('dashboard.manager.analytics.top_groups_by_memorization') }}</h2>
                     @if ($groupPageTotals->isEmpty())
                         <div class="admin-empty-state mt-5 flex-1">{{ __('dashboard.manager.analytics.no_groups') }}</div>
                     @else
-                        <div class="flex flex-1 items-center justify-center py-6" data-dashboard-centered-bar-chart>
-                        <div class="dashboard-bar-chart-shell mx-auto grid w-full max-w-xl grid-cols-[3rem_minmax(0,1fr)] gap-0">
-                            <div class="flex h-64 flex-col justify-between border-e border-white/20 pe-2 text-end text-[10px] font-light text-neutral-400">
+                        <div class="mt-6 flex items-center justify-center" data-dashboard-centered-bar-chart>
+                        <div class="dashboard-bar-chart-shell mx-auto grid w-full max-w-xl grid-cols-[3rem_minmax(0,1fr)_3rem] gap-0" data-dashboard-balanced-axis>
+                            <div class="flex h-64 flex-col justify-between border-e border-white/20 pe-2 text-end text-[10px] font-light text-neutral-400" style="grid-column: 1; grid-row: 1">
                                 @foreach (range($barTicks, 0) as $tick)<span>{{ $axisLabel($barNiceStep * $tick) }}</span>@endforeach
                             </div>
-                        <div class="relative">
+                        <div class="relative" style="grid-column: 2; grid-row: 1">
                         <div class="pointer-events-none absolute inset-x-0 top-0 flex h-64 flex-col justify-between" aria-hidden="true">
                             @foreach (range($barTicks, 0) as $gridLine)
                                 <span class="block border-t border-white/10"></span>
@@ -1147,9 +1147,8 @@ new class extends Component {
                                 @endphp
                                 <div class="relative flex h-full min-w-0 flex-col justify-end text-center">
                                     <div class="dashboard-bar-chart__bar mx-auto w-full max-w-16 shrink-0 rounded-t-xl transition-transform duration-200 hover:scale-x-110" style="height: {{ $barHeight }}%; background: {{ $chartColor($index) }}">
-                                        <div class="absolute inset-x-0 -top-6 text-sm font-semibold text-white">{{ number_format($group['pages']) }}</div>
                                         <span class="sr-only">{{ $group['name'] }}: {{ trans_choice('dashboard.manager.analytics.pages_count', $group['pages'], ['count' => number_format($group['pages'])]) }}</span>
-                                        <span class="dashboard-chart-tooltip">{{ $group['name'] }} · {{ trans_choice('dashboard.manager.analytics.pages_count', $group['pages'], ['count' => number_format($group['pages'])]) }}</span>
+                                        <span class="dashboard-chart-tooltip dashboard-chart-tooltip--compact" data-dashboard-bar-tooltip-value-only>{{ number_format($group['pages']) }}</span>
                                     </div>
                                 </div>
                             @endforeach
@@ -1160,7 +1159,8 @@ new class extends Component {
                             @endforeach
                         </div>
                         </div>
-                        <div></div><div class="pt-2 text-center text-xs text-neutral-400">{{ __('dashboard.manager.analytics.groups_axis') }}</div>
+                        <div aria-hidden="true" style="grid-column: 3; grid-row: 1"></div>
+                        <div class="pt-2 text-center text-xs text-neutral-400" style="grid-column: 2; grid-row: 2">{{ __('dashboard.manager.analytics.groups_axis') }}</div>
                         </div>
                         </div>
                     @endif
@@ -1255,7 +1255,7 @@ new class extends Component {
                     @endif
                 </article>
 
-                <article class="surface-panel p-5 lg:p-6">
+                <article class="teacher-memorization-ranking-card surface-panel p-5 lg:p-6">
                     <div class="eyebrow">{{ __('dashboard.teacher.group_dashboard.memorization_ranking_eyebrow') }}</div>
                     <h2 class="font-display mt-2 text-2xl text-white">{{ __('dashboard.teacher.group_dashboard.top_memorizing_students') }}</h2>
                     @if ($teacherTopMemorizingStudents->isEmpty())
@@ -1263,7 +1263,7 @@ new class extends Component {
                     @else
                         <div class="mt-6 space-y-3">
                             @foreach ($teacherTopMemorizingStudents as $index => $row)
-                                <div class="grid grid-cols-[minmax(7rem,11rem)_minmax(0,1fr)_auto] items-center gap-3">
+                                <div class="teacher-memorization-ranking-row grid grid-cols-[minmax(7rem,11rem)_minmax(0,1fr)_auto] items-center gap-3">
                                     <div class="truncate text-sm text-neutral-200">{{ $row['student']->full_name }}</div>
                                     <div class="relative h-5">
                                         <span class="absolute inset-y-1/2 start-0 h-px -translate-y-1/2 rounded-full bg-emerald-400/75" style="width: {{ ($row['pages'] / $teacherLollipopMax) * 100 }}%"></span>
@@ -1277,22 +1277,37 @@ new class extends Component {
                 </article>
             </section>
 
-            <section class="mt-6 grid gap-6 xl:grid-cols-2">
-                <article class="surface-table">
-                    <div class="admin-grid-meta">
+            <section class="teacher-dashboard-secondary-grid mt-6 grid gap-6 xl:grid-cols-2">
+                <article class="teacher-points-card surface-table">
+                    <div class="teacher-points-card__header admin-grid-meta">
                         <div><div class="admin-grid-meta__title">{{ __('dashboard.teacher.group_dashboard.top_students_by_points') }}</div><div class="admin-grid-meta__summary">{{ __('dashboard.teacher.group_dashboard.top_five') }}</div></div>
                         @if ($teacherRankedStudents->isNotEmpty())<button type="button" wire:click="openTeacherLeaderboard" class="pill-link pill-link--compact">{{ __('dashboard.teacher.group_dashboard.view_all') }}</button>@endif
                     </div>
                     @if ($teacherTopStudents->isEmpty())
                         <div class="admin-empty-state">{{ __('dashboard.teacher.group_dashboard.empty_students') }}</div>
                     @else
-                        <div class="overflow-x-auto"><table class="text-sm"><thead><tr>
+                        <div class="teacher-points-desktop overflow-x-auto"><table class="text-sm"><thead><tr>
                             <th class="px-4 py-3 text-start">#</th><th class="px-4 py-3 text-start">{{ __('dashboard.teacher.group_dashboard.columns.student') }}</th><th class="px-4 py-3 text-start">{{ __('dashboard.teacher.group_dashboard.columns.points') }}</th><th class="px-4 py-3 text-start">{{ __('dashboard.teacher.group_dashboard.columns.pages') }}</th><th class="px-4 py-3 text-start">{{ __('dashboard.teacher.group_dashboard.columns.final_tests') }}</th>
                         </tr></thead><tbody class="divide-y divide-white/6">@foreach ($teacherTopStudents as $row)<tr><td class="px-4 py-3">{{ $loop->iteration }}</td><td class="px-4 py-3 font-medium text-white">{{ $row['student']->full_name }}</td><td class="px-4 py-3">{{ number_format($row['points']) }}</td><td class="px-4 py-3">{{ number_format($row['pages']) }}</td><td class="px-4 py-3">{{ number_format($row['final_tests']) }}</td></tr>@endforeach</tbody></table></div>
+                        <div class="teacher-points-mobile">
+                            @foreach ($teacherTopStudents as $row)
+                                <article class="teacher-points-mobile__item">
+                                    <div class="flex min-w-0 items-center gap-3">
+                                        <span class="list-index shrink-0">{{ $loop->iteration }}</span>
+                                        <div class="min-w-0 truncate font-semibold text-white">{{ $row['student']->full_name }}</div>
+                                    </div>
+                                    <dl class="teacher-points-mobile__metrics">
+                                        <div><dt>{{ __('dashboard.teacher.group_dashboard.columns.points') }}</dt><dd>{{ number_format($row['points']) }}</dd></div>
+                                        <div><dt>{{ __('dashboard.teacher.group_dashboard.columns.pages') }}</dt><dd>{{ number_format($row['pages']) }}</dd></div>
+                                        <div><dt>{{ __('dashboard.teacher.group_dashboard.columns.final_tests') }}</dt><dd>{{ number_format($row['final_tests']) }}</dd></div>
+                                    </dl>
+                                </article>
+                            @endforeach
+                        </div>
                     @endif
                 </article>
 
-                <article class="surface-panel grid place-items-center p-5 lg:p-6">
+                <article class="teacher-curriculum-card surface-panel flex flex-col items-center p-5 lg:p-6">
                     <h2 class="font-display mt-2 text-center text-2xl text-white">{{ __('curricula.progress.title') }}</h2>
                     @if (($teacherCurriculumSummary['total'] ?? 0) === 0)
                         <div class="admin-empty-state mt-5">{{ __('curricula.progress.empty') }}</div>

@@ -168,6 +168,9 @@ class ManagementCrudTest extends TestCase
         $this->assertTrue($course->fresh()->is_active);
 
         Volt::test('parents.index')
+            ->assertDontSee('wire:click="openCreateModal"', false)
+            ->assertSee('data-parent-table-controls', false)
+            ->assertSee('admin-toolbar__controls--compact', false)
             ->set('father_name', 'Ahmad Ali')
             ->set('father_phone', '0944000000')
             ->set('mother_name', 'Mona Ali')
@@ -195,10 +198,17 @@ class ManagementCrudTest extends TestCase
         ]);
 
         Volt::test('teachers.index')
+            ->call('openCreateModal')
+            ->assertSee('data-teacher-identity-grid', false)
+            ->assertSee('data-teacher-photo-box', false)
+            ->assertSee('data-teacher-role-options', false)
+            ->assertDontSee('data-teacher-active-toggle', false)
+            ->assertDontSee('id="teacher-status"', false)
+            ->assertDontSee('id="teacher-notes"', false)
             ->set('first_name', 'Yousef')
             ->set('last_name', 'Teacher')
             ->set('phone', '0944000002')
-            ->set('access_role_id', (string) $teacherAccessRole->id)
+            ->set('access_roles', [$teacherAccessRole->name])
             ->set('course_id', $course->id)
             ->set('status', 'active')
             ->set('is_helping', true)
@@ -216,7 +226,8 @@ class ManagementCrudTest extends TestCase
 
         Volt::test('teachers.index')
             ->call('edit', $teacher->id)
-            ->set('status', 'blocked')
+            ->assertSee('data-teacher-active-toggle', false)
+            ->set('account_is_active', false)
             ->call('save')
             ->assertHasNoErrors();
 
@@ -226,9 +237,10 @@ class ManagementCrudTest extends TestCase
 
         $this->assertDatabaseHas('teachers', [
             'id' => $teacher->id,
-            'status' => 'blocked',
+            'status' => 'inactive',
             'is_helping' => false,
         ]);
+        $this->assertFalse($teacher->fresh()->user->is_active);
 
         Volt::test('courses.index')
             ->call('delete', $course->id);
@@ -667,7 +679,7 @@ class ManagementCrudTest extends TestCase
         $this->assertSame(0, $copiedGroup->enrollments()->count());
     }
 
-    public function test_profile_account_access_is_managed_separately_from_profile_data(): void
+    public function test_profile_account_credentials_can_be_updated(): void
     {
         $this->signIn();
 
@@ -719,9 +731,15 @@ class ManagementCrudTest extends TestCase
             ->assertHasNoErrors();
 
         Volt::test('teachers.index')
-            ->call('openAccountModal', $teacher->id)
+            ->call('edit', $teacher->id)
+            ->assertSee('data-teacher-profile-account-form', false)
+            ->assertSee('data-teacher-active-toggle', false)
+            ->assertSee('wire:model="account_username"', false)
+            ->assertSee('wire:model="account_password"', false)
+            ->assertSee('wire:click="deleteEditingTeacher"', false)
+            ->assertDontSee('wire:click="openAccountModal', false)
             ->set('account_password', 'TeacherPass123!')
-            ->call('saveAccount')
+            ->call('save')
             ->assertHasNoErrors();
 
         Volt::test('students.index')
@@ -894,6 +912,7 @@ class ManagementCrudTest extends TestCase
             'from_page' => 122,
             'to_page' => 141,
         ]);
+        $displayCurrentJuzNumber = app()->getLocale() === 'ar' ? '٤' : '4';
 
         Volt::test('students.index')
             ->call('openCreateModal')
@@ -902,13 +921,20 @@ class ManagementCrudTest extends TestCase
             ->assertSee('data-student-juz-row', false)
             ->assertSeeInOrder(['data-student-juz-row', 'data-student-enrollment-group-field'], false)
             ->assertSee('data-memorized-juz-input', false)
+            ->assertSee('data-current-juz-input', false)
             ->assertSee('min-h-[2.875rem]', false)
+            ->assertSee('wire:blur="commitCurrentJuz"', false)
+            ->assertSee('wire:keydown.enter.prevent="commitCurrentJuz"', false)
             ->assertSee(__('crud.students.form.placeholders.enter_memorized_juz'))
             ->assertDontSee(__('crud.students.form.grade_calculated_help'))
             ->assertDontSee(__('crud.students.form.external_memorized_juzs_help'))
             ->assertSee('wire:keydown.tab="addExternalMemorizedJuz"', false)
             ->set('birth_date', '2014')
             ->assertSet('grade_level_id', $calculatedGrade->id)
+            ->set('external_memorized_juz_input', '31')
+            ->call('addExternalMemorizedJuz')
+            ->assertHasErrors(['external_memorized_juz_input'])
+            ->assertSee(__('crud.students.errors.juz_number_range'))
             ->set('external_memorized_juz_input', '4')
             ->call('addExternalMemorizedJuz')
             ->assertSet('external_memorized_juz_ids', [$firstJuz->id])
@@ -922,12 +948,33 @@ class ManagementCrudTest extends TestCase
             ->assertDontSee('student-memorized-juz-'.$firstJuz->id, false)
             ->set('first_name', 'Calculated')
             ->set('last_name', 'Student')
+            ->set('quran_current_juz_number', '31')
+            ->call('save')
+            ->assertHasErrors(['quran_current_juz_number'])
+            ->assertSee(__('crud.students.errors.juz_number_range'))
+            ->set('quran_current_juz_number', '4')
+            ->call('commitCurrentJuz')
+            ->assertHasNoErrors(['quran_current_juz_number'])
+            ->assertSet('quran_current_juz_id', $firstJuz->id)
+            ->assertSet('quran_current_juz_locked', true)
+            ->assertSee('data-current-juz-locked', false)
+            ->assertSee(__('crud.students.labels.juz_number', ['number' => $displayCurrentJuzNumber]))
+            ->assertSee('wire:click="clearCurrentJuz"', false)
+            ->call('clearCurrentJuz')
+            ->assertDispatched('focus-current-juz')
+            ->assertSet('quran_current_juz_id', null)
+            ->assertSet('quran_current_juz_number', '')
+            ->assertSet('quran_current_juz_locked', false)
+            ->assertSee('data-current-juz-input', false)
+            ->set('quran_current_juz_number', '4')
+            ->call('commitCurrentJuz')
             ->call('save')
             ->assertHasNoErrors();
 
         $student = Student::query()->where('first_name', 'Calculated')->firstOrFail();
 
         $this->assertSame($calculatedGrade->id, $student->grade_level_id);
+        $this->assertSame($firstJuz->id, $student->quran_current_juz_id);
         $this->assertSame('2014-01-01', $student->birth_date?->format('Y-m-d'));
         $this->assertDatabaseHas('student_external_memorized_juz', [
             'student_id' => $student->id,
@@ -1485,7 +1532,12 @@ class ManagementCrudTest extends TestCase
         $this->assertStringContainsString('width: 5.12%;', $groupCss);
         $this->assertStringContainsString('width: 12.88%;', $groupCss);
         $this->assertStringContainsString('width: 12.6%;', $groupCss);
-        $this->assertStringContainsString('width: 15.4%;', $groupCss);
+        $this->assertStringContainsString('width: 11.7%;', $groupCss);
+        $this->assertStringContainsString('width: 16.7%;', $groupCss);
+        $this->assertStringContainsString('width: 6.75rem !important;', $groupCss);
+        $this->assertStringContainsString('width: 8.25rem !important;', $groupCss);
+        $this->assertStringContainsString('.group-show-hero-layout > :first-child,', $groupCss);
+        $this->assertStringContainsString('flex: 0 0 auto;', $groupCss);
 
         $rosterPdfHtml = view('exports.group-roster-pdf', [
             'enrollments' => Enrollment::query()->where('group_id', $group->id)->with(['student.parentProfile', 'student.user', 'student.gradeLevel', 'student.quranCurrentJuz'])->get(),
@@ -1622,9 +1674,87 @@ class ManagementCrudTest extends TestCase
 
         Volt::test('teachers.index')
             ->call('openCreateModal')
+            ->set('first_name', 'محمد')
+            ->assertSet('account_username', '')
+            ->set('last_name', 'الخير')
+            ->assertSet('account_username', 'mohammad.alkhair')
+            ->set('first_name', 'أحمد')
+            ->assertSet('account_username', 'ahmad.alkhair')
+            ->assertDontSee(__('crud.teachers.form.options.select_access_role'))
+            ->assertSee('wire:model.live="access_roles" type="checkbox"', false)
             ->assertSee(__('ui.roles.super_admin'))
             ->assertSee(__('ui.roles.admin'))
             ->assertSee(__('ui.roles.manager'));
+    }
+
+    public function test_teacher_roles_are_multiselect_and_financial_signatures_are_managed_from_teachers_only(): void
+    {
+        $this->signIn();
+        Storage::fake('public');
+
+        $adminRole = Role::findByName('admin', 'web');
+        $managerRole = Role::findByName('manager', 'web');
+        $scopeParent = ParentProfile::create(['father_name' => 'Teacher Scope Parent']);
+
+        Volt::test('teachers.index')
+            ->call('openCreateModal')
+            ->assertSee('admin-modal__dialog--2xl', false)
+            ->assertSee('data-teacher-identity-third', false)
+            ->assertSee('data-teacher-identity-half', false)
+            ->assertSee('data-teacher-additional-permissions', false)
+            ->assertSee(__('access.users.sections.additional_permissions'))
+            ->assertSee('data-teacher-direct-permissions', false)
+            ->assertSee('data-teacher-scope-overrides', false)
+            ->set('first_name', 'Multi')
+            ->set('last_name', 'Role')
+            ->set('phone', '0944777000')
+            ->set('account_username', 'multi-role-teacher')
+            ->set('access_roles', [$managerRole->name, $adminRole->name])
+            ->set('direct_permissions', ['points.create-manual'])
+            ->set('scope_parents', [$scopeParent->id])
+            ->assertSee('data-teacher-finance-signature', false)
+            ->set('finance_signature_upload', UploadedFile::fake()->image('teacher-signature.png', 600, 180))
+            ->call('save')
+            ->assertHasNoErrors();
+
+        $teacher = Teacher::query()->with(['user.roles', 'user.permissions', 'user.scopeOverrides'])->where('first_name', 'Multi')->firstOrFail();
+
+        $this->assertSame($adminRole->id, $teacher->access_role_id);
+        $this->assertTrue($teacher->user->hasAllRoles([$adminRole->name, $managerRole->name]));
+        $this->assertFalse($teacher->user->hasRole('teacher'));
+        $this->assertTrue($teacher->user->hasDirectPermission('points.create-manual'));
+        $this->assertSame([$scopeParent->id], $teacher->user->scopeOverrides->where('scope_type', 'parent')->pluck('scope_id')->all());
+        $this->assertNotNull($teacher->user->finance_signature_path);
+        Storage::disk('public')->assertExists($teacher->user->finance_signature_path);
+
+        auth()->user()->givePermissionTo(['users.view', 'users.update']);
+
+        Volt::test('users.index')
+            ->assertDontSee('data-user-edit-action="'.$teacher->user_id.'"', false)
+            ->call('edit', $teacher->user_id)
+            ->assertForbidden();
+
+        Volt::test('teachers.index')
+            ->call('edit', $teacher->id)
+            ->set('first_name', 'Updated Multi')
+            ->assertSet('account_username', 'multi-role-teacher')
+            ->assertSet('access_roles', fn (array $roles): bool => collect($roles)->sort()->values()->all() === collect([$adminRole->name, $managerRole->name])->sort()->values()->all())
+            ->assertSet('direct_permissions', fn (array $permissions): bool => in_array('points.create-manual', $permissions, true))
+            ->assertSet('scope_parents', [$scopeParent->id])
+            ->assertSee('data-teacher-finance-signature', false);
+
+        auth()->user()->revokePermissionTo('users.update');
+
+        Volt::test('teachers.index')
+            ->call('edit', $teacher->id)
+            ->assertSee('data-teacher-direct-permissions', false)
+            ->assertSee('data-teacher-scope-overrides', false)
+            ->call('save')
+            ->assertHasNoErrors();
+
+        $teacher->user->refresh()->load(['permissions', 'scopeOverrides']);
+        $this->assertTrue($teacher->user->hasDirectPermission('points.create-manual'));
+        $this->assertSame([$scopeParent->id], $teacher->user->scopeOverrides->where('scope_type', 'parent')->pluck('scope_id')->all());
     }
 
     public function test_student_search_matches_full_name_across_first_and_last_name(): void

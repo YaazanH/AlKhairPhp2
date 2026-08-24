@@ -151,6 +151,7 @@ class RoleSeeder extends Seeder
             'assessments.delete',
             'assessment-results.view',
             'assessment-results.record',
+            'assessment-results.record-scores',
             'assessment-score-bands.view',
             'assessment-score-bands.manage',
             'reports.view',
@@ -290,6 +291,7 @@ class RoleSeeder extends Seeder
                 'assessments.delete',
                 'assessment-results.view',
                 'assessment-results.record',
+                'assessment-results.record-scores',
                 'assessment-score-bands.view',
                 'assessment-score-bands.manage',
                 'reports.view',
@@ -365,6 +367,9 @@ class RoleSeeder extends Seeder
 
         foreach ($roles as $roleName => $rolePermissions) {
             $role = Role::findOrCreate($roleName, 'web');
+            if ($role->wasRecentlyCreated) {
+                $role->forceFill(['level' => RoleRegistry::defaultLevel($roleName)])->save();
+            }
             $role->syncPermissions($rolePermissions);
         }
 

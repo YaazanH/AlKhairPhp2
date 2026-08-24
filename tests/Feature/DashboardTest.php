@@ -200,13 +200,24 @@ class DashboardTest extends TestCase
             ->assertSee('Memorized pages: 5')
             ->assertSee('Students attended: 1')
             ->assertSee('dashboard-line-point__tooltip', false)
+            ->assertSee('data-dashboard-line-tooltip-value-only', false)
+            ->assertSee('width="30" height="15"', false)
+            ->assertSee('dashboard-line-point__tooltip-value', false)
+            ->assertSee('data-dashboard-bar-tooltip-value-only', false)
+            ->assertDontSee('absolute inset-x-0 -top-6 text-sm font-semibold', false)
             ->assertSee('dashboard-lollipop-attendance__tooltip', false)
             ->assertSee('100.0%', false)
             ->assertSee('dashboard-line-chart', false)
             ->assertSee('viewBox="0 0 458 220"', false)
+            ->assertSee('data-dashboard-expanded-line-chart', false)
+            ->assertSee('max-w-none', false)
             ->assertSee('dashboard-treemap', false)
             ->assertSee('inset-inline-start: calc(100% - .4375rem)', false)
             ->assertSee('data-dashboard-centered-bar-chart', false)
+            ->assertSee('data-dashboard-vertically-centered-bar-card', false)
+            ->assertSee('flex-col justify-center', false)
+            ->assertSee('data-dashboard-balanced-axis', false)
+            ->assertSee('grid-cols-[3rem_minmax(0,1fr)_3rem]', false)
             ->assertSee('grid-template-columns: repeat(1, minmax(0, 1fr))', false)
             ->assertDontSee('stroke-dasharray', false)
             ->assertDontSee('<div class="eyebrow">Curricula</div>', false)
@@ -561,7 +572,18 @@ class DashboardTest extends TestCase
             ->assertDontSee('<div class="eyebrow">Curricula</div>', false)
             ->assertDontSee('Latest Memorization Entries')
             ->assertSee('Ranked Student')
-            ->assertSee('dashboard-line-chart', false);
+            ->assertSee('dashboard-line-chart', false)
+            ->assertSee('teacher-memorization-ranking-row', false)
+            ->assertSee('teacher-points-card', false)
+            ->assertSee('teacher-points-desktop', false)
+            ->assertSee('teacher-points-mobile', false)
+            ->assertSee('teacher-curriculum-card', false);
+
+        $dashboardCss = file_get_contents(resource_path('css/app.css'));
+        $this->assertStringContainsString('.teacher-points-card {', $dashboardCss);
+        $this->assertStringContainsString('overflow: hidden !important;', $dashboardCss);
+        $this->assertStringContainsString('.teacher-points-mobile {', $dashboardCss);
+        $this->assertStringContainsString('.teacher-memorization-ranking-row {', $dashboardCss);
 
         Volt::test('dashboard')
             ->call('copyTeacherTodaySummary', $group->id)

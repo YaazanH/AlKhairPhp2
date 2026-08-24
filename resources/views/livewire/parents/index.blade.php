@@ -709,7 +709,7 @@ new class extends Component {
     <section class="surface-table">
         <div class="admin-grid-meta admin-grid-meta--controls">
             <div class="admin-grid-meta__title">{{ __('crud.parents.table.title') }}</div>
-            <div class="admin-toolbar__controls">
+            <div class="admin-toolbar__controls admin-toolbar__controls--compact" data-parent-table-controls>
                 <div class="admin-filter-field">
                     <label class="sr-only" for="parent-search">{{ __('crud.common.filters.search') }}</label>
                     <input id="parent-search" wire:model.live.debounce.300ms="search" type="text" placeholder="{{ __('crud.common.filters.search_placeholder') }}">
@@ -725,11 +725,6 @@ new class extends Component {
                 </div>
 
                 <div class="admin-toolbar__actions">
-                    @can('parents.update')
-                    @endcan
-                    @can('parents.create')
-                        <button type="button" wire:click="openCreateModal" class="pill-link pill-link--accent">{{ __('crud.common.actions.create') }}</button>
-                    @endcan
                     <a href="{{ route('parents.export', ['search' => $search, 'status' => $statusFilter]) }}" class="pill-link">{{ __('crud.common.actions.export') }}</a>
                 </div>
             </div>

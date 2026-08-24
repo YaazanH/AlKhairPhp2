@@ -49,6 +49,7 @@ new class extends Component {
     public ?int $enrollment_group_id = null;
     public ?int $quran_current_juz_id = null;
     public string $quran_current_juz_number = '';
+    public bool $quran_current_juz_locked = false;
     public array $external_memorized_juz_ids = [];
     public string $external_memorized_juz_input = '';
     public string $photo_path = '';
@@ -239,7 +240,7 @@ new class extends Component {
 
         $validated = $this->validate([
             'external_memorized_juz_input' => ['required', 'integer', 'between:1,30', 'exists:quran_juzs,juz_number'],
-        ], [], [
+        ], $this->juzNumberValidationMessages(), [
             'external_memorized_juz_input' => __('crud.students.form.fields.external_memorized_juzs'),
         ]);
 
@@ -263,6 +264,43 @@ new class extends Component {
         ));
 
         $this->resetValidation(['external_memorized_juz_input', 'external_memorized_juz_ids']);
+    }
+
+    public function commitCurrentJuz(): void
+    {
+        $this->quran_current_juz_number = trim($this->quran_current_juz_number);
+
+        if ($this->quran_current_juz_number === '') {
+            $this->quran_current_juz_id = null;
+            $this->quran_current_juz_locked = false;
+            $this->resetValidation(['quran_current_juz_number', 'quran_current_juz_id']);
+
+            return;
+        }
+
+        $validated = $this->validate([
+            'quran_current_juz_number' => ['required', 'integer', 'between:1,30', 'exists:quran_juzs,juz_number'],
+        ], $this->juzNumberValidationMessages(), [
+            'quran_current_juz_number' => __('crud.students.form.fields.current_juz'),
+        ]);
+
+        $juz = QuranJuz::query()
+            ->where('juz_number', (int) $validated['quran_current_juz_number'])
+            ->firstOrFail(['id', 'juz_number']);
+
+        $this->quran_current_juz_id = $juz->id;
+        $this->quran_current_juz_number = (string) $juz->juz_number;
+        $this->quran_current_juz_locked = true;
+        $this->resetValidation(['quran_current_juz_number', 'quran_current_juz_id']);
+    }
+
+    public function clearCurrentJuz(): void
+    {
+        $this->quran_current_juz_id = null;
+        $this->quran_current_juz_number = '';
+        $this->quran_current_juz_locked = false;
+        $this->resetValidation(['quran_current_juz_number', 'quran_current_juz_id']);
+        $this->dispatch('focus-current-juz');
     }
 
     public function updatedEnrollmentGroupId(): void
@@ -431,6 +469,20 @@ new class extends Component {
         ];
     }
 
+    protected function juzNumberValidationMessages(): array
+    {
+        $message = __('crud.students.errors.juz_number_range');
+
+        return [
+            'quran_current_juz_number.integer' => $message,
+            'quran_current_juz_number.between' => $message,
+            'quran_current_juz_number.exists' => $message,
+            'external_memorized_juz_input.integer' => $message,
+            'external_memorized_juz_input.between' => $message,
+            'external_memorized_juz_input.exists' => $message,
+        ];
+    }
+
     public function accountRules(): array
     {
         return [
@@ -487,7 +539,7 @@ new class extends Component {
         }
 
         $this->student_phone = PhoneNumberFormatter::normalize($this->student_phone) ?? '';
-        $validated = $this->validate($this->rules($duplicate?->user_id));
+        $validated = $this->validate($this->rules($duplicate?->user_id), $this->juzNumberValidationMessages());
         if (filled($validated['parent_id'] ?? null)) {
             $this->authorizeScopedParentAccess(ParentProfile::query()->findOrFail($validated['parent_id']));
         }
@@ -779,6 +831,7 @@ new class extends Component {
         $this->enrollment_group_id = null;
         $this->quran_current_juz_id = $student->quran_current_juz_id;
         $this->quran_current_juz_number = (string) ($student->quranCurrentJuz?->juz_number ?? '');
+        $this->quran_current_juz_locked = filled($this->quran_current_juz_number);
         $this->external_memorized_juz_ids = $student->externalMemorizedJuzs->pluck('id')->map(fn ($id) => (int) $id)->all();
         $this->external_memorized_juz_input = '';
         $this->photo_path = $student->photo_path ?? '';
@@ -897,6 +950,7 @@ new class extends Component {
         $this->enrollment_group_id = null;
         $this->quran_current_juz_id = null;
         $this->quran_current_juz_number = '';
+        $this->quran_current_juz_locked = false;
         $this->external_memorized_juz_ids = [];
         $this->external_memorized_juz_input = '';
         $this->photo_path = '';
@@ -2125,7 +2179,19 @@ new class extends Component {
             <div class="grid gap-4 md:grid-cols-2" data-student-juz-row>
                 <div>
                     <label for="student-juz" class="mb-1 block text-sm font-medium">{{ __('crud.students.form.fields.current_juz') }}</label>
-                    <input id="student-juz" wire:model="quran_current_juz_number" type="number" inputmode="numeric" min="1" max="30" step="1" class="w-full rounded-xl px-4 py-3 text-sm" placeholder="{{ __('crud.students.form.placeholders.select_juz') }}">
+                    @if ($quran_current_juz_locked)
+                        @php
+                            $displayCurrentJuzNumber = app()->getLocale() === 'ar'
+                                ? strtr($quran_current_juz_number, ['0' => '٠', '1' => '١', '2' => '٢', '3' => '٣', '4' => '٤', '5' => '٥', '6' => '٦', '7' => '٧', '8' => '٨', '9' => '٩'])
+                                : $quran_current_juz_number;
+                        @endphp
+                        <div wire:key="student-current-juz-locked" class="flex h-[2.875rem] w-full items-center rounded-xl border border-white/10 bg-black/10 px-4 text-sm" data-current-juz-locked>
+                            <span>{{ __('crud.students.labels.juz_number', ['number' => $displayCurrentJuzNumber]) }}</span>
+                            <button type="button" wire:click="clearCurrentJuz" class="ms-auto inline-flex size-7 shrink-0 items-center justify-center rounded-full text-lg leading-none text-white/65 transition hover:bg-white/10 hover:text-white" aria-label="{{ __('crud.common.actions.delete') }}">×</button>
+                        </div>
+                    @else
+                        <input id="student-juz" wire:key="student-current-juz-input" wire:model="quran_current_juz_number" wire:blur="commitCurrentJuz" wire:keydown.enter.prevent="commitCurrentJuz" x-on:focus-current-juz.window="$nextTick(() => $el.focus())" type="number" inputmode="numeric" min="1" max="30" step="1" class="h-[2.875rem] w-full rounded-xl px-4 py-0 text-sm" placeholder="{{ __('crud.students.form.placeholders.select_juz') }}" data-current-juz-input>
+                    @endif
                     @error('quran_current_juz_number')
                         <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                     @enderror

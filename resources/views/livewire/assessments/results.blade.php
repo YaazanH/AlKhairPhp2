@@ -148,6 +148,8 @@ new class extends Component
                 ->avg('score'),
             'totalActiveEnrollments' => $assessmentGroups->sum('active_enrollments_count'),
             'totalSavedResults' => $assessmentGroups->sum('assessment_results_count'),
+            'canRecordAssessmentScores' => $this->canPermission('assessment-results.record')
+                && $this->canPermission('assessment-results.record-scores'),
         ];
     }
 
@@ -182,7 +184,7 @@ new class extends Component
 
     public function saveResults(): void
     {
-        $this->authorizePermission('assessment-results.record');
+        $this->authorizeScoreRecording();
         $this->authorizeTeacherAssessmentAccess($this->currentAssessment);
 
         if (! $this->selectedGroupId || ! in_array($this->selectedGroupId, $this->assessmentGroupIds(), true)) {
@@ -240,7 +242,7 @@ new class extends Component
 
     public function saveEnrollmentResult(int $enrollmentId): void
     {
-        $this->authorizePermission('assessment-results.record');
+        $this->authorizeScoreRecording();
         $this->authorizeTeacherAssessmentAccess($this->currentAssessment);
 
         if (! $this->selectedGroupId || ! in_array($this->selectedGroupId, $this->assessmentGroupIds(), true)) {
@@ -316,7 +318,7 @@ new class extends Component
 
     public function openQuickResultModal(): void
     {
-        $this->authorizePermission('assessment-results.record');
+        $this->authorizeScoreRecording();
         $this->quick_enrollment_id = '';
         $this->quick_score = '';
         $this->showQuickResultModal = true;
@@ -333,7 +335,7 @@ new class extends Component
 
     public function saveQuickResult(): void
     {
-        $this->authorizePermission('assessment-results.record');
+        $this->authorizeScoreRecording();
         $this->authorizeTeacherAssessmentAccess($this->currentAssessment);
 
         $maxMark = $this->currentAssessment->total_mark !== null ? (float) $this->currentAssessment->total_mark : 100;
@@ -535,6 +537,12 @@ new class extends Component
 
         return $this->sortDirection === 'asc' ? '↑' : '↓';
     }
+
+    protected function authorizeScoreRecording(): void
+    {
+        $this->authorizePermission('assessment-results.record');
+        $this->authorizePermission('assessment-results.record-scores');
+    }
 }; ?>
 
 <div class="page-stack">
@@ -558,7 +566,7 @@ new class extends Component
                 <div class="mt-1 text-sm text-neutral-400">{{ __('workflow.common.labels.maximum_mark', ['value' => $assessmentRecord->total_mark !== null ? number_format((float) $assessmentRecord->total_mark, 2) : __('workflow.common.not_available')]) }} | {{ __('workflow.common.labels.pass', ['value' => $assessmentRecord->pass_mark !== null ? number_format((float) $assessmentRecord->pass_mark, 2) : __('workflow.common.not_available')]) }}</div>
                 <div class="mt-3 flex flex-wrap gap-2">
                     <a href="{{ route('assessments.results.pdf', $assessmentRecord) }}" target="_blank" rel="noopener" class="pill-link pill-link--compact w-fit whitespace-nowrap">{{ __('workflow.assessments.results.pdf_export') }}</a>
-                    @can('assessment-results.record')<button type="button" wire:click="openQuickResultModal" class="pill-link pill-link--compact pill-link--accent">{{ __('workflow.assessments.results.student_entry.title') }}</button>@endcan
+                    @if($canRecordAssessmentScores)<button type="button" wire:click="openQuickResultModal" class="pill-link pill-link--compact pill-link--accent">{{ __('workflow.assessments.results.student_entry.title') }}</button>@endif
                     @can('assessments.update')<a href="{{ route('assessments.index', ['edit' => $assessmentRecord->id, 'return_to' => 'results']) }}" wire:navigate class="pill-link pill-link--compact">{{ __('crud.common.actions.edit') }}</a>@endcan
                 </div>
             </div>
@@ -662,7 +670,7 @@ new class extends Component
                             <td class="px-2 py-2 text-center text-neutral-400">{{ $assessmentResultRowNumbers[$enrollment->id] }}</td>
                             <td class="px-3 py-2"><div class="student-inline__name">{{ $enrollment->student?->full_name }}</div></td>
                             <td class="px-3 py-2">{{ ($result = $enrollment->assessmentResults->first()) ? number_format((float) $result->score, 2) : '—' }}</td>
-                            <td class="px-3 py-2"><span class="{{ $this->resultStatusClass($displayStatus) }}">{{ __('workflow.common.result_status.'.$displayStatus) }}</span></td>
+                            <td class="px-3 py-2"><span class="assessment-result-status-chip {{ $this->resultStatusClass($displayStatus) }}">{{ __('workflow.common.result_status.'.$displayStatus) }}</span></td>
                             <td class="px-3 py-2"><span class="status-chip status-chip--slate">{{ $assessmentPointsByEnrollment[$enrollment->id] ?? 0 }}</span></td>
                         </tr>
                     @empty
@@ -691,7 +699,7 @@ new class extends Component
                                     <td class="px-2 py-2 text-center text-neutral-400">{{ $assessmentResultRowNumbers[$enrollment->id] }}</td>
                                     <td class="px-3 py-2"><div class="student-inline__name">{{ $enrollment->student?->full_name }}</div></td>
                                     <td class="px-3 py-2">{{ ($result = $enrollment->assessmentResults->first()) ? number_format((float) $result->score, 2) : '—' }}</td>
-                                    <td class="px-3 py-2"><span class="{{ $this->resultStatusClass($displayStatus) }}">{{ __('workflow.common.result_status.'.$displayStatus) }}</span></td>
+                                    <td class="px-3 py-2"><span class="assessment-result-status-chip {{ $this->resultStatusClass($displayStatus) }}">{{ __('workflow.common.result_status.'.$displayStatus) }}</span></td>
                                     <td class="px-3 py-2"><span class="status-chip status-chip--slate">{{ $assessmentPointsByEnrollment[$enrollment->id] ?? 0 }}</span></td>
                                 </tr>
                             @empty
@@ -705,7 +713,7 @@ new class extends Component
         @endif
     </section>
 
-    @can('assessment-results.record')
+    @if($canRecordAssessmentScores)
         <x-admin.modal
             :show="$showQuickResultModal"
             :title="__('workflow.assessments.results.student_entry.title')"
@@ -750,6 +758,6 @@ new class extends Component
                 </div>
             </form>
         </x-admin.modal>
-    @endcan
+    @endif
 
 </div>

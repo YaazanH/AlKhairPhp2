@@ -289,8 +289,8 @@ new class extends Component {
             <div class="admin-grid-meta__title">{{ __('workflow.teacher_attendance.days.table.title') }}</div>
             <div class="admin-toolbar__controls">
                 <div class="admin-filter-field">
-                    <label class="sr-only" for="teacher-attendance-search">{{ __('crud.common.filters.search') }}</label>
-                    <input id="teacher-attendance-search" wire:model.live.debounce.300ms="search" type="text" placeholder="DD-MM-YYYY">
+                    <label class="sr-only" for="teacher-attendance-search">{{ __('workflow.teacher_attendance.days.form.attendance_date') }}</label>
+                    <input id="teacher-attendance-search" wire:model.live="search" type="date" aria-label="{{ __('workflow.teacher_attendance.days.form.attendance_date') }}" data-date-placeholder="{{ __('workflow.teacher_attendance.days.form.attendance_date') }}">
                 </div>
 
                 <div class="admin-filter-field">

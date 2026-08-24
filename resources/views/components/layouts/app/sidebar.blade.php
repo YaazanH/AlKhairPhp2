@@ -18,7 +18,7 @@
     </head>
     <body class="app-body" data-pdf-uploading-label="{{ __('curricula.fields.pdf_uploading') }}">
         @php
-            $primaryRole = auth()->user()->getRoleNames()->first();
+            $primaryRole = auth()->user()->primaryRoleName();
             $roleLabel = $primaryRole ? __('ui.roles.'.$primaryRole) : null;
             if ($primaryRole && $roleLabel === 'ui.roles.'.$primaryRole) {
                 $roleLabel = \Illuminate\Support\Str::of($primaryRole)->replace(['_', '-'], ' ')->headline()->toString();
@@ -125,7 +125,7 @@
 
                     <div class="{{ $mobileIdentitySpacingClass }} min-w-0">
                         <div class="text-[0.78rem] font-light tracking-normal text-neutral-400">{{ __('ui.app.name') }}</div>
-                        <div class="truncate text-sm text-neutral-200">{{ $roleLabel ?: __('ui.common.workspace') }}</div>
+                        <div class="truncate text-sm text-neutral-200" data-primary-role="{{ $primaryRole ?: '' }}">{{ $roleLabel ?: __('ui.common.workspace') }}</div>
                     </div>
 
                     <flux:spacer />
