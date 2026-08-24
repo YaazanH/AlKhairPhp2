@@ -8,7 +8,6 @@ use App\Models\Invoice;
 use App\Models\FinanceInvoiceKind;
 use App\Services\FinanceService;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Validation\Rule;
 use Livewire\Volt\Component;
 use Livewire\WithFileUploads;
 use Livewire\WithPagination;
@@ -76,7 +75,6 @@ new class extends Component {
     {
         return [
             'finance_invoice_kind_id' => ['nullable', 'exists:finance_invoice_kinds,id'],
-            'invoice_no' => ['required', 'string', 'max:255', Rule::unique('invoices', 'invoice_no')->ignore($this->editingId)],
             'original_invoice_no' => ['nullable', 'string', 'max:255'],
             'invoicer_name' => ['required', 'string', 'max:255'],
             'invoice_type' => ['required', 'string', 'max:50'],
@@ -104,6 +102,7 @@ new class extends Component {
 
         $validated = $this->validate();
         $existingInvoice = $this->editingId ? Invoice::query()->findOrFail($this->editingId) : null;
+        $systemInvoiceNumber = $existingInvoice?->invoice_no ?: app(FinanceService::class)->nextInvoiceNumber();
         $canUpdateEntryDate = auth()->user()?->can('finance.entries.update') ?? false;
 
         $scanPath = $existingInvoice?->original_image_path;
@@ -121,7 +120,7 @@ new class extends Component {
         $invoice = Invoice::query()->updateOrCreate(
             ['id' => $this->editingId],
             [
-                'invoice_no' => $validated['invoice_no'],
+                'invoice_no' => $systemInvoiceNumber,
                 'original_invoice_no' => $validated['original_invoice_no'] ?: null,
                 'invoicer_name' => $validated['invoicer_name'],
                 'invoice_type' => $validated['invoice_type'],
@@ -278,22 +277,27 @@ new class extends Component {
                             @error('invoicer_name') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
                         </div>
                         <div>
-                            <label class="mb-1 block text-sm font-medium">{{ __('finance.fields.invoice_no') }}</label>
-                            <input wire:model="invoice_no" type="text" dir="ltr" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
-                            @error('invoice_no') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
-                        </div>
-                    </div>
-
-                    <div class="grid gap-4 md:grid-cols-2">
-                        <div>
                             <label class="mb-1 block text-sm font-medium">{{ __('finance.fields.original_invoice_no') }}</label>
                             <input wire:model="original_invoice_no" type="text" dir="ltr" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
                             @error('original_invoice_no') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
                         </div>
+                    </div>
+
+                    <div class="grid gap-4 md:grid-cols-3">
                         <div>
                             <label class="mb-1 block text-sm font-medium">{{ __('finance.fields.invoice_kind') }}</label>
                             <select wire:model="finance_invoice_kind_id" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">@foreach ($invoiceKinds as $kind)<option value="{{ $kind->id }}">{{ $kind->name }}</option>@endforeach</select>
                             @error('finance_invoice_kind_id') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+                        </div>
+                        <div>
+                            <label class="mb-1 block text-sm font-medium">{{ __('finance.common.date') }}</label>
+                            <input wire:model="issue_date" type="date" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900" @disabled(! auth()->user()?->can('finance.entries.update'))>
+                            @error('issue_date') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+                        </div>
+                        <div>
+                            <label class="mb-1 block text-sm font-medium">{{ __('invoices.index.form.fields.discount') }}</label>
+                            <input wire:model="discount" type="text" inputmode="decimal" data-thousand-separator class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                            @error('discount') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
                         </div>
                     </div>
 
@@ -301,23 +305,9 @@ new class extends Component {
                         <label class="mb-1 block text-sm font-medium">{{ __('finance.fields.invoice_scan') }}</label>
                         <input wire:model="invoice_scan" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
                         @error('invoice_scan') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
-                        @if ($editingId && ($existingScan = \App\Models\Invoice::query()->find($editingId)?->original_image_path))
-                            <div class="mt-2 flex flex-wrap items-center gap-3"><a href="{{ asset('storage/'.$existingScan) }}" target="_blank" class="pill-link pill-link--compact">{{ __('finance.actions.view_original') }}</a><label class="flex items-center gap-2 text-sm text-red-300"><input wire:model="remove_invoice_scan" type="checkbox" class="rounded">{{ __('finance.actions.remove_scan') }}</label></div>
+                        @if ($editingId && \App\Models\Invoice::query()->find($editingId)?->original_image_path)
+                            <label class="mt-2 flex items-center gap-2 text-sm text-red-300"><input wire:model="remove_invoice_scan" type="checkbox" class="rounded">{{ __('finance.actions.remove_scan') }}</label>
                         @endif
-                    </div>
-
-                    <div>
-                        <div>
-                            <label class="mb-1 block text-sm font-medium">{{ __('finance.fields.date') }}</label>
-                            <input wire:model="issue_date" type="date" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900" @disabled(! auth()->user()?->can('finance.entries.update'))>
-                            @error('issue_date') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
-                        </div>
-                    </div>
-
-                    <div>
-                        <label class="mb-1 block text-sm font-medium">{{ __('invoices.index.form.fields.discount') }}</label>
-                        <input wire:model="discount" type="text" inputmode="decimal" data-thousand-separator class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
-                        @error('discount') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
                     </div>
 
                     @if ($editingId)<div>

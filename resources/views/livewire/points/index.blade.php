@@ -368,6 +368,7 @@ new class extends Component {
 
         if ($this->editingTransactionId === $transaction->id) {
             $this->resetManualForm();
+            $this->showFormModal = false;
         }
 
         $this->closeVoidModal();
@@ -566,8 +567,7 @@ new class extends Component {
                                     <div class="flex flex-wrap justify-end gap-2">
                                         @if (auth()->user()->can('points.create-manual') && $transaction->source_type === 'manual' && ! $transaction->voided_at)
                                             <button type="button" wire:click="editManual({{ $transaction->id }})" class="pill-link pill-link--compact">{{ __('workflow.common.actions.edit') }}</button>
-                                        @endif
-                                        @if (auth()->user()->can('points.void') && ! $transaction->voided_at)
+                                        @elseif (auth()->user()->can('points.void') && ! $transaction->voided_at)
                                             <button type="button" wire:click="openVoidModal({{ $transaction->id }})" class="pill-link pill-link--compact pill-link--danger">{{ __('crud.common.actions.delete') }}</button>
                                         @endif
                                     </div>
@@ -626,14 +626,14 @@ new class extends Component {
                 </div>
             </div>
 
-            <div class="flex flex-wrap items-center gap-2">
+            <div class="flex flex-wrap items-center justify-start gap-2">
                 <button type="submit" class="pill-link pill-link--accent">
                     {{ $editingTransactionId ? __('workflow.common.actions.update_point_entry') : __('workflow.common.actions.save_point_entry') }}
                 </button>
+                @if ($editingTransactionId && auth()->user()->can('points.void'))
+                    <button type="button" wire:click="openVoidModal({{ $editingTransactionId }})" class="pill-link pill-link--danger">{{ __('crud.common.actions.delete') }}</button>
+                @endif
                 <x-admin.create-and-new-button :show="! $editingTransactionId" click="saveManualAndNew" />
-                <button type="button" wire:click="closeFormModal" class="pill-link">
-                    {{ __('crud.common.actions.close') }}
-                </button>
             </div>
         </form>
     </x-admin.modal>

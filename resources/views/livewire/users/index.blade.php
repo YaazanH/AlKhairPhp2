@@ -453,7 +453,8 @@ new class extends Component
             <div class="admin-empty-state">{{ __('access.users.table.empty') }}</div>
         @else
             <div class="overflow-x-auto">
-                <table class="text-sm">
+                <table class="users-index-table table-fixed text-sm">
+                    <colgroup><col class="w-[24%]"><col class="w-[18%]"><col class="w-[24%]"><col class="w-[12%]"><col class="w-[10%]"><col class="w-[12%]"></colgroup>
                     <thead>
                         <tr>
                             <th class="px-6 py-4 text-left">{{ __('access.users.table.headers.user') }}</th>
@@ -478,10 +479,6 @@ new class extends Component
                                             <div class="admin-identity-stack__title">{{ $user->name }}</div>
                                             <div class="admin-identity-stack__meta">
                                                 <span>{{ $user->username }}</span>
-                                                <span>{{ $user->email }}</span>
-                                                @if ($user->phone)
-                                                    <bdi dir="ltr" class="inline-block">{{ $user->phone }}</bdi>
-                                                @endif
                                             </div>
                                         </div>
                                     </div>

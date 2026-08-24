@@ -269,40 +269,59 @@ new class extends Component {
 
 <div class="page-stack">
     <section class="page-hero p-6 lg:p-8">
-        <div class="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+        <div class="group-show-hero-layout flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
             <div>
-                @unless($isAssignedTeacher)<a href="{{ route('groups.index') }}" wire:navigate class="text-sm text-neutral-300">← {{ __('crud.common.actions.back') }}</a>@endunless
+                @unless($isAssignedTeacher)<a href="{{ route('groups.index') }}" wire:navigate class="text-sm text-neutral-300">{{ app()->isLocale('ar') ? '→' : '←' }} {{ __('crud.common.actions.back') }}</a>@endunless
                 <h1 class="font-display mt-4 text-4xl text-white md:text-5xl">{{ $groupRecord->name }}</h1>
-                <div class="mt-3 space-y-1 text-sm text-neutral-300">
-                    <div>{{ __('crud.groups.table.headers.teacher') }}: {{ $teacherName }}</div>
-                    <div>{{ __('crud.groups.form.fields.assistant_teacher') }}: {{ $assistantName }}</div>
-                    <div>{{ __('crud.groups.table.headers.course') }}: {{ $groupRecord->course?->name ?: __('crud.common.not_available') }}</div>
-                </div>
             </div>
 
-            <div class="flex w-full flex-col gap-3 lg:w-96 lg:items-stretch">
-                <div class="surface-panel flex w-full flex-wrap gap-2 p-4">
-                    @if (! $groupRecord->course_finished_at && ($groupRecord->course?->is_active ?? true))
-                        @can('groups.update')
-                            <button wire:click="openEdit" class="pill-link pill-link--compact">{{ __('crud.common.actions.edit') }}</button>
-                            <button wire:click="$set('showScheduleModal', true)" class="pill-link pill-link--compact">{{ __('crud.groups.actions.schedule') }}</button>
-                            <button wire:click="deactivate" wire:confirm="{{ __('crud.common.confirm_deactivate.message') }}" class="pill-link pill-link--compact">{{ __('crud.common.actions.deactivate') }}</button>
-                        @endcan
-                    @endif
+            <div class="group-show-hero-widgets flex flex-col gap-3 lg:flex-row lg:items-start">
+                <div class="group-show-details surface-panel p-3">
+                    <dl class="group-show-details__grid">
+                        <div class="group-show-detail">
+                            <dt>{{ __('crud.groups.table.headers.teacher') }}</dt>
+                            <dd>{{ $teacherName }}</dd>
+                        </div>
+                        <div class="group-show-detail">
+                            <dt>{{ __('crud.groups.form.fields.assistant_teacher') }}</dt>
+                            <dd>{{ $assistantName }}</dd>
+                        </div>
+                        <div class="group-show-detail">
+                            <dt>{{ __('crud.groups.form.fields.grade_level') }}</dt>
+                            <dd>{{ $groupRecord->gradeLevel?->name ?: __('crud.common.not_available') }}</dd>
+                        </div>
+                        <div class="group-show-detail">
+                            <dt>{{ __('crud.groups.table.headers.students') }}</dt>
+                            <dd>{{ number_format($groupRecord->active_students_count) }}</dd>
+                        </div>
+                    </dl>
                 </div>
 
-                <div class="surface-panel flex w-full flex-col gap-3 p-4">
-                    <input wire:model="progressDate" type="date" aria-label="{{ __('crud.common.fields.date') }}" class="w-full rounded-xl px-3 py-2 text-sm">
-                    <button wire:click="copyProgress" class="pill-link pill-link--accent pill-link--compact w-fit self-end">
-                        {{ app()->isLocale('ar') ? 'نسخ الملخص' : 'Copy summary' }}
-                    </button>
+                <div class="group-show-action-stack flex w-fit max-w-full flex-col gap-3">
+                    <div class="group-show-actions surface-panel flex w-fit max-w-full flex-wrap items-center gap-2 p-3">
+                        @if (! $groupRecord->course_finished_at && ($groupRecord->course?->is_active ?? true))
+                            @can('groups.update')
+                                <button wire:click="openEdit" class="pill-link pill-link--compact">{{ __('crud.common.actions.edit') }}</button>
+                                <button wire:click="$set('showScheduleModal', true)" class="pill-link pill-link--compact">{{ __('crud.groups.actions.schedule') }}</button>
+                                <button wire:click="deactivate" wire:confirm="{{ __('crud.common.confirm_deactivate.message') }}" class="pill-link pill-link--compact">{{ __('crud.common.actions.deactivate') }}</button>
+                            @endcan
+                        @endif
+                    </div>
+
+                    @unless($isAssignedTeacher)
+                        <div data-group-copy-summary class="group-show-summary surface-panel flex w-full flex-col gap-2 p-3">
+                            <input wire:model="progressDate" type="date" aria-label="{{ __('crud.common.fields.date') }}" class="min-w-0 flex-1 rounded-xl px-3 py-2 text-sm">
+                            <button wire:click="copyProgress" class="pill-link pill-link--accent pill-link--compact w-fit flex-none">
+                                {{ app()->isLocale('ar') ? 'نسخ' : 'Copy' }}
+                            </button>
+                        </div>
+                    @endunless
                 </div>
             </div>
         </div>
     </section>
     @if(session('status'))<div class="flash-success px-4 py-3 text-sm">{{ session('status') }}</div>@endif
     @error('group')<div class="flash-error px-4 py-3 text-sm">{{ $message }}</div>@enderror
-    <section class="admin-kpi-grid"><article class="stat-card"><div class="kpi-label">{{ __('crud.groups.form.fields.capacity') }}</div><div class="metric-value mt-3">{{ $groupRecord->capacity ?: '—' }}</div></article><article class="stat-card"><div class="kpi-label">{{ __('crud.groups.table.headers.students') }}</div><div class="metric-value mt-3">{{ number_format($groupRecord->active_students_count) }}</div></article><article class="stat-card"><div class="kpi-label">{{ __('crud.groups.form.fields.grade_level') }}</div><div class="metric-value mt-3 text-2xl">{{ $groupRecord->gradeLevel?->name ?: '—' }}</div></article></section>
     <section class="surface-panel overflow-hidden">
         <div class="admin-toolbar p-5">
             <div><div class="admin-toolbar__title">{{ __('crud.groups.roster.title') }}</div></div>
@@ -315,27 +334,17 @@ new class extends Component {
                 @endif
             </div>
         </div>
-        <div class="overflow-hidden">
-            <table class="w-full table-fixed text-sm">
-                <colgroup>
-                    <col style="width: 4%">
-                    <col style="width: 23%">
-                    <col style="width: 13%">
-                    <col style="width: 12%">
-                    <col style="width: 7%">
-                    <col style="width: 13%">
-                    <col style="width: 16%">
-                    <col style="width: 12%">
-                </colgroup>
+        <div class="overflow-x-auto">
+            <table class="group-roster-table w-full table-fixed text-sm">
                 <thead>
                     <tr>
                         <th class="px-2 py-3 text-center">#</th>
-                        <th class="px-3 py-3 {{ app()->isLocale('ar') ? 'text-right' : 'text-left' }}">{{ __('crud.students.table.headers.name') }}</th>
+                        <th class="group-roster-table__name px-3 py-3">{{ __('crud.students.table.headers.name') }}</th>
                         <th class="px-3 py-3 text-center">{{ __('crud.students.table.headers.student_number') }}</th>
                         <th class="px-3 py-3 text-center">{{ __('crud.students.table.headers.grade') }}</th>
                         <th class="px-2 py-3 text-center">{{ __('crud.groups.roster.table.headers.current_juz') }}</th>
                         <th class="px-3 py-3 text-center">{{ __('crud.groups.roster.fields.enrolled_at') }}</th>
-                        <th class="px-3 py-3 {{ app()->isLocale('ar') ? 'text-right' : 'text-left' }}">{{ __('crud.groups.roster.table.headers.parent_name') }}</th>
+                        <th class="group-roster-table__name px-3 py-3">{{ __('crud.groups.roster.table.headers.parent_name') }}</th>
                         <th class="px-3 py-3 text-center">{{ __('crud.groups.roster.table.headers.father_mobile') }}</th>
                     </tr>
                 </thead>
@@ -343,12 +352,12 @@ new class extends Component {
                     @forelse($roster as $enrollment)
                         <tr>
                             <td class="px-2 py-3 text-center">{{ $roster->firstItem()+$loop->index }}</td>
-                            <td class="break-words px-3 py-3 text-white {{ app()->isLocale('ar') ? 'text-right' : 'text-left' }}">{{ $enrollment->student?->full_name ?: '—' }}</td>
+                            <td class="group-roster-table__name break-words px-3 py-3 text-white"><span class="group-roster-table__name-value">{{ $enrollment->student?->full_name ?: '—' }}</span></td>
                             <td class="break-all px-3 py-3 text-center">{{ $enrollment->student?->student_number ?: '—' }}</td>
                             <td class="break-words px-3 py-3 text-center">{{ $enrollment->student?->gradeLevel?->name ?: '—' }}</td>
                             <td class="px-2 py-3 text-center">{{ $enrollment->student?->quranCurrentJuz?->juz_number ?: '—' }}</td>
                             <td class="px-3 py-3 text-center" dir="ltr">{{ $enrollment->enrolled_at?->format('d-m-Y') ?: '—' }}</td>
-                            <td class="break-words px-3 py-3 {{ app()->isLocale('ar') ? 'text-right' : 'text-left' }}">{{ $enrollment->student?->parentProfile?->father_name ?: '—' }}</td>
+                            <td class="group-roster-table__name break-words px-3 py-3"><span class="group-roster-table__name-value">{{ $enrollment->student?->parentProfile?->father_name ?: '—' }}</span></td>
                             <td class="break-all px-3 py-3 text-center" dir="ltr">{{ $enrollment->student?->parentProfile?->father_phone ?: '—' }}</td>
                         </tr>
                     @empty

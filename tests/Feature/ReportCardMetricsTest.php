@@ -19,17 +19,81 @@ use App\Models\PointType;
 use App\Models\QuranFinalTest;
 use App\Models\QuranFinalTestAttempt;
 use App\Models\QuranJuz;
+use App\Models\PrintTemplate;
 use App\Models\Student;
 use App\Models\StudentAttendanceRecord;
 use App\Models\Teacher;
+use App\Models\User;
 use App\Services\CourseEndService;
 use App\Services\PrintTemplates\PrintTemplateFieldRegistry;
+use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class ReportCardMetricsTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_empty_course_report_flow_creates_a_preconfigured_exclusive_report_card_template(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $manager = User::factory()->create();
+        $manager->assignRole('manager');
+        $course = Course::create([
+            'name' => 'Template Defaults Course',
+            'is_active' => true,
+        ]);
+        $createTemplateUrl = route('print-templates.templates.create', [
+            'course_report' => 1,
+            'course_id' => $course->id,
+        ]);
+        $reportCardSetupUrl = route('courses.end.report-cards.create', $course);
+
+        $this->actingAs($manager)
+            ->get(route('courses.end', $course))
+            ->assertOk()
+            ->assertSee($reportCardSetupUrl, false)
+            ->assertSee('course-end-final-tests-dual', false)
+            ->assertSee('width: 5rem;', false)
+            ->assertSee('.course-end-final-tests-table .course-end-final-tests-spacer { width: 8%; padding: 0; }', false)
+            ->assertSee('course-end-final-tests-spacer', false);
+
+        $this->actingAs($manager)
+            ->get($reportCardSetupUrl)
+            ->assertOk()
+            ->assertViewHas('emptyStateCreateUrl', $createTemplateUrl);
+
+        $this->actingAs($manager)
+            ->get($createTemplateUrl)
+            ->assertOk()
+            ->assertViewHas('template', fn (PrintTemplate $template) => $template->is_report_card
+                && ! $template->is_student_card
+                && $template->data_sources === [[
+                    'key' => 'course_student',
+                    'entity' => 'course_student',
+                    'mode' => 'multiple',
+                ]])
+            ->assertSee('data-template-report-card', false)
+            ->assertSee('data-source-multiple-records', false);
+
+        $this->actingAs($manager)
+            ->from($createTemplateUrl)
+            ->post(route('print-templates.templates.store'), [
+                'name' => 'Invalid Mixed Card',
+                'width_mm' => 85.6,
+                'height_mm' => 53.98,
+                'data_sources_json' => json_encode([
+                    ['entity' => 'course_student', 'mode' => 'multiple'],
+                ]),
+                'layout_json' => json_encode([]),
+                'is_active' => '1',
+                'is_student_card' => '1',
+                'is_report_card' => '1',
+            ])
+            ->assertRedirect($createTemplateUrl)
+            ->assertSessionHasErrors('is_report_card');
+    }
 
     public function test_report_card_metrics_follow_attendance_days_and_named_point_awards(): void
     {
@@ -81,6 +145,7 @@ class ReportCardMetricsTest extends TestCase
         $this->assertEquals(2.0, $row['daily_memorization_average']);
         $this->assertEquals(6.0, $row['weekly_memorization_average']);
         $this->assertSame(1, $row['final_tests']);
+        $this->assertSame('very_good', app(CourseEndService::class)->finalTestRows($course)->first()['grade']);
         $this->assertEquals(80.0, $row['assessment_average']);
         $this->assertEquals(90.0, $row['final_score']);
         $this->assertSame(2, $row['cheques_count']);
@@ -97,5 +162,154 @@ class ReportCardMetricsTest extends TestCase
 
         $enrollment->setAttribute('report_card_special_note', 'Excellent progress');
         $this->assertSame('Excellent progress', $registry->resolve(['course_student' => $enrollment], 'course_student', 'special_note'));
+    }
+
+    public function test_report_card_notes_are_course_scoped_and_persisted_from_the_dedicated_preview(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $manager = User::factory()->create();
+        $manager->assignRole('manager');
+
+        $parent = ParentProfile::create(['father_name' => 'Preview Parent']);
+        $teacher = Teacher::create(['first_name' => 'Preview', 'last_name' => 'Teacher', 'phone' => '0944000888', 'status' => 'active']);
+        $year = AcademicYear::create([
+            'name' => '2027/2028',
+            'starts_on' => '2027-09-01',
+            'ends_on' => '2028-06-30',
+            'is_current' => true,
+            'is_active' => true,
+        ]);
+        $course = Course::create([
+            'name' => 'Dedicated Report Preview Course',
+            'starts_on' => '2027-09-01',
+            'ends_on' => '2028-06-30',
+            'is_active' => true,
+        ]);
+        $group = Group::create([
+            'course_id' => $course->id,
+            'academic_year_id' => $year->id,
+            'teacher_id' => $teacher->id,
+            'name' => 'Dedicated Preview Group',
+            'capacity' => 20,
+            'is_active' => true,
+        ]);
+        $student = Student::create([
+            'parent_id' => $parent->id,
+            'first_name' => 'Dedicated',
+            'last_name' => 'Student',
+            'birth_date' => '2015-01-01',
+            'status' => 'active',
+        ]);
+        $enrollment = Enrollment::create([
+            'student_id' => $student->id,
+            'group_id' => $group->id,
+            'enrolled_at' => '2027-09-01',
+            'status' => 'active',
+            'report_card_special_note' => 'Previously saved course note',
+        ]);
+        $juz = QuranJuz::create(['juz_number' => 1, 'from_page' => 1, 'to_page' => 21]);
+        QuranFinalTest::create([
+            'enrollment_id' => $enrollment->id,
+            'student_id' => $student->id,
+            'juz_id' => $juz->id,
+            'status' => 'passed',
+            'passed_on' => '2027-10-01',
+            'created_by' => $manager->id,
+        ]);
+
+        $template = PrintTemplate::create([
+            'name' => 'Dedicated Report Card',
+            'width_mm' => 190,
+            'height_mm' => 277,
+            'paper_size' => 'a4',
+            'orientation' => 'portrait',
+            'data_sources' => [
+                ['entity' => 'course_student', 'mode' => 'multiple'],
+            ],
+            'layout_json' => [[
+                'type' => 'dynamic_text',
+                'source' => 'course_student',
+                'field' => 'special_note',
+                'x' => 10,
+                'y' => 10,
+                'width' => 100,
+                'height' => 12,
+                'z_index' => 1,
+                'styling' => [
+                    'font_size' => 4,
+                    'font_weight' => '400',
+                    'color' => '#102316',
+                    'text_align' => 'right',
+                ],
+            ]],
+            'is_active' => true,
+            'is_report_card' => true,
+        ]);
+
+        $this->actingAs($manager)
+            ->get(route('print-templates.print.create', ['template' => $template->id]))
+            ->assertNotFound();
+
+        $reportCardSetupUrl = route('courses.end.report-cards.create', $course);
+        $noteSaveUrl = route('courses.end.report-cards.notes.update', [
+            'course' => $course,
+            'enrollment' => $enrollment,
+        ]);
+
+        $this->actingAs($manager)
+            ->get($reportCardSetupUrl)
+            ->assertOk()
+            ->assertSee('Previously saved course note')
+            ->assertSee('data-report-card-note', false)
+            ->assertSee($noteSaveUrl, false)
+            ->assertDontSee('data-source-search="course_student"', false);
+
+        $this->actingAs($manager)
+            ->patchJson($noteSaveUrl, [
+                'special_note' => 'Saved without opening preview',
+            ])
+            ->assertOk()
+            ->assertJson([
+                'saved' => true,
+                'special_note' => 'Saved without opening preview',
+            ]);
+
+        $this->assertDatabaseHas('enrollments', [
+            'id' => $enrollment->id,
+            'report_card_special_note' => 'Saved without opening preview',
+        ]);
+
+        $response = $this->actingAs($manager)->post(route('courses.end.report-cards.preview', $course), [
+            'template_id' => $template->id,
+            'sources' => [
+                'course_student' => ['multiple' => [$enrollment->id]],
+            ],
+            'special_notes' => [
+                $enrollment->id => 'Automatically saved course note',
+            ],
+            'page_width_mm' => 210,
+            'page_height_mm' => 297,
+            'margin_top_mm' => 10,
+            'margin_right_mm' => 10,
+            'margin_bottom_mm' => 10,
+            'margin_left_mm' => 10,
+            'gap_x_mm' => 6,
+            'gap_y_mm' => 6,
+            'copy_count' => 1,
+        ]);
+
+        $response
+            ->assertOk()
+            ->assertViewIs('courses.report-cards.preview')
+            ->assertSee('Automatically saved course note')
+            ->assertSee($reportCardSetupUrl, false)
+            ->assertDontSee(__('print_templates.print.preview.subtitle'))
+            ->assertDontSee(__('print_templates.print.warnings.unused_space'));
+
+        $this->assertDatabaseHas('enrollments', [
+            'id' => $enrollment->id,
+            'report_card_special_note' => 'Automatically saved course note',
+        ]);
     }
 }

@@ -8,6 +8,8 @@ use App\Models\PointPolicy;
 use App\Models\PointTransaction;
 use App\Models\PointType;
 use App\Services\PointLedgerService;
+use App\Services\QuranFinalTestRuleService;
+use App\Services\QuranPartialTestRuleService;
 use Illuminate\Validation\Rule;
 use Livewire\Volt\Component;
 
@@ -76,6 +78,10 @@ new class extends Component
 
     public string $automatic_multiplier_until = '';
 
+    public string $partial_test_fail_threshold = '5';
+
+    public string $final_test_passed_from = '60';
+
     public bool $embedded = false;
 
     public function mount(bool $embedded = false): void
@@ -86,6 +92,7 @@ new class extends Component
         $this->automatic_multiplier = (string) ($settings->get('automatic_multiplier') ?? 1);
         $this->automatic_multiplier_from = (string) ($settings->get('automatic_multiplier_from') ?? '');
         $this->automatic_multiplier_until = (string) ($settings->get('automatic_multiplier_until') ?? '');
+        $this->loadSaberRuleSettings();
     }
 
     public function deletePointPolicy(int $pointPolicyId): void
@@ -348,6 +355,24 @@ new class extends Component
         session()->flash('status', __('settings.points.messages.automatic_multiplier_saved'));
     }
 
+    public function saveSaberRules(): void
+    {
+        $this->authorizePermission('settings.manage');
+
+        $validated = $this->validate([
+            'partial_test_fail_threshold' => ['required', 'integer', 'min:1', 'max:999'],
+            'final_test_passed_from' => ['required', 'numeric', 'min:0.01', 'max:100'],
+        ]);
+
+        $passedFrom = (float) $validated['final_test_passed_from'];
+
+        app(QuranPartialTestRuleService::class)->store((int) $validated['partial_test_fail_threshold']);
+        app(QuranFinalTestRuleService::class)->storePassingGrade($passedFrom);
+
+        $this->loadSaberRuleSettings();
+        session()->flash('status', __('settings.tracking.messages.final_test_rules_saved'));
+    }
+
     public function with(): array
     {
         return [
@@ -406,6 +431,22 @@ new class extends Component
         return PointType::query()
             ->whereIn('category', $this->pointTypeCategories)
             ->where('code', '!=', PointLedgerService::ATTENDANCE_POINT_TYPE_CODE);
+    }
+
+    protected function loadSaberRuleSettings(): void
+    {
+        $this->partial_test_fail_threshold = (string) app(QuranPartialTestRuleService::class)->failThreshold();
+        $ranges = app(QuranFinalTestRuleService::class)->ranges();
+        $this->final_test_passed_from = $this->formatRuleValue($ranges['passed']['from']);
+    }
+
+    protected function formatRuleValue(float $value): string
+    {
+        if ((float) (int) $value === $value) {
+            return (string) (int) $value;
+        }
+
+        return rtrim(rtrim(number_format($value, 2, '.', ''), '0'), '.');
     }
 
     public function pointPolicyRuleKey(string $sourceType, string $triggerKey): string
@@ -538,6 +579,24 @@ new class extends Component
                         </tbody>
                     </table>
                 </div>
+            </div>
+
+            <div class="overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700">
+                <form wire:submit="saveSaberRules" class="divide-y divide-neutral-200 dark:divide-neutral-700">
+                    <div class="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-200 bg-neutral-50 px-5 py-4 dark:border-neutral-700 dark:bg-neutral-900/60">
+                        <div class="text-sm font-medium">{{ __('settings.tracking.sections.saber_rules') }}</div>
+                        <button class="pill-link pill-link--compact pill-link--accent">{{ __('crud.common.actions.save') }}</button>
+                    </div>
+                    <div data-saber-rule-card="partial" class="grid gap-4 px-5 py-4 md:grid-cols-[minmax(12rem,1fr)_minmax(12rem,20rem)] md:items-center">
+                        <div class="font-semibold text-white">{{ __('settings.points.sections.saber_rules.partial_title') }}</div>
+                        <div><div class="saber-rule-input"><input wire:model="partial_test_fail_threshold" type="number" min="1" max="999" aria-label="{{ __('settings.points.sections.saber_rules.partial_title') }}" class="saber-rule-input__control saber-rule-input__control--word h-12 w-full rounded-xl px-4 text-base"><span class="saber-rule-input__suffix" aria-hidden="true">{{ __('settings.points.sections.saber_rules.partial_unit') }}</span></div>@error('partial_test_fail_threshold') <div class="mt-2 text-sm text-red-400">{{ $message }}</div> @enderror</div>
+                    </div>
+                    <div data-saber-rule-card="final-passed" class="grid gap-4 px-5 py-4 md:grid-cols-[minmax(12rem,1fr)_minmax(12rem,20rem)] md:items-center">
+                        <div class="font-semibold text-white">{{ __('settings.points.sections.saber_rules.final_title') }}</div>
+                        <div class="saber-rule-input"><input wire:model="final_test_passed_from" type="number" min="0.01" max="100" step="0.01" aria-label="{{ __('settings.points.sections.saber_rules.final_title') }}" class="saber-rule-input__control saber-rule-input__control--percentage h-11 w-full rounded-xl px-3"><span class="saber-rule-input__suffix" aria-hidden="true">{{ __('settings.points.sections.saber_rules.final_unit') }}</span></div>
+                    </div>
+                    @error('final_test_passed_from') <div class="px-5 py-3 text-sm text-red-400">{{ $message }}</div> @enderror
+                </form>
             </div>
 
             <div class="overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700">

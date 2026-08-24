@@ -27,10 +27,12 @@ use App\Models\Teacher;
 use App\Models\TeacherAttendanceDay;
 use App\Models\TeacherAttendanceRecord;
 use App\Models\User;
+use App\Services\CourseLifecycleService;
 use App\Services\ParentNumberService;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Volt\Volt;
@@ -41,6 +43,43 @@ use Tests\TestCase;
 class ManagementCrudTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_course_final_saber_pdf_keeps_a_four_millimetre_header_gap_and_aligned_metadata(): void
+    {
+        $html = view('reports.course-final-tests', [
+            'course' => new Course(['name' => 'PDF Course']),
+            'rows' => collect([
+                ['name' => 'PDF Student', 'juz' => 3, 'mark' => 95],
+            ]),
+            'logo' => null,
+        ])->render();
+
+        $this->assertStringContainsString('@page{margin:35mm 14mm 18mm', $html);
+        $this->assertStringContainsString('.header-title{font-family:dubai,sans-serif;font-size:20px;font-weight:bold}', $html);
+        $this->assertStringContainsString('.report-table thead tr:not(.report-page-gap) th{font-family:dubai,sans-serif;font-weight:bold}', $html);
+        $this->assertStringContainsString('.meta-label{font-family:dubaimedium,sans-serif;font-weight:normal', $html);
+        $this->assertStringContainsString('.header-meta[dir=rtl] .meta-label{text-align:left;padding-left:.8mm}', $html);
+        $this->assertStringContainsString('.header-meta[dir=rtl] .meta-value{text-align:right;padding-right:.8mm}', $html);
+        $this->assertStringContainsString('.report-page-gap th{background:#fff;border:0;font-size:0;height:4mm', $html);
+        $this->assertStringContainsString('<tr class="report-page-gap"><th colspan="5">&nbsp;</th></tr>', $html);
+        $this->assertStringContainsString('class="header-meta-table"', $html);
+        $this->assertStringContainsString('class="meta-label" style="text-align:', $html);
+        $this->assertStringContainsString(__('course_end.date_label'), $html);
+        $this->assertStringContainsString(__('course_end.final_tests_total'), $html);
+    }
+
+    public function test_student_names_are_trimmed_when_saved(): void
+    {
+        $student = Student::create([
+            'first_name' => '   Ahmad',
+            'last_name' => '  Khaled  ',
+            'birth_date' => '2013-01-01',
+            'status' => 'active',
+        ]);
+
+        $this->assertSame('Ahmad', $student->fresh()->first_name);
+        $this->assertSame('Khaled', $student->fresh()->last_name);
+    }
 
     public function test_students_with_the_same_first_and_last_names_use_the_fathers_full_name(): void
     {
@@ -397,6 +436,124 @@ class ManagementCrudTest extends TestCase
         $this->assertSame('open', $groupAttendanceDay->fresh()->status);
         $this->assertNull($teacherAttendanceRecord->fresh()->archived_course_id);
         $this->assertNull($teacherAttendanceRecord->fresh()->course_finished_at);
+    }
+
+    public function test_legacy_finished_courses_gain_archive_markers_and_restore_rows_changed_by_the_old_lifecycle(): void
+    {
+        $this->signIn();
+
+        $academicYear = AcademicYear::create([
+            'name' => 'Legacy lifecycle 2025/2026',
+            'starts_on' => '2025-08-01',
+            'ends_on' => '2026-07-31',
+            'is_current' => true,
+            'is_active' => true,
+        ]);
+        $course = Course::create([
+            'academic_year_id' => $academicYear->id,
+            'name' => 'Legacy Finished Course',
+            'is_active' => false,
+            'awards_points' => true,
+        ]);
+        $teacher = Teacher::create([
+            'first_name' => 'Legacy',
+            'last_name' => 'Teacher',
+            'phone' => '0944000097',
+            'course_id' => $course->id,
+            'status' => 'active',
+            'is_helping' => true,
+        ]);
+        $legacyGroup = Group::create([
+            'course_id' => $course->id,
+            'academic_year_id' => $academicYear->id,
+            'teacher_id' => $teacher->id,
+            'name' => 'Legacy Changed Group',
+            'capacity' => 20,
+            'is_active' => false,
+        ]);
+        $historicalGroup = Group::create([
+            'course_id' => $course->id,
+            'academic_year_id' => $academicYear->id,
+            'teacher_id' => $teacher->id,
+            'name' => 'Previously Inactive Group',
+            'capacity' => 20,
+            'is_active' => false,
+        ]);
+        $student = Student::create([
+            'first_name' => 'Legacy',
+            'last_name' => 'Student',
+            'birth_date' => '2013-01-01',
+            'status' => 'active',
+        ]);
+        $legacyEnrollment = Enrollment::create([
+            'student_id' => $student->id,
+            'group_id' => $legacyGroup->id,
+            'enrolled_at' => '2025-08-01',
+            'left_at' => '2026-07-31',
+            'status' => 'completed',
+        ]);
+        $historicalEnrollment = Enrollment::create([
+            'student_id' => $student->id,
+            'group_id' => $historicalGroup->id,
+            'enrolled_at' => '2025-08-01',
+            'left_at' => '2026-06-01',
+            'status' => 'completed',
+        ]);
+        $assessmentType = AssessmentType::create([
+            'name' => 'Legacy lifecycle assessment',
+            'code' => 'legacy-lifecycle-assessment',
+            'is_scored' => true,
+            'is_active' => true,
+        ]);
+        $legacyAssessment = Assessment::create([
+            'group_id' => $legacyGroup->id,
+            'assessment_type_id' => $assessmentType->id,
+            'title' => 'Legacy Changed Assessment',
+            'is_active' => false,
+        ]);
+        $historicalAssessment = Assessment::create([
+            'group_id' => $historicalGroup->id,
+            'assessment_type_id' => $assessmentType->id,
+            'title' => 'Previously Inactive Assessment',
+            'is_active' => false,
+        ]);
+
+        $legacyFinishedAt = Carbon::parse('2026-07-31 12:00:00');
+        $olderTimestamp = $legacyFinishedAt->copy()->subDay();
+        foreach ([$course, $legacyGroup, $legacyEnrollment, $legacyAssessment] as $legacyRecord) {
+            $legacyRecord->forceFill(['updated_at' => $legacyFinishedAt])->saveQuietly();
+        }
+        foreach ([$historicalGroup, $historicalEnrollment, $historicalAssessment] as $historicalRecord) {
+            $historicalRecord->forceFill(['updated_at' => $olderTimestamp])->saveQuietly();
+        }
+
+        $lifecycle = app(CourseLifecycleService::class);
+        $lifecycle->adoptLegacyFinishedState($course->fresh());
+
+        $this->assertNotNull($course->fresh()->finished_at);
+        $this->assertFalse($course->fresh()->awards_points);
+        $this->assertSame([
+            'groups' => 2,
+            'enrollments' => 2,
+            'assessments' => 1,
+            'student_attendance' => 0,
+            'teacher_attendance' => 0,
+        ], $lifecycle->archiveSummary($course->fresh()));
+
+        Volt::test('courses.index')
+            ->call('reactivate', $course->id)
+            ->assertHasNoErrors();
+
+        $this->assertTrue($course->fresh()->is_active);
+        $this->assertTrue($course->fresh()->awards_points);
+        $this->assertTrue($legacyGroup->fresh()->is_active);
+        $this->assertFalse($historicalGroup->fresh()->is_active);
+        $this->assertSame('active', $legacyEnrollment->fresh()->status);
+        $this->assertNull($legacyEnrollment->fresh()->left_at);
+        $this->assertSame('completed', $historicalEnrollment->fresh()->status);
+        $this->assertSame('2026-06-01', $historicalEnrollment->fresh()->left_at?->toDateString());
+        $this->assertTrue($legacyAssessment->fresh()->is_active);
+        $this->assertFalse($historicalAssessment->fresh()->is_active);
     }
 
     public function test_copying_a_course_copies_course_and_group_metadata_without_enrollments(): void
@@ -1203,9 +1360,20 @@ class ManagementCrudTest extends TestCase
             ->assertSee('01-09-2026')
             ->assertSee('Fares Hamdan')
             ->assertSee('+963 999 000 001')
+            ->assertSee('group-show-details__grid', false)
+            ->assertSee('data-group-copy-summary', false)
+            ->assertSee('group-roster-table__name-value', false)
             ->assertDontSee('min-w-[88rem]', false)
             ->set('showScheduleModal', true)
             ->assertSee('sm:grid-cols-[minmax(9rem,1fr)_minmax(9rem,1fr)_minmax(9rem,1fr)_max-content]', false);
+
+        $groupCss = file_get_contents(resource_path('css/app.css'));
+        $this->assertStringContainsString('.group-roster-table th:nth-child(2)', $groupCss);
+        $this->assertStringContainsString('.group-roster-table th:nth-child(8)', $groupCss);
+        $this->assertStringContainsString('width: 5.12%;', $groupCss);
+        $this->assertStringContainsString('width: 12.88%;', $groupCss);
+        $this->assertStringContainsString('width: 12.6%;', $groupCss);
+        $this->assertStringContainsString('width: 15.4%;', $groupCss);
 
         $rosterPdfHtml = view('exports.group-roster-pdf', [
             'enrollments' => Enrollment::query()->where('group_id', $group->id)->with(['student.parentProfile', 'student.user', 'student.gradeLevel', 'student.quranCurrentJuz'])->get(),
@@ -1215,7 +1383,11 @@ class ManagementCrudTest extends TestCase
 
         $this->assertStringContainsString('.title-row td', $rosterPdfHtml);
         $this->assertStringContainsString('border: 0;', $rosterPdfHtml);
-        $this->assertStringContainsString('.report-table { margin-top: 4mm; }', $rosterPdfHtml);
+        $this->assertStringContainsString('@page { margin: 35mm 10mm 18mm;', $rosterPdfHtml);
+        $this->assertStringContainsString('height: 4mm;', $rosterPdfHtml);
+        $this->assertStringContainsString('<tr class="roster-page-gap"><th colspan="7">&nbsp;</th></tr>', $rosterPdfHtml);
+        $this->assertStringContainsString('<th style="width: 18%;">اسم الطالب</th>', $rosterPdfHtml);
+        $this->assertStringContainsString('<th style="width: 16%;">جوال الأب</th>', $rosterPdfHtml);
         $this->assertStringContainsString('رقم الطالب', $rosterPdfHtml);
         $this->assertStringNotContainsString('>باركود</th>', $rosterPdfHtml);
     }

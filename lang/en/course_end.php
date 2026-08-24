@@ -6,6 +6,7 @@ return [
     'preview_notice' => 'Rules are calculated for this preview only. Student point ledgers are not changed.',
     'back' => 'Back to courses',
     'back_to_end' => 'Back to end of course',
+    'back_to_report_cards' => 'Back to print report cards',
     'highlights' => [
         'students' => 'Enrolled students',
         'points_before' => 'Points before rules',
@@ -32,4 +33,9 @@ return [
     'create_template' => 'Create report-card template',
     'print_cards' => 'Print report cards',
     'print_window_title' => 'Print report card',
+    'special_notes' => [
+        'saving' => 'Saving…',
+        'saved' => 'Saved',
+        'save_failed' => 'Could not save',
+    ],
 ];

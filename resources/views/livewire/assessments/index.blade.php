@@ -599,17 +599,18 @@ new class extends Component
             @if ($assessments->isEmpty())
                 <div class="admin-empty-state">{{ __('workflow.assessments.index.table.empty') }}</div>
             @else
-                <div class="overflow-hidden">
-                    <table class="w-full table-fixed text-sm">
+                <div class="overflow-x-auto assessment-index-table-scroll">
+                    <table class="w-full text-sm assessment-index-table">
                         <thead>
                             <tr>
-                                <th class="w-[16%] px-4 py-3 text-left font-medium">{{ __('workflow.assessments.index.table.headers.assessment') }}</th>
-                                <th class="w-[23%] px-4 py-3 text-left font-medium">{{ __('workflow.assessments.index.form.course') }}</th>
-                                <th class="w-[15%] px-3 py-3 text-left font-medium">{{ __('workflow.assessments.index.table.headers.schedule') }}</th>
-                                <th class="w-[19%] px-3 py-3 text-left font-medium">{{ __('workflow.assessments.index.table.headers.marks') }}</th>
-                                <th class="w-[7%] px-2 py-3 text-left font-medium">{{ __('workflow.assessments.index.table.headers.results') }}</th>
-                                <th class="w-[7%] px-2 py-3 text-left font-medium">{{ __('workflow.assessments.index.table.headers.status') }}</th>
-                                <th class="w-[13%] px-3 py-3 text-end font-medium">{{ __('workflow.assessments.index.table.headers.actions') }}</th>
+                                <th class="w-[4%] px-2 py-3 text-center font-medium">#</th>
+                                <th class="w-[19%] px-4 py-3 text-left font-medium">{{ __('workflow.assessments.index.table.headers.assessment') }}</th>
+                                <th class="w-[17%] px-4 py-3 text-left font-medium">{{ __('workflow.assessments.index.form.course') }}</th>
+                                <th class="w-[12%] px-3 py-3 text-left font-medium">{{ __('workflow.assessments.index.table.headers.schedule') }}</th>
+                                <th class="w-[17%] px-3 py-3 text-left font-medium">{{ __('workflow.assessments.index.table.headers.marks') }}</th>
+                                <th class="w-[8%] px-2 py-3 text-left font-medium">{{ __('workflow.assessments.index.table.headers.results') }}</th>
+                                <th class="w-[9%] px-2 py-3 text-left font-medium">{{ __('workflow.assessments.index.table.headers.status') }}</th>
+                                <th class="w-[14%] px-3 py-3 text-end font-medium">{{ __('workflow.assessments.index.table.headers.actions') }}</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-neutral-200 dark:divide-neutral-700">
@@ -620,6 +621,7 @@ new class extends Component
                                         : collect([$assessment->group])->filter();
                                 @endphp
                                 <tr>
+                                    <td class="px-2 py-3 text-center text-neutral-400">{{ $assessments->firstItem() + $loop->index }}</td>
                                     <td class="px-4 py-3">
                                         <div class="truncate whitespace-nowrap font-medium" title="{{ $assessment->title }}">{{ $assessment->title }}</div>
                                         <div class="text-xs text-neutral-500">

@@ -157,7 +157,9 @@ return [
         'empty' => 'No students match the selected filters.',
         'headers' => [
             'student' => 'Student',
+            'current_juz' => 'Current juz',
             'memorized_pages' => 'Memorized pages',
+            'latest_partial_quarters' => 'Latest partial saber quarters',
             'passed_final_tests' => 'Passed final saber',
             'points' => 'Points',
             'attended_days' => 'Attended days',

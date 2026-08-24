@@ -444,9 +444,10 @@ return [
             ],
             'final_test_rule' => [
                 'title' => 'Final saber score rules',
-                'copy' => 'Final saber attempts also use exactly two score ranges. The student result is derived automatically from the score you enter on each attempt.',
+                'copy' => 'Set only the passing grade; every lower score fails, and the maximum score is 100.',
                 'failed_title' => 'Failed range',
                 'passed_title' => 'Passed range',
+                'passing_help' => 'Every score below the passing grade fails; the maximum score is 100.',
             ],
         ],
         'fields' => [
@@ -461,6 +462,7 @@ return [
             'is_scored' => 'Scored assessment',
             'fail_at_mistakes' => 'Fail at this many mistakes',
             'from_score' => 'From score',
+            'passing_grade' => 'Passing grade',
             'sort_order' => 'Sort order',
             'to_score' => 'To score',
         ],
@@ -609,6 +611,12 @@ return [
             'active_policies' => 'Active policies',
         ],
         'sections' => [
+            'saber_rules' => [
+                'partial_title' => 'Maximum mistakes',
+                'final_title' => 'Final saber passing grade',
+                'partial_unit' => 'mistakes',
+                'final_unit' => '%',
+            ],
             'point_type' => [
                 'create' => 'New point type',
                 'edit' => 'Edit point type',

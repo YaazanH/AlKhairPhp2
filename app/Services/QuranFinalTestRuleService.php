@@ -16,37 +16,43 @@ class QuranFinalTestRuleService
     public function ranges(): array
     {
         $settings = AppSetting::groupValues(self::GROUP);
+        $passingGrade = max(0.0, min(100.0, (float) ($settings->get(self::PASSED_FROM_KEY) ?? 60)));
 
         return [
             'failed' => [
-                'from' => (float) ($settings->get(self::FAILED_FROM_KEY) ?? 0),
-                'to' => (float) ($settings->get(self::FAILED_TO_KEY) ?? 59.99),
+                'from' => 0.0,
+                'to' => max(0.0, $passingGrade - 0.01),
             ],
             'passed' => [
-                'from' => (float) ($settings->get(self::PASSED_FROM_KEY) ?? 60),
-                'to' => (float) ($settings->get(self::PASSED_TO_KEY) ?? 100),
+                'from' => $passingGrade,
+                'to' => 100.0,
             ],
         ];
     }
 
     public function statusForScore(float $score): ?string
     {
-        $ranges = $this->ranges();
-
-        foreach (['failed', 'passed'] as $status) {
-            if ($score >= $ranges[$status]['from'] && $score <= $ranges[$status]['to']) {
-                return $status;
-            }
+        if ($score < 0 || $score > 100) {
+            return null;
         }
 
-        return null;
+        return $score >= $this->ranges()['passed']['from'] ? 'passed' : 'failed';
     }
 
     public function store(array $ranges): void
     {
-        AppSetting::storeValue(self::GROUP, self::FAILED_FROM_KEY, $ranges['failed']['from'], 'float');
-        AppSetting::storeValue(self::GROUP, self::FAILED_TO_KEY, $ranges['failed']['to'], 'float');
-        AppSetting::storeValue(self::GROUP, self::PASSED_FROM_KEY, $ranges['passed']['from'], 'float');
-        AppSetting::storeValue(self::GROUP, self::PASSED_TO_KEY, $ranges['passed']['to'], 'float');
+        $this->storePassingGrade((float) $ranges['passed']['from']);
+    }
+
+    public function storePassingGrade(float $passingGrade): void
+    {
+        $passingGrade = max(0.0, min(100.0, $passingGrade));
+
+        // Keep the legacy keys normalized for old integrations while the rule itself
+        // is now defined solely by the passing grade.
+        AppSetting::storeValue(self::GROUP, self::FAILED_FROM_KEY, 0, 'float');
+        AppSetting::storeValue(self::GROUP, self::FAILED_TO_KEY, max(0.0, $passingGrade - 0.01), 'float');
+        AppSetting::storeValue(self::GROUP, self::PASSED_FROM_KEY, $passingGrade, 'float');
+        AppSetting::storeValue(self::GROUP, self::PASSED_TO_KEY, 100, 'float');
     }
 }

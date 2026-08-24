@@ -78,6 +78,15 @@ return [
             'no_groups' => 'لا يوجد مجموعات نشطة في الدورة الافتراضية.',
             'student_highlights' => 'ملخص الطالب',
             'final_tests' => 'السبورة النهائية',
+            'performance_map' => 'خريطة أداء الطلاب',
+            'performance_map_hint' => 'كل نقطة تمثل طالباً؛ اضغط عليها لفتح ملخصه.',
+            'no_performance_students' => 'لا يوجد طلاب نشطون لعرض خريطة الأداء بعد.',
+            'balanced_leaders' => 'متفوقون في المجالين',
+            'high_points' => 'نقاط أعلى',
+            'high_memorization' => 'حفظ أعلى',
+            'developing' => 'في طور التقدم',
+            'average_points' => 'متوسط النقاط',
+            'average_pages' => 'متوسط الصفحات',
         ],
         'cards' => [
             'people' => [

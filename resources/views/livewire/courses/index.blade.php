@@ -439,11 +439,12 @@ new class extends Component {
                                     </span>
                                 </td>
                                 <td class="px-5 py-4 lg:px-6">
-                                    <span class="{{ $course->is_active ? 'status-chip status-chip--emerald' : 'status-chip status-chip--slate' }}">
-                                        {{ $course->is_active ? __('crud.common.status_options.active') : __('crud.common.status_options.finished') }}
-                                    </span>
                                     @if ($course->is_default)
                                         <span class="status-chip status-chip--gold">{{ __('crud.courses.table.default') }}</span>
+                                    @else
+                                        <span class="{{ $course->is_active ? 'status-chip status-chip--emerald' : 'status-chip status-chip--slate' }}">
+                                            {{ $course->is_active ? __('crud.common.status_options.active') : __('crud.common.status_options.finished') }}
+                                        </span>
                                     @endif
                                 </td>
                                 <td class="px-5 py-4 lg:px-6">

@@ -356,6 +356,7 @@ return [
         'manage_templates' => 'Manage templates',
         'template' => 'Template',
         'generated_reports' => 'Saved Financial Reports',
+        'saved_reports_count' => ':count saved reports',
         'generated_reports_subtitle' => 'Saved ledger outputs keep the selected filters and rendered data so you can review or reprint them later.',
         'generated_reports_unavailable' => 'Saved report history is unavailable until the latest finance report migrations are installed. Ledger export still works.',
         'review_saved_report' => 'View',
@@ -493,6 +494,9 @@ return [
         'deleted' => 'Deleted',
         'pending' => 'Pending',
         'settled' => 'Finalised',
+    ],
+    'expense_statuses' => [
+        'accepted' => 'Accepted — pending finalisation',
     ],
     'request_types' => [
         'expense' => 'Expense',

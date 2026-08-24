@@ -49,7 +49,8 @@ class FinancePdfRegressionTest extends TestCase
         $this->assertStringContainsString('class="closing-notes"', $html);
         $this->assertStringNotContainsString('class="notes"', $html);
         $this->assertStringContainsString('<colgroup><col style="width:58%"><col style="width:4%"><col style="width:38%"></colgroup>', $html);
-        $this->assertStringContainsString('Invoice Administrator', $html);
+        $this->assertStringNotContainsString('Invoice Administrator', $html);
+        $this->assertStringNotContainsString('signature-line', $html);
         $this->assertStringNotContainsString('>'.__('finance.fields.signature').'</div>', $html);
 
         $invoice->notes = 'فاتورة تجريبية محلية لعرض خمسة وعشرين بنداً.';

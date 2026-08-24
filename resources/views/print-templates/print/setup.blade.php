@@ -5,7 +5,7 @@
         <section class="page-hero relative z-30 !overflow-visible p-6 lg:p-8">
             <div class="flex flex-wrap items-start justify-between gap-5">
                 <div class="id-card-print-hero__copy">
-                    <div class="eyebrow">{{ __('ui.nav.identity_tools') }}</div>
+                    <div class="eyebrow">{{ ($courseReportMode ?? false) ? __('course_end.eyebrow') : __('ui.nav.identity_tools') }}</div>
                     <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ $pageTitle ?? __('print_templates.print.title') }}</h1>
                     @if (filled($pageSubtitle ?? null))<p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ $pageSubtitle }}</p>@endif
                 </div>
@@ -20,6 +20,20 @@
                         </select>
                     </div>
                 @endif
+                @unless (($studentCardMode ?? false) || ($courseReportMode ?? false))
+                    @if ($selectedTemplate)
+                        <div class="print-template-print-details">
+                            <div>
+                                <span>{{ __('print_templates.print.setup.fields.template') }}</span>
+                                <strong>{{ $selectedTemplate->name }}</strong>
+                            </div>
+                            <div>
+                                <span>{{ __('print_templates.templates.form.fields.paper_size') }}</span>
+                                <strong>{{ __('print_templates.templates.form.paper_sizes.'.$selectedTemplate->paper_size) }} · {{ __('print_templates.templates.form.orientations.'.$selectedTemplate->orientation) }}</strong>
+                            </div>
+                        </div>
+                    @endif
+                @endunless
             </div>
         </section>
 
@@ -52,36 +66,23 @@
 
                 <div class="grid gap-6">
                     <section class="surface-panel {{ (($studentCardMode ?? false) || ($courseReportMode ?? false)) ? 'p-4' : 'p-5 lg:p-6' }}">
-                        @unless (($studentCardMode ?? false) || ($courseReportMode ?? false))
-                        <div class="admin-builder-header">
-                            <div>
-                                <div class="eyebrow">{{ __('print_templates.print.setup.sections.template') }}</div>
-                                <h2 class="font-display mt-3 text-2xl text-white">{{ __('print_templates.print.setup.sections.template') }}</h2>
-                            </div>
-                        </div>
-                        @endunless
-
-                        <div class="{{ (($studentCardMode ?? false) || ($courseReportMode ?? false)) ? 'id-card-print-template-row' : 'mt-6 admin-form-grid' }}">
+                        <div class="{{ (($studentCardMode ?? false) || ($courseReportMode ?? false)) ? 'id-card-print-template-row' : 'admin-form-grid' }}">
+                            @if (($studentCardMode ?? false) || ($courseReportMode ?? false))
                             <div class="admin-form-field admin-form-field--full">
-                                @unless (($studentCardMode ?? false) || ($courseReportMode ?? false))<label for="print-template-print-template">{{ __('print_templates.print.setup.fields.template') }}</label>@endunless
                                 <select id="print-template-print-template" name="template_id" data-print-template-select>
                                     @foreach ($templates as $template)
                                         <option value="{{ $template->id }}" @selected((string) request('template') === (string) $template->id)>{{ $template->name }}@unless($courseReportMode ?? false) | {{ number_format($template->width_mm, 2) }} × {{ number_format($template->height_mm, 2) }} mm @endunless</option>
                                     @endforeach
                                 </select>
                             </div>
+                            @else
+                                <input id="print-template-print-template" type="hidden" name="template_id" value="{{ $selectedTemplate?->id }}" data-print-template-select>
+                            @endif
 
                             <div class="admin-form-field admin-form-field--full {{ (($studentCardMode ?? false) || ($courseReportMode ?? false)) ? 'hidden' : '' }}" data-copy-count-panel>
                                 <label for="print-template-copy-count">{{ __('print_templates.print.setup.fields.copy_count') }}</label>
                                 <input id="print-template-copy-count" name="copy_count" type="number" min="1" max="1000" value="{{ old('copy_count', 1) }}">
                             </div>
-
-                            @unless (($studentCardMode ?? false) || ($courseReportMode ?? false))
-                            <div class="admin-form-field admin-form-field--full">
-                                <label>{{ __('print_templates.templates.form.fields.paper_size') }}</label>
-                                <div class="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-neutral-200" data-template-paper-label></div>
-                            </div>
-                            @endunless
 
                             @if (($studentCardMode ?? false) || ($courseReportMode ?? false))
                                 <button type="submit" class="pill-link pill-link--accent">{{ __('print_templates.print.setup.buttons.preview') }}</button>
@@ -114,26 +115,10 @@
                         @endif
                     </section>
 
-                    <section class="surface-panel p-5 lg:p-6">
-                        @unless (($studentCardMode ?? false) || ($courseReportMode ?? false))<div class="admin-builder-header">
-                            <div>
-                                @unless ($studentCardMode ?? false)<div class="eyebrow">{{ __('print_templates.print.setup.sections.sources') }}</div>@endunless
-                                <h2 class="font-display {{ ($studentCardMode ?? false) ? '' : 'mt-3' }} text-2xl text-white">{{ ($studentCardMode ?? false) ? __('print_templates.print.setup.sections.selected_students') : __('print_templates.print.setup.sections.sources') }}</h2>
-                            </div>
-                        </div>@endunless
-
-                        <div class="mt-4 grid gap-5">
+                    <section class="{{ (($studentCardMode ?? false) || ($courseReportMode ?? false)) ? 'surface-panel p-5 lg:p-6' : '' }}">
+                        <div class="grid gap-5">
                             @foreach ($entities as $entity => $payload)
-                                <section class="{{ (($studentCardMode ?? false) || ($courseReportMode ?? false)) ? '' : 'admin-section-card' }}" data-source-panel="{{ $entity }}" hidden>
-                                    @unless (($studentCardMode ?? false) || ($courseReportMode ?? false))
-                                    <div class="admin-builder-header">
-                                        <div>
-                                            <div class="eyebrow">{{ $payload['label'] }}</div>
-                                            <div class="admin-section-card__title" data-source-panel-title="{{ $entity }}">{{ $payload['label'] }}</div>
-                                        </div>
-                                        <span class="badge-soft" data-source-mode-label="{{ $entity }}"></span>
-                                    </div>
-                                    @endunless
+                                <section data-source-panel="{{ $entity }}" hidden>
 
                                     <div class="mt-4 admin-form-field" data-source-single="{{ $entity }}">
                                         <label>{{ __('print_templates.print.setup.fields.select_one', ['entity' => $payload['label']]) }}</label>
@@ -154,6 +139,7 @@
                                     </div>
 
                                     <div data-source-multiple="{{ $entity }}" hidden>
+                                        @unless ($courseReportMode ?? false)
                                         <div class="admin-toolbar print-template-source-toolbar {{ ($studentCardMode ?? false) ? 'id-card-filter-row' : '' }} mt-4 rounded-2xl border border-white/10 bg-white/5 p-4">
                                             <div class="admin-toolbar__controls">
                                                 <div class="admin-filter-field">
@@ -187,6 +173,7 @@
                                                 </div>
                                             </div>
                                         </div>
+                                        @endunless
 
                                         @if (($courseReportMode ?? false) && $entity === 'course_student')
                                             <div class="mt-4 overflow-x-auto">
@@ -198,7 +185,19 @@
                                                             <td class="px-3 py-3"><input type="checkbox" name="sources[{{ $entity }}][multiple][]" value="{{ $option['id'] }}" class="h-4 w-4 rounded border-neutral-300" data-source-checkbox="{{ $entity }}" checked></td>
                                                             <td class="px-3 py-3 text-white">{{ $option['meta']['student_name'] }}</td>
                                                             <td class="px-3 py-3 text-neutral-300">{{ $option['meta']['group_name'] }}</td>
-                                                            <td class="min-w-64 px-3 py-3"><textarea name="special_notes[{{ $option['id'] }}]" rows="2" class="w-full rounded-lg" placeholder="{{ __('print_templates.fields.special_note') }}">{{ old('special_notes.'.$option['id']) }}</textarea></td>
+                                                            <td class="min-w-64 px-3 py-3">
+                                                                <div>
+                                                                    <textarea
+                                                                        name="special_notes[{{ $option['id'] }}]"
+                                                                        rows="2"
+                                                                        class="w-full rounded-lg"
+                                                                        placeholder="{{ __('print_templates.fields.special_note') }}"
+                                                                        data-report-card-note
+                                                                        data-save-url="{{ route('courses.end.report-cards.notes.update', ['course' => $selectedCourseId, 'enrollment' => $option['id']]) }}"
+                                                                    >{{ old('special_notes.'.$option['id'], $option['meta']['special_note'] ?? '') }}</textarea>
+                                                                    <span class="mt-1 block min-h-4 text-xs text-neutral-400" data-report-card-note-status aria-live="polite"></span>
+                                                                </div>
+                                                            </td>
                                                         </tr>
                                                     @endforeach
                                                     </tbody>
@@ -244,7 +243,7 @@
                                                             @if (($courseReportMode ?? false) && $entity === 'course_student')
                                                                 <label class="mt-3 block text-xs text-neutral-300">
                                                                     <span>{{ __('print_templates.fields.special_note') }}</span>
-                                                                    <textarea name="special_notes[{{ $option['id'] }}]" rows="2" class="mt-1 w-full rounded-lg" placeholder="{{ __('print_templates.fields.special_note') }}">{{ old('special_notes.'.$option['id']) }}</textarea>
+                                                                    <textarea name="special_notes[{{ $option['id'] }}]" rows="2" class="mt-1 w-full rounded-lg" placeholder="{{ __('print_templates.fields.special_note') }}">{{ old('special_notes.'.$option['id'], $option['meta']['special_note'] ?? '') }}</textarea>
                                                                 </label>
                                                             @endif
                                                         </div>
@@ -288,10 +287,74 @@
             const markPrintedEmptyMessage = @json(__('print_templates.print.setup.errors.no_students_selected'));
             const markPrintedFailedMessage = @json(__('print_templates.print.setup.errors.mark_printed_failed'));
             const markUnprintedFailedMessage = @json(__('print_templates.print.setup.errors.mark_unprinted_failed'));
+            const noteSavingLabel = @json(__('course_end.special_notes.saving'));
+            const noteSavedLabel = @json(__('course_end.special_notes.saved'));
+            const noteSaveFailedLabel = @json(__('course_end.special_notes.save_failed'));
             const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
                 || document.querySelector('input[name="_token"]')?.value
                 || '';
             const selectedCourseId = document.querySelector('input[name="course_id"]')?.value || '';
+            const noteSaveTimers = new WeakMap();
+            const noteSaveChains = new WeakMap();
+            const noteSavedValues = new WeakMap();
+
+            function setReportCardNoteStatus(textarea, state) {
+                const status = textarea.closest('div')?.querySelector('[data-report-card-note-status]');
+
+                if (!status) return;
+
+                status.classList.remove('text-emerald-300', 'text-red-300', 'text-neutral-400');
+                status.classList.add(state === 'saved' ? 'text-emerald-300' : state === 'failed' ? 'text-red-300' : 'text-neutral-400');
+                status.textContent = state === 'saved' ? noteSavedLabel : state === 'failed' ? noteSaveFailedLabel : noteSavingLabel;
+            }
+
+            function queueReportCardNoteSave(textarea) {
+                const pendingTimer = noteSaveTimers.get(textarea);
+                if (pendingTimer) clearTimeout(pendingTimer);
+
+                const value = textarea.value;
+                if (noteSavedValues.get(textarea) === value) {
+                    setReportCardNoteStatus(textarea, 'saved');
+                    return;
+                }
+
+                const previous = noteSaveChains.get(textarea) || Promise.resolve();
+                const request = previous.then(async () => {
+                    setReportCardNoteStatus(textarea, 'saving');
+
+                    const response = await fetch(textarea.dataset.saveUrl, {
+                        method: 'PATCH',
+                        credentials: 'same-origin',
+                        headers: {
+                            'Accept': 'application/json',
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': csrfToken,
+                            'X-Requested-With': 'XMLHttpRequest',
+                        },
+                        body: JSON.stringify({ special_note: value }),
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`Request failed with status ${response.status}`);
+                    }
+
+                    noteSavedValues.set(textarea, value);
+                    if (textarea.value === value) setReportCardNoteStatus(textarea, 'saved');
+                }).catch((error) => {
+                    console.error(error);
+                    if (textarea.value === value) setReportCardNoteStatus(textarea, 'failed');
+                });
+
+                noteSaveChains.set(textarea, request);
+            }
+
+            function scheduleReportCardNoteSave(textarea) {
+                const pendingTimer = noteSaveTimers.get(textarea);
+                if (pendingTimer) clearTimeout(pendingTimer);
+
+                setReportCardNoteStatus(textarea, 'saving');
+                noteSaveTimers.set(textarea, setTimeout(() => queueReportCardNoteSave(textarea), 650));
+            }
 
             function applyTemplateLayout() {
                 const config = configs[templateSelect?.value || ''] || {};
@@ -510,9 +573,12 @@
 
                     panel.querySelector(`[data-source-single="${entity}"]`).hidden = source.mode !== 'single';
                     panel.querySelector(`[data-source-multiple="${entity}"]`).hidden = source.mode !== 'multiple';
-                    panel.querySelector(`[data-source-mode-label="${entity}"]`).textContent = source.mode === 'multiple'
-                        ? @json(__('print_templates.templates.form.source_modes.multiple'))
-                        : @json(__('print_templates.templates.form.source_modes.single'));
+                    const modeLabel = panel.querySelector(`[data-source-mode-label="${entity}"]`);
+                    if (modeLabel) {
+                        modeLabel.textContent = source.mode === 'multiple'
+                            ? @json(__('print_templates.templates.form.source_modes.multiple'))
+                            : @json(__('print_templates.templates.form.source_modes.single'));
+                    }
                 });
 
                 copyPanel.hidden = sources.length > 0;
@@ -549,6 +615,12 @@
 
             document.querySelectorAll('[data-source-single-select]').forEach((select) => {
                 select.addEventListener('change', applyAllFilters);
+            });
+
+            document.querySelectorAll('[data-report-card-note]').forEach((textarea) => {
+                noteSavedValues.set(textarea, textarea.value);
+                textarea.addEventListener('input', () => scheduleReportCardNoteSave(textarea));
+                textarea.addEventListener('blur', () => queueReportCardNoteSave(textarea));
             });
 
             document.querySelectorAll('[data-source-select-visible]').forEach((button) => {

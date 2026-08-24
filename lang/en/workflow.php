@@ -119,6 +119,7 @@ return [
                 'default_status' => 'Default student status',
                 'default_status_help' => 'Applied to every active enrollment when the attendance day is created. Existing marks are not overwritten.',
                 'scheduled_groups_help' => ':count groups',
+                'scheduled_groups_unit' => 'groups',
                 'no_default_status' => 'Create an active student attendance status before creating attendance days.',
                 'notes' => 'Notes',
             ],
@@ -128,6 +129,7 @@ return [
                 'headers' => [
                     'date' => 'Date',
                     'course' => 'Course',
+                    'groups' => 'Groups',
                     'students' => 'Students',
                     'attended' => 'Attended students',
                     'status' => 'Status',
@@ -250,6 +252,8 @@ return [
             'title' => 'Group context',
             'teacher' => 'Teacher',
             'course' => 'Course',
+            'group' => 'Group',
+            'date' => 'Date',
             'academic_year' => 'Academic year',
         ],
         'history' => [
@@ -307,6 +311,7 @@ return [
                 'empty' => 'No teacher attendance days have been created yet.',
                 'headers' => [
                     'date' => 'Date',
+                    'course' => 'Course',
                     'teachers' => 'Teachers',
                     'marked' => 'Attendees',
                     'status' => 'Status',
@@ -415,7 +420,7 @@ return [
                 'empty' => 'No memorization entries match the current scope yet.',
                 'headers' => [
                     'student' => 'Student',
-                    'group' => 'Group',
+                    'group' => 'Course',
                     'date' => 'Date',
                     'type' => 'Type',
                     'pages' => 'Pages',
@@ -552,7 +557,7 @@ return [
                 'empty' => 'No Quran tests match the current scope yet.',
                 'headers' => [
                     'student' => 'Student',
-                    'group' => 'Group',
+                    'group' => 'Course',
                     'date' => 'Date',
                     'juz' => 'Juz',
                     'type' => 'Type',
@@ -572,7 +577,7 @@ return [
                 'full_name' => 'Full name',
                 'father_name' => 'Father name',
                 'birth_year' => 'Year of birth',
-                'ajza_count' => 'Number of ajza',
+                'ajza_count' => 'Juz numbers',
             ],
         ],
         'messages' => [
@@ -739,6 +744,7 @@ return [
             'title' => 'Select the new juz for the student',
             'tested' => 'Tested juz: :juz',
             'select' => 'Choose the new juz',
+            'enter' => 'Enter the new juz number',
             'updated' => 'The student current juz was updated.',
         ],
         'title' => 'Final Saber',

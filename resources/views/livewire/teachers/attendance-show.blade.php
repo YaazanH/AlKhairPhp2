@@ -315,6 +315,11 @@ new class extends Component {
 
     protected function loadDay(): void
     {
+        app(TeacherAttendanceDayService::class)->fillMissingStatuses(
+            $this->currentDay,
+            $this->defaultTeacherAttendanceStatusId(),
+        );
+
         $this->currentDay = $this->scopeTeacherAttendanceDaysQuery(
             TeacherAttendanceDay::query()->with('records')
         )->findOrFail($this->currentDay->id);
@@ -385,13 +390,6 @@ new class extends Component {
             </div>
             <a href="{{ route('teacher-attendance.index') }}" wire:navigate class="pill-link pill-link--compact">{{ __('workflow.teacher_attendance.day_details.back') }}</a>
         </div>
-        <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ __('workflow.teacher_attendance.day_details.subtitle') }}</p>
-        <div class="mt-6 flex flex-wrap gap-3">
-            <span class="badge-soft">{{ $dayRecord->attendance_date?->format('d-m-Y') }}</span>
-            <span class="badge-soft badge-soft--emerald">{{ __('workflow.teacher_attendance.day_details.stats.scheduled') }}: {{ number_format($stats['scheduled']) }}</span>
-            <span class="badge-soft">{{ __('workflow.teacher_attendance.day_details.stats.teachers') }}: {{ number_format($stats['teachers']) }}</span>
-            <span class="badge-soft">{{ __('workflow.teacher_attendance.day_details.stats.marked') }}: {{ number_format($stats['marked']) }}</span>
-        </div>
     </section>
 
     @if (session('status'))
@@ -404,9 +402,10 @@ new class extends Component {
             :title="__('workflow.teacher_attendance.day_details.manual_add.title')"
             :description="__('workflow.teacher_attendance.day_details.manual_add.help')"
             close-method="closeManualTeacherModal"
-            max-width="3xl"
+            max-width="xl"
+            compact
         >
-            <form wire:submit="addManualTeacher" class="space-y-5">
+            <form wire:submit="addManualTeacher" class="space-y-4">
                 <div>
                     <label for="manual-attendance-teacher" class="mb-1 block text-sm font-medium">{{ __('workflow.teacher_attendance.day_details.manual_add.teacher') }}</label>
                     <select id="manual-attendance-teacher" wire:model="manual_teacher_id" class="w-full rounded-xl px-4 py-3 text-sm">
@@ -421,8 +420,8 @@ new class extends Component {
                 </div>
 
                 <div class="admin-action-cluster admin-action-cluster--end">
-                    <button type="button" wire:click="closeManualTeacherModal" class="pill-link">{{ __('crud.common.actions.cancel') }}</button>
-                    <button type="submit" class="pill-link pill-link--accent">{{ __('workflow.teacher_attendance.day_details.manual_add.action') }}</button>
+                    <button type="button" wire:click="closeManualTeacherModal" class="pill-link pill-link--compact">{{ __('crud.common.actions.cancel') }}</button>
+                    <button type="submit" class="pill-link pill-link--accent pill-link--compact">{{ __('workflow.teacher_attendance.day_details.manual_add.action') }}</button>
                 </div>
             </form>
         </x-admin.modal>
@@ -500,7 +499,7 @@ new class extends Component {
                                 </td>
                                 <td class="px-5 py-4 lg:px-6">
                                     @if ($dayRecord->status === 'closed' || $record->course_finished_at)
-                                        <span class="text-neutral-200">{{ $statuses->firstWhere('id', (int) ($selected_statuses[$record->teacher_id] ?? 0))?->name ?: __('workflow.teacher_attendance.table.not_marked') }}</span>
+                                        <span class="text-neutral-200">{{ $statuses->firstWhere('id', (int) ($selected_statuses[$record->teacher_id] ?? 0))?->name ?: $statuses->firstWhere('is_default', true)?->name ?: $statuses->first()?->name ?: '-' }}</span>
                                     @else
                                         <select
                                             id="teacher-attendance-record-{{ $record->teacher_id }}"
@@ -510,7 +509,6 @@ new class extends Component {
                                             class="w-full rounded-xl px-4 py-3 text-sm"
                                             data-searchable="false"
                                         >
-                                            <option value="">{{ __('workflow.teacher_attendance.table.not_marked') }}</option>
                                             @foreach ($statuses as $attendanceStatus)
                                                 <option value="{{ $attendanceStatus->id }}">{{ $attendanceStatus->name }}</option>
                                             @endforeach

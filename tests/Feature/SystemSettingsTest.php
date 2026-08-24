@@ -211,8 +211,9 @@ class SystemSettingsTest extends TestCase
 
         Volt::test('settings.tracking')
             ->assertSee('data-saber-rule-card="partial"', false)
-            ->assertSee('data-saber-rule-card="final-failed"', false)
             ->assertSee('data-saber-rule-card="final-passed"', false)
+            ->assertDontSee('data-saber-rule-card="final-failed"', false)
+            ->assertSee(__('settings.tracking.fields.passing_grade'))
             ->assertDontSee('<fieldset', false)
             ->assertDontSee('<th>'.__('settings.tracking.table.rule').'</th>', false);
     }
@@ -812,10 +813,7 @@ class SystemSettingsTest extends TestCase
         ]);
 
         Volt::test('settings.tracking')
-            ->set('final_test_failed_from', '0')
-            ->set('final_test_failed_to', '74.99')
             ->set('final_test_passed_from', '75')
-            ->set('final_test_passed_to', '100')
             ->call('saveFinalTestRules')
             ->assertHasNoErrors();
 
@@ -824,6 +822,17 @@ class SystemSettingsTest extends TestCase
             'key' => 'quran_final_test_passed_from',
             'value' => '75',
         ]);
+
+        Volt::test('settings.points')
+            ->set('partial_test_fail_threshold', '4')
+            ->set('final_test_passed_from', '75')
+            ->call('saveSaberRules')
+            ->assertHasNoErrors();
+
+        $finalRules = app(\App\Services\QuranFinalTestRuleService::class);
+        $this->assertSame('failed', $finalRules->statusForScore(74.99));
+        $this->assertSame('passed', $finalRules->statusForScore(75));
+        $this->assertSame('passed', $finalRules->statusForScore(100));
 
         Volt::test('settings.points')
             ->set('point_type_name', 'Behavior Bonus')

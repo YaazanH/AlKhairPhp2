@@ -4,13 +4,14 @@ use App\Models\Enrollment;
 use App\Models\QuranFinalTest;
 use App\Models\QuranJuz;
 use App\Models\QuranPartialTest;
+use App\Models\QuranTest;
 use App\Models\Student;
 use App\Models\Teacher;
-use App\Services\AccessScopeService;
 use App\Services\QuranFinalTestService;
 use App\Services\QuranPartialTestService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use Livewire\Volt\Component;
 
 new class extends Component
@@ -28,6 +29,9 @@ new class extends Component
     public string $finalMark = '';
     public bool $canRecordPartial = false;
     public bool $canRecordFinal = false;
+    public bool $showCurrentJuzModal = false;
+    public ?int $passedFinalTestId = null;
+    public string $newCurrentJuzNumber = '';
 
     public function mount(): void
     {
@@ -54,6 +58,8 @@ new class extends Component
             'partialJuzs' => $this->availablePartialJuzs(),
             'availableQuarters' => $this->availablePartialQuarters(),
             'finalJuzs' => $this->availableFinalJuzs(),
+            'passedFinalTest' => $this->passedFinalTest(),
+            'availableCurrentJuzs' => $this->availableCurrentJuzs(),
         ];
     }
 
@@ -117,6 +123,17 @@ new class extends Component
             ->value('id');
     }
 
+    public function switchTab(string $tab): void
+    {
+        abort_unless(in_array($tab, ['partial', 'final'], true), 404);
+        abort_if($tab === 'partial' && ! $this->canRecordPartial, 403);
+        abort_if($tab === 'final' && ! $this->canRecordFinal, 403);
+
+        $this->clearPartialEntry();
+        $this->clearFinalEntry();
+        $this->tab = $tab;
+    }
+
     public function savePartial(): void
     {
         abort_unless(auth()->user()?->can('quran-partial-tests.record'), 403);
@@ -169,7 +186,7 @@ new class extends Component
         $availableJuzIds = $this->availableFinalJuzs()->pluck('id')->map(fn ($id) => (int) $id);
         abort_unless($availableJuzIds->contains((int) $validated['finalJuzId']), 422);
 
-        DB::transaction(function () use ($student, $enrollment, $recordingTeacher, $validated): void {
+        $attempt = DB::transaction(function () use ($student, $enrollment, $recordingTeacher, $validated) {
             $test = $this->finalTestId
                 ? $this->finalTestsQuery()->where('student_id', $student->id)->findOrFail($this->finalTestId)
                 : app(QuranFinalTestService::class)->create(
@@ -177,20 +194,49 @@ new class extends Component
                     QuranJuz::query()->findOrFail($validated['finalJuzId']),
                 );
 
-            app(QuranFinalTestService::class)->recordAttempt($test, $recordingTeacher, [
+            return app(QuranFinalTestService::class)->recordAttempt($test, $recordingTeacher, [
                 'score' => $validated['finalMark'],
                 'tested_on' => $validated['finalTestedOn'],
             ]);
         });
 
         session()->flash('status', __('quick-tests.final_saved'));
+        if ($attempt->status === 'passed') {
+            $this->passedFinalTestId = (int) $attempt->quran_final_test_id;
+            $this->showCurrentJuzModal = true;
+        }
         $this->clearFinalEntry();
+    }
+
+    public function saveCurrentJuz(): void
+    {
+        abort_unless(auth()->user()?->can('quran-final-tests.record'), 403);
+        $test = $this->passedFinalTest();
+        abort_unless($test, 404);
+
+        $availableJuzs = $this->availableCurrentJuzs();
+        $validated = $this->validate([
+            'newCurrentJuzNumber' => ['required', 'integer', Rule::in($availableJuzs->pluck('juz_number')->map(fn ($number) => (string) $number)->all())],
+        ]);
+        $newCurrentJuz = $availableJuzs->firstWhere('juz_number', (int) $validated['newCurrentJuzNumber']);
+        abort_unless($newCurrentJuz, 422);
+
+        $test->student()->update(['quran_current_juz_id' => $newCurrentJuz->id]);
+        $this->closeCurrentJuzModal();
+        session()->flash('status', __('workflow.quran_final_tests.current_juz.updated'));
+    }
+
+    public function closeCurrentJuzModal(): void
+    {
+        $this->showCurrentJuzModal = false;
+        $this->passedFinalTestId = null;
+        $this->newCurrentJuzNumber = '';
+        $this->resetValidation('newCurrentJuzNumber');
     }
 
     protected function studentsQuery(): Builder
     {
-        return app(AccessScopeService::class)->scopeStudents(Student::query(), auth()->user())
-            ->where('status', 'active')
+        return Student::query()->where('status', 'active')
             ->whereHas('enrollments', fn (Builder $query) => $query
                 ->where('status', 'active')
                 ->whereHas('group.course', fn (Builder $course) => $course->where('is_active', true)));
@@ -198,7 +244,7 @@ new class extends Component
 
     protected function enrollmentFor(Student $student): Enrollment
     {
-        return app(AccessScopeService::class)->scopeEnrollments(Enrollment::query(), auth()->user())
+        return Enrollment::query()
             ->with(['student', 'group.course'])
             ->where('student_id', $student->id)
             ->where('status', 'active')
@@ -239,12 +285,12 @@ new class extends Component
 
     protected function partialTestsQuery(): Builder
     {
-        return app(AccessScopeService::class)->scopeQuranPartialTests(QuranPartialTest::query(), auth()->user());
+        return QuranPartialTest::query();
     }
 
     protected function finalTestsQuery(): Builder
     {
-        return app(AccessScopeService::class)->scopeQuranFinalTests(QuranFinalTest::query(), auth()->user());
+        return QuranFinalTest::query();
     }
 
     protected function availablePartialQuarters()
@@ -292,6 +338,7 @@ new class extends Component
             ->where('juz_id', $this->partialJuzId)
             ->where('status', 'in_progress')
             ->value('id');
+        $this->partialQuarter = $this->availablePartialQuarters()->min();
     }
 
     protected function availableFinalJuzs()
@@ -311,6 +358,31 @@ new class extends Component
 
         return QuranJuz::query()->whereIn('id', $ids)->orderBy('juz_number')->get();
     }
+
+    protected function passedFinalTest(): ?QuranFinalTest
+    {
+        if (! $this->passedFinalTestId) {
+            return null;
+        }
+
+        return QuranFinalTest::query()->with(['juz', 'student.externalMemorizedJuzs'])->find($this->passedFinalTestId);
+    }
+
+    protected function availableCurrentJuzs()
+    {
+        $test = $this->passedFinalTest();
+        if (! $test) {
+            return collect();
+        }
+
+        $blockedJuzIds = collect([$test->juz_id])
+            ->merge($test->student?->externalMemorizedJuzs->pluck('id') ?? collect())
+            ->merge(QuranFinalTest::query()->where('student_id', $test->student_id)->where('status', 'passed')->pluck('juz_id'))
+            ->merge(QuranTest::query()->where('student_id', $test->student_id)->where('status', 'passed')->whereHas('type', fn ($query) => $query->where('code', 'final'))->pluck('juz_id'))
+            ->filter()->unique()->all();
+
+        return QuranJuz::query()->whereNotIn('id', $blockedJuzIds)->orderBy('juz_number')->get();
+    }
 }; ?>
 
 <div class="page-stack">
@@ -319,10 +391,10 @@ new class extends Component
             <h1 class="font-display text-4xl leading-none text-white md:text-5xl">{{ __('quick-tests.title') }}</h1>
             @if ($canRecordPartial && $canRecordFinal)
                 <div class="quick-saber-type-switch" role="tablist" aria-label="{{ __('quick-tests.saber_type') }}">
-                    <button type="button" role="tab" aria-selected="{{ $tab === 'partial' ? 'true' : 'false' }}" wire:click="$set('tab', 'partial')" @class(['quick-saber-type-switch__option', 'is-active' => $tab === 'partial'])>
+                    <button type="button" role="tab" aria-selected="{{ $tab === 'partial' ? 'true' : 'false' }}" wire:click="switchTab('partial')" @class(['quick-saber-type-switch__option', 'is-active' => $tab === 'partial'])>
                         {{ __('quick-tests.partial') }}
                     </button>
-                    <button type="button" role="tab" aria-selected="{{ $tab === 'final' ? 'true' : 'false' }}" wire:click="$set('tab', 'final')" @class(['quick-saber-type-switch__option', 'is-active' => $tab === 'final'])>
+                    <button type="button" role="tab" aria-selected="{{ $tab === 'final' ? 'true' : 'false' }}" wire:click="switchTab('final')" @class(['quick-saber-type-switch__option', 'is-active' => $tab === 'final'])>
                         {{ __('quick-tests.final') }}
                     </button>
                 </div>
@@ -438,4 +510,15 @@ new class extends Component
             </form>
         @endif
     </section>
+
+    <x-admin.modal :show="$showCurrentJuzModal" :title="__('workflow.quran_final_tests.current_juz.title')" :description="$passedFinalTest ? __('workflow.quran_final_tests.current_juz.tested', ['juz' => $passedFinalTest->juz?->juz_number]) : ''" close-method="closeCurrentJuzModal" max-width="xl">
+        <form wire:submit="saveCurrentJuz" class="space-y-3">
+            <div>
+                <label for="quick-new-current-juz" class="mb-1 block text-sm font-medium">{{ __('workflow.quran_final_tests.current_juz.enter') }}</label>
+                <input id="quick-new-current-juz" wire:model="newCurrentJuzNumber" type="number" min="1" max="30" step="1" inputmode="numeric" class="w-full rounded-xl px-4 py-3 text-sm">
+                @error('newCurrentJuzNumber') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
+            </div>
+            <div class="flex justify-end"><button type="submit" class="pill-link pill-link--accent">{{ __('crud.common.actions.save') }}</button></div>
+        </form>
+    </x-admin.modal>
 </div>

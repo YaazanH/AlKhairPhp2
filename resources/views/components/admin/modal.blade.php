@@ -35,11 +35,16 @@
 
                     </div>
 
-                    @if ($closeMethod)
-                        <button type="button" wire:click.prevent.stop="{{ $closeMethod }}" class="admin-modal__close" aria-label="{{ __('crud.common.actions.close') }}">
-                            <span aria-hidden="true">&times;</span>
-                        </button>
-                    @endif
+                    <div class="admin-modal__header-actions">
+                        @isset($headerActions)
+                            {{ $headerActions }}
+                        @endisset
+                        @if ($closeMethod)
+                            <button type="button" wire:click.prevent.stop="{{ $closeMethod }}" class="admin-modal__close" aria-label="{{ __('crud.common.actions.close') }}">
+                                <span aria-hidden="true">&times;</span>
+                            </button>
+                        @endif
+                    </div>
                 </div>
 
                 <div class="admin-modal__body">

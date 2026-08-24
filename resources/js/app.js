@@ -532,211 +532,185 @@ if (document.body) {
     });
 }
 
-function formattedDateValue(value) {
-    const match = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+function restoreNativeDateInput(input) {
+    if (!(input instanceof HTMLInputElement) || input.type !== 'date') return;
 
-    return match ? `${match[3]}-${match[2]}-${match[1]}` : '';
-}
-
-function isoDateValue(value) {
-    const match = String(value || '').trim().match(/^(\d{2})[-/.](\d{2})[-/.](\d{4})$/);
-    if (!match) return null;
-
-    const [, day, month, year] = match;
-    const candidate = new Date(`${year}-${month}-${day}T00:00:00Z`);
-
-    if (
-        Number.isNaN(candidate.getTime())
-        || candidate.getUTCFullYear() !== Number(year)
-        || candidate.getUTCMonth() + 1 !== Number(month)
-        || candidate.getUTCDate() !== Number(day)
-    ) {
-        return null;
-    }
-
-    return `${year}-${month}-${day}`;
-}
-
-function isDateInputLayoutClass(className) {
-    const normalizedClassName = className.replace(/^!/, '').replace(/^(?:sm|md|lg|xl|2xl):/, '');
-
-    return /^(?:w-|min-w-|max-w-|m[trblxy]?-|self-|justify-self-|col-span-|row-span-)/.test(normalizedClassName);
-}
-
-function syncFormattedDateInputAppearance(input, wrapper, display) {
-    const inputClasses = Array.from(input.classList)
-        .filter((className) => className !== 'formatted-date-input__native');
-    const layoutClasses = inputClasses.filter(isDateInputLayoutClass);
-    const controlClasses = inputClasses.filter((className) => !isDateInputLayoutClass(className));
-
-    wrapper.className = ['formatted-date-input', ...layoutClasses].join(' ');
-    display.className = [...controlClasses, 'formatted-date-input__display'].join(' ');
-
-    if (input.hasAttribute('data-flux-control')) {
-        display.setAttribute('data-flux-control', '');
-    } else {
-        display.removeAttribute('data-flux-control');
-    }
-}
-
-function enhanceDateInput(input) {
-    if (!(input instanceof HTMLInputElement) || input.type !== 'date' || input.dataset.dateFormatNative === 'true') {
-        return;
-    }
-
-    const existingWrapper = input.nextElementSibling?.classList.contains('formatted-date-input')
+    const formattedWrapper = input.nextElementSibling?.classList.contains('formatted-date-input')
         ? input.nextElementSibling
         : null;
+    const wasFormatted = input.dataset.dateFormatBound === 'true'
+        || input.classList.contains('formatted-date-input__native');
 
-    if (input.dataset.dateFormatBound === 'true' && existingWrapper) {
-        const existingDisplay = existingWrapper.querySelector('.formatted-date-input__display');
+    formattedWrapper?.remove();
+    input.classList.remove('formatted-date-input__native');
+    delete input.dataset.dateFormatBound;
+    delete input.formattedDateSync;
 
-        if (existingDisplay instanceof HTMLInputElement) {
-            syncFormattedDateInputAppearance(input, existingWrapper, existingDisplay);
+    if (wasFormatted && input.getAttribute('tabindex') === '-1') {
+        input.removeAttribute('tabindex');
+    }
+
+    if (wasFormatted && input.getAttribute('aria-hidden') === 'true') {
+        input.removeAttribute('aria-hidden');
+    }
+
+    if (input.dataset.nativeDatePickerBound === 'true') return;
+
+    input.dataset.nativeDatePickerBound = 'true';
+    input.addEventListener('click', () => {
+        if (input.disabled || input.readOnly || typeof input.showPicker !== 'function') return;
+
+        try {
+            input.showPicker();
+        } catch (_error) {
+            // The visible native control still provides its browser picker fallback.
         }
+    });
+}
 
-        input.formattedDateSync?.();
+function initializeNativeDateInputs(root = document) {
+    if (root instanceof HTMLInputElement && root.type === 'date') {
+        restoreNativeDateInput(root);
+    }
+
+    root.querySelectorAll?.('input[type="date"]').forEach(restoreNativeDateInput);
+}
+
+document.addEventListener('DOMContentLoaded', () => initializeNativeDateInputs());
+document.addEventListener('livewire:navigated', () => initializeNativeDateInputs());
+document.addEventListener('livewire:initialized', () => {
+    window.Livewire?.hook('morph.updated', ({ el }) => initializeNativeDateInputs(el));
+    window.Livewire?.hook('morph.added', ({ el }) => initializeNativeDateInputs(el));
+});
+
+const nativeDateInputObserver = new MutationObserver((mutations) => {
+    mutations.forEach((mutation) => {
+        mutation.addedNodes.forEach((node) => {
+            if (node instanceof Element) initializeNativeDateInputs(node);
+        });
+    });
+});
+
+if (document.body) {
+    nativeDateInputObserver.observe(document.body, { childList: true, subtree: true });
+} else {
+    document.addEventListener('DOMContentLoaded', () => nativeDateInputObserver.observe(document.body, { childList: true, subtree: true }));
+}
+
+function createMobileFilterIcon() {
+    const namespace = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(namespace, 'svg');
+    const circle = document.createElementNS(namespace, 'circle');
+    const path = document.createElementNS(namespace, 'path');
+
+    svg.setAttribute('viewBox', '0 0 24 24');
+    svg.setAttribute('fill', 'none');
+    svg.setAttribute('stroke', 'currentColor');
+    svg.setAttribute('stroke-width', '2');
+    svg.setAttribute('aria-hidden', 'true');
+    circle.setAttribute('cx', '11');
+    circle.setAttribute('cy', '11');
+    circle.setAttribute('r', '7');
+    path.setAttribute('d', 'm20 20-3.5-3.5');
+    svg.append(circle, path);
+
+    return svg;
+}
+
+function initializeMobileTableFilters(root = document) {
+    const toolbars = [];
+    const selector = '.admin-grid-meta--controls .admin-toolbar__controls, [data-mobile-table-filter-controls]';
+
+    if (root instanceof Element && root.matches(selector)) {
+        toolbars.push(root);
+    }
+    root.querySelectorAll?.(selector).forEach((toolbar) => toolbars.push(toolbar));
+
+    toolbars.forEach((toolbar) => {
+        if (toolbar.dataset.mobileTableFilters === 'true') return;
+
+        const criteria = Array.from(toolbar.children).filter((child) => (
+            child.matches('.admin-filter-field, input:not([type="hidden"]), select')
+            || child.querySelector('input:not([type="hidden"]), select')
+        ));
+
+        if (criteria.length === 0) return;
+
+        toolbar.dataset.mobileTableFilters = 'true';
+        toolbar.classList.add('mobile-table-filters');
+        criteria.forEach((criterion) => criterion.classList.add('mobile-table-filter-criterion'));
+
+        const isArabic = document.documentElement.dir === 'rtl' || document.documentElement.lang?.startsWith('ar');
+        const trigger = document.createElement('button');
+        trigger.type = 'button';
+        trigger.className = 'mobile-table-filter-trigger';
+        trigger.dataset.mobileTableFilterOpen = '';
+        trigger.setAttribute('aria-expanded', 'false');
+        trigger.append(createMobileFilterIcon(), document.createTextNode(isArabic ? 'بحث' : 'Search'));
+
+        const close = document.createElement('button');
+        close.type = 'button';
+        close.className = 'mobile-table-filter-close';
+        close.dataset.mobileTableFilterClose = '';
+        close.setAttribute('aria-label', isArabic ? 'إغلاق البحث' : 'Close search');
+        close.textContent = '×';
+
+        toolbar.prepend(trigger);
+        toolbar.append(close);
+    });
+}
+
+function closeMobileTableFilters(toolbar) {
+    if (!(toolbar instanceof Element)) return;
+
+    toolbar.classList.remove('mobile-table-filters--open');
+    toolbar.querySelector('[data-mobile-table-filter-open]')?.setAttribute('aria-expanded', 'false');
+    document.body.classList.remove('mobile-table-filters-active');
+}
+
+document.addEventListener('click', (event) => {
+    const openButton = event.target.closest?.('[data-mobile-table-filter-open]');
+    if (openButton) {
+        const toolbar = openButton.closest('.mobile-table-filters');
+        toolbar?.classList.add('mobile-table-filters--open');
+        openButton.setAttribute('aria-expanded', 'true');
+        document.body.classList.add('mobile-table-filters-active');
 
         return;
     }
 
-    existingWrapper?.remove();
-    input.dataset.dateFormatBound = 'true';
-    input.classList.add('formatted-date-input__native');
-    input.tabIndex = -1;
-    input.setAttribute('aria-hidden', 'true');
-
-    const wrapper = document.createElement('div');
-    wrapper.className = 'formatted-date-input';
-    wrapper.setAttribute('wire:ignore', '');
-
-    const display = document.createElement('input');
-    display.type = 'text';
-    display.inputMode = 'numeric';
-    display.autocomplete = 'off';
-    display.dir = 'ltr';
-    display.placeholder = input.dataset.datePlaceholder || input.getAttribute('placeholder') || 'DD-MM-YYYY';
-    display.className = 'formatted-date-input__display';
-    display.setAttribute('aria-label', input.getAttribute('aria-label') || display.placeholder);
-
-    const picker = document.createElement('button');
-    picker.type = 'button';
-    picker.className = 'formatted-date-input__picker';
-    picker.setAttribute('aria-label', 'Choose date');
-    picker.textContent = '▦';
-
-    wrapper.append(display, picker);
-    input.insertAdjacentElement('afterend', wrapper);
-    syncFormattedDateInputAppearance(input, wrapper, display);
-
-    let syncing = false;
-    const sync = () => {
-        if (syncing || document.activeElement === display) return;
-        syncFormattedDateInputAppearance(input, wrapper, display);
-        display.value = formattedDateValue(input.value);
-        display.disabled = input.disabled;
-        display.readOnly = input.readOnly;
-        picker.disabled = input.disabled || input.readOnly;
-    };
-    const commit = () => {
-        const value = display.value.trim();
-        if (value === '') {
-            syncing = true;
-            input.value = '';
-            input.dispatchEvent(new Event('input', { bubbles: true }));
-            input.dispatchEvent(new Event('change', { bubbles: true }));
-            syncing = false;
-            display.removeAttribute('aria-invalid');
-
-            return;
-        }
-
-        const isoValue = isoDateValue(value);
-        if (!isoValue) {
-            syncing = true;
-            input.value = '';
-            input.dispatchEvent(new Event('input', { bubbles: true }));
-            input.dispatchEvent(new Event('change', { bubbles: true }));
-            syncing = false;
-            display.setAttribute('aria-invalid', 'true');
-
-            return;
-        }
-
-        syncing = true;
-        input.value = isoValue;
-        input.dispatchEvent(new Event('input', { bubbles: true }));
-        input.dispatchEvent(new Event('change', { bubbles: true }));
-        syncing = false;
-        display.value = formattedDateValue(isoValue);
-        display.removeAttribute('aria-invalid');
-    };
-
-    input.formattedDateSync = sync;
-    display.addEventListener('blur', commit);
-    display.addEventListener('keydown', (event) => {
-        if (event.key === 'Enter') {
-            event.preventDefault();
-            commit();
-        }
-    });
-    input.addEventListener('input', sync);
-    input.addEventListener('change', sync);
-    picker.addEventListener('click', () => {
-        if (typeof input.showPicker === 'function') {
-            try {
-                input.showPicker();
-
-                return;
-            } catch (_error) {
-                // Browsers can reject showPicker() when the field is obscured.
-            }
-        }
-
-        input.click();
-    });
-    sync();
-}
-
-function initializeFormattedDateInputs(root = document) {
-    if (root instanceof HTMLInputElement && root.type === 'date') {
-        enhanceDateInput(root);
+    const closeButton = event.target.closest?.('[data-mobile-table-filter-close]');
+    if (closeButton) {
+        closeMobileTableFilters(closeButton.closest('.mobile-table-filters'));
     }
-    root.querySelectorAll?.('input[type="date"]').forEach(enhanceDateInput);
-}
-
-let formattedDateInitializationTimer = null;
-function scheduleFormattedDateInitialization() {
-    if (formattedDateInitializationTimer) window.clearTimeout(formattedDateInitializationTimer);
-    window.requestAnimationFrame(() => initializeFormattedDateInputs());
-    formattedDateInitializationTimer = window.setTimeout(() => {
-        formattedDateInitializationTimer = null;
-        initializeFormattedDateInputs();
-    }, 160);
-}
-
-document.addEventListener('DOMContentLoaded', () => initializeFormattedDateInputs());
-document.addEventListener('livewire:navigated', () => initializeFormattedDateInputs());
-document.addEventListener('livewire:initialized', () => {
-    scheduleFormattedDateInitialization();
-    window.Livewire?.hook('morph.updated', ({ el }) => {
-        if ((el instanceof HTMLInputElement && el.type === 'date') || el.querySelector?.('input[type="date"]')) {
-            scheduleFormattedDateInitialization();
-        }
-    });
-    window.Livewire?.hook('morph.added', ({ el }) => initializeFormattedDateInputs(el));
 });
 
-const formattedDateObserver = new MutationObserver((mutations) => {
-    if (mutations.some((mutation) => Array.from(mutation.addedNodes).some((node) => node instanceof Element && (node.matches('input[type="date"]') || node.querySelector('input[type="date"]'))))) {
-        scheduleFormattedDateInitialization();
+document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+        closeMobileTableFilters(document.querySelector('.mobile-table-filters--open'));
+    }
+});
+
+document.addEventListener('DOMContentLoaded', () => initializeMobileTableFilters());
+document.addEventListener('livewire:navigated', () => initializeMobileTableFilters());
+document.addEventListener('livewire:initialized', () => {
+    window.Livewire?.hook('morph.updated', ({ el }) => initializeMobileTableFilters(el));
+    window.Livewire?.hook('morph.added', ({ el }) => initializeMobileTableFilters(el));
+});
+
+const mobileTableFilterObserver = new MutationObserver((mutations) => {
+    if (mutations.some((mutation) => Array.from(mutation.addedNodes).some((node) => node instanceof Element && (
+        node.matches('.admin-toolbar__controls, [data-mobile-table-filter-controls]')
+        || node.querySelector('.admin-toolbar__controls, [data-mobile-table-filter-controls]')
+    )))) {
+        initializeMobileTableFilters();
     }
 });
 
 if (document.body) {
-    formattedDateObserver.observe(document.body, { childList: true, subtree: true });
+    mobileTableFilterObserver.observe(document.body, { childList: true, subtree: true });
 } else {
-    document.addEventListener('DOMContentLoaded', () => formattedDateObserver.observe(document.body, { childList: true, subtree: true }));
+    document.addEventListener('DOMContentLoaded', () => mobileTableFilterObserver.observe(document.body, { childList: true, subtree: true }));
 }
 
 const financeNumberInputSelector = 'input[data-thousand-separator]';

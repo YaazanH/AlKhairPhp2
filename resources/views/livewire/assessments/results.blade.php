@@ -421,7 +421,7 @@ new class extends Component
         return match ($status) {
             'passed' => 'status-chip status-chip--emerald',
             'failed' => 'status-chip status-chip--rose',
-            'absent' => 'status-chip status-chip--gold',
+            'absent' => 'status-chip status-chip--amber',
             default => 'status-chip status-chip--slate',
         };
     }
@@ -639,58 +639,38 @@ new class extends Component
             @enderror
             <div class="admin-empty-state">{{ __('workflow.assessments.results.groups.select_first') }}</div>
         @else
-        <div class="overflow-x-auto">
-            <table class="text-sm">
-                <thead>
-                    <tr>
-                        <th class="px-5 py-3 text-left font-medium">
-                            <button type="button" wire:click="sortBy('student')" class="inline-flex items-center gap-2 font-medium text-inherit">
-                                {{ __('workflow.assessments.results.table.headers.student') }} <span>{{ $this->sortIndicator('student') }}</span>
-                            </button>
-                        </th>
-                        <th class="px-5 py-3 text-left font-medium">
-                            <button type="button" wire:click="sortBy('score')" class="inline-flex items-center gap-2 font-medium text-inherit">
-                                {{ __('workflow.assessments.results.table.headers.score') }} <span>{{ $this->sortIndicator('score') }}</span>
-                            </button>
-                        </th>
-                        <th class="px-5 py-3 text-left font-medium">
-                            <button type="button" wire:click="sortBy('status')" class="inline-flex items-center gap-2 font-medium text-inherit">
-                                {{ __('workflow.assessments.results.table.headers.status') }} <span>{{ $this->sortIndicator('status') }}</span>
-                            </button>
-                        </th>
-                        <th class="px-5 py-3 text-left font-medium">{{ __('workflow.assessments.results.table.headers.cached_points') }}</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-white/6">
-                    @forelse ($enrollments as $enrollment)
-                        @php
-                            $displayStatus = $this->displayStatusForEnrollment($enrollment->id);
-                        @endphp
-                        <tr>
-                            <td class="px-5 py-3">
-                                <div class="student-inline">
-                                    <x-student-avatar :student="$enrollment->student" size="sm" />
-                                    <div class="student-inline__body">
-                                        <div class="student-inline__name">{{ $enrollment->student?->full_name }}</div>
-                                        <div class="student-inline__meta">{{ $enrollment->student?->school_name ?: __('workflow.common.no_school_recorded') }}</div>
-                                    </div>
-                                </div>
-                            </td>
-                            <td class="px-5 py-3">{{ ($result = $enrollment->assessmentResults->first()) ? number_format((float) $result->score, 2) : '—' }}</td>
-                            <td class="px-5 py-3">
-                                <span class="{{ $this->resultStatusClass($displayStatus) }}">
-                                    {{ __('workflow.common.result_status.'.$displayStatus) }}
-                                </span>
-                            </td>
-                            <td class="px-5 py-3"><span class="status-chip status-chip--slate">{{ $assessmentPointsByEnrollment[$enrollment->id] ?? 0 }}</span></td>
-                        </tr>
-                    @empty
-                        <tr>
-                            <td colspan="4" class="px-5 py-10 text-center text-sm text-neutral-500">{{ __('workflow.assessments.results.table.empty') }}</td>
-                        </tr>
-                    @endforelse
-                </tbody>
-            </table>
+        @php($assessmentResultRowNumbers = $enrollments->values()->mapWithKeys(fn ($enrollment, $index) => [$enrollment->id => $index + 1]))
+        @php($assessmentResultColumns = $enrollments->isEmpty() ? collect([collect()]) : $enrollments->chunk((int) ceil($enrollments->count() / 2)))
+        <div class="assessment-results-dual">
+            @foreach ($assessmentResultColumns as $columnEnrollments)
+                <div class="assessment-results-table-wrap">
+                    <table class="assessment-results-data-table w-full table-fixed text-sm">
+                        <thead>
+                            <tr>
+                                <th class="px-2 py-2 text-center font-medium">#</th>
+                                <th class="px-3 py-2 text-left font-medium"><button type="button" wire:click="sortBy('student')" class="inline-flex items-center gap-1 font-medium text-inherit">{{ __('workflow.assessments.results.table.headers.student') }} <span>{{ $this->sortIndicator('student') }}</span></button></th>
+                                <th class="px-3 py-2 text-left font-medium"><button type="button" wire:click="sortBy('score')" class="inline-flex items-center gap-1 font-medium text-inherit">{{ __('workflow.assessments.results.table.headers.score') }} <span>{{ $this->sortIndicator('score') }}</span></button></th>
+                                <th class="px-3 py-2 text-left font-medium"><button type="button" wire:click="sortBy('status')" class="inline-flex items-center gap-1 font-medium text-inherit">{{ __('workflow.assessments.results.table.headers.status') }} <span>{{ $this->sortIndicator('status') }}</span></button></th>
+                                <th class="px-3 py-2 text-left font-medium">{{ __('workflow.assessments.results.table.headers.cached_points') }}</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-white/6">
+                            @forelse ($columnEnrollments as $enrollment)
+                                @php($displayStatus = $this->displayStatusForEnrollment($enrollment->id))
+                                <tr>
+                                    <td class="px-2 py-2 text-center text-neutral-400">{{ $assessmentResultRowNumbers[$enrollment->id] }}</td>
+                                    <td class="px-3 py-2"><div class="student-inline__name">{{ $enrollment->student?->full_name }}</div></td>
+                                    <td class="px-3 py-2">{{ ($result = $enrollment->assessmentResults->first()) ? number_format((float) $result->score, 2) : '—' }}</td>
+                                    <td class="px-3 py-2"><span class="{{ $this->resultStatusClass($displayStatus) }}">{{ __('workflow.common.result_status.'.$displayStatus) }}</span></td>
+                                    <td class="px-3 py-2"><span class="status-chip status-chip--slate">{{ $assessmentPointsByEnrollment[$enrollment->id] ?? 0 }}</span></td>
+                                </tr>
+                            @empty
+                                <tr><td colspan="5" class="px-3 py-8 text-center text-sm text-neutral-500">{{ __('workflow.assessments.results.table.empty') }}</td></tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+            @endforeach
         </div>
         @endif
     </section>

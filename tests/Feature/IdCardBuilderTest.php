@@ -257,7 +257,87 @@ class IdCardBuilderTest extends TestCase
             ->assertOk()
             ->assertSee('data-print-template-stage', false)
             ->assertSee('data-print-template-layout-input', false)
+            ->assertSee('print-template-studio__layers', false)
             ->assertSee('data-layer-duplicate', false);
+    }
+
+    public function test_generic_templates_are_printed_only_from_their_editor_with_a_locked_setup(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $manager = User::factory()->create();
+        $manager->assignRole('manager');
+
+        $template = PrintTemplate::query()->create([
+            'name' => 'Locked Generic Template',
+            'width_mm' => 85.6,
+            'height_mm' => 53.98,
+            'data_sources' => [
+                ['entity' => 'student', 'mode' => 'multiple'],
+            ],
+            'layout_json' => [],
+            'is_active' => true,
+        ]);
+
+        $studentCard = PrintTemplate::query()->create([
+            'name' => 'Editor Student Card',
+            'width_mm' => 85.6,
+            'height_mm' => 53.98,
+            'data_sources' => [
+                ['entity' => 'student', 'mode' => 'multiple'],
+            ],
+            'layout_json' => [],
+            'is_active' => true,
+            'is_student_card' => true,
+        ]);
+
+        $reportCard = PrintTemplate::query()->create([
+            'name' => 'Editor Report Card',
+            'width_mm' => 210,
+            'height_mm' => 297,
+            'data_sources' => [
+                ['entity' => 'course_student', 'mode' => 'multiple'],
+            ],
+            'layout_json' => [],
+            'is_active' => true,
+            'is_report_card' => true,
+        ]);
+
+        $printUrl = route('print-templates.print.create', ['template' => $template->id]);
+
+        $this->actingAs($manager)
+            ->get(route('print-templates.templates.index'))
+            ->assertOk()
+            ->assertDontSee($printUrl, false);
+
+        $this->actingAs($manager)
+            ->get(route('print-templates.templates.edit', $template))
+            ->assertOk()
+            ->assertSee($printUrl, false)
+            ->assertSee('print-template-data-sources', false)
+            ->assertSee("document.getElementById('print-template-data-sources')?.showModal()", false)
+            ->assertDontSee('print-template-source-card', false)
+            ->assertDontSee('admin-form-field admin-form-field--full"><label for="print-template-name"', false);
+
+        foreach ([$studentCard, $reportCard] as $specialTemplate) {
+            $this->actingAs($manager)
+                ->get(route('print-templates.templates.edit', $specialTemplate))
+                ->assertOk()
+                ->assertDontSee(route('print-templates.print.create', ['template' => $specialTemplate->id]), false);
+        }
+
+        $this->actingAs($manager)
+            ->get(route('print-templates.print.create'))
+            ->assertRedirect(route('print-templates.templates.index'));
+
+        $this->actingAs($manager)
+            ->get($printUrl)
+            ->assertOk()
+            ->assertSee('print-template-print-details', false)
+            ->assertSee('Locked Generic Template')
+            ->assertSee('<input id="print-template-print-template" type="hidden"', false)
+            ->assertDontSee('<select id="print-template-print-template"', false)
+            ->assertSee('id-card-student-grid', false);
     }
 
     public function test_managers_can_store_static_image_elements_in_print_templates(): void
@@ -648,7 +728,7 @@ class IdCardBuilderTest extends TestCase
             ->assertDontSee(">\n                مسجد الخير", false);
     }
 
-    public function test_print_preview_warns_when_page_size_cannot_fit_the_card(): void
+    public function test_print_preview_hides_layout_warnings(): void
     {
         $this->seed(RoleSeeder::class);
 
@@ -699,7 +779,8 @@ class IdCardBuilderTest extends TestCase
 
         $response
             ->assertOk()
-            ->assertSee(__('id_cards.print.warnings.page_too_small'));
+            ->assertDontSee(__('id_cards.print.warnings.page_too_small'))
+            ->assertDontSee(__('id_cards.print.preview.subtitle'));
     }
 
     public function test_group_name_field_uses_the_latest_active_enrollment_group(): void

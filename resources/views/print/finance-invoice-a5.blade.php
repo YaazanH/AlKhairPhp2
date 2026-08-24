@@ -49,8 +49,6 @@
         .grand th, .grand td { background: #dff1e2; color: #14532d; font-size: 11pt; }
         .notes { border-collapse: collapse; margin-{{ app()->isLocale('ar') ? 'left' : 'right' }}: auto; page-break-inside: avoid; table-layout: fixed; width: 48mm; }
         .notes td { background-image: url('{{ $noteBoxBackground }}'); background-image-resize: 6; border: 0; color: #6b5718; line-height: 1.65; padding: 2mm; text-align: justify; }
-        .signature { margin-top: 18mm; text-align: center; width: 45%; }
-        .signature-line { border-top: 1px solid #315b3b; padding-top: 1.5mm; }
         .actions { margin-bottom: 8px; }
         @media print { .actions { display: none; } }
     </style>
@@ -97,7 +95,6 @@
     </tr>
 </table>
 
-<div class="signature"><div class="signature-line">{{ $invoice->finalisedBy?->name }}</div></div>
 @unless($isPdf ?? false)<script>window.addEventListener('load', () => window.print());</script>@endunless
 </body>
 </html>

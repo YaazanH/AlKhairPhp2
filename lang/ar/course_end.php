@@ -6,6 +6,7 @@ return [
     'preview_notice' => 'تُحتسب القواعد للمعاينة فقط ولا يتم تعديل رصيد نقاط أي طالب.',
     'back' => 'العودة إلى الدورات',
     'back_to_end' => 'العودة إلى نهاية الدورة',
+    'back_to_report_cards' => 'العودة إلى طباعة الجلاءات',
     'highlights' => [
         'students' => 'عدد الطلاب المسجلين',
         'points_before' => 'النقاط قبل القواعد',
@@ -17,7 +18,7 @@ return [
     'sorted_notice' => 'مرتبة حسب مجموع النقاط المحتسب بعد القواعد',
     'final_tests_title' => 'السبر النهائي',
     'final_tests_report_title' => 'بيان الأجزاء المسبورة',
-    'final_tests_total' => 'الأجزاء المسبورة:',
+    'final_tests_total' => 'الأجزاء:',
     'date_label' => 'التاريخ:',
     'continued' => 'متابعة',
     'empty' => 'لا يوجد طلاب مسجلون في هذه الدورة.',
@@ -32,4 +33,9 @@ return [
     'create_template' => 'إنشاء قالب بطاقة تقرير',
     'print_cards' => 'طباعة الجلاءات',
     'print_window_title' => 'طباعة جلاء',
+    'special_notes' => [
+        'saving' => 'جارٍ الحفظ…',
+        'saved' => 'تم الحفظ',
+        'save_failed' => 'تعذّر الحفظ',
+    ],
 ];

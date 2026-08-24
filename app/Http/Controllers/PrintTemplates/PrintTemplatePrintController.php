@@ -29,9 +29,27 @@ class PrintTemplatePrintController extends Controller
         protected PrintTemplateDataSourceService $dataSourceService,
     ) {}
 
-    public function create(): View
+    public function create(): View|RedirectResponse
     {
+        $templateId = request()->integer('template');
+
+        if ($templateId < 1) {
+            return redirect()->route('print-templates.templates.index');
+        }
+
+        PrintTemplate::query()
+            ->whereKey($templateId)
+            ->where('is_active', true)
+            ->where('is_student_card', false)
+            ->where('is_report_card', false)
+            ->firstOrFail();
+
         return $this->buildSetupView(false);
+    }
+
+    public function createCourseReportCards(Course $course): View
+    {
+        return $this->buildSetupView(false, $course);
     }
 
     public function createStudentCards(): View
@@ -47,6 +65,35 @@ class PrintTemplatePrintController extends Controller
     public function previewStudentCards(Request $request): View|RedirectResponse
     {
         return $this->buildPreview($request, true);
+    }
+
+    public function previewCourseReportCards(Request $request, Course $course): View|RedirectResponse
+    {
+        $request->merge(['course_id' => $course->id]);
+
+        return $this->buildPreview($request, false, $course);
+    }
+
+    public function updateCourseReportNote(Request $request, Course $course, Enrollment $enrollment): JsonResponse
+    {
+        abort_unless(
+            $enrollment->group()->where('course_id', $course->id)->exists(),
+            404,
+        );
+
+        $validated = $request->validate([
+            'special_note' => ['nullable', 'string', 'max:5000'],
+        ]);
+        $specialNote = trim((string) ($validated['special_note'] ?? ''));
+
+        $enrollment->update([
+            'report_card_special_note' => $specialNote !== '' ? $specialNote : null,
+        ]);
+
+        return response()->json([
+            'saved' => true,
+            'special_note' => $specialNote,
+        ]);
     }
 
     public function recordStudentCardPrints(Request $request): JsonResponse
@@ -166,7 +213,9 @@ class PrintTemplatePrintController extends Controller
                 if ($entity === 'course_student') {
                     $notes = (array) $request->input('special_notes', []);
                     foreach ($models as $model) {
-                        $model->setAttribute('report_card_special_note', trim((string) ($notes[$model->getKey()] ?? '')));
+                        $model->update([
+                            'report_card_special_note' => trim((string) ($notes[$model->getKey()] ?? '')),
+                        ]);
                     }
                 }
 
@@ -228,10 +277,12 @@ class PrintTemplatePrintController extends Controller
             ->values();
     }
 
-    protected function buildSetupView(bool $studentCardMode): View
+    protected function buildSetupView(bool $studentCardMode, ?Course $reportCourse = null): View
     {
-        $courseId = request()->integer('course_id') ?: Course::query()->where('is_default', true)->where('is_active', true)->value('id');
-        $courseReportMode = ! $studentCardMode && request()->filled('course_id');
+        $courseReportMode = ! $studentCardMode && $reportCourse !== null;
+        $courseId = $reportCourse?->id
+            ?: (request()->integer('course_id')
+                ?: Course::query()->where('is_default', true)->where('is_active', true)->value('id'));
         $courseStudentIds = $studentCardMode && $courseId
             ? Enrollment::query()
                 ->where('status', 'active')
@@ -267,15 +318,26 @@ class PrintTemplatePrintController extends Controller
             ->where('is_active', true)
             ->where('is_student_card', $studentCardMode)
             ->when($courseReportMode, fn ($query) => $query->where('is_report_card', true))
+            ->when(! $studentCardMode && ! $courseReportMode, fn ($query) => $query
+                ->where('is_report_card', false)
+                ->whereKey(request()->integer('template')))
             ->orderBy('name')
             ->get()
             ->filter(fn (PrintTemplate $template) => ! $studentCardMode || $this->hasStudentRepeatingSource($template))
             ->values();
 
+        $selectedTemplate = $templates->firstWhere('id', request()->integer('template')) ?? $templates->first();
+
         return view('print-templates.print.setup', [
-            'cancelUrl' => route('print-templates.templates.index'),
-            'defaults' => $templates->first()?->printLayoutConfig() ?? $this->printLayoutService->defaults(),
-            'emptyStateCreateUrl' => route('print-templates.templates.create', ['student_card' => $studentCardMode ? 1 : 0]),
+            'cancelUrl' => $courseReportMode
+                ? route('courses.end', $courseId)
+                : ($studentCardMode
+                    ? route('print-templates.templates.index')
+                    : ($selectedTemplate ? route('print-templates.templates.edit', $selectedTemplate) : route('print-templates.templates.index'))),
+            'defaults' => $selectedTemplate?->printLayoutConfig() ?? $this->printLayoutService->defaults(),
+            'emptyStateCreateUrl' => route('print-templates.templates.create', $courseReportMode
+                ? ['course_report' => 1, 'course_id' => $courseId]
+                : ['student_card' => $studentCardMode ? 1 : 0]),
             'emptyStateDescription' => $studentCardMode
                 ? __('print_templates.print.empty.student_cards_description')
                 : __('print_templates.print.empty.templates_description'),
@@ -286,8 +348,13 @@ class PrintTemplatePrintController extends Controller
             'courseReportMode' => $courseReportMode,
             'pageTitle' => $studentCardMode ? __('id_cards.print.title') : ($courseReportMode ? __('course_end.print_window_title') : __('print_templates.print.title')),
             'pageSubtitle' => $studentCardMode ? __('id_cards.print.subtitle') : ($courseReportMode ? '' : __('print_templates.print.subtitle')),
-            'previewRoute' => $studentCardMode ? route('id-cards.print.preview') : route('print-templates.print.preview'),
+            'previewRoute' => $studentCardMode
+                ? route('id-cards.print.preview')
+                : ($courseReportMode
+                    ? route('courses.end.report-cards.preview', $reportCourse)
+                    : route('print-templates.print.preview')),
             'studentCardMode' => $studentCardMode,
+            'selectedTemplate' => $selectedTemplate,
             'selectedCourseId' => $courseId,
             'activeCourses' => Course::query()->where('is_active', true)->orderByDesc('is_default')->orderBy('name')->get(['id', 'name']),
             'studentFilters' => [
@@ -309,7 +376,7 @@ class PrintTemplatePrintController extends Controller
         ]);
     }
 
-    protected function buildPreview(Request $request, bool $studentCardMode): View|RedirectResponse
+    protected function buildPreview(Request $request, bool $studentCardMode, ?Course $reportCourse = null): View|RedirectResponse
     {
         $validated = $request->validate([
             'template_id' => ['required', 'exists:print_templates,id'],
@@ -333,8 +400,10 @@ class PrintTemplatePrintController extends Controller
         $template = PrintTemplate::query()->findOrFail($validated['template_id']);
         $validated = array_replace($validated, $template->printLayoutConfig());
         $sources = $this->dataSourceService->normalize($template->data_sources ?? []);
+        $courseReportMode = ! $studentCardMode && $reportCourse !== null;
 
         abort_if($template->is_student_card !== $studentCardMode, 404);
+        abort_if((bool) $template->is_report_card !== $courseReportMode, 404);
 
         if ($studentCardMode && ! $this->hasStudentRepeatingSource($template)) {
             return back()
@@ -382,11 +451,15 @@ class PrintTemplatePrintController extends Controller
                 ->all()
             : [];
 
-        return view('print-templates.print.preview', [
-            'backButtonLabel' => $studentCardMode ? __('id_cards.print.preview.buttons.back') : __('print_templates.print.preview.buttons.back'),
+        return view($courseReportMode ? 'courses.report-cards.preview' : 'print-templates.print.preview', [
+            'backButtonLabel' => $studentCardMode
+                ? __('id_cards.print.preview.buttons.back')
+                : ($courseReportMode ? __('course_end.back_to_report_cards') : __('print_templates.print.preview.buttons.back')),
             'backUrl' => $studentCardMode
                 ? route('id-cards.print.create', ['template' => $template->id])
-                : route('print-templates.print.create', ['template' => $template->id]),
+                : ($courseReportMode
+                    ? route('courses.end.report-cards.create', $reportCourse)
+                    : route('print-templates.print.create', ['template' => $template->id])),
             'layout' => $layout,
             'pageSubtitle' => $studentCardMode ? __('id_cards.print.preview.subtitle') : __('print_templates.print.preview.subtitle'),
             'pageTitle' => $studentCardMode ? __('id_cards.print.preview.title') : __('print_templates.print.preview.title'),

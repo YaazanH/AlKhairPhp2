@@ -241,7 +241,7 @@ new class extends Component {
                     <select wire:model.live="group_id" class="report-control w-full rounded-xl px-3 py-2.5 text-sm">
                         <option value="">{{ __('reports.filters.all_groups') }}</option>
                         @foreach ($groups as $group)
-                            <option value="{{ $group->id }}">{{ $group->name }}{{ $group->course ? ' | '.$group->course->name : '' }}</option>
+                            <option value="{{ $group->id }}">{{ $group->name }}</option>
                         @endforeach
                     </select>
                 </div>

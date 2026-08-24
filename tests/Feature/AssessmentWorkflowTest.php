@@ -470,6 +470,8 @@ class AssessmentWorkflowTest extends TestCase
 
         Volt::test('assessments.index')
             ->call('edit', $assessment->id)
+            ->assertSee('w-[19%]', false)
+            ->assertSee('w-[17%]', false)
             ->assertSee('wire:click="delete('.$assessment->id.')"', false)
             ->assertSee('disabled', false)
             ->call('delete', $assessment->id)

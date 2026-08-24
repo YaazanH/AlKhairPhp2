@@ -61,6 +61,32 @@ class StudentProgressPageTest extends TestCase
             ->assertForbidden();
     }
 
+    public function test_progress_photo_and_fallback_stay_inside_the_fixed_profile_frame(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        [$parentUser, $student] = $this->makeScopedProgressData();
+        $this->actingAs($parentUser);
+
+        $this->get(route('students.progress', $student, absolute: false))
+            ->assertOk()
+            ->assertSee('student-progress-profile__photo-fallback', false)
+            ->assertDontSee('student-progress-profile__photo-image', false);
+
+        $student->update(['photo_path' => 'students/photos/wide-landscape-photo.jpg']);
+
+        $this->get(route('students.progress', $student, absolute: false))
+            ->assertOk()
+            ->assertSee('student-progress-profile__photo-image', false)
+            ->assertDontSee('student-progress-profile__photo-fallback', false);
+
+        $css = file_get_contents(resource_path('css/app.css'));
+        $this->assertStringContainsString('grid-template-columns: 9.5rem minmax(0, 1fr);', $css);
+        $this->assertStringContainsString('align-self: stretch;', $css);
+        $this->assertStringContainsString('object-fit: cover;', $css);
+        $this->assertStringContainsString('contain: paint;', $css);
+    }
+
     public function test_student_can_view_only_their_own_progress(): void
     {
         $this->seed(RoleSeeder::class);

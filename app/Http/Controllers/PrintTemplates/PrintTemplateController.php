@@ -36,6 +36,7 @@ class PrintTemplateController extends Controller
     public function create(): View
     {
         $courseReport = request()->boolean('course_report');
+        $studentCard = request()->boolean('student_card') && ! $courseReport;
         $template = new PrintTemplate([
             'name' => __('print_templates.templates.defaults.name'),
             'width_mm' => 85.6,
@@ -51,10 +52,10 @@ class PrintTemplateController extends Controller
             'rounded_corners' => false,
             'data_sources' => $courseReport
                 ? [['key' => 'course_student', 'entity' => 'course_student', 'mode' => 'multiple']]
-                : [['key' => 'student', 'entity' => 'student', 'mode' => request()->boolean('student_card') ? 'multiple' : 'single']],
+                : [['key' => 'student', 'entity' => 'student', 'mode' => $studentCard ? 'multiple' : 'single']],
             'layout_json' => $this->defaultLayout(),
             'is_active' => true,
-            'is_student_card' => request()->boolean('student_card'),
+            'is_student_card' => $studentCard,
             'is_report_card' => $courseReport,
         ]);
 
@@ -164,6 +165,12 @@ class PrintTemplateController extends Controller
         $isStudentCard = (bool) ($validated['is_student_card'] ?? false);
         $isReportCard = (bool) ($validated['is_report_card'] ?? false);
 
+        if ($isStudentCard && $isReportCard) {
+            throw ValidationException::withMessages([
+                'is_report_card' => __('print_templates.templates.validation.exclusive_card_types'),
+            ]);
+        }
+
         if ($isReportCard && PrintTemplate::query()->where('is_report_card', true)->when($template->exists, fn ($query) => $query->whereKeyNot($template->id))->exists()) {
             throw ValidationException::withMessages(['is_report_card' => __('print_templates.templates.validation.only_one_report_card')]);
         }
@@ -171,6 +178,12 @@ class PrintTemplateController extends Controller
         if ($isStudentCard && ! collect($dataSources)->contains(fn (array $source) => $source['entity'] === 'student' && $source['mode'] === 'multiple')) {
             throw ValidationException::withMessages([
                 'is_student_card' => __('print_templates.templates.validation.student_card_requires_students'),
+            ]);
+        }
+
+        if ($isReportCard && ! collect($dataSources)->contains(fn (array $source) => $source['entity'] === 'course_student' && $source['mode'] === 'multiple')) {
+            throw ValidationException::withMessages([
+                'is_report_card' => __('print_templates.templates.validation.report_card_requires_course_students'),
             ]);
         }
 

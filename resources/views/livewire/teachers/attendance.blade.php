@@ -48,7 +48,7 @@ new class extends Component {
     public function with(): array
     {
         $daysQuery = $this->scopeTeacherAttendanceDaysQuery(
-            TeacherAttendanceDay::query()->withCount([
+            TeacherAttendanceDay::query()->with('course')->withCount([
                 'records',
                 'records as present_records_count' => fn (Builder $query) => $query
                     ->whereHas('status', fn (Builder $statusQuery) => $statusQuery->where('is_present', true)),
@@ -150,6 +150,7 @@ new class extends Component {
             null,
             'open',
             (int) $validated['default_attendance_status_id'],
+            (int) $validated['course_id'],
         );
 
         session()->flash('status', __('workflow.teacher_attendance.days.messages.created'));
@@ -299,6 +300,7 @@ new class extends Component {
                     <thead>
                         <tr>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.teacher_attendance.days.table.headers.date') }}</th>
+                            <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.teacher_attendance.days.table.headers.course') }}</th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.teacher_attendance.days.table.headers.teachers') }}</th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.teacher_attendance.days.table.headers.marked') }}</th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.teacher_attendance.days.table.headers.status') }}</th>
@@ -314,6 +316,7 @@ new class extends Component {
                                         <span class="mt-1">{{ $day->attendance_date?->format('d-m-Y') }}</span>
                                     </div>
                                 </td>
+                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $day->course?->name ?: __('workflow.common.no_course') }}</td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ number_format((int) $day->records_count) }}</td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ number_format((int) $day->present_records_count) }}</td>
                                 <td class="px-5 py-4 lg:px-6">
@@ -372,7 +375,7 @@ new class extends Component {
             <div class="grid gap-4 md:grid-cols-2">
                 <div>
                     <label for="teacher-attendance-day-date" class="mb-1 block text-sm font-medium">{{ __('workflow.teacher_attendance.days.form.attendance_date') }}</label>
-                    <input id="teacher-attendance-day-date" wire:model.live="attendance_date" value="{{ $attendance_date }}" type="date" class="h-12 min-h-12 w-full appearance-none rounded-xl px-4 py-0 text-sm">
+                    <input id="teacher-attendance-day-date" wire:model.live="attendance_date" value="{{ $attendance_date }}" type="date" class="h-12 min-h-12 w-full rounded-xl px-4 py-0 text-sm">
                     @error('attendance_date')
                         <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                     @enderror

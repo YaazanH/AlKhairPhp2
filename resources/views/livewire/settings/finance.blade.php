@@ -692,7 +692,6 @@ new class extends Component {
     {
         $this->authorizePermission('finance.entries.update');
         $this->normalizeFinanceNumberProperty('maint_amount');
-        $allowedPrefixes = app(FinanceService::class)->allowedSpecialReferencePrefixes();
         $validated = $this->validate([
             'maint_amount' => ['required', 'numeric', 'gt:0'],
             'maint_cash_box_id' => ['required', 'exists:finance_cash_boxes,id'],
@@ -701,21 +700,6 @@ new class extends Component {
             'maint_description' => ['nullable', 'string', 'max:2000'],
             'maint_direction' => ['required', 'in:in,out'],
             'maint_entered_by' => ['nullable', 'exists:users,id'],
-            'maint_special_transaction_no' => [
-                'nullable',
-                'string',
-                'max:100',
-                function (string $attribute, mixed $value, \Closure $fail) use ($allowedPrefixes): void {
-                    if (! filled($value)) {
-                        return;
-                    }
-
-                    $valid = collect($allowedPrefixes)->contains(fn (string $prefix) => preg_match('/^'.preg_quote($prefix, '/').'-?\d+$/i', trim((string) $value)) === 1);
-                    if (! $valid) {
-                        $fail(__('finance.validation.invalid_special_reference_prefix', ['prefixes' => implode(', ', $allowedPrefixes)]));
-                    }
-                },
-            ],
             'maint_transaction_date' => ['required', 'date'],
             'maint_type' => ['required', Rule::in(['income', 'expense', 'return', 'exchange', 'transfer'])],
         ]);
@@ -732,7 +716,7 @@ new class extends Component {
             'description' => $validated['maint_description'],
             'direction' => $validated['maint_direction'],
             'entered_by' => $validated['maint_entered_by'],
-            'special_transaction_no' => $validated['maint_special_transaction_no'] ?: null,
+            'special_transaction_no' => $transaction->special_transaction_no,
             'transaction_date' => $validated['maint_transaction_date'],
             'type' => $validated['maint_type'],
         ], auth()->user());
@@ -1274,13 +1258,24 @@ new class extends Component {
 
     <section class="surface-panel p-5 lg:p-6">
         <div class="admin-toolbar"><div><div class="admin-toolbar__title">{{ __('finance.settings.transaction_maintenance') }}</div><p class="admin-toolbar__subtitle">{{ __('finance.settings.transaction_maintenance_help') }}</p></div></div>
-        <form wire:submit="findTransaction" class="mt-5 flex flex-col gap-3 sm:flex-row"><input wire:model="transaction_lookup_no" placeholder="{{ __('finance.fields.transaction_lookup') }}" class="min-w-0 flex-1 rounded-xl px-4 py-3"> <button class="pill-link pill-link--accent">{{ __('finance.actions.find') }}</button></form>
+        @php($maintainingInvoice = $maintaining_transaction_id ? \App\Models\FinanceTransaction::withTrashed()->with('financeRequest.invoice')->find($maintaining_transaction_id)?->financeRequest?->invoice : null)
+        @if ($maintaining_transaction_id)
+            <div class="mt-5 flex flex-col gap-3 sm:flex-row">
+                <input wire:model="transaction_lookup_no" readonly class="min-w-0 flex-1 rounded-xl px-4 py-3 opacity-75">
+                @unless ($maintaining_transaction_deleted)<button type="submit" form="transaction-maintenance-form" class="pill-link pill-link--accent">{{ __('crud.common.actions.save') }}</button>@endunless
+                @if ($maintainingInvoice && auth()->user()?->can('invoices.view'))
+                    <a href="{{ route('invoices.payments', ['invoice' => $maintainingInvoice, 'maintenance' => 1]) }}" wire:navigate class="pill-link">{{ __('finance.actions.edit_invoice') }}</a>
+                @endif
+            </div>
+        @else
+            <form wire:submit="findTransaction" class="mt-5 flex flex-col gap-3 sm:flex-row"><input wire:model="transaction_lookup_no" placeholder="{{ __('finance.fields.transaction_lookup') }}" class="min-w-0 flex-1 rounded-xl px-4 py-3"> <button class="pill-link pill-link--accent">{{ __('finance.actions.find') }}</button></form>
+        @endif
         @error('transaction_lookup_no')<div class="mt-2 text-sm text-red-400">{{ $message }}</div>@enderror
         @if ($maintaining_transaction_id)
             @if ($maintaining_transaction_deleted)
                 <div class="mt-5 rounded-2xl border border-red-400/25 bg-red-500/10 px-4 py-3 text-sm text-red-100">{{ __('finance.statuses.deleted') }}</div>
             @endif
-            <form wire:submit="saveTransactionMaintenance" class="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <form id="transaction-maintenance-form" wire:submit="saveTransactionMaintenance" class="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                 <div><label class="mb-1 block text-sm">{{ __('finance.common.date') }}</label><input wire:model="maint_transaction_date" type="date" class="w-full rounded-xl px-4 py-3"></div>
                 <div><label class="mb-1 block text-sm">{{ __('finance.fields.cash_box') }}</label><select wire:model="maint_cash_box_id" class="w-full rounded-xl px-4 py-3">@foreach ($cashBoxes as $fund)<option value="{{ $fund->id }}">{{ $fund->name }}</option>@endforeach</select></div>
                 <div><label class="mb-1 block text-sm">{{ __('finance.common.currency') }}</label><select wire:model="maint_currency_id" class="w-full rounded-xl px-4 py-3">@foreach ($currencies as $currency)<option value="{{ $currency->id }}">{{ $currency->code }}</option>@endforeach</select></div>
@@ -1288,17 +1283,9 @@ new class extends Component {
                 <div><label class="mb-1 block text-sm">{{ __('finance.fields.type') }}</label><select wire:model="maint_type" @disabled($maint_type_locked) class="w-full rounded-xl px-4 py-3">@foreach ($maint_type_locked ? [$maint_type] : ['income', 'expense', 'return', 'exchange', 'transfer'] as $transactionType)<option value="{{ $transactionType }}">{{ app(\App\Services\FinanceService::class)->transactionTypeLabel($transactionType) }}</option>@endforeach</select></div>
                 <div><label class="mb-1 block text-sm">{{ __('finance.fields.direction') }}</label><select wire:model="maint_direction" class="w-full rounded-xl px-4 py-3"><option value="in">{{ __('finance.options.in') }}</option><option value="out">{{ __('finance.options.out') }}</option></select></div>
                 <div><label class="mb-1 block text-sm">{{ __('finance.fields.amount') }}</label><input wire:model="maint_amount" data-thousand-separator class="w-full rounded-xl px-4 py-3"></div>
-                <div><label class="mb-1 block text-sm">{{ __('finance.fields.special_transaction_no') }}</label><input wire:model="maint_special_transaction_no" dir="ltr" class="w-full rounded-xl px-4 py-3">@error('maint_special_transaction_no')<div class="mt-1 text-sm text-red-400">{{ $message }}</div>@enderror</div>
                 <div><label class="mb-1 block text-sm">{{ __('finance.fields.user') }}</label><select wire:model="maint_entered_by" class="w-full rounded-xl px-4 py-3"><option value="">-</option>@foreach ($users as $user)<option value="{{ $user->id }}">{{ $user->name }}</option>@endforeach</select></div>
-                <div class="md:col-span-2 xl:col-span-3"><label class="mb-1 block text-sm">{{ __('finance.common.description') }}</label><textarea wire:model="maint_description" class="w-full rounded-xl px-4 py-3"></textarea></div>
-                @unless ($maintaining_transaction_deleted)
-                    <div class="flex items-end justify-end"><button class="pill-link pill-link--accent">{{ __('crud.common.actions.save') }}</button></div>
-                @endunless
+                <div class="md:col-span-2 xl:col-span-4"><label class="mb-1 block text-sm">{{ __('finance.common.description') }}</label><textarea wire:model="maint_description" rows="1" class="h-[3.125rem] w-full resize-none rounded-xl px-4 py-3"></textarea></div>
             </form>
-            @php($maintainingInvoice = $maintaining_transaction_id ? \App\Models\FinanceTransaction::withTrashed()->with('financeRequest.invoice')->find($maintaining_transaction_id)?->financeRequest?->invoice : null)
-            @if ($maintainingInvoice && auth()->user()?->can('invoices.view'))
-                <div class="mt-4 flex justify-end"><a href="{{ route('invoices.payments', ['invoice' => $maintainingInvoice, 'maintenance' => 1]) }}" wire:navigate class="pill-link">{{ __('finance.actions.edit_invoice') }}</a></div>
-            @endif
             @unless ($maintaining_transaction_deleted)
                 @can('finance.entries.delete')
                     <div class="mt-5 border-t border-white/10 pt-5"><label class="mb-1 block text-sm">{{ __('finance.fields.deletion_reason') }}</label><div class="flex flex-col gap-3 sm:flex-row"><textarea wire:model="maint_delete_reason" class="min-w-0 flex-1 rounded-xl px-4 py-3"></textarea><button wire:click="deleteTransactionMaintenance" wire:confirm="{{ __('finance.messages.transaction_delete_warning') }}" type="button" class="pill-link pill-link--danger">{{ __('finance.actions.delete') }}</button></div>@error('maint_delete_reason')<div class="text-sm text-red-400">{{ $message }}</div>@enderror</div>

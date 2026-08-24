@@ -68,6 +68,10 @@ class QuickQuranTestEntryTest extends TestCase
     public function test_quick_entry_records_only_available_partial_quarters_and_final_attempts(): void
     {
         [$teacherUser, $teacher, $student, $enrollment, $juz] = $this->context();
+        $nextJuz = QuranJuz::query()->firstOrCreate(
+            ['juz_number' => 2],
+            ['name' => 'Juz 2', 'from_page' => 22, 'to_page' => 41],
+        );
 
         $partialTest = QuranPartialTest::query()->create([
             'created_by' => $teacherUser->id,
@@ -83,6 +87,7 @@ class QuickQuranTestEntryTest extends TestCase
         Volt::test('quran-tests.quick-entry')
             ->set('partialStudentId', $student->id)
             ->assertSet('partialJuzId', $juz->id)
+            ->assertSet('partialQuarter', 1)
             ->set('partialQuarter', 1)
             ->set('mistakeCount', '1')
             ->call('savePartial')
@@ -100,6 +105,12 @@ class QuickQuranTestEntryTest extends TestCase
         $this->assertDatabaseMissing('quran_partial_test_attempts', [
             'quran_partial_test_part_id' => $partialTest->parts()->where('part_number', 3)->value('id'),
         ]);
+
+        $partialTest->parts()->whereIn('part_number', [2, 3])->update(['status' => 'passed']);
+
+        Volt::test('quran-tests.quick-entry')
+            ->set('partialStudentId', $student->id)
+            ->assertSet('partialQuarter', 4);
 
         $partialAttempt = $partialTest->parts()->where('part_number', 1)->firstOrFail()->attempts()->firstOrFail();
         Volt::test('quran-partial-tests.show', ['partialTest' => $partialTest])
@@ -125,7 +136,7 @@ class QuickQuranTestEntryTest extends TestCase
             'student_id' => $student->id,
         ]);
 
-        Volt::test('quran-tests.quick-entry')
+        $finalEntry = Volt::test('quran-tests.quick-entry')
             ->set('tab', 'final')
             ->set('finalStudentId', $student->id)
             ->assertSet('finalJuzId', $juz->id)
@@ -134,10 +145,21 @@ class QuickQuranTestEntryTest extends TestCase
             ->set('finalMark', '95')
             ->call('saveFinal')
             ->assertHasNoErrors()
+            ->assertSet('showCurrentJuzModal', true)
+            ->assertSee('wire:model="newCurrentJuzNumber" type="number"', false)
+            ->assertSet('passedFinalTestId', $finalTest->id)
             ->assertSet('finalStudentId', null)
             ->assertSet('finalJuzId', null)
             ->assertSet('finalTestedOn', now()->toDateString())
             ->assertSet('finalMark', '');
+
+        $finalEntry
+            ->set('newCurrentJuzNumber', (string) $nextJuz->juz_number)
+            ->call('saveCurrentJuz')
+            ->assertHasNoErrors()
+            ->assertSet('showCurrentJuzModal', false);
+
+        $this->assertSame($nextJuz->id, $student->fresh()->quran_current_juz_id);
 
         $this->assertDatabaseHas('quran_final_test_attempts', [
             'quran_final_test_id' => $finalTest->id,
@@ -197,6 +219,32 @@ class QuickQuranTestEntryTest extends TestCase
             ->assertDontSee('quick-saber-type-switch', false);
     }
 
+    public function test_switching_saber_type_clears_both_entry_forms(): void
+    {
+        [, , $student] = $this->context();
+
+        $component = Volt::test('quran-tests.quick-entry')
+            ->set('partialStudentId', $student->id)
+            ->set('partialQuarter', 2)
+            ->set('mistakeCount', '3')
+            ->call('switchTab', 'final')
+            ->assertSet('tab', 'final')
+            ->assertSet('partialStudentId', null)
+            ->assertSet('partialJuzId', null)
+            ->assertSet('partialQuarter', null)
+            ->assertSet('mistakeCount', '');
+
+        $component
+            ->set('finalStudentId', $student->id)
+            ->set('finalMark', '92')
+            ->call('switchTab', 'partial')
+            ->assertSet('tab', 'partial')
+            ->assertSet('finalStudentId', null)
+            ->assertSet('finalJuzId', null)
+            ->assertSet('finalTestedOn', now()->toDateString())
+            ->assertSet('finalMark', '');
+    }
+
     public function test_quick_entry_records_under_the_teacher_linked_to_the_logged_in_account(): void
     {
         [$teacherUser, $accountTeacher, $student, $enrollment, $juz] = $this->context();
@@ -234,6 +282,44 @@ class QuickQuranTestEntryTest extends TestCase
         $attempt = $partialTest->parts()->where('part_number', 1)->firstOrFail()->attempts()->firstOrFail();
         $this->assertSame($accountTeacher->id, $attempt->teacher_id);
         $this->assertNotSame($groupTeacher->id, $attempt->teacher_id);
+    }
+
+    public function test_teacher_with_quick_entry_permission_can_select_students_outside_their_groups(): void
+    {
+        [$teacherUser] = $this->context();
+
+        $otherTeacher = Teacher::query()->create([
+            'first_name' => 'Other',
+            'last_name' => 'Teacher',
+            'phone' => '0944000204',
+            'status' => 'active',
+        ]);
+        $otherCourse = Course::query()->create(['name' => 'Other Active Course', 'is_active' => true]);
+        $otherGroup = Group::query()->create([
+            'course_id' => $otherCourse->id,
+            'academic_year_id' => AcademicYear::query()->where('is_current', true)->value('id'),
+            'teacher_id' => $otherTeacher->id,
+            'name' => 'Other Teacher Group',
+            'capacity' => 20,
+            'is_active' => true,
+        ]);
+        $otherStudent = Student::query()->create([
+            'first_name' => 'Outside',
+            'last_name' => 'Student',
+            'birth_date' => '2014-02-02',
+            'status' => 'active',
+        ]);
+        Enrollment::query()->create([
+            'student_id' => $otherStudent->id,
+            'group_id' => $otherGroup->id,
+            'enrolled_at' => now()->toDateString(),
+            'status' => 'active',
+        ]);
+
+        $this->actingAs($teacherUser->fresh());
+
+        Volt::test('quran-tests.quick-entry')
+            ->assertSee('Outside Student');
     }
 
     private function context(): array

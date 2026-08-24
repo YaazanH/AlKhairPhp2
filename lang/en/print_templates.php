@@ -274,6 +274,8 @@ return [
         ],
         'validation' => [
             'student_card_requires_students' => 'Student card templates must use students as the repeating data source.',
+            'report_card_requires_course_students' => 'Report card templates must use course report students as the repeating data source.',
+            'exclusive_card_types' => 'A template cannot be both a student ID card and a report card.',
             'only_one_report_card' => 'Only one report card template can be created.',
         ],
     ],

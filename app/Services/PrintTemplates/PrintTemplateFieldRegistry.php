@@ -410,6 +410,7 @@ class PrintTemplateFieldRegistry
                 'student_name' => (string) ($model->student?->full_name ?? ''),
                 'course_name' => (string) ($model->group?->course?->name ?? ''),
                 'group_name' => (string) ($model->group?->name ?? ''),
+                'special_note' => (string) ($model->report_card_special_note ?? ''),
             ],
             'teacher' => [
                 'activity_ids' => $this->teacherActivityIds($model),

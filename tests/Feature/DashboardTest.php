@@ -113,6 +113,22 @@ class DashboardTest extends TestCase
             'memorized_pages_cached' => 18,
         ]);
 
+        $belowAverageStudent = Student::create([
+            'parent_id' => ParentProfile::query()->firstOrFail()->id,
+            'first_name' => 'Nabil',
+            'last_name' => 'Below Average',
+            'birth_date' => '2015-03-10',
+            'status' => 'active',
+        ]);
+        Enrollment::create([
+            'student_id' => $belowAverageStudent->id,
+            'group_id' => $group->id,
+            'enrolled_at' => '2026-09-01',
+            'status' => 'active',
+            'final_points_cached' => 0,
+            'memorized_pages_cached' => 0,
+        ]);
+
         MemorizationSession::create([
             'enrollment_id' => $enrollment->id,
             'student_id' => $student->id,
@@ -161,9 +177,19 @@ class DashboardTest extends TestCase
             ->assertSee('dashboard-course-context__course', false)
             ->assertSee('Number of Students per Group')
             ->assertSee('Comparison between Attendance and Memorisation')
-            ->assertSee('Top 3 Students')
-            ->assertSee('dashboard-leaderboard__rank-image', false)
-            ->assertSee('images/dashboard/leaderboard/medal-1.png', false)
+            ->assertSee('Student Performance Map')
+            ->assertDontSee('Each point is a student. Select one to open their summary.')
+            ->assertSee('dashboard-ranking-grid mt-6 grid items-stretch', false)
+            ->assertSee('dashboard-performance-map__plot', false)
+            ->assertSee('dashboard-performance-map__point', false)
+            ->assertSee('dashboard-performance-map__point--above-average', false)
+            ->assertSee('dashboard-performance-map__point--below-average', false)
+            ->assertDontSee('dashboard-performance-map__x-axis', false)
+            ->assertDontSee('dashboard-performance-map__y-axis', false)
+            ->assertDontSee('Strong in both')
+            ->assertDontSee('Building momentum')
+            ->assertSee('wire:click="showManagerStudent('.$student->id.')"', false)
+            ->assertDontSee('wire:click="showManagerStudent('.$belowAverageStudent->id.')"', false)
             ->assertSee('Top Groups by Memorisation')
             ->assertDontSee('Latest five attendance days')
             ->assertDontSee('Count')
@@ -172,6 +198,8 @@ class DashboardTest extends TestCase
             ->assertSee('Memorized pages: 5')
             ->assertSee('Students attended: 1')
             ->assertSee('dashboard-line-point__tooltip', false)
+            ->assertSee('dashboard-lollipop-attendance__tooltip', false)
+            ->assertSee('100.0%', false)
             ->assertSee('dashboard-line-chart', false)
             ->assertSee('viewBox="0 0 458 220"', false)
             ->assertSee('dashboard-treemap', false)
@@ -184,11 +212,11 @@ class DashboardTest extends TestCase
             ->assertDontSee('Excluded Group');
 
         $dashboardCss = file_get_contents(resource_path('css/app.css'));
-        $this->assertStringContainsString('.dashboard-leaderboard__rank-image {', $dashboardCss);
-        $this->assertStringNotContainsString('--dashboard-rank-ribbon:', $dashboardCss);
-        $this->assertFileExists(public_path('images/dashboard/leaderboard/medal-1.png'));
-        $this->assertFileExists(public_path('images/dashboard/leaderboard/medal-2.png'));
-        $this->assertFileExists(public_path('images/dashboard/leaderboard/medal-3.png'));
+        $this->assertStringContainsString('.dashboard-performance-map__plot {', $dashboardCss);
+        $this->assertStringContainsString('.dashboard-performance-map__average-line--vertical {', $dashboardCss);
+        $this->assertStringContainsString('background-size: 20% 100%, 100% 20%', $dashboardCss);
+        $this->assertStringContainsString('.dashboard-performance-map__point--below-average {', $dashboardCss);
+        $this->assertStringContainsString('.dashboard-performance-map__point:hover .dashboard-performance-map__dot,', $dashboardCss);
 
         Volt::test('dashboard')
             ->call('showManagerStudent', $student->id)

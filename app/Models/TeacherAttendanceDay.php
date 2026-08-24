@@ -13,6 +13,7 @@ class TeacherAttendanceDay extends Model
 
     protected $fillable = [
         'attendance_date',
+        'course_id',
         'status',
         'created_by',
         'notes',
@@ -28,6 +29,11 @@ class TeacherAttendanceDay extends Model
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function course(): BelongsTo
+    {
+        return $this->belongsTo(Course::class);
     }
 
     public function records(): HasMany

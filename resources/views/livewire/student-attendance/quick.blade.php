@@ -49,6 +49,11 @@ new class extends Component
             ->findOrFail($studentAttendanceDay->id);
 
         $this->authorizeScopedStudentAttendanceDayAccess($this->currentDay);
+        $this->currentDay = app(StudentAttendanceDayService::class)->fillMissingStatuses(
+            $this->currentDay,
+            null,
+            auth()->user(),
+        );
         $this->selected_status_id = (string) ($this->defaultStudentAttendanceStatusId() ?? '');
     }
 
@@ -432,7 +437,6 @@ new class extends Component
                 <div>
                     <label for="quick-attendance-status" class="mb-1 block text-sm font-medium">{{ __('workflow.student_attendance.quick.status') }}</label>
                     <select id="quick-attendance-status" wire:model="selected_status_id" class="w-full rounded-xl px-4 py-3 text-sm" data-searchable="false" @disabled($isDayClosed)>
-                        <option value="">{{ __('workflow.student_attendance.quick.select_status') }}</option>
                         @foreach ($statuses as $status)
                             <option value="{{ $status->id }}">{{ $status->name }}{{ $status->is_default ? ' - '.__('settings.tracking.labels.default_attendance_status') : '' }}</option>
                         @endforeach
@@ -460,7 +464,7 @@ new class extends Component
         </div>
     </section>
 
-    <section class="surface-panel p-5 lg:p-6">
+    <section class="surface-panel p-5 lg:p-6" data-mobile-table-filter-controls>
         <div>
             <label for="quick-attendance-search" class="mb-1 block text-sm font-medium">{{ __('crud.common.filters.search') }}</label>
             <input id="quick-attendance-search" wire:model.live.debounce.250ms="search" type="text" class="w-full rounded-xl px-4 py-3 text-sm" placeholder="{{ __('workflow.student_attendance.quick.search_placeholder') }}">
@@ -527,7 +531,7 @@ new class extends Component
                                     @if ($record?->status)
                                         <span class="status-chip status-chip--emerald">{{ $record->status->name }}</span>
                                     @else
-                                        <span class="status-chip status-chip--slate">{{ __('workflow.student_attendance.table.not_marked') }}</span>
+                                        <span class="status-chip status-chip--slate">{{ $statuses->firstWhere('is_default', true)?->name ?: $statuses->first()?->name ?: '-' }}</span>
                                     @endif
                                 </td>
                                 <td class="px-5 py-4 lg:px-6">
