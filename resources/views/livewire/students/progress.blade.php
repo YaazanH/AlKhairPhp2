@@ -19,20 +19,25 @@ use App\Models\StudentPageAchievement;
 use App\Models\Teacher;
 use App\Services\PointLedgerService;
 use App\Services\QuranProgressionService;
-use Illuminate\Support\Str;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Livewire\Volt\Component;
+use Livewire\WithFileUploads;
 use Livewire\WithPagination;
 
 new class extends Component
 {
     use AuthorizesPermissions;
     use AuthorizesTeacherAssignments;
+    use WithFileUploads;
     use WithPagination;
 
     public ?Student $currentStudent = null;
 
     public int|string|null $selectedStudentId = null;
+
+    public $progressPhotoUpload = null;
 
     public ?int $missingJuzId = null;
 
@@ -82,6 +87,29 @@ new class extends Component
         }
 
         $this->setCurrentStudent((int) $value);
+    }
+
+    public function updatedProgressPhotoUpload(): void
+    {
+        $this->authorizePermission('students.update');
+
+        abort_unless($this->currentStudent, 404);
+        $student = Student::query()->findOrFail($this->currentStudent->id);
+        $this->authorizeScopedStudentAccess($student);
+
+        $validated = $this->validate([
+            'progressPhotoUpload' => ['required', 'file', 'mimes:jpg,jpeg,png,webp', 'max:'.config('uploads.image_max_kb')],
+        ]);
+        $path = $validated['progressPhotoUpload']->store('students/photos/'.$student->id, 'public');
+
+        if ($student->photo_path) {
+            Storage::disk('public')->delete($student->photo_path);
+        }
+
+        $student->update(['photo_path' => $path]);
+        $this->currentStudent = $student->fresh(['gradeLevel', 'parentProfile', 'quranCurrentJuz']);
+        $this->reset('progressPhotoUpload');
+        session()->flash('status', __('workflow.student_progress.messages.photo_updated'));
     }
 
     public function showDetails(string $section): void
@@ -499,7 +527,7 @@ new class extends Component
         @else
             <div class="admin-filter-field">
                 <label for="student-progress-student" class="sr-only">{{ __('workflow.student_progress.selection.search') }}</label>
-                <select id="student-progress-student" wire:model.live="selectedStudentId" data-search-placeholder="{{ __('workflow.student_progress.selection.search_placeholder') }}" class="w-full rounded-xl px-4 py-3 text-sm">
+                <select id="student-progress-student" wire:model.live="selectedStudentId" data-search-input="true" data-hide-placeholder-option="true" data-search-placeholder="{{ __('workflow.student_progress.selection.search_placeholder') }}" class="w-full rounded-xl px-4 py-3 text-sm">
                     <option value="">{{ __('workflow.student_progress.selection.search_placeholder') }}</option>
                     @foreach ($studentOptions as $option)
                         <option value="{{ $option->id }}" data-search="{{ $option->search }}" data-option-name="{{ $option->full_name }}" data-option-number="{{ $option->student_number }}">{{ $option->full_name }}</option>
@@ -513,9 +541,18 @@ new class extends Component
         <section class="student-progress-profile surface-panel surface-panel--soft p-5 lg:p-6">
             @php($studentPhotoUrl = $studentRecord->photo_path ? asset('storage/'.ltrim($studentRecord->photo_path, '/')) : null)
             <div class="student-progress-profile__grid">
-                <div class="student-progress-profile__photo overflow-hidden rounded-3xl border border-white/10 bg-white/5">
-                    @if ($studentPhotoUrl)<img src="{{ $studentPhotoUrl }}" alt="{{ $studentRecord->full_name }}" class="student-progress-profile__photo-image">@else<div class="student-progress-profile__photo-fallback">{{ \Illuminate\Support\Str::upper(\Illuminate\Support\Str::substr($studentRecord->first_name ?: 'S', 0, 1)) }}</div>@endif
-                </div>
+                @can('students.update')
+                    <label class="student-progress-profile__photo group cursor-pointer overflow-hidden rounded-3xl border border-white/10 bg-white/5" data-student-progress-photo-upload title="{{ __('workflow.student_progress.actions.update_photo') }}">
+                        <input wire:model="progressPhotoUpload" type="file" accept="image/jpeg,image/png,image/webp" class="sr-only">
+                        @if ($studentPhotoUrl)<img src="{{ $studentPhotoUrl }}" alt="{{ $studentRecord->full_name }}" class="student-progress-profile__photo-image">@else<div class="student-progress-profile__photo-fallback">{{ \Illuminate\Support\Str::upper(\Illuminate\Support\Str::substr($studentRecord->first_name ?: 'S', 0, 1)) }}</div>@endif
+                        <span class="absolute inset-x-2 bottom-2 rounded-xl bg-black/65 px-2 py-1.5 text-center text-xs font-medium text-white opacity-0 transition group-hover:opacity-100 group-focus-within:opacity-100">{{ __('workflow.student_progress.actions.update_photo') }}</span>
+                        <span wire:loading.flex wire:target="progressPhotoUpload" class="absolute inset-0 items-center justify-center bg-black/65"><span class="size-9 animate-spin rounded-full border-2 border-white/30 border-t-white" aria-hidden="true"></span></span>
+                    </label>
+                @else
+                    <div class="student-progress-profile__photo overflow-hidden rounded-3xl border border-white/10 bg-white/5">
+                        @if ($studentPhotoUrl)<img src="{{ $studentPhotoUrl }}" alt="{{ $studentRecord->full_name }}" class="student-progress-profile__photo-image">@else<div class="student-progress-profile__photo-fallback">{{ \Illuminate\Support\Str::upper(\Illuminate\Support\Str::substr($studentRecord->first_name ?: 'S', 0, 1)) }}</div>@endif
+                    </div>
+                @endcan
                 <div class="student-progress-profile__fields grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                     <div class="rounded-2xl border border-white/8 bg-white/4 p-3"><div class="kpi-label">{{ __('workflow.student_progress.profile.student_no') }}</div><div class="mt-2 text-sm font-semibold text-white">{{ $studentRecord->student_number ?: __('crud.common.not_available') }}</div></div>
                     <div class="rounded-2xl border border-white/8 bg-white/4 p-3"><div class="kpi-label">{{ __('workflow.student_progress.profile.student_name') }}</div><div class="mt-2 text-sm font-semibold text-white">{{ $studentRecord->full_name }}</div></div>
@@ -527,6 +564,7 @@ new class extends Component
                     <div class="rounded-2xl border border-white/8 bg-white/4 p-3"><div class="kpi-label">{{ __('workflow.student_progress.profile.current_juz') }}</div><div class="mt-2 text-sm font-semibold text-white">{{ $studentRecord->quranCurrentJuz ? __('workflow.common.labels.juz_number', ['number' => $studentRecord->quranCurrentJuz->juz_number]) : __('crud.common.not_available') }}</div></div>
                 </div>
             </div>
+            @error('progressPhotoUpload')<div class="mt-3 text-sm text-red-400">{{ $message }}</div>@enderror
         </section>
 
         <section class="grid gap-4 md:grid-cols-2 xl:grid-cols-5">

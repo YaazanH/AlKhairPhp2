@@ -492,6 +492,12 @@ class FinanceAndActivitiesTest extends TestCase
             ->assertSee('width: 105mm', false)
             ->assertSee('padding: 7mm 8mm 9mm 6mm', false);
 
+        $this->get(route('finance.requests.print', ['financeRequest' => $revenueRequest, 'auto_print' => 1]))
+            ->assertOk()
+            ->assertSee('data-auto-print', false)
+            ->assertSee("window.addEventListener('load', () => window.print()", false)
+            ->assertDontSee('<div class="print-template-toolbar">', false);
+
         $this->get(route('finance.requests.print', ['financeRequest' => $revenueRequest, 'choose' => 1]))
             ->assertOk()
             ->assertDontSee('Revenue Receipt')
@@ -885,6 +891,8 @@ class FinanceAndActivitiesTest extends TestCase
 
         Volt::test('finance.revenue-requests')
             ->assertSee('Y**** A* H****')
+            ->assertSee('data-income-direct-print', false)
+            ->assertSee('auto_print=1', false)
             ->call('openFinanceRequestEditModal', $request->id)
             ->set('edit_counterparty_name', 'Updated Donor')
             ->set('edit_request_date', '2026-02-05')
@@ -2370,16 +2378,66 @@ class FinanceAndActivitiesTest extends TestCase
         $request->update(['requested_amount' => 60]);
         $request = $service->acceptRequest($request, 60, $fund, auth()->user());
 
-        Volt::test('finance.expense-requests')
+        $component = Volt::test('finance.expense-requests')
             ->call('openFinaliseModal', $request->id)
+            ->assertSeeInOrder([
+                'data-invoice-finalisation-metrics',
+                'data-invoice-scan-fields',
+                'data-invoice-items-table',
+            ], false)
+            ->assertSee(__('finance.fields.item_name'))
+            ->assertSee(__('finance.fields.quantity'))
+            ->assertSee(__('finance.fields.unit_price'))
+            ->assertSee(__('finance.fields.amount'))
+            ->assertSee('data-invoice-items-header-divider', false)
+            ->assertSet('invoice_items', [])
+            ->assertSee('data-invoice-item-draft-row', false)
+            ->assertDontSee('wire:click="addInvoiceItem"', false)
+            ->assertDontSee('wire:model="invoice_notes"', false)
+            ->assertDontSee('mb-5 soft-callout p-4', false)
+            ->set('invoice_item_name', 'Supplies')
+            ->set('invoice_item_quantity', '1')
+            ->set('invoice_item_unit_price', '50')
+            ->call('saveInvoiceItem')
+            ->assertSet('invoice_items.0.item_name', 'Supplies')
+            ->assertSet('invoice_items.0.unit_price', '50')
+            ->assertSee('data-invoice-item-edit', false)
+            ->assertSee('data-invoice-item-delete', false)
+            ->call('editInvoiceItem', 0)
+            ->assertSet('editing_invoice_item_index', 0)
+            ->assertSet('invoice_item_name', 'Supplies')
+            ->assertSee('data-invoice-item-edit-row', false)
+            ->assertDontSee('data-invoice-item-draft-row', false)
+            ->set('invoice_item_unit_price', '55')
+            ->call('saveInvoiceItem')
+            ->assertSet('editing_invoice_item_index', null)
+            ->assertSet('invoice_items.0.unit_price', '55')
+            ->assertSee('data-invoice-item-saved-row', false)
+            ->assertSee('data-invoice-item-row-tone="odd"', false)
             ->set('original_invoice_no', 'VENDOR-10')
             ->set('invoice_issuer', 'Vendor')
             ->set('invoice_date', now()->toDateString())
-            ->set('invoice_items', [['item_name' => 'Supplies', 'quantity' => '1', 'unit_price' => '55']])
             ->set('invoice_deduction', '5')
-            ->set('invoice_image', UploadedFile::fake()->image('vendor-scan.jpg'))
+            ->call('closeFinaliseModal')
+            ->assertSet('finalisingRequestId', null)
+            ->assertSet('paused_invoice_draft_request_id', $request->id)
+            ->assertSee(__('finance.messages.invoice_draft_saved'));
+
+        $this->assertSame(FinanceRequest::STATUS_ACCEPTED, $request->fresh()->status);
+        $this->assertDatabaseMissing('invoices', ['finance_request_id' => $request->id]);
+
+        $component
+            ->call('openFinaliseModal', $request->id)
+            ->assertSet('original_invoice_no', 'VENDOR-10')
+            ->assertSet('invoice_issuer', 'Vendor')
+            ->assertSet('invoice_deduction', '5')
+            ->assertSet('invoice_items.0.item_name', 'Supplies')
+            ->assertSet('invoice_items.0.unit_price', '55')
+            ->set('invoice_image', UploadedFile::fake()->create('vendor-scan.jpg', 15360, 'image/jpeg'))
             ->call('finaliseInvoiceExpense')
             ->assertHasNoErrors();
+
+        $this->assertFalse(session()->has('finance.invoice_expense_drafts.'.auth()->id().'.'.$request->id));
 
         $invoice = Invoice::query()->where('finance_request_id', $request->id)->firstOrFail();
 
@@ -2398,6 +2456,8 @@ class FinanceAndActivitiesTest extends TestCase
             ->assertSee('class="admin-modal__close"', false)
             ->assertSee('title="'.__('finance.actions.view_attachment').'"', false)
             ->assertSee('<svg class="size-5"', false)
+            ->assertSee('data-invoice-print-icon', false)
+            ->assertSee('data-invoice-view-items-box', false)
             ->assertDontSee('class="pill-link">'.__('finance.actions.view_attachment').'</a>', false);
 
         Volt::test('finance.expense-requests')

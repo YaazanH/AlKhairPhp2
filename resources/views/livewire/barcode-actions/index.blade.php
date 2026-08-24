@@ -41,8 +41,8 @@ new class extends Component {
         $this->authorizePermission('barcode-actions.manage');
 
         $this->validate([
-            'dump_command_image' => ['nullable', 'image', 'max:4096'],
-            'clear_command_image' => ['nullable', 'image', 'max:4096'],
+            'dump_command_image' => ['nullable', 'image', 'max:'.config('uploads.image_max_kb')],
+            'clear_command_image' => ['nullable', 'image', 'max:'.config('uploads.image_max_kb')],
         ]);
 
         if ($this->dump_command_image instanceof TemporaryUploadedFile) {

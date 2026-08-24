@@ -255,6 +255,7 @@ return [
         'revenue_name_mask_help' => 'Saved in full, but shown and printed masked for privacy.',
         'transfer_posted' => 'Fund transfer posted.',
         'expense_finalised' => 'Expense finalised.',
+        'invoice_draft_saved' => 'Invoice details saved without finalising the expense.',
         'invoice_immutable_warning' => 'Are you sure you want to save this invoice? It cannot be changed after finalisation.',
         'use_invoice_total' => 'The invoice total is higher than the approved amount. Confirm to update the expense to the invoice total, or edit the invoice items.',
         'transaction_updated' => 'Transaction updated.',

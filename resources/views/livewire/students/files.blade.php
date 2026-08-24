@@ -64,7 +64,7 @@ new class extends Component {
         }
 
         $validated = $this->validate([
-            'photo_upload' => ['required', 'file', 'mimes:jpg,jpeg,png,webp', 'max:10240'],
+            'photo_upload' => ['required', 'file', 'mimes:jpg,jpeg,png,webp', 'max:'.config('uploads.image_max_kb')],
         ]);
 
         $path = $validated['photo_upload']->store('students/photos/'.$this->currentStudent->id, 'public');

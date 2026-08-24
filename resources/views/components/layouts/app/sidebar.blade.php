@@ -16,7 +16,7 @@
     <head>
         @include('partials.head')
     </head>
-    <body class="app-body">
+    <body class="app-body" data-pdf-uploading-label="{{ __('curricula.fields.pdf_uploading') }}">
         @php
             $primaryRole = auth()->user()->getRoleNames()->first();
             $roleLabel = $primaryRole ? __('ui.roles.'.$primaryRole) : null;
@@ -160,7 +160,9 @@
                             <flux:menu.separator />
 
                             <flux:menu.radio.group>
-                                <flux:menu.item href="/settings/profile" icon="cog" wire:navigate>{{ __('ui.common.settings') }}</flux:menu.item>
+                                @can('finance.reports.view')
+                                    <flux:menu.item href="{{ route('finance.reports.index') }}" icon="document-chart-bar" wire:navigate>{{ __('finance.reports.title') }}</flux:menu.item>
+                                @endcan
                                 <flux:menu.item href="{{ route('home') }}" icon="globe-alt">{{ __('ui.common.visit_site') }}</flux:menu.item>
                             </flux:menu.radio.group>
 

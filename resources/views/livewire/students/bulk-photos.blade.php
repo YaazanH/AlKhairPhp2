@@ -33,7 +33,7 @@ new class extends Component {
         $this->authorizePermission('students.update');
         $this->validate([
             'uploads' => ['array'],
-            'uploads.*' => ['image', 'max:5120'],
+            'uploads.*' => ['image', 'max:'.config('uploads.image_max_kb')],
         ]);
 
         $students = $this->scopeStudentsQuery(Student::query())
@@ -70,7 +70,7 @@ new class extends Component {
         $this->authorizePermission('students.update');
         $this->validate([
             'uploads' => ['required', 'array', 'min:1'],
-            'uploads.*' => ['image', 'max:5120'],
+            'uploads.*' => ['image', 'max:'.config('uploads.image_max_kb')],
             'matches' => ['array'],
             'matches.*.student_id' => ['nullable', 'integer'],
         ]);

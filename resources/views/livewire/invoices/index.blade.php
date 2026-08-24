@@ -81,7 +81,7 @@ new class extends Component {
             'issue_date' => ['required', 'date'],
             'discount' => ['required', 'numeric', 'min:0'],
             'notes' => ['nullable', 'string'],
-            'invoice_scan' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png,webp', 'max:10240'],
+            'invoice_scan' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png,webp', 'max:'.config('uploads.image_max_kb')],
             'remove_invoice_scan' => ['boolean'],
         ];
     }

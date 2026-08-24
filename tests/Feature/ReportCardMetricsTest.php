@@ -55,6 +55,10 @@ class ReportCardMetricsTest extends TestCase
             ->assertOk()
             ->assertSee($reportCardSetupUrl, false)
             ->assertSee('course-end-final-tests-dual', false)
+            ->assertSee('course-end-final-tests-single', false)
+            ->assertSee('course-end-students-mobile', false)
+            ->assertSee('course-end-students-desktop', false)
+            ->assertSee(__('course_end.student_records', ['count' => number_format(0)]))
             ->assertSee('width: 5rem;', false)
             ->assertSee('.course-end-final-tests-table .course-end-final-tests-spacer { width: 8%; padding: 0; }', false)
             ->assertSee('course-end-final-tests-spacer', false);
@@ -154,6 +158,12 @@ class ReportCardMetricsTest extends TestCase
 
         $ineligibleStudent = Student::create(['parent_id' => $parent->id, 'first_name' => 'No', 'last_name' => 'Passed Test', 'birth_date' => '2014-02-01', 'status' => 'active']);
         $ineligibleEnrollment = Enrollment::create(['student_id' => $ineligibleStudent->id, 'group_id' => $group->id, 'enrolled_at' => '2026-09-01', 'status' => 'active']);
+        $studentResultRows = app(CourseEndService::class)->studentResultRows($course);
+
+        $this->assertTrue($studentResultRows->contains('enrollment_id', $enrollment->id));
+        $this->assertFalse($studentResultRows->contains('enrollment_id', $ineligibleEnrollment->id));
+        $this->assertCount(1, $studentResultRows);
+
         $registry = app(PrintTemplateFieldRegistry::class);
         $eligibleIds = collect($registry->optionsFor('course_student'))->pluck('id');
 

@@ -128,7 +128,7 @@ new class extends Component {
             'issue_date' => ['required', 'date'],
             'invoice_deduction' => ['required', 'numeric', 'min:0'],
             'invoice_notes' => ['nullable', 'string', 'max:4000'],
-            'invoice_attachment' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png,webp', 'max:10240'],
+            'invoice_attachment' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png,webp', 'max:'.config('uploads.image_max_kb')],
         ]);
 
         $subtotal = (float) InvoiceItem::query()->where('invoice_id', $this->currentInvoice->id)->sum('amount');
@@ -288,6 +288,9 @@ new class extends Component {
             </a>
             <div class="surface-panel px-5 py-4">
                 <div class="text-sm font-semibold text-white">{{ $invoiceRecord->invoice_no }}</div>
+                @if ($invoiceRecord->original_invoice_no)
+                    <bdi dir="ltr" class="mt-1 block text-sm text-neutral-300">{{ $invoiceRecord->original_invoice_no }}</bdi>
+                @endif
                 <div class="mt-1 text-sm text-neutral-400">{{ $invoiceRecord->invoicer_name ?: ($invoiceRecord->parentProfile?->father_name ?: '-') }} | {{ $invoiceTypeLabel }}</div>
                 <div class="mt-1 text-sm text-neutral-400">{{ __('invoices.detail.summary.status', ['status' => $invoiceStatusLabel]) }}</div>
             </div>

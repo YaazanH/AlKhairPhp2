@@ -542,7 +542,7 @@ new class extends Component {
     {
         $this->authorizePermission('settings.manage');
         $this->validateOnly('pdf_logo_upload', [
-            'pdf_logo_upload' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,svg', 'max:4096'],
+            'pdf_logo_upload' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,svg', 'max:'.config('uploads.image_max_kb')],
             'default_student_gender_id' => ['required', 'integer', Rule::exists('student_genders', 'id')->where('is_active', true)],
         ]);
 
@@ -848,11 +848,11 @@ new class extends Component {
             'school_name' => ['required', 'string', 'max:255'],
             'school_phone' => ['nullable', 'string', 'max:50'],
             'school_timezone' => ['required', 'string', 'max:100'],
-            'default_user_avatar_upload' => ['nullable', 'image', 'max:2048'],
-            'default_student_avatar_upload' => ['nullable', 'image', 'max:2048'],
-            'default_teacher_avatar_upload' => ['nullable', 'image', 'max:2048'],
-            'default_parent_avatar_upload' => ['nullable', 'image', 'max:2048'],
-            'pdf_logo_upload' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,svg', 'max:4096'],
+            'default_user_avatar_upload' => ['nullable', 'image', 'max:'.config('uploads.image_max_kb')],
+            'default_student_avatar_upload' => ['nullable', 'image', 'max:'.config('uploads.image_max_kb')],
+            'default_teacher_avatar_upload' => ['nullable', 'image', 'max:'.config('uploads.image_max_kb')],
+            'default_parent_avatar_upload' => ['nullable', 'image', 'max:'.config('uploads.image_max_kb')],
+            'pdf_logo_upload' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,svg', 'max:'.config('uploads.image_max_kb')],
             'default_student_gender_id' => ['required', 'exists:student_genders,id'],
             'barcode_scanner_enabled' => ['boolean'],
             'memorization_saber_entries_enabled' => ['boolean'],

@@ -31,6 +31,10 @@
         <div>
             <div class="meta-label">{{ __('print.invoice.invoice_no') }}</div>
             <div class="meta-value">{{ $invoice->invoice_no }}</div>
+            @if ($invoice->original_invoice_no)
+                <div class="meta-label" style="margin-top: 6px;">{{ __('finance.fields.original_invoice_no') }}</div>
+                <div class="meta-value" dir="ltr" style="direction: ltr; text-align: left; unicode-bidi: embed;">{{ $invoice->original_invoice_no }}</div>
+            @endif
             <div class="subtitle">{{ __('print.invoice.status', ['status' => $invoiceStatusLabel]) }}</div>
         </div>
     </div>

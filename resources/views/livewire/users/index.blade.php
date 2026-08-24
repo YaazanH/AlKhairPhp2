@@ -145,7 +145,7 @@ new class extends Component
             'email' => ['nullable', 'string', 'email', 'max:255', Rule::unique('users', 'email')->ignore($this->editingId)],
             'phone' => ['nullable', 'string', 'max:255', Rule::unique('users', 'phone')->ignore($this->editingId)],
             'password' => ['nullable', 'string', 'min:8'],
-            'profile_photo_upload' => ['nullable', 'image', 'max:2048'],
+            'profile_photo_upload' => ['nullable', 'image', 'max:'.config('uploads.image_max_kb')],
             'finance_signature_upload' => ['nullable', 'file', 'mimes:png', 'max:4096'],
             'is_active' => ['boolean'],
             'roles' => ['required', 'array', 'min:1'],

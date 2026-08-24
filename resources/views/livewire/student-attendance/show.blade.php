@@ -38,9 +38,12 @@ new class extends Component
 
     public function with(): array
     {
+        $isArchived = (bool) $this->currentDay->fresh()->course_finished_at;
         $day = $this->currentDay->fresh([
             'course',
-            'groupAttendanceDays' => fn ($query) => $this->dayGroupAttendanceDaysQuery($query),
+            'groupAttendanceDays' => fn ($query) => $isArchived
+                ? $query->whereRaw('1 = 0')
+                : $this->dayGroupAttendanceDaysQuery($query),
         ]);
         $existingGroupIds = $day->groupAttendanceDays
             ->pluck('group_id')

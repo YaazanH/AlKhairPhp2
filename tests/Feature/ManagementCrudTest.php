@@ -17,6 +17,8 @@ use App\Models\GroupSchedule;
 use App\Models\MemorizationSession;
 use App\Models\MemorizationSessionPage;
 use App\Models\ParentProfile;
+use App\Models\PointTransaction;
+use App\Models\PointType;
 use App\Models\PrintTemplate;
 use App\Models\QuranJuz;
 use App\Models\School;
@@ -352,6 +354,23 @@ class ManagementCrudTest extends TestCase
             'teacher_id' => $teacher->id,
             'attendance_status_id' => $attendanceStatus->id,
         ]);
+        $pointType = PointType::create([
+            'name' => 'Lifecycle points',
+            'code' => 'lifecycle-points',
+            'category' => 'ManualEntry',
+            'default_points' => 5,
+            'allow_manual_entry' => true,
+            'allow_negative' => false,
+            'is_active' => true,
+        ]);
+        PointTransaction::create([
+            'student_id' => $student->id,
+            'enrollment_id' => $activeEnrollment->id,
+            'point_type_id' => $pointType->id,
+            'source_type' => 'manual',
+            'points' => 5,
+            'entered_at' => '2026-08-15 12:00:00',
+        ]);
 
         Volt::test('courses.index')
             ->call('deactivate', $course->id)
@@ -385,6 +404,16 @@ class ManagementCrudTest extends TestCase
         $this->assertSame('closed', $groupAttendanceDay->fresh()->status);
         $this->assertSame($course->id, $teacherAttendanceRecord->fresh()->archived_course_id);
         $this->assertNotNull($teacherAttendanceRecord->fresh()->course_finished_at);
+
+        Volt::test('student-attendance.index')->assertDontSee('15-08-2026');
+        Volt::test('teachers.attendance')->assertDontSee('15-08-2026');
+        Volt::test('assessments.index')
+            ->set('statusFilter', 'all')
+            ->assertDontSee('Active lifecycle assessment')
+            ->assertDontSee('Historical lifecycle assessment');
+        Volt::test('points.index')
+            ->set('stateFilter', 'all')
+            ->assertDontSee('Lifecycle Student');
 
         Volt::test('groups.show', ['group' => $activeGroup])
             ->call('openEdit')
@@ -436,6 +465,16 @@ class ManagementCrudTest extends TestCase
         $this->assertSame('open', $groupAttendanceDay->fresh()->status);
         $this->assertNull($teacherAttendanceRecord->fresh()->archived_course_id);
         $this->assertNull($teacherAttendanceRecord->fresh()->course_finished_at);
+
+        Volt::test('student-attendance.index')->assertSee('15-08-2026');
+        Volt::test('teachers.attendance')->assertSee('15-08-2026');
+        Volt::test('assessments.index')
+            ->set('statusFilter', 'all')
+            ->assertSee('Active lifecycle assessment')
+            ->assertSee('Historical lifecycle assessment');
+        Volt::test('points.index')
+            ->set('stateFilter', 'all')
+            ->assertSee('Lifecycle Student');
     }
 
     public function test_legacy_finished_courses_gain_archive_markers_and_restore_rows_changed_by_the_old_lifecycle(): void
@@ -824,6 +863,79 @@ class ManagementCrudTest extends TestCase
         $this->assertDatabaseMissing('enrollments', [
             'student_id' => $student->id,
             'group_id' => $olderMatchingGroup->id,
+        ]);
+    }
+
+    public function test_student_form_calculates_the_grade_and_manages_previously_memorized_juz_chips(): void
+    {
+        $this->signIn();
+
+        AcademicYear::create([
+            'name' => '2026 / 2027',
+            'starts_on' => '2026-09-01',
+            'ends_on' => '2027-06-30',
+            'is_current' => true,
+            'is_active' => true,
+        ]);
+
+        $calculatedGrade = GradeLevel::create([
+            'name' => 'Grade 7',
+            'sort_order' => 17,
+            'is_active' => true,
+        ]);
+
+        $firstJuz = QuranJuz::create([
+            'juz_number' => 4,
+            'from_page' => 62,
+            'to_page' => 81,
+        ]);
+        $secondJuz = QuranJuz::create([
+            'juz_number' => 7,
+            'from_page' => 122,
+            'to_page' => 141,
+        ]);
+
+        Volt::test('students.index')
+            ->call('openCreateModal')
+            ->assertSee('data-student-identity-row', false)
+            ->assertSee('data-student-parent-row', false)
+            ->assertSee('data-student-juz-row', false)
+            ->assertSeeInOrder(['data-student-juz-row', 'data-student-enrollment-group-field'], false)
+            ->assertSee('data-memorized-juz-input', false)
+            ->assertSee('min-h-[2.875rem]', false)
+            ->assertSee(__('crud.students.form.placeholders.enter_memorized_juz'))
+            ->assertDontSee(__('crud.students.form.grade_calculated_help'))
+            ->assertDontSee(__('crud.students.form.external_memorized_juzs_help'))
+            ->assertSee('wire:keydown.tab="addExternalMemorizedJuz"', false)
+            ->set('birth_date', '2014')
+            ->assertSet('grade_level_id', $calculatedGrade->id)
+            ->set('external_memorized_juz_input', '4')
+            ->call('addExternalMemorizedJuz')
+            ->assertSet('external_memorized_juz_ids', [$firstJuz->id])
+            ->assertSet('external_memorized_juz_input', '')
+            ->assertSee('student-memorized-juz-'.$firstJuz->id, false)
+            ->set('external_memorized_juz_input', '7')
+            ->call('addExternalMemorizedJuz')
+            ->assertSet('external_memorized_juz_ids', [$firstJuz->id, $secondJuz->id])
+            ->call('removeExternalMemorizedJuz', $firstJuz->id)
+            ->assertSet('external_memorized_juz_ids', [$secondJuz->id])
+            ->assertDontSee('student-memorized-juz-'.$firstJuz->id, false)
+            ->set('first_name', 'Calculated')
+            ->set('last_name', 'Student')
+            ->call('save')
+            ->assertHasNoErrors();
+
+        $student = Student::query()->where('first_name', 'Calculated')->firstOrFail();
+
+        $this->assertSame($calculatedGrade->id, $student->grade_level_id);
+        $this->assertSame('2014-01-01', $student->birth_date?->format('Y-m-d'));
+        $this->assertDatabaseHas('student_external_memorized_juz', [
+            'student_id' => $student->id,
+            'quran_juz_id' => $secondJuz->id,
+        ]);
+        $this->assertDatabaseMissing('student_external_memorized_juz', [
+            'student_id' => $student->id,
+            'quran_juz_id' => $firstJuz->id,
         ]);
     }
 
@@ -2058,7 +2170,7 @@ class ManagementCrudTest extends TestCase
         ]);
 
         Volt::test('students.files', ['student' => $student])
-            ->set('photo_upload', UploadedFile::fake()->create('student-photo.jpg', 5120, 'image/jpeg'))
+            ->set('photo_upload', UploadedFile::fake()->create('student-photo.jpg', 15360, 'image/jpeg'))
             ->call('savePhoto')
             ->assertHasNoErrors();
 
@@ -2068,7 +2180,7 @@ class ManagementCrudTest extends TestCase
         Storage::disk('public')->assertExists($student->photo_path);
 
         Volt::test('students.index')
-            ->set('quick_photo_upload', UploadedFile::fake()->create('replacement-photo.webp', 5120, 'image/webp'))
+            ->set('quick_photo_upload', UploadedFile::fake()->create('replacement-photo.webp', 15360, 'image/webp'))
             ->call('uploadStudentPhoto', $student->id)
             ->assertHasNoErrors();
 

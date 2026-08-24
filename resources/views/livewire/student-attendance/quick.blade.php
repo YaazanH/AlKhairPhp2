@@ -46,6 +46,7 @@ new class extends Component
 
         $this->currentDay = StudentAttendanceDay::query()
             ->with(['course', 'groupAttendanceDays.group'])
+            ->whereNull('course_finished_at')
             ->findOrFail($studentAttendanceDay->id);
 
         $this->authorizeScopedStudentAttendanceDayAccess($this->currentDay);

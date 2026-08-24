@@ -98,6 +98,8 @@ class AssessmentWorkflowTest extends TestCase
 
         Volt::test('assessments.results', ['assessment' => $assessment])
             ->assertSet('selectedGroupId', $enrollment->group_id)
+            ->assertSee('assessment-results-single', false)
+            ->assertSee('assessment-results-dual', false)
             ->assertDontSee('assessment-student-attempt')
             ->assertDontSee('assessment-student-notes')
             ->set('result_scores.'.$enrollment->id, '85')
@@ -332,6 +334,8 @@ class AssessmentWorkflowTest extends TestCase
 
         Volt::test('assessments.index')
             ->set('courseFilter', 'all')
+            ->assertSee('assessment-index-mobile', false)
+            ->assertSee('assessment-index-desktop', false)
             ->assertSeeInOrder(['Later Due Assessment', 'Earlier Due Assessment', $undatedAssessment->title]);
     }
 

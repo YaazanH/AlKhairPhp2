@@ -50,6 +50,7 @@ new class extends Component {
     public ?int $quran_current_juz_id = null;
     public string $quran_current_juz_number = '';
     public array $external_memorized_juz_ids = [];
+    public string $external_memorized_juz_input = '';
     public string $photo_path = '';
     public $quick_photo_upload = null;
     public string $status = 'active';
@@ -217,6 +218,51 @@ new class extends Component {
         }
 
         $this->syncDefaultEnrollmentGroup();
+    }
+
+    public function updatedBirthDate(): void
+    {
+        if (! $this->showFormModal) {
+            return;
+        }
+
+        $this->syncGradeLevelFromBirthYear();
+    }
+
+    public function addExternalMemorizedJuz(): void
+    {
+        $this->external_memorized_juz_input = trim($this->external_memorized_juz_input);
+
+        if ($this->external_memorized_juz_input === '') {
+            return;
+        }
+
+        $validated = $this->validate([
+            'external_memorized_juz_input' => ['required', 'integer', 'between:1,30', 'exists:quran_juzs,juz_number'],
+        ], [], [
+            'external_memorized_juz_input' => __('crud.students.form.fields.external_memorized_juzs'),
+        ]);
+
+        $juzId = QuranJuz::query()
+            ->where('juz_number', (int) $validated['external_memorized_juz_input'])
+            ->value('id');
+
+        if ($juzId && ! in_array((int) $juzId, array_map('intval', $this->external_memorized_juz_ids), true)) {
+            $this->external_memorized_juz_ids[] = (int) $juzId;
+        }
+
+        $this->external_memorized_juz_input = '';
+        $this->resetValidation(['external_memorized_juz_input', 'external_memorized_juz_ids']);
+    }
+
+    public function removeExternalMemorizedJuz(int $juzId): void
+    {
+        $this->external_memorized_juz_ids = array_values(array_filter(
+            $this->external_memorized_juz_ids,
+            fn ($selectedJuzId) => (int) $selectedJuzId !== $juzId,
+        ));
+
+        $this->resetValidation(['external_memorized_juz_input', 'external_memorized_juz_ids']);
     }
 
     public function updatedEnrollmentGroupId(): void
@@ -407,6 +453,11 @@ new class extends Component {
     public function save(): void
     {
         $isEditing = $this->editingId !== null;
+
+        if (! $this->grade_level_id) {
+            $this->syncGradeLevelFromBirthYear();
+        }
+
         $this->quran_current_juz_id = filled($this->quran_current_juz_number)
             ? QuranJuz::query()->where('juz_number', (int) $this->quran_current_juz_number)->value('id')
             : null;
@@ -729,6 +780,7 @@ new class extends Component {
         $this->quran_current_juz_id = $student->quran_current_juz_id;
         $this->quran_current_juz_number = (string) ($student->quranCurrentJuz?->juz_number ?? '');
         $this->external_memorized_juz_ids = $student->externalMemorizedJuzs->pluck('id')->map(fn ($id) => (int) $id)->all();
+        $this->external_memorized_juz_input = '';
         $this->photo_path = $student->photo_path ?? '';
         $this->status = $student->status;
         $this->joined_at = $student->joined_at?->format('Y-m-d') ?? '';
@@ -846,6 +898,7 @@ new class extends Component {
         $this->quran_current_juz_id = null;
         $this->quran_current_juz_number = '';
         $this->external_memorized_juz_ids = [];
+        $this->external_memorized_juz_input = '';
         $this->photo_path = '';
         $this->quick_photo_upload = null;
         $this->status = 'active';
@@ -883,6 +936,46 @@ new class extends Component {
 
         $this->syncing_enrollment_group_id = true;
         $this->enrollment_group_id = $defaultGroupId;
+    }
+
+    protected function syncGradeLevelFromBirthYear(): void
+    {
+        $birthDate = $this->normalizeBirthYearValue($this->birth_date);
+
+        if (! $birthDate) {
+            $this->grade_level_id = null;
+
+            if (! $this->editingId && $this->enrollment_group_auto) {
+                $this->syncDefaultEnrollmentGroup();
+            }
+
+            return;
+        }
+
+        $academicYear = AcademicYear::query()
+            ->where('is_current', true)
+            ->orderByDesc('starts_on')
+            ->first(['starts_on']);
+        $referenceYear = (int) ($academicYear?->starts_on?->format('Y') ?: now()->format('Y'));
+        $age = $referenceYear - (int) substr($birthDate, 0, 4);
+        $sortOrder = match (true) {
+            $age <= 4 => 1,
+            $age === 5 => 2,
+            $age >= 6 && $age <= 17 => $age + 5,
+            $age >= 18 => 30,
+            default => null,
+        };
+
+        $this->grade_level_id = $sortOrder === null
+            ? null
+            : GradeLevel::query()
+                ->where('is_active', true)
+                ->where('sort_order', $sortOrder)
+                ->value('id');
+
+        if (! $this->editingId && $this->enrollment_group_auto) {
+            $this->syncDefaultEnrollmentGroup();
+        }
     }
 
     protected function defaultEnrollmentGroupIdForGrade(?int $gradeLevelId): ?int
@@ -989,7 +1082,7 @@ new class extends Component {
         $this->authorizeScopedStudentAccess($student);
 
         $validated = $this->validate([
-            'quick_photo_upload' => ['required', 'file', 'mimes:jpg,jpeg,png,webp', 'max:10240'],
+            'quick_photo_upload' => ['required', 'file', 'mimes:jpg,jpeg,png,webp', 'max:'.config('uploads.image_max_kb')],
         ]);
         $path = $validated['quick_photo_upload']->store('students/photos/'.$student->id, 'public');
         if ($student->photo_path) {
@@ -1794,7 +1887,7 @@ new class extends Component {
         max-width="5xl"
     >
         <form wire:submit="save" class="space-y-4">
-            <div class="grid gap-4 md:grid-cols-2">
+            <div class="grid gap-4 md:grid-cols-3" data-student-identity-row>
                 <div>
                     <label for="student-first-name" class="mb-1 block text-sm font-medium">{{ __('crud.students.form.fields.first_name') }}</label>
                     <input id="student-first-name" wire:model="first_name" type="text" class="w-full rounded-xl px-4 py-3 text-sm">
@@ -1810,15 +1903,7 @@ new class extends Component {
                         <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                     @enderror
                 </div>
-            </div>
 
-            @php
-                $connectedParent = $editingId && $parent_id ? $parents->firstWhere('id', (int) $parent_id) : null;
-            @endphp
-            <div @class([
-                'grid gap-4',
-                'md:grid-cols-2' => ! ($editingId && $parent_id),
-            ])>
                 <div>
                     <label for="student-phone" class="mb-1 block text-sm font-medium">{{ __('crud.students.form.fields.phone') }}</label>
                     <div class="flex items-center gap-2">
@@ -1831,47 +1916,50 @@ new class extends Component {
                         <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                     @enderror
                 </div>
-
-                @unless ($editingId && $parent_id)
-                    <div>
-                        <label for="student-parent" class="mb-1 block text-sm font-medium">{{ __('crud.students.form.fields.parent') }}</label>
-                        <div class="flex items-center gap-2">
-                            <select
-                                id="student-parent"
-                                wire:model="parent_id"
-                                data-search-hint-target="student-last-name"
-                                class="min-w-0 flex-1 rounded-xl px-4 py-3 text-sm"
-                            >
-                                <option value="">{{ __('crud.students.form.placeholders.select_parent') }}</option>
-                                @foreach ($parents as $parent)
-                                    @php
-                                        $studentLastNames = $parent->students->pluck('last_name')->filter()->unique()->values();
-                                        $parentSearch = collect([
-                                            $parent->father_name,
-                                            $parent->mother_name,
-                                            $parent->father_phone,
-                                            $parent->mother_phone,
-                                            $parent->home_phone,
-                                            $studentLastNames->implode(' '),
-                                        ])->filter()->implode(' ');
-                                    @endphp
-                                    <option value="{{ $parent->id }}" data-search="{{ $parentSearch }}">
-                                        {{ $parent->father_name }}
-                                    </option>
-                                @endforeach
-                            </select>
-                            @can('parents.create')
-                                <button type="button" wire:click="{{ $showQuickParentForm ? 'closeQuickParentForm' : 'openQuickParentForm' }}" class="pill-link pill-link--compact shrink-0">
-                                    {{ $showQuickParentForm ? __('crud.students.form.parent_shortcut.cancel') : '+' }}
-                                </button>
-                            @endcan
-                        </div>
-                        @error('parent_id')
-                            <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
-                        @enderror
-                    </div>
-                @endunless
             </div>
+
+            @php
+                $connectedParent = $editingId && $parent_id ? $parents->firstWhere('id', (int) $parent_id) : null;
+            @endphp
+            @unless ($editingId && $parent_id)
+                <div data-student-parent-row>
+                    <label for="student-parent" class="mb-1 block text-sm font-medium">{{ __('crud.students.form.fields.parent') }}</label>
+                    <div class="flex items-center gap-2">
+                        <select
+                            id="student-parent"
+                            wire:model="parent_id"
+                            data-search-hint-target="student-last-name"
+                            class="min-w-0 flex-1 rounded-xl px-4 py-3 text-sm"
+                        >
+                            <option value="">{{ __('crud.students.form.placeholders.select_parent') }}</option>
+                            @foreach ($parents as $parent)
+                                @php
+                                    $studentLastNames = $parent->students->pluck('last_name')->filter()->unique()->values();
+                                    $parentSearch = collect([
+                                        $parent->father_name,
+                                        $parent->mother_name,
+                                        $parent->father_phone,
+                                        $parent->mother_phone,
+                                        $parent->home_phone,
+                                        $studentLastNames->implode(' '),
+                                    ])->filter()->implode(' ');
+                                @endphp
+                                <option value="{{ $parent->id }}" data-search="{{ $parentSearch }}">
+                                    {{ $parent->father_name }}
+                                </option>
+                            @endforeach
+                        </select>
+                        @can('parents.create')
+                            <button type="button" wire:click="{{ $showQuickParentForm ? 'closeQuickParentForm' : 'openQuickParentForm' }}" class="pill-link pill-link--compact shrink-0">
+                                {{ $showQuickParentForm ? __('crud.students.form.parent_shortcut.cancel') : '+' }}
+                            </button>
+                        @endcan
+                    </div>
+                    @error('parent_id')
+                        <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
+                    @enderror
+                </div>
+            @endunless
 
             @if ($editingId && $parent_id)
                 <div class="rounded-3xl border border-white/10 bg-white/5 p-4">
@@ -1993,7 +2081,7 @@ new class extends Component {
             <div class="grid gap-4 md:grid-cols-3">
                 <div>
                     <label for="student-birth-date" class="mb-1 block text-sm font-medium">{{ __('crud.students.form.fields.birth_year') }}</label>
-                    <input id="student-birth-date" wire:model="birth_date" type="number" min="1900" max="{{ now()->format('Y') + 1 }}" step="1" class="w-full rounded-xl px-4 py-3 text-sm">
+                    <input id="student-birth-date" wire:model.live.debounce.350ms="birth_date" type="number" min="1900" max="{{ now()->format('Y') + 1 }}" step="1" class="w-full rounded-xl px-4 py-3 text-sm">
                     @error('birth_date')
                         <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                     @enderror
@@ -2003,9 +2091,9 @@ new class extends Component {
                     <label for="student-grade-level" class="mb-1 block text-sm font-medium">{{ __('crud.students.form.fields.grade_level') }}</label>
                     <select id="student-grade-level" wire:model="grade_level_id" class="w-full rounded-xl px-4 py-3 text-sm">
                         <option value="">{{ __('crud.students.form.placeholders.select_grade') }}</option>
-                        @foreach ($gradeLevels as $gradeLevel)
-                            <option value="{{ $gradeLevel->id }}">{{ $gradeLevel->name }}</option>
-                        @endforeach
+                    @foreach ($gradeLevels as $gradeLevel)
+                        <option value="{{ $gradeLevel->id }}">{{ $gradeLevel->name }}</option>
+                    @endforeach
                     </select>
                     @error('grade_level_id')
                         <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
@@ -2034,33 +2122,7 @@ new class extends Component {
                 </div>
             </div>
 
-            <div class="grid gap-4 md:grid-cols-2">
-                @if (! $editingId)
-                    <div>
-                        <label for="student-enrollment-group" class="mb-1 block text-sm font-medium">{{ __('crud.students.form.fields.group') }}</label>
-                        <select id="student-enrollment-group" wire:model="enrollment_group_id" class="w-full rounded-xl px-4 py-3 text-sm">
-                            <option value="">{{ __('crud.students.form.placeholders.select_group') }}</option>
-                            @foreach ($enrollmentGroups as $group)
-                                <option value="{{ $group->id }}">
-                                    {{ $group->name }}
-                                    @if ($group->course)
-                                        - {{ $group->course->name }}
-                                    @endif
-                                    @if ($group->gradeLevel)
-                                        - {{ $group->gradeLevel->name }}
-                                    @endif
-                                    @if ($group->academicYear)
-                                        - {{ $group->academicYear->name }}
-                                    @endif
-                                </option>
-                            @endforeach
-                        </select>
-                        @error('enrollment_group_id')
-                            <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
-                        @enderror
-                    </div>
-                @endif
-
+            <div class="grid gap-4 md:grid-cols-2" data-student-juz-row>
                 <div>
                     <label for="student-juz" class="mb-1 block text-sm font-medium">{{ __('crud.students.form.fields.current_juz') }}</label>
                     <input id="student-juz" wire:model="quran_current_juz_number" type="number" inputmode="numeric" min="1" max="30" step="1" class="w-full rounded-xl px-4 py-3 text-sm" placeholder="{{ __('crud.students.form.placeholders.select_juz') }}">
@@ -2072,38 +2134,70 @@ new class extends Component {
                     @enderror
                 </div>
 
-                @if ($editingId)
-                    <div>
-                        <label for="student-status" class="mb-1 block text-sm font-medium">{{ __('crud.students.form.fields.status') }}</label>
-                        <select id="student-status" wire:model="status" class="w-full rounded-xl px-4 py-3 text-sm">
-                            @foreach ($statuses as $studentStatus)
-                                <option value="{{ $studentStatus }}">{{ __('crud.common.status_options.'.$studentStatus) }}</option>
-                            @endforeach
-                        </select>
-                        @error('status')
-                            <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
-                        @enderror
+                <div class="min-w-0">
+                    <div class="mb-1 flex items-center justify-between gap-2">
+                        <label for="student-external-juz" class="block text-sm font-medium">{{ __('crud.students.form.fields.external_memorized_juzs') }}</label>
+                        @if ($editingId && $external_memorized_juz_ids !== [] && (auth()->user()->can('quran-partial-tests.record') || auth()->user()->can('quran-final-tests.record')))
+                            <button type="button" wire:click="openExternalTestModal" class="pill-link pill-link--compact" title="{{ __('crud.students.external_tests.add') }}" aria-label="{{ __('crud.students.external_tests.add') }}">+</button>
+                        @endif
                     </div>
-                @endif
+                    <div class="flex min-h-[2.875rem] w-full flex-wrap items-center gap-2 rounded-xl border border-white/10 bg-black/10 px-3 py-1.5 focus-within:border-emerald-400/45 focus-within:ring-2 focus-within:ring-emerald-400/10" data-memorized-juz-input>
+                        @foreach (collect($juzs)->whereIn('id', array_map('intval', $external_memorized_juz_ids)) as $juz)
+                            <span wire:key="student-memorized-juz-{{ $juz->id }}" class="inline-flex items-center gap-1.5 rounded-lg border border-emerald-300/20 bg-emerald-500/12 px-2 py-1 text-xs font-medium text-emerald-100">
+                                {{ __('crud.students.labels.juz_number', ['number' => $juz->juz_number]) }}
+                                <button type="button" wire:click="removeExternalMemorizedJuz({{ $juz->id }})" class="inline-flex size-4 items-center justify-center rounded-full text-sm leading-none text-emerald-200 hover:bg-white/10 hover:text-white" aria-label="{{ __('crud.common.actions.delete') }}">×</button>
+                            </span>
+                        @endforeach
+                        <input id="student-external-juz" wire:model="external_memorized_juz_input" wire:keydown.tab="addExternalMemorizedJuz" wire:keydown.enter.prevent="addExternalMemorizedJuz" type="text" inputmode="numeric" autocomplete="off" class="min-w-28 flex-1 border-0 bg-transparent px-1 py-1 text-sm outline-none ring-0 focus:border-0 focus:ring-0" placeholder="{{ __('crud.students.form.placeholders.enter_memorized_juz') }}">
+                    </div>
+                    @error('external_memorized_juz_input')
+                        <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
+                    @enderror
+                    @error('external_memorized_juz_ids.*')
+                        <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
+                    @enderror
+                </div>
             </div>
 
-            <div class="flex items-start gap-2">
-            <details class="min-w-0 flex-1 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-                <summary class="cursor-pointer text-sm font-medium">{{ __('crud.students.form.fields.external_memorized_juzs') }} · {{ collect($juzs)->whereIn('id', array_map('intval', $external_memorized_juz_ids))->pluck('juz_number')->sort()->implode(', ') ?: __('crud.common.not_available') }}</summary>
-                <div class="mt-4 grid max-h-72 gap-2 overflow-y-auto sm:grid-cols-3">
-                    @foreach ($juzs as $juz)
-                        <label class="flex items-center gap-2 rounded-xl border border-white/8 px-3 py-2 text-sm"><input type="checkbox" wire:model.live="external_memorized_juz_ids" value="{{ $juz->id }}" class="rounded"><span>{{ __('crud.students.labels.juz_number', ['number' => $juz->juz_number]) }}</span></label>
-                    @endforeach
+            @if (! $editingId)
+                <div data-student-enrollment-group-field>
+                    <label for="student-enrollment-group" class="mb-1 block text-sm font-medium">{{ __('crud.students.form.fields.group') }}</label>
+                    <select id="student-enrollment-group" wire:model="enrollment_group_id" class="w-full rounded-xl px-4 py-3 text-sm">
+                        <option value="">{{ __('crud.students.form.placeholders.select_group') }}</option>
+                        @foreach ($enrollmentGroups as $group)
+                            <option value="{{ $group->id }}">
+                                {{ $group->name }}
+                                @if ($group->course)
+                                    - {{ $group->course->name }}
+                                @endif
+                                @if ($group->gradeLevel)
+                                    - {{ $group->gradeLevel->name }}
+                                @endif
+                                @if ($group->academicYear)
+                                    - {{ $group->academicYear->name }}
+                                @endif
+                            </option>
+                        @endforeach
+                    </select>
+                    @error('enrollment_group_id')
+                        <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
+                    @enderror
                 </div>
-                <p class="mt-2 text-xs text-neutral-400">{{ __('crud.students.form.external_memorized_juzs_help') }}</p>
-                @error('external_memorized_juz_ids.*')
-                    <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
-                @enderror
-            </details>
-            @if ($editingId && $external_memorized_juz_ids !== [] && (auth()->user()->can('quran-partial-tests.record') || auth()->user()->can('quran-final-tests.record')))
-                <button type="button" wire:click="openExternalTestModal" class="pill-link pill-link--compact" title="{{ __('crud.students.external_tests.add') }}" aria-label="{{ __('crud.students.external_tests.add') }}">+</button>
             @endif
-            </div>
+
+            @if ($editingId)
+                <div>
+                    <label for="student-status" class="mb-1 block text-sm font-medium">{{ __('crud.students.form.fields.status') }}</label>
+                    <select id="student-status" wire:model="status" class="w-full rounded-xl px-4 py-3 text-sm">
+                        @foreach ($statuses as $studentStatus)
+                            <option value="{{ $studentStatus }}">{{ __('crud.common.status_options.'.$studentStatus) }}</option>
+                        @endforeach
+                    </select>
+                    @error('status')
+                        <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
+                    @enderror
+                </div>
+            @endif
 
             <div class="flex flex-wrap items-center gap-3">
                 @if ($editingId)

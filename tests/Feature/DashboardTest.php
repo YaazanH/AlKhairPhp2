@@ -11,6 +11,8 @@ use App\Models\Group;
 use App\Models\GroupAttendanceDay;
 use App\Models\MemorizationSession;
 use App\Models\ParentProfile;
+use App\Models\PointTransaction;
+use App\Models\PointType;
 use App\Models\PrintTemplate;
 use App\Models\Student;
 use App\Models\StudentAttendanceRecord;
@@ -204,7 +206,8 @@ class DashboardTest extends TestCase
             ->assertSee('viewBox="0 0 458 220"', false)
             ->assertSee('dashboard-treemap', false)
             ->assertSee('inset-inline-start: calc(100% - .4375rem)', false)
-            ->assertSee('mx-auto mt-8 grid w-full max-w-xl', false)
+            ->assertSee('data-dashboard-centered-bar-chart', false)
+            ->assertSee('grid-template-columns: repeat(1, minmax(0, 1fr))', false)
             ->assertDontSee('stroke-dasharray', false)
             ->assertDontSee('<div class="eyebrow">Curricula</div>', false)
             ->assertDontSee('Recent Groups')
@@ -216,7 +219,10 @@ class DashboardTest extends TestCase
         $this->assertStringContainsString('.dashboard-performance-map__average-line--vertical {', $dashboardCss);
         $this->assertStringContainsString('background-size: 20% 100%, 100% 20%', $dashboardCss);
         $this->assertStringContainsString('.dashboard-performance-map__point--below-average {', $dashboardCss);
+        $this->assertStringContainsString('.dashboard-performance-map__dimmed-layer {', $dashboardCss);
+        $this->assertStringContainsString('opacity: 0.14;', $dashboardCss);
         $this->assertStringContainsString('.dashboard-performance-map__point:hover .dashboard-performance-map__dot,', $dashboardCss);
+        $this->assertStringContainsString('background: #34d399;', $dashboardCss);
 
         Volt::test('dashboard')
             ->call('showManagerStudent', $student->id)
@@ -225,6 +231,152 @@ class DashboardTest extends TestCase
             ->assertSee('Omar Ali')
             ->assertSee('42')
             ->assertSee('18');
+    }
+
+    public function test_manager_performance_map_ranks_projected_course_end_points_but_keeps_the_original_average(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $manager = User::factory()->create([
+            'username' => 'manager-performance-rules',
+            'phone' => '7000011',
+        ]);
+        $manager->assignRole('manager');
+        $teacher = Teacher::create([
+            'first_name' => 'Points',
+            'last_name' => 'Teacher',
+            'phone' => '0944000015',
+            'status' => 'active',
+        ]);
+        $course = Course::create([
+            'name' => 'Points Projection Course',
+            'is_active' => true,
+            'is_default' => true,
+            'awards_points' => true,
+        ]);
+        $academicYear = AcademicYear::create([
+            'name' => '2026/2027',
+            'starts_on' => '2026-08-01',
+            'ends_on' => '2027-07-31',
+            'is_current' => true,
+            'is_active' => true,
+        ]);
+        $group = Group::create([
+            'course_id' => $course->id,
+            'academic_year_id' => $academicYear->id,
+            'teacher_id' => $teacher->id,
+            'name' => 'Projected Points Group',
+            'capacity' => 20,
+            'is_active' => true,
+        ]);
+        $pointType = PointType::create([
+            'name' => 'Dashboard Projection Points',
+            'code' => 'dashboard-projection-points',
+            'category' => 'behavior',
+            'default_points' => 0,
+            'allow_manual_entry' => true,
+            'allow_negative' => false,
+            'is_active' => true,
+        ]);
+
+        $students = collect([
+            ['name' => 'Before Second After First', 'points' => 900, 'pages' => 40],
+            ['name' => 'Before First After Second', 'points' => 1000, 'pages' => 30],
+            ['name' => 'Bronze Student', 'points' => 800, 'pages' => 20],
+            ['name' => 'Fourth Student', 'points' => 600, 'pages' => 10],
+        ])->map(function (array $row) use ($group, $manager, $pointType): array {
+            [$firstName, $lastName] = explode(' ', $row['name'], 2);
+            $student = Student::create([
+                'first_name' => $firstName,
+                'last_name' => $lastName,
+                'birth_date' => '2014-01-01',
+                'status' => 'active',
+            ]);
+            $enrollment = Enrollment::create([
+                'student_id' => $student->id,
+                'group_id' => $group->id,
+                'enrolled_at' => '2026-09-01',
+                'status' => 'active',
+                'final_points_cached' => $row['points'],
+                'memorized_pages_cached' => $row['pages'],
+            ]);
+            PointTransaction::create([
+                'student_id' => $student->id,
+                'enrollment_id' => $enrollment->id,
+                'point_type_id' => $pointType->id,
+                'source_type' => 'manual',
+                'source_id' => $enrollment->id,
+                'points' => $row['points'],
+                'entered_by' => $manager->id,
+                'entered_at' => now(),
+            ]);
+
+            return ['student' => $student, 'enrollment' => $enrollment, ...$row];
+        });
+
+        $present = AttendanceStatus::create([
+            'name' => 'Projection Present',
+            'code' => 'projection-present',
+            'scope' => 'student',
+            'is_present' => true,
+            'is_active' => true,
+        ]);
+        $attendanceDay = GroupAttendanceDay::create([
+            'group_id' => $group->id,
+            'attendance_date' => '2026-09-10',
+            'status' => 'closed',
+        ]);
+        StudentAttendanceRecord::create([
+            'group_attendance_day_id' => $attendanceDay->id,
+            'enrollment_id' => $students[0]['enrollment']->id,
+            'attendance_status_id' => $present->id,
+        ]);
+
+        foreach ([
+            'required_passed_final_tests' => 0,
+            'required_memorized_pages' => 0,
+            'required_passed_quizzes' => 0,
+            'required_present_attendance' => 1,
+            'retain_percentage' => 50,
+            'minimum_points' => 0,
+        ] as $key => $value) {
+            AppSetting::storeValue('course_completion', $key, $value, 'integer');
+        }
+        AppSetting::storeValue('course_completion', 'final_rule_operator', 'and');
+        AppSetting::storeValue('course_completion', 'assessment_type_requirements', [], 'array');
+        AppSetting::storeValue('course_completion', 'final_test_grade_ids', [], 'array');
+        AppSetting::storeValue('course_completion', 'assessment_grade_ids', [], 'array');
+
+        $this->actingAs($manager);
+
+        Volt::test('dashboard')
+            ->assertViewHas('studentPerformance', function ($rows) use ($students): bool {
+                $rowsByStudent = $rows->keyBy(fn (array $row) => $row['student']->id);
+
+                return $rowsByStudent[$students[0]['student']->id]['points_before'] === 900
+                    && $rowsByStudent[$students[0]['student']->id]['points'] === 900
+                    && $rowsByStudent[$students[0]['student']->id]['rank'] === 1
+                    && $rowsByStudent[$students[1]['student']->id]['points_before'] === 1000
+                    && $rowsByStudent[$students[1]['student']->id]['points'] === 500
+                    && $rowsByStudent[$students[1]['student']->id]['rank'] === 2
+                    && $rowsByStudent[$students[2]['student']->id]['points'] === 400
+                    && $rowsByStudent[$students[2]['student']->id]['rank'] === 3
+                    && $rowsByStudent[$students[3]['student']->id]['points'] === 300
+                    && $rowsByStudent[$students[3]['student']->id]['rank'] === null;
+            })
+            ->assertSee('data-points-average-before-rules="825"', false)
+            ->assertSee('dashboard-performance-map__point--rank-1', false)
+            ->assertSee('dashboard-performance-map__point--rank-2', false)
+            ->assertSee('dashboard-performance-map__point--rank-3', false)
+            ->assertSee('data-dashboard-centered-bar-chart', false);
+
+        $dashboardCss = file_get_contents(resource_path('css/app.css'));
+        $this->assertStringContainsString('.dashboard-performance-map__point--rank-1 .dashboard-performance-map__dot {', $dashboardCss);
+        $this->assertStringContainsString('.dashboard-performance-map__point--rank-2 .dashboard-performance-map__dot {', $dashboardCss);
+        $this->assertStringContainsString('.dashboard-performance-map__point--rank-3 .dashboard-performance-map__dot {', $dashboardCss);
+        $this->assertStringContainsString('.dashboard-performance-map__point--rank-1:hover .dashboard-performance-map__dot,', $dashboardCss);
+        $this->assertStringContainsString('.dashboard-performance-map__point--rank-2:hover .dashboard-performance-map__dot,', $dashboardCss);
+        $this->assertStringContainsString('.dashboard-performance-map__point--rank-3:hover .dashboard-performance-map__dot,', $dashboardCss);
     }
 
     public function test_super_admin_users_see_the_management_dashboard(): void

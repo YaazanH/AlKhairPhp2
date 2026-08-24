@@ -76,6 +76,7 @@ class CourseEndService
                     'points_after' => $pointsAfter,
                     'attendance_average' => $attendanceDaysCreated > 0 ? round(($daysAttended / $attendanceDaysCreated) * 100, 2) : 0.0,
                     'attendance_days_created' => $attendanceDaysCreated,
+                    'attendance_records_count' => $attendance->pluck('group_attendance_day_id')->unique()->count(),
                     'days_attended' => $daysAttended,
                     'days_absent' => $attendance->filter(fn ($record) => $record->status && ! $record->status->is_present)->count(),
                     'memorized_pages' => $memorizedPages,
@@ -93,6 +94,13 @@ class CourseEndService
                 ];
             })
             ->sortByDesc('points_after')
+            ->values();
+    }
+
+    public function studentResultRows(Course $course): Collection
+    {
+        return $this->studentRows($course)
+            ->filter(fn (array $row) => (int) ($row['attendance_records_count'] ?? 0) > 0)
             ->values();
     }
 

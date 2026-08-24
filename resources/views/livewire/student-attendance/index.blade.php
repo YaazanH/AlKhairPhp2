@@ -76,6 +76,7 @@ new class extends Component
                 ),
             ])
         )
+            ->whereNull('course_finished_at')
             ->when(filled($this->search), fn (Builder $query) => $query->whereDate('attendance_date', $this->search))
             ->when(
                 in_array($this->statusFilter, ['open', 'closed'], true),
@@ -199,7 +200,7 @@ new class extends Component
 
         $day = $this->scopeStudentAttendanceDaysQuery(
             StudentAttendanceDay::query()->with(['groupAttendanceDays.records.enrollment.student'])
-        )->findOrFail($dayId);
+        )->whereNull('course_finished_at')->findOrFail($dayId);
 
         $enrollmentIds = collect();
 

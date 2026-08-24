@@ -10,13 +10,14 @@ use App\Models\PrintTemplate;
 use App\Models\QuranFinalTest;
 use App\Models\Student;
 use App\Models\StudentAttendanceRecord;
-use App\Services\PrintTemplates\PrintTemplateRenderService;
 use App\Services\AccessScopeService;
+use App\Services\CourseEndService;
 use App\Services\CurriculumProgressService;
 use App\Services\GroupDailySummaryService;
+use App\Services\PrintTemplates\PrintTemplateRenderService;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Str;
 use Livewire\Volt\Component;
 use Livewire\WithPagination;
 
@@ -170,12 +171,43 @@ new class extends Component {
             ->orderByDesc('points')
             ->orderByDesc('pages')
             ->get();
+        $activeEnrollmentIds = (clone $activeEnrollments)->pluck('id');
+        $courseEndPointTotals = $defaultCourse
+            ? app(CourseEndService::class)
+                ->studentRows($defaultCourse)
+                ->whereIn('enrollment_id', $activeEnrollmentIds)
+                ->groupBy('student_id')
+                ->map(fn ($rows): array => [
+                    'points_before' => (int) $rows->sum('points_before'),
+                    'points_after' => (int) $rows->sum('points_after'),
+                ])
+            : collect();
         $students = Student::query()->whereIn('id', $studentTotals->pluck('student_id'))->get()->keyBy('id');
-        $studentPerformance = $studentTotals->values()->map(fn ($row) => [
-            'student' => $students->get($row->student_id),
-            'points' => (int) $row->points,
-            'pages' => (int) $row->pages,
-        ])->filter(fn (array $row) => $row['student'])->values();
+        $studentPerformance = $studentTotals->values()
+            ->map(function ($row) use ($courseEndPointTotals, $students): array {
+                $projectedPoints = $courseEndPointTotals->get($row->student_id);
+
+                return [
+                    'student' => $students->get($row->student_id),
+                    'points_before' => (int) ($projectedPoints['points_before'] ?? $row->points),
+                    'points' => (int) ($projectedPoints['points_after'] ?? $row->points),
+                    'pages' => (int) $row->pages,
+                ];
+            })
+            ->filter(fn (array $row) => $row['student'])
+            ->values();
+        $studentPerformanceRanks = $studentPerformance
+            ->sort(fn (array $left, array $right): int => ($right['points'] <=> $left['points'])
+                ?: ($right['pages'] <=> $left['pages'])
+                ?: ($left['student']->id <=> $right['student']->id))
+            ->take(3)
+            ->values()
+            ->mapWithKeys(fn (array $row, int $index): array => [$row['student']->id => $index + 1]);
+        $studentPerformance = $studentPerformance
+            ->map(fn (array $row): array => [
+                ...$row,
+                'rank' => $studentPerformanceRanks->get($row['student']->id),
+            ]);
 
         $selectedStudent = null;
         if ($courseId && $this->selectedManagerStudentId) {
@@ -189,9 +221,11 @@ new class extends Component {
                     ->where('student_id', $selectedStudentModel->id)
                     ->where('status', 'active')
                     ->whereHas('group', fn ($query) => $query->where('course_id', $courseId));
+                $selectedProjectedPoints = $courseEndPointTotals->get($selectedStudentModel->id);
                 $selectedStudent = [
                     'student' => $selectedStudentModel,
-                    'points' => (int) (clone $selectedEnrollments)->sum('final_points_cached'),
+                    'points' => (int) ($selectedProjectedPoints['points_after'] ?? (clone $selectedEnrollments)->sum('final_points_cached')),
+                    'points_before' => (int) ($selectedProjectedPoints['points_before'] ?? (clone $selectedEnrollments)->sum('final_points_cached')),
                     'pages' => (int) (clone $selectedEnrollments)->sum('memorized_pages_cached'),
                     'final_tests' => QuranFinalTest::query()
                         ->where('student_id', $selectedStudentModel->id)
@@ -945,19 +979,20 @@ new class extends Component {
                 $barNiceStep = ($barNormalizedStep <= 1 ? 1 : ($barNormalizedStep <= 2 ? 2 : ($barNormalizedStep <= 2.5 ? 2.5 : ($barNormalizedStep <= 5 ? 5 : 10)))) * $barMagnitude;
                 $barTicks = max(1, (int) ceil($barHighest / $barNiceStep));
                 $barMax = $barTicks * $barNiceStep;
+                $barColumnCount = max(1, $groupPageTotals->count());
                 $performanceMinimumPoints = min(0, (int) $studentPerformance->min('points'));
                 $performanceMaximumPoints = max(1, (int) $studentPerformance->max('points'));
                 $performanceMaximumPages = max(1, (int) $studentPerformance->max('pages'));
                 $performancePointsSpan = max(1, $performanceMaximumPoints - $performanceMinimumPoints);
-                $performanceAveragePoints = $studentPerformance->isEmpty() ? 0 : (float) $studentPerformance->avg('points');
+                $performanceAveragePoints = $studentPerformance->isEmpty() ? 0 : (float) $studentPerformance->avg('points_before');
                 $performanceAveragePages = $studentPerformance->isEmpty() ? 0 : (float) $studentPerformance->avg('pages');
                 $performanceX = fn (int $pages) => 7 + ((max(0, $pages) / $performanceMaximumPages) * 86);
-                $performanceY = fn (int $points) => 7 + (((max($performanceMinimumPoints, $points) - $performanceMinimumPoints) / $performancePointsSpan) * 86);
+                $performanceY = fn (int $points) => 7 + (((min($performanceMaximumPoints, max($performanceMinimumPoints, $points)) - $performanceMinimumPoints) / $performancePointsSpan) * 86);
                 $performanceAverageX = $performanceX((int) round($performanceAveragePages));
                 $performanceAverageY = $performanceY((int) round($performanceAveragePoints));
             @endphp
 
-            <section class="grid gap-6 xl:grid-cols-2">
+            <section class="dashboard-analytics-grid grid gap-6 xl:grid-cols-2">
                 <article class="surface-panel p-5 lg:p-6">
                     <h2 class="font-display mt-2 text-2xl text-white">{{ __('dashboard.manager.analytics.group_distribution') }}</h2>
                     @if ($groupStudentTotal > 0)
@@ -1033,18 +1068,22 @@ new class extends Component {
                                 <span class="dashboard-performance-map__zone dashboard-performance-map__zone--high-points" dir="{{ app()->getLocale() === 'ar' ? 'rtl' : 'ltr' }}">{{ __('dashboard.manager.analytics.high_points') }}</span>
                                 <span class="dashboard-performance-map__zone dashboard-performance-map__zone--high-pages" dir="{{ app()->getLocale() === 'ar' ? 'rtl' : 'ltr' }}">{{ __('dashboard.manager.analytics.high_memorization') }}</span>
                                 <span class="dashboard-performance-map__average-line dashboard-performance-map__average-line--vertical" style="--average-position: {{ $performanceAverageX }}%"></span>
-                                <span class="dashboard-performance-map__average-line dashboard-performance-map__average-line--horizontal" style="--average-position: {{ $performanceAverageY }}%"></span>
+                                <span class="dashboard-performance-map__average-line dashboard-performance-map__average-line--horizontal" style="--average-position: {{ $performanceAverageY }}%" data-points-average-before-rules="{{ $performanceAveragePoints }}"></span>
                                 @foreach ($studentPerformance as $entry)
                                     @php
                                         $isAbovePerformanceAverage = $entry['points'] > $performanceAveragePoints
                                             && $entry['pages'] > $performanceAveragePages;
+                                        $performanceRankClass = $entry['rank'] ? ' dashboard-performance-map__point--rank-'.$entry['rank'] : '';
                                     @endphp
                                     @if ($isAbovePerformanceAverage)
                                         <button
                                             type="button"
                                             wire:click="showManagerStudent({{ $entry['student']->id }})"
-                                            class="dashboard-performance-map__point dashboard-performance-map__point--above-average"
+                                            class="dashboard-performance-map__point dashboard-performance-map__point--above-average{{ $performanceRankClass }}"
                                             style="--point-x: {{ $performanceX($entry['pages']) }}%; --point-y: {{ $performanceY($entry['points']) }}%"
+                                            data-performance-rank="{{ $entry['rank'] }}"
+                                            data-points-before="{{ $entry['points_before'] }}"
+                                            data-points-after="{{ $entry['points'] }}"
                                             aria-label="{{ $entry['student']->full_name }} — {{ number_format($entry['points']) }} {{ __('dashboard.manager.analytics.points') }}, {{ trans_choice('dashboard.manager.analytics.pages_count', $entry['pages'], ['count' => number_format($entry['pages'])]) }}"
                                         >
                                             <span class="dashboard-performance-map__dot" aria-hidden="true"></span>
@@ -1053,16 +1092,29 @@ new class extends Component {
                                                 <small>{{ number_format($entry['points']) }} {{ __('dashboard.manager.analytics.points') }} · {{ trans_choice('dashboard.manager.analytics.pages_count', $entry['pages'], ['count' => number_format($entry['pages'])]) }}</small>
                                             </span>
                                         </button>
-                                    @else
+                                    @endif
+                                @endforeach
+                                <div class="dashboard-performance-map__dimmed-layer" data-performance-dimmed-layer aria-hidden="true">
+                                    @foreach ($studentPerformance as $entry)
+                                        @php
+                                            $isAbovePerformanceAverage = $entry['points'] > $performanceAveragePoints
+                                                && $entry['pages'] > $performanceAveragePages;
+                                            $performanceRankClass = $entry['rank'] ? ' dashboard-performance-map__point--rank-'.$entry['rank'] : '';
+                                        @endphp
+                                        @unless ($isAbovePerformanceAverage)
                                         <span
-                                            class="dashboard-performance-map__point dashboard-performance-map__point--below-average"
+                                            class="dashboard-performance-map__point dashboard-performance-map__point--below-average{{ $performanceRankClass }}"
                                             style="--point-x: {{ $performanceX($entry['pages']) }}%; --point-y: {{ $performanceY($entry['points']) }}%"
+                                            data-performance-rank="{{ $entry['rank'] }}"
+                                            data-points-before="{{ $entry['points_before'] }}"
+                                            data-points-after="{{ $entry['points'] }}"
                                             aria-hidden="true"
                                         >
                                             <span class="dashboard-performance-map__dot"></span>
                                         </span>
-                                    @endif
-                                @endforeach
+                                        @endunless
+                                    @endforeach
+                                </div>
                             </div>
                             <div class="dashboard-performance-map__averages" dir="{{ app()->getLocale() === 'ar' ? 'rtl' : 'ltr' }}">
                                 <span>{{ __('dashboard.manager.analytics.average_points') }}: <bdi>{{ number_format($performanceAveragePoints, 1) }}</bdi></span>
@@ -1072,12 +1124,13 @@ new class extends Component {
                     @endif
                 </article>
 
-                <article class="surface-panel p-5 lg:p-6">
+                <article class="surface-panel flex min-h-[26rem] flex-col p-5 lg:p-6">
                     <h2 class="font-display mt-2 text-2xl text-white">{{ __('dashboard.manager.analytics.top_groups_by_memorization') }}</h2>
                     @if ($groupPageTotals->isEmpty())
-                        <div class="admin-empty-state mt-5">{{ __('dashboard.manager.analytics.no_groups') }}</div>
+                        <div class="admin-empty-state mt-5 flex-1">{{ __('dashboard.manager.analytics.no_groups') }}</div>
                     @else
-                        <div class="mx-auto mt-8 grid w-full max-w-xl grid-cols-[3rem_minmax(0,1fr)] gap-0">
+                        <div class="flex flex-1 items-center justify-center py-6" data-dashboard-centered-bar-chart>
+                        <div class="dashboard-bar-chart-shell mx-auto grid w-full max-w-xl grid-cols-[3rem_minmax(0,1fr)] gap-0">
                             <div class="flex h-64 flex-col justify-between border-e border-white/20 pe-2 text-end text-[10px] font-light text-neutral-400">
                                 @foreach (range($barTicks, 0) as $tick)<span>{{ $axisLabel($barNiceStep * $tick) }}</span>@endforeach
                             </div>
@@ -1087,7 +1140,7 @@ new class extends Component {
                                 <span class="block border-t border-white/10"></span>
                             @endforeach
                         </div>
-                        <div class="dashboard-bar-chart relative grid h-64 grid-cols-4 items-end gap-4 border-b border-white/20 px-3">
+                        <div class="dashboard-bar-chart relative grid h-64 items-end gap-4 border-b border-white/20 px-3" style="grid-template-columns: repeat({{ $barColumnCount }}, minmax(0, 1fr))">
                             @foreach ($groupPageTotals as $index => $group)
                                 @php
                                     $barHeight = max(3, ($group['pages'] / $barMax) * 100);
@@ -1101,13 +1154,14 @@ new class extends Component {
                                 </div>
                             @endforeach
                         </div>
-                        <div class="grid grid-cols-4 gap-4 px-3 pt-3">
+                        <div class="grid gap-4 px-3 pt-3" style="grid-template-columns: repeat({{ $barColumnCount }}, minmax(0, 1fr))">
                             @foreach ($groupPageTotals as $group)
                                 <div class="truncate text-center text-xs text-neutral-300" title="{{ $group['name'] }}">{{ $group['name'] }}</div>
                             @endforeach
                         </div>
                         </div>
                         <div></div><div class="pt-2 text-center text-xs text-neutral-400">{{ __('dashboard.manager.analytics.groups_axis') }}</div>
+                        </div>
                         </div>
                     @endif
                 </article>

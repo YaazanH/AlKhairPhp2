@@ -115,10 +115,34 @@ class CurriculumModuleTest extends TestCase
         $subject = CurriculumSubject::query()->firstOrFail();
         Volt::test('curricula.show', ['curriculum' => $curriculum])
             ->set("newLessonDrafts.{$subject->id}.0.name", 'First lesson')
-            ->set("newLessonDrafts.{$subject->id}.0.page_count", '8')
             ->set("newLessonDrafts.{$subject->id}.0.importance", 3)
             ->call('saveInlineLesson', $subject->id, 0)
-            ->assertHasNoErrors();
+            ->assertHasNoErrors()
+            ->assertSee('data-curriculum-header-actions', false)
+            ->assertSee('data-curriculum-lessons-table', false)
+            ->assertSee('data-curriculum-add-lesson-row', false)
+            ->assertSee('data-importance-bars', false)
+            ->assertSee('data-add-lesson-icon', false)
+            ->assertSee('data-edit-lesson-icon', false)
+            ->assertSee('data-curriculum-topics-toggle', false)
+            ->assertSee('data-curriculum-topics-column', false)
+            ->assertSee('data-collapsed-direction="left"', false)
+            ->assertSee('data-collapsed-topic-count', false)
+            ->assertSee('data-curriculum-add-topic-row', false)
+            ->assertDontSee(__('curricula.fields.page_count'));
+
+        $lesson = CurriculumLesson::query()->where('name', 'First lesson')->firstOrFail();
+        CurriculumLessonTopic::create(['curriculum_lesson_id' => $lesson->id, 'name' => 'Nested topic', 'sort_order' => 10]);
+
+        Volt::test('curricula.show', ['curriculum' => $curriculum])
+            ->assertSee('Nested topic')
+            ->assertSee('data-curriculum-topic-row', false)
+            ->assertSee('data-curriculum-topic-number', false)
+            ->assertDontSee('wire:click="deleteLesson('.$lesson->id.')"', false)
+            ->call('openLesson', $subject->id, $lesson->id)
+            ->assertSee('data-compact-lesson-modal', false)
+            ->assertSee('data-delete-lesson-in-edit', false)
+            ->assertSee('wire:click="deleteLesson('.$lesson->id.')"', false);
 
         Volt::test('groups.index')
             ->call('openCreateModal')
@@ -133,7 +157,7 @@ class CurriculumModuleTest extends TestCase
             ->assertHasNoErrors();
 
         $this->assertDatabaseHas('groups', ['name' => 'Curriculum Group', 'curriculum_id' => $curriculum->id]);
-        $this->assertDatabaseHas('curriculum_lessons', ['name' => 'First lesson', 'page_count' => 8, 'importance' => 3]);
+        $this->assertDatabaseHas('curriculum_lessons', ['name' => 'First lesson', 'page_count' => 0, 'importance' => 3]);
     }
 
     public function test_standalone_books_are_managed_inline_inside_their_popup(): void

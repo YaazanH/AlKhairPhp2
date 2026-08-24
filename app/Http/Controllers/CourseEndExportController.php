@@ -15,7 +15,7 @@ class CourseEndExportController extends Controller
 {
     public function students(Course $course, CourseEndService $service, XlsxExportService $xlsx): StreamedResponse
     {
-        $rows = $service->studentRows($course)->values()->map(fn (array $row, int $index) => [
+        $rows = $service->studentResultRows($course)->map(fn (array $row, int $index) => [
             $index + 1, $row['name'], $row['group'], $row['points_after'], $row['days_attended'],
             $row['memorized_pages'], $row['final_tests'], $row['final_score'],
         ])->all();

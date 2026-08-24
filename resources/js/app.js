@@ -253,6 +253,7 @@ function closeSearchableSelect(wrapper) {
     wrapper.classList.remove('searchable-select--open');
     wrapper.querySelector('.searchable-select__panel')?.setAttribute('hidden', 'hidden');
     wrapper.querySelector('.searchable-select__button')?.setAttribute('aria-expanded', 'false');
+    wrapper.querySelector('.searchable-select__search--trigger')?.setAttribute('aria-expanded', 'false');
 }
 
 function closeOtherSearchableSelects(currentWrapper) {
@@ -286,6 +287,10 @@ function buildSearchableSelectOptions(select, list, query = '') {
 
     options.forEach((option) => {
         if (option.disabled || option.hidden) {
+            return;
+        }
+
+        if (option.value === '' && select.dataset.hidePlaceholderOption === 'true') {
             return;
         }
 
@@ -375,20 +380,31 @@ function enhanceSearchableSelect(select) {
     wrapper.className = 'searchable-select';
     wrapper.setAttribute('wire:ignore', '');
 
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = 'searchable-select__button';
-    button.setAttribute('aria-haspopup', 'listbox');
-    button.setAttribute('aria-expanded', 'false');
+    const searchInputMode = select.dataset.searchInput === 'true';
 
-    const label = document.createElement('span');
-    label.className = 'searchable-select__value';
+    if (searchInputMode) {
+        wrapper.classList.add('searchable-select--input');
+    }
 
-    const chevron = document.createElement('span');
-    chevron.className = 'searchable-select__chevron';
-    chevron.textContent = '⌄';
+    let button = null;
+    let label = null;
 
-    button.append(label, chevron);
+    if (!searchInputMode) {
+        button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'searchable-select__button';
+        button.setAttribute('aria-haspopup', 'listbox');
+        button.setAttribute('aria-expanded', 'false');
+
+        label = document.createElement('span');
+        label.className = 'searchable-select__value';
+
+        const chevron = document.createElement('span');
+        chevron.className = 'searchable-select__chevron';
+        chevron.textContent = '⌄';
+
+        button.append(label, chevron);
+    }
 
     const panel = document.createElement('div');
     panel.className = 'searchable-select__panel';
@@ -400,21 +416,42 @@ function enhanceSearchableSelect(select) {
     search.placeholder = select.dataset.searchPlaceholder || 'Search...';
     search.autocomplete = 'off';
 
+    if (searchInputMode) {
+        search.classList.add('searchable-select__search--trigger');
+        search.setAttribute('role', 'combobox');
+        search.setAttribute('aria-autocomplete', 'list');
+        search.setAttribute('aria-expanded', 'false');
+    }
+
     const list = document.createElement('div');
     list.className = 'searchable-select__list';
     list.setAttribute('role', 'listbox');
 
-    panel.append(search, list);
-    wrapper.append(button, panel);
+    if (searchInputMode) {
+        panel.append(list);
+        wrapper.append(search, panel);
+    } else {
+        panel.append(search, list);
+        wrapper.append(button, panel);
+    }
     select.insertAdjacentElement('afterend', wrapper);
 
     let optionsSignature = '';
 
     const sync = (force = false) => {
-        const nextLabel = selectedOptionText(select) || select.querySelector('option[value=""]')?.textContent?.trim() || 'Select';
+        if (searchInputMode) {
+            const selectedOption = select.options[select.selectedIndex];
+            const nextValue = selectedOption?.value ? selectedOption.textContent.trim() : '';
 
-        if (label.textContent !== nextLabel) {
-            label.textContent = nextLabel;
+            if ((force || document.activeElement !== search) && search.value !== nextValue) {
+                search.value = nextValue;
+            }
+        } else {
+            const nextLabel = selectedOptionText(select) || select.querySelector('option[value=""]')?.textContent?.trim() || 'Select';
+
+            if (label.textContent !== nextLabel) {
+                label.textContent = nextLabel;
+            }
         }
 
         const nextOptionsSignature = Array.from(select.options)
@@ -430,22 +467,56 @@ function enhanceSearchableSelect(select) {
     select.searchableSelectSync = sync;
     sync();
 
-    button.addEventListener('click', () => {
-        const willOpen = !wrapper.classList.contains('searchable-select--open');
-        closeOtherSearchableSelects(wrapper);
+    if (searchInputMode) {
+        search.addEventListener('input', () => {
+            const hasQuery = search.value.trim() !== '';
 
-        wrapper.classList.toggle('searchable-select--open', willOpen);
-        button.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
-        panel.toggleAttribute('hidden', !willOpen);
+            if (!hasQuery) {
+                if (select.value !== '') {
+                    select.value = '';
+                    select.dispatchEvent(new Event('change', { bubbles: true }));
+                }
 
-        if (willOpen) {
-            search.value = searchHintValue(select);
+                closeSearchableSelect(wrapper);
+                search.setAttribute('aria-expanded', 'false');
+
+                return;
+            }
+
+            closeOtherSearchableSelects(wrapper);
+            wrapper.classList.add('searchable-select--open');
+            panel.removeAttribute('hidden');
+            search.setAttribute('aria-expanded', 'true');
             buildSearchableSelectOptions(select, list, search.value);
-            requestAnimationFrame(() => search.focus());
-        }
-    });
+        });
 
-    search.addEventListener('input', () => buildSearchableSelectOptions(select, list, search.value));
+        wrapper.addEventListener('focusout', (event) => {
+            if (event.relatedTarget instanceof Node && wrapper.contains(event.relatedTarget)) {
+                return;
+            }
+
+            closeSearchableSelect(wrapper);
+            search.setAttribute('aria-expanded', 'false');
+        });
+    } else {
+        button.addEventListener('click', () => {
+            const willOpen = !wrapper.classList.contains('searchable-select--open');
+            closeOtherSearchableSelects(wrapper);
+
+            wrapper.classList.toggle('searchable-select--open', willOpen);
+            button.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+            panel.toggleAttribute('hidden', !willOpen);
+
+            if (willOpen) {
+                search.value = searchHintValue(select);
+                buildSearchableSelectOptions(select, list, search.value);
+                requestAnimationFrame(() => search.focus());
+            }
+        });
+
+        search.addEventListener('input', () => buildSearchableSelectOptions(select, list, search.value));
+    }
+
     select.addEventListener('change', () => sync());
 }
 
@@ -626,9 +697,7 @@ function initializeMobileTableFilters(root = document) {
     }
     root.querySelectorAll?.(selector).forEach((toolbar) => toolbars.push(toolbar));
 
-    toolbars.forEach((toolbar) => {
-        if (toolbar.dataset.mobileTableFilters === 'true') return;
-
+    [...new Set(toolbars)].forEach((toolbar) => {
         const criteria = Array.from(toolbar.children).filter((child) => (
             child.matches('.admin-filter-field, input:not([type="hidden"]), select')
             || child.querySelector('input:not([type="hidden"]), select')
@@ -636,45 +705,79 @@ function initializeMobileTableFilters(root = document) {
 
         if (criteria.length === 0) return;
 
+        const ownerId = toolbar.closest('[wire\\:id]')?.getAttribute('wire:id') || 'page';
+        const criterionNames = criteria.map((criterion, index) => {
+            const control = criterion.matches('input, select')
+                ? criterion
+                : criterion.querySelector('input, select');
+            const model = Array.from(control?.attributes || [])
+                .find((attribute) => attribute.name.startsWith('wire:model'))?.value;
+
+            return control?.id || model || `${control?.tagName || 'filter'}-${index}`;
+        });
+        const filterKey = `${ownerId}:${criterionNames.join('|')}`;
+        const shouldRemainOpen = toolbar.classList.contains('mobile-table-filters--open')
+            || (
+                document.body.classList.contains('mobile-table-filters-active')
+                && document.body.dataset.mobileTableFilterOwner === filterKey
+            );
+
         toolbar.dataset.mobileTableFilters = 'true';
+        toolbar.dataset.mobileTableFilterKey = filterKey;
         toolbar.classList.add('mobile-table-filters');
         criteria.forEach((criterion) => criterion.classList.add('mobile-table-filter-criterion'));
 
         const isArabic = document.documentElement.dir === 'rtl' || document.documentElement.lang?.startsWith('ar');
-        const trigger = document.createElement('button');
-        trigger.type = 'button';
-        trigger.className = 'mobile-table-filter-trigger';
-        trigger.dataset.mobileTableFilterOpen = '';
-        trigger.setAttribute('aria-expanded', 'false');
-        trigger.append(createMobileFilterIcon(), document.createTextNode(isArabic ? 'بحث' : 'Search'));
+        let trigger = Array.from(toolbar.children).find((child) => child.hasAttribute('data-mobile-table-filter-open'));
+        if (!trigger) {
+            trigger = document.createElement('button');
+            trigger.type = 'button';
+            trigger.className = 'mobile-table-filter-trigger';
+            trigger.dataset.mobileTableFilterOpen = '';
+            trigger.append(createMobileFilterIcon(), document.createTextNode(isArabic ? 'بحث' : 'Search'));
+            toolbar.prepend(trigger);
+        }
 
-        const close = document.createElement('button');
-        close.type = 'button';
-        close.className = 'mobile-table-filter-close';
-        close.dataset.mobileTableFilterClose = '';
-        close.setAttribute('aria-label', isArabic ? 'إغلاق البحث' : 'Close search');
-        close.textContent = '×';
+        let close = Array.from(toolbar.children).find((child) => child.hasAttribute('data-mobile-table-filter-close'));
+        if (!close) {
+            close = document.createElement('button');
+            close.type = 'button';
+            close.className = 'mobile-table-filter-close';
+            close.dataset.mobileTableFilterClose = '';
+            close.setAttribute('aria-label', isArabic ? 'إغلاق البحث' : 'Close search');
+            close.textContent = '×';
+            toolbar.append(close);
+        }
 
-        toolbar.prepend(trigger);
-        toolbar.append(close);
+        toolbar.classList.toggle('mobile-table-filters--open', shouldRemainOpen);
+        trigger.setAttribute('aria-expanded', shouldRemainOpen ? 'true' : 'false');
     });
 }
 
-function closeMobileTableFilters(toolbar) {
+function openMobileTableFilters(toolbar) {
     if (!(toolbar instanceof Element)) return;
 
-    toolbar.classList.remove('mobile-table-filters--open');
-    toolbar.querySelector('[data-mobile-table-filter-open]')?.setAttribute('aria-expanded', 'false');
+    toolbar.classList.add('mobile-table-filters--open');
+    toolbar.querySelector('[data-mobile-table-filter-open]')?.setAttribute('aria-expanded', 'true');
+    document.body.dataset.mobileTableFilterOwner = toolbar.dataset.mobileTableFilterKey || '';
+    document.body.classList.add('mobile-table-filters-active');
+}
+
+function closeMobileTableFilters(toolbar) {
+    if (toolbar instanceof Element) {
+        toolbar.classList.remove('mobile-table-filters--open');
+        toolbar.querySelector('[data-mobile-table-filter-open]')?.setAttribute('aria-expanded', 'false');
+    }
+
     document.body.classList.remove('mobile-table-filters-active');
+    delete document.body.dataset.mobileTableFilterOwner;
 }
 
 document.addEventListener('click', (event) => {
     const openButton = event.target.closest?.('[data-mobile-table-filter-open]');
     if (openButton) {
         const toolbar = openButton.closest('.mobile-table-filters');
-        toolbar?.classList.add('mobile-table-filters--open');
-        openButton.setAttribute('aria-expanded', 'true');
-        document.body.classList.add('mobile-table-filters-active');
+        openMobileTableFilters(toolbar);
 
         return;
     }
@@ -682,6 +785,13 @@ document.addEventListener('click', (event) => {
     const closeButton = event.target.closest?.('[data-mobile-table-filter-close]');
     if (closeButton) {
         closeMobileTableFilters(closeButton.closest('.mobile-table-filters'));
+
+        return;
+    }
+
+    const openToolbar = document.querySelector('.mobile-table-filters--open');
+    if (openToolbar && !event.target.closest?.('.mobile-table-filters--open')) {
+        closeMobileTableFilters(openToolbar);
     }
 });
 
@@ -692,17 +802,33 @@ document.addEventListener('keydown', (event) => {
 });
 
 document.addEventListener('DOMContentLoaded', () => initializeMobileTableFilters());
-document.addEventListener('livewire:navigated', () => initializeMobileTableFilters());
+document.addEventListener('livewire:navigating', () => closeMobileTableFilters(document.querySelector('.mobile-table-filters--open')));
+document.addEventListener('livewire:navigated', () => {
+    closeMobileTableFilters(document.querySelector('.mobile-table-filters--open'));
+    initializeMobileTableFilters();
+});
 document.addEventListener('livewire:initialized', () => {
     window.Livewire?.hook('morph.updated', ({ el }) => initializeMobileTableFilters(el));
     window.Livewire?.hook('morph.added', ({ el }) => initializeMobileTableFilters(el));
 });
 
 const mobileTableFilterObserver = new MutationObserver((mutations) => {
-    if (mutations.some((mutation) => Array.from(mutation.addedNodes).some((node) => node instanceof Element && (
-        node.matches('.admin-toolbar__controls, [data-mobile-table-filter-controls]')
-        || node.querySelector('.admin-toolbar__controls, [data-mobile-table-filter-controls]')
-    )))) {
+    const selector = '.admin-grid-meta--controls .admin-toolbar__controls, [data-mobile-table-filter-controls]';
+    const shouldInitialize = mutations.some((mutation) => {
+        if (mutation.target instanceof Element && (
+            mutation.target.matches(selector)
+            || mutation.target.closest(selector)
+        )) {
+            return true;
+        }
+
+        return Array.from(mutation.addedNodes).some((node) => node instanceof Element && (
+            node.matches(selector)
+            || node.querySelector(selector)
+        ));
+    });
+
+    if (shouldInitialize) {
         initializeMobileTableFilters();
     }
 });
@@ -1236,3 +1362,190 @@ document.addEventListener('admin-copy-text', (event) => {
 
     void writeAdminCopyText(text);
 });
+
+const activePdfUploads = new Map();
+let pdfUploadListenersBound = false;
+
+function livewireModelName(input) {
+    const modelAttribute = Array.from(input.attributes).find((attribute) => (
+        attribute.name === 'wire:model' || attribute.name.startsWith('wire:model.')
+    ));
+
+    return modelAttribute?.value || '';
+}
+
+function acceptsPdf(input) {
+    return input instanceof HTMLInputElement
+        && input.type === 'file'
+        && (input.accept.toLowerCase().includes('pdf') || input.hasAttribute('data-pdf-upload'));
+}
+
+function selectedFilesIncludePdf(input) {
+    return acceptsPdf(input) && Array.from(input.files || []).some((file) => (
+        file.type.toLowerCase() === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')
+    ));
+}
+
+function pdfUploadStatus(input) {
+    const model = livewireModelName(input);
+    const parent = input.parentElement;
+    const hasNativeIndicator = parent && Array.from(parent.querySelectorAll('[wire\\:loading]')).some((indicator) => (
+        !model || indicator.getAttribute('wire:target')?.split(',').map((target) => target.trim()).includes(model)
+    ));
+
+    if (hasNativeIndicator) {
+        return null;
+    }
+
+    const existingStatus = input.parentElement?.querySelector(`[data-pdf-upload-status-for="${CSS.escape(model)}"]`);
+
+    if (existingStatus) {
+        return existingStatus;
+    }
+
+    const status = document.createElement('span');
+    status.className = 'pdf-upload-status';
+    status.dataset.pdfUploadStatusFor = model;
+    status.setAttribute('role', 'status');
+    status.setAttribute('aria-live', 'polite');
+    status.hidden = true;
+
+    const spinner = document.createElement('span');
+    spinner.className = 'pdf-upload-spinner';
+    spinner.setAttribute('aria-hidden', 'true');
+
+    const label = document.createElement('span');
+    label.textContent = document.body?.dataset.pdfUploadingLabel
+        || (document.documentElement.lang.toLowerCase().startsWith('ar') ? 'جارٍ رفع ملف PDF…' : 'Uploading PDF…');
+
+    status.append(spinner, label);
+    input.insertAdjacentElement('afterend', status);
+
+    return status;
+}
+
+function pdfSaveControls(form) {
+    if (!(form instanceof HTMLFormElement)) {
+        return [];
+    }
+
+    return Array.from(form.querySelectorAll('button, input[type="submit"]')).filter((control) => {
+        if (control.matches('button[type="submit"], button:not([type]), input[type="submit"]')) {
+            return true;
+        }
+
+        return /^(save|store|create|submit|import|finali[sz]e|update)/i.test(
+            control.getAttribute('wire:click')?.trim() || '',
+        );
+    });
+}
+
+function formHasActivePdfUpload(form) {
+    return Array.from(activePdfUploads.values()).some((activeForm) => activeForm === form);
+}
+
+function updatePdfUploadForm(form) {
+    if (!(form instanceof HTMLFormElement)) {
+        return;
+    }
+
+    const uploading = formHasActivePdfUpload(form);
+    form.toggleAttribute('data-pdf-upload-active', uploading);
+    form.setAttribute('aria-busy', uploading ? 'true' : 'false');
+
+    pdfSaveControls(form).forEach((control) => {
+        if (uploading && !control.disabled) {
+            control.dataset.pdfUploadDisabled = 'true';
+            control.disabled = true;
+            control.setAttribute('aria-disabled', 'true');
+        } else if (!uploading && control.dataset.pdfUploadDisabled === 'true') {
+            delete control.dataset.pdfUploadDisabled;
+            control.disabled = false;
+            control.removeAttribute('aria-disabled');
+        }
+    });
+}
+
+function setPdfUploadActive(input, active) {
+    if (!acceptsPdf(input)) {
+        return;
+    }
+
+    const previousForm = activePdfUploads.get(input);
+    const form = input.closest('form');
+    const status = pdfUploadStatus(input);
+
+    if (active) {
+        activePdfUploads.set(input, form);
+        input.dataset.pdfUploadActive = 'true';
+        input.setAttribute('aria-busy', 'true');
+
+        if (status) {
+            status.hidden = false;
+        }
+    } else {
+        activePdfUploads.delete(input);
+        delete input.dataset.pdfUploadActive;
+        input.removeAttribute('aria-busy');
+
+        if (status) {
+            status.hidden = true;
+        }
+    }
+
+    updatePdfUploadForm(previousForm);
+    updatePdfUploadForm(form);
+}
+
+function initializePdfUploads() {
+    document.querySelectorAll('input[type="file"]').forEach((input) => {
+        if (acceptsPdf(input) && livewireModelName(input)) {
+            pdfUploadStatus(input);
+        }
+    });
+
+    if (pdfUploadListenersBound) {
+        return;
+    }
+
+    pdfUploadListenersBound = true;
+
+    document.addEventListener('change', (event) => {
+        const input = event.target;
+
+        if (acceptsPdf(input) && livewireModelName(input)) {
+            setPdfUploadActive(input, selectedFilesIncludePdf(input));
+        }
+    }, true);
+
+    document.addEventListener('livewire-upload-start', (event) => {
+        if (selectedFilesIncludePdf(event.target)) {
+            setPdfUploadActive(event.target, true);
+        }
+    });
+
+    ['livewire-upload-finish', 'livewire-upload-error', 'livewire-upload-cancel'].forEach((eventName) => {
+        document.addEventListener(eventName, (event) => setPdfUploadActive(event.target, false));
+    });
+
+    document.addEventListener('submit', (event) => {
+        if (event.target instanceof HTMLFormElement && formHasActivePdfUpload(event.target)) {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+        }
+    }, true);
+
+    document.addEventListener('click', (event) => {
+        const control = event.target instanceof Element ? event.target.closest('button, input[type="submit"]') : null;
+        const form = control?.closest('form');
+
+        if (control && formHasActivePdfUpload(form) && pdfSaveControls(form).includes(control)) {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+        }
+    }, true);
+}
+
+document.addEventListener('DOMContentLoaded', initializePdfUploads);
+document.addEventListener('livewire:navigated', initializePdfUploads);
+document.addEventListener('livewire:commit', initializePdfUploads);

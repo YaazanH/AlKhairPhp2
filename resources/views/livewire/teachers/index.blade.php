@@ -135,7 +135,7 @@ new class extends Component {
             'status' => ['required', 'in:active,inactive,blocked,pending,declined'],
             'hired_at' => ['nullable', 'date'],
             'is_helping' => ['boolean'],
-            'photo_upload' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
+            'photo_upload' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp', 'max:'.config('uploads.image_max_kb')],
             'notes' => ['nullable', 'string'],
         ];
     }
@@ -150,7 +150,7 @@ new class extends Component {
             'course_id' => ['nullable', 'integer', Rule::exists('courses', 'id')],
             'hired_at' => ['nullable', 'date'],
             'is_helping' => ['boolean'],
-            'photo_upload' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
+            'photo_upload' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp', 'max:'.config('uploads.image_max_kb')],
             'notes' => ['nullable', 'string'],
         ];
     }

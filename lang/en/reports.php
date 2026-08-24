@@ -159,7 +159,7 @@ return [
             'student' => 'Student',
             'current_juz' => 'Current juz',
             'memorized_pages' => 'Memorized pages',
-            'latest_partial_quarters' => 'Latest partial saber quarters',
+            'latest_partial_quarters' => 'Practice saber',
             'passed_final_tests' => 'Passed final saber',
             'points' => 'Points',
             'attended_days' => 'Attended days',

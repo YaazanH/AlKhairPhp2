@@ -46,7 +46,7 @@ new class extends Component {
 
     public function with(): array
     {
-        $transactionsQuery = $this->scopePointTransactionsQuery(
+        $transactionsQuery = $this->visiblePointTransactionsQuery(
             PointTransaction::query()->with([
                 'enteredBy',
                 'pointType',
@@ -168,7 +168,7 @@ new class extends Component {
     {
         $this->authorizePermission('points.create-manual');
 
-        $transaction = $this->scopePointTransactionsQuery(PointTransaction::query())
+        $transaction = $this->visiblePointTransactionsQuery(PointTransaction::query())
             ->findOrFail($transactionId);
 
         if ($transaction->source_type !== 'manual' || $transaction->voided_at) {
@@ -215,7 +215,7 @@ new class extends Component {
         }
 
         if ($this->editingTransactionId) {
-            $transaction = $this->scopePointTransactionsQuery(PointTransaction::query())
+            $transaction = $this->visiblePointTransactionsQuery(PointTransaction::query())
                 ->findOrFail($this->editingTransactionId);
 
             if ($transaction->source_type !== 'manual' || $transaction->voided_at) {
@@ -302,7 +302,7 @@ new class extends Component {
     {
         $this->authorizePermission('points.void');
 
-        $this->scopePointTransactionsQuery(PointTransaction::query())
+        $this->visiblePointTransactionsQuery(PointTransaction::query())
             ->whereNull('voided_at')
             ->findOrFail($transactionId);
 
@@ -336,7 +336,7 @@ new class extends Component {
             return;
         }
 
-        $transaction = $this->scopePointTransactionsQuery(PointTransaction::query())
+        $transaction = $this->visiblePointTransactionsQuery(PointTransaction::query())
             ->whereKey($this->voidTransactionId)
             ->first();
 
@@ -393,6 +393,18 @@ new class extends Component {
                 ->when($this->selectedStudentId, fn (Builder $query) => $query->where('student_id', $this->selectedStudentId))
                 ->when(! $this->selectedStudentId, fn (Builder $query) => $query->whereRaw('1 = 0'))
         );
+    }
+
+    protected function visiblePointTransactionsQuery(Builder $query): Builder
+    {
+        return $this->scopePointTransactionsQuery($query)
+            ->where(function (Builder $transactionQuery): void {
+                $transactionQuery
+                    ->whereNull('enrollment_id')
+                    ->orWhereHas('enrollment', fn (Builder $enrollmentQuery) => $enrollmentQuery
+                        ->whereNull('course_finished_at')
+                        ->whereDoesntHave('group.course', fn (Builder $courseQuery) => $courseQuery->whereNotNull('finished_at')));
+            });
     }
 
     protected function applyPointSort(Builder $query): void
@@ -481,21 +493,34 @@ new class extends Component {
             <div class="admin-empty-state">{{ __('workflow.points.workbench.table.empty') }}</div>
         @else
             <div class="overflow-hidden">
-                <table class="w-full table-fixed text-sm">
+                <table class="points-ledger-table w-full table-fixed text-sm" data-has-void-reason="{{ $stateFilter !== 'active' ? 'true' : 'false' }}">
+                    <colgroup>
+                        <col class="points-ledger-col--student">
+                        <col class="points-ledger-col--group">
+                        <col class="points-ledger-col--entered">
+                        <col class="points-ledger-col--type">
+                        <col class="points-ledger-col--source">
+                        <col class="points-ledger-col--points">
+                        <col class="points-ledger-col--state">
+                        @if ($stateFilter !== 'active')
+                            <col class="points-ledger-col--void-reason">
+                        @endif
+                        <col class="points-ledger-col--actions">
+                    </colgroup>
                     <thead>
                         <tr>
-                            <th class="w-[18%] px-3 py-4 text-left">
+                            <th class="px-3 py-4 text-left">
                                 <button type="button" wire:click="sortBy('student')" class="inline-flex items-center gap-2 font-medium text-inherit">
                                     {{ __('workflow.points.workbench.table.headers.student') }} <span>{{ $this->sortIndicator('student') }}</span>
                                 </button>
                             </th>
-                            <th class="w-[18%] px-3 py-4 text-left">{{ __('workflow.points.workbench.table.headers.group') }}</th>
-                            <th class="w-[14%] px-3 py-4 text-left">
+                            <th class="px-3 py-4 text-left">{{ __('workflow.points.workbench.table.headers.group') }}</th>
+                            <th class="px-3 py-4 text-left">
                                 <button type="button" wire:click="sortBy('entered_at')" class="inline-flex items-center gap-2 font-medium text-inherit">
                                     {{ __('workflow.points.workbench.table.headers.entered_at') }} <span>{{ $this->sortIndicator('entered_at') }}</span>
                                 </button>
                             </th>
-                            <th class="w-[14%] px-3 py-4 text-left">
+                            <th class="px-3 py-4 text-left">
                                 <button type="button" wire:click="sortBy('point_type')" class="inline-flex items-center gap-2 font-medium text-inherit">
                                     {{ __('workflow.points.workbench.table.headers.type') }} <span>{{ $this->sortIndicator('point_type') }}</span>
                                 </button>

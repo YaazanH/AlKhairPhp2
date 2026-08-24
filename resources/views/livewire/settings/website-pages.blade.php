@@ -204,11 +204,11 @@ new class extends Component {
             'sections.*.button_url' => ['nullable', 'string', 'max:2048'],
             'sections.*.embed_code' => ['nullable', 'string'],
             'sections.*.custom_html' => ['nullable', 'string'],
-            'section_image_uploads.*' => ['nullable', 'image', 'max:4096'],
+            'section_image_uploads.*' => ['nullable', 'image', 'max:'.config('uploads.image_max_kb')],
             'navigation_order' => ['required', 'integer', 'min:0'],
             'is_published' => ['boolean'],
             'show_in_navigation' => ['boolean'],
-            'hero_media_upload' => ['nullable', 'image', 'max:4096'],
+            'hero_media_upload' => ['nullable', 'image', 'max:'.config('uploads.image_max_kb')],
         ]);
 
         $sections = $this->prepareSectionsForStorage($validated['sections']);

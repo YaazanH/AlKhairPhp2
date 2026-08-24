@@ -687,10 +687,13 @@ class StandaloneWorkflowPagesTest extends TestCase
             ->set('manual_point_type_id', $bonus->id)
             ->call('saveManualAndNew')
             ->assertHasNoErrors()
+            ->assertSee('points-ledger-table', false)
+            ->assertSee('data-has-void-reason="false"', false)
             ->assertSet('showFormModal', true)
             ->assertSet('selectedStudentId', null)
             ->assertSet('manual_point_type_id', $bonus->id)
             ->set('stateFilter', 'all')
+            ->assertSee('data-has-void-reason="true"', false)
             ->assertSee(__('workflow.points.workbench.table.headers.void_reason'));
 
         $transaction = PointTransaction::query()->where('source_type', 'manual')->firstOrFail();

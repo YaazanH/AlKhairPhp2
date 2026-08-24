@@ -35,7 +35,7 @@ new #[Layout('components.layouts.auth')] class extends Component {
             'phone' => ['required', 'string', 'max:30'],
             'username' => ['required', 'string', 'max:255', Rule::unique('users', 'username')],
             'password' => ['required', 'string', 'min:8'],
-            'photo_upload' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
+            'photo_upload' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp', 'max:'.config('uploads.image_max_kb')],
         ]);
 
         $fullName = trim($validated['first_name'].' '.$validated['last_name']);

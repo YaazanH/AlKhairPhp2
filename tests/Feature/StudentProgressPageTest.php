@@ -25,6 +25,8 @@ use App\Models\Teacher;
 use App\Models\User;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Livewire\Volt\Volt;
 use Tests\TestCase;
 
@@ -71,6 +73,7 @@ class StudentProgressPageTest extends TestCase
         $this->get(route('students.progress', $student, absolute: false))
             ->assertOk()
             ->assertSee('student-progress-profile__photo-fallback', false)
+            ->assertDontSee('data-student-progress-photo-upload', false)
             ->assertDontSee('student-progress-profile__photo-image', false);
 
         $student->update(['photo_path' => 'students/photos/wide-landscape-photo.jpg']);
@@ -85,6 +88,31 @@ class StudentProgressPageTest extends TestCase
         $this->assertStringContainsString('align-self: stretch;', $css);
         $this->assertStringContainsString('object-fit: cover;', $css);
         $this->assertStringContainsString('contain: paint;', $css);
+    }
+
+    public function test_manager_can_replace_a_student_photo_from_the_progress_profile(): void
+    {
+        $this->seed(RoleSeeder::class);
+        Storage::fake('public');
+
+        [, $student] = $this->makeScopedProgressData();
+        $manager = User::factory()->create([
+            'username' => 'progress-photo-manager',
+            'phone' => '8111004',
+        ]);
+        $manager->assignRole('manager');
+        $this->actingAs($manager);
+
+        Volt::test('students.progress', ['student' => $student])
+            ->assertSee('data-student-progress-photo-upload', false)
+            ->set('progressPhotoUpload', UploadedFile::fake()->image('new-student-photo.jpg', 640, 640))
+            ->assertHasNoErrors()
+            ->assertSeeText(__('workflow.student_progress.messages.photo_updated'));
+
+        $photoPath = $student->fresh()->photo_path;
+
+        $this->assertNotNull($photoPath);
+        Storage::disk('public')->assertExists($photoPath);
     }
 
     public function test_student_can_view_only_their_own_progress(): void
@@ -317,6 +345,8 @@ class StudentProgressPageTest extends TestCase
             ->assertDontSeeText(__('workflow.student_progress.selection.title'))
             ->assertDontSeeText(__('workflow.student_progress.selection.select_student'))
             ->assertSeeText(__('workflow.student_progress.selection.search_placeholder'))
+            ->assertSee('data-search-input="true"', false)
+            ->assertSee('data-hide-placeholder-option="true"', false)
             ->assertSeeText('Parent Student')
             ->assertSeeText('Other Student')
             ->assertSee('data-option-name="Parent Student"', false)

@@ -167,7 +167,7 @@ new class extends Component {
             ->all();
 
         $validated = $this->validate([
-            'background_image_upload' => ['nullable', 'image', 'max:4096'],
+            'background_image_upload' => ['nullable', 'image', 'max:'.config('uploads.image_max_kb')],
             'columns' => ['required', 'array', 'min:1'],
             'columns.*' => ['string', Rule::in($availableColumns)],
             'custom_date' => ['nullable', 'date', Rule::requiredIf(fn () => $this->date_mode === 'custom')],
@@ -180,7 +180,7 @@ new class extends Component {
             'include_opening_balance' => ['boolean'],
             'is_default' => ['boolean'],
             'language' => ['required', Rule::in(FinanceReportTemplate::LANGUAGES)],
-            'logo_image_upload' => ['nullable', 'image', 'max:4096'],
+            'logo_image_upload' => ['nullable', 'image', 'max:'.config('uploads.image_max_kb')],
             'name' => ['required', 'string', 'max:255'],
             'shape_color' => ['required', 'regex:/^#[0-9A-Fa-f]{6}$/'],
             'shape_opacity' => ['required', 'numeric', 'between:0,1'],

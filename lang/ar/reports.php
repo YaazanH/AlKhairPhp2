@@ -159,7 +159,7 @@ return [
             'student' => 'الطالب',
             'current_juz' => 'الجزء الحالي',
             'memorized_pages' => 'صفحات الحفظ',
-            'latest_partial_quarters' => 'أرباع آخر سبر جزئي',
+            'latest_partial_quarters' => 'السبر التجريبي',
             'passed_final_tests' => 'السبر النهائي',
             'points' => 'النقاط',
             'attended_days' => 'أيام الحضور',

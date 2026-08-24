@@ -1222,7 +1222,11 @@ return [
         ],
         'actions' => [
             'details' => 'Details',
+            'update_photo' => 'Update photo',
             'view_all' => 'View All',
+        ],
+        'messages' => [
+            'photo_updated' => 'Student photo updated successfully.',
         ],
         'filters' => [
             'title' => 'Course filter',

@@ -1222,7 +1222,11 @@ return [
         ],
         'actions' => [
             'details' => 'التفاصيل',
+            'update_photo' => 'تغيير الصورة',
             'view_all' => 'عرض الكل',
+        ],
+        'messages' => [
+            'photo_updated' => 'تم تحديث صورة الطالب بنجاح.',
         ],
         'filters' => [
             'title' => 'تصفية حسب الدورة',

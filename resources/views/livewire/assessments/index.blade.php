@@ -9,6 +9,7 @@ use App\Models\AssessmentType;
 use App\Models\Course;
 use App\Models\Group;
 use App\Services\AssessmentService;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 use Livewire\Volt\Component;
 use Livewire\WithPagination;
@@ -80,7 +81,7 @@ new class extends Component
             ->when($this->groupCourseFilter !== 'all', fn ($groups) => $groups->where('course_id', (int) $this->groupCourseFilter))
             ->values();
         $courseIds = $allAvailableGroups->pluck('course_id')->filter()->unique()->values();
-        $assessmentQuery = $this->scopeAssessmentsQuery(
+        $assessmentQuery = $this->visibleAssessmentsQuery(
             Assessment::query()
                 ->with(['group.course', 'groups.course', 'type'])
                 ->withCount('results')
@@ -277,7 +278,7 @@ new class extends Component
 
         $assessment = DB::transaction(function () use ($payload, $groupIds): Assessment {
             $assessment = $this->editingId
-                ? tap(Assessment::query()->findOrFail($this->editingId))->update($payload)
+                ? tap($this->visibleAssessmentsQuery(Assessment::query())->findOrFail($this->editingId))->update($payload)
                 : Assessment::query()->create($payload + ['created_by' => auth()->id()]);
 
             $this->syncAssessmentGroups($assessment, $groupIds);
@@ -298,7 +299,9 @@ new class extends Component
     {
         $this->authorizePermission('assessments.update');
 
-        $assessment = Assessment::query()->with(['group', 'groups'])->findOrFail($assessmentId);
+        $assessment = $this->visibleAssessmentsQuery(
+            Assessment::query()->with(['group', 'groups'])
+        )->findOrFail($assessmentId);
         $this->authorizeTeacherAssessmentAccess($assessment);
 
         $groupIds = $assessment->groups->pluck('id')->all();
@@ -367,7 +370,9 @@ new class extends Component
     {
         $this->authorizePermission('assessments.delete');
 
-        $assessment = Assessment::query()->with('group')->withCount('results')->findOrFail($assessmentId);
+        $assessment = $this->visibleAssessmentsQuery(
+            Assessment::query()->with('group')->withCount('results')
+        )->findOrFail($assessmentId);
         $this->authorizeTeacherAssessmentAccess($assessment);
 
         if ($assessment->results_count > 0) {
@@ -386,6 +391,14 @@ new class extends Component
         }
 
         session()->flash('status', __('workflow.assessments.index.messages.deleted'));
+    }
+
+    protected function visibleAssessmentsQuery(Builder $query): Builder
+    {
+        return $this->scopeAssessmentsQuery($query)
+            ->whereNull('course_finished_at')
+            ->whereDoesntHave('group.course', fn (Builder $courseQuery) => $courseQuery->whereNotNull('finished_at'))
+            ->whereDoesntHave('groups.course', fn (Builder $courseQuery) => $courseQuery->whereNotNull('finished_at'));
     }
 
     protected function syncMarksFromScoreBands(): void
@@ -599,7 +612,42 @@ new class extends Component
             @if ($assessments->isEmpty())
                 <div class="admin-empty-state">{{ __('workflow.assessments.index.table.empty') }}</div>
             @else
-                <div class="overflow-x-auto assessment-index-table-scroll">
+                <div class="assessment-index-mobile px-4 pb-4">
+                    @foreach ($assessments as $assessment)
+                        @php
+                            $assessmentGroups = $assessment->groups->isNotEmpty()
+                                ? $assessment->groups
+                                : collect([$assessment->group])->filter();
+                            $assessmentCourses = $assessmentGroups->pluck('course.name')->filter()->unique()->implode(', ');
+                        @endphp
+                        <article class="rounded-2xl border border-white/10 bg-white/4 p-4">
+                            <div class="flex items-start justify-between gap-3">
+                                <div class="min-w-0">
+                                    <div class="flex items-start gap-2">
+                                        <span class="shrink-0 text-xs text-neutral-500">#{{ $assessments->firstItem() + $loop->index }}</span>
+                                        <div class="min-w-0">
+                                            <div class="font-semibold text-white">{{ $assessment->title }}</div>
+                                            <div class="mt-1 text-xs text-neutral-400">{{ $assessment->type?->name ?: __('workflow.common.not_available') }}</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <span class="shrink-0 {{ $assessment->is_active ? 'status-chip status-chip--emerald' : 'status-chip status-chip--slate' }}">{{ $assessment->is_active ? __('crud.common.status_options.active') : ($assessment->course_finished_at ? __('crud.common.status_options.finished') : __('crud.common.status_options.inactive')) }}</span>
+                            </div>
+                            <dl class="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 border-t border-white/8 pt-4 text-sm">
+                                <div class="col-span-2"><dt class="kpi-label">{{ __('workflow.assessments.index.form.course') }}</dt><dd class="mt-1 break-words text-neutral-200">{{ $assessmentCourses ?: __('workflow.common.not_available') }}</dd></div>
+                                <div><dt class="kpi-label">{{ __('workflow.assessments.index.table.headers.schedule') }}</dt><dd class="mt-1 text-neutral-200">{{ $assessment->due_at?->format('d-m-Y') ?: __('workflow.common.not_available') }}</dd></div>
+                                <div><dt class="kpi-label">{{ __('workflow.assessments.index.table.headers.results') }}</dt><dd class="mt-1 font-semibold text-white">{{ number_format($assessment->results_count) }}</dd></div>
+                                <div><dt class="kpi-label">{{ __('workflow.assessments.index.form.total_mark') }}</dt><dd class="mt-1 text-neutral-200">{{ $assessment->total_mark !== null ? number_format((float) $assessment->total_mark, 2) : __('workflow.common.not_available') }}</dd></div>
+                                <div><dt class="kpi-label">{{ __('workflow.assessments.index.form.pass_mark') }}</dt><dd class="mt-1 text-neutral-200">{{ $assessment->pass_mark !== null ? number_format((float) $assessment->pass_mark, 2) : __('workflow.common.not_available') }}</dd></div>
+                            </dl>
+                            @can('assessment-results.view')
+                                <a href="{{ route('assessments.results', $assessment) }}" wire:navigate class="pill-link pill-link--compact pill-link--accent mt-4 w-full justify-center text-center">{{ app()->isLocale('ar') ? 'فتح' : 'Open' }}</a>
+                            @endcan
+                        </article>
+                    @endforeach
+                </div>
+
+                <div class="assessment-index-desktop overflow-x-auto assessment-index-table-scroll">
                     <table class="w-full text-sm assessment-index-table">
                         <thead>
                             <tr>

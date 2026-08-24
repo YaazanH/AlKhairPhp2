@@ -22,6 +22,8 @@ new class extends Component {
 
         $this->currentEnrollment = Enrollment::query()
             ->with(['student', 'group.course'])
+            ->whereNull('course_finished_at')
+            ->whereDoesntHave('group.course', fn ($courseQuery) => $courseQuery->whereNotNull('finished_at'))
             ->findOrFail($enrollment->id);
 
         $this->authorizeTeacherEnrollmentAccess($this->currentEnrollment);
