@@ -201,7 +201,7 @@ new class extends Component {
                             <div>
                                 <div class="admin-modal__title">{{ $editingId ? __('workflow.assessments.bands.form.edit_title') : __('workflow.assessments.bands.form.create_title') }}</div>
                             </div>
-                            <button type="button" wire:click.prevent.stop="cancel" class="admin-modal__close" aria-label="{{ __('crud.common.actions.cancel') }}">×</button>
+                            <button type="button" wire:click="cancel" class="admin-modal__close" aria-label="{{ __('crud.common.actions.cancel') }}">×</button>
                         </div>
 
                         <div class="admin-modal__body">

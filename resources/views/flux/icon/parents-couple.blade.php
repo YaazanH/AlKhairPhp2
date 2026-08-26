@@ -1,19 +1,13 @@
 @props(['variant' => 'outline'])
 
 <x-sidebar-outline-icon :$variant {{ $attributes }}>
-    <defs>
-        <mask id="father-foreground-cutout" maskUnits="userSpaceOnUse">
-            <path fill="white" stroke="none" d="M0 0h24v24H0z" />
-            <circle cx="7.25" cy="8.5" r="3.5" fill="black" stroke="none" />
-            <path d="M.25 24c.65-6 3-9 7-9s6.35 3 7 9Z" fill="black" stroke="black" stroke-width="1.5" />
-        </mask>
-    </defs>
-    <g data-parents-icon="father-mother">
-        <g mask="url(#father-foreground-cutout)">
-            <path d="M13.75 13V8.5a4.25 4.25 0 0 1 8.5 0V13M15.25 8.75a2.75 3.1 0 0 0 5.5 0 2.75 3.1 0 0 0-5.5 0Z" />
-            <path d="M12.75 22v-3.25c0-2.75 1.9-4.4 5.25-4.4s5.25 1.65 5.25 4.4V22M13.75 12.5c.85 1.85 2.25 2.8 4.25 2.8s3.4-.95 4.25-2.8" />
-        </g>
-        <circle cx="7.25" cy="8.5" r="2.85" />
-        <path d="M4.75 7.75c.45-1.2 1.3-1.8 2.55-1.8 1.2 0 2.03.55 2.47 1.65M1.25 22c.65-4.8 2.65-7.2 6-7.2s5.35 2.4 6 7.2M4.75 14.9c.35 2.05 1.18 3.08 2.5 3.08s2.15-1.03 2.5-3.08M5.65 16.75l1.6-1.5 1.6 1.5" />
+    <g data-parents-icon="adult-holding-child-hand">
+        <circle cx="7.5" cy="5.25" r="2.15" />
+        <path d="M5.55 9.1c.35-.65 1-.95 1.95-.95s1.6.3 1.95.95l1.05 5.55H4.5z" />
+        <path d="M5.55 9.35 3.1 14M9.45 9.35l2.75 4.45M6.25 14.65l-.8 5.85M8.75 14.65l.8 5.85" />
+
+        <circle cx="16.15" cy="10.8" r="1.45" />
+        <path d="M14.85 13.25c.25-.45.7-.65 1.3-.65s1.05.2 1.3.65l.7 3.9h-4z" />
+        <path d="m14.85 13.35-2.65.45M17.45 13.35l2.1 2.35M15.45 17.15l-.75 3.35M16.85 17.15l1 3.35" />
     </g>
 </x-sidebar-outline-icon>

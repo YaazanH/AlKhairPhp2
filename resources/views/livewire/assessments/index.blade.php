@@ -467,7 +467,7 @@ new class extends Component
                         <div>
                             <div class="admin-modal__title">{{ $editingId ? __('workflow.assessments.index.form.edit_title') : __('workflow.assessments.index.form.create_title') }}</div>
                         </div>
-                        <button type="button" wire:click.prevent.stop="closeForm" class="admin-modal__close" aria-label="{{ __('crud.common.actions.cancel') }}">×</button>
+                        <button type="button" wire:click="closeForm" class="admin-modal__close" aria-label="{{ __('crud.common.actions.cancel') }}">×</button>
                     </div>
                     <div class="admin-modal__body">
             @if (auth()->user()->can('assessments.create') || auth()->user()->can('assessments.update'))
@@ -522,7 +522,7 @@ new class extends Component
                     <div class="fixed inset-0 z-[80] flex items-center justify-center p-4">
                         <button type="button" wire:click="$set('showGroupPicker', false)" class="absolute inset-0 bg-black/70" aria-label="{{ __('crud.common.actions.close') }}"></button>
                         <div class="relative max-h-[75vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-white/10 bg-neutral-950 p-5 shadow-2xl">
-                            <div class="mb-4 flex items-center justify-between gap-3"><h3 class="text-lg font-semibold text-white">{{ __('workflow.assessments.index.form.groups') }}</h3><button type="button" wire:click.prevent.stop="$set('showGroupPicker', false)" class="admin-modal__close">×</button></div>
+                            <div class="mb-4 flex items-center justify-between gap-3"><h3 class="text-lg font-semibold text-white">{{ __('workflow.assessments.index.form.groups') }}</h3><button type="button" wire:click="$set('showGroupPicker', false)" class="admin-modal__close">×</button></div>
                             <div class="grid gap-2 sm:grid-cols-2">
                                 @foreach ($groups as $group)
                                     @php

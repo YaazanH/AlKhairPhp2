@@ -1,19 +1,14 @@
 @props(['variant' => 'outline'])
 
 <x-sidebar-outline-icon :$variant {{ $attributes }}>
-    <defs>
-        <mask id="certificate-seal-cutout" maskUnits="userSpaceOnUse">
-            <path fill="white" stroke="none" d="M0 0h24v24H0z" />
-            <circle cx="16.5" cy="15.25" r="4.85" fill="black" stroke="none" />
-        </mask>
-    </defs>
-    <g data-certificate-icon="landscape-award">
-        <g mask="url(#certificate-seal-cutout)">
-            <rect width="19.5" height="14" x="2.25" y="3.25" rx="2.25" />
-            <path d="M6 6.5h11.5M5.25 9.75h7M5.25 12.5h5.5M5.25 15.25H9" />
-        </g>
-        <circle cx="16.5" cy="15.25" r="4.1" />
-        <circle cx="16.5" cy="15.25" r="2.25" />
-        <path d="m14.55 18.7-1.8 3.4 2.65-.8 1.1 2 1.1-2 2.65.8-1.8-3.4" />
+    <g
+        data-certificate-icon="awqaf-landscape-certificate"
+        data-certificate-style="centered-medal"
+    >
+        <path d="M9 19.25H3.75A1.75 1.75 0 0 1 2 17.5V6A1.75 1.75 0 0 1 3.75 4.25h16.5A1.75 1.75 0 0 1 22 6v11.5a1.75 1.75 0 0 1-1.75 1.75H15" />
+        <path d="M7 7.75h10M5.5 10.75h13" />
+        <path d="m10.5 19.2-.8 3.55 2.3-1.45 2.3 1.45-.8-3.55" />
+        <circle cx="12" cy="17" r="2.75" />
+        <circle cx="12" cy="17" r="1.15" />
     </g>
 </x-sidebar-outline-icon>

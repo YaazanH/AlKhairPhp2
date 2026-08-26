@@ -463,7 +463,7 @@ new class extends Component {
         <div class="flash-success px-4 py-3 text-sm">{{ session('status') }}</div>
     @endif
 
-    <section class="surface-table points-ledger-surface">
+    <section class="surface-table points-ledger-surface standard-mobile-table">
         <div class="admin-grid-meta admin-grid-meta--controls">
             <div class="admin-grid-meta__title">{{ __('workflow.points.workbench.table.title') }}</div>
             <div class="admin-toolbar__controls admin-toolbar__controls--compact">

@@ -9,11 +9,21 @@
         width: {{ number_format($template->width_mm, 2, '.', '') }}mm;
         height: {{ number_format($template->height_mm, 2, '.', '') }}mm;
         border-radius: {{ $template->rounded_corners ? '2.2mm' : '0' }};
-        @if($backgroundImageUrl)
-            background-image: url('{{ $backgroundImageUrl }}');
-        @endif
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
     "
 >
+    @if($backgroundImageUrl)
+        <img
+            src="{{ $backgroundImageUrl }}"
+            alt=""
+            aria-hidden="true"
+            draggable="false"
+            class="print-template-render__background"
+            style="position:absolute;inset:0;z-index:0;display:block;width:100%;height:100%;object-fit:cover;"
+        >
+    @endif
+
     @foreach ($item['elements'] as $element)
         @php
             $style = sprintf(

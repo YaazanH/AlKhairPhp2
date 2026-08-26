@@ -510,12 +510,7 @@ new class extends Component {
                     </select>
                 </div>
 
-                <div class="admin-toolbar__actions workflow-entry-action--hidden">
-                    @can('memorization.record')
-                        <button type="button" wire:click="openCreateModal" class="pill-link pill-link--accent">{{ __('workflow.memorization.workbench.create') }}</button>
-                    @endcan
                 </div>
-            </div>
         </div>
 
         @if ($sessions->isEmpty())

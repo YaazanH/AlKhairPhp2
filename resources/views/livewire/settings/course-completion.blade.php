@@ -502,7 +502,7 @@ new class extends Component {
                 </div>
 
                 <div class="rounded-2xl border border-white/10 bg-white/5 p-4">
-                    <div class="flex items-center justify-between gap-2"><div class="text-sm font-semibold text-white">{{ __('settings.course_completion.fields.assessment_type_requirements') }}</div><button type="button" wire:click="openAssessmentTypeModal" class="pill-link pill-link--compact" aria-label="{{ __('settings.course_completion.actions.add_assessment_type') }}">+</button></div>
+                    <div class="flex items-center justify-end"><button type="button" wire:click="openAssessmentTypeModal" class="pill-link pill-link--compact" aria-label="{{ __('settings.course_completion.actions.add_assessment_type') }}">+</button></div>
 
                     <div class="mt-4 space-y-3">
                         @forelse ($assessmentTypes->whereIn('id', $enabled_assessment_type_ids) as $assessmentType)
@@ -525,8 +525,7 @@ new class extends Component {
                 </div>
 
                 <section class="rounded-2xl border border-white/10 bg-white/5 p-4">
-                    <div class="text-sm font-semibold text-white">{{ __('settings.course_completion.sections.final_points.title') }}</div>
-                    <div class="mt-4 grid gap-4 md:grid-cols-2">
+                    <div class="grid gap-4 md:grid-cols-2">
                         <div><label class="mb-1 block text-sm font-medium">{{ __('settings.course_completion.fields.retain_percentage') }}</label><div class="flex"><input wire:model="retain_percentage" type="number" min="0" max="100" class="min-w-0 flex-1 rounded-s-xl px-4 py-3 text-sm"><span class="flex items-center rounded-e-xl border border-s-0 border-white/10 px-4">%</span></div></div>
                         <div><label class="mb-1 block text-sm font-medium">{{ __('settings.course_completion.fields.minimum_points') }}</label><div class="flex"><input wire:model="minimum_points" type="number" min="0" class="min-w-0 flex-1 rounded-s-xl px-4 py-3 text-sm"><span class="flex items-center rounded-e-xl border border-s-0 border-white/10 px-4">{{ __('settings.course_completion.labels.point_unit') }}</span></div></div>
                     </div>

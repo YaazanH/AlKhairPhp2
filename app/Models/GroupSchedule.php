@@ -13,6 +13,7 @@ class GroupSchedule extends Model
     protected $fillable = [
         'group_id',
         'day_of_week',
+        'time_slot',
         'starts_at',
         'ends_at',
         'room_name',

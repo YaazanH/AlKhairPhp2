@@ -155,7 +155,7 @@ new class extends Component {
     {
         $this->academic_year_id = $this->academicYearIdForCourse($this->course_id);
 
-        if ($this->curriculum_id && ! Curriculum::query()->whereKey($this->curriculum_id)->where('is_active', true)->exists()) {
+        if ($this->curriculum_id && ! Curriculum::query()->whereKey($this->curriculum_id)->where('course_id', $this->course_id)->where('is_active', true)->exists()) {
             $this->curriculum_id = null;
         }
     }
@@ -168,13 +168,13 @@ new class extends Component {
             'teacher_id' => ['required', 'exists:teachers,id'],
             'assistant_teacher_id' => ['nullable', 'exists:teachers,id', 'different:teacher_id'],
             'grade_level_id' => ['nullable', 'exists:grade_levels,id'],
-            'curriculum_id' => ['nullable', Rule::exists('curricula', 'id')->where(fn ($query) => $query->where('is_active', true))],
+            'curriculum_id' => ['nullable', Rule::exists('curricula', 'id')->where(fn ($query) => $query->where('course_id', $this->course_id)->where('is_active', true))],
             'name' => [
                 'required',
                 'string',
                 'max:255',
                 Rule::unique('groups', 'name')
-                    ->where(fn ($query) => $query->where('academic_year_id', $this->academic_year_id))
+                    ->where(fn ($query) => $query->where('course_id', $this->course_id))
                     ->ignore($this->editingId),
             ],
             'capacity' => ['required', 'integer', 'min:0'],
@@ -303,10 +303,10 @@ new class extends Component {
     {
         $this->authorizePermission('groups.delete');
 
-        $group = Group::query()->withCount(['enrollments', 'schedules'])->findOrFail($groupId);
+        $group = Group::query()->withCount('enrollments')->findOrFail($groupId);
         $this->authorizeScopedGroupAccess($group);
 
-        if ($group->enrollments_count > 0 || $group->schedules_count > 0) {
+        if ($group->enrollments_count > 0) {
             $this->addError('delete', __('crud.groups.errors.delete_linked'));
 
             return;
@@ -784,10 +784,18 @@ new class extends Component {
         max-width="5xl"
     >
         <form wire:submit="save" class="space-y-4">
-            <div>
+            <div class="grid gap-4 md:grid-cols-2" data-group-form-row="identity">
+                <div>
+                    <label for="group-name" class="mb-1 block text-sm font-medium">{{ __('crud.groups.form.fields.group_name') }}</label>
+                    <input id="group-name" wire:model="name" type="text" class="w-full rounded-xl px-4 py-3 text-sm">
+                    @error('name')
+                        <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
+                    @enderror
+                </div>
+
                 <div>
                     <label for="group-course" class="mb-1 block text-sm font-medium">{{ __('crud.groups.form.fields.course') }}</label>
-                    <select id="group-course" wire:model="course_id" class="w-full rounded-xl px-4 py-3 text-sm">
+                    <select id="group-course" wire:model.live="course_id" class="w-full rounded-xl px-4 py-3 text-sm">
                         <option value="">{{ __('crud.groups.form.placeholders.select_course') }}</option>
                         @foreach ($courses as $course)
                             <option value="{{ $course->id }}">{{ $course->name }}</option>
@@ -797,10 +805,9 @@ new class extends Component {
                         <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                     @enderror
                 </div>
-
             </div>
 
-            <div class="grid gap-4 md:grid-cols-2">
+            <div class="grid gap-4 md:grid-cols-2" data-group-form-row="teachers">
                 <div>
                     <label for="group-teacher" class="mb-1 block text-sm font-medium">{{ __('crud.groups.form.fields.teacher') }}</label>
                     <select id="group-teacher" wire:model="teacher_id" class="w-full rounded-xl px-4 py-3 text-sm">
@@ -829,15 +836,7 @@ new class extends Component {
                 </div>
             </div>
 
-            <div class="grid gap-4 md:grid-cols-2">
-                <div>
-                    <label for="group-name" class="mb-1 block text-sm font-medium">{{ __('crud.groups.form.fields.group_name') }}</label>
-                    <input id="group-name" wire:model="name" type="text" class="w-full rounded-xl px-4 py-3 text-sm">
-                    @error('name')
-                        <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
-                    @enderror
-                </div>
-
+            <div class="grid gap-4 md:grid-cols-2" data-group-form-row="learning">
                 <div>
                     <label for="group-grade-level" class="mb-1 block text-sm font-medium">{{ __('crud.groups.form.fields.grade_level') }}</label>
                     <select id="group-grade-level" wire:model="grade_level_id" class="w-full rounded-xl px-4 py-3 text-sm">
@@ -850,51 +849,47 @@ new class extends Component {
                         <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                     @enderror
                 </div>
+
+                <div>
+                    <label for="group-curriculum" class="mb-1 block text-sm font-medium">{{ __('curricula.fields.curriculum') }}</label>
+                    <select id="group-curriculum" wire:model="curriculum_id" class="w-full rounded-xl px-4 py-3 text-sm">
+                        <option value="">{{ __('curricula.options.no_curriculum') }}</option>
+                        @foreach ($curricula as $curriculum)
+                            @continue($course_id && (int) $curriculum->course_id !== (int) $course_id)
+                            <option value="{{ $curriculum->id }}">{{ $curriculum->name }}</option>
+                        @endforeach
+                    </select>
+                    @error('curriculum_id')<div class="mt-1 text-sm text-red-400">{{ $message }}</div>@enderror
+                </div>
             </div>
 
-            <div>
-                <label for="group-curriculum" class="mb-1 block text-sm font-medium">{{ __('curricula.fields.curriculum') }}</label>
-                <select id="group-curriculum" wire:model="curriculum_id" class="w-full rounded-xl px-4 py-3 text-sm">
-                    <option value="">{{ __('curricula.options.no_curriculum') }}</option>
-                    @foreach ($curricula as $curriculum)
-                        <option value="{{ $curriculum->id }}">{{ $curriculum->name }}</option>
-                    @endforeach
-                </select>
-                @error('curriculum_id')<div class="mt-1 text-sm text-red-400">{{ $message }}</div>@enderror
-            </div>
+            <div class="grid gap-4 md:grid-cols-2" data-group-form-row="capacity-template">
+                <div>
+                    <label for="group-capacity" class="mb-1 block text-sm font-medium">{{ __('crud.groups.form.fields.capacity') }}</label>
+                    <input id="group-capacity" wire:model="capacity" type="number" min="0" class="w-full rounded-xl px-4 py-3 text-sm">
+                    @error('capacity')
+                        <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
+                    @enderror
+                </div>
 
-            <div>
-                <label for="group-capacity" class="mb-1 block text-sm font-medium">{{ __('crud.groups.form.fields.capacity') }}</label>
-                <input id="group-capacity" wire:model="capacity" type="number" min="0" class="w-full rounded-xl px-4 py-3 text-sm">
-                @error('capacity')
-                    <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
-                @enderror
+                <div>
+                    <label for="group-card-template" class="mb-1 block text-sm font-medium">{{ __('crud.groups.dashboard_card.fields.template') }}</label>
+                    <select id="group-card-template" wire:model="dashboard_card_template_id" class="w-full rounded-xl px-4 py-3 text-sm">
+                        <option value="">{{ __('crud.groups.dashboard_card.placeholders.none') }}</option>
+                        @foreach ($dashboardCardTemplates as $template)
+                            <option value="{{ $template->id }}">{{ $template->name }}</option>
+                        @endforeach
+                    </select>
+                    @error('dashboard_card_template_id')<div class="mt-1 text-sm text-red-400">{{ $message }}</div>@enderror
+                </div>
             </div>
-
-            <div>
-                <label for="group-card-template" class="mb-1 block text-sm font-medium">{{ __('crud.groups.dashboard_card.fields.template') }}</label>
-                <select id="group-card-template" wire:model="dashboard_card_template_id" class="w-full rounded-xl px-4 py-3 text-sm">
-                    <option value="">{{ __('crud.groups.dashboard_card.placeholders.none') }}</option>
-                    @foreach ($dashboardCardTemplates as $template)
-                        <option value="{{ $template->id }}">{{ $template->name }}</option>
-                    @endforeach
-                </select>
-                @error('dashboard_card_template_id')<div class="mt-1 text-sm text-red-400">{{ $message }}</div>@enderror
-            </div>
-
-            <label class="flex items-center gap-3 text-sm">
-                <input wire:model="is_active" type="checkbox" class="rounded border-neutral-300 text-neutral-900">
-                <span>{{ __('crud.groups.form.active_group') }}</span>
-            </label>
 
             <div class="flex flex-wrap items-center gap-3">
                 <button type="submit" class="pill-link pill-link--accent">
                     {{ $editingId ? __('crud.groups.form.update_submit') : __('crud.groups.form.create_submit') }}
                 </button>
                 <x-admin.create-and-new-button :show="! $editingId" click="createAndNew" />
-                <button type="button" wire:click="cancel" class="pill-link">
-                    {{ __('crud.common.actions.close') }}
-                </button>
+                @if($editingId) @can('groups.delete')<button type="button" wire:click="delete({{ $editingId }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link pill-link--danger">{{ __('crud.common.actions.delete') }}</button>@endcan @endif
             </div>
         </form>
     </x-admin.modal>

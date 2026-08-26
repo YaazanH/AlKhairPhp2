@@ -711,7 +711,7 @@ new class extends Component {
         </article>
     </div>
 
-    <section class="surface-table mobile-records-surface">
+    <section class="surface-table mobile-records-surface standard-mobile-table">
         <div class="admin-grid-meta admin-grid-meta--controls">
             <div class="admin-grid-meta__title">{{ __('crud.teachers.table.title') }}</div>
             <div class="admin-toolbar__controls">

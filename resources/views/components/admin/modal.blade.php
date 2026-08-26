@@ -58,7 +58,7 @@
                             {{ $headerActions }}
                         @endisset
                         @if ($closeMethod)
-                            <button type="button" wire:click.prevent.stop="{{ $closeMethod }}" class="admin-modal__close" aria-label="{{ __('crud.common.actions.close') }}">
+                            <button type="button" wire:click="{{ $closeMethod }}" class="admin-modal__close" aria-label="{{ __('crud.common.actions.close') }}">
                                 <span aria-hidden="true">&times;</span>
                             </button>
                         @endif

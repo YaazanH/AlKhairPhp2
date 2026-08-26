@@ -811,6 +811,12 @@ new class extends Component {
                 </a>
             @endif
             @if ($viewingInvoice)
+                <a href="{{ route('finance.invoices.items.xlsx', $viewingInvoice) }}" class="admin-modal__close" title="XLSX" aria-label="XLSX" data-invoice-xlsx-icon>
+                    <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 2.75h8l4 4V21.25H6V2.75Z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M14 2.75v4h4M8.5 11l3 5m0-5-3 5m5-5h2.25M13.5 13.5h2.25M13.5 16h2.25" />
+                    </svg>
+                </a>
                 <a href="{{ route('finance.invoices.print', $viewingInvoice) }}" target="_blank" rel="noopener" class="admin-modal__close" title="{{ __('finance.actions.print_a5') }}" aria-label="{{ __('finance.actions.print_a5') }}" data-invoice-print-icon>
                     <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M6 9V3h12v6M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2M6 14h12v7H6v-7Zm12-2h.01" />

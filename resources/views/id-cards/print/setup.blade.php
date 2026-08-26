@@ -48,8 +48,9 @@
                 </section>
 
                 <section class="surface-panel p-5 lg:p-6">
-                    <div class="admin-toolbar">
-                        <div class="admin-toolbar__controls">
+                    <div class="admin-grid-meta admin-grid-meta--controls id-card-selection-toolbar">
+                        <div class="admin-grid-meta__title">{{ __('id_cards.print.setup.sections.students') }}</div>
+                        <div class="admin-toolbar__controls admin-toolbar__controls--compact">
                             <div class="admin-filter-field">
                                 <label class="sr-only" for="id-card-student-search">{{ __('id_cards.print.setup.fields.search') }}</label>
                                 <input id="id-card-student-search" type="search" placeholder="{{ __('id_cards.print.setup.placeholders.search') }}" data-id-card-student-search>

@@ -53,11 +53,11 @@ new class extends Component {
 
             <div class="grid gap-4 md:grid-cols-2">
                 <div class="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-                    <div class="text-xs uppercase tracking-[0.18em] text-neutral-500">{{ __('settings.account.profile.fields.name') }}</div>
+                    <div class="text-xs text-neutral-500">{{ __('settings.account.profile.fields.name') }}</div>
                     <div class="mt-2 text-base font-semibold text-white">{{ $profileUser->name }}</div>
                 </div>
                 <div class="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-                    <div class="text-xs uppercase tracking-[0.18em] text-neutral-500">{{ __('settings.account.profile.fields.email') }}</div>
+                    <div class="text-xs text-neutral-500">{{ __('settings.account.profile.fields.email') }}</div>
                     <div class="mt-2 text-base font-semibold text-white">{{ $profileUser->email ?: '-' }}</div>
                     <p class="mt-2 text-xs leading-5 text-neutral-400">{{ __('settings.account.profile.identity_locked') }}</p>
                 </div>

@@ -454,12 +454,7 @@ new class extends Component
                     </select>
                 </div>
 
-                <div class="admin-toolbar__actions workflow-entry-action--hidden">
-                    @can('quran-final-tests.record')
-                        <button type="button" wire:click="openCreateModal" class="pill-link pill-link--accent">{{ __('workflow.quran_final_tests.actions.create') }}</button>
-                    @endcan
                 </div>
-            </div>
         </div>
 
         @if ($finalTests->isEmpty())

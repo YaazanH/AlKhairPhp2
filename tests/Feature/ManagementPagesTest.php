@@ -33,9 +33,36 @@ class ManagementPagesTest extends TestCase
         $this->assertStringContainsString('initializeMobileTableHeaderActions(toolbar)', $script);
         $this->assertStringContainsString("toolbar.classList.add('mobile-table-header-controls')", $script);
         $this->assertStringContainsString("action.classList.add('mobile-table-header-action')", $script);
+        $this->assertStringContainsString("if (!action.querySelector('.mobile-table-action__icon'))", $script);
         $this->assertStringContainsString('.surface-table > .admin-grid-meta--controls', $styles);
+        $this->assertStringContainsString('.mobile-table-filters--open::before', $styles);
         $this->assertStringContainsString('.mobile-table-filters--open > .mobile-table-filter-criterion', $styles);
         $this->assertStringContainsString('grid-column: 1 / -1 !important;', $styles);
+    }
+
+    public function test_mobile_card_tables_are_limited_to_assessments_and_workflow_table_add_actions_are_removed(): void
+    {
+        $styles = file_get_contents(resource_path('css/app.css'));
+
+        $this->assertStringContainsString('.standard-mobile-table .responsive-records-mobile', $styles);
+        $this->assertStringContainsString('.standard-mobile-table .points-ledger-mobile', $styles);
+        $this->assertStringContainsString('.workflow-entry-action--hidden', $styles);
+
+        foreach (['points', 'users', 'teachers', 'parents'] as $page) {
+            $view = file_get_contents(resource_path("views/livewire/{$page}/index.blade.php"));
+
+            $this->assertStringContainsString('standard-mobile-table', $view);
+        }
+
+        $assessmentView = file_get_contents(resource_path('views/livewire/assessments/index.blade.php'));
+        $this->assertStringNotContainsString('standard-mobile-table', $assessmentView);
+
+        foreach (['memorization', 'quran-partial-tests', 'quran-final-tests', 'quran-tests'] as $page) {
+            $view = file_get_contents(resource_path("views/livewire/{$page}/index.blade.php"));
+
+            $this->assertStringNotContainsString('wire:click="openCreateModal"', $view);
+            $this->assertStringNotContainsString('workflow-entry-action--hidden', $view);
+        }
     }
 
     public function test_sidebar_uses_the_approved_outline_icons_without_changing_reference_icons(): void
@@ -118,9 +145,13 @@ class ManagementPagesTest extends TestCase
         $this->assertStringContainsString('stroke-width="1.5"', $wrapper);
         $this->assertStringContainsString('stroke-linecap="round"', $wrapper);
         $this->assertStringContainsString('stroke-linejoin="round"', $wrapper);
+        $this->assertStringContainsString('Str::uuid()', $wrapper);
+        $this->assertStringContainsString('mask-type="luminance"', $wrapper);
+        $this->assertStringContainsString('data-sidebar-icon-merged-paint', $wrapper);
         $this->assertStringContainsString('data-attendance-badge="person"', file_get_contents(resource_path('views/flux/icon/clipboard-person.blade.php')));
         $this->assertStringContainsString('data-attendance-badge="graduation-cap"', file_get_contents(resource_path('views/flux/icon/clipboard-student.blade.php')));
         $this->assertStringContainsString('data-enrollment-icon="profile-card-add"', file_get_contents(resource_path('views/flux/icon/enrollment-add.blade.php')));
+        $this->assertStringContainsString('data-certificate-style="centered-medal"', file_get_contents(resource_path('views/flux/icon/certificate-landscape.blade.php')));
     }
 
     public function test_secondary_student_tools_are_buttons_in_their_parent_pages(): void

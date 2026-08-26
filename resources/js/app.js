@@ -867,6 +867,18 @@ function restoreNativeDateInput(input) {
         input.removeAttribute('aria-hidden');
     }
 
+    const syncDatePlaceholderState = () => {
+        input.classList.toggle('date-input--empty', input.value === '');
+    };
+
+    syncDatePlaceholderState();
+
+    if (input.dataset.datePlaceholderBound !== 'true') {
+        input.dataset.datePlaceholderBound = 'true';
+        input.addEventListener('input', syncDatePlaceholderState);
+        input.addEventListener('change', syncDatePlaceholderState);
+    }
+
     if (input.dataset.nativeDatePickerBound === 'true') return;
 
     input.dataset.nativeDatePickerBound = 'true';
@@ -1024,8 +1036,6 @@ function initializeMobileTableHeaderActions(toolbar) {
     ));
 
     actions.forEach((action) => {
-        if (action.dataset.mobileTableHeaderAction === 'true') return;
-
         const label = action.getAttribute('aria-label')
             || action.getAttribute('title')
             || action.textContent.trim();
@@ -1034,7 +1044,13 @@ function initializeMobileTableHeaderActions(toolbar) {
         action.classList.add('mobile-table-header-action');
         action.setAttribute('aria-label', label);
         action.setAttribute('title', action.getAttribute('title') || label);
-        action.prepend(createMobileTableActionIcon(mobileTableActionKind(action)));
+
+        // Livewire may restore the server-rendered button contents while leaving
+        // the enhancement marker in place. Re-create the mobile icon whenever
+        // that happens instead of returning the action to its desktop label.
+        if (!action.querySelector('.mobile-table-action__icon')) {
+            action.prepend(createMobileTableActionIcon(mobileTableActionKind(action)));
+        }
     });
 }
 
@@ -1124,10 +1140,15 @@ function closeMobileTableFilters(toolbar) {
     if (toolbar instanceof Element) {
         toolbar.classList.remove('mobile-table-filters--open');
         toolbar.querySelector('[data-mobile-table-filter-open]')?.setAttribute('aria-expanded', 'false');
+        initializeMobileTableHeaderActions(toolbar);
     }
 
     document.body.classList.remove('mobile-table-filters-active');
     delete document.body.dataset.mobileTableFilterOwner;
+
+    // Closing a filter popup commonly coincides with a Livewire morph. Run once
+    // after the current frame so its restored controls keep the mobile icons.
+    window.requestAnimationFrame(() => initializeMobileTableFilters());
 }
 
 document.addEventListener('click', (event) => {
@@ -1165,8 +1186,14 @@ document.addEventListener('livewire:navigated', () => {
     initializeMobileTableFilters();
 });
 document.addEventListener('livewire:initialized', () => {
-    window.Livewire?.hook('morph.updated', ({ el }) => initializeMobileTableFilters(el));
-    window.Livewire?.hook('morph.added', ({ el }) => initializeMobileTableFilters(el));
+    window.Livewire?.hook('morph.updated', ({ el }) => {
+        initializeMobileTableFilters(el);
+        window.requestAnimationFrame(() => initializeMobileTableFilters());
+    });
+    window.Livewire?.hook('morph.added', ({ el }) => {
+        initializeMobileTableFilters(el);
+        window.requestAnimationFrame(() => initializeMobileTableFilters());
+    });
 });
 
 const mobileTableFilterObserver = new MutationObserver((mutations) => {

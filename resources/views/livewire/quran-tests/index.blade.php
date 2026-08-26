@@ -560,12 +560,7 @@ new class extends Component {
                     </select>
                 </div>
 
-                <div class="admin-toolbar__actions workflow-entry-action--hidden">
-                    @canany(['quran-awqaf-tests.record', 'quran-tests.record'])
-                        <button type="button" wire:click="openCreateModal" class="pill-link pill-link--accent">{{ __('workflow.quran_tests.workbench.create') }}</button>
-                    @endcanany
                 </div>
-            </div>
         </div>
 
         @if ($tests->isEmpty())

@@ -45,6 +45,7 @@ use Livewire\Volt\Volt;
 use Mpdf\Mpdf;
 use setasign\Fpdi\PdfParser\StreamReader;
 use Tests\TestCase;
+use ZipArchive;
 
 class FinanceAndActivitiesTest extends TestCase
 {
@@ -2511,10 +2512,25 @@ class FinanceAndActivitiesTest extends TestCase
             ->assertSee('title="'.__('finance.actions.view_attachment').'"', false)
             ->assertSee('<svg class="size-5"', false)
             ->assertSee('data-invoice-print-icon', false)
+            ->assertSee('data-invoice-xlsx-icon', false)
             ->assertSee('data-invoice-view-items-box', false)
             ->assertSee('data-finance-generic-table', false)
             ->assertSee('data-settings-record-table', false)
             ->assertDontSee('class="pill-link">'.__('finance.actions.view_attachment').'</a>', false);
+
+        $xlsxResponse = $this->get(route('finance.invoices.items.xlsx', $invoice))->assertOk();
+        $this->assertStringContainsString('spreadsheetml.sheet', $xlsxResponse->headers->get('content-type'));
+        $xlsxPath = tempnam(sys_get_temp_dir(), 'invoice-items-xlsx-');
+        file_put_contents($xlsxPath, $xlsxResponse->streamedContent());
+        $xlsx = new ZipArchive;
+        $this->assertTrue($xlsx->open($xlsxPath) === true);
+        $sheet = $xlsx->getFromName('xl/worksheets/sheet1.xml');
+        $xlsx->close();
+        @unlink($xlsxPath);
+        $this->assertIsString($sheet);
+        foreach (['#', 'name', 'qty', 'individual price', 'amount', 'Supplies', '55.00'] as $value) {
+            $this->assertStringContainsString($value, $sheet);
+        }
 
         Volt::test('finance.expense-requests')
             ->call('editInvoice', $invoice->id)

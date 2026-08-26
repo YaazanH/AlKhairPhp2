@@ -263,7 +263,7 @@ new class extends Component {
                 <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ __('finance.reports.subtitle') }}</p>
             </div>
             @can('finance.report-templates.manage')
-                <button type="button" wire:click="openReportSettings" title="{{ __('finance.reports.report_settings') }}" aria-label="{{ __('finance.reports.report_settings') }}" class="financial-report-symbol-button pill-link pill-link--accent">
+                <button type="button" wire:click="openReportSettings" title="{{ __('finance.reports.report_settings') }}" aria-label="{{ __('finance.reports.report_settings') }}" class="financial-report-symbol-button mobile-financial-report-admin-action pill-link pill-link--accent">
                     <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <circle cx="12" cy="12" r="3"></circle>
                         <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.38a2 2 0 0 0-.73-2.73l-.15-.09a2 2 0 0 1-1-1.74v-.51a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2Z"></path>
@@ -282,7 +282,7 @@ new class extends Component {
                         <div class="admin-grid-meta__summary">{{ __('finance.reports.saved_reports_count', ['count' => number_format($generatedReports->total())]) }}</div>
                     </div>
                     <div class="admin-toolbar__controls financial-report-symbol-controls">
-                        <button type="button" wire:click="openCreateReport" @disabled(! $canGenerateReport) title="{{ $canGenerateReport ? __('finance.reports.generate_report') : __('finance.reports.signature_required') }}" aria-label="{{ __('finance.reports.generate_report') }}" class="financial-report-symbol-button pill-link pill-link--accent disabled:cursor-not-allowed disabled:opacity-50">
+                        <button type="button" wire:click="openCreateReport" @disabled(! $canGenerateReport) title="{{ $canGenerateReport ? __('finance.reports.generate_report') : __('finance.reports.signature_required') }}" aria-label="{{ __('finance.reports.generate_report') }}" class="financial-report-symbol-button mobile-financial-report-admin-action pill-link pill-link--accent disabled:cursor-not-allowed disabled:opacity-50">
                             <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>
                         </button>
                     </div>
