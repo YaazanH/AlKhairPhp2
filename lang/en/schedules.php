@@ -1,6 +1,9 @@
 <?php
 
 return [
+    'course' => [
+        'title' => 'Default schedule: :course',
+    ],
     'group' => [
         'back' => 'Back to groups',
         'heading' => 'Group Schedules',
@@ -16,11 +19,16 @@ return [
             'help' => 'Each row represents one weekly meeting time for this group.',
             'fields' => [
                 'day' => 'Day',
+                'timing' => 'Timing',
                 'starts_at' => 'Starts at',
                 'ends_at' => 'Ends at',
                 'room_name' => 'Room name',
                 'from' => 'From',
                 'to' => 'To',
+            ],
+            'placeholders' => [
+                'day' => 'Day',
+                'timing' => 'Timing',
             ],
             'active_flag' => 'Active schedule slot',
             'create_submit' => 'Create schedule',
@@ -54,6 +62,14 @@ return [
             '4' => 'Thursday',
             '5' => 'Friday',
             '6' => 'Saturday',
+        ],
+        'time_slots' => [
+            'morning' => 'Morning',
+            'before_noon' => 'Before noon',
+            'between_noon_afternoon' => 'Between noon and afternoon',
+            'between_afternoon_sunset' => 'Between afternoon and sunset',
+            'between_sunset_night' => 'Between sunset and night prayer',
+            'after_night' => 'After night prayer',
         ],
     ],
 ];

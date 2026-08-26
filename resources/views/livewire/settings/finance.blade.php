@@ -1068,7 +1068,7 @@ new class extends Component {
         <div class="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-3" data-finance-settings-primary-row>
             <div class="flex items-center rounded-2xl border border-white/10 bg-white/5 p-4">
                 <div class="flex w-full items-center justify-between gap-3">
-                    <div class="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-400">{{ __('finance.settings.withdrawal_requests_enabled') }}</div>
+                    <div class="text-xs font-semibold text-neutral-400">{{ __('finance.settings.withdrawal_requests_enabled') }}</div>
                     <button
                         type="button"
                         wire:click="toggleWithdrawalRequests"
@@ -1089,7 +1089,7 @@ new class extends Component {
                 [__('finance.common.local_currency'), $localCurrency->code],
             ] as [$settingLabel, $settingValue])
                 <div class="rounded-2xl border border-white/10 bg-white/5 p-4">
-                    <div class="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-400">{{ $settingLabel }}</div>
+                    <div class="text-xs font-semibold text-neutral-400">{{ $settingLabel }}</div>
                     <div class="mt-2 truncate text-sm font-semibold text-white">{{ $settingValue }}</div>
                 </div>
             @endforeach
@@ -1108,7 +1108,7 @@ new class extends Component {
                     [__('finance.settings.report_prefix'), $report_prefix],
                 ] as [$prefixLabel, $prefixValue])
                     <div class="min-w-0 rounded-2xl border border-white/10 bg-white/5 p-4">
-                        <div class="whitespace-nowrap text-xs font-semibold uppercase tracking-[0.08em] text-neutral-400">{{ $prefixLabel }}</div>
+                        <div class="whitespace-nowrap text-xs font-semibold text-neutral-400">{{ $prefixLabel }}</div>
                         <div class="mt-2 truncate text-sm font-semibold text-white" dir="ltr" data-finance-prefix-value>{{ $prefixValue }}</div>
                     </div>
                 @endforeach
@@ -1262,7 +1262,7 @@ new class extends Component {
     </x-admin.modal>
 
     <section id="finance-currencies" class="overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700" data-settings-table>
-        <div class="admin-grid-meta">
+        <div class="admin-grid-meta admin-grid-meta--controls">
             <div>
                 <div class="admin-grid-meta__title">{{ __('finance.settings.currencies') }}</div>
                 <div class="admin-grid-meta__summary">{{ __('finance.settings.currencies_subtitle') }}</div>
@@ -1284,7 +1284,7 @@ new class extends Component {
                                     <div class="flex flex-wrap gap-2">
                                         @if ($currency->is_local)<span class="status-chip status-chip--emerald">{{ __('finance.common.local') }}</span>@endif
                                         @if ($currency->is_base)<span class="status-chip status-chip--slate">{{ __('finance.common.base') }}</span>@endif
-                                        <span class="status-chip {{ $currency->is_active ? 'status-chip--emerald' : 'status-chip--rose' }}">{{ $currency->is_active ? __('finance.common.active') : __('finance.common.inactive') }}</span>
+                                        @unless($currency->is_local || $currency->is_base)<span class="status-chip {{ $currency->is_active ? 'status-chip--emerald' : 'status-chip--rose' }}">{{ $currency->is_active ? __('finance.common.active') : __('finance.common.inactive') }}</span>@endunless
                                     </div>
                                 </td>
                                 <td class="px-5 py-3"><div class="admin-action-cluster admin-action-cluster--end"><button type="button" wire:click="editCurrency({{ $currency->id }})" class="pill-link pill-link--compact">{{ __('finance.actions.edit') }}</button><button type="button" wire:click="deleteCurrency({{ $currency->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link pill-link--compact border-red-400/25 text-red-200">{{ __('finance.actions.delete') }}</button></div></td>
@@ -1296,7 +1296,7 @@ new class extends Component {
     </section>
 
     <section id="finance-cash-boxes" class="overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700" data-settings-table>
-        <div class="admin-grid-meta">
+        <div class="admin-grid-meta admin-grid-meta--controls">
             <div>
                 <div class="admin-grid-meta__title">{{ __('finance.settings.cash_boxes') }}</div>
                 <div class="admin-grid-meta__summary">{{ __('finance.settings.cash_boxes_subtitle') }}</div>
@@ -1315,7 +1315,7 @@ new class extends Component {
     </section>
 
     <section id="finance-categories" class="overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700" data-settings-table>
-        <div class="admin-grid-meta">
+        <div class="admin-grid-meta admin-grid-meta--controls">
             <div>
                 <div class="admin-grid-meta__title">{{ __('finance.settings.finance_categories') }}</div>
                 <div class="admin-grid-meta__summary">{{ __('finance.settings.finance_categories_subtitle') }}</div>

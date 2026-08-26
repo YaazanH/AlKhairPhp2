@@ -1,6 +1,9 @@
 <?php
 
 return [
+    'course' => [
+        'title' => 'الجدول الافتراضي للدورة: :course',
+    ],
     'group' => [
         'back' => 'العودة إلى المجموعات',
         'heading' => 'جداول المجموعات',
@@ -16,11 +19,16 @@ return [
             'help' => 'يمثل كل صف موعد اجتماع أسبوعي واحد لهذه المجموعة.',
             'fields' => [
                 'day' => 'اليوم',
+                'timing' => 'التوقيت',
                 'starts_at' => 'يبدأ عند',
                 'ends_at' => 'ينتهي عند',
                 'room_name' => 'اسم القاعة',
                 'from' => 'من',
                 'to' => 'إلى',
+            ],
+            'placeholders' => [
+                'day' => 'اليوم',
+                'timing' => 'التوقيت',
             ],
             'active_flag' => 'موعد نشط',
             'create_submit' => 'إنشاء الموعد',
@@ -54,6 +62,14 @@ return [
             '4' => 'الخميس',
             '5' => 'الجمعة',
             '6' => 'السبت',
+        ],
+        'time_slots' => [
+            'morning' => 'صباحاً',
+            'before_noon' => 'قبيل الظهر',
+            'between_noon_afternoon' => 'بين الظهر والعصر',
+            'between_afternoon_sunset' => 'بين العصر والمغرب',
+            'between_sunset_night' => 'بين المغرب والعشاء',
+            'after_night' => 'بعد العشاء',
         ],
     ],
 ];

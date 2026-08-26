@@ -420,7 +420,7 @@ new class extends Component
         </article>
     </section>
 
-    <section class="surface-table mobile-records-surface">
+    <section class="surface-table mobile-records-surface standard-mobile-table">
         <div class="admin-grid-meta admin-grid-meta--controls">
             <div class="admin-grid-meta__title">{{ __('access.users.title') }}</div>
             <div class="admin-toolbar__controls admin-toolbar__controls--compact">

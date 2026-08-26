@@ -1,11 +1,12 @@
 <?php
 
 use App\Livewire\Concerns\AuthorizesPermissions;
-use App\Livewire\Concerns\SupportsCreateAndNew;
 use App\Models\AcademicYear;
 use App\Models\Course;
 use App\Models\Group;
 use App\Services\CourseLifecycleService;
+use App\Services\CourseScheduleService;
+use App\Support\ScheduleTimeSlots;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\DB;
 use Livewire\Volt\Component;
@@ -13,7 +14,6 @@ use Livewire\WithPagination;
 
 new class extends Component {
     use AuthorizesPermissions;
-    use SupportsCreateAndNew;
     use WithPagination;
 
     public ?int $editingId = null;
@@ -33,6 +33,14 @@ new class extends Component {
     public bool $showArchiveModal = false;
     public ?int $archivedCourseId = null;
     public bool $editingAcademicYearIsActive = true;
+    public bool $showScheduleModal = false;
+    public ?int $schedulingCourseId = null;
+    public array $scheduleRows = [];
+    public string $scheduleDay = '';
+    public string $scheduleTimeSlot = '';
+    public ?int $editingScheduleRow = null;
+    public bool $syncScheduleToGroups = false;
+    public bool $copySetup = false;
 
     public function mount(): void
     {
@@ -82,6 +90,10 @@ new class extends Component {
             'archiveSummary' => $archivedCourse
                 ? app(CourseLifecycleService::class)->archiveSummary($archivedCourse)
                 : [],
+            'scheduleDays' => collect(range(0, 6))->mapWithKeys(fn ($day) => [$day => __('schedules.group.days.'.$day)]),
+            'scheduleTimeSlots' => ScheduleTimeSlots::options(),
+            'schedulingCourse' => $this->schedulingCourseId ? Course::query()->find($this->schedulingCourseId) : null,
+            'editingCourseCanBeDeleted' => $this->editingId ? $this->courseCanBeDeleted(Course::query()->findOrFail($this->editingId)) : false,
         ];
     }
 
@@ -111,8 +123,7 @@ new class extends Component {
             ],
             'description' => ['nullable', 'string'],
             'academic_year_id' => [
-                Rule::requiredIf(! $this->editingId),
-                'nullable',
+                'required',
                 'integer',
                 Rule::exists('academic_years', 'id')->where(fn ($query) => $query->where('is_active', true)),
             ],
@@ -149,20 +160,43 @@ new class extends Component {
         $validated['description'] = $validated['description'] ?: null;
         $validated['starts_on'] = $validated['starts_on'] ?: null;
         $validated['ends_on'] = $validated['ends_on'] ?: null;
-        $validated['academic_year_id'] = $existingCourse?->academic_year_id ?: (int) $validated['academic_year_id'];
+        $validated['academic_year_id'] = (int) $validated['academic_year_id'];
         $validated['is_active'] = $existingCourse?->is_active ?? true;
         $validated['is_default'] = $validated['is_default']
             || ! Course::query()->when($this->editingId, fn ($query) => $query->whereKeyNot($this->editingId))->where('is_default', true)->exists();
 
-        $course = Course::query()->updateOrCreate(
-            ['id' => $this->editingId],
-            $validated,
-        );
+        $wasCreating = ! $this->editingId;
+        $showScheduleAfterSave = $wasCreating || $this->copySetup;
+        $syncGroups = $this->copySetup;
+
+        $course = DB::transaction(function () use ($validated, $existingCourse): Course {
+            $course = Course::query()->updateOrCreate(
+                ['id' => $this->editingId],
+                $validated,
+            );
+
+            if ($existingCourse && $existingCourse->academic_year_id !== $course->academic_year_id) {
+                Group::withTrashed()->where('course_id', $course->id)->update([
+                    'academic_year_id' => $course->academic_year_id,
+                ]);
+            }
+
+            return $course;
+        });
 
         session()->flash(
             'status',
             $this->editingId ? __('crud.courses.messages.updated') : __('crud.courses.messages.created'),
         );
+
+        if ($showScheduleAfterSave) {
+            $this->showFormModal = false;
+            $this->openCourseSchedule($course->id, $syncGroups);
+            $this->resetFormState();
+            $this->copySetup = false;
+
+            return;
+        }
 
         $this->cancel();
     }
@@ -198,6 +232,7 @@ new class extends Component {
     {
         $this->resetFormState();
         $this->showFormModal = false;
+        $this->copySetup = false;
 
         $this->resetValidation();
     }
@@ -206,15 +241,18 @@ new class extends Component {
     {
         $this->authorizePermission('courses.delete');
 
-        $course = Course::query()->withCount('groups')->findOrFail($courseId);
+        $course = Course::query()->findOrFail($courseId);
 
-        if ($course->groups_count > 0) {
+        if (! $this->courseCanBeDeleted($course)) {
             $this->addError('delete', __('crud.courses.errors.delete_linked'));
 
             return;
         }
 
-        $course->delete();
+        DB::transaction(function () use ($course): void {
+            Group::withTrashed()->where('course_id', $course->id)->get()->each->forceDelete();
+            $course->delete();
+        });
         Course::query()->where('is_default', true)->exists()
             ?: Course::query()->where('is_active', true)->orderBy('name')->first()?->update(['is_default' => true]);
 
@@ -275,10 +313,10 @@ new class extends Component {
         $this->authorizePermission('courses.create');
 
         $source = Course::query()
-            ->with(['groups'])
+            ->with(['groups', 'schedules'])
             ->findOrFail($courseId);
 
-        DB::transaction(function () use ($source): void {
+        $newCourseId = DB::transaction(function () use ($source): int {
             $newCourse = $source->replicate(['name', 'finished_at']);
             $newCourse->name = $this->uniqueCopyName($source->name);
             $newCourse->finished_at = null;
@@ -286,17 +324,27 @@ new class extends Component {
             $newCourse->is_default = false;
             $newCourse->save();
 
+            foreach ($source->schedules as $schedule) {
+                $newCourse->schedules()->create([
+                    'day_of_week' => $schedule->day_of_week,
+                    'time_slot' => $schedule->time_slot,
+                ]);
+            }
+
             foreach ($source->groups as $group) {
                 $newGroup = $group->replicate(['course_id', 'name', 'course_finished_at']);
                 $newGroup->course_id = $newCourse->id;
-                $newGroup->name = $this->uniqueGroupCopyName($group->name, $group->academic_year_id);
+                $newGroup->name = $group->name;
                 $newGroup->course_finished_at = null;
                 $newGroup->save();
             }
+
+            return $newCourse->id;
         });
 
-        $this->cancel();
         session()->flash('status', __('crud.courses.messages.copied'));
+        $this->edit($newCourseId);
+        $this->copySetup = true;
     }
 
     protected function uniqueCopyName(string $baseName): string
@@ -313,22 +361,95 @@ new class extends Component {
         return $candidate;
     }
 
-    protected function uniqueGroupCopyName(string $baseName, ?int $academicYearId): string
+    public function openCourseSchedule(int $courseId, bool $syncGroups = false): void
     {
-        $candidate = __('crud.courses.copy.name', ['name' => $baseName]);
-        $counter = 2;
+        $course = Course::query()->with('schedules')->findOrFail($courseId);
+        $this->schedulingCourseId = $course->id;
+        $this->scheduleRows = $course->schedules->map(fn ($schedule) => ['day_of_week' => (string) $schedule->day_of_week, 'time_slot' => $schedule->time_slot])->values()->all();
+        $this->syncScheduleToGroups = $syncGroups;
+        $this->showScheduleModal = true;
+        $this->resetScheduleRow();
+    }
 
-        while (
-            Group::withTrashed()
-                ->where('name', $candidate)
-                ->when($academicYearId, fn ($query) => $query->where('academic_year_id', $academicYearId), fn ($query) => $query->whereNull('academic_year_id'))
-                ->exists()
-        ) {
-            $candidate = __('crud.courses.copy.name_numbered', ['name' => $baseName, 'number' => $counter]);
-            $counter++;
+    public function saveScheduleRow(): void
+    {
+        $data = $this->validate([
+            'scheduleDay' => ['required', 'integer', 'between:0,6'],
+            'scheduleTimeSlot' => ['required', Rule::in(ScheduleTimeSlots::keys())],
+        ]);
+        $duplicate = collect($this->scheduleRows)->contains(fn ($row, $index) => $index !== $this->editingScheduleRow && (string) $row['day_of_week'] === (string) $data['scheduleDay'] && $row['time_slot'] === $data['scheduleTimeSlot']);
+        if ($duplicate) {
+            $this->addError('scheduleTimeSlot', __('validation.unique'));
+            return;
         }
+        $row = ['day_of_week' => (string) $data['scheduleDay'], 'time_slot' => $data['scheduleTimeSlot']];
+        if ($this->editingScheduleRow === null) {
+            $this->scheduleRows[] = $row;
+        } else {
+            $this->scheduleRows[$this->editingScheduleRow] = $row;
+        }
+        $this->resetScheduleRow();
+    }
 
-        return $candidate;
+    public function editScheduleRow(int $index): void
+    {
+        abort_unless(isset($this->scheduleRows[$index]), 404);
+        $this->editingScheduleRow = $index;
+        $this->scheduleDay = (string) $this->scheduleRows[$index]['day_of_week'];
+        $this->scheduleTimeSlot = $this->scheduleRows[$index]['time_slot'];
+        $this->resetValidation();
+    }
+
+    public function deleteScheduleRow(int $index): void
+    {
+        abort_unless(isset($this->scheduleRows[$index]), 404);
+        array_splice($this->scheduleRows, $index, 1);
+        $this->resetScheduleRow();
+    }
+
+    public function saveCourseSchedule(): void
+    {
+        abort_unless($this->schedulingCourseId, 404);
+        $course = Course::query()->findOrFail($this->schedulingCourseId);
+        app(CourseScheduleService::class)->replace($course, $this->scheduleRows, $this->syncScheduleToGroups);
+        $this->closeCourseSchedule();
+        session()->flash('status', __('schedules.group.messages.updated'));
+    }
+
+    public function closeCourseSchedule(): void
+    {
+        $this->showScheduleModal = false;
+        $this->schedulingCourseId = null;
+        $this->scheduleRows = [];
+        $this->syncScheduleToGroups = false;
+        $this->resetScheduleRow();
+    }
+
+    public function courseCanBeDeleted(Course $course): bool
+    {
+        $groupIds = Group::withTrashed()->where('course_id', $course->id)->pluck('id');
+        if ($course->curricula()->exists()) {
+            return false;
+        }
+        foreach (['barcode_scan_imports', 'student_attendance_days', 'teacher_attendance_days', 'student_card_prints'] as $table) {
+            if (DB::table($table)->where('course_id', $course->id)->exists()) {
+                return false;
+            }
+        }
+        foreach (['enrollments', 'assessments', 'group_attendance_days', 'activities', 'group_curriculum_lesson_progresses', 'group_curriculum_topic_progresses', 'group_custom_curriculum_lessons'] as $table) {
+            if ($groupIds->isNotEmpty() && DB::table($table)->whereIn('group_id', $groupIds)->exists()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    protected function resetScheduleRow(): void
+    {
+        $this->editingScheduleRow = null;
+        $this->scheduleDay = '';
+        $this->scheduleTimeSlot = '';
+        $this->resetValidation(['scheduleDay', 'scheduleTimeSlot']);
     }
 
     protected function resetFormState(): void
@@ -459,9 +580,6 @@ new class extends Component {
                                                 <button type="button" wire:click="openArchive({{ $course->id }})" class="pill-link pill-link--compact border-red-400/30 bg-red-500/10 text-red-200">{{ __('crud.courses.actions.archive') }}</button>
                                             @endif
                                         @endcan
-                                        @can('courses.delete')
-                                            @if ($course->groups_count === 0)<button type="button" wire:click="delete({{ $course->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link pill-link--compact border-red-400/25 text-red-200 hover:border-red-300/35 hover:bg-red-500/12">{{ __('crud.common.actions.delete') }}</button>@endif
-                                        @endcan
                                     </div>
                                 </td>
                             </tr>
@@ -485,7 +603,12 @@ new class extends Component {
         max-width="3xl"
     >
         <form wire:submit="save" class="space-y-4">
-            @if (! $editingId)
+            <div class="grid gap-4 md:grid-cols-2">
+                <div>
+                    <label for="course-name" class="mb-1 block text-sm font-medium">{{ __('crud.courses.form.fields.name') }}</label>
+                    <input id="course-name" wire:model="name" type="text" class="w-full rounded-xl px-4 py-3 text-sm">
+                    @error('name')<div class="mt-1 text-sm text-red-400">{{ $message }}</div>@enderror
+                </div>
                 <div>
                     <label for="course-academic-year" class="mb-1 block text-sm font-medium">{{ __('crud.courses.form.fields.academic_year') }}</label>
                     <select id="course-academic-year" wire:model="academic_year_id" class="w-full rounded-xl px-4 py-3 text-sm">
@@ -498,14 +621,6 @@ new class extends Component {
                         <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                     @enderror
                 </div>
-            @endif
-
-            <div>
-                <label for="course-name" class="mb-1 block text-sm font-medium">{{ __('crud.courses.form.fields.name') }}</label>
-                <input id="course-name" wire:model="name" type="text" class="w-full rounded-xl px-4 py-3 text-sm">
-                @error('name')
-                    <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
-                @enderror
             </div>
 
             <div class="grid gap-4 md:grid-cols-2">
@@ -526,30 +641,36 @@ new class extends Component {
                 </div>
             </div>
 
-            <label class="flex items-center gap-3 text-sm">
-                <input wire:model="is_default" type="checkbox" class="rounded border-neutral-300 text-neutral-900">
-                <span>{{ __('crud.courses.form.default_course') }}</span>
-            </label>
-
-            <label class="flex items-center gap-3 text-sm">
-                <input wire:model="awards_points" type="checkbox" class="rounded border-neutral-300 text-neutral-900">
-                <span>{{ __('crud.courses.form.awards_points') }}</span>
-            </label>
+            <div class="grid gap-4 rounded-2xl border border-white/10 bg-white/[0.025] p-4 sm:grid-cols-2">
+                <label class="flex items-center gap-3 text-sm"><input wire:model="is_default" type="checkbox" class="rounded border-neutral-300 text-neutral-900"><span>{{ __('crud.courses.form.default_course') }}</span></label>
+                <label class="flex items-center gap-3 text-sm"><input wire:model="awards_points" type="checkbox" class="rounded border-neutral-300 text-neutral-900"><span>{{ __('crud.courses.form.awards_points') }}</span></label>
+            </div>
 
             <div class="flex flex-wrap items-center gap-3">
                 <button type="submit" class="pill-link pill-link--accent">
                     {{ $editingId ? __('crud.courses.form.update_submit') : __('crud.courses.form.create_submit') }}
                 </button>
-                <x-admin.create-and-new-button :show="! $editingId" />
-                <button type="button" wire:click="cancel" class="pill-link">
-                    {{ __('crud.common.actions.close') }}
-                </button>
                 @if ($editingId)
-                    <button type="button" wire:click="deactivate({{ $editingId }})" wire:confirm="{{ __('crud.courses.confirm_deactivate') }}" class="pill-link border-amber-300/30 bg-amber-400/10 text-amber-100">{{ __('crud.courses.actions.finish') }}</button>
-                    @can('courses.create')<button type="button" wire:click="duplicate({{ $editingId }})" wire:confirm="{{ __('crud.courses.copy.confirm') }}" class="pill-link border-sky-300/30 bg-sky-400/10 text-sky-100">{{ __('crud.common.actions.copy') }}</button>@endcan
+                    @unless($copySetup)
+                        <button type="button" wire:click="deactivate({{ $editingId }})" wire:confirm="{{ __('crud.courses.confirm_deactivate') }}" class="pill-link border-amber-300/30 bg-amber-400/10 text-amber-100">{{ __('crud.courses.actions.finish') }}</button>
+                        @can('courses.create')<button type="button" wire:click="duplicate({{ $editingId }})" wire:confirm="{{ __('crud.courses.copy.confirm') }}" class="pill-link border-sky-300/30 bg-sky-400/10 text-sky-100">{{ __('crud.common.actions.copy') }}</button>@endcan
+                    @endunless
+                    @can('courses.delete')
+                        @if($editingCourseCanBeDeleted)<button type="button" wire:click="delete({{ $editingId }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link pill-link--danger">{{ __('crud.common.actions.delete') }}</button>@endif
+                    @endcan
                 @endif
             </div>
         </form>
+    </x-admin.modal>
+
+    <x-admin.modal :show="$showScheduleModal" :title="__('schedules.course.title', ['course' => $schedulingCourse?->name ?? ''])" close-method="closeCourseSchedule" max-width="3xl">
+        <section class="surface-table settings-record-table overflow-visible">
+            <div class="overflow-visible"><table class="table-fixed text-sm"><thead><tr><th class="px-4 py-3">{{ __('schedules.group.form.fields.day') }}</th><th class="px-4 py-3">{{ __('schedules.group.form.fields.timing') }}</th><th class="w-24 px-4 py-3">{{ __('schedules.group.table.headers.actions') }}</th></tr></thead><tbody>
+                @foreach($scheduleRows as $index => $row)<tr wire:key="course-schedule-{{ $index }}"><td class="px-4 py-3">{{ $scheduleDays[$row['day_of_week']] }}</td><td class="px-4 py-3">{{ $scheduleTimeSlots[$row['time_slot']] }}</td><td class="px-4 py-3"><div class="flex justify-end gap-2"><button type="button" wire:click="editScheduleRow({{ $index }})" class="admin-icon-button" aria-label="{{ __('crud.common.actions.edit') }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="m4 20 4.2-1 10.7-10.7a2.1 2.1 0 0 0-3-3L5.2 16 4 20Z"/></svg></button><button type="button" wire:click="deleteScheduleRow({{ $index }})" class="admin-icon-button admin-icon-button--danger" aria-label="{{ __('crud.common.actions.delete') }}"><x-icons.trash class="size-5" /></button></div></td></tr>@endforeach
+                <tr class="schedule-add-row"><td class="px-4 py-3"><select wire:model="scheduleDay" data-search-input="true" data-open-on-focus="true" data-hide-placeholder-option="true" class="h-11 w-full rounded-xl px-3"><option value="">{{ __('schedules.group.form.placeholders.day') }}</option>@foreach($scheduleDays as $value=>$label)<option value="{{ $value }}">{{ $label }}</option>@endforeach</select>@error('scheduleDay')<div class="mt-1 text-xs text-red-400">{{ $message }}</div>@enderror</td><td class="px-4 py-3"><select wire:model="scheduleTimeSlot" data-search-input="true" data-open-on-focus="true" data-hide-placeholder-option="true" class="h-11 w-full rounded-xl px-3"><option value="">{{ __('schedules.group.form.placeholders.timing') }}</option>@foreach($scheduleTimeSlots as $value=>$label)<option value="{{ $value }}">{{ $label }}</option>@endforeach</select>@error('scheduleTimeSlot')<div class="mt-1 text-xs text-red-400">{{ $message }}</div>@enderror</td><td class="px-4 py-3"><button type="button" wire:click="saveScheduleRow" class="admin-icon-button admin-icon-button--accent" aria-label="{{ __('crud.common.actions.create') }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" d="M12 5v14M5 12h14"/></svg></button></td></tr>
+            </tbody></table></div>
+        </section>
+        <div class="mt-4 flex justify-end"><button type="button" wire:click="saveCourseSchedule" class="pill-link pill-link--accent">{{ __('crud.common.actions.save') }}</button></div>
     </x-admin.modal>
 
     <x-admin.modal

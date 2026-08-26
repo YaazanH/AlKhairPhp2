@@ -1220,7 +1220,7 @@ new class extends Component {
                         </div>
                         <div class="grid gap-4 px-3 pt-3" style="grid-template-columns: repeat({{ $barColumnCount }}, minmax(0, 1fr))">
                             @foreach ($groupPageTotals as $group)
-                                <div class="truncate text-center text-xs text-neutral-300" title="{{ $group['name'] }}">{{ $group['name'] }}</div>
+                                <div class="dashboard-bar-chart__label text-center text-xs text-neutral-300" title="{{ $group['name'] }}">{{ $group['name'] }}</div>
                             @endforeach
                         </div>
                         </div>

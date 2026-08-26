@@ -1,11 +1,10 @@
 @props(['variant' => 'outline'])
 
 <x-sidebar-outline-icon :$variant {{ $attributes }}>
-    <g data-finance-icon="analytics-monitor">
-        <rect width="20" height="15.25" x="2" y="2.75" rx="2.25" />
-        <path d="M2 15.5h20M10 18l-1.5 3.25h7L14 18M7.5 21.25h9" />
-        <circle cx="7.5" cy="9.25" r="3.75" />
-        <path d="M7.5 5.5v3.75l3.25 1.9M7.5 9.25l-2.65 2.65M13.5 5.75h5.75M13.5 8.25h5.75" />
-        <path d="M12.75 14.25h7.5M13.5 14.25v-2.75h1.75v2.75M16.25 14.25v-4h1.75v4M19 14.25V9h1.25v5.25" />
+    <g data-finance-icon="growth-dashboard">
+        <path d="M2.75 21v-4.5h3V21M8.1 21v-7h3v7M13.45 21v-9.5h3V21M18.8 21V8.5h3V21M2 21h20" />
+        <path d="m3.5 14 5.5-4.5 4 3.25L21 4.75M17 4.75h4v4" />
+        <circle cx="7" cy="5.8" r="3.4" />
+        <path d="M8.15 4.25h-1.6a.95.95 0 0 0 0 1.9h.9a.95.95 0 1 1 0 1.9h-1.6M7 3.35v4.9" />
     </g>
 </x-sidebar-outline-icon>

@@ -12,6 +12,9 @@
         <path d="M11 2.25h5a1 1 0 0 1 1 1v2h-7v-2a1 1 0 0 1 1-1ZM13.5 8.5H18M13.5 11.5H18M15 14.5h3M15.75 17.5H18" />
     </g>
     <g data-attendance-badge="graduation-cap" transform="translate(-1.2 -1.2) scale(1.1)">
-        <path d="m1.25 16.25 6.25-3.1 6.25 3.1-6.25 3.1zM3 18.5v2.6c2.55 1.65 6.45 1.65 9 0v-2.6M13.75 16.25v4.5" />
+        <path d="m.75 16.25 6.75-3.4 6.75 3.4-6.75 3.4z" />
+        <path d="M2.25 18.5v3c3 1.9 7.5 1.9 10.5 0v-3" />
+        <path d="M14.25 16.5v4.25" />
+        <circle cx="14.25" cy="21.35" r=".55" />
     </g>
 </x-sidebar-outline-icon>

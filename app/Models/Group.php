@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\CourseScheduleService;
 use App\Services\PointLedgerService;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -21,6 +22,8 @@ class Group extends Model
                 app(PointLedgerService::class)->syncGroupEnrollmentCaches($group);
             }
         });
+
+        static::created(fn (Group $group) => app(CourseScheduleService::class)->inherit($group));
     }
 
     protected $fillable = [

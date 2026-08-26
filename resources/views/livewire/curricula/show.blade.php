@@ -173,7 +173,7 @@ new class extends Component {
 }; ?>
 
 <div class="page-stack">
-    <section class="page-hero p-6 lg:p-8">
+    <section class="page-hero p-6 lg:p-8" data-curriculum-detail-hero>
         <div class="flex flex-wrap items-start justify-between gap-4">
             <div>
                 <x-back-link :href="route('curricula.index')" navigate />

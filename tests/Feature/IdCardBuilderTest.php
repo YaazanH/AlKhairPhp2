@@ -26,6 +26,29 @@ class IdCardBuilderTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_print_template_background_uses_a_printable_image_layer(): void
+    {
+        $template = new PrintTemplate([
+            'name' => 'Expense receipt',
+            'width_mm' => 80,
+            'height_mm' => 50,
+            'background_image' => '/images/expense-receipt-background.png',
+            'layout_json' => [],
+        ]);
+
+        $html = view('print-templates.partials.item', [
+            'item' => [
+                'template' => $template,
+                'elements' => [],
+            ],
+        ])->render();
+
+        $this->assertStringContainsString('class="print-template-render__background"', $html);
+        $this->assertStringContainsString('src="/images/expense-receipt-background.png"', $html);
+        $this->assertStringContainsString('print-color-adjust: exact', $html);
+        $this->assertStringNotContainsString('background-image: url(', $html);
+    }
+
     public function test_report_card_field_picker_includes_course_performance_metrics(): void
     {
         $courseStudentFields = collect(app(PrintTemplateFieldRegistry::class)->selectableFields('dynamic_text'))

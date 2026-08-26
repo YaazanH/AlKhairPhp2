@@ -449,8 +449,7 @@ class ManagementCrudTest extends TestCase
 
         Volt::test('groups.schedules', ['group' => $activeGroup])
             ->set('day_of_week', '6')
-            ->set('starts_at', '15:00')
-            ->set('ends_at', '17:00')
+            ->set('time_slot', 'between_afternoon_sunset')
             ->call('save')
             ->assertHasErrors('group');
 
@@ -662,6 +661,10 @@ class ManagementCrudTest extends TestCase
             'monthly_fee' => 125,
             'is_active' => true,
         ]);
+        $course->schedules()->create([
+            'day_of_week' => 6,
+            'time_slot' => 'morning',
+        ]);
         $student = Student::create([
             'first_name' => 'Not',
             'last_name' => 'Copied',
@@ -675,14 +678,26 @@ class ManagementCrudTest extends TestCase
             'status' => 'active',
         ]);
 
-        Volt::test('courses.index')
+        $component = Volt::test('courses.index')
             ->call('edit', $course->id)
             ->call('duplicate', $course->id)
             ->assertHasNoErrors()
-            ->assertSet('showFormModal', false);
+            ->assertSet('showFormModal', true)
+            ->assertSet('copySetup', true);
 
         $copy = Course::query()->whereKeyNot($course->id)->where('description', 'Keep this course description')->firstOrFail();
         $copiedGroup = $copy->groups()->firstOrFail();
+
+        $component
+            ->assertSet('editingId', $copy->id)
+            ->call('save')
+            ->assertHasNoErrors()
+            ->assertSet('showFormModal', false)
+            ->assertSet('showScheduleModal', true)
+            ->assertSet('syncScheduleToGroups', true)
+            ->call('saveCourseSchedule')
+            ->assertHasNoErrors()
+            ->assertSet('showScheduleModal', false);
 
         $this->assertSame($course->academic_year_id, $copy->academic_year_id);
         $this->assertSame($course->starts_on?->toDateString(), $copy->starts_on?->toDateString());
@@ -692,7 +707,18 @@ class ManagementCrudTest extends TestCase
         $this->assertSame(27, $copiedGroup->capacity);
         $this->assertSame('125.00', $copiedGroup->monthly_fee);
         $this->assertTrue($copiedGroup->is_active);
+        $this->assertSame('Metadata source group', $copiedGroup->name);
         $this->assertSame(0, $copiedGroup->enrollments()->count());
+        $this->assertDatabaseHas('course_schedules', [
+            'course_id' => $copy->id,
+            'day_of_week' => 6,
+            'time_slot' => 'morning',
+        ]);
+        $this->assertDatabaseHas('group_schedules', [
+            'group_id' => $copiedGroup->id,
+            'day_of_week' => 6,
+            'time_slot' => 'morning',
+        ]);
     }
 
     public function test_profile_account_credentials_can_be_updated(): void
@@ -1450,6 +1476,11 @@ class ManagementCrudTest extends TestCase
 
         Volt::test('groups.index')
             ->call('openCreateModal')
+            ->assertSee('data-group-form-row="identity"', false)
+            ->assertSee('data-group-form-row="teachers"', false)
+            ->assertSee('data-group-form-row="learning"', false)
+            ->assertSee('data-group-form-row="capacity-template"', false)
+            ->assertDontSee(__('crud.groups.form.active_group'))
             ->assertSet('academic_year_id', $currentYear->id)
             ->set('course_id', $course->id)
             ->set('teacher_id', $teacher->id)
@@ -1636,7 +1667,16 @@ class ManagementCrudTest extends TestCase
             ->assertSee('group-roster-table__name-value', false)
             ->assertDontSee('min-w-[88rem]', false)
             ->set('showScheduleModal', true)
-            ->assertSee('sm:grid-cols-[minmax(9rem,1fr)_minmax(9rem,1fr)_minmax(9rem,1fr)_max-content]', false);
+            ->assertSee('settings-record-table', false)
+            ->assertSee('schedule-add-row', false)
+            ->call('openEdit')
+            ->assertSee('data-group-form-row="identity"', false)
+            ->assertSee('data-group-form-row="teachers"', false)
+            ->assertSee('data-group-form-row="learning"', false)
+            ->assertSee('data-group-form-row="capacity-template"', false)
+            ->assertDontSee(__('crud.groups.form.fields.monthly_fee'))
+            ->assertDontSee(__('crud.groups.form.fields.starts_on'))
+            ->assertDontSee(__('crud.groups.form.fields.ends_on'));
 
         $groupCss = file_get_contents(resource_path('css/app.css'));
         $this->assertStringContainsString('.group-roster-table th:nth-child(2)', $groupCss);
@@ -2363,10 +2403,7 @@ class ManagementCrudTest extends TestCase
 
         Volt::test('groups.schedules', ['group' => $group])
             ->set('day_of_week', '6')
-            ->set('starts_at', '15:00')
-            ->set('ends_at', '17:00')
-            ->set('room_name', 'Room A')
-            ->set('is_active', true)
+            ->set('time_slot', 'between_afternoon_sunset')
             ->call('save')
             ->assertHasNoErrors();
 
@@ -2374,16 +2411,16 @@ class ManagementCrudTest extends TestCase
 
         Volt::test('groups.schedules', ['group' => $group])
             ->call('edit', $schedule->id)
-            ->set('room_name', 'Room B')
+            ->set('time_slot', 'after_night')
             ->call('save')
             ->assertHasNoErrors();
 
         $this->assertDatabaseHas('group_schedules', [
             'id' => $schedule->id,
-            'room_name' => 'Room B',
+            'time_slot' => 'after_night',
         ]);
 
-        $this->assertSame('15:00', $schedule->fresh()->starts_at?->format('H:i'));
+        $this->assertSame('20:30', $schedule->fresh()->starts_at?->format('H:i'));
 
         Volt::test('groups.schedules', ['group' => $group])
             ->call('delete', $schedule->id);

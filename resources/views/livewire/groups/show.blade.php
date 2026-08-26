@@ -13,6 +13,7 @@ use App\Models\PrintTemplate;
 use App\Models\Student;
 use App\Models\Teacher;
 use App\Services\GroupDailySummaryService;
+use App\Support\ScheduleTimeSlots;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Livewire\Volt\Component;
@@ -33,17 +34,10 @@ new class extends Component {
     public string $grade_level_id = '';
     public string $curriculum_id = '';
     public string $capacity = '';
-    public string $starts_on = '';
-    public string $ends_on = '';
-    public string $monthly_fee = '';
-    public bool $is_active = true;
     public string $dashboard_card_template_id = '';
     public ?int $editingScheduleId = null;
-    public string $day_of_week = '6';
-    public string $starts_at = '';
-    public string $ends_at = '';
-    public string $room_name = '';
-    public bool $schedule_is_active = true;
+    public string $day_of_week = '';
+    public string $time_slot = '';
     public string $roster_student_id = '';
     public string $roster_enrolled_at = '';
     public string $progressDate = '';
@@ -67,13 +61,14 @@ new class extends Component {
             'groupRecord' => $group,
             'roster' => $roster,
             'availableStudents' => $availableStudents,
-            'schedules' => GroupSchedule::query()->where('group_id', $group->id)->orderBy('day_of_week')->orderBy('starts_at')->get(),
+            'schedules' => GroupSchedule::query()->where('group_id', $group->id)->orderBy('day_of_week')->orderBy('time_slot')->get(),
             'courses' => Course::query()->where('is_active', true)->orderBy('name')->get(),
             'teachers' => $this->availableTeachersQuery()->orderBy('first_name')->orderBy('last_name')->get(),
             'gradeLevels' => GradeLevel::query()->where('is_active', true)->orderBy('name')->get(),
             'curricula' => Curriculum::query()->where('is_active', true)->where('course_id', $this->course_id ?: $group->course_id)->orderBy('name')->get(),
             'dashboardCardTemplates' => PrintTemplate::query()->where('is_active', true)->orderBy('name')->get(),
             'days' => collect(range(0, 6))->mapWithKeys(fn ($day) => [$day => __('schedules.group.days.'.$day)]),
+            'timeSlots' => ScheduleTimeSlots::options(),
         ];
     }
 
@@ -85,11 +80,10 @@ new class extends Component {
         }
 
         $group = $this->currentGroup->fresh();
-        foreach (['name','course_id','academic_year_id','teacher_id','assistant_teacher_id','grade_level_id','curriculum_id','capacity','starts_on','ends_on','monthly_fee'] as $field) {
+        foreach (['name','course_id','academic_year_id','teacher_id','assistant_teacher_id','grade_level_id','curriculum_id','capacity'] as $field) {
             $value = $group->{$field};
             $this->{$field} = $value instanceof \DateTimeInterface ? $value->format('Y-m-d') : (string) ($value ?? '');
         }
-        $this->is_active = $group->is_active;
         $map = (array) AppSetting::groupValues('general')->get('student_dashboard_card_templates', []);
         $this->dashboard_card_template_id = (string) ($map[(string) $group->id] ?? '');
         $this->showEditModal = true;
@@ -117,13 +111,12 @@ new class extends Component {
             'academic_year_id' => ['required','integer','exists:academic_years,id'], 'teacher_id' => ['nullable','integer','exists:teachers,id'],
             'assistant_teacher_id' => ['nullable','integer','different:teacher_id','exists:teachers,id'], 'grade_level_id' => ['nullable','integer','exists:grade_levels,id'],
             'curriculum_id' => ['nullable','integer', Rule::exists('curricula', 'id')->where(fn ($query) => $query->where('course_id', $this->course_id)->where('is_active', true))],
-            'capacity' => ['nullable','integer','min:0'], 'starts_on' => ['nullable','date'], 'ends_on' => ['nullable','date','after_or_equal:starts_on'],
-            'monthly_fee' => ['nullable','numeric','min:0'], 'is_active' => ['boolean'],
+            'capacity' => ['nullable','integer','min:0'],
             'dashboard_card_template_id' => ['nullable','integer', Rule::exists('print_templates', 'id')->where(fn ($query) => $query->where('is_active', true))],
         ]);
         $templateId = $data['dashboard_card_template_id'] ?: null;
         unset($data['dashboard_card_template_id']);
-        foreach (['teacher_id','assistant_teacher_id','grade_level_id','curriculum_id','capacity','starts_on','ends_on','monthly_fee'] as $field) $data[$field] = filled($data[$field]) ? $data[$field] : null;
+        foreach (['teacher_id','assistant_teacher_id','grade_level_id','curriculum_id','capacity'] as $field) $data[$field] = filled($data[$field]) ? $data[$field] : null;
         if ($data['teacher_id']) $this->authorizeScopedTeacherAccess(Teacher::query()->findOrFail($data['teacher_id']));
         if ($data['assistant_teacher_id']) $this->authorizeScopedTeacherAccess(Teacher::query()->findOrFail($data['assistant_teacher_id']));
         if ($data['teacher_id'] && ! $this->teacherIsAvailable((int) $data['teacher_id'])) { $this->addError('teacher_id', __('crud.groups.errors.teacher_unavailable')); return; }
@@ -164,8 +157,8 @@ new class extends Component {
             return;
         }
 
-        $group = $this->currentGroup->loadCount(['enrollments','schedules']);
-        if ($group->enrollments_count || $group->schedules_count) { $this->addError('delete', __('crud.groups.errors.delete_linked')); return; }
+        $group = $this->currentGroup->loadCount('enrollments');
+        if ($group->enrollments_count) { $this->addError('delete', __('crud.groups.errors.delete_linked')); return; }
         $group->delete();
         return $this->redirectRoute('groups.index', navigate: true);
     }
@@ -196,8 +189,12 @@ new class extends Component {
             return;
         }
 
-        $data = $this->validate(['day_of_week' => ['required','integer','between:0,6'], 'starts_at' => ['required','date_format:H:i'], 'ends_at' => ['required','date_format:H:i','after:starts_at'], 'room_name' => ['nullable','string','max:255'], 'schedule_is_active' => ['boolean']]);
-        GroupSchedule::query()->updateOrCreate(['id' => $this->editingScheduleId, 'group_id' => $this->currentGroup->id], ['day_of_week' => $data['day_of_week'], 'starts_at' => $data['starts_at'], 'ends_at' => $data['ends_at'], 'room_name' => $data['room_name'] ?: null, 'is_active' => $data['schedule_is_active']]);
+        $data = $this->validate([
+            'day_of_week' => ['required','integer','between:0,6'],
+            'time_slot' => ['required', Rule::in(ScheduleTimeSlots::keys()), Rule::unique('group_schedules', 'time_slot')->where(fn ($query) => $query->where('group_id', $this->currentGroup->id)->where('day_of_week', $this->day_of_week))->ignore($this->editingScheduleId)],
+        ]);
+        [$startsAt, $endsAt] = ScheduleTimeSlots::times($data['time_slot']);
+        GroupSchedule::query()->updateOrCreate(['id' => $this->editingScheduleId, 'group_id' => $this->currentGroup->id], ['day_of_week' => $data['day_of_week'], 'time_slot' => $data['time_slot'], 'starts_at' => $startsAt, 'ends_at' => $endsAt, 'room_name' => null, 'is_active' => true]);
         $this->resetSchedule();
     }
 
@@ -209,7 +206,9 @@ new class extends Component {
         }
 
         $schedule = GroupSchedule::query()->where('group_id', $this->currentGroup->id)->findOrFail($id);
-        $this->editingScheduleId = $schedule->id; $this->day_of_week = (string) $schedule->day_of_week; $this->starts_at = $schedule->starts_at->format('H:i'); $this->ends_at = $schedule->ends_at->format('H:i'); $this->room_name = $schedule->room_name ?? ''; $this->schedule_is_active = $schedule->is_active;
+        $this->editingScheduleId = $schedule->id;
+        $this->day_of_week = (string) $schedule->day_of_week;
+        $this->time_slot = $schedule->time_slot ?: ScheduleTimeSlots::closest($schedule->starts_at?->format('H:i'));
     }
 
     public function deleteSchedule(int $id): void
@@ -222,7 +221,7 @@ new class extends Component {
         GroupSchedule::query()->where('group_id', $this->currentGroup->id)->findOrFail($id)->delete();
         $this->resetSchedule();
     }
-    public function resetSchedule(): void { $this->editingScheduleId = null; $this->day_of_week = '6'; $this->starts_at = $this->ends_at = $this->room_name = ''; $this->schedule_is_active = true; }
+    public function resetSchedule(): void { $this->editingScheduleId = null; $this->day_of_week = ''; $this->time_slot = ''; }
 
     public function copyProgress(): void
     {
@@ -373,46 +372,54 @@ new class extends Component {
     </section>
     <x-admin.modal :show="$showAddStudentModal" :title="__('crud.groups.roster.add_student')" close-method="showAddStudentModal" max-width="2xl"><div class="space-y-4"><div><label class="mb-1 block text-sm">{{ __('crud.students.table.headers.name') }}</label><select wire:model="roster_student_id" data-search-input="true" data-open-on-focus="true" data-hide-placeholder-option="true" data-search-placeholder="{{ __('workflow.common.student_name_placeholder') }}" class="w-full rounded-xl px-4 py-3"><option value="">{{ __('crud.common.select') }}</option>@foreach($availableStudents as $student)<option value="{{ $student->id }}">{{ $student->full_name }}</option>@endforeach</select>@error('roster_student_id')<div class="text-sm text-red-400">{{ $message }}</div>@enderror</div><div><label class="mb-1 block text-sm">{{ __('crud.groups.roster.fields.enrolled_at') }}</label><input wire:model="roster_enrolled_at" type="date" class="w-full rounded-xl px-4 py-3"></div><div class="flex gap-2"><button wire:click="addStudent(false)" class="pill-link pill-link--accent">{{ __('crud.groups.roster.add_student') }}</button><button wire:click="addStudent(true)" class="pill-link">{{ __('crud.common.actions.add_and_new') }}</button></div></div></x-admin.modal>
 
-    <x-admin.modal :show="$showScheduleModal" :title="__('crud.groups.actions.schedule')" close-method="showScheduleModal" max-width="6xl">
-        <form wire:submit="saveSchedule" class="grid gap-3 sm:grid-cols-[minmax(9rem,1fr)_minmax(9rem,1fr)_minmax(9rem,1fr)_max-content] sm:items-end">
-            <label class="text-sm">
-                <span class="mb-1 block">{{ __('schedules.group.form.fields.day') }}</span>
-                <select wire:model="day_of_week" class="h-12 w-full rounded-xl px-3 text-sm">@foreach($days as $value=>$label)<option value="{{ $value }}">{{ $label }}</option>@endforeach</select>
-            </label>
-            <label class="text-sm">
-                <span class="mb-1 block">{{ __('schedules.group.form.fields.from') }}</span>
-                <input wire:model="starts_at" type="time" class="h-12 w-full rounded-xl px-3 text-sm">
-            </label>
-            <label class="text-sm">
-                <span class="mb-1 block">{{ __('schedules.group.form.fields.to') }}</span>
-                <input wire:model="ends_at" type="time" class="h-12 w-full rounded-xl px-3 text-sm">
-            </label>
-            <button class="pill-link pill-link--accent h-12 w-fit self-end whitespace-nowrap px-5">{{ $editingScheduleId ? __('crud.common.actions.update') : __('crud.common.actions.create') }}</button>
-        </form>
-        <div class="mt-6 overflow-x-auto"><table class="w-full text-sm"><thead><tr><th class="p-3">{{ __('schedules.group.form.fields.day') }}</th><th class="p-3">{{ __('schedules.group.form.fields.starts_at') }}</th><th class="p-3">{{ __('schedules.group.form.fields.ends_at') }}</th><th class="p-3"></th></tr></thead><tbody>@foreach($schedules as $schedule)<tr><td class="p-3">{{ $days[$schedule->day_of_week] }}</td><td class="p-3">{{ $schedule->starts_at->format('H:i') }}</td><td class="p-3">{{ $schedule->ends_at->format('H:i') }}</td><td class="p-3 text-end"><button wire:click="editSchedule({{ $schedule->id }})" class="pill-link pill-link--compact w-fit">{{ __('crud.common.actions.edit') }}</button><button wire:click="deleteSchedule({{ $schedule->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link pill-link--compact w-fit">{{ __('crud.common.actions.delete') }}</button></td></tr>@endforeach</tbody></table></div>
+    <x-admin.modal :show="$showScheduleModal" :title="__('crud.groups.actions.schedule')" close-method="showScheduleModal" max-width="3xl">
+        <section class="surface-table settings-record-table overflow-visible">
+            <div class="overflow-visible">
+                <table class="w-full text-sm">
+                    <thead><tr><th class="px-4 py-3">{{ __('schedules.group.form.fields.day') }}</th><th class="px-4 py-3">{{ __('schedules.group.form.fields.timing') }}</th><th class="w-24 px-4 py-3 text-end">{{ __('schedules.group.table.headers.actions') }}</th></tr></thead>
+                    <tbody>
+                        @foreach($schedules as $schedule)
+                            <tr>
+                                <td class="px-4 py-3">{{ $days[$schedule->day_of_week] }}</td>
+                                <td class="px-4 py-3">{{ $timeSlots[$schedule->time_slot ?: \App\Support\ScheduleTimeSlots::closest($schedule->starts_at?->format('H:i'))] }}</td>
+                                <td class="px-4 py-3"><div class="flex justify-end gap-2">
+                                    <button type="button" wire:click="editSchedule({{ $schedule->id }})" class="admin-icon-button" title="{{ __('crud.common.actions.edit') }}" aria-label="{{ __('crud.common.actions.edit') }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="m4 20 4.2-1 10.7-10.7a2.1 2.1 0 0 0-3-3L5.2 16 4 20Z"/></svg></button>
+                                    <button type="button" wire:click="deleteSchedule({{ $schedule->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="admin-icon-button admin-icon-button--danger" title="{{ __('crud.common.actions.delete') }}" aria-label="{{ __('crud.common.actions.delete') }}"><x-icons.trash class="size-5" /></button>
+                                </div></td>
+                            </tr>
+                        @endforeach
+                        <tr class="schedule-add-row">
+                            <td class="px-4 py-3"><select wire:model="day_of_week" data-search-input="true" data-open-on-focus="true" data-hide-placeholder-option="true" data-search-placeholder="{{ __('schedules.group.form.placeholders.day') }}" class="h-11 w-full rounded-xl px-3 text-sm"><option value="">{{ __('schedules.group.form.placeholders.day') }}</option>@foreach($days as $value=>$label)<option value="{{ $value }}">{{ $label }}</option>@endforeach</select>@error('day_of_week')<div class="mt-1 text-xs text-red-400">{{ $message }}</div>@enderror</td>
+                            <td class="px-4 py-3"><select wire:model="time_slot" data-search-input="true" data-open-on-focus="true" data-hide-placeholder-option="true" data-search-placeholder="{{ __('schedules.group.form.placeholders.timing') }}" class="h-11 w-full rounded-xl px-3 text-sm"><option value="">{{ __('schedules.group.form.placeholders.timing') }}</option>@foreach($timeSlots as $value=>$label)<option value="{{ $value }}">{{ $label }}</option>@endforeach</select>@error('time_slot')<div class="mt-1 text-xs text-red-400">{{ $message }}</div>@enderror</td>
+                            <td class="px-4 py-3"><button type="button" wire:click="saveSchedule" class="admin-icon-button admin-icon-button--accent" title="{{ $editingScheduleId ? __('crud.common.actions.update') : __('crud.common.actions.create') }}" aria-label="{{ $editingScheduleId ? __('crud.common.actions.update') : __('crud.common.actions.create') }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" d="M12 5v14M5 12h14"/></svg></button></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
     </x-admin.modal>
 
     <x-admin.modal :show="$showEditModal" :title="__('crud.groups.form.edit_title')" close-method="showEditModal" max-width="5xl">
         <form wire:submit="saveGroup" class="space-y-4">
-            <div class="grid gap-4 md:grid-cols-2">
+            <div class="grid gap-4 md:grid-cols-2" data-group-form-row="identity">
                 <label class="block text-sm">{{ __('crud.groups.form.fields.name') }}<input wire:model="name" class="mt-1 w-full rounded-xl px-4 py-3"></label>
                 <label class="block text-sm">{{ __('crud.groups.form.fields.course') }}<select wire:model.live="course_id" class="mt-1 w-full rounded-xl px-4 py-3">@foreach($courses as $course)<option value="{{ $course->id }}">{{ $course->name }}</option>@endforeach</select></label>
-                <label class="block text-sm">{{ __('crud.groups.form.fields.grade_level') }}<select wire:model="grade_level_id" class="mt-1 w-full rounded-xl px-4 py-3"><option value="">—</option>@foreach($gradeLevels as $grade)<option value="{{ $grade->id }}">{{ $grade->name }}</option>@endforeach</select></label>
+            </div>
+            <div class="grid gap-4 md:grid-cols-2" data-group-form-row="teachers">
                 <label class="block text-sm">{{ __('crud.groups.form.fields.teacher') }}<select wire:model="teacher_id" class="mt-1 w-full rounded-xl px-4 py-3"><option value="">—</option>@foreach($teachers as $teacher)<option value="{{ $teacher->id }}">{{ $teacher->first_name }} {{ $teacher->last_name }}</option>@endforeach</select></label>
                 <label class="block text-sm">{{ __('crud.groups.form.fields.assistant_teacher') }}<select wire:model="assistant_teacher_id" class="mt-1 w-full rounded-xl px-4 py-3"><option value="">—</option>@foreach($teachers as $teacher)<option value="{{ $teacher->id }}">{{ $teacher->first_name }} {{ $teacher->last_name }}</option>@endforeach</select></label>
+            </div>
+            <div class="grid gap-4 md:grid-cols-2" data-group-form-row="learning">
+                <label class="block text-sm">{{ __('crud.groups.form.fields.grade_level') }}<select wire:model="grade_level_id" class="mt-1 w-full rounded-xl px-4 py-3"><option value="">—</option>@foreach($gradeLevels as $grade)<option value="{{ $grade->id }}">{{ $grade->name }}</option>@endforeach</select></label>
                 <label class="block text-sm">{{ __('curricula.fields.curriculum') }}<select wire:model="curriculum_id" class="mt-1 w-full rounded-xl px-4 py-3"><option value="">{{ __('curricula.options.no_curriculum') }}</option>@foreach($curricula as $curriculum)<option value="{{ $curriculum->id }}">{{ $curriculum->name }}</option>@endforeach</select></label>
+            </div>
+            <div class="grid gap-4 md:grid-cols-2" data-group-form-row="capacity-template">
                 <label class="block text-sm">{{ __('crud.groups.form.fields.capacity') }}<input wire:model="capacity" type="number" min="0" class="mt-1 w-full rounded-xl px-4 py-3"></label>
-                <label class="block text-sm">{{ __('crud.groups.form.fields.monthly_fee') }}<input wire:model="monthly_fee" type="number" step="0.01" class="mt-1 w-full rounded-xl px-4 py-3"></label>
-                <label class="block text-sm">{{ __('crud.groups.form.fields.starts_on') }}<input wire:model="starts_on" type="date" class="mt-1 w-full rounded-xl px-4 py-3"></label>
-                <label class="block text-sm">{{ __('crud.groups.form.fields.ends_on') }}<input wire:model="ends_on" type="date" class="mt-1 w-full rounded-xl px-4 py-3"></label>
                 <label class="block text-sm">{{ __('crud.groups.dashboard_card.fields.template') }}<select wire:model="dashboard_card_template_id" class="mt-1 w-full rounded-xl px-4 py-3"><option value="">{{ __('crud.groups.dashboard_card.placeholders.none') }}</option>@foreach($dashboardCardTemplates as $template)<option value="{{ $template->id }}">{{ $template->name }}</option>@endforeach</select></label>
             </div>
             @error('delete')<div class="flash-error px-4 py-3 text-sm">{{ $message }}</div>@enderror
-            <div class="flex flex-wrap items-center justify-between gap-2">
-                <div class="flex flex-wrap gap-2">
-                    <button class="pill-link pill-link--accent">{{ __('crud.common.actions.update') }}</button>
-                    <button type="button" wire:click="$set('showEditModal', false)" class="pill-link">{{ __('crud.common.actions.close') }}</button>
-                </div>
+            <div class="flex flex-wrap items-center gap-2">
+                <button class="pill-link pill-link--accent">{{ __('crud.common.actions.update') }}</button>
                 @can('groups.delete')
                     <button type="button" wire:click="deleteGroup" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link pill-link--danger">{{ __('crud.common.actions.delete') }}</button>
                 @endcan

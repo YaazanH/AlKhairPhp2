@@ -5,6 +5,7 @@ use App\Http\Controllers\AssessmentResultPdfController;
 use App\Http\Controllers\BarcodeActionPrintController;
 use App\Http\Controllers\CourseEndExportController;
 use App\Http\Controllers\CurriculumResourceDownloadController;
+use App\Http\Controllers\FinanceInvoiceItemsExportController;
 use App\Http\Controllers\FinanceInvoicePrintController;
 use App\Http\Controllers\FinanceRequestPrintController;
 use App\Http\Controllers\IdCards\IdCardBarcodePreviewController;
@@ -160,6 +161,7 @@ Route::middleware(['auth'])->group(function () {
     Volt::route('finance/revenue-requests', 'finance.revenue-requests')->middleware('permission:finance.revenue-requests.view')->name('finance.revenue-requests.index');
     Volt::route('finance/exchange', 'finance.exchange')->middleware('permission:finance.exchange.view')->name('finance.exchange.index');
     Route::get('finance/requests/{financeRequest}/print', FinanceRequestPrintController::class)->name('finance.requests.print');
+    Route::get('finance/invoices/{invoice}/items.xlsx', FinanceInvoiceItemsExportController::class)->name('finance.invoices.items.xlsx');
     Route::get('finance/invoices/{invoice}/print', FinanceInvoicePrintController::class)->name('finance.invoices.print');
     Volt::route('invoices', 'invoices.index')->middleware('permission:invoices.view')->name('invoices.index');
     Volt::route('invoices/{invoice}/payments', 'invoices.payments')->middleware('permission:invoices.view')->name('invoices.payments');

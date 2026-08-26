@@ -1261,7 +1261,7 @@ new class extends Component {
                     [__('settings.organization.fields.school_timezone'), $school_timezone ?: __('crud.common.not_available')],
                 ] as [$settingLabel, $settingValue])
                     <div class="rounded-2xl border border-white/10 bg-white/5 p-4">
-                        <div class="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-400">{{ $settingLabel }}</div>
+                        <div class="text-xs font-semibold text-neutral-400">{{ $settingLabel }}</div>
                         <div class="mt-2 truncate text-sm font-semibold text-white">{{ $settingValue }}</div>
                     </div>
                 @endforeach
@@ -1274,7 +1274,7 @@ new class extends Component {
                 ] as [$settingLabel, $settingEnabled, $toggleAction])
                     <div class="rounded-2xl border border-white/10 bg-white/5 p-4">
                         <div class="flex items-center justify-between gap-3">
-                            <div class="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-400">{{ $settingLabel }}</div>
+                            <div class="text-xs font-semibold text-neutral-400">{{ $settingLabel }}</div>
                             <button
                                 type="button"
                                 wire:click="{{ $toggleAction }}"
@@ -1290,11 +1290,11 @@ new class extends Component {
                     </div>
                 @endforeach
                 <div class="rounded-2xl border border-white/10 bg-white/5 p-4">
-                    <div class="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-400">{{ __('settings.organization.fields.student_number_prefix') }}</div>
+                    <div class="text-xs font-semibold text-neutral-400">{{ __('settings.organization.fields.student_number_prefix') }}</div>
                     <div class="mt-2 whitespace-nowrap text-sm font-semibold text-white" data-general-prefix-value>{{ app(\App\Services\StudentNumberService::class)->formatForId(1) }}</div>
                 </div>
                 <div class="rounded-2xl border border-white/10 bg-white/5 p-4">
-                    <div class="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-400">{{ __('settings.organization.fields.parent_number_prefix') }}</div>
+                    <div class="text-xs font-semibold text-neutral-400">{{ __('settings.organization.fields.parent_number_prefix') }}</div>
                     <div class="mt-2 whitespace-nowrap text-sm font-semibold text-white" data-general-prefix-value>{{ app(\App\Services\ParentNumberService::class)->formatForId(1) }}</div>
                 </div>
             </div>
@@ -1311,7 +1311,7 @@ new class extends Component {
                         @endif
                     </span>
                     <div>
-                        <div class="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-400">{{ __('settings.organization.fields.main_page_logo') }}</div>
+                        <div class="text-xs font-semibold text-neutral-400">{{ __('settings.organization.fields.main_page_logo') }}</div>
                         <div class="mt-1 text-sm font-semibold text-white">{{ $pdf_logo_path ? __('settings.organization.labels.default_avatar_set') : __('settings.organization.labels.default_avatar_missing') }}</div>
                     </div>
                 </div>
@@ -1332,7 +1332,7 @@ new class extends Component {
                             @endif
                         </span>
                         <div>
-                            <div class="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-400">{{ __('settings.organization.default_avatars.'.$type) }}</div>
+                            <div class="text-xs font-semibold text-neutral-400">{{ __('settings.organization.default_avatars.'.$type) }}</div>
                             <div class="mt-1 text-sm font-semibold text-white">{{ $path ? __('settings.organization.labels.default_avatar_set') : __('settings.organization.labels.default_avatar_missing') }}</div>
                         </div>
                     </div>
