@@ -1,11 +1,11 @@
 @props(['variant' => 'outline'])
 
 <x-sidebar-outline-icon :$variant {{ $attributes }}>
-    <g data-teachers-icon="male-instructor-board">
-        <path d="M9.25 9.75V4.5A1.75 1.75 0 0 1 11 2.75h9.25A1.75 1.75 0 0 1 22 4.5v10.25a1.75 1.75 0 0 1-1.75 1.75H12" />
-        <path d="M12.5 6.25h6M12.5 9.25h6M15 12.25h3.5" />
-        <circle cx="5.5" cy="6.25" r="2.5" />
-        <path d="M2.25 21v-6.25a3.25 3.25 0 0 1 6.5 0V21M5.5 11.5V21" />
-        <path d="m8.15 13.5 2.9 1.65 3.15-2.75M13.85 12.7l4.65-4.2" />
+    <g data-teachers-icon="teacher-pointing-at-board">
+        <path d="M8.1 9.6V4.35h12.55c.7 0 1.25.55 1.25 1.25v11.15H11.45" />
+        <circle cx="5.35" cy="8.3" r="2.25" />
+        <path d="M2.55 20.25v-5.8a3.15 3.15 0 0 1 3.15-3.15h.35c1.2 0 2.35.43 3.25 1.22l2.25 1.96 2.25-1.35" />
+        <path d="M4.1 20.25v-5.1M8.3 20.25v-6.75" />
+        <path d="m13.75 13.15 5.05-5.1" />
     </g>
 </x-sidebar-outline-icon>

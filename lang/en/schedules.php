@@ -1,6 +1,9 @@
 <?php
 
 return [
+    'errors' => [
+        'required' => 'The schedule must contain at least one time slot.',
+    ],
     'course' => [
         'title' => 'Default schedule: :course',
     ],

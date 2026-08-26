@@ -198,6 +198,44 @@ new class extends Component {
         $this->resetSchedule();
     }
 
+    public function updatedDayOfWeek(): void
+    {
+        $this->addScheduleWhenComplete();
+    }
+
+    public function updatedTimeSlot(): void
+    {
+        $this->addScheduleWhenComplete();
+    }
+
+    protected function addScheduleWhenComplete(): void
+    {
+        if ($this->editingScheduleId !== null || $this->day_of_week === '' || $this->time_slot === '') {
+            return;
+        }
+
+        $this->saveSchedule();
+    }
+
+    public function saveAndCloseSchedules(): void
+    {
+        if ($this->editingScheduleId !== null) {
+            $this->saveSchedule();
+
+            if ($this->getErrorBag()->isNotEmpty()) {
+                return;
+            }
+        }
+
+        if (! GroupSchedule::query()->where('group_id', $this->currentGroup->id)->exists()) {
+            $this->addError('scheduleRows', __('schedules.errors.required'));
+
+            return;
+        }
+
+        $this->closeSchedules();
+    }
+
     public function editSchedule(int $id): void
     {
         $this->authorizePermission('group-schedules.manage');
@@ -215,6 +253,12 @@ new class extends Component {
     {
         $this->authorizePermission('group-schedules.manage');
         if (! $this->ensureGroupIsEditable()) {
+            return;
+        }
+
+        if (GroupSchedule::query()->where('group_id', $this->currentGroup->id)->count() <= 1) {
+            $this->addError('scheduleRows', __('schedules.errors.required'));
+
             return;
         }
 
@@ -372,7 +416,15 @@ new class extends Component {
     </section>
     <x-admin.modal :show="$showAddStudentModal" :title="__('crud.groups.roster.add_student')" close-method="showAddStudentModal" max-width="2xl"><div class="space-y-4"><div><label class="mb-1 block text-sm">{{ __('crud.students.table.headers.name') }}</label><select wire:model="roster_student_id" data-search-input="true" data-open-on-focus="true" data-hide-placeholder-option="true" data-search-placeholder="{{ __('workflow.common.student_name_placeholder') }}" class="w-full rounded-xl px-4 py-3"><option value="">{{ __('crud.common.select') }}</option>@foreach($availableStudents as $student)<option value="{{ $student->id }}">{{ $student->full_name }}</option>@endforeach</select>@error('roster_student_id')<div class="text-sm text-red-400">{{ $message }}</div>@enderror</div><div><label class="mb-1 block text-sm">{{ __('crud.groups.roster.fields.enrolled_at') }}</label><input wire:model="roster_enrolled_at" type="date" class="w-full rounded-xl px-4 py-3"></div><div class="flex gap-2"><button wire:click="addStudent(false)" class="pill-link pill-link--accent">{{ __('crud.groups.roster.add_student') }}</button><button wire:click="addStudent(true)" class="pill-link">{{ __('crud.common.actions.add_and_new') }}</button></div></div></x-admin.modal>
 
-    <x-admin.modal :show="$showScheduleModal" :title="__('crud.groups.actions.schedule')" close-method="showScheduleModal" max-width="3xl">
+    <x-admin.modal :show="$showScheduleModal" :title="__('crud.groups.actions.schedule')" max-width="3xl">
+        <x-slot:header-actions>
+            <button type="button" wire:click="saveAndCloseSchedules" class="admin-modal__close" title="{{ __('crud.common.actions.save') }}" aria-label="{{ __('crud.common.actions.save') }}" data-group-schedule-save>
+                <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 3.75h11.25L19.5 7v13.25H5V3.75Z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M8 3.75v5.5h8v-5.5M8.25 20.25v-6.5h8v6.5" />
+                </svg>
+            </button>
+        </x-slot:header-actions>
         <section class="surface-table settings-record-table overflow-visible">
             <div class="overflow-visible">
                 <table class="w-full text-sm">
@@ -389,14 +441,15 @@ new class extends Component {
                             </tr>
                         @endforeach
                         <tr class="schedule-add-row">
-                            <td class="px-4 py-3"><select wire:model="day_of_week" data-search-input="true" data-open-on-focus="true" data-hide-placeholder-option="true" data-search-placeholder="{{ __('schedules.group.form.placeholders.day') }}" class="h-11 w-full rounded-xl px-3 text-sm"><option value="">{{ __('schedules.group.form.placeholders.day') }}</option>@foreach($days as $value=>$label)<option value="{{ $value }}">{{ $label }}</option>@endforeach</select>@error('day_of_week')<div class="mt-1 text-xs text-red-400">{{ $message }}</div>@enderror</td>
-                            <td class="px-4 py-3"><select wire:model="time_slot" data-search-input="true" data-open-on-focus="true" data-hide-placeholder-option="true" data-search-placeholder="{{ __('schedules.group.form.placeholders.timing') }}" class="h-11 w-full rounded-xl px-3 text-sm"><option value="">{{ __('schedules.group.form.placeholders.timing') }}</option>@foreach($timeSlots as $value=>$label)<option value="{{ $value }}">{{ $label }}</option>@endforeach</select>@error('time_slot')<div class="mt-1 text-xs text-red-400">{{ $message }}</div>@enderror</td>
-                            <td class="px-4 py-3"><button type="button" wire:click="saveSchedule" class="admin-icon-button admin-icon-button--accent" title="{{ $editingScheduleId ? __('crud.common.actions.update') : __('crud.common.actions.create') }}" aria-label="{{ $editingScheduleId ? __('crud.common.actions.update') : __('crud.common.actions.create') }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" d="M12 5v14M5 12h14"/></svg></button></td>
+                            <td class="px-4 py-3"><select wire:model.live="day_of_week" data-search-input="true" data-open-on-focus="true" data-hide-placeholder-option="true" data-search-placeholder="{{ __('schedules.group.form.placeholders.day') }}" class="h-11 w-full rounded-xl px-3 text-sm"><option value="">{{ __('schedules.group.form.placeholders.day') }}</option>@foreach($days as $value=>$label)<option value="{{ $value }}">{{ $label }}</option>@endforeach</select>@error('day_of_week')<div class="mt-1 text-xs text-red-400">{{ $message }}</div>@enderror</td>
+                            <td class="px-4 py-3"><select wire:model.live="time_slot" data-search-input="true" data-open-on-focus="true" data-hide-placeholder-option="true" data-search-placeholder="{{ __('schedules.group.form.placeholders.timing') }}" class="h-11 w-full rounded-xl px-3 text-sm"><option value="">{{ __('schedules.group.form.placeholders.timing') }}</option>@foreach($timeSlots as $value=>$label)<option value="{{ $value }}">{{ $label }}</option>@endforeach</select>@error('time_slot')<div class="mt-1 text-xs text-red-400">{{ $message }}</div>@enderror</td>
+                            <td class="px-4 py-3 text-center">@if($editingScheduleId)<button type="button" wire:click="saveSchedule" class="admin-icon-button admin-icon-button--accent" title="{{ __('crud.common.actions.update') }}" aria-label="{{ __('crud.common.actions.update') }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="m5 12 4 4L19 6"/></svg></button>@endif</td>
                         </tr>
                     </tbody>
                 </table>
             </div>
         </section>
+        @error('scheduleRows')<div class="mt-3 text-sm text-red-400">{{ $message }}</div>@enderror
     </x-admin.modal>
 
     <x-admin.modal :show="$showEditModal" :title="__('crud.groups.form.edit_title')" close-method="showEditModal" max-width="5xl">

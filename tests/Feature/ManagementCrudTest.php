@@ -2404,7 +2404,6 @@ class ManagementCrudTest extends TestCase
         Volt::test('groups.schedules', ['group' => $group])
             ->set('day_of_week', '6')
             ->set('time_slot', 'between_afternoon_sunset')
-            ->call('save')
             ->assertHasNoErrors();
 
         $schedule = GroupSchedule::query()->firstOrFail();
@@ -2423,10 +2422,101 @@ class ManagementCrudTest extends TestCase
         $this->assertSame('20:30', $schedule->fresh()->starts_at?->format('H:i'));
 
         Volt::test('groups.schedules', ['group' => $group])
-            ->call('delete', $schedule->id);
+            ->call('delete', $schedule->id)
+            ->assertHasErrors('scheduleRows');
 
-        $this->assertDatabaseMissing('group_schedules', [
+        $this->assertDatabaseHas('group_schedules', [
             'id' => $schedule->id,
+        ]);
+    }
+
+    public function test_group_show_schedule_popup_matches_the_course_schedule_workflow(): void
+    {
+        $this->signIn();
+
+        $academicYear = AcademicYear::create([
+            'name' => '2026-2027',
+            'starts_on' => '2026-08-01',
+            'ends_on' => '2027-07-31',
+            'is_active' => true,
+        ]);
+        $course = Course::create([
+            'name' => 'Group Popup Schedule Course',
+            'academic_year_id' => $academicYear->id,
+            'is_active' => true,
+        ]);
+        $teacher = Teacher::create([
+            'first_name' => 'Schedule',
+            'last_name' => 'Teacher',
+            'phone' => '0944000066',
+            'course_id' => $course->id,
+            'status' => 'active',
+            'is_helping' => true,
+        ]);
+        $group = Group::create([
+            'course_id' => $course->id,
+            'academic_year_id' => $academicYear->id,
+            'teacher_id' => $teacher->id,
+            'name' => 'Group Popup Schedule',
+            'is_active' => true,
+        ]);
+
+        $component = Volt::test('groups.show', ['group' => $group])
+            ->set('showScheduleModal', true)
+            ->assertSee('data-group-schedule-save', false)
+            ->call('saveAndCloseSchedules')
+            ->assertHasErrors('scheduleRows')
+            ->assertSet('showScheduleModal', true)
+            ->set('day_of_week', '4')
+            ->set('time_slot', 'between_noon_afternoon')
+            ->assertHasNoErrors()
+            ->assertSet('day_of_week', '')
+            ->assertSet('time_slot', '');
+
+        $schedule = GroupSchedule::query()->where('group_id', $group->id)->firstOrFail();
+
+        $component
+            ->call('deleteSchedule', $schedule->id)
+            ->assertHasErrors('scheduleRows')
+            ->call('saveAndCloseSchedules')
+            ->assertSet('showScheduleModal', false);
+
+        $this->assertDatabaseHas('group_schedules', [
+            'id' => $schedule->id,
+            'day_of_week' => 4,
+            'time_slot' => 'between_noon_afternoon',
+        ]);
+    }
+
+    public function test_course_schedule_adds_complete_rows_automatically_and_cannot_be_empty(): void
+    {
+        $this->signIn();
+
+        $course = Course::create([
+            'name' => 'Required Schedule Course',
+            'is_active' => true,
+        ]);
+
+        $component = Volt::test('courses.index')
+            ->call('openCourseSchedule', $course->id)
+            ->call('saveCourseSchedule')
+            ->assertHasErrors('scheduleRows')
+            ->assertSet('showScheduleModal', true)
+            ->set('scheduleDay', '4')
+            ->set('scheduleTimeSlot', 'between_noon_afternoon')
+            ->assertHasNoErrors();
+
+        $this->assertCount(1, $component->get('scheduleRows'));
+
+        $component
+            ->call('saveCourseSchedule')
+            ->assertHasNoErrors()
+            ->assertSet('showScheduleModal', false);
+
+        $this->assertDatabaseHas('course_schedules', [
+            'course_id' => $course->id,
+            'day_of_week' => 4,
+            'time_slot' => 'between_noon_afternoon',
         ]);
     }
 
