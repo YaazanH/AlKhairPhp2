@@ -582,7 +582,7 @@ new class extends Component {
                                 <span class="role-permission-group__arrow" aria-hidden="true">{{ app()->isLocale('ar') ? '‹' : '›' }}</span>
                             </summary>
                             <div class="role-permission-group__body">
-                                <div class="role-permission-grid" data-permission-group-rows="4">
+                                <div class="role-permission-grid" data-permission-group-rows="3">
                                 @foreach ($permissions as $permission)
                                     <label class="role-permission-option">
                                         <input wire:model="selected_permissions" type="checkbox" value="{{ $permission->name }}" class="rounded">

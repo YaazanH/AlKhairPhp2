@@ -139,11 +139,11 @@ new class extends Component
     <section class="page-hero p-6 lg:p-8">
         <div class="grid gap-6 xl:grid-cols-[minmax(0,1fr)_16rem] xl:items-end">
             <div>
-                <div class="eyebrow">{{ __('reports.quran_tests.eyebrow') }}</div>
+                <x-back-link :href="route('reports.index')" navigate />
+                <div class="eyebrow mt-4">{{ __('reports.quran_tests.eyebrow') }}</div>
                 <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('reports.quran_tests.title') }}</h1>
                 <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ __('reports.quran_tests.subtitle') }}</p>
             </div>
-            <div class="flex xl:justify-end"><a href="{{ route('reports.index') }}" class="pill-link">{{ __('reports.rankings.filters.back_to_reports') }}</a></div>
         </div>
     </section>
 

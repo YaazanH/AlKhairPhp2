@@ -684,7 +684,7 @@ new class extends Component {
         </div>
     @endif
 
-    <div class="grid gap-4 md:grid-cols-5">
+    <div class="mobile-compact-highlights mobile-compact-highlights--five grid gap-4 md:grid-cols-5">
         <article class="stat-card">
             <div class="kpi-label">{{ __('crud.teachers.stats.all') }}</div>
             <div class="metric-value mt-6">{{ number_format($totals['all']) }}</div>
@@ -711,7 +711,7 @@ new class extends Component {
         </article>
     </div>
 
-    <section class="surface-table">
+    <section class="surface-table mobile-records-surface">
         <div class="admin-grid-meta admin-grid-meta--controls">
             <div class="admin-grid-meta__title">{{ __('crud.teachers.table.title') }}</div>
             <div class="admin-toolbar__controls">
@@ -755,7 +755,70 @@ new class extends Component {
         @if ($teachers->isEmpty())
             <div class="admin-empty-state">{{ __('crud.teachers.table.empty') }}</div>
         @else
-            <div class="overflow-x-auto">
+            <div class="responsive-records-mobile">
+                @foreach ($teachers as $teacher)
+                    @php
+                        $accessRoleName = $teacher->accessRole?->name;
+                        $accessRoleLabel = $accessRoleName
+                            ? ((__('ui.roles.'.$accessRoleName) === 'ui.roles.'.$accessRoleName)
+                                ? \Illuminate\Support\Str::of($accessRoleName)->replace('_', ' ')->headline()->toString()
+                                : __('ui.roles.'.$accessRoleName))
+                            : __('crud.common.not_available');
+                    @endphp
+                    <article class="mobile-record-card">
+                        <div class="mobile-record-card__header">
+                            <div class="student-inline min-w-0">
+                                <x-teacher-avatar :teacher="$teacher" size="sm" />
+                                <div class="student-inline__body min-w-0">
+                                    <div class="student-inline__name">{{ $teacher->first_name }} {{ $teacher->last_name }}</div>
+                                    <div class="student-inline__meta">{{ $teacher->user?->username ?: __('crud.common.not_available') }}</div>
+                                </div>
+                            </div>
+                            <span class="{{ $teacher->status === 'active' ? 'status-chip status-chip--emerald' : ($teacher->status === 'pending' ? 'status-chip status-chip--gold' : (in_array($teacher->status, ['blocked', 'declined'], true) ? 'status-chip status-chip--rose' : 'status-chip status-chip--slate')) }}">
+                                {{ __('crud.common.status_options.' . $teacher->status) }}
+                            </span>
+                        </div>
+
+                        <dl class="mobile-record-card__details">
+                            <div>
+                                <dt>{{ __('crud.teachers.table.headers.phone') }}</dt>
+                                <dd><bdi dir="ltr">{{ $teacher->phone ?: __('crud.common.not_available') }}</bdi></dd>
+                            </div>
+                            <div>
+                                <dt>{{ __('crud.teachers.table.headers.access_role') }}</dt>
+                                <dd>{{ $accessRoleLabel }}</dd>
+                            </div>
+                            <div class="mobile-record-card__detail--wide">
+                                <dt>{{ __('crud.teachers.table.headers.helping') }}</dt>
+                                <dd>
+                                    @can('teachers.update')
+                                        <button type="button" wire:click="toggleHelping({{ $teacher->id }})" class="{{ $teacher->is_helping ? 'status-chip status-chip--emerald' : 'status-chip status-chip--slate' }}">
+                                            {{ $teacher->is_helping ? __('crud.teachers.helping_options.helping') : __('crud.teachers.helping_options.not_helping') }}
+                                        </button>
+                                    @else
+                                        <span class="{{ $teacher->is_helping ? 'status-chip status-chip--emerald' : 'status-chip status-chip--slate' }}">
+                                            {{ $teacher->is_helping ? __('crud.teachers.helping_options.helping') : __('crud.teachers.helping_options.not_helping') }}
+                                        </span>
+                                    @endcan
+                                </dd>
+                            </div>
+                        </dl>
+
+                        <div class="mobile-record-card__actions">
+                            @can('teachers.review-signups')
+                                @if ($teacher->status === 'pending')
+                                    <button type="button" wire:click="openReviewModal({{ $teacher->id }})" class="pill-link pill-link--compact">{{ __('crud.teachers.review.action') }}</button>
+                                @endif
+                            @endcan
+                            @can('teachers.update')
+                                <button type="button" wire:click="edit({{ $teacher->id }})" class="pill-link pill-link--compact">{{ __('crud.common.actions.edit') }}</button>
+                            @endcan
+                        </div>
+                    </article>
+                @endforeach
+            </div>
+
+            <div class="responsive-records-desktop overflow-x-auto">
                 <table class="text-sm">
                     <thead>
                         <tr>

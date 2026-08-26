@@ -95,8 +95,8 @@ return [
             'permissions' => 'الصلاحيات المباشرة',
         ],
         'filters' => [
-            'role' => 'الدور',
-            'all_roles' => 'كل الأدوار',
+            'profile' => 'الملف الشخصي',
+            'all_profiles' => 'كل الملفات الشخصية',
         ],
         'scopes' => [
             'title' => 'توسعات النطاق',

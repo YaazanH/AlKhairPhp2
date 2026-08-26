@@ -54,6 +54,7 @@ new class extends Component
             ->get();
 
         return [
+            'entriesEnabled' => \App\Support\OperationalFeatureSettings::memorizationAndSabersEnabled(),
             'students' => $students,
             'partialJuzs' => $this->availablePartialJuzs(),
             'availableQuarters' => $this->availablePartialQuarters(),
@@ -389,7 +390,7 @@ new class extends Component
     <section class="page-hero quick-saber-hero p-6 lg:p-8">
         <div class="quick-saber-hero__layout">
             <h1 class="font-display text-4xl leading-none text-white md:text-5xl">{{ __('quick-tests.title') }}</h1>
-            @if ($canRecordPartial && $canRecordFinal)
+            @if ($entriesEnabled && $canRecordPartial && $canRecordFinal)
                 <div class="quick-saber-type-switch" role="tablist" aria-label="{{ __('quick-tests.saber_type') }}">
                     <button type="button" role="tab" aria-selected="{{ $tab === 'partial' ? 'true' : 'false' }}" wire:click="switchTab('partial')" @class(['quick-saber-type-switch__option', 'is-active' => $tab === 'partial'])>
                         {{ __('quick-tests.partial') }}
@@ -407,12 +408,14 @@ new class extends Component
     @endif
 
     <section class="surface-panel p-5 lg:p-6">
-        @if ($tab === 'partial')
+        @if (! $entriesEnabled)
+            <x-quick-entry-disabled :message="__('quick-tests.saber_disabled_warning')" />
+        @elseif ($tab === 'partial')
             <form wire:submit="savePartial" class="quick-saber-form">
                 <div class="quick-saber-form__row">
                     <div>
                         <label class="mb-1 block text-sm font-medium">{{ __('quick-tests.student') }}</label>
-                        <select wire:model.live="partialStudentId" class="quick-saber-control w-full rounded-xl px-4 text-sm">
+                        <select wire:model.live="partialStudentId" data-search-input="true" data-open-on-focus="true" data-hide-placeholder-option="true" data-search-placeholder="{{ __('workflow.common.student_name_placeholder') }}" class="quick-saber-control w-full rounded-xl px-4 text-sm">
                             <option value="">{{ __('quick-tests.select_student') }}</option>
                             @foreach ($students as $student)<option value="{{ $student->id }}">{{ $student->full_name }}</option>@endforeach
                         </select>
@@ -452,7 +455,10 @@ new class extends Component
 
                     <div>
                         <label class="mb-1 block text-sm font-medium">{{ __('quick-tests.mistakes') }}</label>
-                        <input wire:model="mistakeCount" type="number" min="0" max="999" step="1" class="quick-saber-control w-full rounded-xl px-4 text-sm">
+                        <div class="quick-saber-affixed-input">
+                            <input wire:model="mistakeCount" type="number" min="0" max="999" step="1" class="quick-saber-control w-full rounded-xl px-4 text-sm">
+                            <span class="quick-saber-affixed-input__suffix" aria-hidden="true">{{ __('quick-tests.mistakes_suffix') }}</span>
+                        </div>
                         @error('mistakeCount') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
                     </div>
                 </div>
@@ -466,7 +472,7 @@ new class extends Component
                 <div class="quick-saber-form__row">
                     <div>
                         <label class="mb-1 block text-sm font-medium">{{ __('quick-tests.student') }}</label>
-                        <select wire:model.live="finalStudentId" class="quick-saber-control w-full rounded-xl px-4 text-sm">
+                        <select wire:model.live="finalStudentId" data-search-input="true" data-open-on-focus="true" data-hide-placeholder-option="true" data-search-placeholder="{{ __('workflow.common.student_name_placeholder') }}" class="quick-saber-control w-full rounded-xl px-4 text-sm">
                             <option value="">{{ __('quick-tests.select_student') }}</option>
                             @foreach ($students as $student)<option value="{{ $student->id }}">{{ $student->full_name }}</option>@endforeach
                         </select>
@@ -499,7 +505,10 @@ new class extends Component
 
                     <div>
                         <label class="mb-1 block text-sm font-medium">{{ __('quick-tests.mark') }}</label>
-                        <input wire:model="finalMark" type="number" min="0" max="100" step="0.01" class="quick-saber-control w-full rounded-xl px-4 text-sm">
+                        <div class="quick-saber-affixed-input">
+                            <input wire:model="finalMark" type="number" min="0" max="100" step="0.01" class="quick-saber-control w-full rounded-xl px-4 text-sm">
+                            <span class="quick-saber-affixed-input__suffix" aria-hidden="true">%</span>
+                        </div>
                         @error('finalMark') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
                     </div>
                 </div>

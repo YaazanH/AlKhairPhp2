@@ -22,7 +22,7 @@ $scrollIntoViewJsSnippet = ($scrollTo !== false)
 <div>
     @if ($paginator->hasPages())
         <nav role="navigation" aria-label="Pagination Navigation" class="app-pagination">
-            <div class="app-pagination__mobile sm:hidden">
+            <div class="app-pagination__mobile">
                 @if ($paginator->onFirstPage())
                     <span class="app-pagination__button app-pagination__button--disabled">
                         {!! __('pagination.previous') !!}
@@ -58,17 +58,7 @@ $scrollIntoViewJsSnippet = ($scrollTo !== false)
                 @endif
             </div>
 
-            <div class="hidden items-center justify-between gap-4 sm:flex">
-                <p class="app-pagination__summary">
-                    <span>{{ __('pagination.showing') }}</span>
-                    <span class="app-pagination__summary-strong">{{ $paginator->firstItem() }}</span>
-                    <span>{{ __('pagination.to') }}</span>
-                    <span class="app-pagination__summary-strong">{{ $paginator->lastItem() }}</span>
-                    <span>{{ __('pagination.of') }}</span>
-                    <span class="app-pagination__summary-strong">{{ $paginator->total() }}</span>
-                    <span>{{ __('pagination.results') }}</span>
-                </p>
-
+            <div class="app-pagination__desktop">
                 <div class="app-pagination__nav">
                     @if ($paginator->onFirstPage())
                         <span class="app-pagination__icon app-pagination__icon--disabled" aria-disabled="true" aria-label="{{ __('pagination.previous') }}">
@@ -141,6 +131,16 @@ $scrollIntoViewJsSnippet = ($scrollTo !== false)
                         </span>
                     @endif
                 </div>
+
+                <p class="app-pagination__summary">
+                    <span>{{ __('pagination.showing') }}</span>
+                    <span class="app-pagination__summary-strong">{{ $paginator->firstItem() }}</span>
+                    <span>{{ __('pagination.to') }}</span>
+                    <span class="app-pagination__summary-strong">{{ $paginator->lastItem() }}</span>
+                    <span>{{ __('pagination.of') }}</span>
+                    <span class="app-pagination__summary-strong">{{ $paginator->total() }}</span>
+                    <span>{{ __('pagination.results') }}</span>
+                </p>
             </div>
         </nav>
     @endif

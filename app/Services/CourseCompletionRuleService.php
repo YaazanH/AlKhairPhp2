@@ -12,7 +12,6 @@ use App\Models\Group;
 use App\Models\PointTransaction;
 use App\Models\PointType;
 use App\Models\QuranFinalTest;
-use App\Models\StudentAttendanceRecord;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
@@ -25,19 +24,25 @@ class CourseCompletionRuleService
     public function settings(): array
     {
         $settings = AppSetting::groupValues('course_completion');
+        $assessmentTypeRequirements = $this->assessmentTypeRequirements($settings);
+        $assessmentGradeIds = $this->gradeIds($settings->get('assessment_grade_ids'));
 
-        return [
+        $resolved = [
             'required_passed_final_tests' => max(0, (int) ($settings->get('required_passed_final_tests') ?? 1)),
             'required_memorized_pages' => max(0, (int) ($settings->get('required_memorized_pages') ?? 0)),
             'final_rule_operator' => in_array($settings->get('final_rule_operator'), ['and', 'or'], true) ? $settings->get('final_rule_operator') : 'and',
             'required_passed_quizzes' => max(0, (int) ($settings->get('required_passed_quizzes') ?? 1)),
-            'assessment_type_requirements' => $this->assessmentTypeRequirements($settings),
+            'assessment_type_requirements' => $assessmentTypeRequirements,
             'final_test_grade_ids' => $this->gradeIds($settings->get('final_test_grade_ids')),
-            'assessment_grade_ids' => $this->gradeIds($settings->get('assessment_grade_ids')),
-            'required_present_attendance' => max(0, (int) ($settings->get('required_present_attendance') ?? 1)),
+            'assessment_grade_ids' => $assessmentGradeIds,
+            'assessment_rule_grade_ids' => $this->assessmentRuleGradeIds($settings, $assessmentTypeRequirements, $assessmentGradeIds),
             'retain_percentage' => min(100, max(0, (int) ($settings->get('retain_percentage') ?? 50))),
             'minimum_points' => max(0, (int) ($settings->get('minimum_points') ?? 0)),
         ];
+
+        $resolved['final_rule_rows'] = $this->finalRuleRows($settings, $resolved);
+
+        return $resolved;
     }
 
     public function saveSettings(array $validated): void
@@ -46,7 +51,6 @@ class CourseCompletionRuleService
             'required_passed_final_tests',
             'required_memorized_pages',
             'required_passed_quizzes',
-            'required_present_attendance',
             'retain_percentage',
             'minimum_points',
         ] as $key) {
@@ -70,6 +74,13 @@ class CourseCompletionRuleService
         AppSetting::storeValue('course_completion', 'final_rule_operator', $validated['final_rule_operator']);
         AppSetting::storeValue('course_completion', 'final_test_grade_ids', $validated['final_test_grade_ids'] ?? [], 'array');
         AppSetting::storeValue('course_completion', 'assessment_grade_ids', $validated['assessment_grade_ids'] ?? [], 'array');
+        AppSetting::storeValue('course_completion', 'assessment_rule_grade_ids', $validated['assessment_rule_grade_ids'] ?? [], 'array');
+        AppSetting::storeValue('course_completion', 'final_rule_rows', $validated['final_rule_rows'] ?? [[
+            'required_passed_final_tests' => (int) $validated['required_passed_final_tests'],
+            'required_memorized_pages' => (int) $validated['required_memorized_pages'],
+            'final_rule_operator' => $validated['final_rule_operator'],
+            'grade_ids' => $validated['final_test_grade_ids'] ?? [],
+        ]], 'array');
     }
 
     public function apply(array $filters, User $actor): array
@@ -231,37 +242,40 @@ class CourseCompletionRuleService
                 ->count();
         }
 
-        $presentAttendance = StudentAttendanceRecord::query()
-            ->where('enrollment_id', $enrollment->id)
-            ->whereHas('status', fn (Builder $query) => $query->where('is_present', true))
-            ->count();
-
         $unmet = [];
 
         $gradeLevelId = $enrollment->student?->grade_level_id;
-        $finalGradeIds = $settings['final_test_grade_ids'] ?? [];
-        $assessmentGradeIds = $settings['assessment_grade_ids'] ?? [];
-        $finalRuleApplies = $finalGradeIds === [] || in_array($gradeLevelId, $finalGradeIds, true);
-        $assessmentRulesApply = $assessmentGradeIds === [] || in_array($gradeLevelId, $assessmentGradeIds, true);
+        $finalRule = collect($settings['final_rule_rows'] ?? [])->first(function (array $rule) use ($gradeLevelId): bool {
+            $gradeIds = $rule['grade_ids'] ?? [];
 
-        if ($finalRuleApplies) {
-            $finalTestsMet = $settings['required_passed_final_tests'] <= 0 || $passedFinalTests >= $settings['required_passed_final_tests'];
-            $pagesMet = $settings['required_memorized_pages'] <= 0 || $memorizedPages >= $settings['required_memorized_pages'];
-            $combinedMet = $settings['final_rule_operator'] === 'or' ? $finalTestsMet || $pagesMet : $finalTestsMet && $pagesMet;
+            return $gradeIds === [] || in_array($gradeLevelId, $gradeIds, true);
+        });
+
+        if ($finalRule) {
+            $requiredFinalTests = (int) $finalRule['required_passed_final_tests'];
+            $requiredPages = (int) $finalRule['required_memorized_pages'];
+            $operator = $finalRule['final_rule_operator'];
+            $finalTestsMet = $requiredFinalTests <= 0 || $passedFinalTests >= $requiredFinalTests;
+            $pagesMet = $requiredPages <= 0 || $memorizedPages >= $requiredPages;
+            $combinedMet = $operator === 'or' ? $finalTestsMet || $pagesMet : $finalTestsMet && $pagesMet;
 
             if (! $combinedMet) {
                 $unmet[] = __('settings.course_completion.criteria.final_saber_pages_progress', [
                     'tests_actual' => $passedFinalTests,
-                    'tests_required' => $settings['required_passed_final_tests'],
+                    'tests_required' => $requiredFinalTests,
                     'pages_actual' => $memorizedPages,
-                    'pages_required' => $settings['required_memorized_pages'],
-                    'operator' => __('settings.course_completion.options.'.$settings['final_rule_operator']),
+                    'pages_required' => $requiredPages,
+                    'operator' => __('settings.course_completion.options.'.$operator),
                 ]);
             }
         }
 
         foreach ($assessmentTypeRequirements as $assessmentTypeId => $requiredCount) {
-            if (! $assessmentRulesApply) {
+            $assessmentGradeIds = $settings['assessment_rule_grade_ids'][$assessmentTypeId]
+                ?? $settings['assessment_grade_ids']
+                ?? [];
+
+            if ($assessmentGradeIds !== [] && ! in_array($gradeLevelId, $assessmentGradeIds, true)) {
                 continue;
             }
             if ($requiredCount <= 0) {
@@ -283,20 +297,12 @@ class CourseCompletionRuleService
             ]);
         }
 
-        if ($settings['required_present_attendance'] > 0 && $presentAttendance < $settings['required_present_attendance']) {
-            $unmet[] = __('settings.course_completion.criteria.attendance_progress', [
-                'actual' => $presentAttendance,
-                'required' => $settings['required_present_attendance'],
-            ]);
-        }
-
         return [
             'passed' => $unmet === [],
             'passed_final_tests' => $passedFinalTests,
             'memorized_pages' => $memorizedPages,
             'passed_quizzes' => $passedQuizzes,
             'passed_assessments_by_type' => $passedAssessmentsByType,
-            'present_attendance' => $presentAttendance,
             'unmet' => $unmet,
         ];
     }
@@ -331,6 +337,59 @@ class CourseCompletionRuleService
         return is_array($stored)
             ? collect($stored)->map(fn ($id) => (int) $id)->filter()->unique()->values()->all()
             : \App\Models\GradeLevel::query()->where('is_active', true)->pluck('id')->map(fn ($id) => (int) $id)->all();
+    }
+
+    protected function assessmentRuleGradeIds(Collection $settings, array $requirements, array $legacyGradeIds): array
+    {
+        $stored = $settings->get('assessment_rule_grade_ids');
+
+        if (is_array($stored) && $stored !== []) {
+            return collect($stored)
+                ->filter(fn (mixed $gradeIds, mixed $assessmentTypeId): bool => is_numeric($assessmentTypeId) && is_array($gradeIds))
+                ->mapWithKeys(fn (array $gradeIds, mixed $assessmentTypeId): array => [
+                    (int) $assessmentTypeId => collect($gradeIds)->map(fn ($id) => (int) $id)->filter()->unique()->values()->all(),
+                ])
+                ->all();
+        }
+
+        return collect(array_keys($requirements))
+            ->mapWithKeys(fn (int $assessmentTypeId): array => [$assessmentTypeId => $legacyGradeIds])
+            ->all();
+    }
+
+    protected function finalRuleRows(Collection $settings, array $legacy): array
+    {
+        $storedRows = $settings->get('final_rule_rows');
+
+        if (is_array($storedRows) && $storedRows !== []) {
+            $rows = collect($storedRows)
+                ->filter(fn (mixed $row): bool => is_array($row))
+                ->map(function (array $row): array {
+                    $operator = $row['final_rule_operator'] ?? 'and';
+
+                    return [
+                        'required_passed_final_tests' => max(0, (int) ($row['required_passed_final_tests'] ?? 0)),
+                        'required_memorized_pages' => max(0, (int) ($row['required_memorized_pages'] ?? 0)),
+                        'final_rule_operator' => in_array($operator, ['and', 'or'], true) ? $operator : 'and',
+                        'grade_ids' => is_array($row['grade_ids'] ?? null)
+                            ? collect($row['grade_ids'])->map(fn ($id) => (int) $id)->filter()->unique()->values()->all()
+                            : [],
+                    ];
+                })
+                ->values()
+                ->all();
+
+            if ($rows !== []) {
+                return $rows;
+            }
+        }
+
+        return [[
+            'required_passed_final_tests' => $legacy['required_passed_final_tests'],
+            'required_memorized_pages' => $legacy['required_memorized_pages'],
+            'final_rule_operator' => $legacy['final_rule_operator'],
+            'grade_ids' => $legacy['final_test_grade_ids'],
+        ]];
     }
 
     protected function adjustmentNote(Enrollment $enrollment, array $criteria, int $basePoints, int $targetPoints, int $retainPercentage): string

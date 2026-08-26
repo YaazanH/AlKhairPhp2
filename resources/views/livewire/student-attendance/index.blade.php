@@ -442,7 +442,7 @@ new class extends Component
                     <select id="attendance-day-default-status" wire:model="default_attendance_status_id" class="h-12 min-h-12 w-full rounded-xl px-4 py-0 text-sm">
                         <option value="">{{ __('workflow.student_attendance.days.form.no_default_status') }}</option>
                         @foreach ($defaultStatusOptions as $status)
-                            <option value="{{ $status->id }}">{{ $status->name }}{{ $status->is_default ? ' - '.__('settings.tracking.labels.default_attendance_status') : '' }}</option>
+                            <option value="{{ $status->id }}">{{ $status->name }}</option>
                         @endforeach
                     </select>
                     @error('default_attendance_status_id')

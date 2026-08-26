@@ -8,19 +8,14 @@
     <form wire:submit="saveFinanceRequestEdit" class="space-y-4">
         @if ($edit_supports_expense_details)
             <div class="grid gap-4 md:grid-cols-2">
-                <div>
+                <div class="md:col-span-2">
                     <label class="mb-1 block text-sm font-medium">{{ __('finance.fields.amount') }}</label>
-                    <input wire:model="edit_amount" type="text" inputmode="decimal" data-thousand-separator class="w-full rounded-xl px-4 py-3 text-sm">
+                    <x-finance.amount-input
+                        amount-model="edit_amount"
+                        currency-model="edit_currency_id"
+                        :currencies="app(\App\Services\FinanceService::class)->currenciesForCashBox($edit_cash_box_id)->get()"
+                    />
                     @error('edit_amount') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
-                </div>
-
-                <div>
-                    <label class="mb-1 block text-sm font-medium">{{ __('finance.common.currency') }}</label>
-                    <select wire:model.live="edit_currency_id" class="w-full rounded-xl px-4 py-3 text-sm">
-                        @foreach (app(\App\Services\FinanceService::class)->currenciesForCashBox($edit_cash_box_id)->get() as $currency)
-                            <option value="{{ $currency->id }}">{{ $currency->code }} - {{ $currency->name }}</option>
-                        @endforeach
-                    </select>
                     @error('edit_currency_id') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
                 </div>
 

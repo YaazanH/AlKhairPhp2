@@ -380,7 +380,8 @@ new class extends Component
 
 <div class="page-stack">
     <section class="page-hero p-6 lg:p-8">
-        <div class="eyebrow">{{ __('ui.nav.student_attendance') }}</div>
+        <x-back-link :href="route('student-attendance.show', $dayRecord)" navigate />
+        <div class="eyebrow mt-4">{{ __('ui.nav.student_attendance') }}</div>
         <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('workflow.student_attendance.quick.title') }}</h1>
         <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ __('workflow.student_attendance.quick.subtitle') }}</p>
         <div class="mt-6 flex flex-wrap gap-3">
@@ -390,10 +391,6 @@ new class extends Component
             <span class="badge-soft">{{ __('workflow.student_attendance.day_details.stats.marked') }}: {{ number_format($markedCount) }}</span>
         </div>
     </section>
-
-    <div>
-        <a href="{{ route('student-attendance.show', $dayRecord) }}" wire:navigate class="pill-link pill-link--compact">{{ __('workflow.student_attendance.marking.back') }}</a>
-    </div>
 
     @if (session('status'))
         <div class="flash-success px-4 py-3 text-sm">{{ session('status') }}</div>

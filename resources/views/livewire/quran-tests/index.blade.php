@@ -668,9 +668,10 @@ new class extends Component {
             @if ($eligibleAwqafStudents->isEmpty())
                 <div class="admin-empty-state">{{ __('workflow.quran_tests.eligible_modal.empty') }}</div>
             @else
-                <div class="overflow-x-auto">
+                <div class="surface-table settings-record-table" data-settings-record-table data-eligible-awqaf-table>
+                    <div class="overflow-x-auto">
                     <table class="w-full text-sm">
-                        <thead class="border-y border-white/8 bg-white/5">
+                        <thead>
                             <tr>
                                 <th class="px-5 py-4 text-left">{{ __('workflow.quran_tests.eligible_modal.headers.full_name') }}</th>
                                 <th class="px-5 py-4 text-left">{{ __('workflow.quran_tests.eligible_modal.headers.father_name') }}</th>
@@ -678,7 +679,7 @@ new class extends Component {
                                 <th class="px-5 py-4 text-left">{{ __('workflow.quran_tests.eligible_modal.headers.ajza_count') }}</th>
                             </tr>
                         </thead>
-                        <tbody class="divide-y divide-white/6">
+                        <tbody>
                             @foreach ($eligibleAwqafStudents as $eligibleStudent)
                                 <tr>
                                     <td class="px-5 py-4 text-white">{{ $eligibleStudent->full_name }}</td>
@@ -689,6 +690,7 @@ new class extends Component {
                             @endforeach
                         </tbody>
                     </table>
+                    </div>
                 </div>
             @endif
         </div>
@@ -709,15 +711,15 @@ new class extends Component {
                         id="quran-workbench-student"
                         wire:key="quran-workbench-student-select"
                         wire:model.live="selectedStudentId"
-                        data-search-placeholder="{{ __('crud.common.filters.search_placeholder') }}"
+                        data-search-input="true"
+                        data-open-on-focus="true"
+                        data-hide-placeholder-option="true"
+                        data-search-placeholder="{{ __('workflow.common.student_name_placeholder') }}"
                         class="w-full rounded-xl px-4 py-3 text-sm"
                     >
                         <option value="">{{ __('workflow.quran_tests.workbench.form.select_student') }}</option>
                         @foreach ($studentOptions as $student)
-                            <option
-                                value="{{ $student->id }}"
-                                data-search="{{ trim(implode(' ', array_filter([$student->student_number, $student->first_name, $student->last_name]))) }}"
-                            >
+                            <option value="{{ $student->id }}">
                                 {{ trim($student->first_name.' '.$student->last_name) }}
                             </option>
                         @endforeach

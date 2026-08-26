@@ -761,6 +761,8 @@ class FinanceAndActivitiesTest extends TestCase
 
         Volt::test('finance.revenue-requests')
             ->call('openCreateModal')
+            ->assertSee('admin-modal__dialog--3xl', false)
+            ->assertSee('data-finance-entry-create-form', false)
             ->assertSee($localOnlyBox->name)
             ->assertDontSee($baseOnlyBox->name)
             ->set('cash_box_id', $localOnlyBox->id)
@@ -791,6 +793,12 @@ class FinanceAndActivitiesTest extends TestCase
 
         Volt::test('finance.expense-requests')
             ->call('openCreateModal')
+            ->assertSee('admin-modal__dialog--3xl', false)
+            ->assertSee('data-finance-entry-amount', false)
+            ->assertSee('data-finance-entry-date', false)
+            ->assertSee('data-finance-entry-fund', false)
+            ->assertSee('data-finance-entry-description', false)
+            ->assertSee('data-finance-entry-attachments', false)
             ->set('amount', '40')
             ->set('currency_id', $currency->id)
             ->set('cash_box_id', $cashBox->id)
@@ -870,6 +878,8 @@ class FinanceAndActivitiesTest extends TestCase
         Volt::test('finance.revenue-requests')
             ->call('openCreateModal')
             ->set('finance_category_id', $category->id)
+            ->assertSee('data-donor-row-compact="true"', false)
+            ->assertDontSee(__('finance.messages.revenue_name_mask_help'))
             ->set('counterparty_name', 'Yazan Al Hamwi')
             ->set('amount', '75')
             ->set('currency_id', $localCurrency->id)
@@ -1240,11 +1250,15 @@ class FinanceAndActivitiesTest extends TestCase
             ->assertSeeText(__('finance.actions.details', [], 'ar'))
             ->set('showQuarterDetailsModal', true)
             ->assertSeeText(__('finance.dashboard.quarter_expense_comparison', [], 'ar'))
+            ->assertSee('finance-quarter-chart__legend', false)
+            ->assertSee('finance-quarter-chart__tooltip', false)
             ->assertSeeText('2025');
 
         Volt::test('finance.exchange')
             ->assertSee('EXC-000001')
             ->assertSee('Test exchange')
+            ->assertSee('dir="ltr" data-exchange-total-amount', false)
+            ->assertViewHas('toCurrencies', fn ($currencies) => $currencies->doesntContain('id', $usd->id) && $currencies->contains('id', $syp->id))
             ->assertDontSeeText(__('finance.exchange.rate_board_title'));
     }
 
@@ -2302,7 +2316,45 @@ class FinanceAndActivitiesTest extends TestCase
             ->assertDontSee('تظهر فقط الطلبات التي تنتظر المراجعة.')
             ->assertDontSee('Only requests awaiting review are shown.')
             ->assertSee('lg:grid-cols-[minmax(0,.8fr)_minmax(17rem,1.2fr)]', false)
-            ->assertSee('xl:h-[22rem] xl:w-[22rem]', false);
+            ->assertSee('xl:h-[22rem] xl:w-[22rem]', false)
+            ->set('showQuarterDetailsModal', true)
+            ->assertSee('data-quarter-chart-step', false)
+            ->assertSee('data-quarter-chart-maximum', false)
+            ->assertSee('finance-quarter-chart h-80', false)
+            ->assertSee('admin-modal__dialog--3xl', false)
+            ->set('showQuarterDetailsModal', false)
+            ->set('showRequestHistoryModal', true)
+            ->assertSee('data-withdrawal-history-table', false)
+            ->assertSee('data-settings-record-table', false)
+            ->assertSee('admin-modal__dialog--compact', false)
+            ->assertViewHas('requestHistory', fn ($requests) => $requests->perPage() === 8)
+            ->set('showRequestHistoryModal', false)
+            ->set('showTransactionsModal', true)
+            ->assertSee('data-financial-transactions-table', false)
+            ->assertViewHas('transactions', fn ($transactions) => $transactions->perPage() === 8)
+            ->set('showTransactionsModal', false)
+            ->set('showTransferModal', true)
+            ->assertSee('data-finance-amount-input', false)
+            ->assertSee('data-clearable="false"', false)
+            ->assertSee('data-finance-currency-required="true"', false)
+            ->assertSee('data-search-placeholder=""', false)
+            ->set('showTransferModal', false)
+            ->set('showCreateRequestModal', true)
+            ->assertSee('data-finance-amount-input', false);
+
+        $financeTableCss = file_get_contents(resource_path('css/app.css'));
+        $this->assertStringNotContainsString('[data-finance-generic-table] thead {', $financeTableCss);
+        $this->assertStringContainsString('.admin-modal__dialog:has([data-withdrawal-history-table])', $financeTableCss);
+        $this->assertStringContainsString('.admin-modal__dialog:has([data-financial-transactions-table])', $financeTableCss);
+        $this->assertStringContainsString('grid-template-columns: 5.5rem minmax(0, 1fr);', $financeTableCss);
+        $this->assertStringContainsString("html[dir='rtl'] .finance-amount-input__currency + .searchable-select {", $financeTableCss);
+        $this->assertStringContainsString("html[dir='rtl'] .finance-amount-input__currency + .searchable-select .searchable-select__search {", $financeTableCss);
+        $this->assertStringContainsString('.finance-amount-input__currency + .searchable-select .searchable-select__search--trigger::placeholder {', $financeTableCss);
+        $this->assertStringContainsString('.finance-amount-input__currency + .searchable-select.searchable-select--invalid .searchable-select__search--trigger {', $financeTableCss);
+        $this->assertStringContainsString('.finance-currency-save-disabled {', $financeTableCss);
+        $this->assertStringContainsString(".searchable-select__clear {\n    position: absolute;\n    inset-inline-end: 1rem;\n    top: 50%;", $financeTableCss);
+        $this->assertStringContainsString('.finance-amount-input__currency + .searchable-select .searchable-select__option {', $financeTableCss);
+        $this->assertStringContainsString('.finance-amount-input__currency + .searchable-select .searchable-select__chevron--input {', $financeTableCss);
     }
 
     public function test_count_expense_finalisation_edits_the_original_expense_without_posting_income(): void
@@ -2460,6 +2512,8 @@ class FinanceAndActivitiesTest extends TestCase
             ->assertSee('<svg class="size-5"', false)
             ->assertSee('data-invoice-print-icon', false)
             ->assertSee('data-invoice-view-items-box', false)
+            ->assertSee('data-finance-generic-table', false)
+            ->assertSee('data-settings-record-table', false)
             ->assertDontSee('class="pill-link">'.__('finance.actions.view_attachment').'</a>', false);
 
         Volt::test('finance.expense-requests')

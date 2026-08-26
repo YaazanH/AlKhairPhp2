@@ -13,6 +13,7 @@
 @endif
 
 <form
+    id="print-template-editor-form"
     method="POST"
     action="{{ $isEditing ? route('print-templates.templates.update', $template) : route('print-templates.templates.store') }}"
     enctype="multipart/form-data"
@@ -51,7 +52,14 @@
                     <div class="print-template-settings-dialog__panel">
                         <div class="admin-builder-header mb-5">
                             <h2 class="font-display text-2xl text-white">{{ __('print_templates.templates.form.fields.paper_settings') }}</h2>
-                            <button type="button" class="admin-modal__close" onclick="this.closest('dialog').close()" aria-label="{{ __('crud.common.actions.close') }}">&times;</button>
+                            <div class="admin-modal__header-actions">
+                                @if ($isEditing)
+                                    @can('id-cards.templates.manage')
+                                        <button type="submit" form="print-template-delete-form" class="admin-modal__close print-template-settings-delete" title="{{ __('crud.common.actions.delete') }}" aria-label="{{ __('crud.common.actions.delete') }}" data-print-template-symbol-action="delete"><x-print-template-icon name="trash" /></button>
+                                    @endcan
+                                @endif
+                                <button type="button" class="admin-modal__close" onclick="this.closest('dialog').close()" aria-label="{{ __('crud.common.actions.close') }}">&times;</button>
+                            </div>
                         </div>
                         <div class="print-template-type-options mb-5">
                             <label class="admin-checkbox"><input type="checkbox" name="is_active" value="1" @checked(old('is_active', $template->is_active))><span>{{ __('print_templates.templates.form.fields.is_active') }}</span></label>
@@ -165,34 +173,29 @@
                 <div class="print-template-command-bar__title">{{ __('print_templates.templates.form.sections.elements') }}</div>
             </div>
             <div class="print-template-command-bar__actions">
-                <button type="button" class="pill-link pill-link--compact" data-print-template-add="custom_text">{{ __('print_templates.templates.form.buttons.add_custom_text') }}</button>
-                <button type="button" class="pill-link pill-link--compact" data-print-template-add="dynamic_text">{{ __('print_templates.templates.form.buttons.add_dynamic_text') }}</button>
-                <button type="button" class="pill-link pill-link--compact" data-print-template-add="date_text">{{ __('print_templates.templates.form.buttons.add_date') }}</button>
-                <button type="button" class="pill-link pill-link--compact" data-print-template-add="page_number">{{ __('print_templates.templates.form.buttons.add_page_number') }}</button>
-                <button type="button" class="pill-link pill-link--compact" data-print-template-add="dynamic_image">{{ __('print_templates.templates.form.buttons.add_image') }}</button>
-                <button type="button" class="pill-link pill-link--compact" data-print-template-add="static_image">{{ __('print_templates.templates.form.buttons.add_static_image') }}</button>
-                <button type="button" class="pill-link pill-link--compact" data-print-template-add="barcode">{{ __('print_templates.templates.form.buttons.add_barcode') }}</button>
-                <button type="button" class="pill-link pill-link--compact" data-print-template-add="shape">{{ __('print_templates.templates.form.buttons.add_shape') }}</button>
+                <button type="button" class="pill-link pill-link--compact print-template-symbol-button" data-print-template-add="custom_text" title="{{ __('print_templates.templates.form.buttons.add_custom_text') }}" aria-label="{{ __('print_templates.templates.form.buttons.add_custom_text') }}"><x-print-template-icon name="text" /></button>
+                <button type="button" class="pill-link pill-link--compact print-template-symbol-button" data-print-template-add="dynamic_text" title="{{ __('print_templates.templates.form.buttons.add_dynamic_text') }}" aria-label="{{ __('print_templates.templates.form.buttons.add_dynamic_text') }}"><x-print-template-icon name="dynamic-text" /></button>
+                <button type="button" class="pill-link pill-link--compact print-template-symbol-button" data-print-template-add="date_text" title="{{ __('print_templates.templates.form.buttons.add_date') }}" aria-label="{{ __('print_templates.templates.form.buttons.add_date') }}"><x-print-template-icon name="calendar" /></button>
+                <button type="button" class="pill-link pill-link--compact print-template-symbol-button" data-print-template-add="page_number" title="{{ __('print_templates.templates.form.buttons.add_page_number') }}" aria-label="{{ __('print_templates.templates.form.buttons.add_page_number') }}"><x-print-template-icon name="hash" /></button>
+                <button type="button" class="pill-link pill-link--compact print-template-symbol-button" data-print-template-add="dynamic_image" title="{{ __('print_templates.templates.form.buttons.add_image') }}" aria-label="{{ __('print_templates.templates.form.buttons.add_image') }}"><x-print-template-icon name="image" /></button>
+                <button type="button" class="pill-link pill-link--compact print-template-symbol-button" data-print-template-add="static_image" title="{{ __('print_templates.templates.form.buttons.add_static_image') }}" aria-label="{{ __('print_templates.templates.form.buttons.add_static_image') }}"><x-print-template-icon name="image-plus" /></button>
+                <button type="button" class="pill-link pill-link--compact print-template-symbol-button" data-print-template-add="barcode" title="{{ __('print_templates.templates.form.buttons.add_barcode') }}" aria-label="{{ __('print_templates.templates.form.buttons.add_barcode') }}"><x-print-template-icon name="barcode" /></button>
+                <button type="button" class="pill-link pill-link--compact print-template-symbol-button" data-print-template-add="shape" title="{{ __('print_templates.templates.form.buttons.add_shape') }}" aria-label="{{ __('print_templates.templates.form.buttons.add_shape') }}"><x-print-template-icon name="shape" /></button>
             </div>
         </div>
 
         <div class="print-template-studio__workspace">
             <div class="print-template-studio__layers">
-                <details class="print-template-panel print-template-panel--layers" open data-print-template-layers-panel>
-                    <summary class="print-template-panel__summary">
+                <section class="print-template-panel print-template-panel--layers" data-print-template-layers-panel>
+                    <div class="print-template-panel__header print-template-panel__header--layers">
                         <div>
                             <div class="admin-section-card__title">{{ __('print_templates.templates.form.sections.layers') }}</div>
                         </div>
-                        <span class="print-template-layer-toggle" aria-hidden="true">
-                            <span></span>
-                            <span></span>
-                            <span></span>
-                        </span>
-                    </summary>
+                    </div>
                     <div class="id-card-layer-list" data-print-template-layer-list>
                         <div class="admin-empty-state">{{ __('print_templates.templates.form.empty_layers') }}</div>
                     </div>
-                </details>
+                </section>
             </div>
 
             <section class="print-template-panel print-template-panel--inspector">
@@ -213,6 +216,8 @@
                     <div
                         class="id-card-builder-stage"
                         data-print-template-stage
+                        data-keyboard-move-step="0.1"
+                        data-keyboard-move-step-large="0.5"
                         data-background-url="{{ $backgroundImageUrl }}"
                     ></div>
                 </div>
@@ -223,12 +228,6 @@
         <div class="hidden" data-static-image-inputs></div>
     </section>
 
-    <div class="admin-action-cluster">
-        <button type="submit" class="pill-link pill-link--accent">
-            {{ $isEditing ? __('print_templates.templates.form.buttons.update') : __('print_templates.templates.form.buttons.save') }}
-        </button>
-        <a href="{{ route('print-templates.templates.index') }}" class="pill-link">{{ __('crud.common.actions.cancel') }}</a>
-    </div>
 </form>
 
 @include('print-templates.templates.partials.form-script')

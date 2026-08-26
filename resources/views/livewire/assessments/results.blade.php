@@ -146,8 +146,8 @@ new class extends Component
                 ->where('assessment_id', $this->currentAssessment->id)
                 ->whereNotNull('score')
                 ->avg('score'),
-            'totalActiveEnrollments' => $assessmentGroups->sum('active_enrollments_count'),
             'totalSavedResults' => $assessmentGroups->sum('assessment_results_count'),
+            'totalPassedStudents' => $assessmentGroups->sum('assessment_passed_count'),
             'canRecordAssessmentScores' => $this->canPermission('assessment-results.record')
                 && $this->canPermission('assessment-results.record-scores'),
         ];
@@ -451,6 +451,11 @@ new class extends Component
                         ->whereHas('assessmentResults', fn ($resultQuery) => $resultQuery
                             ->where('assessment_id', $assessmentId)
                             ->whereIn('status', ['passed', 'failed'])),
+                    'enrollments as assessment_passed_count' => fn ($query) => $query
+                        ->where('status', 'active')
+                        ->whereHas('assessmentResults', fn ($resultQuery) => $resultQuery
+                            ->where('assessment_id', $assessmentId)
+                            ->where('status', 'passed')),
                 ])
                 ->whereIn('id', $groupIds)
         )
@@ -549,10 +554,8 @@ new class extends Component
     <section class="page-hero p-6 lg:p-8">
         <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div>
-                <h1 class="assessment-results-title font-display text-4xl leading-none text-white md:text-5xl">{{ $assessmentRecord->title }}</h1>
-                <div class="mt-7">
-                    <a href="{{ route('assessments.index') }}" wire:navigate class="assessment-results-back pill-link w-fit">{{ __('workflow.common.back_to_assessments') }}</a>
-                </div>
+                <x-back-link :href="route('assessments.index')" navigate class="assessment-results-back" />
+                <h1 class="assessment-results-title font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ $assessmentRecord->title }}</h1>
             </div>
 
             <div class="surface-panel px-5 py-4">
@@ -563,7 +566,7 @@ new class extends Component
                         ? ($usesAllGroups ? __('crud.common.filters.all_groups') : $assessmentGroups->pluck('name')->implode(', '))
                         : ($assessmentRecord->group?->name ?: __('workflow.common.not_available')) }}
                 </div>
-                <div class="mt-1 text-sm text-neutral-400">{{ __('workflow.common.labels.maximum_mark', ['value' => $assessmentRecord->total_mark !== null ? number_format((float) $assessmentRecord->total_mark, 2) : __('workflow.common.not_available')]) }} | {{ __('workflow.common.labels.pass', ['value' => $assessmentRecord->pass_mark !== null ? number_format((float) $assessmentRecord->pass_mark, 2) : __('workflow.common.not_available')]) }}</div>
+                <div class="mt-1 text-sm text-neutral-400">{{ __('workflow.assessments.results.details.participants') }}: {{ number_format($totalSavedResults) }} | {{ __('workflow.assessments.results.details.passed') }}: {{ number_format($totalPassedStudents) }}</div>
                 <div class="mt-3 flex flex-wrap gap-2">
                     <a href="{{ route('assessments.results.pdf', $assessmentRecord) }}" target="_blank" rel="noopener" class="pill-link pill-link--compact w-fit whitespace-nowrap">{{ __('workflow.assessments.results.pdf_export') }}</a>
                     @if($canRecordAssessmentScores)<button type="button" wire:click="openQuickResultModal" class="pill-link pill-link--compact pill-link--accent">{{ __('workflow.assessments.results.student_entry.title') }}</button>@endif
@@ -576,21 +579,6 @@ new class extends Component
     @if (session('status'))
         <div class="flash-success px-4 py-3 text-sm">{{ session('status') }}</div>
     @endif
-
-    <section class="admin-kpi-grid">
-        <article class="stat-card">
-            <div class="kpi-label">{{ __('workflow.assessments.results.table.headers.student') }}</div>
-            <div class="metric-value mt-3">{{ number_format($totalActiveEnrollments) }}</div>
-        </article>
-        <article class="stat-card">
-            <div class="kpi-label">{{ __('workflow.assessments.index.table.headers.results') }}</div>
-            <div class="metric-value mt-3">{{ number_format($totalSavedResults) }}</div>
-        </article>
-        <article class="stat-card">
-            <div class="kpi-label">{{ __('workflow.assessments.results.pdf.average_mark') }}</div>
-            <div class="metric-value mt-3">{{ $assessmentAverage !== null ? number_format((float) $assessmentAverage, 2) : '—' }}</div>
-        </article>
-    </section>
 
     <section class="surface-panel p-5 lg:p-6">
         @if ($assessmentGroups->isEmpty())
@@ -729,14 +717,14 @@ new class extends Component
                             id="assessment-student-entry"
                             wire:model.live="quick_enrollment_id"
                             class="searchable-select h-11 w-full rounded-xl px-4 text-sm"
-                            data-search-placeholder="{{ __('workflow.assessments.results.student_entry.search_placeholder') }}"
+                            data-search-input="true"
+                            data-open-on-focus="true"
+                            data-hide-placeholder-option="true"
+                            data-search-placeholder="{{ __('workflow.common.student_name_placeholder') }}"
                         >
                             <option value="">{{ __('workflow.assessments.results.quick_entry.select_student') }}</option>
                             @foreach ($quickEntryEnrollments as $enrollment)
-                                <option
-                                    value="{{ $enrollment->id }}"
-                                    data-search="{{ trim(implode(' ', array_filter([$enrollment->student?->student_number, $enrollment->student?->first_name, $enrollment->student?->last_name]))) }}"
-                                >{{ $enrollment->student?->full_name }}</option>
+                                <option value="{{ $enrollment->id }}">{{ $enrollment->student?->full_name }}</option>
                             @endforeach
                         </select>
                         @error('quick_enrollment_id') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror

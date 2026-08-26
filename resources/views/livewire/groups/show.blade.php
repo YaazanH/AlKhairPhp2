@@ -274,7 +274,7 @@ new class extends Component {
     <section class="page-hero p-6 lg:p-8">
         <div class="group-show-hero-layout flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
             <div>
-                @unless($isAssignedTeacher)<a href="{{ route('groups.index') }}" wire:navigate class="text-sm text-neutral-300">{{ app()->isLocale('ar') ? '→' : '←' }} {{ __('crud.common.actions.back') }}</a>@endunless
+                @unless($isAssignedTeacher)<x-back-link :href="route('groups.index')" navigate />@endunless
                 <h1 class="font-display mt-4 text-4xl text-white md:text-5xl">{{ $groupRecord->name }}</h1>
             </div>
 
@@ -371,7 +371,7 @@ new class extends Component {
         </div>
         @if($roster->hasPages())<div class="border-t border-white/10 p-4">{{ $roster->links() }}</div>@endif
     </section>
-    <x-admin.modal :show="$showAddStudentModal" :title="__('crud.groups.roster.add_student')" close-method="showAddStudentModal" max-width="2xl"><div class="space-y-4"><div><label class="mb-1 block text-sm">{{ __('crud.students.table.headers.name') }}</label><select wire:model="roster_student_id" class="w-full rounded-xl px-4 py-3"><option value="">{{ __('crud.common.select') }}</option>@foreach($availableStudents as $student)<option value="{{ $student->id }}">{{ $student->full_name }}</option>@endforeach</select>@error('roster_student_id')<div class="text-sm text-red-400">{{ $message }}</div>@enderror</div><div><label class="mb-1 block text-sm">{{ __('crud.groups.roster.fields.enrolled_at') }}</label><input wire:model="roster_enrolled_at" type="date" class="w-full rounded-xl px-4 py-3"></div><div class="flex gap-2"><button wire:click="addStudent(false)" class="pill-link pill-link--accent">{{ __('crud.groups.roster.add_student') }}</button><button wire:click="addStudent(true)" class="pill-link">{{ __('crud.common.actions.add_and_new') }}</button></div></div></x-admin.modal>
+    <x-admin.modal :show="$showAddStudentModal" :title="__('crud.groups.roster.add_student')" close-method="showAddStudentModal" max-width="2xl"><div class="space-y-4"><div><label class="mb-1 block text-sm">{{ __('crud.students.table.headers.name') }}</label><select wire:model="roster_student_id" data-search-input="true" data-open-on-focus="true" data-hide-placeholder-option="true" data-search-placeholder="{{ __('workflow.common.student_name_placeholder') }}" class="w-full rounded-xl px-4 py-3"><option value="">{{ __('crud.common.select') }}</option>@foreach($availableStudents as $student)<option value="{{ $student->id }}">{{ $student->full_name }}</option>@endforeach</select>@error('roster_student_id')<div class="text-sm text-red-400">{{ $message }}</div>@enderror</div><div><label class="mb-1 block text-sm">{{ __('crud.groups.roster.fields.enrolled_at') }}</label><input wire:model="roster_enrolled_at" type="date" class="w-full rounded-xl px-4 py-3"></div><div class="flex gap-2"><button wire:click="addStudent(false)" class="pill-link pill-link--accent">{{ __('crud.groups.roster.add_student') }}</button><button wire:click="addStudent(true)" class="pill-link">{{ __('crud.common.actions.add_and_new') }}</button></div></div></x-admin.modal>
 
     <x-admin.modal :show="$showScheduleModal" :title="__('crud.groups.actions.schedule')" close-method="showScheduleModal" max-width="6xl">
         <form wire:submit="saveSchedule" class="grid gap-3 sm:grid-cols-[minmax(9rem,1fr)_minmax(9rem,1fr)_minmax(9rem,1fr)_max-content] sm:items-end">

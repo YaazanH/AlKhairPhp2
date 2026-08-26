@@ -82,7 +82,7 @@ class PrintTemplateFieldRegistry
                 'parent_name' => $this->field('parent_name', ['text'], fn (Student $student) => $student->parentProfile?->father_name ?: __('print_templates.common.not_available')),
                 'username' => $this->field('username', ['text', 'barcode'], fn (Student $student) => $student->user?->username ?: __('print_templates.common.not_available')),
                 'password' => $this->field('password', ['text'], fn (Student $student) => $student->user?->issued_password ?: __('print_templates.common.not_available')),
-                'photo' => $this->field('photo', ['image'], fn (Student $student) => $this->storageUrl($student->photo_path) ?: AvatarDefaults::url('student')),
+                'photo' => $this->field('photo', ['image'], fn (Student $student) => $student->photoUrl()),
             ],
             'course_student' => [
                 'special_note' => $this->field('special_note', ['text'], fn (Enrollment $enrollment) => (string) $enrollment->getAttribute('report_card_special_note')),
@@ -119,7 +119,7 @@ class PrintTemplateFieldRegistry
                 'worship_assessment_average' => $this->field('worship_assessment_average', ['text'], fn (Enrollment $enrollment) => data_get($this->courseEndRow($enrollment), 'assessment_average', __('print_templates.common.not_available'))),
                 'cheques_count' => $this->field('cheques_count', ['text'], fn (Enrollment $enrollment) => data_get($this->courseEndRow($enrollment), 'cheques_count', 0)),
                 'leaderboard_count' => $this->field('leaderboard_count', ['text'], fn (Enrollment $enrollment) => data_get($this->courseEndRow($enrollment), 'leaderboard_count', 0)),
-                'photo' => $this->field('photo', ['image'], fn (Enrollment $enrollment) => $this->storageUrl($enrollment->student?->photo_path) ?: AvatarDefaults::url('student')),
+                'photo' => $this->field('photo', ['image'], fn (Enrollment $enrollment) => $enrollment->student?->photoUrl()),
             ],
             'teacher' => [
                 'full_name' => $this->field('full_name', ['text', 'barcode'], fn (Teacher $teacher) => trim($teacher->first_name.' '.$teacher->last_name)),

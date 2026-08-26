@@ -3,6 +3,7 @@
 return [
     'actions' => [
         'add' => 'Add',
+        'create' => 'Create',
         'save' => 'Save',
         'accept' => 'Accept',
         'actions' => 'Actions',

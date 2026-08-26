@@ -21,11 +21,11 @@
     <body>
         <div class="id-card-print-toolbar">
             <div>
-                <h1 class="font-display text-4xl text-white">{{ __('id_cards.print.preview.title') }}</h1>
+                <x-back-link :href="route('id-cards.print.create')" />
+                <h1 class="font-display mt-4 text-4xl text-white">{{ __('id_cards.print.preview.title') }}</h1>
             </div>
             <div class="admin-action-cluster">
                 <button type="button" class="pill-link pill-link--accent" onclick="window.print()">{{ __('id_cards.print.preview.buttons.print') }}</button>
-                <a href="{{ route('id-cards.print.create') }}" class="pill-link">{{ __('id_cards.print.preview.buttons.back') }}</a>
             </div>
         </div>
 

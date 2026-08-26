@@ -2,6 +2,7 @@
 
 return [
     'common' => [
+        'student_name_placeholder' => 'Student name',
         'not_available' => '-',
         'no_group' => 'No group',
         'no_course' => 'No course',
@@ -1079,8 +1080,8 @@ return [
                 'headers' => [
                     'assessment' => 'Assessment',
                     'schedule' => 'Date',
-                    'marks' => 'Marks',
                     'results' => 'Results',
+                    'average' => 'Average',
                     'status' => 'Status',
                     'actions' => 'Actions',
                 ],
@@ -1132,6 +1133,10 @@ return [
             'title' => 'Assessment Results',
             'subtitle' => 'Choose a group, find students by name, and enter scores from one quick roster.',
             'pdf_export' => 'PDF',
+            'details' => [
+                'participants' => 'Participating students',
+                'passed' => 'Passed students',
+            ],
             'pdf' => [
                 'due_date' => 'Date',
                 'average_mark' => 'Average',

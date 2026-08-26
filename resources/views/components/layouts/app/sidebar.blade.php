@@ -211,9 +211,6 @@
                     <div class="admin-modal__body">
                         <p id="admin-confirm-message" class="mb-5 leading-7 text-neutral-300">{{ __('crud.common.confirm_delete.message') }}</p>
                         <div class="admin-action-cluster admin-action-cluster--end">
-                            <button id="admin-confirm-cancel" type="button" class="pill-link">
-                                {{ __('crud.common.actions.cancel') }}
-                            </button>
                             <button id="admin-confirm-accept" type="button" class="pill-link pill-link--danger">
                                 {{ __('crud.common.confirm_delete.confirm') }}
                             </button>

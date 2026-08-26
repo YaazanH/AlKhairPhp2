@@ -349,11 +349,6 @@ new class extends Component {
                         </button>
                         <x-admin.create-and-new-button :show="! $editingId" click="saveAndNew('save', 'create')" />
 
-                        @if ($editingId)
-                            <button type="button" wire:click="cancel" class="pill-link">
-                                {{ __('activities.common.actions.cancel') }}
-                            </button>
-                        @endif
                     </div>
                 </form>
             @else

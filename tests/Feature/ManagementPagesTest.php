@@ -25,6 +25,104 @@ class ManagementPagesTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_mobile_table_headers_use_symbol_actions_and_single_column_filter_dialogs(): void
+    {
+        $script = file_get_contents(resource_path('js/app.js'));
+        $styles = file_get_contents(resource_path('css/app.css'));
+
+        $this->assertStringContainsString('initializeMobileTableHeaderActions(toolbar)', $script);
+        $this->assertStringContainsString("toolbar.classList.add('mobile-table-header-controls')", $script);
+        $this->assertStringContainsString("action.classList.add('mobile-table-header-action')", $script);
+        $this->assertStringContainsString('.surface-table > .admin-grid-meta--controls', $styles);
+        $this->assertStringContainsString('.mobile-table-filters--open > .mobile-table-filter-criterion', $styles);
+        $this->assertStringContainsString('grid-column: 1 / -1 !important;', $styles);
+    }
+
+    public function test_sidebar_uses_the_approved_outline_icons_without_changing_reference_icons(): void
+    {
+        $items = app(SidebarNavigationService::class)->defaultItems();
+        $expectedIcons = [
+            'dashboard' => 'home',
+            'reports' => 'chart-bar',
+            'student_progress' => 'presentation-chart-line',
+            'users' => 'user-group',
+            'parents' => 'parents-couple',
+            'teachers' => 'male-teacher',
+            'students' => 'student-graduates',
+            'community_contacts' => 'landline-phone',
+            'courses' => 'mosque',
+            'groups' => 'people-circle',
+            'curricula' => 'books-leaning',
+            'enrollments' => 'enrollment-add',
+            'student_attendance' => 'clipboard-student',
+            'teacher_attendance' => 'clipboard-person',
+            'memorization' => 'quran-stand',
+            'enter_memorize' => 'pencil-square',
+            'quran_tests_quick_entry' => 'book-open-pencil',
+            'quran_tests' => 'certificate-landscape',
+            'assessments' => 'assessment-review',
+            'point_ledger' => 'achievement-star',
+            'student_notes' => 'note-document',
+            'finance_dashboard' => 'finance-dashboard',
+            'finance_expense_requests' => 'expense-receipt',
+            'finance_revenue_requests' => 'income-hand',
+            'finance_exchange' => 'arrows-right-left',
+            'finance_reports' => 'document-chart-bar',
+            'finance_pull_requests' => 'withdrawal-hand',
+            'dashboard_settings' => 'cog-6-tooth',
+            'finance_settings' => 'finance-settings',
+            'public_website_settings' => 'globe-alt',
+            'print_templates' => 'printing-template',
+            'id_card_print' => 'student-id-card',
+        ];
+
+        $customIcons = [
+            'achievement-star',
+            'assessment-review',
+            'book-open-pencil',
+            'books-leaning',
+            'certificate-landscape',
+            'clipboard-person',
+            'clipboard-student',
+            'enrollment-add',
+            'expense-receipt',
+            'finance-dashboard',
+            'finance-settings',
+            'income-hand',
+            'landline-phone',
+            'male-teacher',
+            'mosque',
+            'note-document',
+            'parents-couple',
+            'people-circle',
+            'printing-template',
+            'quran-stand',
+            'student-id-card',
+            'student-graduates',
+            'withdrawal-hand',
+        ];
+
+        foreach ($expectedIcons as $key => $icon) {
+            $this->assertSame($icon, $items[$key]['icon']);
+
+            if (in_array($icon, $customIcons, true)) {
+                $this->assertFileExists(resource_path("views/flux/icon/{$icon}.blade.php"));
+
+                continue;
+            }
+
+            $this->assertFileExists(base_path("vendor/livewire/flux/stubs/resources/views/flux/icon/{$icon}.blade.php"));
+        }
+
+        $wrapper = file_get_contents(resource_path('views/components/sidebar-outline-icon.blade.php'));
+        $this->assertStringContainsString('stroke-width="1.5"', $wrapper);
+        $this->assertStringContainsString('stroke-linecap="round"', $wrapper);
+        $this->assertStringContainsString('stroke-linejoin="round"', $wrapper);
+        $this->assertStringContainsString('data-attendance-badge="person"', file_get_contents(resource_path('views/flux/icon/clipboard-person.blade.php')));
+        $this->assertStringContainsString('data-attendance-badge="graduation-cap"', file_get_contents(resource_path('views/flux/icon/clipboard-student.blade.php')));
+        $this->assertStringContainsString('data-enrollment-icon="profile-card-add"', file_get_contents(resource_path('views/flux/icon/enrollment-add.blade.php')));
+    }
+
     public function test_secondary_student_tools_are_buttons_in_their_parent_pages(): void
     {
         $this->seed(RoleSeeder::class);

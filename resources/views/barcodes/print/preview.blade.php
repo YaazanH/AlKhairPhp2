@@ -19,13 +19,13 @@
     <body>
         <div class="barcode-print-toolbar">
             <div>
-                <div class="eyebrow">{{ __('ui.nav.identity_tools') }}</div>
+                <x-back-link :href="route('barcode-actions.index')" />
+                <div class="eyebrow mt-4">{{ __('ui.nav.identity_tools') }}</div>
                 <h1 class="font-display mt-3 text-4xl text-white">{{ __('barcodes.print.preview.title') }}</h1>
                 <p class="mt-3 max-w-3xl text-sm leading-7 text-neutral-300">{{ __('barcodes.print.preview.subtitle') }}</p>
             </div>
             <div class="admin-action-cluster">
                 <button type="button" class="pill-link pill-link--accent" onclick="window.print()">{{ __('barcodes.print.preview.buttons.print') }}</button>
-                <a href="{{ route('barcode-actions.index') }}" class="pill-link">{{ __('barcodes.print.preview.buttons.back') }}</a>
             </div>
         </div>
 

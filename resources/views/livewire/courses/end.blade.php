@@ -31,9 +31,13 @@ new class extends Component {
             'path' => request()->url(), 'pageName' => 'page',
         ]);
         $allFinalTests = $service->finalTestRows($this->course);
-        $finalTestsPage = $this->getPage('finalTestsPage');
-        $finalTests = new LengthAwarePaginator($allFinalTests->forPage($finalTestsPage, 10), $allFinalTests->count(), 10, $finalTestsPage, [
-            'path' => request()->url(), 'pageName' => 'finalTestsPage',
+        $finalTestsDesktopPage = $this->getPage('finalTestsDesktopPage');
+        $finalTestsDesktop = new LengthAwarePaginator($allFinalTests->forPage($finalTestsDesktopPage, 20), $allFinalTests->count(), 20, $finalTestsDesktopPage, [
+            'path' => request()->url(), 'pageName' => 'finalTestsDesktopPage',
+        ]);
+        $finalTestsMobilePage = $this->getPage('finalTestsMobilePage');
+        $finalTestsMobile = new LengthAwarePaginator($allFinalTests->forPage($finalTestsMobilePage, 15), $allFinalTests->count(), 15, $finalTestsMobilePage, [
+            'path' => request()->url(), 'pageName' => 'finalTestsMobilePage',
         ]);
 
         return [
@@ -42,11 +46,12 @@ new class extends Component {
                 'points_before' => $allRows->sum('points_before'),
                 'points_after' => $allRows->sum('points_after'),
                 'memorized_pages' => $allRows->sum('memorized_pages'),
-                'final_tests' => $allFinalTests->count(),
+                'final_tests' => $allFinalTests->sum('test_count'),
             ],
             'students' => $students,
             'studentResultCount' => $studentResultRows->count(),
-            'finalTests' => $finalTests,
+            'finalTestsDesktop' => $finalTestsDesktop,
+            'finalTestsMobile' => $finalTestsMobile,
         ];
     }
 }; ?>
@@ -59,6 +64,8 @@ new class extends Component {
         .course-end-students-mobile { display: none; }
         .course-end-final-tests-dual { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; overflow: hidden; background: rgba(255, 255, 255, .07); }
         .course-end-final-tests-single { display: none; }
+        .course-end-final-tests-desktop-pagination { display: block; }
+        .course-end-final-tests-mobile-pagination { display: none; }
         .course-end-final-tests-table-wrap { min-width: 0; overflow-x: auto; background: var(--app-panel); }
         .course-end-final-tests-table :is(th, td) { overflow: hidden; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
         .course-end-final-tests-table th:first-child, .course-end-final-tests-table td:first-child { width: 10%; }
@@ -72,6 +79,8 @@ new class extends Component {
             .course-end-students-mobile { display: grid; gap: .75rem; padding: 0 1rem 1rem; }
             .course-end-final-tests-dual { display: none; }
             .course-end-final-tests-single { display: block; overflow-x: auto; }
+            .course-end-final-tests-desktop-pagination { display: none; }
+            .course-end-final-tests-mobile-pagination { display: block; }
             .course-end-final-tests-mobile-table { width: 100%; min-width: 0 !important; table-layout: fixed; font-size: .72rem; }
             .course-end-final-tests-mobile-table :is(th, td) { min-width: 0; padding: .55rem .3rem !important; overflow-wrap: anywhere; text-align: center; white-space: normal; }
             .course-end-final-tests-mobile-table :is(th, td):first-child { width: 9%; }
@@ -81,7 +90,7 @@ new class extends Component {
             .course-end-final-tests-mobile-table :is(th, td):nth-child(5) { width: 27%; }
         }
     </style>
-    <section class="page-hero p-6 lg:p-8"><div class="flex flex-wrap items-start justify-between gap-4"><div><div class="eyebrow">{{ __('course_end.eyebrow') }}</div><h1 class="font-display mt-4 text-4xl text-white">{{ __('course_end.title') }}</h1><p class="mt-3 text-neutral-200">{{ $course->name }} — {{ __('course_end.preview_notice') }}</p></div><a href="{{ route('courses.index') }}" wire:navigate class="pill-link">{{ __('course_end.back') }}</a></div></section>
+    <section class="page-hero p-6 lg:p-8"><div><x-back-link :href="route('courses.index')" navigate /><div class="eyebrow mt-4">{{ __('course_end.eyebrow') }}</div><h1 class="font-display mt-4 text-4xl text-white">{{ __('course_end.title') }}</h1><p class="mt-3 text-neutral-200">{{ $course->name }} — {{ __('course_end.preview_notice') }}</p></div></section>
     <section class="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         @foreach(['students','points_before','points_after','memorized_pages','final_tests'] as $key)<article class="stat-card"><div class="kpi-label">{{ __('course_end.highlights.'.$key) }}</div><div class="metric-value mt-3">{{ number_format($summary[$key]) }}</div></article>@endforeach
     </section>
@@ -107,15 +116,16 @@ new class extends Component {
         </tbody></table></div>@if($students->hasPages())<div class="border-t border-white/8 px-5 py-4">{{ $students->links() }}</div>@endif
     </section>
     <section class="surface-table">
-        <div class="admin-grid-meta"><div><div class="admin-grid-meta__title">{{ __('course_end.final_tests_title') }}</div><div class="admin-grid-meta__summary">{{ __('crud.common.badges.in_view', ['count' => number_format($finalTests->total())]) }}</div></div><a href="{{ route('courses.end.final-tests.pdf', $course) }}" target="_blank" class="pill-link pill-link--accent">PDF</a></div>
-        @php($finalTestPageRows = $finalTests->getCollection()->values())
-        @php($finalTestColumns = $finalTestPageRows->isEmpty() ? collect([collect()]) : $finalTestPageRows->chunk((int) ceil($finalTestPageRows->count() / 2)))
+        <div class="admin-grid-meta"><div><div class="admin-grid-meta__title">{{ __('course_end.final_tests_title') }}</div><div class="admin-grid-meta__summary">{{ __('crud.common.badges.in_view', ['count' => number_format($finalTestsDesktop->total())]) }}</div></div><a href="{{ route('courses.end.final-tests.pdf', $course) }}" target="_blank" class="pill-link pill-link--accent">PDF</a></div>
+        @php($finalTestDesktopRows = $finalTestsDesktop->getCollection()->values())
+        @php($finalTestMobileRows = $finalTestsMobile->getCollection()->values())
+        @php($finalTestColumns = $finalTestDesktopRows->isEmpty() ? collect([collect()]) : $finalTestDesktopRows->chunk(10))
         <div class="course-end-final-tests-single">
             <table class="course-end-final-tests-mobile-table text-sm">
                 <thead><tr><th>#</th><th>{{ __('course_end.table.name') }}</th><th>{{ __('course_end.table.juz') }}</th><th>{{ __('course_end.table.mark') }}</th><th>{{ __('course_end.table.grade') }}</th></tr></thead>
                 <tbody class="divide-y divide-white/6">
-                    @forelse($finalTestPageRows as $rowIndex => $row)
-                        <tr><td class="text-neutral-400">{{ $finalTests->firstItem() + $rowIndex }}</td><td class="font-medium text-white">{{ $row['name'] }}</td><td>{{ $row['juz'] }}</td><td>{{ \App\Support\PercentageFormatter::format($row['mark']) }}</td><td class="font-medium text-emerald-100">{{ __('course_end.grades.'.$row['grade']) }}</td></tr>
+                    @forelse($finalTestMobileRows as $rowIndex => $row)
+                        <tr><td class="text-neutral-400">{{ $finalTestsMobile->firstItem() + $rowIndex }}</td><td class="font-medium text-white">{{ $row['name'] }}</td><td>{{ $row['juz'] }}</td><td>{{ $row['marks'] ?? \App\Support\PercentageFormatter::format($row['mark']) }}</td><td class="font-medium text-emerald-100">{{ __('course_end.grades.'.$row['grade']) }}</td></tr>
                     @empty
                         <tr><td colspan="5" class="admin-empty-state">{{ __('course_end.empty') }}</td></tr>
                     @endforelse
@@ -129,7 +139,7 @@ new class extends Component {
                         <thead><tr><th class="px-3 py-3">#</th><th class="course-end-final-tests-spacer" aria-hidden="true"></th><th class="px-3 py-3">{{ __('course_end.table.name') }}</th><th class="px-3 py-3">{{ __('course_end.table.juz') }}</th><th class="px-3 py-3">{{ __('course_end.table.mark') }}</th><th class="px-3 py-3">{{ __('course_end.table.grade') }}</th></tr></thead>
                         <tbody class="divide-y divide-white/6">
                             @forelse($columnRows as $rowIndex => $row)
-                                <tr><td class="px-3 py-3 text-neutral-400">{{ $finalTests->firstItem() + $rowIndex }}</td><td class="course-end-final-tests-spacer" aria-hidden="true"></td><td class="px-3 py-3 font-medium text-white" title="{{ $row['name'] }}">{{ $row['name'] }}</td><td class="px-3 py-3">{{ $row['juz'] }}</td><td class="px-3 py-3">{{ \App\Support\PercentageFormatter::format($row['mark']) }}</td><td class="px-3 py-3 font-medium text-emerald-100">{{ __('course_end.grades.'.$row['grade']) }}</td></tr>
+                                <tr><td class="px-3 py-3 text-neutral-400">{{ $finalTestsDesktop->firstItem() + $rowIndex }}</td><td class="course-end-final-tests-spacer" aria-hidden="true"></td><td class="px-3 py-3 font-medium text-white" title="{{ $row['name'] }}">{{ $row['name'] }}</td><td class="px-3 py-3">{{ $row['juz'] }}</td><td class="px-3 py-3">{{ $row['marks'] ?? \App\Support\PercentageFormatter::format($row['mark']) }}</td><td class="px-3 py-3 font-medium text-emerald-100">{{ __('course_end.grades.'.$row['grade']) }}</td></tr>
                             @empty
                                 <tr><td colspan="6" class="admin-empty-state">{{ __('course_end.empty') }}</td></tr>
                             @endforelse
@@ -138,7 +148,8 @@ new class extends Component {
                 </div>
             @endforeach
         </div>
-        @if($finalTests->hasPages())<div class="border-t border-white/8 px-5 py-4">{{ $finalTests->links() }}</div>@endif
+        @if($finalTestsDesktop->hasPages())<div class="course-end-final-tests-desktop-pagination border-t border-white/8 px-5 py-4">{{ $finalTestsDesktop->links() }}</div>@endif
+        @if($finalTestsMobile->hasPages())<div class="course-end-final-tests-mobile-pagination border-t border-white/8 px-5 py-4">{{ $finalTestsMobile->links() }}</div>@endif
     </section>
     <section class="surface-panel p-5 lg:p-6"><div class="admin-toolbar"><div class="admin-toolbar__title">{{ __('course_end.report_cards') }}</div><div class="admin-toolbar__actions"><a href="{{ route('courses.end.report-cards.create', $course) }}" class="pill-link pill-link--accent">{{ __('course_end.print_cards') }}</a></div></div></section>
 </div>

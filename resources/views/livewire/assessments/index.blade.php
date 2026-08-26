@@ -85,6 +85,7 @@ new class extends Component
             Assessment::query()
                 ->with(['group.course', 'groups.course', 'type'])
                 ->withCount('results')
+                ->withAvg('results', 'score')
                 ->when($this->statusFilter === 'active', fn ($query) => $query->where('is_active', true))
                 ->when($this->courseFilter !== 'all', function ($query) {
                     $query->where(function ($builder) {
@@ -99,7 +100,6 @@ new class extends Component
         );
 
         $filteredCount = (clone $assessmentQuery)->count();
-        $assessmentIds = (clone $assessmentQuery)->pluck('id');
 
         return [
             'groups' => $availableGroups,
@@ -110,17 +110,6 @@ new class extends Component
                 ->get(['id', 'name']),
             'types' => AssessmentType::query()->where('is_active', true)->orderBy('name')->get(),
             'assessments' => $assessmentQuery->paginate($this->perPage),
-            'totals' => [
-                'all' => (clone $assessmentQuery)->count(),
-                'active' => (clone $assessmentQuery)->where('is_active', true)->count(),
-                'passed_students' => $assessmentIds->isEmpty()
-                    ? 0
-                    : AssessmentResult::query()
-                        ->whereIn('assessment_id', $assessmentIds)
-                        ->where('status', 'passed')
-                        ->distinct('student_id')
-                        ->count('student_id'),
-            ],
             'filteredCount' => $filteredCount,
             'editingHasResults' => $this->editingId
                 ? AssessmentResult::query()->where('assessment_id', $this->editingId)->exists()
@@ -468,21 +457,6 @@ new class extends Component
         <div class="flash-success px-4 py-3 text-sm">{{ session('status') }}</div>
     @endif
 
-    <section class="admin-kpi-grid">
-        <article class="stat-card">
-            <div class="kpi-label">{{ __('workflow.assessments.index.stats.all') }}</div>
-            <div class="metric-value mt-3">{{ number_format($totals['all']) }}</div>
-        </article>
-        <article class="stat-card">
-            <div class="kpi-label">{{ __('workflow.assessments.index.stats.active') }}</div>
-            <div class="metric-value mt-3">{{ number_format($totals['active']) }}</div>
-        </article>
-        <article class="stat-card">
-            <div class="kpi-label">{{ __('workflow.assessments.index.stats.passed_students') }}</div>
-            <div class="metric-value mt-3">{{ number_format($totals['passed_students']) }}</div>
-        </article>
-    </section>
-
     <div class="space-y-6">
         @if ($showForm)
         <section class="admin-modal" role="dialog" aria-modal="true">
@@ -541,7 +515,6 @@ new class extends Component
                             @can('assessments.delete')
                                 <button type="button" wire:click="delete({{ $editingId }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" @disabled($editingHasResults) class="pill-link border-red-400/25 text-red-200 disabled:cursor-not-allowed disabled:opacity-40">{{ __('crud.common.actions.delete') }}</button>
                             @endcan
-                            <button type="button" wire:click="closeForm" class="pill-link">{{ __('crud.common.actions.cancel') }}</button>
                         @endif
                     </div>
                 </form>
@@ -563,9 +536,6 @@ new class extends Component
                                     </button>
                                 @endforeach
                             </div>
-                            @if ($group_scope === 'multiple')
-                                <div class="mt-4 flex justify-end"><button type="button" wire:click="$set('showGroupPicker', false)" class="pill-link pill-link--accent">{{ __('crud.common.actions.close') }}</button></div>
-                            @endif
                         </div>
                     </div>
                 @endif
@@ -578,7 +548,7 @@ new class extends Component
         </section>
         @endif
 
-        <section class="surface-table">
+        <section class="surface-table mobile-records-surface">
             <div class="admin-grid-meta admin-grid-meta--controls">
                 <div>
                     <div class="admin-grid-meta__title">{{ __('workflow.assessments.index.table.title') }}</div>
@@ -637,8 +607,16 @@ new class extends Component
                                 <div class="col-span-2"><dt class="kpi-label">{{ __('workflow.assessments.index.form.course') }}</dt><dd class="mt-1 break-words text-neutral-200">{{ $assessmentCourses ?: __('workflow.common.not_available') }}</dd></div>
                                 <div><dt class="kpi-label">{{ __('workflow.assessments.index.table.headers.schedule') }}</dt><dd class="mt-1 text-neutral-200">{{ $assessment->due_at?->format('d-m-Y') ?: __('workflow.common.not_available') }}</dd></div>
                                 <div><dt class="kpi-label">{{ __('workflow.assessments.index.table.headers.results') }}</dt><dd class="mt-1 font-semibold text-white">{{ number_format($assessment->results_count) }}</dd></div>
-                                <div><dt class="kpi-label">{{ __('workflow.assessments.index.form.total_mark') }}</dt><dd class="mt-1 text-neutral-200">{{ $assessment->total_mark !== null ? number_format((float) $assessment->total_mark, 2) : __('workflow.common.not_available') }}</dd></div>
-                                <div><dt class="kpi-label">{{ __('workflow.assessments.index.form.pass_mark') }}</dt><dd class="mt-1 text-neutral-200">{{ $assessment->pass_mark !== null ? number_format((float) $assessment->pass_mark, 2) : __('workflow.common.not_available') }}</dd></div>
+                                <div>
+                                    <dt class="kpi-label">{{ __('workflow.assessments.index.table.headers.average') }}</dt>
+                                    <dd class="mt-1 text-neutral-200">
+                                        @if ($assessment->results_avg_score !== null)
+                                            <span dir="ltr">{{ number_format((float) $assessment->results_avg_score, 0) }}%</span>
+                                        @else
+                                            —
+                                        @endif
+                                    </dd>
+                                </div>
                             </dl>
                             @can('assessment-results.view')
                                 <a href="{{ route('assessments.results', $assessment) }}" wire:navigate class="pill-link pill-link--compact pill-link--accent mt-4 w-full justify-center text-center">{{ app()->isLocale('ar') ? 'فتح' : 'Open' }}</a>
@@ -652,13 +630,13 @@ new class extends Component
                         <thead>
                             <tr>
                                 <th class="w-[4%] px-2 py-3 text-center font-medium">#</th>
-                                <th class="w-[19%] px-4 py-3 text-left font-medium">{{ __('workflow.assessments.index.table.headers.assessment') }}</th>
-                                <th class="w-[17%] px-4 py-3 text-left font-medium">{{ __('workflow.assessments.index.form.course') }}</th>
+                                <th class="w-[20%] px-4 py-3 text-left font-medium">{{ __('workflow.assessments.index.table.headers.assessment') }}</th>
+                                <th class="w-[18%] px-4 py-3 text-left font-medium">{{ __('workflow.assessments.index.form.course') }}</th>
                                 <th class="w-[12%] px-3 py-3 text-left font-medium">{{ __('workflow.assessments.index.table.headers.schedule') }}</th>
-                                <th class="w-[17%] px-3 py-3 text-left font-medium">{{ __('workflow.assessments.index.table.headers.marks') }}</th>
-                                <th class="w-[8%] px-2 py-3 text-left font-medium">{{ __('workflow.assessments.index.table.headers.results') }}</th>
-                                <th class="w-[9%] px-2 py-3 text-left font-medium">{{ __('workflow.assessments.index.table.headers.status') }}</th>
-                                <th class="w-[14%] px-3 py-3 text-end font-medium">{{ __('workflow.assessments.index.table.headers.actions') }}</th>
+                                <th class="w-[9%] px-2 py-3 text-left font-medium">{{ __('workflow.assessments.index.table.headers.results') }}</th>
+                                <th class="w-[10%] px-3 py-3 text-left font-medium">{{ __('workflow.assessments.index.table.headers.average') }}</th>
+                                <th class="w-[10%] px-2 py-3 text-left font-medium">{{ __('workflow.assessments.index.table.headers.status') }}</th>
+                                <th class="w-[17%] px-3 py-3 text-end font-medium">{{ __('workflow.assessments.index.table.headers.actions') }}</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-neutral-200 dark:divide-neutral-700">
@@ -680,11 +658,14 @@ new class extends Component
                                     <td class="px-5 py-3">
                                         <div>{{ $assessment->due_at?->format('d-m-Y') ?: __('workflow.common.not_available') }}</div>
                                     </td>
-                                    <td class="px-5 py-3">
-                                        <div>{{ __('workflow.common.labels.maximum_mark', ['value' => $assessment->total_mark !== null ? number_format((float) $assessment->total_mark, 2) : __('workflow.common.not_available')]) }}</div>
-                                        <div class="text-xs text-neutral-500">{{ __('workflow.common.labels.pass', ['value' => $assessment->pass_mark !== null ? number_format((float) $assessment->pass_mark, 2) : __('workflow.common.not_available')]) }}</div>
-                                    </td>
                                     <td class="px-5 py-3">{{ number_format($assessment->results_count) }}</td>
+                                    <td class="px-3 py-3">
+                                        @if ($assessment->results_avg_score !== null)
+                                            <span dir="ltr">{{ number_format((float) $assessment->results_avg_score, 0) }}%</span>
+                                        @else
+                                            —
+                                        @endif
+                                    </td>
                                     <td class="px-2 py-3"><span class="{{ $assessment->is_active ? 'status-chip status-chip--emerald' : 'status-chip status-chip--slate' }}">{{ $assessment->is_active ? __('crud.common.status_options.active') : ($assessment->course_finished_at ? __('crud.common.status_options.finished') : __('crud.common.status_options.inactive')) }}</span></td>
                                     <td class="px-5 py-3 text-end">
                                         <div class="admin-action-cluster admin-action-cluster--end">

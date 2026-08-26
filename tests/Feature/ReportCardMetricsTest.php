@@ -56,6 +56,8 @@ class ReportCardMetricsTest extends TestCase
             ->assertSee($reportCardSetupUrl, false)
             ->assertSee('course-end-final-tests-dual', false)
             ->assertSee('course-end-final-tests-single', false)
+            ->assertSee('course-end-final-tests-desktop-pagination', false)
+            ->assertSee('course-end-final-tests-mobile-pagination', false)
             ->assertSee('course-end-students-mobile', false)
             ->assertSee('course-end-students-desktop', false)
             ->assertSee(__('course_end.student_records', ['count' => number_format(0)]))
@@ -172,6 +174,91 @@ class ReportCardMetricsTest extends TestCase
 
         $enrollment->setAttribute('report_card_special_note', 'Excellent progress');
         $this->assertSame('Excellent progress', $registry->resolve(['course_student' => $enrollment], 'course_student', 'special_note'));
+    }
+
+    public function test_course_end_merges_a_students_final_sabers_and_grades_the_average(): void
+    {
+        $this->seed();
+
+        $teacher = Teacher::create([
+            'first_name' => 'Merged',
+            'last_name' => 'Saber Teacher',
+            'phone' => '0944000777',
+            'status' => 'active',
+        ]);
+        $course = Course::create([
+            'name' => 'Merged Saber Course',
+            'is_active' => true,
+        ]);
+        $group = Group::create([
+            'course_id' => $course->id,
+            'academic_year_id' => AcademicYear::query()->where('is_current', true)->firstOrFail()->id,
+            'teacher_id' => $teacher->id,
+            'name' => 'Merged Saber Group',
+            'capacity' => 20,
+            'is_active' => true,
+        ]);
+        $student = Student::create([
+            'first_name' => 'Merged',
+            'last_name' => 'Saber Student',
+            'birth_date' => '2014-01-01',
+            'status' => 'active',
+        ]);
+        $enrollment = Enrollment::create([
+            'student_id' => $student->id,
+            'group_id' => $group->id,
+            'enrolled_at' => '2026-09-01',
+            'status' => 'active',
+        ]);
+
+        foreach ([[1, 90], [2, 80]] as [$juzNumber, $score]) {
+            $test = QuranFinalTest::create([
+                'enrollment_id' => $enrollment->id,
+                'student_id' => $student->id,
+                'juz_id' => QuranJuz::query()->where('juz_number', $juzNumber)->firstOrFail()->id,
+                'status' => 'passed',
+                'passed_on' => '2026-09-10',
+            ]);
+            QuranFinalTestAttempt::create([
+                'quran_final_test_id' => $test->id,
+                'teacher_id' => $teacher->id,
+                'tested_on' => '2026-09-10',
+                'score' => $score,
+                'status' => 'passed',
+                'attempt_no' => 1,
+            ]);
+        }
+
+        $service = app(CourseEndService::class);
+        $rows = $service->finalTestRows($course);
+
+        $this->assertCount(1, $rows);
+        $this->assertSame('1 - 2', $rows->first()['juz']);
+        $this->assertSame('90% - 80%', $rows->first()['marks']);
+        $this->assertSame(85.0, $rows->first()['mark']);
+        $this->assertSame('good', $rows->first()['grade']);
+        $this->assertSame(2, $rows->first()['test_count']);
+        $this->assertSame(2, $service->summary($course)['final_tests']);
+
+        $report = view('reports.course-final-tests', [
+            'course' => $course,
+            'rows' => $rows,
+            'logo' => null,
+        ])->render();
+
+        $this->assertStringContainsString('1 - 2', $report);
+        $this->assertStringContainsString('90% - 80%', $report);
+
+        $manager = User::factory()->create();
+        $manager->assignRole('manager');
+        $this->actingAs($manager);
+
+        \Livewire\Volt\Volt::test('courses.end', ['course' => $course])
+            ->assertViewHas('finalTestsDesktop', fn ($rows) => $rows->perPage() === 20)
+            ->assertViewHas('finalTestsMobile', fn ($rows) => $rows->perPage() === 15);
+
+        $courseEndView = file_get_contents(resource_path('views/livewire/courses/end.blade.php'));
+        $this->assertStringContainsString('$finalTestDesktopRows->chunk(10)', $courseEndView);
     }
 
     public function test_report_card_notes_are_course_scoped_and_persisted_from_the_dedicated_preview(): void

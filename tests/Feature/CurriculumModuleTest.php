@@ -63,6 +63,8 @@ class CurriculumModuleTest extends TestCase
         ]);
 
         $platform = collect(app(SidebarNavigationService::class)->sidebarFor($user))->firstWhere('key', 'platform');
+        $this->assertSame('books-leaning', collect($platform['items'])->firstWhere('key', 'curricula')['icon']);
+        $this->assertFileExists(resource_path('views/flux/icon/books-leaning.blade.php'));
 
         $this->assertSame(['dashboard', 'reports', 'curricula'], array_column($platform['items'], 'key'));
         $this->assertSame(__('ui.nav.my_curriculum'), $platform['items'][2]['label']);
@@ -128,6 +130,8 @@ class CurriculumModuleTest extends TestCase
             ->assertSee('data-curriculum-topics-column', false)
             ->assertSee('data-collapsed-direction="left"', false)
             ->assertSee('data-collapsed-topic-count', false)
+            ->assertSee('data-topics-default-collapsed', false)
+            ->assertSee('data-importance-cell', false)
             ->assertSee('data-curriculum-add-topic-row', false)
             ->assertDontSee(__('curricula.fields.page_count'));
 

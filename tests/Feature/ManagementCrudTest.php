@@ -97,18 +97,33 @@ class ManagementCrudTest extends TestCase
     public function test_renaming_school_and_parent_work_settings_updates_linked_profiles_and_rejects_duplicates(): void
     {
         $this->signIn();
-        $school = School::create(['name' => 'Old School', 'is_active' => true]);
+        $school = School::create(['name' => 'Old School', 'is_active' => false]);
         School::create(['name' => 'Existing School', 'is_active' => true]);
-        $job = FatherJob::create(['name' => 'Old Job', 'is_active' => true]);
+        $job = FatherJob::create(['name' => 'Old Job', 'is_active' => false]);
         FatherJob::create(['name' => 'Existing Job', 'is_active' => true]);
-        $parent = ParentProfile::create(['father_name' => 'Settings Parent', 'father_work' => 'Old Job']);
-        $student = Student::create(['parent_id' => $parent->id, 'first_name' => 'Settings', 'last_name' => 'Student', 'birth_date' => '2013-01-01', 'school_name' => 'Old School', 'status' => 'active']);
+        $parent = ParentProfile::create(['father_name' => 'Settings Parent', 'father_work' => ' old JOB ']);
+        $student = Student::create(['parent_id' => $parent->id, 'first_name' => 'Settings', 'last_name' => 'Student', 'birth_date' => '2013-01-01', 'school_name' => ' old SCHOOL ', 'status' => 'active']);
+
+        Volt::test('settings.organization')
+            ->assertSee('data-school-usage-count="1"', false)
+            ->assertSee('data-father-job-usage-count="1"', false)
+            ->assertSee('data-school-reference-edit-icon', false)
+            ->assertSee('data-father-job-edit-icon', false)
+            ->call('editSchoolReference', $school->id)
+            ->assertSee('data-school-reference-delete', false)
+            ->assertDontSee('wire:model="school_reference_is_active"', false)
+            ->call('cancelSchoolReference')
+            ->call('editFatherJob', $job->id)
+            ->assertSee('data-father-job-delete', false)
+            ->assertDontSee('wire:model="father_job_is_active"', false);
 
         Volt::test('settings.organization')->call('editSchoolReference', $school->id)->set('school_reference_name', 'New School')->call('saveSchoolReference')->assertHasNoErrors();
         Volt::test('settings.organization')->call('editFatherJob', $job->id)->set('father_job_name', 'New Job')->call('saveFatherJob')->assertHasNoErrors();
 
         $this->assertSame('New School', $student->fresh()->school_name);
         $this->assertSame('New Job', $parent->fresh()->father_work);
+        $this->assertTrue($school->fresh()->is_active);
+        $this->assertTrue($job->fresh()->is_active);
 
         Volt::test('settings.organization')->call('editSchoolReference', $school->id)->set('school_reference_name', ' Existing School ')->call('saveSchoolReference')->assertHasErrors('school_reference_name');
         Volt::test('settings.organization')->call('editFatherJob', $job->id)->set('father_job_name', ' Existing Job ')->call('saveFatherJob')->assertHasErrors('father_job_name');
@@ -128,6 +143,7 @@ class ManagementCrudTest extends TestCase
 
         Volt::test('courses.index')
             ->assertSet('academicYearFilter', (string) $academicYear->id)
+            ->assertSee('course-academic-year-filter', false)
             ->set('academic_year_id', $academicYear->id)
             ->set('name', 'Quran Foundations')
             ->set('description', 'Foundational memorization track')
@@ -912,6 +928,10 @@ class ManagementCrudTest extends TestCase
             'from_page' => 122,
             'to_page' => 141,
         ]);
+        $selectableParent = ParentProfile::create([
+            'father_name' => 'Parent Selection',
+            'is_active' => true,
+        ]);
         $displayCurrentJuzNumber = app()->getLocale() === 'ar' ? '٤' : '4';
 
         Volt::test('students.index')
@@ -922,6 +942,22 @@ class ManagementCrudTest extends TestCase
             ->assertSeeInOrder(['data-student-juz-row', 'data-student-enrollment-group-field'], false)
             ->assertSee('data-memorized-juz-input', false)
             ->assertSee('data-current-juz-input', false)
+            ->call('openQuickParentForm')
+            ->assertSet('showQuickParentForm', true)
+            ->assertDontSee('data-student-parent-row', false)
+            ->assertSee(__('crud.parents.form.placeholders.address'))
+            ->assertSee('wire:click="closeQuickParentForm"', false)
+            ->call('closeQuickParentForm')
+            ->assertSee('data-student-parent-row', false)
+            ->assertSee('wire:model.live="parent_id"', false)
+            ->set('parent_id', $selectableParent->id)
+            ->assertDontSee('data-student-parent-row', false)
+            ->assertSee('data-student-parent-locked', false)
+            ->assertSee('Parent Selection')
+            ->assertSee('wire:click="clearSelectedParent"', false)
+            ->call('clearSelectedParent')
+            ->assertSet('parent_id', null)
+            ->assertSee('data-student-parent-row', false)
             ->assertSee('min-h-[2.875rem]', false)
             ->assertSee('wire:blur="commitCurrentJuz"', false)
             ->assertSee('wire:keydown.enter.prevent="commitCurrentJuz"', false)
@@ -939,6 +975,7 @@ class ManagementCrudTest extends TestCase
             ->call('addExternalMemorizedJuz')
             ->assertSet('external_memorized_juz_ids', [$firstJuz->id])
             ->assertSet('external_memorized_juz_input', '')
+            ->assertDontSee(__('crud.students.form.placeholders.enter_memorized_juz'))
             ->assertSee('student-memorized-juz-'.$firstJuz->id, false)
             ->set('external_memorized_juz_input', '7')
             ->call('addExternalMemorizedJuz')
@@ -1301,6 +1338,81 @@ class ManagementCrudTest extends TestCase
         $this->assertNull($enrollment->notes);
         $this->assertSame(now()->toDateString(), $enrollment->enrolled_at?->toDateString());
         $this->assertSame('active', $enrollment->status);
+    }
+
+    public function test_new_enrollment_group_picker_is_searchable_sorted_and_limited_to_active_courses(): void
+    {
+        $this->signIn();
+
+        $teacher = Teacher::create([
+            'first_name' => 'Enrollment',
+            'last_name' => 'Picker Teacher',
+            'phone' => '0944001114',
+            'status' => 'active',
+        ]);
+        $year = AcademicYear::create([
+            'name' => '2026/2027',
+            'starts_on' => '2026-08-01',
+            'ends_on' => '2027-07-31',
+            'is_current' => true,
+            'is_active' => true,
+        ]);
+        $activeCourse = Course::create(['name' => 'Active Picker Course', 'is_active' => true]);
+        $inactiveCourse = Course::create(['name' => 'Inactive Picker Course', 'is_active' => false]);
+
+        $zuluGroup = Group::create([
+            'course_id' => $activeCourse->id,
+            'academic_year_id' => $year->id,
+            'teacher_id' => $teacher->id,
+            'name' => 'Zulu Group',
+            'capacity' => 20,
+            'is_active' => true,
+        ]);
+        $alphaGroup = Group::create([
+            'course_id' => $activeCourse->id,
+            'academic_year_id' => $year->id,
+            'teacher_id' => $teacher->id,
+            'name' => 'Alpha Group',
+            'capacity' => 20,
+            'is_active' => true,
+        ]);
+        $inactiveGroup = Group::create([
+            'course_id' => $activeCourse->id,
+            'academic_year_id' => $year->id,
+            'teacher_id' => $teacher->id,
+            'name' => 'Inactive Group',
+            'capacity' => 20,
+            'is_active' => false,
+        ]);
+        Group::create([
+            'course_id' => $inactiveCourse->id,
+            'academic_year_id' => $year->id,
+            'teacher_id' => $teacher->id,
+            'name' => 'Inactive Course Group',
+            'capacity' => 20,
+            'is_active' => true,
+        ]);
+        $student = Student::create([
+            'first_name' => 'Enrollment',
+            'last_name' => 'Picker Student',
+            'birth_date' => '2014-01-01',
+            'status' => 'active',
+        ]);
+
+        $component = Volt::test('enrollments.index')
+            ->call('openCreateModal')
+            ->assertViewHas('groups', fn ($groups) => $groups->pluck('id')->all() === [$alphaGroup->id, $zuluGroup->id]);
+
+        $this->assertStringContainsString(
+            'id="enrollment-group" wire:model.live="group_id" data-search-input="true" data-open-on-focus="true"',
+            $component->html(),
+        );
+
+        $component
+            ->set('group_id', $inactiveGroup->id)
+            ->set('student_id', $student->id)
+            ->call('save')
+            ->assertHasErrors(['group_id']);
     }
 
     public function test_group_create_modal_derives_the_current_year_and_create_and_new_preserves_course(): void

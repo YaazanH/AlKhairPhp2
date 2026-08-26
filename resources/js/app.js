@@ -56,7 +56,6 @@ function adminConfirmElements() {
         title: document.getElementById('admin-confirm-title'),
         message: document.getElementById('admin-confirm-message'),
         accept: document.getElementById('admin-confirm-accept'),
-        cancel: document.getElementById('admin-confirm-cancel'),
         closeButtons: document.querySelectorAll('[data-admin-confirm-close]'),
     };
 }
@@ -190,7 +189,7 @@ function handleFormConfirm(event) {
 }
 
 function registerAdminConfirmListeners() {
-    const { accept, cancel, closeButtons, modal } = adminConfirmElements();
+    const { accept, closeButtons, modal } = adminConfirmElements();
 
     if (!modal) {
         return;
@@ -213,7 +212,6 @@ function registerAdminConfirmListeners() {
         modal.dataset.bound = 'true';
 
         accept?.addEventListener('click', confirmAdminAction);
-        cancel?.addEventListener('click', closeAdminConfirm);
 
         closeButtons.forEach((element) => {
             element.addEventListener('click', closeAdminConfirm);
@@ -229,6 +227,61 @@ window.AdminConfirm = {
 document.addEventListener('DOMContentLoaded', registerAdminConfirmListeners);
 document.addEventListener('livewire:navigated', registerAdminConfirmListeners);
 
+const SEARCHABLE_SELECT_BINDING_VERSION = '6';
+let searchableSelectOpenSuppressedUntil = 0;
+
+function suppressSearchableSelectOpen(duration = 400) {
+    searchableSelectOpenSuppressedUntil = Math.max(
+        searchableSelectOpenSuppressedUntil,
+        Date.now() + duration,
+    );
+}
+
+function searchableSelectOpenIsSuppressed() {
+    return Date.now() < searchableSelectOpenSuppressedUntil;
+}
+
+function searchableSelectBinding(select) {
+    return Array.from(select.attributes)
+        .find((attribute) => attribute.name.startsWith('wire:model'))
+        ?.value
+        ?.toLowerCase() || '';
+}
+
+function searchableSelectPlaceholderOption(select) {
+    const options = Array.from(select.options).filter((option) => !option.disabled && !option.hidden);
+    const emptyOption = options.find((option) => option.value === '');
+
+    if (emptyOption) {
+        return emptyOption;
+    }
+
+    const isFilterControl = searchableSelectBinding(select).includes('filter')
+        || select.id.toLowerCase().includes('filter')
+        || Boolean(select.closest('.admin-filter-field, [data-mobile-table-filter-controls]'));
+
+    return isFilterControl ? options.find((option) => option.value === 'all') || null : null;
+}
+
+function searchableSelectPlaceholderValue(select) {
+    return searchableSelectPlaceholderOption(select)?.value ?? '';
+}
+
+function searchableSelectHasValue(select) {
+    const placeholderOption = searchableSelectPlaceholderOption(select);
+
+    return select.value !== '' && select.value !== placeholderOption?.value;
+}
+
+function createSearchableSelectChevron(inputMode = false) {
+    const chevron = document.createElement('span');
+    chevron.className = `searchable-select__chevron${inputMode ? ' searchable-select__chevron--input' : ''}`;
+    chevron.setAttribute('aria-hidden', 'true');
+    chevron.innerHTML = '<svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="m4 6 4 4 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg>';
+
+    return chevron;
+}
+
 function selectedOptionText(select) {
     const option = select.options[select.selectedIndex];
 
@@ -238,7 +291,7 @@ function selectedOptionText(select) {
 function searchHintValue(select) {
     const targetId = select.dataset.searchHintTarget;
 
-    if (!targetId || select.value) {
+    if (!targetId || searchableSelectHasValue(select)) {
         return '';
     }
 
@@ -281,6 +334,7 @@ function normalizeSearchableText(value) {
 function buildSearchableSelectOptions(select, list, query = '') {
     const normalizedQuery = normalizeSearchableText(query);
     const options = Array.from(select.options);
+    const placeholderOption = searchableSelectPlaceholderOption(select);
     let visibleCount = 0;
 
     list.replaceChildren();
@@ -290,7 +344,7 @@ function buildSearchableSelectOptions(select, list, query = '') {
             return;
         }
 
-        if (option.value === '' && select.dataset.hidePlaceholderOption === 'true') {
+        if (option === placeholderOption && select.dataset.hidePlaceholderOption !== 'false') {
             return;
         }
 
@@ -328,6 +382,10 @@ function buildSearchableSelectOptions(select, list, query = '') {
         }
 
         item.addEventListener('click', () => {
+            if (select.dataset.financeCurrencyRequired === 'true' || select.dataset.searchSelectionRequired === 'true') {
+                select.dataset.searchSelectionConfirmed = 'true';
+            }
+
             select.value = option.value;
             select.dispatchEvent(new Event('change', { bubbles: true }));
             select.searchableSelectSync?.(true);
@@ -359,7 +417,11 @@ function enhanceSearchableSelect(select) {
         ? select.nextElementSibling
         : null;
 
-    if (select.dataset.searchableBound === 'true' && existingWrapper) {
+    if (
+        select.dataset.searchableBound === 'true'
+        && select.dataset.searchableBindingVersion === SEARCHABLE_SELECT_BINDING_VERSION
+        && existingWrapper
+    ) {
         select.searchableSelectSync?.();
 
         return;
@@ -369,26 +431,35 @@ function enhanceSearchableSelect(select) {
 
     if (select.dataset.searchableBound === 'true') {
         delete select.dataset.searchableBound;
+        delete select.dataset.searchableBindingVersion;
         select.classList.remove('searchable-select__native');
         delete select.searchableSelectSync;
     }
 
     select.dataset.searchableBound = 'true';
+    select.dataset.searchableBindingVersion = SEARCHABLE_SELECT_BINDING_VERSION;
     select.classList.add('searchable-select__native');
 
     const wrapper = document.createElement('div');
     wrapper.className = 'searchable-select';
     wrapper.setAttribute('wire:ignore', '');
 
-    const searchInputMode = select.dataset.searchInput === 'true';
-    const openOnFocus = select.dataset.openOnFocus === 'true';
+    const searchInputMode = select.dataset.searchInput !== 'false';
+    const openOnFocus = searchInputMode && select.dataset.openOnFocus !== 'false';
+    const clearable = searchInputMode && select.dataset.clearable !== 'false';
+    const financeCurrencyRequired = select.dataset.financeCurrencyRequired === 'true';
+    const searchSelectionRequired = financeCurrencyRequired || select.dataset.searchSelectionRequired === 'true';
+    const showChevron = select.dataset.showChevron !== 'false';
+    let searchSelectionConfirmed = searchSelectionRequired && select.value !== '';
 
     if (searchInputMode) {
         wrapper.classList.add('searchable-select--input');
+        wrapper.classList.toggle('searchable-select--clearable', clearable);
     }
 
     let button = null;
     let label = null;
+    let clear = null;
 
     if (!searchInputMode) {
         button = document.createElement('button');
@@ -400,11 +471,11 @@ function enhanceSearchableSelect(select) {
         label = document.createElement('span');
         label.className = 'searchable-select__value';
 
-        const chevron = document.createElement('span');
-        chevron.className = 'searchable-select__chevron';
-        chevron.textContent = '⌄';
+        button.append(label);
 
-        button.append(label, chevron);
+        if (showChevron) {
+            button.append(createSearchableSelectChevron());
+        }
     }
 
     const panel = document.createElement('div');
@@ -414,7 +485,12 @@ function enhanceSearchableSelect(select) {
     const search = document.createElement('input');
     search.type = 'search';
     search.className = 'searchable-select__search';
-    search.placeholder = select.dataset.searchPlaceholder || 'Search...';
+    const placeholderOption = searchableSelectPlaceholderOption(select);
+    search.placeholder = select.classList.contains('finance-amount-input__currency')
+        ? ''
+        : ('searchPlaceholder' in select.dataset
+            ? select.dataset.searchPlaceholder
+            : (placeholderOption?.textContent?.trim() || 'Search...'));
     search.autocomplete = 'off';
 
     if (searchInputMode) {
@@ -430,7 +506,22 @@ function enhanceSearchableSelect(select) {
 
     if (searchInputMode) {
         panel.append(list);
-        wrapper.append(search, panel);
+        wrapper.append(search);
+
+        if (showChevron) {
+            wrapper.append(createSearchableSelectChevron(true));
+        }
+
+        if (clearable) {
+            clear = document.createElement('button');
+            clear.type = 'button';
+            clear.className = 'searchable-select__clear';
+            clear.setAttribute('aria-label', select.dataset.clearLabel || 'Clear selection');
+            clear.textContent = '×';
+            wrapper.append(clear);
+        }
+
+        wrapper.append(panel);
     } else {
         panel.append(search, list);
         wrapper.append(button, panel);
@@ -439,16 +530,80 @@ function enhanceSearchableSelect(select) {
 
     let optionsSignature = '';
 
+    const updateRequiredSelectionValidity = (valid) => {
+        if (!searchSelectionRequired) {
+            return;
+        }
+
+        wrapper.classList.toggle('searchable-select--invalid', !valid);
+        search.setAttribute('aria-invalid', valid ? 'false' : 'true');
+        select.setCustomValidity(valid ? '' : 'Please select an option from the list.');
+
+        const form = select.closest('form');
+
+        if (!form) {
+            return;
+        }
+
+        const formIsInvalid = Boolean(form.querySelector('.searchable-select--invalid'));
+        form.toggleAttribute('data-search-selection-invalid', formIsInvalid);
+
+        if (financeCurrencyRequired) {
+            form.toggleAttribute('data-finance-currency-invalid', formIsInvalid);
+        }
+
+        form.querySelectorAll('button[type="submit"], input[type="submit"], button[wire\\:click*="saveAndNew"]').forEach((control) => {
+            if (!(control instanceof HTMLButtonElement || control instanceof HTMLInputElement)) {
+                return;
+            }
+
+            if (formIsInvalid) {
+                if (!control.disabled) {
+                    control.dataset.financeCurrencyDisabled = 'true';
+                    control.disabled = true;
+                    control.classList.add('finance-currency-save-disabled');
+                }
+
+                return;
+            }
+
+            if (control.dataset.financeCurrencyDisabled === 'true') {
+                control.disabled = false;
+                control.classList.remove('finance-currency-save-disabled');
+                delete control.dataset.financeCurrencyDisabled;
+            }
+        });
+    };
+
     const sync = (force = false) => {
+        search.disabled = select.disabled;
+
         if (searchInputMode) {
             const selectedOption = select.options[select.selectedIndex];
-            const nextValue = selectedOption?.value ? selectedOption.textContent.trim() : '';
+            const hasSelectedValue = searchableSelectHasValue(select);
+            const nextValue = hasSelectedValue ? selectedOption?.textContent.trim() || '' : '';
 
-            if ((force || document.activeElement !== search) && search.value !== nextValue) {
+            if ((!hasSelectedValue || force || document.activeElement !== search) && search.value !== nextValue) {
                 search.value = nextValue;
             }
+
+            wrapper.classList.toggle(
+                'searchable-select--selected',
+                hasSelectedValue || search.value.trim() !== '',
+            );
+            wrapper.classList.toggle(
+                'searchable-select--placeholder',
+                !hasSelectedValue && search.value.trim() === '',
+            );
+
+            if (searchSelectionRequired && document.activeElement !== search && select.value !== '' && search.value === nextValue) {
+                searchSelectionConfirmed = true;
+                updateRequiredSelectionValidity(true);
+            }
         } else {
-            const nextLabel = selectedOptionText(select) || select.querySelector('option[value=""]')?.textContent?.trim() || 'Select';
+            wrapper.classList.toggle('searchable-select--selected', searchableSelectHasValue(select));
+            wrapper.classList.toggle('searchable-select--placeholder', !searchableSelectHasValue(select));
+            const nextLabel = selectedOptionText(select) || placeholderOption?.textContent?.trim() || 'Select';
 
             if (label.textContent !== nextLabel) {
                 label.textContent = nextLabel;
@@ -469,7 +624,40 @@ function enhanceSearchableSelect(select) {
     sync();
 
     if (searchInputMode) {
+        if (clear) {
+            clear.addEventListener('pointerdown', (event) => {
+                event.stopPropagation();
+                suppressSearchableSelectOpen();
+            });
+
+            clear.addEventListener('mousedown', (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                suppressSearchableSelectOpen();
+            });
+
+            clear.addEventListener('click', (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                suppressSearchableSelectOpen();
+
+                select.value = searchableSelectPlaceholderValue(select);
+                search.value = '';
+                select.dispatchEvent(new Event('change', { bubbles: true }));
+                sync(true);
+                closeSearchableSelect(wrapper);
+                clear.blur();
+            });
+        }
+
         search.addEventListener('focus', () => {
+            if (searchableSelectOpenIsSuppressed()) {
+                closeSearchableSelect(wrapper);
+                search.blur();
+
+                return;
+            }
+
             if (!openOnFocus) {
                 return;
             }
@@ -484,10 +672,24 @@ function enhanceSearchableSelect(select) {
 
         search.addEventListener('input', () => {
             const hasQuery = search.value.trim() !== '';
+            wrapper.classList.toggle('searchable-select--selected', hasQuery || searchableSelectHasValue(select));
+
+            if (searchSelectionRequired) {
+                searchSelectionConfirmed = false;
+            }
 
             if (!hasQuery) {
-                if (select.value !== '') {
-                    select.value = '';
+                if (!clearable) {
+                    sync(true);
+                    buildSearchableSelectOptions(select, list, '');
+
+                    return;
+                }
+
+                const placeholderValue = searchableSelectPlaceholderValue(select);
+
+                if (select.value !== placeholderValue) {
+                    select.value = placeholderValue;
                     select.dispatchEvent(new Event('change', { bubbles: true }));
                 }
 
@@ -517,6 +719,16 @@ function enhanceSearchableSelect(select) {
                 return;
             }
 
+            if (searchSelectionRequired) {
+                const selectedOption = select.options[select.selectedIndex];
+                const selectedLabel = selectedOption?.value ? selectedOption.textContent.trim() : '';
+                const valid = searchSelectionConfirmed
+                    && select.value !== ''
+                    && search.value.trim() === selectedLabel;
+
+                updateRequiredSelectionValidity(valid);
+            }
+
             closeSearchableSelect(wrapper);
             search.setAttribute('aria-expanded', 'false');
         });
@@ -539,7 +751,15 @@ function enhanceSearchableSelect(select) {
         search.addEventListener('input', () => buildSearchableSelectOptions(select, list, search.value));
     }
 
-    select.addEventListener('change', () => sync());
+    select.addEventListener('change', () => {
+        if (searchSelectionRequired && select.dataset.searchSelectionConfirmed === 'true') {
+            searchSelectionConfirmed = select.value !== '';
+            delete select.dataset.searchSelectionConfirmed;
+            updateRequiredSelectionValidity(searchSelectionConfirmed);
+        }
+
+        sync();
+    });
 }
 
 function initializeSearchableSelects() {
@@ -701,6 +921,7 @@ function createMobileFilterIcon() {
     svg.setAttribute('stroke', 'currentColor');
     svg.setAttribute('stroke-width', '2');
     svg.setAttribute('aria-hidden', 'true');
+    svg.classList.add('mobile-table-action__icon');
     circle.setAttribute('cx', '11');
     circle.setAttribute('cy', '11');
     circle.setAttribute('r', '7');
@@ -708,6 +929,113 @@ function createMobileFilterIcon() {
     svg.append(circle, path);
 
     return svg;
+}
+
+function createMobileTableActionIcon(kind) {
+    const namespace = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(namespace, 'svg');
+    const addPath = (definition) => {
+        const path = document.createElementNS(namespace, 'path');
+        path.setAttribute('d', definition);
+        svg.append(path);
+    };
+    const addCircle = (cx, cy, radius) => {
+        const circle = document.createElementNS(namespace, 'circle');
+        circle.setAttribute('cx', cx);
+        circle.setAttribute('cy', cy);
+        circle.setAttribute('r', radius);
+        svg.append(circle);
+    };
+
+    svg.setAttribute('viewBox', '0 0 24 24');
+    svg.setAttribute('fill', 'none');
+    svg.setAttribute('stroke', 'currentColor');
+    svg.setAttribute('stroke-width', '1.8');
+    svg.setAttribute('stroke-linecap', 'round');
+    svg.setAttribute('stroke-linejoin', 'round');
+    svg.setAttribute('aria-hidden', 'true');
+    svg.classList.add('mobile-table-action__icon');
+
+    switch (kind) {
+        case 'add':
+            addPath('M12 5v14M5 12h14');
+            break;
+        case 'export':
+            addPath('M12 3v12m-4-4 4 4 4-4M5 17v3h14v-3');
+            break;
+        case 'print':
+            addPath('M7 8V4h10v4M7 17H5a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2M7 14h10v7H7z');
+            addCircle('18', '12', '.5');
+            break;
+        case 'pdf':
+            addPath('M7 3h7l4 4v14H7zM14 3v5h4M9.5 16h5M9.5 12h5');
+            break;
+        case 'clear':
+            addCircle('12', '12', '8');
+            addPath('m9 9 6 6m0-6-6 6');
+            break;
+        case 'settings':
+            addCircle('12', '12', '2.5');
+            addPath('M19 12a7.6 7.6 0 0 0-.08-1l2-1.5-2-3.45-2.35.95a8 8 0 0 0-1.72-1L14.5 3h-5l-.35 3A8 8 0 0 0 7.43 7L5.08 6.05l-2 3.45L5.08 11a7.6 7.6 0 0 0 0 2l-2 1.5 2 3.45L7.43 17a8 8 0 0 0 1.72 1l.35 3h5l.35-3a8 8 0 0 0 1.72-1l2.35.95 2-3.45-2-1.5c.05-.33.08-.66.08-1Z');
+            break;
+        case 'view':
+            addPath('M4 7h16M4 12h16M4 17h16');
+            break;
+        case 'search':
+            addCircle('11', '11', '7');
+            addPath('m20 20-4-4');
+            break;
+        default:
+            addCircle('6', '12', '1');
+            addCircle('12', '12', '1');
+            addCircle('18', '12', '1');
+    }
+
+    return svg;
+}
+
+function mobileTableActionKind(action) {
+    const descriptor = [
+        action.textContent,
+        action.getAttribute('title'),
+        action.getAttribute('aria-label'),
+        action.getAttribute('href'),
+        action.getAttribute('wire:click'),
+    ].filter(Boolean).join(' ').toLocaleLowerCase();
+
+    if (/pdf/.test(descriptor)) return 'pdf';
+    if (/print|طباعة/.test(descriptor)) return 'print';
+    if (/export|download|تصدير|تنزيل/.test(descriptor)) return 'export';
+    if (/create|add|new|opencreate|إنشاء|انشاء|إضافة|اضافة|جديد/.test(descriptor)) return 'add';
+    if (/clear|reset|مسح|إلغاء التصفية|الغاء التصفية/.test(descriptor)) return 'clear';
+    if (/setting|إعداد|اعداد/.test(descriptor)) return 'settings';
+    if (/view|show|عرض/.test(descriptor)) return 'view';
+    if (/search|filter|بحث|تصفية|فلتر/.test(descriptor)) return 'search';
+
+    return 'more';
+}
+
+function initializeMobileTableHeaderActions(toolbar) {
+    const actions = Array.from(toolbar.querySelectorAll('a, button')).filter((action) => (
+        action.closest('.mobile-table-filter-criterion') === null
+        && !action.hasAttribute('data-mobile-table-filter-open')
+        && !action.hasAttribute('data-mobile-table-filter-close')
+        && action.closest('.admin-toolbar__controls, [data-mobile-table-filter-controls]') === toolbar
+    ));
+
+    actions.forEach((action) => {
+        if (action.dataset.mobileTableHeaderAction === 'true') return;
+
+        const label = action.getAttribute('aria-label')
+            || action.getAttribute('title')
+            || action.textContent.trim();
+
+        action.dataset.mobileTableHeaderAction = 'true';
+        action.classList.add('mobile-table-header-action');
+        action.setAttribute('aria-label', label);
+        action.setAttribute('title', action.getAttribute('title') || label);
+        action.prepend(createMobileTableActionIcon(mobileTableActionKind(action)));
+    });
 }
 
 function initializeMobileTableFilters(root = document) {
@@ -724,6 +1052,10 @@ function initializeMobileTableFilters(root = document) {
             child.matches('.admin-filter-field, input:not([type="hidden"]), select')
             || child.querySelector('input:not([type="hidden"]), select')
         ));
+
+        toolbar.classList.add('mobile-table-header-controls');
+        criteria.forEach((criterion) => criterion.classList.add('mobile-table-filter-criterion'));
+        initializeMobileTableHeaderActions(toolbar);
 
         if (criteria.length === 0) return;
 
@@ -747,16 +1079,19 @@ function initializeMobileTableFilters(root = document) {
         toolbar.dataset.mobileTableFilters = 'true';
         toolbar.dataset.mobileTableFilterKey = filterKey;
         toolbar.classList.add('mobile-table-filters');
-        criteria.forEach((criterion) => criterion.classList.add('mobile-table-filter-criterion'));
 
         const isArabic = document.documentElement.dir === 'rtl' || document.documentElement.lang?.startsWith('ar');
         let trigger = Array.from(toolbar.children).find((child) => child.hasAttribute('data-mobile-table-filter-open'));
         if (!trigger) {
             trigger = document.createElement('button');
             trigger.type = 'button';
-            trigger.className = 'mobile-table-filter-trigger';
+            trigger.className = 'mobile-table-filter-trigger mobile-table-header-action';
             trigger.dataset.mobileTableFilterOpen = '';
-            trigger.append(createMobileFilterIcon(), document.createTextNode(isArabic ? 'بحث' : 'Search'));
+            trigger.setAttribute('aria-label', isArabic ? 'بحث' : 'Search');
+            const triggerLabel = document.createElement('span');
+            triggerLabel.className = 'mobile-table-filter-trigger__label';
+            triggerLabel.textContent = isArabic ? 'بحث' : 'Search';
+            trigger.append(createMobileFilterIcon(), triggerLabel);
             toolbar.prepend(trigger);
         }
 

@@ -178,7 +178,7 @@ new class extends Component {
     <section class="page-hero p-6 lg:p-8">
         <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
-                <a href="{{ route('assessments.index') }}" wire:navigate class="text-sm font-medium text-neutral-300 hover:text-white">{{ __('workflow.common.back_to_assessments') }}</a>
+                <x-back-link :href="route('assessments.index')" navigate />
                 <div class="eyebrow mt-4">{{ __('ui.nav.assessments') }}</div>
                 <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('workflow.assessments.bands.title') }}</h1>
                 <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ __('workflow.assessments.bands.subtitle') }}</p>
@@ -267,7 +267,6 @@ new class extends Component {
                                     </div>
 
                                     <div class="admin-action-cluster admin-action-cluster--end">
-                                        <button type="button" wire:click="cancel" class="pill-link">{{ __('crud.common.actions.cancel') }}</button>
                                         <button type="submit" class="pill-link pill-link--accent">{{ $editingId ? __('workflow.assessments.bands.form.update_submit') : __('workflow.assessments.bands.form.create_submit') }}</button>
                                     </div>
                                 </form>

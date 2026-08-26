@@ -218,6 +218,38 @@ class SystemSettingsTest extends TestCase
             ->assertDontSee('<th>'.__('settings.tracking.table.rule').'</th>', false);
     }
 
+    public function test_operational_statuses_can_be_toggled_without_opening_the_general_settings_editor(): void
+    {
+        $this->signIn();
+
+        $component = Volt::test('settings.organization')
+            ->assertSet('barcode_scanner_enabled', true)
+            ->assertSet('memorization_saber_entries_enabled', true)
+            ->assertSee('wire:click="toggleBarcodeScanner"', false)
+            ->assertSee('wire:click="toggleMemorizationSaberEntries"', false)
+            ->call('toggleBarcodeScanner')
+            ->assertSet('barcode_scanner_enabled', false)
+            ->call('toggleMemorizationSaberEntries')
+            ->assertSet('memorization_saber_entries_enabled', false);
+
+        $this->assertDatabaseHas('app_settings', [
+            'group' => 'dashboard',
+            'key' => 'barcode_scanner_enabled',
+            'value' => '0',
+        ]);
+        $this->assertDatabaseHas('app_settings', [
+            'group' => 'general',
+            'key' => 'memorization_saber_entries_enabled',
+            'value' => '0',
+        ]);
+
+        $component
+            ->call('toggleBarcodeScanner')
+            ->assertSet('barcode_scanner_enabled', true)
+            ->call('toggleMemorizationSaberEntries')
+            ->assertSet('memorization_saber_entries_enabled', true);
+    }
+
     public function test_manager_can_manage_organization_settings(): void
     {
         $this->signIn();
@@ -239,6 +271,17 @@ class SystemSettingsTest extends TestCase
         $this->assertSame((string) $student->id, $student->fresh()->student_number);
 
         Volt::test('settings.organization')
+            ->assertSee('data-general-prefix-value', false)
+            ->call('openOrganizationModal')
+            ->assertSee('data-organization-settings-save-icon', false)
+            ->assertSee('form="organization-settings-form"', false)
+            ->assertDontSee('wire:click="closeOrganizationModal" class="pill-link"', false)
+            ->assertSee('data-organization-settings-primary-box', false)
+            ->assertSee('data-organization-settings-numbering-group', false)
+            ->assertSee('md:grid-cols-4', false)
+            ->assertSee('data-organization-settings-locale-group', false)
+            ->assertSee('md:grid-cols-[minmax(0,1.35fr)_minmax(7rem,0.6fr)_minmax(9rem,0.8fr)]', false)
+            ->assertSee('wire:model="school_address" type="text"', false)
             ->set('school_name', 'Alkhair Center')
             ->set('school_phone', '0944555000')
             ->set('school_email', 'info@alkhair.test')
@@ -552,7 +595,6 @@ class SystemSettingsTest extends TestCase
         Volt::test('settings.course-completion')
             ->set('required_passed_final_tests', '1')
             ->set('required_passed_quizzes', '1')
-            ->set('required_present_attendance', '1')
             ->set('retain_percentage', '50')
             ->call('saveRules')
             ->assertHasNoErrors();
@@ -578,6 +620,161 @@ class SystemSettingsTest extends TestCase
         ]);
 
         $this->assertSame(20, $enrollment->fresh()->final_points_cached);
+    }
+
+    public function test_course_completion_final_rule_splits_deselected_grades_into_a_new_persistent_row(): void
+    {
+        $this->signIn();
+
+        $firstGrade = GradeLevel::query()->create(['name' => 'Grade A', 'sort_order' => 10, 'is_active' => true]);
+        $secondGrade = GradeLevel::query()->create(['name' => 'Grade B', 'sort_order' => 20, 'is_active' => true]);
+        $thirdGrade = GradeLevel::query()->create(['name' => 'Grade C', 'sort_order' => 30, 'is_active' => true]);
+
+        Volt::test('settings.course-completion')
+            ->assertSee('data-course-completion-final-rule-row', false)
+            ->assertSee('data-search-selection-required="true"', false)
+            ->assertSee('data-show-chevron="false"', false)
+            ->assertSee('data-course-completion-grade-button', false)
+            ->assertDontSee(__('settings.course_completion.fields.required_present_attendance'))
+            ->assertSee(__('settings.course_completion.fields.retain_percentage'))
+            ->assertSee(__('settings.course_completion.fields.minimum_points'))
+            ->assertSee(__('settings.course_completion.labels.point_unit'))
+            ->call('openGradeRule', 'final', 0)
+            ->assertSee('data-course-completion-grade-save', false)
+            ->assertSet('final_test_grade_ids', [$firstGrade->id, $secondGrade->id, $thirdGrade->id])
+            ->assertSet('gradeRuleSelectedGradeIds', [$firstGrade->id, $secondGrade->id, $thirdGrade->id])
+            ->set('gradeRuleSelectedGradeIds', [$firstGrade->id, $secondGrade->id])
+            ->assertSee('data-course-completion-grade-action="add"', false)
+            ->call('saveGradeRuleModal')
+            ->assertSet('additional_final_rules.0.grade_ids', [$thirdGrade->id])
+            ->call('openGradeRule', 'final', 1)
+            ->assertSee('data-course-completion-grade-action="save"', false)
+            ->assertSee('data-course-completion-rule-delete', false)
+            ->call('saveGradeRuleModal')
+            ->set('additional_final_rules.0.required_passed_final_tests', '4')
+            ->set('additional_final_rules.0.required_memorized_pages', '120')
+            ->set('additional_final_rules.0.final_rule_operator', 'or')
+            ->call('saveRules')
+            ->assertHasNoErrors();
+
+        $rows = app(CourseCompletionRuleService::class)->settings()['final_rule_rows'];
+
+        $this->assertCount(2, $rows);
+        $this->assertSame([$firstGrade->id, $secondGrade->id], $rows[0]['grade_ids']);
+        $this->assertSame([$thirdGrade->id], $rows[1]['grade_ids']);
+        $this->assertSame(4, $rows[1]['required_passed_final_tests']);
+        $this->assertSame(120, $rows[1]['required_memorized_pages']);
+        $this->assertSame('or', $rows[1]['final_rule_operator']);
+    }
+
+    public function test_reselecting_a_grade_removes_its_now_empty_split_completion_rule(): void
+    {
+        $this->signIn();
+
+        $firstGrade = GradeLevel::query()->create(['name' => 'Grade A', 'sort_order' => 10, 'is_active' => true]);
+        $secondGrade = GradeLevel::query()->create(['name' => 'Grade B', 'sort_order' => 20, 'is_active' => true]);
+
+        Volt::test('settings.course-completion')
+            ->call('openGradeRule', 'final', 0)
+            ->set('gradeRuleSelectedGradeIds', [$firstGrade->id])
+            ->call('saveGradeRuleModal')
+            ->assertSet('additional_final_rules.0.grade_ids', [$secondGrade->id])
+            ->call('openGradeRule', 'final', 0)
+            ->set('gradeRuleSelectedGradeIds', [$firstGrade->id, $secondGrade->id])
+            ->call('saveGradeRuleModal')
+            ->assertSet('final_test_grade_ids', [$firstGrade->id, $secondGrade->id])
+            ->assertSet('additional_final_rules', []);
+    }
+
+    public function test_deleting_a_secondary_completion_rule_returns_its_grades_to_the_main_rule(): void
+    {
+        $this->signIn();
+
+        $firstGrade = GradeLevel::query()->create(['name' => 'Grade A', 'sort_order' => 10, 'is_active' => true]);
+        $secondGrade = GradeLevel::query()->create(['name' => 'Grade B', 'sort_order' => 20, 'is_active' => true]);
+
+        Volt::test('settings.course-completion')
+            ->call('openGradeRule', 'final', 0)
+            ->set('gradeRuleSelectedGradeIds', [$firstGrade->id])
+            ->call('saveGradeRuleModal')
+            ->assertSet('additional_final_rules.0.grade_ids', [$secondGrade->id])
+            ->call('openGradeRule', 'final', 1)
+            ->assertSee('data-course-completion-rule-delete', false)
+            ->call('deleteFinalRule', 1)
+            ->assertSet('showGradeRuleModal', false)
+            ->assertSet('final_test_grade_ids', [$firstGrade->id, $secondGrade->id])
+            ->assertSet('additional_final_rules', []);
+    }
+
+    public function test_deselecting_a_grade_from_a_secondary_completion_rule_returns_it_to_the_main_rule(): void
+    {
+        $this->signIn();
+
+        $firstGrade = GradeLevel::query()->create(['name' => 'Grade A', 'sort_order' => 10, 'is_active' => true]);
+        $secondGrade = GradeLevel::query()->create(['name' => 'Grade B', 'sort_order' => 20, 'is_active' => true]);
+        $thirdGrade = GradeLevel::query()->create(['name' => 'Grade C', 'sort_order' => 30, 'is_active' => true]);
+
+        Volt::test('settings.course-completion')
+            ->call('openGradeRule', 'final', 0)
+            ->set('gradeRuleSelectedGradeIds', [$firstGrade->id])
+            ->call('saveGradeRuleModal')
+            ->assertSet('additional_final_rules.0.grade_ids', [$secondGrade->id, $thirdGrade->id])
+            ->call('openGradeRule', 'final', 1)
+            ->set('gradeRuleSelectedGradeIds', [$secondGrade->id])
+            ->assertSee('data-course-completion-grade-action="save"', false)
+            ->assertDontSee('data-course-completion-grade-action="add"', false)
+            ->call('saveGradeRuleModal')
+            ->assertSet('final_test_grade_ids', [$firstGrade->id, $thirdGrade->id])
+            ->assertSet('additional_final_rules.0.grade_ids', [$secondGrade->id])
+            ->assertCount('additional_final_rules', 1);
+    }
+
+    public function test_assessment_rules_use_a_card_selector_and_per_assessment_grade_editor(): void
+    {
+        $this->signIn();
+
+        $firstGrade = GradeLevel::query()->create(['name' => 'Grade A', 'sort_order' => 10, 'is_active' => true]);
+        $secondGrade = GradeLevel::query()->create(['name' => 'Grade B', 'sort_order' => 20, 'is_active' => true]);
+        $firstType = AssessmentType::query()->create(['name' => 'Oral', 'code' => 'oral', 'is_scored' => true, 'is_active' => true]);
+        $secondType = AssessmentType::query()->create(['name' => 'Written', 'code' => 'written', 'is_scored' => true, 'is_active' => true]);
+
+        Volt::test('settings.course-completion')
+            ->assertSee(__('settings.course_completion.labels.no_assessment_types'))
+            ->assertSee('class="admin-empty-state admin-empty-state--compact"', false)
+            ->call('openAssessmentTypeModal')
+            ->assertSee('wire:click.prevent.stop="closeAssessmentTypeModal"', false)
+            ->assertSee($firstType->name)
+            ->assertSee($secondType->name)
+            ->assertSee('data-course-completion-assessment-choice', false)
+            ->assertDontSee('type="checkbox" value="'.$firstType->id.'" wire:model="enabled_assessment_type_ids"', false)
+            ->call('toggleAssessmentTypeSelection', $firstType->id)
+            ->assertSet('assessment_type_selections', [$firstType->id])
+            ->assertSee('data-course-completion-assessment-add', false)
+            ->assertDontSee('wire:click.prevent.stop="closeAssessmentTypeModal"', false)
+            ->call('addSelectedAssessmentType')
+            ->assertSet('enabled_assessment_type_ids', [$firstType->id])
+            ->assertSet('assessment_rule_grade_ids.'.$firstType->id, [$firstGrade->id, $secondGrade->id])
+            ->call('openAssessmentTypeModal')
+            ->assertDontSee('wire:click="toggleAssessmentTypeSelection('.$firstType->id.')"', false)
+            ->assertSee('wire:click="toggleAssessmentTypeSelection('.$secondType->id.')"', false)
+            ->call('closeAssessmentTypeModal')
+            ->call('openGradeRule', 'assessment', $firstType->id)
+            ->assertSee('data-course-completion-assessment-delete', false)
+            ->assertSet('gradeRuleSelectedGradeIds', [$firstGrade->id, $secondGrade->id])
+            ->set('gradeRuleSelectedGradeIds', [$secondGrade->id])
+            ->call('saveGradeRuleModal')
+            ->assertSet('assessment_rule_grade_ids.'.$firstType->id, [$secondGrade->id])
+            ->set('assessment_type_requirements.'.$firstType->id, '2')
+            ->call('saveRules')
+            ->assertHasNoErrors()
+            ->call('openGradeRule', 'assessment', $firstType->id)
+            ->call('removeAssessmentRule')
+            ->assertSet('enabled_assessment_type_ids', []);
+
+        $this->assertSame(
+            [$secondGrade->id],
+            app(CourseCompletionRuleService::class)->settings()['assessment_rule_grade_ids'][$firstType->id],
+        );
     }
 
     public function test_authorized_user_can_save_sidebar_navigation_settings(): void
@@ -835,6 +1032,15 @@ class SystemSettingsTest extends TestCase
         ]);
 
         Volt::test('settings.points')
+            ->assertSet('automatic_multiplier', '2')
+            ->assertSee('points-multiplier-select', false)
+            ->assertSee('data-clearable="false"', false)
+            ->assertSee('data-search-selection-required="true"', false)
+            ->assertSee('data-show-chevron="false"', false)
+            ->assertDontSee('<option value="1">x1</option>', false)
+            ->assertSee('md:grid-cols-[3rem_1fr_1fr_auto]', false)
+            ->assertSee('class="points-multiplier-field"', false)
+            ->assertSee('class="points-multiplier-select h-12 w-12', false)
             ->set('partial_test_fail_threshold', '4')
             ->set('final_test_passed_from', '75')
             ->call('saveSaberRules')
@@ -877,6 +1083,27 @@ class SystemSettingsTest extends TestCase
             'points' => 7,
             'source_type' => 'behavior',
             'trigger_key' => 'excellent',
+        ]);
+
+        Volt::test('settings.finance')
+            ->assertSee('data-finance-settings-summary', false)
+            ->assertSee('data-finance-settings-primary-row', false)
+            ->assertSee('data-finance-settings-prefix-row', false)
+            ->assertSee('grid min-w-[72rem] grid-cols-8', false)
+            ->assertSee('data-finance-prefix-value', false)
+            ->assertSee('data-withdrawal-requests-status', false)
+            ->call('toggleWithdrawalRequests')
+            ->assertSet('withdrawal_requests_enabled', false)
+            ->call('openFinanceSettingsModal')
+            ->assertSet('showFinanceSettingsModal', true)
+            ->assertSee('data-finance-settings-save-icon', false)
+            ->call('closeFinanceSettingsModal')
+            ->assertSet('showFinanceSettingsModal', false);
+
+        $this->assertDatabaseHas('app_settings', [
+            'group' => 'finance',
+            'key' => 'withdrawal_requests_enabled',
+            'value' => '0',
         ]);
 
         Volt::test('settings.finance')
@@ -926,6 +1153,21 @@ class SystemSettingsTest extends TestCase
             'code' => 'transport',
             'name' => 'Transport',
         ]);
+    }
+
+    public function test_shared_table_pagination_keeps_controls_on_one_row_and_summary_below(): void
+    {
+        $paginationView = file_get_contents(resource_path('views/vendor/livewire/tailwind.blade.php'));
+        $paginationCss = file_get_contents(resource_path('css/app.css'));
+
+        $this->assertStringContainsString('class="app-pagination__mobile"', $paginationView);
+        $this->assertStringContainsString('class="app-pagination__desktop"', $paginationView);
+        $this->assertStringNotContainsString('app-pagination__mobile sm:hidden', $paginationView);
+        $this->assertMatchesRegularExpression('/\.app-pagination__summary\s*\{[^}]*grid-column:\s*1;[^}]*grid-row:\s*2;[^}]*font-size:\s*0\.72rem;/s', $paginationCss);
+        $this->assertMatchesRegularExpression('/\.app-pagination__mobile\s*\{[^}]*grid-row:\s*1;/s', $paginationCss);
+        $this->assertMatchesRegularExpression('/\.app-pagination__nav\s*\{[^}]*grid-row:\s*1;/s', $paginationCss);
+        $this->assertStringNotContainsString(".app-pagination__summary {\n        display: none;", $paginationCss);
+        $this->assertStringContainsString('flex-wrap: nowrap;', $paginationCss);
     }
 
     private function signIn(): User

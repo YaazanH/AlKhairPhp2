@@ -718,6 +718,14 @@ new class extends Component {
         $this->resetValidation('parent_id');
     }
 
+    public function clearSelectedParent(): void
+    {
+        $this->authorizePermission($this->editingId ? 'students.update' : 'students.create');
+        $this->parent_id = null;
+        $this->closeQuickParentForm();
+        $this->resetValidation('parent_id');
+    }
+
     public function saveQuickParent(): void
     {
         $updatingParent = $this->editingId && $this->parent_id;
@@ -1973,16 +1981,20 @@ new class extends Component {
             </div>
 
             @php
-                $connectedParent = $editingId && $parent_id ? $parents->firstWhere('id', (int) $parent_id) : null;
+                $connectedParent = $parent_id ? $parents->firstWhere('id', (int) $parent_id) : null;
             @endphp
-            @unless ($editingId && $parent_id)
+            @unless ($showQuickParentForm || $parent_id)
                 <div data-student-parent-row>
                     <label for="student-parent" class="mb-1 block text-sm font-medium">{{ __('crud.students.form.fields.parent') }}</label>
                     <div class="flex items-center gap-2">
                         <select
                             id="student-parent"
-                            wire:model="parent_id"
+                            wire:model.live="parent_id"
                             data-search-hint-target="student-last-name"
+                            data-search-input="true"
+                            data-open-on-focus="true"
+                            data-hide-placeholder-option="true"
+                            data-search-placeholder="{{ __('crud.students.form.placeholders.select_parent') }}"
                             class="min-w-0 flex-1 rounded-xl px-4 py-3 text-sm"
                         >
                             <option value="">{{ __('crud.students.form.placeholders.select_parent') }}</option>
@@ -2004,8 +2016,8 @@ new class extends Component {
                             @endforeach
                         </select>
                         @can('parents.create')
-                            <button type="button" wire:click="{{ $showQuickParentForm ? 'closeQuickParentForm' : 'openQuickParentForm' }}" class="pill-link pill-link--compact shrink-0">
-                                {{ $showQuickParentForm ? __('crud.students.form.parent_shortcut.cancel') : '+' }}
+                            <button type="button" wire:click="openQuickParentForm" class="pill-link pill-link--compact shrink-0">
+                                +
                             </button>
                         @endcan
                     </div>
@@ -2014,6 +2026,16 @@ new class extends Component {
                     @enderror
                 </div>
             @endunless
+
+            @if (! $editingId && $parent_id && ! $showQuickParentForm)
+                <div data-student-parent-locked>
+                    <label class="mb-1 block text-sm font-medium">{{ __('crud.students.form.fields.parent') }}</label>
+                    <div class="flex h-[2.875rem] w-full items-center rounded-xl border border-white/10 bg-black/10 px-4 text-sm">
+                        <span>{{ $connectedParent?->father_name ?: __('crud.common.not_available') }}</span>
+                        <button type="button" wire:click="clearSelectedParent" class="ms-auto inline-flex size-7 shrink-0 items-center justify-center rounded-full text-lg leading-none text-white/65 transition hover:bg-white/10 hover:text-white" aria-label="{{ __('crud.common.actions.delete') }}">×</button>
+                    </div>
+                </div>
+            @endif
 
             @if ($editingId && $parent_id)
                 <div class="rounded-3xl border border-white/10 bg-white/5 p-4">
@@ -2041,7 +2063,10 @@ new class extends Component {
 
             @if ($showQuickParentForm)
                 <div class="rounded-3xl border border-white/10 bg-white/5 p-4">
-                    <div class="text-sm font-semibold text-white">{{ $editingId && $parent_id ? __('crud.students.form.parent_shortcut.edit_title') : __('crud.students.form.parent_shortcut.title') }}</div>
+                    <div class="flex items-center justify-between gap-3">
+                        <div class="text-sm font-semibold text-white">{{ $editingId && $parent_id ? __('crud.students.form.parent_shortcut.edit_title') : __('crud.students.form.parent_shortcut.title') }}</div>
+                        <button type="button" wire:click="closeQuickParentForm" class="grid size-8 shrink-0 place-items-center rounded-full border border-white/10 text-lg text-neutral-300 transition hover:border-white/20 hover:bg-white/5 hover:text-white" aria-label="{{ __('crud.common.actions.close') }}">&times;</button>
+                    </div>
 
                     <div class="mt-4 grid gap-4 md:grid-cols-2">
                         <div>
@@ -2111,11 +2136,8 @@ new class extends Component {
                     </div>
 
                     <div class="mt-4">
-                        <label class="mb-1 block text-sm font-medium">
-                            {{ __('crud.parents.form.fields.address') }}
-                            <span class="text-xs font-normal text-neutral-400">{{ __('crud.parents.form.address_hint') }}</span>
-                        </label>
-                        <input wire:model="quick_parent_address" type="text" class="w-full rounded-xl px-4 py-3 text-sm">
+                        <label class="mb-1 block text-sm font-medium">{{ __('crud.parents.form.fields.address') }}</label>
+                        <input wire:model="quick_parent_address" type="text" placeholder="{{ __('crud.parents.form.placeholders.address') }}" class="w-full rounded-xl px-4 py-3 text-sm">
                         @error('quick_parent_address')
                             <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                         @enderror
@@ -2124,9 +2146,6 @@ new class extends Component {
                     <div class="mt-4 flex flex-wrap items-center gap-3">
                         <button type="button" wire:click="saveQuickParent" class="pill-link pill-link--accent">
                             {{ __('crud.students.form.parent_shortcut.save') }}
-                        </button>
-                        <button type="button" wire:click="closeQuickParentForm" class="pill-link">
-                            {{ __('crud.students.form.parent_shortcut.cancel') }}
                         </button>
                     </div>
                 </div>
@@ -2214,7 +2233,7 @@ new class extends Component {
                                 <button type="button" wire:click="removeExternalMemorizedJuz({{ $juz->id }})" class="inline-flex size-4 items-center justify-center rounded-full text-sm leading-none text-emerald-200 hover:bg-white/10 hover:text-white" aria-label="{{ __('crud.common.actions.delete') }}">×</button>
                             </span>
                         @endforeach
-                        <input id="student-external-juz" wire:model="external_memorized_juz_input" wire:keydown.tab="addExternalMemorizedJuz" wire:keydown.enter.prevent="addExternalMemorizedJuz" type="text" inputmode="numeric" autocomplete="off" class="min-w-28 flex-1 border-0 bg-transparent px-1 py-1 text-sm outline-none ring-0 focus:border-0 focus:ring-0" placeholder="{{ __('crud.students.form.placeholders.enter_memorized_juz') }}">
+                        <input id="student-external-juz" wire:model="external_memorized_juz_input" wire:keydown.tab="addExternalMemorizedJuz" wire:keydown.enter.prevent="addExternalMemorizedJuz" type="text" inputmode="numeric" autocomplete="off" class="min-w-28 flex-1 border-0 bg-transparent px-1 py-1 text-sm outline-none ring-0 focus:border-0 focus:ring-0" placeholder="{{ $external_memorized_juz_ids === [] ? __('crud.students.form.placeholders.enter_memorized_juz') : '' }}">
                     </div>
                     @error('external_memorized_juz_input')
                         <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
@@ -2238,9 +2257,6 @@ new class extends Component {
                                 @endif
                                 @if ($group->gradeLevel)
                                     - {{ $group->gradeLevel->name }}
-                                @endif
-                                @if ($group->academicYear)
-                                    - {{ $group->academicYear->name }}
                                 @endif
                             </option>
                         @endforeach

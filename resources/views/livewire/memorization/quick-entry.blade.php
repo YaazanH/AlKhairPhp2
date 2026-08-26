@@ -42,6 +42,7 @@ new class extends Component {
         $selectedEnrollment = $this->selectedQuickEntryEnrollment($availableEnrollments);
 
         return [
+            'entriesEnabled' => \App\Support\OperationalFeatureSettings::memorizationAndSabersEnabled(),
             'studentOptions' => $studentOptions,
             'availableEnrollments' => $availableEnrollments,
             'currentTeacher' => $this->currentTeacher(),
@@ -320,25 +321,16 @@ new class extends Component {
     @endif
 
     <section class="surface-panel w-full p-6 lg:p-8">
-
+        @if (! $entriesEnabled)
+            <x-quick-entry-disabled :message="__('quick-tests.memorization_disabled_warning')" />
+        @else
         <form wire:submit="save" class="space-y-5">
             <div class="admin-form-field">
                 <label for="quick-memorization-student">{{ __('workflow.memorization.quick_entry.form.student') }}</label>
-                <select id="quick-memorization-student" wire:model="selectedStudentId">
+                <select id="quick-memorization-student" wire:model="selectedStudentId" data-search-input="true" data-open-on-focus="true" data-hide-placeholder-option="true" data-search-placeholder="{{ __('workflow.common.student_name_placeholder') }}">
                     <option value="">{{ __('workflow.memorization.workbench.form.select_student') }}</option>
                     @foreach ($studentOptions as $student)
-                        <option
-                            value="{{ $student->id }}"
-                            data-search="{{ trim(implode(' ', array_filter([$student->student_number, $student->first_name, $student->last_name]))) }}"
-                        >
-                            {{ $student->full_name }}
-                            @if ($student->student_number)
-                                - #{{ $student->student_number }}
-                            @endif
-                            @if ($student->parentProfile?->father_name)
-                                - {{ $student->parentProfile->father_name }}
-                            @endif
-                        </option>
+                        <option value="{{ $student->id }}">{{ $student->full_name }}</option>
                     @endforeach
                 </select>
                 @error('selectedStudentId')
@@ -416,6 +408,7 @@ new class extends Component {
                 <button type="submit" class="pill-link pill-link--accent">{{ __('workflow.memorization.quick_entry.form.save') }}</button>
             </div>
         </form>
+        @endif
     </section>
 
     <x-admin.modal

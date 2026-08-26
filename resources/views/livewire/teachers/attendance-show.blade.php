@@ -401,10 +401,10 @@ new class extends Component {
     <section class="page-hero p-6 lg:p-8">
         <div class="flex flex-wrap items-start justify-between gap-4">
             <div>
-                <div class="eyebrow">{{ __('ui.nav.tracking') }}</div>
+                <x-back-link :href="route('teacher-attendance.index')" navigate />
+                <div class="eyebrow mt-4">{{ __('ui.nav.tracking') }}</div>
                 <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('workflow.teacher_attendance.day_details.title') }}</h1>
             </div>
-            <a href="{{ route('teacher-attendance.index') }}" wire:navigate class="pill-link pill-link--compact">{{ __('workflow.teacher_attendance.day_details.back') }}</a>
         </div>
     </section>
 

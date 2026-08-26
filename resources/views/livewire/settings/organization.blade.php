@@ -76,12 +76,10 @@ new class extends Component {
 
     public ?int $school_reference_editing_id = null;
     public string $school_reference_name = '';
-    public bool $school_reference_is_active = true;
     public bool $showSchoolReferenceModal = false;
 
     public ?int $father_job_editing_id = null;
     public string $father_job_name = '';
-    public bool $father_job_is_active = true;
     public bool $showFatherJobModal = false;
 
     public ?int $expense_category_editing_id = null;
@@ -136,8 +134,26 @@ new class extends Component {
                 ->orderBy('sort_order')
                 ->orderBy('name')
                 ->paginate(10, ['*'], 'grade_levels_page'),
-            'schoolReferences' => School::query()->orderBy('name')->paginate(10, ['*'], 'schools_page'),
-            'fatherJobs' => FatherJob::query()->orderBy('name')->paginate(10, ['*'], 'father_jobs_page'),
+            'schoolReferences' => School::query()
+                ->select('schools.*')
+                ->selectSub(
+                    Student::query()
+                        ->selectRaw('COUNT(*)')
+                        ->whereRaw('LOWER(TRIM(students.school_name)) = LOWER(TRIM(schools.name))'),
+                    'usage_count',
+                )
+                ->orderBy('name')
+                ->paginate(10, ['*'], 'schools_page'),
+            'fatherJobs' => FatherJob::query()
+                ->select('father_jobs.*')
+                ->selectSub(
+                    ParentProfile::query()
+                        ->selectRaw('COUNT(*)')
+                        ->whereRaw('LOWER(TRIM(parents.father_work)) = LOWER(TRIM(father_jobs.name))'),
+                    'usage_count',
+                )
+                ->orderBy('name')
+                ->paginate(10, ['*'], 'father_jobs_page'),
             'expenseCategories' => ExpenseCategory::query()->orderBy('name')->paginate(10, ['*'], 'expense_categories_page'),
             'studentGenders' => StudentGender::query()
                 ->orderBy('sort_order')
@@ -165,7 +181,13 @@ new class extends Component {
         $this->authorizePermission('settings.manage');
         $this->barcode_scanner_enabled = ! $this->barcode_scanner_enabled;
         AppSetting::storeValue('dashboard', 'barcode_scanner_enabled', $this->barcode_scanner_enabled, 'boolean');
-        session()->flash('status', __('settings.organization.messages.barcode_scanner_updated'));
+    }
+
+    public function toggleMemorizationSaberEntries(): void
+    {
+        $this->authorizePermission('settings.manage');
+        $this->memorization_saber_entries_enabled = ! $this->memorization_saber_entries_enabled;
+        AppSetting::storeValue('general', 'memorization_saber_entries_enabled', $this->memorization_saber_entries_enabled, 'boolean');
     }
 
     public function academicYearRules(): array
@@ -314,7 +336,6 @@ new class extends Component {
         $school = School::query()->findOrFail($schoolId);
         $this->school_reference_editing_id = $school->id;
         $this->school_reference_name = $school->name;
-        $this->school_reference_is_active = $school->is_active;
         $this->showSchoolReferenceModal = true;
         $this->resetValidation();
     }
@@ -335,15 +356,16 @@ new class extends Component {
 
         $validated = $this->validate([
             'school_reference_name' => ['required', 'string', 'max:255', Rule::unique('schools', 'name')->ignore($this->school_reference_editing_id)],
-            'school_reference_is_active' => ['boolean'],
         ]);
 
         DB::transaction(function () use ($validated): void {
             $school = $this->school_reference_editing_id ? School::query()->findOrFail($this->school_reference_editing_id) : new School;
             $oldName = $school->name;
-            $school->fill(['name' => trim($validated['school_reference_name']), 'is_active' => (bool) $validated['school_reference_is_active']])->save();
+            $school->fill(['name' => trim($validated['school_reference_name']), 'is_active' => true])->save();
             if ($oldName && $oldName !== $school->name) {
-                Student::query()->where('school_name', $oldName)->update(['school_name' => $school->name]);
+                Student::query()
+                    ->whereRaw('LOWER(TRIM(school_name)) = ?', [mb_strtolower(trim($oldName))])
+                    ->update(['school_name' => $school->name]);
             }
         });
 
@@ -357,7 +379,7 @@ new class extends Component {
 
         $school = School::query()->findOrFail($schoolId);
 
-        if (Student::query()->where('school_name', $school->name)->exists()) {
+        if (Student::query()->whereRaw('LOWER(TRIM(school_name)) = ?', [mb_strtolower(trim($school->name))])->exists()) {
             $this->addError('schoolReferenceDelete', __('settings.organization.errors.school_delete_linked'));
 
             return;
@@ -365,6 +387,7 @@ new class extends Component {
 
         $school->delete();
         $this->resetPage('schools_page');
+        $this->cancelSchoolReference();
         session()->flash('status', __('settings.organization.messages.school_deleted'));
     }
 
@@ -372,7 +395,6 @@ new class extends Component {
     {
         $this->school_reference_editing_id = null;
         $this->school_reference_name = '';
-        $this->school_reference_is_active = true;
         $this->showSchoolReferenceModal = false;
         $this->resetValidation();
     }
@@ -391,7 +413,6 @@ new class extends Component {
         $fatherJob = FatherJob::query()->findOrFail($fatherJobId);
         $this->father_job_editing_id = $fatherJob->id;
         $this->father_job_name = $fatherJob->name;
-        $this->father_job_is_active = $fatherJob->is_active;
         $this->showFatherJobModal = true;
         $this->resetValidation();
     }
@@ -412,15 +433,16 @@ new class extends Component {
 
         $validated = $this->validate([
             'father_job_name' => ['required', 'string', 'max:255', Rule::unique('father_jobs', 'name')->ignore($this->father_job_editing_id)],
-            'father_job_is_active' => ['boolean'],
         ]);
 
         DB::transaction(function () use ($validated): void {
             $job = $this->father_job_editing_id ? FatherJob::query()->findOrFail($this->father_job_editing_id) : new FatherJob;
             $oldName = $job->name;
-            $job->fill(['name' => trim($validated['father_job_name']), 'is_active' => (bool) $validated['father_job_is_active']])->save();
+            $job->fill(['name' => trim($validated['father_job_name']), 'is_active' => true])->save();
             if ($oldName && $oldName !== $job->name) {
-                ParentProfile::query()->where('father_work', $oldName)->update(['father_work' => $job->name]);
+                ParentProfile::query()
+                    ->whereRaw('LOWER(TRIM(father_work)) = ?', [mb_strtolower(trim($oldName))])
+                    ->update(['father_work' => $job->name]);
             }
         });
 
@@ -434,7 +456,7 @@ new class extends Component {
 
         $fatherJob = FatherJob::query()->findOrFail($fatherJobId);
 
-        if (ParentProfile::query()->where('father_work', $fatherJob->name)->exists()) {
+        if (ParentProfile::query()->whereRaw('LOWER(TRIM(father_work)) = ?', [mb_strtolower(trim($fatherJob->name))])->exists()) {
             $this->addError('fatherJobDelete', __('settings.organization.errors.father_job_delete_linked'));
 
             return;
@@ -442,6 +464,7 @@ new class extends Component {
 
         $fatherJob->delete();
         $this->resetPage('father_jobs_page');
+        $this->cancelFatherJob();
         session()->flash('status', __('settings.organization.messages.father_job_deleted'));
     }
 
@@ -449,7 +472,6 @@ new class extends Component {
     {
         $this->father_job_editing_id = null;
         $this->father_job_name = '';
-        $this->father_job_is_active = true;
         $this->showFatherJobModal = false;
         $this->resetValidation();
     }
@@ -1233,37 +1255,47 @@ new class extends Component {
         <div class="mt-5 grid gap-4 lg:grid-cols-2">
             <div class="grid gap-4 sm:grid-cols-2">
                 @foreach ([
-                    [__('settings.organization.fields.school_name'), $school_name ?: __('crud.common.not_available'), false],
-                    [__('settings.organization.fields.school_email'), $school_email ?: __('crud.common.not_available'), false],
-                    [__('settings.organization.fields.email_domain'), $email_domain ?: 'alkhair.local', true],
-                    [__('settings.organization.fields.school_timezone'), $school_timezone ?: __('crud.common.not_available'), false],
-                ] as [$settingLabel, $settingValue, $monospace])
+                    [__('settings.organization.fields.school_name'), $school_name ?: __('crud.common.not_available')],
+                    [__('settings.organization.fields.school_email'), $school_email ?: __('crud.common.not_available')],
+                    [__('settings.organization.fields.email_domain'), $email_domain ?: 'alkhair.local'],
+                    [__('settings.organization.fields.school_timezone'), $school_timezone ?: __('crud.common.not_available')],
+                ] as [$settingLabel, $settingValue])
                     <div class="rounded-2xl border border-white/10 bg-white/5 p-4">
                         <div class="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-400">{{ $settingLabel }}</div>
-                        <div class="mt-2 truncate text-sm font-semibold text-white {{ $monospace ? 'font-mono' : '' }}">{{ $settingValue }}</div>
+                        <div class="mt-2 truncate text-sm font-semibold text-white">{{ $settingValue }}</div>
                     </div>
                 @endforeach
             </div>
 
             <div class="grid gap-4 sm:grid-cols-2">
                 @foreach ([
-                    [__('settings.organization.fields.memorization_saber_status'), $memorization_saber_entries_enabled],
-                    [__('settings.organization.fields.barcode_status'), $barcode_scanner_enabled],
-                ] as [$settingLabel, $settingEnabled])
+                    [__('settings.organization.fields.memorization_saber_status'), $memorization_saber_entries_enabled, 'toggleMemorizationSaberEntries'],
+                    [__('settings.organization.fields.barcode_status'), $barcode_scanner_enabled, 'toggleBarcodeScanner'],
+                ] as [$settingLabel, $settingEnabled, $toggleAction])
                     <div class="rounded-2xl border border-white/10 bg-white/5 p-4">
                         <div class="flex items-center justify-between gap-3">
                             <div class="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-400">{{ $settingLabel }}</div>
-                            <span class="{{ $settingEnabled ? 'status-chip status-chip--emerald' : 'status-chip status-chip--slate' }}">{{ $settingEnabled ? __('settings.common.states.active') : __('settings.common.states.inactive') }}</span>
+                            <button
+                                type="button"
+                                wire:click="{{ $toggleAction }}"
+                                wire:loading.attr="disabled"
+                                wire:target="{{ $toggleAction }}"
+                                aria-pressed="{{ $settingEnabled ? 'true' : 'false' }}"
+                                aria-label="{{ $settingLabel }}: {{ $settingEnabled ? __('settings.common.states.active') : __('settings.common.states.inactive') }}"
+                                class="status-chip cursor-pointer transition hover:brightness-125 disabled:cursor-wait disabled:opacity-60 {{ $settingEnabled ? 'status-chip--emerald' : 'status-chip--slate' }}"
+                            >
+                                {{ $settingEnabled ? __('settings.common.states.active') : __('settings.common.states.inactive') }}
+                            </button>
                         </div>
                     </div>
                 @endforeach
                 <div class="rounded-2xl border border-white/10 bg-white/5 p-4">
                     <div class="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-400">{{ __('settings.organization.fields.student_number_prefix') }}</div>
-                    <div class="mt-2 font-mono text-sm font-semibold text-white">{{ app(\App\Services\StudentNumberService::class)->formatForId(1) }}</div>
+                    <div class="mt-2 whitespace-nowrap text-sm font-semibold text-white" data-general-prefix-value>{{ app(\App\Services\StudentNumberService::class)->formatForId(1) }}</div>
                 </div>
                 <div class="rounded-2xl border border-white/10 bg-white/5 p-4">
                     <div class="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-400">{{ __('settings.organization.fields.parent_number_prefix') }}</div>
-                    <div class="mt-2 font-mono text-sm font-semibold text-white">{{ app(\App\Services\ParentNumberService::class)->formatForId(1) }}</div>
+                    <div class="mt-2 whitespace-nowrap text-sm font-semibold text-white" data-general-prefix-value>{{ app(\App\Services\ParentNumberService::class)->formatForId(1) }}</div>
                 </div>
             </div>
         </div>
@@ -1557,16 +1589,15 @@ new class extends Component {
                     @else
                         <div class="overflow-x-auto">
                             <table class="min-w-full divide-y divide-neutral-200 text-sm dark:divide-neutral-700">
-                                <thead class="bg-neutral-50 dark:bg-neutral-900/60"><tr><th class="px-5 py-3 text-left font-medium">{{ __('settings.organization.table.name') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.organization.table.state') }}</th><th class="px-5 py-3 text-right font-medium">{{ __('settings.organization.table.actions') }}</th></tr></thead>
+                                <thead class="bg-neutral-50 dark:bg-neutral-900/60"><tr><th class="px-5 py-3 text-left font-medium">{{ __('settings.organization.table.name') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.organization.table.number') }}</th><th class="px-5 py-3 text-right font-medium">{{ __('settings.organization.table.actions') }}</th></tr></thead>
                                 <tbody class="divide-y divide-neutral-200 dark:divide-neutral-700">
                                     @foreach ($schoolReferences as $schoolReference)
                                         <tr>
                                             <td class="px-5 py-3 font-medium">{{ $schoolReference->name }}</td>
-                                            <td class="px-5 py-3">{{ $schoolReference->is_active ? __('settings.common.states.active') : __('settings.common.states.inactive') }}</td>
+                                            <td class="px-5 py-3" data-school-usage-count="{{ $schoolReference->usage_count }}">{{ number_format($schoolReference->usage_count) }}</td>
                                             <td class="px-5 py-3">
                                                 <div class="flex justify-end gap-2">
-                                                    <button type="button" wire:click="editSchoolReference({{ $schoolReference->id }})" class="rounded-lg border border-neutral-300 px-3 py-1.5 dark:border-neutral-700">{{ __('crud.common.actions.edit') }}</button>
-                                                    <button type="button" wire:click="deleteSchoolReference({{ $schoolReference->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="rounded-lg border border-red-300 px-3 py-1.5 text-red-700 dark:border-red-800 dark:text-red-300">{{ __('crud.common.actions.delete') }}</button>
+                                                    <button type="button" wire:click="editSchoolReference({{ $schoolReference->id }})" class="pill-link pill-link--compact text-lg" aria-label="{{ __('crud.common.actions.edit') }}" title="{{ __('crud.common.actions.edit') }}" data-school-reference-edit-icon><span aria-hidden="true">✎</span></button>
                                                 </div>
                                             </td>
                                         </tr>
@@ -1596,16 +1627,15 @@ new class extends Component {
                     @else
                         <div class="overflow-x-auto">
                             <table class="min-w-full divide-y divide-neutral-200 text-sm dark:divide-neutral-700">
-                                <thead class="bg-neutral-50 dark:bg-neutral-900/60"><tr><th class="px-5 py-3 text-left font-medium">{{ __('settings.organization.table.name') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.organization.table.state') }}</th><th class="px-5 py-3 text-right font-medium">{{ __('settings.organization.table.actions') }}</th></tr></thead>
+                                <thead class="bg-neutral-50 dark:bg-neutral-900/60"><tr><th class="px-5 py-3 text-left font-medium">{{ __('settings.organization.table.name') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.organization.table.number') }}</th><th class="px-5 py-3 text-right font-medium">{{ __('settings.organization.table.actions') }}</th></tr></thead>
                                 <tbody class="divide-y divide-neutral-200 dark:divide-neutral-700">
                                     @foreach ($fatherJobs as $fatherJob)
                                         <tr>
                                             <td class="px-5 py-3 font-medium">{{ $fatherJob->name }}</td>
-                                            <td class="px-5 py-3">{{ $fatherJob->is_active ? __('settings.common.states.active') : __('settings.common.states.inactive') }}</td>
+                                            <td class="px-5 py-3" data-father-job-usage-count="{{ $fatherJob->usage_count }}">{{ number_format($fatherJob->usage_count) }}</td>
                                             <td class="px-5 py-3">
                                                 <div class="flex justify-end gap-2">
-                                                    <button type="button" wire:click="editFatherJob({{ $fatherJob->id }})" class="rounded-lg border border-neutral-300 px-3 py-1.5 dark:border-neutral-700">{{ __('crud.common.actions.edit') }}</button>
-                                                    <button type="button" wire:click="deleteFatherJob({{ $fatherJob->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="rounded-lg border border-red-300 px-3 py-1.5 text-red-700 dark:border-red-800 dark:text-red-300">{{ __('crud.common.actions.delete') }}</button>
+                                                    <button type="button" wire:click="editFatherJob({{ $fatherJob->id }})" class="pill-link pill-link--compact text-lg" aria-label="{{ __('crud.common.actions.edit') }}" title="{{ __('crud.common.actions.edit') }}" data-father-job-edit-icon><span aria-hidden="true">✎</span></button>
                                                 </div>
                                             </td>
                                         </tr>
@@ -1685,76 +1715,97 @@ new class extends Component {
     </div>
 
     <x-admin.modal :show="$showOrganizationModal" :title="__('settings.organization.sections.profile.title')" close-method="closeOrganizationModal" max-width="4xl">
-        <form wire:submit="saveOrganizationSettings" class="space-y-4">
-            <div>
-                <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.school_name') }}</label>
-                <input wire:model="school_name" type="text" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
-                @error('school_name') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
-            </div>
-            <div class="grid gap-4 md:grid-cols-2">
+        <x-slot:header-actions>
+            <button
+                type="submit"
+                form="organization-settings-form"
+                class="admin-modal__close"
+                title="{{ __('settings.organization.actions.save_settings') }}"
+                aria-label="{{ __('settings.organization.actions.save_settings') }}"
+                data-organization-settings-save-icon
+            >
+                <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 3.75h11.25L19.5 7v13.25H5V3.75Z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M8 3.75v5.5h8v-5.5M8.25 20.25v-6.5h8v6.5" />
+                </svg>
+            </button>
+        </x-slot:header-actions>
+        <form id="organization-settings-form" wire:submit="saveOrganizationSettings" class="space-y-4">
+            <section class="rounded-3xl border border-white/10 bg-white/5 p-4" data-organization-settings-primary-box>
                 <div>
-                    <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.default_student_gender') }}</label>
-                    <select wire:model="default_student_gender_id" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">@foreach ($activeStudentGenders as $studentGender)<option value="{{ $studentGender->id }}">{{ $studentGender->name }}</option>@endforeach</select>
+                    <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.school_name') }}</label>
+                    <input wire:model="school_name" type="text" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                    @error('school_name') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
                 </div>
-                <div>
-                    <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.school_phone') }}</label>
-                    <x-phone-input model="school_phone" :value="$school_phone" />
-                    @error('school_phone') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+                <div class="mt-4 grid gap-4 md:grid-cols-2">
+                    <div>
+                        <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.default_student_gender') }}</label>
+                        <select wire:model="default_student_gender_id" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">@foreach ($activeStudentGenders as $studentGender)<option value="{{ $studentGender->id }}">{{ $studentGender->name }}</option>@endforeach</select>
+                    </div>
+                    <div>
+                        <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.school_phone') }}</label>
+                        <x-phone-input model="school_phone" :value="$school_phone" />
+                        @error('school_phone') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+                    </div>
+                    <div>
+                        <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.school_email') }}</label>
+                        <input wire:model="school_email" type="email" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                        @error('school_email') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+                    </div>
+                    <div>
+                        <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.email_domain') }}</label>
+                        <input wire:model="email_domain" type="text" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm lowercase dark:border-neutral-700 dark:bg-neutral-900" placeholder="alkhair.org">
+                        @error('email_domain') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+                    </div>
                 </div>
-                <div>
-                    <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.school_email') }}</label>
-                    <input wire:model="school_email" type="email" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
-                    @error('school_email') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+                <div class="mt-4 border-t border-white/10 pt-4" data-organization-settings-numbering-group>
+                <div class="grid gap-4 md:grid-cols-4">
+                    <div>
+                        <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.student_number_prefix') }}</label>
+                        <input wire:model="student_number_prefix" type="text" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm uppercase dark:border-neutral-700 dark:bg-neutral-900" placeholder="S">
+                        <p class="mt-1 text-xs text-neutral-500">{{ __('settings.organization.fields.student_number_prefix_help') }}</p>
+                        @error('student_number_prefix') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+                    </div>
+                    <div>
+                        <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.student_number_length') }}</label>
+                        <input wire:model="student_number_length" type="number" min="0" max="12" step="1" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900" placeholder="6">
+                        <p class="mt-1 text-xs text-neutral-500">{{ __('settings.organization.fields.student_number_length_help') }}</p>
+                        @error('student_number_length') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+                    </div>
+                    <div>
+                        <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.parent_number_prefix') }}</label>
+                        <input wire:model="parent_number_prefix" type="text" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm uppercase dark:border-neutral-700 dark:bg-neutral-900" placeholder="P">
+                        <p class="mt-1 text-xs text-neutral-500">{{ __('settings.organization.fields.parent_number_prefix_help') }}</p>
+                        @error('parent_number_prefix') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+                    </div>
+                    <div>
+                        <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.parent_number_length') }}</label>
+                        <input wire:model="parent_number_length" type="number" min="0" max="12" step="1" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900" placeholder="6">
+                        <p class="mt-1 text-xs text-neutral-500">{{ __('settings.organization.fields.parent_number_length_help') }}</p>
+                        @error('parent_number_length') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+                    </div>
                 </div>
-                <div>
-                    <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.email_domain') }}</label>
-                    <input wire:model="email_domain" type="text" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm lowercase dark:border-neutral-700 dark:bg-neutral-900" placeholder="alkhair.org">
-                    @error('email_domain') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
                 </div>
-            </div>
-            <div class="grid gap-4 md:grid-cols-2">
-                <div>
-                    <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.student_number_prefix') }}</label>
-                    <input wire:model="student_number_prefix" type="text" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm uppercase dark:border-neutral-700 dark:bg-neutral-900" placeholder="S">
-                    <p class="mt-1 text-xs text-neutral-500">{{ __('settings.organization.fields.student_number_prefix_help') }}</p>
-                    @error('student_number_prefix') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+                <div class="mt-4 border-t border-white/10 pt-4" data-organization-settings-locale-group>
+                <div class="grid items-end gap-4 md:grid-cols-[minmax(0,1.35fr)_minmax(7rem,0.6fr)_minmax(9rem,0.8fr)]">
+                    <div>
+                        <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.school_timezone') }}</label>
+                        <input wire:model="school_timezone" type="text" class="h-[2.625rem] w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                        @error('school_timezone') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+                    </div>
+                    <div>
+                        <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.school_currency') }}</label>
+                        <input wire:model="school_currency" type="text" class="h-[2.625rem] w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm uppercase dark:border-neutral-700 dark:bg-neutral-900">
+                        @error('school_currency') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+                    </div>
+                    <div>
+                        <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.school_address') }}</label>
+                        <input wire:model="school_address" type="text" class="h-[2.625rem] w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                        @error('school_address') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+                    </div>
                 </div>
-                <div>
-                    <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.student_number_length') }}</label>
-                    <input wire:model="student_number_length" type="number" min="0" max="12" step="1" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900" placeholder="6">
-                    <p class="mt-1 text-xs text-neutral-500">{{ __('settings.organization.fields.student_number_length_help') }}</p>
-                    @error('student_number_length') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
                 </div>
-                <div>
-                    <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.parent_number_prefix') }}</label>
-                    <input wire:model="parent_number_prefix" type="text" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm uppercase dark:border-neutral-700 dark:bg-neutral-900" placeholder="P">
-                    <p class="mt-1 text-xs text-neutral-500">{{ __('settings.organization.fields.parent_number_prefix_help') }}</p>
-                    @error('parent_number_prefix') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
-                </div>
-                <div>
-                    <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.parent_number_length') }}</label>
-                    <input wire:model="parent_number_length" type="number" min="0" max="12" step="1" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900" placeholder="6">
-                    <p class="mt-1 text-xs text-neutral-500">{{ __('settings.organization.fields.parent_number_length_help') }}</p>
-                    @error('parent_number_length') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
-                </div>
-            </div>
-            <div class="grid gap-4 md:grid-cols-2">
-                <div>
-                    <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.school_timezone') }}</label>
-                    <input wire:model="school_timezone" type="text" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
-                    @error('school_timezone') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
-                </div>
-                <div>
-                    <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.school_currency') }}</label>
-                    <input wire:model="school_currency" type="text" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm uppercase dark:border-neutral-700 dark:bg-neutral-900">
-                    @error('school_currency') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
-                </div>
-            </div>
-            <div>
-                <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.school_address') }}</label>
-                <textarea wire:model="school_address" rows="3" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900"></textarea>
-                @error('school_address') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
-            </div>
+            </section>
             <section class="grid gap-3 rounded-2xl border border-white/10 bg-white/5 p-4 md:grid-cols-3">
                 <label class="flex items-center gap-3 text-sm"><input wire:model="barcode_scanner_enabled" type="checkbox" class="rounded border-neutral-300 text-emerald-600"><span>{{ __('settings.organization.fields.barcode_scanner') }}</span></label>
                 <label class="flex items-center gap-3 text-sm"><input wire:model="memorization_saber_entries_enabled" type="checkbox" class="rounded border-neutral-300 text-emerald-600"><span>{{ __('settings.organization.fields.memorization_saber_entries') }}</span></label>
@@ -1817,10 +1868,6 @@ new class extends Component {
                     @endforeach
                 </div>
             </section>
-            <div class="flex justify-end gap-3">
-                <button type="button" wire:click="closeOrganizationModal" class="pill-link">{{ __('crud.common.actions.cancel') }}</button>
-                <button type="submit" class="pill-link pill-link--accent">{{ __('settings.organization.actions.save_settings') }}</button>
-            </div>
         </form>
     </x-admin.modal>
 
@@ -1892,10 +1939,12 @@ new class extends Component {
                 <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.name') }}</label>
                 <input wire:model="school_reference_name" type="text" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
                 @error('school_reference_name') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+                @error('schoolReferenceDelete') <div class="mt-2 text-sm text-red-600">{{ $message }}</div> @enderror
             </div>
-            <label class="flex items-center gap-3 text-sm"><input wire:model="school_reference_is_active" type="checkbox" class="rounded border-neutral-300 text-neutral-900"><span>{{ __('settings.organization.fields.is_active') }}</span></label>
             <div class="flex justify-end gap-3">
-                <button type="button" wire:click="cancelSchoolReference" class="pill-link">{{ __('crud.common.actions.cancel') }}</button>
+                @if ($school_reference_editing_id)
+                    <button type="button" wire:click="deleteSchoolReference({{ $school_reference_editing_id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link pill-link--danger" data-school-reference-delete>{{ __('crud.common.actions.delete') }}</button>
+                @endif
                 <button type="submit" class="pill-link pill-link--accent">{{ $school_reference_editing_id ? __('settings.organization.actions.update_school') : __('settings.organization.actions.create_school') }}</button>
                 <x-admin.create-and-new-button :show="! $school_reference_editing_id" click="saveAndNew('saveSchoolReference', 'openSchoolReferenceModal')" />
             </div>
@@ -1908,10 +1957,12 @@ new class extends Component {
                 <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.name') }}</label>
                 <input wire:model="father_job_name" type="text" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
                 @error('father_job_name') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+                @error('fatherJobDelete') <div class="mt-2 text-sm text-red-600">{{ $message }}</div> @enderror
             </div>
-            <label class="flex items-center gap-3 text-sm"><input wire:model="father_job_is_active" type="checkbox" class="rounded border-neutral-300 text-neutral-900"><span>{{ __('settings.organization.fields.is_active') }}</span></label>
             <div class="flex justify-end gap-3">
-                <button type="button" wire:click="cancelFatherJob" class="pill-link">{{ __('crud.common.actions.cancel') }}</button>
+                @if ($father_job_editing_id)
+                    <button type="button" wire:click="deleteFatherJob({{ $father_job_editing_id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link pill-link--danger" data-father-job-delete>{{ __('crud.common.actions.delete') }}</button>
+                @endif
                 <button type="submit" class="pill-link pill-link--accent">{{ $father_job_editing_id ? __('settings.organization.actions.update_father_job') : __('settings.organization.actions.create_father_job') }}</button>
                 <x-admin.create-and-new-button :show="! $father_job_editing_id" click="saveAndNew('saveFatherJob', 'openFatherJobModal')" />
             </div>

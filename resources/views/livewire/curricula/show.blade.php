@@ -175,13 +175,13 @@ new class extends Component {
 <div class="page-stack">
     <section class="page-hero p-6 lg:p-8">
         <div class="flex flex-wrap items-start justify-between gap-4">
-            <h1 class="font-display text-4xl text-white">{{ $curriculum->name }}</h1>
+            <div>
+                <x-back-link :href="route('curricula.index')" navigate />
+                <h1 class="font-display mt-4 text-4xl text-white">{{ $curriculum->name }}</h1>
+            </div>
             <div class="flex flex-wrap gap-2 rounded-2xl border border-white/10 bg-white/5 p-2" data-curriculum-header-actions>
                 <button wire:click="openSubject" class="pill-link pill-link--accent">{{ __('curricula.actions.add_subject') }}</button>
                 <button wire:click="$set('showCurriculumModal', true)" class="pill-link">{{ __('curricula.actions.edit') }}</button>
-                <a href="{{ route('curricula.index') }}" wire:navigate class="pill-link border border-white/15">
-                    {{ __('curricula.actions.back_to_curricula') }}
-                </a>
             </div>
         </div>
     </section>
@@ -224,13 +224,13 @@ new class extends Component {
                                             <th class="w-[20%] px-3 py-3 text-end">{{ __('crud.common.actions.actions') }}</th>
                                         </tr>
                                     </thead>
-                                    <tbody class="divide-y divide-white/6" x-data="{ openTopics: @js($lessons->mapWithKeys(fn ($lesson) => [$lesson->id => true])->all()) }">
+                                    <tbody class="divide-y divide-white/6" x-data="{ openTopics: @js($lessons->mapWithKeys(fn ($lesson) => [$lesson->id => false])->all()) }" data-topics-default-collapsed>
                                         @forelse($lessons as $lesson)
                                             <tr wire:key="curriculum-lesson-{{ $lesson->id }}" data-curriculum-lesson-row>
                                                 <td class="px-3 py-3 text-neutral-300">{{ $lesson->chapter_number ?: '—' }}</td>
                                                 <td class="px-3 py-3 font-medium text-white">{{ $lesson->name }}</td>
-                                                <td class="px-3 py-3">
-                                                    <span class="inline-flex h-6 items-end gap-1" dir="ltr" title="{{ $lesson->importance }} / 3" data-importance-bars>
+                                                <td class="px-3 py-3 align-middle" data-importance-cell>
+                                                    <span class="inline-flex h-6 items-end gap-1 align-middle" dir="ltr" title="{{ $lesson->importance }} / 3" data-importance-bars>
                                                         @foreach(range(1,3) as $bar)<i class="w-1.5 rounded-sm {{ $bar <= $lesson->importance ? 'bg-emerald-300' : 'bg-white/15' }}" style="height: {{ 5 + ($bar * 4) }}px"></i>@endforeach
                                                     </span>
                                                 </td>

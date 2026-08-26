@@ -66,7 +66,7 @@ new class extends Component
 
     public string $search = '';
 
-    public string $roleFilter = 'all';
+    public string $profileFilter = 'all';
 
     public string $statusFilter = 'all';
 
@@ -94,7 +94,9 @@ new class extends Component
                         ->when($normalizedPhone, fn ($query) => $query->orWhere('phone', 'like', '%'.$normalizedPhone.'%'));
                 });
             })
-            ->when($this->roleFilter !== 'all', fn ($query) => $query->role($this->roleFilter))
+            ->when($this->profileFilter === 'student', fn ($query) => $query->whereHas('studentProfile'))
+            ->when($this->profileFilter === 'parent', fn ($query) => $query->whereHas('parentProfile'))
+            ->when($this->profileFilter === 'teacher', fn ($query) => $query->whereHas('teacherProfile'))
             ->when(in_array($this->statusFilter, ['active', 'inactive'], true), fn ($query) => $query->where('is_active', $this->statusFilter === 'active'))
             ->orderBy('name');
 
@@ -120,7 +122,7 @@ new class extends Component
         $this->resetPage();
     }
 
-    public function updatedRoleFilter(): void
+    public function updatedProfileFilter(): void
     {
         $this->resetPage();
     }
@@ -403,7 +405,7 @@ new class extends Component
         $activeUsersCount = $users->where('is_active', true)->count();
     @endphp
 
-    <section class="admin-kpi-grid">
+    <section class="admin-kpi-grid mobile-compact-highlights">
         <article class="stat-card">
             <div class="kpi-label">{{ __('access.users.stats.total') }}</div>
             <div class="metric-value mt-3">{{ number_format($filteredCount) }}</div>
@@ -418,21 +420,21 @@ new class extends Component
         </article>
     </section>
 
-    <section class="surface-table">
+    <section class="surface-table mobile-records-surface">
         <div class="admin-grid-meta admin-grid-meta--controls">
             <div class="admin-grid-meta__title">{{ __('access.users.title') }}</div>
-            <div class="admin-toolbar__controls">
+            <div class="admin-toolbar__controls admin-toolbar__controls--compact">
                 <div class="admin-filter-field">
                     <label class="sr-only" for="user-search">{{ __('crud.common.filters.search') }}</label>
                     <input id="user-search" wire:model.live.debounce.300ms="search" type="text" placeholder="{{ __('crud.common.filters.search_placeholder') }}">
                 </div>
                 <div class="admin-filter-field">
-                    <label class="sr-only" for="user-role-filter">{{ __('access.users.filters.role') }}</label>
-                    <select id="user-role-filter" wire:model.live="roleFilter">
-                        <option value="all">{{ __('access.users.filters.all_roles') }}</option>
-                        @foreach ($availableRoles as $availableRole)
-                            <option value="{{ $availableRole->name }}">{{ __('ui.roles.'.$availableRole->name) === 'ui.roles.'.$availableRole->name ? \Illuminate\Support\Str::of($availableRole->name)->replace('_', ' ')->headline()->toString() : __('ui.roles.'.$availableRole->name) }}</option>
-                        @endforeach
+                    <label class="sr-only" for="user-profile-filter">{{ __('access.users.filters.profile') }}</label>
+                    <select id="user-profile-filter" wire:model.live="profileFilter" data-user-profile-filter>
+                        <option value="all">{{ __('access.users.filters.all_profiles') }}</option>
+                        <option value="student">{{ __('ui.roles.student') }}</option>
+                        <option value="parent">{{ __('ui.roles.parent') }}</option>
+                        <option value="teacher">{{ __('ui.roles.teacher') }}</option>
                     </select>
                 </div>
                 <div class="admin-filter-field">
@@ -444,10 +446,7 @@ new class extends Component
                     </select>
                 </div>
                 <div class="admin-toolbar__actions">
-                    @can('users.create')
-                        <button type="button" wire:click="openCreateModal" class="pill-link pill-link--accent">{{ __('crud.common.actions.create') }}</button>
-                    @endcan
-                    <a href="{{ route('users.export', ['search' => $search, 'role' => $roleFilter, 'status' => $statusFilter]) }}" class="pill-link">{{ __('crud.common.actions.export') }}</a>
+                    <a href="{{ route('users.export', ['search' => $search, 'profile' => $profileFilter, 'status' => $statusFilter]) }}" class="pill-link">{{ __('crud.common.actions.export') }}</a>
                 </div>
             </div>
         </div>
@@ -459,7 +458,74 @@ new class extends Component
         @if ($users->isEmpty())
             <div class="admin-empty-state">{{ __('access.users.table.empty') }}</div>
         @else
-            <div class="overflow-x-auto">
+            <div class="responsive-records-mobile">
+                @foreach ($users as $user)
+                    @php
+                        $roleNames = RoleRegistry::sortCollection($user->roles)->pluck('name');
+                        $directPermissionNames = $user->permissions->pluck('name')->values();
+                    @endphp
+                    <article class="mobile-record-card">
+                        <div class="mobile-record-card__header">
+                            <div class="student-inline min-w-0">
+                                <x-user-avatar :user="$user" size="sm" />
+                                <div class="student-inline__body min-w-0">
+                                    <div class="student-inline__name">{{ $user->name }}</div>
+                                    <div class="student-inline__meta">{{ $user->username }}</div>
+                                </div>
+                            </div>
+                            <span class="status-chip {{ $user->is_active ? 'status-chip--emerald' : 'status-chip--rose' }}">{{ $user->is_active ? __('crud.common.status_options.active') : __('crud.common.status_options.inactive') }}</span>
+                        </div>
+
+                        <dl class="mobile-record-card__details">
+                            <div>
+                                <dt>{{ __('access.users.table.headers.roles') }}</dt>
+                                <dd>
+                                    @if ($roleNames->isEmpty())
+                                        {{ __('crud.common.not_available') }}
+                                    @else
+                                        <span class="mobile-record-card__chips">
+                                            @foreach ($roleNames as $roleName)
+                                                <span class="status-chip status-chip--slate"><x-admin.role-label :name="$roleName" /></span>
+                                            @endforeach
+                                        </span>
+                                    @endif
+                                </dd>
+                            </div>
+                            <div>
+                                <dt>{{ __('access.users.table.headers.profile') }}</dt>
+                                <dd>{{ $this->profileLabel($user) }}</dd>
+                            </div>
+                            <div class="mobile-record-card__detail--wide">
+                                <dt>{{ __('access.users.table.headers.permissions') }}</dt>
+                                <dd>
+                                    @if ($directPermissionNames->isEmpty())
+                                        {{ __('access.users.table.none') }}
+                                    @else
+                                        <span class="mobile-record-card__chips">
+                                            @foreach ($directPermissionNames->take(2) as $permissionName)
+                                                <span class="status-chip status-chip--slate">{{ $this->permissionLabel($permissionName) }}</span>
+                                            @endforeach
+                                            @if ($directPermissionNames->count() > 2)
+                                                <span class="status-chip status-chip--slate">+{{ $directPermissionNames->count() - 2 }}</span>
+                                            @endif
+                                        </span>
+                                    @endif
+                                </dd>
+                            </div>
+                        </dl>
+
+                        @if (! $user->teacherProfile)
+                            @can('users.update')
+                                <div class="mobile-record-card__actions">
+                                    <button type="button" wire:click="edit({{ $user->id }})" class="pill-link pill-link--compact" data-user-edit-action="{{ $user->id }}">{{ __('crud.common.actions.edit') }}</button>
+                                </div>
+                            @endcan
+                        @endif
+                    </article>
+                @endforeach
+            </div>
+
+            <div class="responsive-records-desktop overflow-x-auto">
                 <table class="users-index-table table-fixed text-sm">
                     <colgroup><col class="w-[24%]"><col class="w-[18%]"><col class="w-[24%]"><col class="w-[12%]"><col class="w-[10%]"><col class="w-[12%]"></colgroup>
                     <thead>

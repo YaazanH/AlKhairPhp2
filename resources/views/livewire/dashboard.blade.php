@@ -990,6 +990,73 @@ new class extends Component {
                 $performanceY = fn (int $points) => 7 + (((min($performanceMaximumPoints, max($performanceMinimumPoints, $points)) - $performanceMinimumPoints) / $performancePointsSpan) * 86);
                 $performanceAverageX = $performanceX((int) round($performanceAveragePages));
                 $performanceAverageY = $performanceY((int) round($performanceAveragePoints));
+                $aboveAveragePerformance = $studentPerformance->filter(fn (array $entry): bool => $entry['points'] > $performanceAveragePoints
+                    && $entry['pages'] > $performanceAveragePages);
+                $aboveAveragePerformanceByStrength = $aboveAveragePerformance
+                    ->sortBy(fn (array $entry): float => (($entry['points'] - $performanceAveragePoints) / $performancePointsSpan)
+                        + (($entry['pages'] - $performanceAveragePages) / $performanceMaximumPages))
+                    ->values();
+                $aboveAveragePerformanceCount = $aboveAveragePerformanceByStrength->count();
+                $aboveAverageDotSizes = $aboveAveragePerformanceByStrength
+                    ->mapWithKeys(function (array $entry, int $index) use ($aboveAveragePerformanceCount): array {
+                        $percentile = $aboveAveragePerformanceCount <= 1 ? 1.0 : $index / ($aboveAveragePerformanceCount - 1);
+                        $growth = min(1.0, $percentile / 0.9);
+                        $size = round(0.42 + (0.36 * $growth), 3);
+
+                        return [$entry['student']->id => $size];
+                    });
+                $dimmedPerformanceClusters = [];
+                $performanceClusterRadius = 0.5;
+
+                foreach ($studentPerformance as $entry) {
+                    $isAbovePerformanceAverage = $entry['points'] > $performanceAveragePoints
+                        && $entry['pages'] > $performanceAveragePages;
+
+                    if ($isAbovePerformanceAverage) {
+                        continue;
+                    }
+
+                    $pointX = (float) $performanceX($entry['pages']);
+                    $pointY = (float) $performanceY($entry['points']);
+                    $nearestClusterIndex = null;
+                    $nearestClusterDistance = INF;
+
+                    foreach ($dimmedPerformanceClusters as $clusterIndex => $cluster) {
+                        $horizontalDistance = $pointX - $cluster['x'];
+                        $verticalDistance = ($pointY - $cluster['y']) * (7.5 / 16);
+                        $distance = hypot($horizontalDistance, $verticalDistance);
+
+                        if ($distance <= $performanceClusterRadius && $distance < $nearestClusterDistance) {
+                            $nearestClusterIndex = $clusterIndex;
+                            $nearestClusterDistance = $distance;
+                        }
+                    }
+
+                    if ($nearestClusterIndex === null) {
+                        $dimmedPerformanceClusters[] = [
+                            'x' => $pointX,
+                            'y' => $pointY,
+                            'count' => 1,
+                            'rank' => $entry['rank'],
+                        ];
+                        continue;
+                    }
+
+                    $cluster = $dimmedPerformanceClusters[$nearestClusterIndex];
+                    $nextCount = $cluster['count'] + 1;
+                    $clusterRank = $cluster['rank'];
+
+                    if ($entry['rank'] && (! $clusterRank || $entry['rank'] < $clusterRank)) {
+                        $clusterRank = $entry['rank'];
+                    }
+
+                    $dimmedPerformanceClusters[$nearestClusterIndex] = [
+                        'x' => (($cluster['x'] * $cluster['count']) + $pointX) / $nextCount,
+                        'y' => (($cluster['y'] * $cluster['count']) + $pointY) / $nextCount,
+                        'count' => $nextCount,
+                        'rank' => $clusterRank,
+                    ];
+                }
             @endphp
 
             <section class="dashboard-analytics-grid grid gap-6 xl:grid-cols-2">
@@ -1074,14 +1141,16 @@ new class extends Component {
                                         $isAbovePerformanceAverage = $entry['points'] > $performanceAveragePoints
                                             && $entry['pages'] > $performanceAveragePages;
                                         $performanceRankClass = $entry['rank'] ? ' dashboard-performance-map__point--rank-'.$entry['rank'] : '';
+                                        $performanceDotSize = $aboveAverageDotSizes->get($entry['student']->id, 0.78);
                                     @endphp
                                     @if ($isAbovePerformanceAverage)
                                         <button
                                             type="button"
                                             wire:click="showManagerStudent({{ $entry['student']->id }})"
                                             class="dashboard-performance-map__point dashboard-performance-map__point--above-average{{ $performanceRankClass }}"
-                                            style="--point-x: {{ $performanceX($entry['pages']) }}%; --point-y: {{ $performanceY($entry['points']) }}%"
+                                            style="--point-x: {{ $performanceX($entry['pages']) }}%; --point-y: {{ $performanceY($entry['points']) }}%; --performance-dot-size: {{ $performanceDotSize }}rem"
                                             data-performance-rank="{{ $entry['rank'] }}"
+                                            data-performance-dot-size="{{ $performanceDotSize }}"
                                             data-points-before="{{ $entry['points_before'] }}"
                                             data-points-after="{{ $entry['points'] }}"
                                             aria-label="{{ $entry['student']->full_name }} — {{ number_format($entry['points']) }} {{ __('dashboard.manager.analytics.points') }}, {{ trans_choice('dashboard.manager.analytics.pages_count', $entry['pages'], ['count' => number_format($entry['pages'])]) }}"
@@ -1094,25 +1163,21 @@ new class extends Component {
                                         </button>
                                     @endif
                                 @endforeach
-                                <div class="dashboard-performance-map__dimmed-layer" data-performance-dimmed-layer aria-hidden="true">
-                                    @foreach ($studentPerformance as $entry)
-                                        @php
-                                            $isAbovePerformanceAverage = $entry['points'] > $performanceAveragePoints
-                                                && $entry['pages'] > $performanceAveragePages;
-                                            $performanceRankClass = $entry['rank'] ? ' dashboard-performance-map__point--rank-'.$entry['rank'] : '';
-                                        @endphp
-                                        @unless ($isAbovePerformanceAverage)
+                                <div class="dashboard-performance-map__dimmed-layer" data-performance-dimmed-layer data-performance-cluster-radius="{{ $performanceClusterRadius }}" aria-hidden="true">
+                                    @foreach ($dimmedPerformanceClusters as $cluster)
                                         <span
-                                            class="dashboard-performance-map__point dashboard-performance-map__point--below-average{{ $performanceRankClass }}"
-                                            style="--point-x: {{ $performanceX($entry['pages']) }}%; --point-y: {{ $performanceY($entry['points']) }}%"
-                                            data-performance-rank="{{ $entry['rank'] }}"
-                                            data-points-before="{{ $entry['points_before'] }}"
-                                            data-points-after="{{ $entry['points'] }}"
+                                            @class([
+                                                'dashboard-performance-map__point',
+                                                'dashboard-performance-map__point--below-average',
+                                                'dashboard-performance-map__point--rank-'.$cluster['rank'] => $cluster['rank'],
+                                            ])
+                                            style="--point-x: {{ $cluster['x'] }}%; --point-y: {{ $cluster['y'] }}%"
+                                            data-performance-cluster-size="{{ $cluster['count'] }}"
+                                            data-performance-rank="{{ $cluster['rank'] }}"
                                             aria-hidden="true"
                                         >
                                             <span class="dashboard-performance-map__dot"></span>
                                         </span>
-                                        @endunless
                                     @endforeach
                                 </div>
                             </div>
@@ -1124,7 +1189,7 @@ new class extends Component {
                     @endif
                 </article>
 
-                <article class="surface-panel flex min-h-[26rem] flex-col justify-center p-5 lg:p-6" data-dashboard-vertically-centered-bar-card>
+                <article class="surface-panel flex min-h-[26rem] flex-col justify-center p-5 lg:p-6" data-dashboard-vertically-centered-bar-card data-dashboard-bar-content-centered>
                     <h2 class="font-display mt-2 text-2xl text-white">{{ __('dashboard.manager.analytics.top_groups_by_memorization') }}</h2>
                     @if ($groupPageTotals->isEmpty())
                         <div class="admin-empty-state mt-5 flex-1">{{ __('dashboard.manager.analytics.no_groups') }}</div>
@@ -1160,14 +1225,13 @@ new class extends Component {
                         </div>
                         </div>
                         <div aria-hidden="true" style="grid-column: 3; grid-row: 1"></div>
-                        <div class="pt-2 text-center text-xs text-neutral-400" style="grid-column: 2; grid-row: 2">{{ __('dashboard.manager.analytics.groups_axis') }}</div>
                         </div>
                         </div>
                     @endif
                 </article>
             </section>
 
-            <section class="surface-panel mt-6 p-5 lg:p-6">
+            <section class="dashboard-curriculum-progress-card surface-panel mt-6 p-5 lg:p-6">
                 <h2 class="font-display mt-2 text-2xl text-white">{{ __('curricula.progress.title') }}</h2>
                 @if ($curriculumProgress->isEmpty())
                     <div class="admin-empty-state mt-5">{{ __('curricula.progress.empty') }}</div>

@@ -694,7 +694,7 @@ new class extends Component {
         </div>
     @endif
 
-    <div class="grid gap-4 md:grid-cols-2">
+    <div class="mobile-compact-highlights mobile-compact-highlights--two grid gap-4 md:grid-cols-2">
         <article class="stat-card">
             <div class="kpi-label">{{ __('crud.parents.stats.all') }}</div>
             <div class="metric-value mt-6">{{ number_format($totals['all']) }}</div>
@@ -706,7 +706,7 @@ new class extends Component {
         </article>
     </div>
 
-    <section class="surface-table">
+    <section class="surface-table mobile-records-surface">
         <div class="admin-grid-meta admin-grid-meta--controls">
             <div class="admin-grid-meta__title">{{ __('crud.parents.table.title') }}</div>
             <div class="admin-toolbar__controls admin-toolbar__controls--compact" data-parent-table-controls>
@@ -737,7 +737,52 @@ new class extends Component {
         @if ($parents->isEmpty())
             <div class="admin-empty-state">{{ __('crud.parents.table.empty') }}</div>
         @else
-            <div class="overflow-x-auto">
+            <div class="responsive-records-mobile">
+                @foreach ($parents as $parent)
+                    <article class="mobile-record-card">
+                        <div class="mobile-record-card__header">
+                            <div class="min-w-0">
+                                <div class="mobile-record-card__title">{{ $parent->father_name }}</div>
+                                <div class="mobile-record-card__subtitle">{{ $parent->parent_number ?: $parent->id }}</div>
+                            </div>
+                            <span class="{{ $parent->is_active ? 'status-chip status-chip--emerald' : 'status-chip status-chip--slate' }}">
+                                {{ $parent->is_active ? __('crud.common.status_options.active') : __('crud.common.status_options.inactive') }}
+                            </span>
+                        </div>
+
+                        <dl class="mobile-record-card__details">
+                            <div>
+                                <dt>{{ __('crud.parents.table.headers.mother') }}</dt>
+                                <dd>{{ $parent->mother_name ?: __('crud.common.not_available') }}</dd>
+                            </div>
+                            <div>
+                                <dt>{{ __('crud.parents.table.headers.students') }}</dt>
+                                <dd>{{ number_format($parent->students_count) }}</dd>
+                            </div>
+                            <div>
+                                <dt>{{ __('crud.parents.table.headers.father_phone') }}</dt>
+                                <dd><bdi dir="ltr">{{ $parent->father_phone ?: __('crud.common.not_available') }}</bdi></dd>
+                            </div>
+                            <div>
+                                <dt>{{ __('crud.parents.table.headers.mother_phone') }}</dt>
+                                <dd><bdi dir="ltr">{{ $parent->mother_phone ?: __('crud.common.not_available') }}</bdi></dd>
+                            </div>
+                        </dl>
+
+                        <div class="mobile-record-card__actions">
+                            <button type="button" wire:click="viewAccount({{ $parent->id }})" class="pill-link pill-link--compact">{{ __('crud.common.actions.account') }}</button>
+                            @can('students.view')
+                                <button type="button" wire:click="openChildrenModal({{ $parent->id }})" class="pill-link pill-link--compact">{{ __('crud.parents.children.action') }}</button>
+                            @endcan
+                            @can('parents.update')
+                                <button type="button" wire:click="edit({{ $parent->id }})" class="pill-link pill-link--compact">{{ __('crud.common.actions.edit') }}</button>
+                            @endcan
+                        </div>
+                    </article>
+                @endforeach
+            </div>
+
+            <div class="responsive-records-desktop overflow-x-auto">
                 <table class="text-sm">
                     <thead>
                         <tr>

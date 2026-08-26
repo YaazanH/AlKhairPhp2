@@ -95,8 +95,8 @@ return [
             'permissions' => 'Direct permissions',
         ],
         'filters' => [
-            'role' => 'Role',
-            'all_roles' => 'All roles',
+            'profile' => 'Profile',
+            'all_profiles' => 'All profiles',
         ],
         'scopes' => [
             'title' => 'Scope overrides',

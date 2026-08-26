@@ -3,6 +3,7 @@
 return [
     'actions' => [
         'add' => 'إضافة',
+        'create' => 'إنشاء',
         'save' => 'حفظ',
         'accept' => 'قبول',
         'actions' => 'الإجراءات',

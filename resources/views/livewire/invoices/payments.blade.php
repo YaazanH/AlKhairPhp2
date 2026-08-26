@@ -271,7 +271,7 @@ new class extends Component {
     <section class="page-hero p-6 lg:p-8">
         <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-            @unless ($maintenanceMode)<a href="{{ route('invoices.index') }}" wire:navigate class="text-sm font-medium text-neutral-200/80 hover:text-white">{{ __('invoices.detail.back') }}</a>@endunless
+            @unless ($maintenanceMode)<x-back-link :href="route('invoices.index')" navigate />@endunless
             <div class="eyebrow {{ $maintenanceMode ? '' : 'mt-4' }}">{{ __('ui.nav.finance') }}</div>
             <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('invoices.detail.heading') }}</h1>
             @unless ($maintenanceMode)<p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ __('invoices.detail.subheading') }}</p>@endunless

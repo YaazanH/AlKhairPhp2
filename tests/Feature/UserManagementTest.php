@@ -2,6 +2,9 @@
 
 namespace Tests\Feature;
 
+use App\Models\ParentProfile;
+use App\Models\Student;
+use App\Models\Teacher;
 use App\Models\User;
 use App\Services\ManagedUserService;
 use App\Support\RoleRegistry;
@@ -48,6 +51,16 @@ class UserManagementTest extends TestCase
 
         $this->get(route('users.index', absolute: false))->assertOk();
         $this->get(route('settings.access-control', absolute: false))->assertOk();
+
+        Volt::test('users.index')
+            ->assertSee('data-user-profile-filter', false)
+            ->assertSee('admin-toolbar__controls--compact', false)
+            ->assertSeeInOrder([
+                '<option value="student">',
+                '<option value="parent">',
+                '<option value="teacher">',
+            ], false)
+            ->assertDontSee('wire:click="openCreateModal"', false);
 
         Volt::test('users.index')
             ->call('edit', $admin->id)
@@ -110,7 +123,7 @@ class UserManagementTest extends TestCase
             ->assertSee('wire:click="save" class="admin-modal__close"', false)
             ->assertDontSee('wire:click="save" class="pill-link pill-link--accent"', false)
             ->assertSee('role-permission-group', false)
-            ->assertSee('data-permission-group-rows="4"', false)
+            ->assertSee('data-permission-group-rows="3"', false)
             ->assertSee('role-permission-group__arrow" aria-hidden="true">‹</span>', false)
             ->assertDontSee('admin-collapsible__count', false)
             ->assertDontSee('wire:click="closePermissionsModal" class="pill-link"', false)
@@ -139,8 +152,9 @@ class UserManagementTest extends TestCase
         $this->assertTrue($teacherRole->hasPermissionTo('points.create-manual'));
 
         $accessControlCss = file_get_contents(resource_path('css/app.css'));
-        $this->assertStringContainsString('grid-template-rows: repeat(4, auto)', $accessControlCss);
+        $this->assertStringContainsString('grid-template-rows: repeat(3, auto)', $accessControlCss);
         $this->assertStringContainsString("html[dir='rtl'] .role-permission-group__arrow", $accessControlCss);
+        $this->assertStringContainsString('transform: scaleX(-1);', $accessControlCss);
     }
 
     public function test_admin_can_create_user_with_generated_login_credentials(): void
@@ -173,6 +187,57 @@ class UserManagementTest extends TestCase
         $this->assertNotEmpty($user->issued_password);
         $this->assertTrue($user->is_active);
         $this->assertTrue(Hash::check($user->issued_password, $user->password));
+    }
+
+    public function test_user_profile_filter_uses_only_student_parent_and_teacher_profiles(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $admin = User::factory()->create(['name' => 'Profile Filter Admin']);
+        $admin->assignRole(RoleRegistry::ADMIN);
+        $studentUser = User::factory()->create(['name' => 'Student Profile Account']);
+        $parentUser = User::factory()->create(['name' => 'Parent Profile Account']);
+        $teacherUser = User::factory()->create(['name' => 'Teacher Profile Account']);
+
+        Student::query()->create([
+            'user_id' => $studentUser->id,
+            'first_name' => 'Student',
+            'last_name' => 'Profile',
+            'birth_date' => '2014-01-01',
+            'status' => 'active',
+        ]);
+        ParentProfile::query()->create([
+            'user_id' => $parentUser->id,
+            'father_name' => 'Parent Profile',
+            'is_active' => true,
+        ]);
+        Teacher::query()->create([
+            'user_id' => $teacherUser->id,
+            'first_name' => 'Teacher',
+            'last_name' => 'Profile',
+            'phone' => '0999555010',
+            'status' => 'active',
+        ]);
+
+        $studentUser->refresh();
+        $parentUser->refresh();
+        $teacherUser->refresh();
+
+        $this->actingAs($admin);
+
+        Volt::test('users.index')
+            ->set('profileFilter', 'student')
+            ->assertSee($studentUser->name)
+            ->assertDontSee($parentUser->name)
+            ->assertDontSee($teacherUser->name)
+            ->set('profileFilter', 'parent')
+            ->assertSee($parentUser->name)
+            ->assertDontSee($studentUser->name)
+            ->assertDontSee($teacherUser->name)
+            ->set('profileFilter', 'teacher')
+            ->assertSee($teacherUser->name)
+            ->assertDontSee($studentUser->name)
+            ->assertDontSee($parentUser->name);
     }
 
     public function test_admin_can_manage_custom_roles_without_breaking_system_roles(): void

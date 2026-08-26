@@ -175,7 +175,7 @@ new class extends Component {
     <section class="page-hero p-6 lg:p-8">
         <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
-                <a href="{{ route('groups.index') }}" wire:navigate class="text-sm font-medium text-neutral-200/80 hover:text-white">{{ __('schedules.group.back') }}</a>
+                <x-back-link :href="route('groups.index')" navigate />
                 <div class="eyebrow mt-4">{{ __('ui.nav.academics') }}</div>
                 <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('schedules.group.heading') }}</h1>
                 <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ __('schedules.group.subheading') }}</p>

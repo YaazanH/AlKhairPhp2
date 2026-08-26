@@ -699,19 +699,17 @@ new class extends Component {
         :show="$showFormModal"
         :title="$editingTransactionId ? __('workflow.points.workbench.form.edit_title') : __('workflow.points.workbench.form.title')"
         close-method="closeFormModal"
-        max-width="2xl"
+        max-width="fit"
+        compact
     >
-        <form wire:submit="saveManual" class="space-y-3">
+        <form wire:submit="saveManual" class="w-[min(28rem,calc(100vw-3rem))] space-y-3">
             <div class="space-y-3">
                 <div>
                     <label for="points-workbench-student" class="mb-1 block text-sm font-medium">{{ __('workflow.points.workbench.form.student') }}</label>
-                    <select id="points-workbench-student" wire:model.live="selectedStudentId" class="w-full rounded-xl px-4 py-3 text-sm" @disabled($editingTransactionId !== null)>
+                    <select id="points-workbench-student" wire:model.live="selectedStudentId" data-search-input="true" data-open-on-focus="true" data-hide-placeholder-option="true" data-search-placeholder="{{ __('workflow.common.student_name_placeholder') }}" class="w-full rounded-xl px-4 py-3 text-sm" @disabled($editingTransactionId !== null)>
                         <option value="">{{ __('workflow.points.workbench.form.select_student') }}</option>
                         @foreach ($studentOptions as $student)
-                            <option
-                                value="{{ $student->id }}"
-                                data-search="{{ trim(implode(' ', array_filter([$student->student_number, $student->first_name, $student->last_name]))) }}"
-                            >
+                            <option value="{{ $student->id }}">
                                 {{ trim($student->first_name.' '.$student->last_name) }}
                             </option>
                         @endforeach
@@ -723,7 +721,7 @@ new class extends Component {
 
                 <div>
                     <label for="points-workbench-type" class="mb-1 block text-sm font-medium">{{ __('workflow.points.form.point_type') }}</label>
-                    <select id="points-workbench-type" wire:model="manual_point_type_id" class="w-full rounded-xl px-4 py-3 text-sm">
+                    <select id="points-workbench-type" wire:model="manual_point_type_id" data-search-input="true" data-open-on-focus="true" data-hide-placeholder-option="true" data-search-placeholder="{{ __('workflow.points.form.select_point_type') }}" class="w-full rounded-xl px-4 py-3 text-sm">
                         <option value="">{{ __('workflow.points.form.select_point_type') }}</option>
                         @foreach ($manualPointTypes as $pointType)
                             <option value="{{ $pointType->id }}">{{ $pointType->name }} ({{ $pointType->default_points > 0 ? '+'.$pointType->default_points : $pointType->default_points }})</option>

@@ -156,7 +156,7 @@ new class extends Component {
 <div class="page-stack">
     <section class="page-hero p-6 lg:p-8">
         <div>
-            <a href="{{ route('enrollments.index') }}" wire:navigate class="text-sm font-medium text-neutral-200/80 hover:text-white">{{ __('workflow.common.back_to_enrollments') }}</a>
+            <x-back-link :href="route('enrollments.index')" navigate />
             <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('workflow.quran_tests.title') }}</h1>
             <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ __('workflow.quran_tests.subtitle') }}</p>
         </div>

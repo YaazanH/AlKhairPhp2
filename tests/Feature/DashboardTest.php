@@ -185,7 +185,11 @@ class DashboardTest extends TestCase
             ->assertSee('dashboard-performance-map__plot', false)
             ->assertSee('dashboard-performance-map__point', false)
             ->assertSee('dashboard-performance-map__point--above-average', false)
+            ->assertSee('data-performance-dot-size=', false)
             ->assertSee('dashboard-performance-map__point--below-average', false)
+            ->assertSee('data-performance-cluster-size="1"', false)
+            ->assertSee('data-performance-cluster-radius="0.5"', false)
+            ->assertDontSee('data-performance-dimmed-border-layer', false)
             ->assertDontSee('dashboard-performance-map__x-axis', false)
             ->assertDontSee('dashboard-performance-map__y-axis', false)
             ->assertDontSee('Strong in both')
@@ -215,6 +219,9 @@ class DashboardTest extends TestCase
             ->assertSee('inset-inline-start: calc(100% - .4375rem)', false)
             ->assertSee('data-dashboard-centered-bar-chart', false)
             ->assertSee('data-dashboard-vertically-centered-bar-card', false)
+            ->assertSee('data-dashboard-bar-content-centered', false)
+            ->assertSee('dashboard-curriculum-progress-card', false)
+            ->assertDontSee('data-dashboard-groups-axis', false)
             ->assertSee('flex-col justify-center', false)
             ->assertSee('data-dashboard-balanced-axis', false)
             ->assertSee('grid-cols-[3rem_minmax(0,1fr)_3rem]', false)
@@ -231,9 +238,15 @@ class DashboardTest extends TestCase
         $this->assertStringContainsString('background-size: 20% 100%, 100% 20%', $dashboardCss);
         $this->assertStringContainsString('.dashboard-performance-map__point--below-average {', $dashboardCss);
         $this->assertStringContainsString('.dashboard-performance-map__dimmed-layer {', $dashboardCss);
-        $this->assertStringContainsString('opacity: 0.14;', $dashboardCss);
+        $this->assertStringContainsString('opacity: 0.08;', $dashboardCss);
+        $this->assertStringContainsString('width: 0.39rem;', $dashboardCss);
+        $this->assertStringContainsString('.dashboard-performance-map__point--above-average .dashboard-performance-map__dot {', $dashboardCss);
+        $this->assertStringContainsString('width: var(--performance-dot-size, 0.78rem);', $dashboardCss);
+        $this->assertStringNotContainsString('.dashboard-performance-map__dimmed-border-layer {', $dashboardCss);
         $this->assertStringContainsString('.dashboard-performance-map__point:hover .dashboard-performance-map__dot,', $dashboardCss);
         $this->assertStringContainsString('background: #34d399;', $dashboardCss);
+        $this->assertStringContainsString('padding-top: 1.25rem !important;', $dashboardCss);
+        $this->assertStringContainsString('margin-top: 0 !important;', $dashboardCss);
 
         Volt::test('dashboard')
             ->call('showManagerStudent', $student->id)
@@ -345,9 +358,8 @@ class DashboardTest extends TestCase
 
         foreach ([
             'required_passed_final_tests' => 0,
-            'required_memorized_pages' => 0,
+            'required_memorized_pages' => 35,
             'required_passed_quizzes' => 0,
-            'required_present_attendance' => 1,
             'retain_percentage' => 50,
             'minimum_points' => 0,
         ] as $key => $value) {

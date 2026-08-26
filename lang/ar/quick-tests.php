@@ -1,6 +1,9 @@
 <?php
 
 return [
+    'memorization_disabled_warning' => 'تسجيل التسميع متوقف حالياً',
+    'saber_disabled_warning' => 'تسجيل السبر متوقف حالياً',
+    'disabled_help' => 'في حال وجود مشكلة يرجى مراجعة الإدارة',
     'title' => 'إدخال سبر',
     'saber_type' => 'نوع السبر',
     'partial' => 'السبر التجريبي',
@@ -13,6 +16,7 @@ return [
     'no_quarters' => 'لا يوجد ربع متاح حالياً.',
     'quarter' => 'الربع :number',
     'mistakes' => 'عدد الأخطاء',
+    'mistakes_suffix' => 'أخطاء',
     'date' => 'التاريخ',
     'mark' => 'العلامة',
     'save' => 'حفظ',

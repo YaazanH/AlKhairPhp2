@@ -33,6 +33,13 @@ return [
         'title' => 'Student Notes',
         'subtitle' => 'Filter by student, source, or visibility to review the history.',
         'empty' => 'No student notes match the current filters.',
+        'table' => [
+            'student' => 'Student name',
+            'date' => 'Date',
+            'visibility' => 'Visible to',
+            'note' => 'Note',
+            'actions' => 'Actions',
+        ],
         'filters' => [
             'all_students' => 'All students',
             'all_sources' => 'All sources',

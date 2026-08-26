@@ -100,6 +100,7 @@ return [
             ],
             'placeholders' => [
                 'new_father_work' => 'Select job',
+                'address' => 'City - region - details',
             ],
             'address_hint' => '(city - region - details)',
             'active_profile' => 'Active profile',
@@ -823,6 +824,7 @@ return [
             'already_enrolled' => 'This student is already enrolled in the selected group.',
             'already_active' => 'This student already has an active enrollment. Complete or cancel it before creating another one.',
             'inactive_student' => 'Only active students can be enrolled.',
+            'inactive_group' => 'A new enrollment can only be created in an active group within an active course.',
         ],
     ],
 ];

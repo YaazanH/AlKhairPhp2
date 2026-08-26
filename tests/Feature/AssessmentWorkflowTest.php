@@ -287,9 +287,11 @@ class AssessmentWorkflowTest extends TestCase
             ->assertRedirect(route('assessments.results', $assessment));
 
         $resultsComponent = Volt::test('assessments.results', ['assessment' => $assessment])
-            ->assertSeeInOrder([$assessment->title, __('workflow.common.back_to_assessments')])
+            ->assertSeeInOrder([__('crud.common.actions.back'), $assessment->title])
+            ->assertDontSee(__('workflow.common.back_to_assessments'))
             ->assertSee('assessment-results-title', false)
             ->assertSee('assessment-results-back', false)
+            ->assertDontSee('admin-kpi-grid', false)
             ->assertSee('Assessment Group')
             ->assertSee('Second Assessment Group')
             ->assertSee(__('workflow.assessments.results.student_entry.title'))
@@ -297,13 +299,17 @@ class AssessmentWorkflowTest extends TestCase
             ->assertSee('assessment-group-selector', false)
             ->assertDontSee(__('workflow.assessments.results.groups.scores_entered', ['count' => 0]))
             ->assertSee(__('workflow.assessments.results.pdf_export'))
-            ->assertSee(__('workflow.assessments.results.pdf.average_mark'))
+            ->assertSee(__('workflow.assessments.results.details.participants').': 0')
+            ->assertSee(__('workflow.assessments.results.details.passed').': 0')
+            ->assertDontSee(__('workflow.assessments.results.pdf.average_mark'))
             ->assertSet('selectedGroupId', null)
             ->set('quick_enrollment_id', (string) $firstEnrollment->id)
             ->set('quick_score', '80')
             ->call('saveQuickResult')
             ->assertDontSee(__('workflow.assessments.results.groups.scores_entered', ['count' => 1]))
             ->assertViewHas('assessmentAverage', fn ($average) => (float) $average === 80.0)
+            ->assertViewHas('totalSavedResults', 1)
+            ->assertViewHas('totalPassedStudents', 1)
             ->assertHasNoErrors();
 
         $resultsComponent
@@ -314,6 +320,14 @@ class AssessmentWorkflowTest extends TestCase
             ->set('result_scores.'.$secondEnrollment->id, '40')
             ->call('saveResults')
             ->assertHasNoErrors();
+
+        Volt::test('assessments.index')
+            ->set('courseFilter', 'all')
+            ->assertDontSee('admin-kpi-grid', false)
+            ->assertSee(__('workflow.assessments.index.table.headers.results'))
+            ->assertSee(__('workflow.assessments.index.table.headers.average'))
+            ->assertSee('60%')
+            ->assertViewHas('assessments', fn ($assessments) => (float) $assessments->first()->results_avg_score === 60.0);
 
         $this->assertDatabaseHas('assessment_results', [
             'assessment_id' => $assessment->id,
@@ -514,8 +528,8 @@ class AssessmentWorkflowTest extends TestCase
 
         Volt::test('assessments.index')
             ->call('edit', $assessment->id)
-            ->assertSee('w-[19%]', false)
-            ->assertSee('w-[17%]', false)
+            ->assertSee('w-[20%]', false)
+            ->assertSee('w-[18%]', false)
             ->assertSee('wire:click="delete('.$assessment->id.')"', false)
             ->assertSee('disabled', false)
             ->call('delete', $assessment->id)

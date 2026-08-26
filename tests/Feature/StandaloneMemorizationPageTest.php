@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\AcademicYear;
+use App\Models\AppSetting;
 use App\Models\Course;
 use App\Models\Enrollment;
 use App\Models\Group;
@@ -18,6 +19,19 @@ use Tests\TestCase;
 class StandaloneMemorizationPageTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_quick_memorization_replaces_the_form_with_a_warning_when_entries_are_disabled(): void
+    {
+        $this->teacherMemorizationContext();
+        AppSetting::storeValue('general', 'memorization_saber_entries_enabled', false, 'boolean');
+
+        Volt::test('memorization.quick-entry')
+            ->assertSee('data-quick-entry-disabled', false)
+            ->assertSee(__('quick-tests.memorization_disabled_warning'))
+            ->assertSee(__('quick-tests.disabled_help'))
+            ->assertDontSee('data-quick-entry-help', false)
+            ->assertDontSee('wire:submit="save"', false);
+    }
 
     public function test_teacher_workbench_uses_the_logged_in_teacher_for_new_memorization_entries(): void
     {

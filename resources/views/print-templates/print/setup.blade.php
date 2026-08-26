@@ -5,13 +5,13 @@
         <section class="page-hero relative z-30 !overflow-visible p-6 lg:p-8">
             <div class="flex flex-wrap items-start justify-between gap-5">
                 <div class="id-card-print-hero__copy">
-                    <div class="eyebrow">{{ ($courseReportMode ?? false) ? __('course_end.eyebrow') : __('ui.nav.identity_tools') }}</div>
+                    @if ($courseReportMode ?? false)
+                        <x-back-link :href="route('courses.end', $selectedCourseId)" />
+                    @endif
+                    <div class="eyebrow {{ ($courseReportMode ?? false) ? 'mt-4' : '' }}">{{ ($courseReportMode ?? false) ? __('course_end.eyebrow') : __('ui.nav.identity_tools') }}</div>
                     <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ $pageTitle ?? __('print_templates.print.title') }}</h1>
                     @if (filled($pageSubtitle ?? null))<p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ $pageSubtitle }}</p>@endif
                 </div>
-                @if ($courseReportMode ?? false)
-                    <a href="{{ route('courses.end', $selectedCourseId) }}" class="pill-link">{{ __('course_end.back_to_end') }}</a>
-                @endif
                 @if ($studentCardMode ?? false)
                     <div class="admin-form-field relative z-50 min-w-64 overflow-visible">
                         <label for="student-card-course">{{ __('crud.students.bulk_status.fields.course') }}</label>
@@ -161,8 +161,9 @@
                                                         <div class="admin-filter-field">
                                                             <label class="sr-only">{{ __('print_templates.print.setup.fields.filter_printed') }}</label>
                                                             <select data-source-printed-filter="{{ $entity }}">
+                                                                <option value="" selected>{{ __('print_templates.print.setup.fields.all_print_states') }}</option>
                                                                 <option value="printed">{{ __('print_templates.print.setup.fields.printed_students') }}</option>
-                                                                <option value="not_printed" selected>{{ __('print_templates.print.setup.fields.not_printed_students') }}</option>
+                                                                <option value="not_printed">{{ __('print_templates.print.setup.fields.not_printed_students') }}</option>
                                                             </select>
                                                         </div>
                                                     @endif

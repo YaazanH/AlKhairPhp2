@@ -8,14 +8,14 @@
 <x-layouts.app>
     <div class="page-stack">
         <section class="page-hero p-6 lg:p-8">
-            <div class="eyebrow">{{ __('ui.nav.identity_tools') }}</div>
+            <x-back-link :href="route('id-cards.templates.index')" />
+            <div class="eyebrow mt-4">{{ __('ui.nav.identity_tools') }}</div>
             <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">
                 {{ $isEditing ? __('id_cards.templates.form.edit_title') : __('id_cards.templates.form.create_title') }}
             </h1>
             <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ __('id_cards.templates.form.description') }}</p>
 
             <div class="mt-6 flex flex-wrap gap-3">
-                <a href="{{ route('id-cards.templates.index') }}" class="pill-link">{{ __('id_cards.templates.form.buttons.back') }}</a>
                 @if ($isEditing && auth()->user()->can('id-cards.print'))
                     <a href="{{ route('id-cards.print.create', ['template' => $template->id]) }}" class="pill-link pill-link--accent">{{ __('id_cards.templates.actions.generate') }}</a>
                 @endif

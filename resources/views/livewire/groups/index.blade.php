@@ -1076,18 +1076,10 @@ new class extends Component {
                         <div class="mt-5 grid gap-4 md:grid-cols-[minmax(0,2fr)_220px]">
                             <div>
                                 <label for="group-roster-student" class="mb-1 block text-sm font-medium">{{ __('crud.groups.roster.fields.student') }}</label>
-                                <select id="group-roster-student" wire:model="roster_student_id" class="w-full rounded-xl px-4 py-3 text-sm">
+                                <select id="group-roster-student" wire:model="roster_student_id" data-search-input="true" data-open-on-focus="true" data-hide-placeholder-option="true" data-search-placeholder="{{ __('workflow.common.student_name_placeholder') }}" class="w-full rounded-xl px-4 py-3 text-sm">
                                     <option value="">{{ __('crud.groups.roster.placeholders.select_student') }}</option>
                                     @foreach ($availableRosterStudents as $student)
-                                        <option
-                                            value="{{ $student->id }}"
-                                            data-search="{{ trim(implode(' ', array_filter([$student->student_number, $student->first_name, $student->last_name]))) }}"
-                                        >
-                                            {{ $student->full_name }}
-                                            @if ($student->parentProfile?->father_name)
-                                                - {{ $student->parentProfile->father_name }}
-                                            @endif
-                                        </option>
+                                        <option value="{{ $student->id }}">{{ $student->full_name }}</option>
                                     @endforeach
                                 </select>
                                 @if ($availableRosterStudents->isEmpty())
