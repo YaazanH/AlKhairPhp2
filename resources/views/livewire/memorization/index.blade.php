@@ -616,18 +616,10 @@ new class extends Component {
             <div class="grid gap-4 md:grid-cols-2">
                 <div>
                     <label for="memorization-student" class="mb-1 block text-sm font-medium">{{ __('workflow.memorization.workbench.form.student') }}</label>
-                    <select id="memorization-student" wire:model.live="selectedStudentId" class="w-full rounded-xl px-4 py-3 text-sm">
+                    <select id="memorization-student" wire:model.live="selectedStudentId" data-search-input="true" data-open-on-focus="true" data-hide-placeholder-option="true" data-search-placeholder="{{ __('workflow.common.student_name_placeholder') }}" class="w-full rounded-xl px-4 py-3 text-sm">
                         <option value="">{{ __('workflow.memorization.workbench.form.select_student') }}</option>
                         @foreach ($studentOptions as $student)
-                            <option
-                                value="{{ $student->id }}"
-                                data-search="{{ trim(implode(' ', array_filter([$student->student_number, $student->first_name, $student->last_name]))) }}"
-                            >
-                                {{ $student->full_name }}
-                                @if ($student->parentProfile?->father_name)
-                                    - {{ $student->parentProfile->father_name }}
-                                @endif
-                            </option>
+                            <option value="{{ $student->id }}">{{ $student->full_name }}</option>
                         @endforeach
                     </select>
                     @error('selectedStudentId')

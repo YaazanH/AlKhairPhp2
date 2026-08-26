@@ -178,7 +178,7 @@ new class extends Component {
     <section class="page-hero p-6 lg:p-8">
         <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
-                <a href="{{ route('assessments.index') }}" wire:navigate class="text-sm font-medium text-neutral-300 hover:text-white">{{ __('workflow.common.back_to_assessments') }}</a>
+                <x-back-link :href="route('assessments.index')" navigate />
                 <div class="eyebrow mt-4">{{ __('ui.nav.assessments') }}</div>
                 <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('workflow.assessments.bands.title') }}</h1>
                 <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ __('workflow.assessments.bands.subtitle') }}</p>
@@ -267,7 +267,6 @@ new class extends Component {
                                     </div>
 
                                     <div class="admin-action-cluster admin-action-cluster--end">
-                                        <button type="button" wire:click="cancel" class="pill-link">{{ __('crud.common.actions.cancel') }}</button>
                                         <button type="submit" class="pill-link pill-link--accent">{{ $editingId ? __('workflow.assessments.bands.form.update_submit') : __('workflow.assessments.bands.form.create_submit') }}</button>
                                     </div>
                                 </form>
@@ -324,12 +323,15 @@ new class extends Component {
                                     </td>
                                     <td class="px-5 py-3">
                                         <div class="admin-action-cluster">
-                                            <span class="status-chip {{ $band->is_fail ? 'status-chip--rose' : 'status-chip--emerald' }}">
-                                                {{ $band->is_fail ? __('workflow.common.flags.fail') : __('workflow.common.flags.pass') }}
-                                            </span>
-                                            <span class="status-chip {{ $band->is_active ? 'status-chip--gold' : 'status-chip--slate' }}">
-                                                {{ $band->is_active ? __('workflow.common.flags.active') : __('workflow.common.flags.inactive') }}
-                                            </span>
+                                            @if ($band->is_active)
+                                                <span class="status-chip {{ $band->is_fail ? 'status-chip--rose' : 'status-chip--emerald' }}" data-assessment-band-status="{{ $band->id }}" data-state="{{ $band->is_fail ? 'fail' : 'pass' }}">
+                                                    {{ $band->is_fail ? __('workflow.common.flags.fail') : __('workflow.common.flags.pass') }}
+                                                </span>
+                                            @else
+                                                <span class="status-chip status-chip--slate" data-assessment-band-status="{{ $band->id }}" data-state="inactive">
+                                                    {{ __('workflow.common.flags.inactive') }}
+                                                </span>
+                                            @endif
                                         </div>
                                     </td>
                                     <td class="px-5 py-3">

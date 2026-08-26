@@ -4,7 +4,6 @@ namespace App\Services\IdCards;
 
 use App\Models\Student;
 use App\Models\StudentGender;
-use App\Support\AvatarDefaults;
 use Illuminate\Support\Arr;
 
 class StudentCardFieldRegistry
@@ -84,7 +83,7 @@ class StudentCardFieldRegistry
             'photo' => [
                 'label' => __('id_cards.fields.photo'),
                 'element_types' => ['image'],
-                'preview' => fn (Student $student): ?string => $student->photo_path ? '/storage/'.ltrim($student->photo_path, '/') : AvatarDefaults::url('student'),
+                'preview' => fn (Student $student): ?string => $student->photoUrl(),
             ],
         ];
     }

@@ -1840,7 +1840,7 @@
                 "results"
               ]
             },
-            "description": "Permission: assessment-results.record. score max is the assessment total mark.",
+            "description": "Permissions: assessment-results.record and assessment-results.record-scores. Score max is the assessment total mark.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"results\": [\n    {\n      \"enrollment_id\": \"{{enrollment_id}}\",\n      \"score\": 85,\n      \"status\": \"passed\",\n      \"attempt_no\": 1,\n      \"notes\": null\n    }\n  ]\n}",

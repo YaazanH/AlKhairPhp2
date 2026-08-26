@@ -849,7 +849,7 @@ Response:
 
 ### `POST /api/v1/assessments/{assessment}/results`
 
-Permission: `assessment-results.record`
+Permissions: `assessment-results.record` and `assessment-results.record-scores`
 
 Request body:
 

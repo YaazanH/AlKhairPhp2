@@ -9,23 +9,36 @@ use App\Models\StudentNote;
 use Illuminate\Validation\Rule;
 use Livewire\Volt\Component;
 
-new class extends Component {
+new class extends Component
+{
     use AuthorizesPermissions;
     use AuthorizesTeacherAssignments;
     use SupportsCreateAndNew;
 
     public ?int $editingId = null;
+
     public ?int $student_id = null;
+
     public ?int $enrollment_id = null;
+
     public string $source = '';
+
     public string $visibility = '';
+
     public string $noted_at = '';
+
     public string $body = '';
+
     public ?int $filter_student_id = null;
+
     public string $filter_source = '';
+
     public string $filter_visibility = '';
+
     public ?int $context_student_id = null;
+
     public ?int $context_enrollment_id = null;
+
     public bool $showForm = false;
 
     public function mount(): void
@@ -38,21 +51,9 @@ new class extends Component {
     public function with(): array
     {
         $students = $this->availableStudentsQuery()
-            ->with('parentProfile')
             ->orderBy('last_name')
             ->orderBy('first_name')
             ->get();
-
-        $enrollmentsQuery = $this->availableEnrollmentsQuery()
-            ->with(['group.course'])
-            ->orderByDesc('enrolled_at')
-            ->orderByDesc('id');
-
-        if ($this->student_id) {
-            $enrollmentsQuery->where('student_id', $this->student_id);
-        } else {
-            $enrollmentsQuery->whereRaw('1 = 0');
-        }
 
         $notesQuery = $this->availableNotesQuery();
 
@@ -70,16 +71,10 @@ new class extends Component {
 
         return [
             'students' => $students,
-            'enrollments' => $enrollmentsQuery->get(),
             'notes' => $notesQuery->get(),
             'filterSourceOptions' => $this->filterSourceOptions(),
             'formSourceOptions' => $this->formSourceOptions(),
             'teacherMode' => $this->isTeacherRole(),
-            'totals' => [
-                'all' => $this->availableNotesQuery()->count(),
-                'parent_visible' => $this->availableNotesQuery()->where('visibility', 'visible_to_parent')->count(),
-                'today' => $this->availableNotesQuery()->whereDate('noted_at', now()->toDateString())->count(),
-            ],
             'visibilityOptions' => $this->visibilityOptions(),
         ];
     }
@@ -161,7 +156,7 @@ new class extends Component {
         $this->enrollment_id = $note->enrollment_id;
         $this->source = $note->source;
         $this->visibility = $note->visibility;
-        $this->noted_at = $note->noted_at?->format('Y-m-d\TH:i') ?? now()->format('Y-m-d\TH:i');
+        $this->noted_at = $note->noted_at?->format('Y-m-d') ?? now()->format('Y-m-d');
         $this->body = $note->body;
         $this->showForm = true;
 
@@ -175,7 +170,7 @@ new class extends Component {
         $this->enrollment_id = $this->context_enrollment_id;
         $this->source = $this->defaultSource();
         $this->visibility = $this->defaultVisibility();
-        $this->noted_at = now()->format('Y-m-d\TH:i');
+        $this->noted_at = now()->format('Y-m-d');
         $this->body = '';
 
         if ($this->context_student_id) {
@@ -250,7 +245,7 @@ new class extends Component {
     {
         return $this->scopeStudentNotesQuery(
             StudentNote::query()
-                ->with(['author', 'enrollment.group.course', 'student.parentProfile'])
+                ->with('student')
                 ->latest('noted_at')
                 ->latest('id')
         );
@@ -362,23 +357,6 @@ new class extends Component {
         </div>
     @endif
 
-    <section class="admin-kpi-grid">
-        <article class="stat-card">
-            <div class="kpi-label">{{ __('notes.stats.all') }}</div>
-            <div class="metric-value mt-3">{{ number_format($totals['all']) }}</div>
-        </article>
-
-        <article class="stat-card">
-            <div class="kpi-label">{{ __('notes.stats.parent_visible') }}</div>
-            <div class="metric-value mt-3">{{ number_format($totals['parent_visible']) }}</div>
-        </article>
-
-        <article class="stat-card">
-            <div class="kpi-label">{{ __('notes.stats.today') }}</div>
-            <div class="metric-value mt-3">{{ number_format($totals['today']) }}</div>
-        </article>
-    </section>
-
     <div class="space-y-6">
         @if ($showForm)
         <section class="admin-modal" role="dialog" aria-modal="true">
@@ -396,27 +374,13 @@ new class extends Component {
                 <form wire:submit="save" class="space-y-4">
                     <div>
                         <label class="mb-1 block text-sm font-medium">{{ __('notes.form.fields.student') }}</label>
-                        <select wire:model="student_id" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                        <select wire:model="student_id" data-search-input="true" data-open-on-focus="true" data-hide-placeholder-option="true" data-search-placeholder="{{ __('workflow.common.student_name_placeholder') }}" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
                             <option value="">{{ __('notes.form.placeholders.student') }}</option>
                             @foreach ($students as $student)
-                                <option
-                                    value="{{ $student->id }}"
-                                    data-search="{{ trim(implode(' ', array_filter([$student->student_number, $student->first_name, $student->last_name]))) }}"
-                                >{{ $student->full_name }}{{ $student->parentProfile?->father_name ? ' | '.$student->parentProfile->father_name : '' }}</option>
+                                <option value="{{ $student->id }}">{{ trim($student->first_name.' '.$student->last_name) }}</option>
                             @endforeach
                         </select>
                         @error('student_id') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
-                    </div>
-
-                    <div>
-                        <label class="mb-1 block text-sm font-medium">{{ __('notes.form.fields.enrollment') }}</label>
-                        <select wire:model="enrollment_id" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
-                            <option value="">{{ __('notes.form.placeholders.enrollment') }}</option>
-                            @foreach ($enrollments as $enrollment)
-                                <option value="{{ $enrollment->id }}">{{ $enrollment->group?->name ?: __('notes.log.unknown_group') }}{{ $enrollment->group?->course ? ' | '.$enrollment->group->course->name : '' }}</option>
-                            @endforeach
-                        </select>
-                        @error('enrollment_id') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
                     </div>
 
                     <div class="grid gap-4 md:grid-cols-2">
@@ -443,7 +407,7 @@ new class extends Component {
 
                     <div>
                         <label class="mb-1 block text-sm font-medium">{{ __('notes.form.fields.noted_at') }}</label>
-                        <input wire:model="noted_at" type="datetime-local" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                        <input wire:model="noted_at" type="date" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
                         @error('noted_at') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
                     </div>
 
@@ -458,11 +422,12 @@ new class extends Component {
                             {{ $editingId ? __('notes.form.update_submit') : __('notes.form.create_submit') }}
                         </button>
                         <x-admin.create-and-new-button :show="! $editingId" click="saveAndNew('save', 'create')" />
-
                         @if ($editingId)
-                            <button type="button" wire:click="cancel" class="pill-link">
-                                {{ __('crud.common.actions.cancel') }}
-                            </button>
+                            @can('student-notes.delete')
+                                <button type="button" wire:click="delete({{ $editingId }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link pill-link--danger" data-student-note-delete>
+                                    {{ __('crud.common.actions.delete') }}
+                                </button>
+                            @endcan
                         @endif
                     </div>
                 </form>
@@ -482,13 +447,10 @@ new class extends Component {
                 <div class="admin-toolbar__controls admin-toolbar__controls--compact">
                     <div class="admin-filter-field">
                         <label class="sr-only" for="student-notes-student-filter">{{ __('notes.log.filters.all_students') }}</label>
-                        <select id="student-notes-student-filter" wire:model.live="filter_student_id">
+                        <select id="student-notes-student-filter" wire:model.live="filter_student_id" data-search-input="true" data-open-on-focus="true" data-hide-placeholder-option="true" data-search-placeholder="{{ __('workflow.common.student_name_placeholder') }}">
                             <option value="">{{ __('notes.log.filters.all_students') }}</option>
                             @foreach ($students as $student)
-                                <option
-                                    value="{{ $student->id }}"
-                                    data-search="{{ trim(implode(' ', array_filter([$student->student_number, $student->first_name, $student->last_name]))) }}"
-                                >{{ $student->full_name }}</option>
+                                <option value="{{ $student->id }}">{{ trim($student->first_name.' '.$student->last_name) }}</option>
                             @endforeach
                         </select>
                     </div>
@@ -526,55 +488,50 @@ new class extends Component {
             @if ($notes->isEmpty())
                 <div class="admin-empty-state">{{ __('notes.log.empty') }}</div>
             @else
-                <div class="divide-y divide-neutral-200 dark:divide-neutral-700">
-                    @foreach ($notes as $note)
-                        @php
-                            $canMutate = auth()->user()->can('student-notes.update') && (! $teacherMode || $note->author_id === auth()->id());
-                            $canDelete = auth()->user()->can('student-notes.delete') && (! $teacherMode || $note->author_id === auth()->id());
-                        @endphp
-
-                        <article class="space-y-4 px-5 py-4">
-                            <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                                <div class="space-y-2">
-                                    <div class="flex flex-wrap items-center gap-2 text-sm">
-                                        <span class="font-semibold">{{ $note->student?->full_name }}</span>
-                                        <span class="rounded-full bg-neutral-100 px-2 py-1 text-xs font-medium capitalize text-neutral-600 dark:bg-neutral-900 dark:text-neutral-300">
-                                            {{ __('notes.sources.'.$note->source) }}
-                                        </span>
-                                        <span class="rounded-full bg-blue-50 px-2 py-1 text-xs font-medium capitalize text-blue-700 dark:bg-blue-950/50 dark:text-blue-300">
-                                            {{ __('notes.visibility.'.$note->visibility) }}
-                                        </span>
-                                    </div>
-
-                                    <div class="text-xs text-neutral-500">
-                                        {{ $note->noted_at?->format('d-m-Y H:i') ?: '-' }}
-                                        | {{ $note->author?->name ?: __('notes.log.unknown_author') }}
-                                        | {{ $note->enrollment?->group?->name ?: __('notes.log.general_note') }}
-                                    </div>
-                                </div>
-
-                                @if ($canMutate || $canDelete)
-                                    <div class="flex gap-2">
+                <div class="overflow-x-auto">
+                    <table class="student-notes-table text-sm" data-student-notes-generic-table>
+                        <colgroup>
+                            <col class="student-notes-table__number-column">
+                            <col class="student-notes-table__student-column">
+                            <col class="student-notes-table__date-column">
+                            <col class="student-notes-table__visibility-column">
+                            <col class="student-notes-table__note-column">
+                            <col class="student-notes-table__actions-column" data-student-notes-actions-column>
+                        </colgroup>
+                        <thead>
+                            <tr>
+                                <th class="student-notes-table__number px-4 py-4 text-left">#</th>
+                                <th class="student-notes-table__student px-4 py-4 text-left">{{ __('notes.log.table.student') }}</th>
+                                <th class="student-notes-table__date px-4 py-4 text-left">{{ __('notes.log.table.date') }}</th>
+                                <th class="student-notes-table__visibility px-4 py-4 text-left">{{ __('notes.log.table.visibility') }}</th>
+                                <th class="student-notes-table__note px-4 py-4 text-left">{{ __('notes.log.table.note') }}</th>
+                                <th class="student-notes-table__actions px-4 py-4 text-left">{{ __('notes.log.table.actions') }}</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-white/6">
+                            @foreach ($notes as $note)
+                                @php
+                                    $canMutate = auth()->user()->can('student-notes.update') && (! $teacherMode || $note->author_id === auth()->id());
+                                @endphp
+                                <tr>
+                                    <td class="px-4 py-4">{{ $loop->iteration }}</td>
+                                    <td class="px-4 py-4 font-semibold">{{ $note->student ? trim($note->student->first_name.' '.$note->student->last_name) : '-' }}</td>
+                                    <td class="px-4 py-4"><bdi dir="ltr">{{ $note->noted_at?->format('d-m-Y') ?: '-' }}</bdi></td>
+                                    <td class="px-4 py-4">{{ __('notes.visibility.'.$note->visibility) }}</td>
+                                    <td class="px-4 py-4">
+                                        <div class="student-notes-table__note-content">{{ $note->body }}</div>
+                                    </td>
+                                    <td class="student-notes-table__actions px-4 py-4">
                                         @if ($canMutate)
-                                            <button type="button" wire:click="edit({{ $note->id }})" class="rounded-lg border border-neutral-300 px-3 py-1.5 text-sm dark:border-neutral-700">
-                                                {{ __('crud.common.actions.edit') }}
-                                            </button>
+                                            <button type="button" wire:click="edit({{ $note->id }})" class="pill-link pill-link--compact" data-student-note-edit>{{ __('crud.common.actions.edit') }}</button>
+                                        @else
+                                            <span aria-hidden="true">—</span>
                                         @endif
-
-                                        @if ($canDelete)
-                                            <button type="button" wire:click="delete({{ $note->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="rounded-lg border border-red-300 px-3 py-1.5 text-sm text-red-700 dark:border-red-800 dark:text-red-300">
-                                                {{ __('crud.common.actions.delete') }}
-                                            </button>
-                                        @endif
-                                    </div>
-                                @endif
-                            </div>
-
-                            <div class="rounded-xl bg-neutral-50 px-4 py-3 text-sm leading-6 text-neutral-700 dark:bg-neutral-900/70 dark:text-neutral-200">
-                                {{ $note->body }}
-                            </div>
-                        </article>
-                    @endforeach
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
                 </div>
             @endif
         </section>

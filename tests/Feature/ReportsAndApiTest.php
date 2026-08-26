@@ -220,6 +220,14 @@ class ReportsAndApiTest extends TestCase
             ->assertSee('Report Student')
             ->assertSee('5')
             ->assertSee('4');
+
+        app()->setLocale('ar');
+
+        Volt::test('reports.student-activity-summary')
+            ->set('group_id', $group->id)
+            ->assertSeeText('السبر التجريبي');
+
+        app()->setLocale('en');
     }
 
     public function test_student_activity_summary_report_headers_toggle_sort_direction(): void

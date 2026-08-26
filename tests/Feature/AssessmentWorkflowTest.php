@@ -98,6 +98,9 @@ class AssessmentWorkflowTest extends TestCase
 
         Volt::test('assessments.results', ['assessment' => $assessment])
             ->assertSet('selectedGroupId', $enrollment->group_id)
+            ->assertSee('assessment-results-single', false)
+            ->assertSee('assessment-results-dual', false)
+            ->assertSee('assessment-result-status-chip', false)
             ->assertDontSee('assessment-student-attempt')
             ->assertDontSee('assessment-student-notes')
             ->set('result_scores.'.$enrollment->id, '85')
@@ -152,6 +155,34 @@ class AssessmentWorkflowTest extends TestCase
             'assessment_type_id' => $type->id,
             'name' => 'Placement Overlap',
         ]);
+    }
+
+    public function test_score_band_table_shows_only_the_relevant_status(): void
+    {
+        $this->assessmentContext();
+
+        $quizType = AssessmentType::query()->where('code', 'quiz')->firstOrFail();
+        $activePassBand = AssessmentScoreBand::query()->where('assessment_type_id', $quizType->id)->where('is_fail', false)->firstOrFail();
+        $activeFailBand = AssessmentScoreBand::query()->where('assessment_type_id', $quizType->id)->where('is_fail', true)->firstOrFail();
+        $inactiveBand = AssessmentScoreBand::query()->create([
+            'assessment_type_id' => $quizType->id,
+            'name' => 'Inactive Fail Band',
+            'from_mark' => 0,
+            'to_mark' => 10,
+            'points' => 0,
+            'is_fail' => true,
+            'is_active' => false,
+        ]);
+
+        $html = Volt::test('assessments.bands')->html();
+
+        foreach ([$activePassBand, $activeFailBand, $inactiveBand] as $band) {
+            $this->assertSame(1, substr_count($html, 'data-assessment-band-status="'.$band->id.'"'));
+        }
+
+        $this->assertStringContainsString('data-assessment-band-status="'.$activePassBand->id.'" data-state="pass"', $html);
+        $this->assertStringContainsString('data-assessment-band-status="'.$activeFailBand->id.'" data-state="fail"', $html);
+        $this->assertStringContainsString('data-assessment-band-status="'.$inactiveBand->id.'" data-state="inactive"', $html);
     }
 
     public function test_manager_can_create_one_assessment_for_multiple_groups_and_record_results(): void
@@ -256,9 +287,11 @@ class AssessmentWorkflowTest extends TestCase
             ->assertRedirect(route('assessments.results', $assessment));
 
         $resultsComponent = Volt::test('assessments.results', ['assessment' => $assessment])
-            ->assertSeeInOrder([$assessment->title, __('workflow.common.back_to_assessments')])
+            ->assertSeeInOrder([__('crud.common.actions.back'), $assessment->title])
+            ->assertDontSee(__('workflow.common.back_to_assessments'))
             ->assertSee('assessment-results-title', false)
             ->assertSee('assessment-results-back', false)
+            ->assertDontSee('admin-kpi-grid', false)
             ->assertSee('Assessment Group')
             ->assertSee('Second Assessment Group')
             ->assertSee(__('workflow.assessments.results.student_entry.title'))
@@ -266,13 +299,17 @@ class AssessmentWorkflowTest extends TestCase
             ->assertSee('assessment-group-selector', false)
             ->assertDontSee(__('workflow.assessments.results.groups.scores_entered', ['count' => 0]))
             ->assertSee(__('workflow.assessments.results.pdf_export'))
-            ->assertSee(__('workflow.assessments.results.pdf.average_mark'))
+            ->assertSee(__('workflow.assessments.results.details.participants').': 0')
+            ->assertSee(__('workflow.assessments.results.details.passed').': 0')
+            ->assertDontSee(__('workflow.assessments.results.pdf.average_mark'))
             ->assertSet('selectedGroupId', null)
             ->set('quick_enrollment_id', (string) $firstEnrollment->id)
             ->set('quick_score', '80')
             ->call('saveQuickResult')
             ->assertDontSee(__('workflow.assessments.results.groups.scores_entered', ['count' => 1]))
             ->assertViewHas('assessmentAverage', fn ($average) => (float) $average === 80.0)
+            ->assertViewHas('totalSavedResults', 1)
+            ->assertViewHas('totalPassedStudents', 1)
             ->assertHasNoErrors();
 
         $resultsComponent
@@ -283,6 +320,14 @@ class AssessmentWorkflowTest extends TestCase
             ->set('result_scores.'.$secondEnrollment->id, '40')
             ->call('saveResults')
             ->assertHasNoErrors();
+
+        Volt::test('assessments.index')
+            ->set('courseFilter', 'all')
+            ->assertDontSee('admin-kpi-grid', false)
+            ->assertSee(__('workflow.assessments.index.table.headers.results'))
+            ->assertSee(__('workflow.assessments.index.table.headers.average'))
+            ->assertSee('60%')
+            ->assertViewHas('assessments', fn ($assessments) => (float) $assessments->first()->results_avg_score === 60.0);
 
         $this->assertDatabaseHas('assessment_results', [
             'assessment_id' => $assessment->id,
@@ -332,6 +377,8 @@ class AssessmentWorkflowTest extends TestCase
 
         Volt::test('assessments.index')
             ->set('courseFilter', 'all')
+            ->assertSee('assessment-index-mobile', false)
+            ->assertSee('assessment-index-desktop', false)
             ->assertSeeInOrder(['Later Due Assessment', 'Earlier Due Assessment', $undatedAssessment->title]);
     }
 
@@ -344,6 +391,11 @@ class AssessmentWorkflowTest extends TestCase
             'phone' => '0777000200',
         ]);
         $teacherUser->assignRole('teacher');
+
+        $this->assertFalse($teacherUser->can('assessment-results.record-scores'));
+        foreach (['super_admin', 'admin', 'manager'] as $roleName) {
+            $this->assertTrue(\Spatie\Permission\Models\Role::findByName($roleName)->hasPermissionTo('assessment-results.record-scores'));
+        }
 
         $assignedTeacher = Teacher::create([
             'user_id' => $teacherUser->id,
@@ -415,8 +467,14 @@ class AssessmentWorkflowTest extends TestCase
         $this->actingAs($teacherUser);
 
         $this->get(route('assessments.index', absolute: false))->assertOk();
-        $this->get(route('assessments.results', $assignedAssessment, absolute: false))->assertOk();
+        $this->get(route('assessments.results', $assignedAssessment, absolute: false))
+            ->assertOk()
+            ->assertDontSee('wire:click="openQuickResultModal"', false);
         $this->get(route('assessments.results', $otherAssessment, absolute: false))->assertForbidden();
+
+        Volt::test('assessments.results', ['assessment' => $assignedAssessment])
+            ->call('openQuickResultModal')
+            ->assertForbidden();
     }
 
     public function test_quick_result_modal_keeps_group_separate_and_zero_removes_the_result(): void
@@ -470,8 +528,8 @@ class AssessmentWorkflowTest extends TestCase
 
         Volt::test('assessments.index')
             ->call('edit', $assessment->id)
-            ->assertSee('w-[19%]', false)
-            ->assertSee('w-[17%]', false)
+            ->assertSee('w-[20%]', false)
+            ->assertSee('w-[18%]', false)
             ->assertSee('wire:click="delete('.$assessment->id.')"', false)
             ->assertSee('disabled', false)
             ->call('delete', $assessment->id)

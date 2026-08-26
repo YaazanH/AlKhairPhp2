@@ -79,6 +79,7 @@ class WriteApiTest extends TestCase
         $this->assertContains('quran-partial-tests.record', $response->json('abilities'));
         $this->assertContains('quran-final-tests.record', $response->json('abilities'));
         $this->assertContains('assessment-results.record', $response->json('abilities'));
+        $this->assertNotContains('assessment-results.record-scores', $response->json('abilities'));
     }
 
     public function test_manager_can_create_update_and_delete_students_groups_and_enrollments_via_api(): void

@@ -15,6 +15,7 @@ return [
         'final_tests' => 'Final-saber juz',
     ],
     'students_title' => 'Student course results',
+    'student_records' => ':count records',
     'sorted_notice' => 'Sorted by calculated points after rules',
     'final_tests_title' => 'Final saber',
     'final_tests_report_title' => 'Final saber statement',

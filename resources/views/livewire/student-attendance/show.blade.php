@@ -38,9 +38,12 @@ new class extends Component
 
     public function with(): array
     {
+        $isArchived = (bool) $this->currentDay->fresh()->course_finished_at;
         $day = $this->currentDay->fresh([
             'course',
-            'groupAttendanceDays' => fn ($query) => $this->dayGroupAttendanceDaysQuery($query),
+            'groupAttendanceDays' => fn ($query) => $isArchived
+                ? $query->whereRaw('1 = 0')
+                : $this->dayGroupAttendanceDaysQuery($query),
         ]);
         $existingGroupIds = $day->groupAttendanceDays
             ->pluck('group_id')
@@ -251,10 +254,10 @@ new class extends Component
     <section class="page-hero p-6 lg:p-8">
         <div class="flex flex-wrap items-start justify-between gap-4">
             <div>
-                <div class="eyebrow">{{ __('ui.nav.student_attendance') }}</div>
+                <x-back-link :href="route('student-attendance.index')" navigate />
+                <div class="eyebrow mt-4">{{ __('ui.nav.student_attendance') }}</div>
                 <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('workflow.student_attendance.day_details.title') }}</h1>
             </div>
-            <a href="{{ route('student-attendance.index') }}" wire:navigate class="pill-link pill-link--compact">{{ __('workflow.student_attendance.day_details.back') }}</a>
         </div>
     </section>
 

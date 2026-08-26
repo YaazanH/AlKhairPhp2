@@ -28,6 +28,6 @@ new #[Layout('components.layouts.auth')] class extends Component {
     </div>
 
     <div class="text-center text-sm text-zinc-400">
-        <x-text-link href="{{ route('login') }}">{{ __('access.password_help.back_to_login') }}</x-text-link>
+        <x-back-link :href="route('login')" />
     </div>
 </div>

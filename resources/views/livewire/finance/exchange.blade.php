@@ -45,7 +45,7 @@ new class extends Component {
             'fromCashBoxes' => $financeService->accessibleCashBoxesForCurrency(auth()->user(), $this->from_currency_id)->get(),
             'toCashBoxes' => $financeService->accessibleCashBoxesForCurrency(auth()->user(), $this->to_currency_id)->get(),
             'fromCurrencies' => $financeService->currenciesForCashBox($this->from_cash_box_id)->get(),
-            'toCurrencies' => $financeService->currenciesForCashBox($this->to_cash_box_id)->get(),
+            'toCurrencies' => $this->destinationCurrencies()->get(),
             'exchanges' => FinanceCurrencyExchange::query()->with(['fromCashBox', 'toCashBox', 'fromCurrency', 'toCurrency', 'enteredBy'])->latest('exchange_date')->latest('id')->limit(50)->get(),
         ];
     }
@@ -110,17 +110,23 @@ new class extends Component {
             $this->from_cash_box_id = null;
         }
 
+        if ($property === 'from_currency_id') {
+            $this->syncDestinationCurrency();
+            $this->calculateToAmount();
+        }
+
         if ($property === 'to_currency_id' && $this->to_cash_box_id && $this->to_currency_id && ! app(FinanceService::class)->accessibleCashBoxesForCurrency(auth()->user(), $this->to_currency_id)->whereKey($this->to_cash_box_id)->exists()) {
             $this->to_cash_box_id = null;
         }
 
         if ($property === 'from_cash_box_id' && $this->from_cash_box_id && $this->from_currency_id && ! app(FinanceService::class)->currenciesForCashBox($this->from_cash_box_id)->whereKey($this->from_currency_id)->exists()) {
             $this->from_currency_id = app(FinanceService::class)->currenciesForCashBox($this->from_cash_box_id)->value('id');
+            $this->syncDestinationCurrency();
             $this->calculateToAmount();
         }
 
-        if ($property === 'to_cash_box_id' && $this->to_cash_box_id && $this->to_currency_id && ! app(FinanceService::class)->currenciesForCashBox($this->to_cash_box_id)->whereKey($this->to_currency_id)->exists()) {
-            $this->to_currency_id = app(FinanceService::class)->currenciesForCashBox($this->to_cash_box_id)->value('id');
+        if ($property === 'to_cash_box_id' && (! $this->to_currency_id || ! (clone $this->destinationCurrencies())->whereKey($this->to_currency_id)->exists())) {
+            $this->syncDestinationCurrency();
             $this->calculateToAmount();
         }
     }
@@ -128,6 +134,23 @@ new class extends Component {
     public function enableManualToAmount(): void
     {
         $this->to_amount_is_manual = true;
+    }
+
+    protected function destinationCurrencies()
+    {
+        return app(FinanceService::class)
+            ->currenciesForCashBox($this->to_cash_box_id)
+            ->when($this->from_currency_id, fn ($query) => $query->where('finance_currencies.id', '!=', $this->from_currency_id));
+    }
+
+    protected function syncDestinationCurrency(): void
+    {
+        $availableCurrencies = $this->destinationCurrencies();
+
+        if (! $this->to_currency_id || ! (clone $availableCurrencies)->whereKey($this->to_currency_id)->exists()) {
+            $this->to_currency_id = (clone $availableCurrencies)->value('id');
+            $this->to_amount_is_manual = false;
+        }
     }
 
     protected function calculateToAmount(): void
@@ -170,20 +193,21 @@ new class extends Component {
             <div class="admin-section-card__title">{{ __('finance.exchange.new') }}</div>
             <form wire:submit="saveExchange" class="mt-5 grid gap-4 lg:grid-cols-4">
                 <div><label class="mb-1 block text-sm font-medium">{{ __('finance.exchange.from_box') }}</label><select wire:model.live="from_cash_box_id" class="w-full rounded-xl px-4 py-3 text-sm"><option value="">{{ __('finance.actions.choose_box') }}</option>@foreach ($fromCashBoxes as $box)<option value="{{ $box->id }}">{{ $box->name }}</option>@endforeach</select></div>
-                <div><label class="mb-1 block text-sm font-medium">{{ __('finance.exchange.from_currency') }}</label><select wire:model.live="from_currency_id" class="w-full rounded-xl px-4 py-3 text-sm"><option value="">{{ __('finance.options.currency') }}</option>@foreach ($fromCurrencies as $currency)<option value="{{ $currency->id }}">{{ $currency->code }}</option>@endforeach</select></div>
-                <div><label class="mb-1 block text-sm font-medium">{{ __('finance.exchange.from_amount') }}</label><input wire:model.live="from_amount" type="text" inputmode="decimal" data-thousand-separator class="w-full rounded-xl px-4 py-3 text-sm"></div>
+                <div class="lg:col-span-2"><label class="mb-1 block text-sm font-medium">{{ __('finance.exchange.from_amount') }}</label><x-finance.amount-input amount-model="from_amount" currency-model="from_currency_id" :currencies="$fromCurrencies" amount-live /></div>
                 <div><label class="mb-1 block text-sm font-medium">{{ __('finance.common.date') }}</label><input wire:model="exchange_date" type="date" class="w-full rounded-xl px-4 py-3 text-sm"></div>
                 <div><label class="mb-1 block text-sm font-medium">{{ __('finance.exchange.to_box') }}</label><select wire:model.live="to_cash_box_id" class="w-full rounded-xl px-4 py-3 text-sm"><option value="">{{ __('finance.actions.choose_box') }}</option>@foreach ($toCashBoxes as $box)<option value="{{ $box->id }}">{{ $box->name }}</option>@endforeach</select></div>
-                <div><label class="mb-1 block text-sm font-medium">{{ __('finance.exchange.to_currency') }}</label><select wire:model.live="to_currency_id" class="w-full rounded-xl px-4 py-3 text-sm"><option value="">{{ __('finance.options.currency') }}</option>@foreach ($toCurrencies as $currency)<option value="{{ $currency->id }}">{{ $currency->code }}</option>@endforeach</select></div>
-                <div>
+                <div class="lg:col-span-2">
                     <label class="mb-1 block text-sm font-medium">{{ __('finance.exchange.to_amount') }}</label>
-                    <div class="relative">
-                        <input wire:model="to_amount" type="text" inputmode="decimal" data-thousand-separator @readonly(! $to_amount_is_manual) class="w-full rounded-xl py-3 ps-4 pe-12 text-sm {{ $to_amount_is_manual ? '' : 'opacity-75' }}">
+                    <div class="finance-amount-input" dir="ltr" data-exchange-total-amount>
+                        <select wire:model.live="to_currency_id" class="finance-amount-input__currency rounded-xl px-3 py-3 text-sm" data-clearable="false" data-finance-currency-required="true" data-search-placeholder="" aria-label="{{ __('finance.exchange.to_currency') }}">@foreach ($toCurrencies as $currency)<option value="{{ $currency->id }}">{{ $currency->code }}</option>@endforeach</select>
+                        <div class="relative min-w-0">
+                        <input wire:model="to_amount" type="text" inputmode="decimal" data-thousand-separator @readonly(! $to_amount_is_manual) class="finance-amount-input__value w-full rounded-xl py-3 ps-4 pe-12 text-sm {{ $to_amount_is_manual ? '' : 'opacity-75' }}">
                         @if (filled($from_amount) && filled($to_amount))
                             <button type="button" wire:click="enableManualToAmount" class="absolute inset-y-1 end-1 grid w-9 place-items-center rounded-lg text-neutral-400 hover:bg-white/10 hover:text-white" title="{{ __('finance.exchange.edit_to_amount') }}" aria-label="{{ __('finance.exchange.edit_to_amount') }}">
                                 <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 3.487 3.651 3.651M5.25 18.75l4.224-.845a2.25 2.25 0 0 0 1.075-.59L19.72 8.143a2.582 2.582 0 0 0-3.652-3.652L6.897 13.663a2.25 2.25 0 0 0-.59 1.075L5.25 18.75Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 5.25 18.75 9"/></svg>
                             </button>
                         @endif
+                        </div>
                     </div>
                 </div>
                 <div><label class="mb-1 block text-sm font-medium">{{ __('finance.common.notes') }}</label><input wire:model="notes" type="text" class="w-full rounded-xl px-4 py-3 text-sm"></div>

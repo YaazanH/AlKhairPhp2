@@ -16,7 +16,6 @@
         const sourcesInput = document.querySelector('[data-print-template-data-sources-input]');
         const layerList = document.querySelector('[data-print-template-layer-list]');
         const inspector = document.querySelector('[data-print-template-inspector]');
-        const layersPanel = document.querySelector('[data-print-template-layers-panel]');
         const staticImageInputsHost = document.querySelector('[data-static-image-inputs]');
         const backgroundInput = document.querySelector('[data-print-template-background-input]');
         const removeBackgroundInput = document.querySelector('[data-print-template-remove-background]');
@@ -25,6 +24,8 @@
         const studentCardCheckbox = document.querySelector('[data-template-student-card]');
         const reportCardCheckbox = document.querySelector('[data-template-report-card]');
         const barcodePreviewUrl = @json(route('id-cards.barcode-preview'));
+        const keyboardMoveStep = Number(stage.dataset.keyboardMoveStep || 0.1);
+        const keyboardMoveStepLarge = Number(stage.dataset.keyboardMoveStepLarge || 0.5);
 
         const labels = {
             types: @json(__('print_templates.templates.form.element_types')),
@@ -65,6 +66,18 @@
             return String(value ?? '').replace(/[&<>"']/g, (char) => ({
                 '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;',
             }[char]));
+        }
+
+        function symbolIcon(name) {
+            const paths = {
+                'chevron-up': '<path stroke-linecap="round" stroke-linejoin="round" d="m6 15 6-6 6 6"/>',
+                'chevron-down': '<path stroke-linecap="round" stroke-linejoin="round" d="m6 9 6 6 6-6"/>',
+                copy: '<rect x="8" y="8" width="11" height="11" rx="2"/><path stroke-linecap="round" stroke-linejoin="round" d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/>',
+                trash: '<path stroke-linecap="round" stroke-linejoin="round" d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13M10 11v5M14 11v5"/>',
+                'image-plus': '<rect x="3.5" y="4" width="17" height="16" rx="2"/><circle cx="8.5" cy="9" r="1.5"/><path stroke-linecap="round" stroke-linejoin="round" d="m5.5 18 4.5-4.5 3 3M16.5 8v5M14 10.5h5"/>',
+            };
+
+            return `<svg class="print-template-symbol-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">${paths[name] || ''}</svg>`;
         }
 
         function id() {
@@ -567,10 +580,10 @@
                             <div class="id-card-layer-card__meta">${Number(element.width || 0).toFixed(1)} × ${Number(element.height || 0).toFixed(1)} mm</div>
                         </button>
                         <div class="admin-action-cluster admin-action-cluster--end p-2">
-                            <button type="button" class="pill-link pill-link--compact print-template-layer-arrow" data-layer-move="up" data-layer-id="${h(element.id)}" title="${h(labels.buttons.move_up)}" aria-label="${h(labels.buttons.move_up)}">↑</button>
-                            <button type="button" class="pill-link pill-link--compact print-template-layer-arrow" data-layer-move="down" data-layer-id="${h(element.id)}" title="${h(labels.buttons.move_down)}" aria-label="${h(labels.buttons.move_down)}">↓</button>
-                            <button type="button" class="pill-link pill-link--compact" data-layer-duplicate="${h(element.id)}">${h(labels.buttons.duplicate)}</button>
-                            <button type="button" class="pill-link pill-link--compact pill-link--danger" data-layer-remove="${h(element.id)}">${h(labels.buttons.remove)}</button>
+                            <button type="button" class="pill-link pill-link--compact print-template-symbol-button print-template-layer-arrow" data-layer-move="up" data-layer-id="${h(element.id)}" title="${h(labels.buttons.move_up)}" aria-label="${h(labels.buttons.move_up)}">${symbolIcon('chevron-up')}</button>
+                            <button type="button" class="pill-link pill-link--compact print-template-symbol-button print-template-layer-arrow" data-layer-move="down" data-layer-id="${h(element.id)}" title="${h(labels.buttons.move_down)}" aria-label="${h(labels.buttons.move_down)}">${symbolIcon('chevron-down')}</button>
+                            <button type="button" class="pill-link pill-link--compact print-template-symbol-button" data-layer-duplicate="${h(element.id)}" title="${h(labels.buttons.duplicate)}" aria-label="${h(labels.buttons.duplicate)}">${symbolIcon('copy')}</button>
+                            <button type="button" class="pill-link pill-link--compact pill-link--danger print-template-symbol-button" data-layer-remove="${h(element.id)}" title="${h(labels.buttons.remove)}" aria-label="${h(labels.buttons.remove)}">${symbolIcon('trash')}</button>
                         </div>
                     </div>
                 `)
@@ -612,15 +625,8 @@
             return `
                 <div class="print-template-placeholder-palette admin-form-field--full">
                     <div class="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-neutral-400">${h(labels.placeholderPicker)}</div>
-                    <div class="print-template-placeholder-palette__groups">
-                        ${groups.map((group) => `
-                            <div class="print-template-placeholder-group">
-                                <div class="print-template-placeholder-group__title">${h(group.entity_label)}</div>
-                                <div class="flex flex-wrap gap-2">
-                                    ${group.fields.map((field) => `<button type="button" class="pill-link pill-link--compact" data-placeholder-token="${h(group.entity)}.${h(field.key)}">${h(field.label)}</button>`).join('')}
-                                </div>
-                            </div>
-                        `).join('')}
+                    <div class="print-template-placeholder-fields">
+                        ${groups.flatMap((group) => group.fields.map((field) => `<button type="button" class="print-template-placeholder-field" data-placeholder-token="${h(group.entity)}.${h(field.key)}" title="${h(group.entity_label)}">${h(field.label)}</button>`)).join('')}
                     </div>
                 </div>
             `;
@@ -644,11 +650,11 @@
             const barcodeFormats = optionList(Object.entries(labels.barcodeFormats), element.styling?.barcode_format || 'code39');
             const dateModes = optionList(Object.entries(labels.dateModes), element.styling?.date_mode || 'today');
             const shapeTypes = optionList(Object.entries(labels.shapeTypes), element.styling?.shape_type || 'rectangle');
-            const usesContent = ['custom_text', 'date_text', 'page_number'].includes(element.type);
+            const usesContent = element.type === 'custom_text';
 
             inspector.innerHTML = `
                 <div class="admin-form-field${element.type === 'custom_text' ? ' admin-form-field--full' : ''}"><label>${h(labels.element.type)}</label><select class="w-full rounded-xl px-4 py-3 text-sm" data-i="type">${typeOptions}</select></div>
-                ${usesContent ? `<div class="admin-form-field admin-form-field--full"><label>${h(labels.element.content)}</label><textarea rows="4" class="w-full rounded-xl px-4 py-3 text-sm" data-i="content">${h(element.content || '')}</textarea>${element.type === 'custom_text' ? `<p class="mt-1 text-xs text-neutral-400">${h(labels.element.placeholder_help)}</p>` : ''}</div>${element.type === 'custom_text' ? placeholderButtons() : ''}` : ''}
+                ${usesContent ? `<div class="admin-form-field admin-form-field--full"><label>${h(labels.element.content)}</label><textarea rows="4" class="w-full rounded-xl px-4 py-3 text-sm" data-i="content">${h(element.content || '')}</textarea></div>${element.type === 'custom_text' ? placeholderButtons() : ''}` : ''}
                 ${isFieldElement(element.type) ? `<div class="admin-form-field"><label>${h(labels.element.source)}</label><select class="w-full rounded-xl px-4 py-3 text-sm" data-i="source">${sourceSelect(element)}</select></div><div class="admin-form-field"><label>${h(labels.element.field)}</label><select class="w-full rounded-xl px-4 py-3 text-sm" data-i="field">${fieldSelect(element)}</select></div>` : ''}
                 <div class="admin-form-field"><label>${h(labels.element.x)}</label><input class="w-full rounded-xl px-4 py-3 text-sm" type="number" step="0.01" min="0" value="${h(element.x)}" data-n="x"></div>
                 <div class="admin-form-field"><label>${h(labels.element.y)}</label><input class="w-full rounded-xl px-4 py-3 text-sm" type="number" step="0.01" min="0" value="${h(element.y)}" data-n="y"></div>
@@ -657,9 +663,9 @@
                 <div class="admin-form-field"><label>${h(labels.element.z_index)}</label><input class="w-full rounded-xl px-4 py-3 text-sm" type="number" step="1" min="1" value="${h(element.z_index)}" data-n="z_index"></div>
                 ${isTextElement(element.type) || element.type === 'barcode' ? `<div class="admin-form-field"><label>${h(labels.element.font_size)}</label><input class="w-full rounded-xl px-4 py-3 text-sm" type="number" step="0.1" min="1.5" value="${h(element.styling?.font_size || 4.2)}" data-s-n="font_size"></div>` : ''}
                 ${isTextElement(element.type) ? `<div class="admin-form-field"><label>${h(labels.element.font_weight)}</label><select class="w-full rounded-xl px-4 py-3 text-sm" data-s="font_weight">${fontWeights}</select></div><div class="admin-form-field"><label>${h(labels.element.text_align)}</label><select class="w-full rounded-xl px-4 py-3 text-sm" data-s="text_align">${textAlignments}</select></div><div class="admin-form-field"><label>${h(labels.element.vertical_align)}</label><select class="w-full rounded-xl px-4 py-3 text-sm" data-s="vertical_align">${verticalAlignments}</select></div>` : ''}
-                ${!isImageElement(element.type) ? `<div class="admin-form-field"><label>${h(labels.element.color)}</label><input class="w-full rounded-xl px-4 py-3 text-sm" type="color" value="${h(element.styling?.color || '#102316')}" data-s="color"></div>` : ''}
+                ${!isImageElement(element.type) ? `<div class="admin-form-field"><label>${h(labels.element.color)}</label><input class="print-template-color-input w-full rounded-xl" type="color" value="${h(element.styling?.color || '#102316')}" data-s="color"></div>` : ''}
                 ${isTextElement(element.type) ? `<div class="admin-form-field"><label>${h(labels.element.line_height)}</label><input class="w-full rounded-xl px-4 py-3 text-sm" type="number" step="0.1" min="0.8" max="2.5" value="${h(element.styling?.line_height || 1.2)}" data-s-n="line_height"></div><div class="admin-form-field"><label>${h(labels.element.letter_spacing)}</label><input class="w-full rounded-xl px-4 py-3 text-sm" type="number" step="0.1" min="0" max="3" value="${h(element.styling?.letter_spacing || 0)}" data-s-n="letter_spacing"></div>` : ''}
-                ${element.type === 'static_image' ? `<div class="admin-form-field admin-form-field--full"><label>${h(labels.element.static_image)}</label><div class="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-neutral-200">${h(staticImageLabel(element))}</div><p class="mt-2 text-xs text-neutral-400">${h(labels.element.image_source_help)}</p><div class="mt-3 admin-action-cluster"><button type="button" class="pill-link pill-link--compact" data-static-image-pick="${h(element.id)}">${h((staticImageInput(element.id)?.files?.[0] || element.content) ? labels.element.replace_image : labels.element.choose_image)}</button><button type="button" class="pill-link pill-link--compact pill-link--danger" data-static-image-clear="${h(element.id)}">${h(labels.element.remove_image)}</button></div></div>` : ''}
+                ${element.type === 'static_image' ? `<div class="admin-form-field admin-form-field--full"><label>${h(labels.element.static_image)}</label><div class="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-neutral-200">${h(staticImageLabel(element))}</div><p class="mt-2 text-xs text-neutral-400">${h(labels.element.image_source_help)}</p><div class="mt-3 admin-action-cluster"><button type="button" class="pill-link pill-link--compact print-template-symbol-button" data-static-image-pick="${h(element.id)}" title="${h((staticImageInput(element.id)?.files?.[0] || element.content) ? labels.element.replace_image : labels.element.choose_image)}" aria-label="${h((staticImageInput(element.id)?.files?.[0] || element.content) ? labels.element.replace_image : labels.element.choose_image)}">${symbolIcon('image-plus')}</button><button type="button" class="pill-link pill-link--compact pill-link--danger print-template-symbol-button" data-static-image-clear="${h(element.id)}" title="${h(labels.element.remove_image)}" aria-label="${h(labels.element.remove_image)}">${symbolIcon('trash')}</button></div></div>` : ''}
                 ${isImageElement(element.type) ? `<div class="admin-form-field"><label>${h(labels.element.object_fit)}</label><select class="w-full rounded-xl px-4 py-3 text-sm" data-s="object_fit">${imageFit}</select></div><div class="admin-form-field"><label>${h(labels.element.border_radius)}</label><input class="w-full rounded-xl px-4 py-3 text-sm" type="number" step="0.1" min="0" value="${h(element.styling?.border_radius || 0)}" data-s-n="border_radius"></div>` : ''}
                 ${element.type === 'barcode' ? `<div class="admin-form-field"><label>${h(labels.element.barcode_format)}</label><select class="w-full rounded-xl px-4 py-3 text-sm" data-s="barcode_format">${barcodeFormats}</select></div><label class="admin-checkbox admin-form-field--full"><input type="checkbox" data-s-c="show_text" ${element.styling?.show_text ? 'checked' : ''}><span>${h(labels.element.show_text)}</span></label>` : ''}
                 ${element.type === 'date_text' ? `<div class="admin-form-field"><label>${h(labels.element.date_mode)}</label><select class="w-full rounded-xl px-4 py-3 text-sm" data-s="date_mode">${dateModes}</select></div>${(element.styling?.date_mode || 'today') === 'custom' ? `<div class="admin-form-field"><label>${h(labels.element.custom_date)}</label><input class="w-full rounded-xl px-4 py-3 text-sm" type="date" value="${h(element.styling?.custom_date || '')}" data-s="custom_date"></div>` : ''}` : ''}
@@ -1043,21 +1049,36 @@
         window.addEventListener('pointerup', stopDrag);
         window.addEventListener('pointercancel', stopDrag);
 
-        function syncLayerPanelForViewport() {
-            if (!layersPanel) return;
+        window.addEventListener('keydown', (event) => {
+            const moveStep = event.shiftKey ? keyboardMoveStepLarge : keyboardMoveStep;
+            const movement = {
+                ArrowLeft: [-moveStep, 0],
+                ArrowRight: [moveStep, 0],
+                ArrowUp: [0, -moveStep],
+                ArrowDown: [0, moveStep],
+            }[event.key];
+            const element = selectedElement();
+            const target = event.target instanceof Element ? event.target : null;
 
-            if (window.matchMedia('(max-width: 1199px)').matches) {
-                layersPanel.removeAttribute('open');
-            }
-        }
+            if (!movement || !element) return;
+            if (target?.closest('input, textarea, select, [contenteditable="true"]')) return;
+            if (target?.closest('button, a') && !target.closest('[data-layer-select]')) return;
+
+            event.preventDefault();
+            const [deltaX, deltaY] = movement;
+            element.x = Number(clamp(Number(element.x || 0) + deltaX, 0, Math.max(widthMm() - Number(element.width || 0), 0)).toFixed(2));
+            element.y = Number(clamp(Number(element.y || 0) + deltaY, 0, Math.max(heightMm() - Number(element.height || 0), 0)).toFixed(2));
+            syncHidden();
+            renderStage();
+            renderLayers();
+            renderInspector();
+        });
 
         window.addEventListener('resize', () => {
             renderStage();
-            syncLayerPanelForViewport();
         });
 
         syncSourcesToControls();
-        syncLayerPanelForViewport();
         ensureElementBindings();
         state.elements.forEach((element) => {
             element.styling = element.styling || {};

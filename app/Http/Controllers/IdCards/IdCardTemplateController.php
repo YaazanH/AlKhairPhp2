@@ -108,7 +108,7 @@ class IdCardTemplateController extends Controller
             'width_mm' => ['required', 'numeric', 'min:35', 'max:160'],
             'height_mm' => ['required', 'numeric', 'min:20', 'max:120'],
             'layout_json' => ['nullable', 'string'],
-            'background_image' => ['nullable', 'image', 'max:4096'],
+            'background_image' => ['nullable', 'image', 'max:'.config('uploads.image_max_kb')],
             'remove_background_image' => ['nullable', 'boolean'],
             'is_active' => ['nullable', 'boolean'],
         ]);

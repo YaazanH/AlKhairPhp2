@@ -284,7 +284,7 @@ new class extends Component {
     <section class="page-hero p-6 lg:p-8">
         <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
-                <a href="{{ route('activities.index') }}" wire:navigate class="text-sm font-medium text-neutral-200/80 hover:text-white">{{ __('activities.finance.back') }}</a>
+                <x-back-link :href="route('activities.index')" navigate />
                 <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('activities.finance.heading') }}</h1>
                 <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ __('activities.finance.subheading') }}</p>
             </div>
@@ -321,13 +321,10 @@ new class extends Component {
                 <form wire:submit="saveRegistration" class="space-y-4">
                     <div>
                         <label class="mb-1 block text-sm font-medium">{{ __('activities.finance.registrations.fields.student') }}</label>
-                        <select wire:model.live="registration_student_id" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                        <select wire:model.live="registration_student_id" data-search-input="true" data-open-on-focus="true" data-hide-placeholder-option="true" data-search-placeholder="{{ __('workflow.common.student_name_placeholder') }}" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
                             <option value="">{{ __('activities.finance.registrations.placeholders.student') }}</option>
                             @foreach ($students as $student)
-                                <option
-                                    value="{{ $student->id }}"
-                                    data-search="{{ trim(implode(' ', array_filter([$student->student_number, $student->first_name, $student->last_name]))) }}"
-                                >{{ $student->full_name }}</option>
+                                <option value="{{ $student->id }}">{{ $student->full_name }}</option>
                             @endforeach
                         </select>
                         @error('registration_student_id') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
@@ -383,10 +380,10 @@ new class extends Component {
                 <form wire:submit="savePayment" class="space-y-4">
                     <div>
                         <label class="mb-1 block text-sm font-medium">{{ __('activities.finance.payments.fields.registration') }}</label>
-                        <select wire:model="payment_registration_id" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                        <select wire:model="payment_registration_id" data-search-input="true" data-open-on-focus="true" data-hide-placeholder-option="true" data-search-placeholder="{{ __('workflow.common.student_name_placeholder') }}" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
                             <option value="">{{ __('activities.finance.payments.placeholders.registration') }}</option>
                             @foreach ($paymentRegistrations as $registration)
-                                <option value="{{ $registration->id }}">{{ $registration->student?->full_name }} | {{ number_format((float) $registration->fee_amount, 2) }}</option>
+                                <option value="{{ $registration->id }}">{{ $registration->student?->full_name }}</option>
                             @endforeach
                         </select>
                         @error('payment_registration_id') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror

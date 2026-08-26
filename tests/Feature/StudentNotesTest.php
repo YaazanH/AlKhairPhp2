@@ -33,7 +33,7 @@ class StudentNotesTest extends TestCase
             ->set('enrollment_id', $enrollment->id)
             ->set('source', 'management')
             ->set('visibility', 'shared_internal')
-            ->set('noted_at', '2026-09-10T15:30')
+            ->set('noted_at', '2026-09-10')
             ->set('body', 'Needs revised tajweed practice before the next weekly review.')
             ->call('save')
             ->assertHasNoErrors();
@@ -67,6 +67,58 @@ class StudentNotesTest extends TestCase
         $this->assertSoftDeleted('student_notes', [
             'id' => $note->id,
         ]);
+    }
+
+    public function test_student_notes_use_the_compact_date_form_and_generic_table_without_parent_names(): void
+    {
+        [$student] = $this->managerNotesContext();
+
+        $otherParent = ParentProfile::create([
+            'father_name' => 'Second Parent Name',
+            'father_phone' => '0944000399',
+        ]);
+
+        Student::create([
+            'parent_id' => $otherParent->id,
+            'first_name' => $student->first_name,
+            'last_name' => $student->last_name,
+            'birth_date' => '2015-05-12',
+            'status' => 'active',
+        ]);
+
+        StudentNote::create([
+            'student_id' => $student->id,
+            'author_id' => auth()->id(),
+            'source' => 'management',
+            'visibility' => 'shared_internal',
+            'body' => 'Generic table note',
+            'noted_at' => '2026-09-10 15:30:00',
+        ]);
+
+        Volt::test('student-notes.index')
+            ->call('create')
+            ->assertDontSee('admin-kpi-grid', false)
+            ->assertSee('wire:model="noted_at" type="date"', false)
+            ->assertDontSee('type="datetime-local"', false)
+            ->assertDontSee('wire:model="enrollment_id"', false)
+            ->assertSee('data-student-notes-generic-table', false)
+            ->assertSee(__('notes.log.table.student'))
+            ->assertSee(__('notes.log.table.date'))
+            ->assertSee(__('notes.log.table.visibility'))
+            ->assertSee(__('notes.log.table.note'))
+            ->assertSee(__('notes.log.table.actions'))
+            ->assertSee('data-student-notes-actions-column', false)
+            ->assertSee('data-student-note-edit', false)
+            ->assertDontSee('data-student-note-delete', false)
+            ->assertSee('Notes Student')
+            ->assertDontSee('Notes Parent')
+            ->assertDontSee('Second Parent Name')
+            ->assertSee('10-09-2026')
+            ->assertDontSee('15:30');
+
+        Volt::test('student-notes.index')
+            ->call('edit', StudentNote::query()->firstOrFail()->id)
+            ->assertSee('data-student-note-delete', false);
     }
 
     public function test_teacher_notes_are_scoped_to_assigned_students_and_own_entries(): void
@@ -228,7 +280,7 @@ class StudentNotesTest extends TestCase
             ->set('student_id', $otherStudent->id)
             ->set('source', 'teacher')
             ->set('visibility', 'shared_internal')
-            ->set('noted_at', '2026-09-11T09:30')
+            ->set('noted_at', '2026-09-11')
             ->set('body', 'unauthorized note')
             ->call('save')
             ->assertForbidden();
@@ -238,7 +290,7 @@ class StudentNotesTest extends TestCase
             ->set('enrollment_id', $assignedEnrollment->id)
             ->set('source', 'teacher')
             ->set('visibility', 'private_management')
-            ->set('noted_at', '2026-09-11T10:00')
+            ->set('noted_at', '2026-09-11')
             ->set('body', 'bad visibility')
             ->call('save')
             ->assertHasErrors(['visibility']);

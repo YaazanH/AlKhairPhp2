@@ -540,15 +540,15 @@ new class extends Component
                         id="final-test-student"
                         wire:key="final-test-student-select"
                         wire:model.live="selectedStudentId"
-                        data-search-placeholder="{{ __('crud.common.filters.search_placeholder') }}"
+                        data-search-input="true"
+                        data-open-on-focus="true"
+                        data-hide-placeholder-option="true"
+                        data-search-placeholder="{{ __('workflow.common.student_name_placeholder') }}"
                         class="w-full rounded-xl px-4 py-3 text-sm"
                     >
                         <option value="">{{ __('workflow.quran_final_tests.form.select_student') }}</option>
                         @foreach ($studentOptions as $student)
-                            <option
-                                value="{{ $student->id }}"
-                                data-search="{{ trim(implode(' ', array_filter([$student->student_number, $student->first_name, $student->last_name]))) }}"
-                            >
+                            <option value="{{ $student->id }}">
                                 {{ trim($student->first_name.' '.$student->last_name) }}
                             </option>
                         @endforeach

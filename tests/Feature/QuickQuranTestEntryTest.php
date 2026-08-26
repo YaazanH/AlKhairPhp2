@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\AcademicYear;
+use App\Models\AppSetting;
 use App\Models\Course;
 use App\Models\Enrollment;
 use App\Models\Group;
@@ -21,6 +22,31 @@ use Tests\TestCase;
 class QuickQuranTestEntryTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_quick_saber_entry_shows_input_suffixes_and_replaces_the_form_when_entries_are_disabled(): void
+    {
+        $this->context();
+
+        Volt::test('quran-tests.quick-entry')
+            ->assertSee('quick-saber-affixed-input', false)
+            ->assertSee(__('quick-tests.mistakes_suffix'))
+            ->assertSee(__('workflow.common.student_name_placeholder'));
+
+        Volt::test('quran-tests.quick-entry')
+            ->set('tab', 'final')
+            ->assertSee('quick-saber-affixed-input', false)
+            ->assertSee('>%</span>', false);
+
+        AppSetting::storeValue('general', 'memorization_saber_entries_enabled', false, 'boolean');
+
+        Volt::test('quran-tests.quick-entry')
+            ->assertSee('data-quick-entry-disabled', false)
+            ->assertSee(__('quick-tests.saber_disabled_warning'))
+            ->assertSee(__('quick-tests.disabled_help'))
+            ->assertDontSee('data-quick-entry-help', false)
+            ->assertDontSee('wire:submit="savePartial"', false)
+            ->assertDontSee('wire:submit="saveFinal"', false);
+    }
 
     public function test_quick_entry_requires_permission_and_is_visible_to_super_admins_without_teacher_profiles(): void
     {
@@ -116,6 +142,8 @@ class QuickQuranTestEntryTest extends TestCase
         Volt::test('quran-partial-tests.show', ['partialTest' => $partialTest])
             ->call('openEditAttempt', $partialAttempt->id)
             ->assertSet('showAttemptModal', true)
+            ->assertSee('quick-saber-affixed-input__suffix', false)
+            ->assertSee('أخطاء')
             ->assertSet('teacher_id', $teacher->id)
             ->assertSet('tested_on', now()->toDateString())
             ->assertSet('mistake_count', '1')
@@ -172,6 +200,8 @@ class QuickQuranTestEntryTest extends TestCase
         Volt::test('quran-final-tests.show', ['finalTest' => $finalTest])
             ->call('openEditAttempt', $finalAttempt->id)
             ->assertSet('showAttemptModal', true)
+            ->assertSee('quick-saber-affixed-input__suffix', false)
+            ->assertSee('>%</span>', false)
             ->assertSet('teacher_id', $teacher->id)
             ->assertSet('tested_on', '2026-08-21')
             ->assertSet('score', '95')

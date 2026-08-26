@@ -72,7 +72,7 @@ new class extends Component
 
     public bool $showPointPolicyModal = false;
 
-    public string $automatic_multiplier = '1';
+    public string $automatic_multiplier = '2';
 
     public string $automatic_multiplier_from = '';
 
@@ -89,7 +89,8 @@ new class extends Component
         $this->authorizePermission('settings.manage');
         $this->embedded = $embedded;
         $settings = AppSetting::groupValues('points');
-        $this->automatic_multiplier = (string) ($settings->get('automatic_multiplier') ?? 1);
+        $storedMultiplier = (string) ($settings->get('automatic_multiplier') ?? 2);
+        $this->automatic_multiplier = in_array($storedMultiplier, ['1.5', '2', '2.5', '3'], true) ? $storedMultiplier : '2';
         $this->automatic_multiplier_from = (string) ($settings->get('automatic_multiplier_from') ?? '');
         $this->automatic_multiplier_until = (string) ($settings->get('automatic_multiplier_until') ?? '');
         $this->loadSaberRuleSettings();
@@ -343,7 +344,7 @@ new class extends Component
         $this->authorizePermission('settings.manage');
 
         $validated = $this->validate([
-            'automatic_multiplier' => ['required', 'numeric', 'min:1', 'max:3'],
+            'automatic_multiplier' => ['required', 'in:1.5,2,2.5,3'],
             'automatic_multiplier_from' => ['required', 'date'],
             'automatic_multiplier_until' => ['required', 'date', 'after_or_equal:automatic_multiplier_from'],
         ]);
@@ -484,10 +485,10 @@ new class extends Component
 
     <section class="surface-panel p-5 lg:p-6">
         <div class="admin-toolbar"><div class="admin-toolbar__title">{{ __('settings.points.multiplier.title') }}</div></div>
-        <form wire:submit="saveAutomaticMultiplier" class="mt-5 grid gap-4 md:grid-cols-[10rem_1fr_1fr_auto] md:items-end">
-            <div><label class="mb-1 block text-sm font-medium">{{ __('settings.points.multiplier.value') }}</label><select wire:model="automatic_multiplier" class="w-full rounded-xl px-4 py-3"><option value="1">x1</option><option value="1.5">x1.5</option><option value="2">x2</option><option value="2.5">x2.5</option><option value="3">x3</option></select></div>
-            <div><label class="mb-1 block text-sm font-medium">{{ __('settings.points.fields.active_from') }}</label><input wire:model="automatic_multiplier_from" type="date" class="w-full rounded-xl px-4 py-3">@error('automatic_multiplier_from')<div class="mt-1 text-sm text-red-400">{{ $message }}</div>@enderror</div>
-            <div><label class="mb-1 block text-sm font-medium">{{ __('settings.points.fields.active_until') }}</label><input wire:model="automatic_multiplier_until" type="date" class="w-full rounded-xl px-4 py-3">@error('automatic_multiplier_until')<div class="mt-1 text-sm text-red-400">{{ $message }}</div>@enderror</div>
+        <form wire:submit="saveAutomaticMultiplier" class="mt-5 grid gap-4 md:grid-cols-[3rem_1fr_1fr_auto] md:items-end">
+            <div class="points-multiplier-field"><select wire:model="automatic_multiplier" class="points-multiplier-select h-12 w-12 rounded-xl px-0 py-0" data-clearable="false" data-search-selection-required="true" data-show-chevron="false" data-search-placeholder="" aria-label="{{ __('settings.points.multiplier.value') }}"><option value="1.5">x1.5</option><option value="2">x2</option><option value="2.5">x2.5</option><option value="3">x3</option></select></div>
+            <div><label class="mb-1 block text-sm font-medium">{{ __('settings.points.fields.active_from') }}</label><input wire:model="automatic_multiplier_from" type="date" class="h-12 min-h-12 w-full rounded-xl px-4 py-0">@error('automatic_multiplier_from')<div class="mt-1 text-sm text-red-400">{{ $message }}</div>@enderror</div>
+            <div><label class="mb-1 block text-sm font-medium">{{ __('settings.points.fields.active_until') }}</label><input wire:model="automatic_multiplier_until" type="date" class="h-12 min-h-12 w-full rounded-xl px-4 py-0">@error('automatic_multiplier_until')<div class="mt-1 text-sm text-red-400">{{ $message }}</div>@enderror</div>
             <button type="submit" class="pill-link pill-link--accent">{{ __('crud.common.actions.save') }}</button>
         </form>
     </section>

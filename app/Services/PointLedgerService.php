@@ -86,7 +86,8 @@ class PointLedgerService
         }
 
         $settings = AppSetting::groupValues('points');
-        $multiplier = min(3, max(1, (float) ($settings->get('automatic_multiplier') ?? 1)));
+        $storedMultiplier = (float) ($settings->get('automatic_multiplier') ?? 2);
+        $multiplier = in_array($storedMultiplier, [1.5, 2.0, 2.5, 3.0], true) ? $storedMultiplier : 2.0;
         $today = now()->toDateString();
         $from = (string) ($settings->get('automatic_multiplier_from') ?? '');
         $until = (string) ($settings->get('automatic_multiplier_until') ?? '');

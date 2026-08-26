@@ -33,7 +33,7 @@ new class extends Component {
         $this->authorizePermission('students.update');
         $this->validate([
             'uploads' => ['array'],
-            'uploads.*' => ['image', 'max:5120'],
+            'uploads.*' => ['image', 'max:'.config('uploads.image_max_kb')],
         ]);
 
         $students = $this->scopeStudentsQuery(Student::query())
@@ -70,7 +70,7 @@ new class extends Component {
         $this->authorizePermission('students.update');
         $this->validate([
             'uploads' => ['required', 'array', 'min:1'],
-            'uploads.*' => ['image', 'max:5120'],
+            'uploads.*' => ['image', 'max:'.config('uploads.image_max_kb')],
             'matches' => ['array'],
             'matches.*.student_id' => ['nullable', 'integer'],
         ]);
@@ -158,13 +158,10 @@ new class extends Component {
                                 </td>
                                 <td class="font-medium">{{ $match['file_name'] }}</td>
                                 <td>
-                                    <select wire:model="matches.{{ $loop->index }}.student_id" class="min-w-72 rounded-2xl px-4 py-3 text-sm">
+                                    <select wire:model="matches.{{ $loop->index }}.student_id" data-search-input="true" data-open-on-focus="true" data-hide-placeholder-option="true" data-search-placeholder="{{ __('workflow.common.student_name_placeholder') }}" class="min-w-72 rounded-2xl px-4 py-3 text-sm">
                                         <option value="">{{ __('crud.students.bulk_photos.no_match') }}</option>
                                         @foreach ($studentOptions as $student)
-                                            <option
-                                                value="{{ $student->id }}"
-                                                data-search="{{ trim(implode(' ', array_filter([$student->student_number, $student->first_name, $student->last_name]))) }}"
-                                            >{{ $student->student_number }} - {{ $student->full_name }}</option>
+                                            <option value="{{ $student->id }}">{{ $student->full_name }}</option>
                                         @endforeach
                                     </select>
                                 </td>

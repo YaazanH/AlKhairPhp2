@@ -3,6 +3,7 @@
 return [
     'actions' => [
         'add' => 'إضافة',
+        'create' => 'إنشاء',
         'save' => 'حفظ',
         'accept' => 'قبول',
         'actions' => 'الإجراءات',
@@ -62,7 +63,6 @@ return [
         'expense_chart' => 'المصاريف حسب الفئة',
         'no_expenses' => 'لا توجد مصاريف في هذه الفترة.',
         'pending_withdrawals' => 'طلبات السحب المعلقة',
-        'pending_withdrawals_help' => 'تظهر فقط الطلبات التي تنتظر المراجعة.',
         'previous_requests' => 'الطلبات السابقة',
         'quarter_totals' => 'إجماليات الأرباع',
         'quarter_expense_comparison' => 'مقارنة مصروفات الأرباع',
@@ -253,6 +253,7 @@ return [
         'revenue_name_mask_help' => 'يحفظ الاسم كاملاً، لكنه يظهر ويطبع مخفياً لحماية الخصوصية.',
         'transfer_posted' => 'تم تسجيل التحويل بين الصناديق.',
         'expense_finalised' => 'تم إنهاء المصروف.',
+        'invoice_draft_saved' => 'تم حفظ بيانات الفاتورة دون إنهاء المصروف.',
         'invoice_immutable_warning' => 'هل أنت متأكد من حفظ الفاتورة؟ لا يمكن تعديلها بعد الإنهاء.',
         'use_invoice_total' => 'إجمالي الفاتورة أعلى من المبلغ المعتمد. أكد لتعديل المصروف إلى إجمالي الفاتورة أو عدّل بنودها.',
         'transaction_updated' => 'تم تحديث الحركة.',

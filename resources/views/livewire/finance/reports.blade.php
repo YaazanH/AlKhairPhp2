@@ -112,9 +112,9 @@ new class extends Component {
     {
         $this->authorizePermission('finance.report-templates.manage');
         $validated = $this->validate([
-            'report_background_upload' => ['nullable', 'image', 'mimes:jpeg,jpg,png', 'max:8192'],
-            'report_logo_upload' => ['nullable', 'image', 'mimes:png', 'max:4096'],
-            'report_stamp_upload' => ['nullable', 'image', 'mimes:png', 'max:4096'],
+            'report_background_upload' => ['nullable', 'image', 'mimes:jpeg,jpg,png', 'max:'.config('uploads.image_max_kb')],
+            'report_logo_upload' => ['nullable', 'image', 'mimes:png', 'max:'.config('uploads.image_max_kb')],
+            'report_stamp_upload' => ['nullable', 'image', 'mimes:png', 'max:'.config('uploads.image_max_kb')],
             'remove_report_background' => ['boolean'],
             'remove_report_logo' => ['boolean'],
             'remove_report_stamp' => ['boolean'],

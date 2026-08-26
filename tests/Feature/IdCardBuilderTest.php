@@ -255,9 +255,35 @@ class IdCardBuilderTest extends TestCase
         $this->actingAs($manager)
             ->get(route('print-templates.templates.edit', $template))
             ->assertOk()
+            ->assertSee('app-back-link', false)
+            ->assertSee('id="print-template-editor-form"', false)
+            ->assertSee('form="print-template-editor-form"', false)
+            ->assertSee('data-print-template-save', false)
+            ->assertSee('print-template-title-row', false)
+            ->assertSee('data-print-template-symbol-action="settings"', false)
+            ->assertSee('data-print-template-symbol-action="data-sources"', false)
+            ->assertSeeInOrder([
+                'data-print-template-save',
+                'data-print-template-symbol-action="copy"',
+                'data-print-template-symbol-action="data-sources"',
+                'data-print-template-symbol-action="settings"',
+            ], false)
+            ->assertSee('form="print-template-delete-form"', false)
+            ->assertSee('print-template-settings-delete', false)
+            ->assertSee('print-template-symbol-button', false)
+            ->assertDontSee('>'.__('crud.common.actions.cancel').'</a>', false)
             ->assertSee('data-print-template-stage', false)
             ->assertSee('data-print-template-layout-input', false)
             ->assertSee('print-template-studio__layers', false)
+            ->assertSee('print-template-panel__header--layers', false)
+            ->assertDontSee('print-template-layer-toggle', false)
+            ->assertSee('print-template-color-input', false)
+            ->assertSee('print-template-placeholder-field', false)
+            ->assertSee('data-keyboard-move-step="0.1"', false)
+            ->assertSee('data-keyboard-move-step-large="0.5"', false)
+            ->assertSee("const usesContent = element.type === 'custom_text';", false)
+            ->assertSee('const moveStep = event.shiftKey ? keyboardMoveStepLarge : keyboardMoveStep;', false)
+            ->assertSee('ArrowLeft: [-moveStep, 0]', false)
             ->assertSee('data-layer-duplicate', false);
     }
 
@@ -517,6 +543,8 @@ class IdCardBuilderTest extends TestCase
             ->get(route('id-cards.print.create', ['template' => $template->id, 'course_id' => $course->id]))
             ->assertOk()
             ->assertSee('data-source-printed-filter="student"', false)
+            ->assertSee('<option value="" selected>'.e(__('print_templates.print.setup.fields.all_print_states')).'</option>', false)
+            ->assertDontSee('<option value="not_printed" selected>', false)
             ->assertSee('data-toggle-selected-print-status', false)
             ->assertSee('data-card-printed="1"', false)
             ->assertDontSee(__('print_templates.print.setup.sections.selected_students'))

@@ -77,7 +77,14 @@ new class extends Component {
                 ->orderBy('first_name')
                 ->orderBy('last_name')
                 ->get(['id', 'parent_id', 'first_name', 'last_name', 'student_number']),
-            'groups' => $this->scopeGroupsQuery(Group::query()->with('course'))->orderBy('name')->get(['id', 'course_id', 'name']),
+            'groups' => $this->scopeGroupsQuery(Group::query()->with('course'))
+                ->when(! $this->editingId, fn ($query) => $query
+                    ->where('is_active', true)
+                    ->whereHas('course', fn ($courseQuery) => $courseQuery
+                        ->where('is_active', true)
+                        ->whereNull('finished_at')))
+                ->orderBy('name')
+                ->get(['id', 'course_id', 'name']),
             'filterCourses' => Course::query()->where('is_active', true)->orderBy('name')->get(['id', 'name']),
             'filterGroups' => $this->scopeGroupsQuery(
                 Group::query()
@@ -186,7 +193,14 @@ new class extends Component {
         $validated = $this->validate();
         $student = Student::query()->findOrFail($validated['student_id']);
         $this->authorizeScopedStudentAccess($student);
-        $this->authorizeScopedGroupAccess(Group::query()->findOrFail($validated['group_id']));
+        $group = Group::query()->with('course')->findOrFail($validated['group_id']);
+        $this->authorizeScopedGroupAccess($group);
+
+        if (! $this->editingId && (! $group->is_active || ! $group->course?->is_active || $group->course?->finished_at)) {
+            $this->addError('group_id', __('crud.enrollments.errors.inactive_group'));
+
+            return;
+        }
 
         if ($student->status !== 'active') {
             $this->addError('student_id', __('crud.enrollments.errors.inactive_student'));
@@ -534,19 +548,16 @@ new class extends Component {
         :show="$showFormModal"
         :title="$editingId ? __('crud.enrollments.form.edit_title') : __('crud.enrollments.form.create_title')"
         close-method="cancel"
-        max-width="xl"
+        max-width="fit"
         compact
     >
-        <form wire:submit="save" class="space-y-3">
+        <form wire:submit="save" class="w-[min(28rem,calc(100vw-3rem))] space-y-3">
             <div>
                 <label for="enrollment-student" class="mb-1 block text-sm font-medium">{{ __('crud.enrollments.form.fields.student') }}</label>
-                <select id="enrollment-student" wire:model="student_id" class="w-full rounded-xl px-4 py-3 text-sm">
+                <select id="enrollment-student" wire:model="student_id" data-search-input="true" data-open-on-focus="true" data-hide-placeholder-option="true" data-search-placeholder="{{ __('workflow.common.student_name_placeholder') }}" class="w-full rounded-xl px-4 py-3 text-sm">
                     <option value="">{{ __('crud.enrollments.form.placeholders.select_student') }}</option>
                     @foreach ($students as $student)
-                        <option
-                            value="{{ $student->id }}"
-                            data-search="{{ trim(implode(' ', array_filter([$student->student_number, $student->first_name, $student->last_name]))) }}"
-                        >{{ $student->full_name }}</option>
+                        <option value="{{ $student->id }}">{{ $student->full_name }}</option>
                     @endforeach
                 </select>
                 @if ($group_id && $students->isEmpty())
@@ -559,10 +570,10 @@ new class extends Component {
 
             <div>
                 <label for="enrollment-group" class="mb-1 block text-sm font-medium">{{ __('crud.enrollments.form.fields.group') }}</label>
-                <select id="enrollment-group" wire:model.live="group_id" class="w-full rounded-xl px-4 py-3 text-sm">
+                <select id="enrollment-group" wire:model.live="group_id" data-search-input="true" data-open-on-focus="true" data-hide-placeholder-option="true" data-search-placeholder="{{ __('crud.enrollments.form.placeholders.select_group') }}" class="w-full rounded-xl px-4 py-3 text-sm">
                     <option value="">{{ __('crud.enrollments.form.placeholders.select_group') }}</option>
                     @foreach ($groups as $group)
-                        <option value="{{ $group->id }}">{{ $group->name }}{{ $group->course ? ' - '.$group->course->name : '' }}</option>
+                        <option value="{{ $group->id }}">{{ $group->name }}</option>
                     @endforeach
                 </select>
                 @error('group_id')
@@ -607,9 +618,6 @@ new class extends Component {
                     {{ $editingId ? __('crud.enrollments.form.update_submit') : __('crud.enrollments.form.create_submit') }}
                 </button>
                 <x-admin.create-and-new-button :show="! $editingId" />
-                <button type="button" wire:click="cancel" class="pill-link">
-                    {{ __('crud.common.actions.close') }}
-                </button>
                 @if ($editingId)
                     @can('enrollments.delete')
                         <button type="button" wire:click="delete({{ $editingId }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link ms-auto border-red-400/25 text-red-200 hover:border-red-300/35 hover:bg-red-500/12">

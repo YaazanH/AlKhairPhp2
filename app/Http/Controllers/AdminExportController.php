@@ -20,7 +20,6 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Mpdf\Mpdf;
 use Mpdf\Output\Destination;
-use Spatie\Permission\Models\Role;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class AdminExportController extends Controller
@@ -429,9 +428,12 @@ class AdminExportController extends Controller
             });
         }
 
-        if ($request->filled('role') && Role::query()->where('name', $request->string('role')->value())->exists()) {
-            $query->role($request->string('role')->value());
-        }
+        match ($request->string('profile')->value()) {
+            'student' => $query->whereHas('studentProfile'),
+            'parent' => $query->whereHas('parentProfile'),
+            'teacher' => $query->whereHas('teacherProfile'),
+            default => null,
+        };
 
         if (in_array($request->string('status')->value(), ['active', 'inactive'], true)) {
             $query->where('is_active', $request->string('status')->value() === 'active');

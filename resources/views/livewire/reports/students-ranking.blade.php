@@ -203,7 +203,8 @@ new class extends Component {
     <section class="page-hero p-6 lg:p-8">
         <div class="grid gap-6 xl:grid-cols-[minmax(0,1fr)_20rem] xl:items-end">
             <div>
-                <div class="eyebrow">{{ __('reports.rankings.students.eyebrow') }}</div>
+                <x-back-link :href="route('reports.index')" navigate />
+                <div class="eyebrow mt-4">{{ __('reports.rankings.students.eyebrow') }}</div>
                 <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('reports.rankings.students.title') }}</h1>
                 <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">
                     {{ __('reports.rankings.students.subtitle') }}
@@ -275,8 +276,7 @@ new class extends Component {
                 </div>
             </div>
 
-            <div class="mt-5 flex justify-between gap-3">
-                <a href="{{ route('reports.index') }}" class="pill-link">{{ __('reports.rankings.filters.back_to_reports') }}</a>
+            <div class="mt-5 flex justify-end gap-3">
                 <button type="button" wire:click="clearFilters" class="pill-link">
                     {{ __('reports.filters.clear') }}
                 </button>

@@ -515,8 +515,7 @@ class OperationalWriteApiTest extends TestCase
                 'score' => 75,
                 'status' => 'passed',
             ]],
-        ])->assertOk()
-            ->assertJsonPath('results.0.enrollment_id', $context['enrollment']->id);
+        ])->assertForbidden();
 
         $otherAssessment = Assessment::query()->create([
             'assessment_type_id' => $assessmentType->id,

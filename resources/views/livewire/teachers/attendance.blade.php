@@ -47,10 +47,11 @@ new class extends Component {
 
     public function with(): array
     {
-        $daysQuery = $this->scopeTeacherAttendanceDaysQuery(
+        $daysQuery = $this->visibleTeacherAttendanceDaysQuery(
             TeacherAttendanceDay::query()->with('course')->withCount([
-                'records',
+                'records' => fn (Builder $query) => $query->whereNull('course_finished_at'),
                 'records as present_records_count' => fn (Builder $query) => $query
+                    ->whereNull('course_finished_at')
                     ->whereHas('status', fn (Builder $statusQuery) => $statusQuery->where('is_present', true)),
             ])
         )
@@ -164,7 +165,7 @@ new class extends Component {
     {
         $this->authorizePermission('attendance.teacher.take');
 
-        $day = $this->scopeTeacherAttendanceDaysQuery(
+        $day = $this->visibleTeacherAttendanceDaysQuery(
             TeacherAttendanceDay::query()->with('records')
         )->findOrFail($dayId);
 
@@ -174,6 +175,24 @@ new class extends Component {
         });
 
         session()->flash('status', __('workflow.teacher_attendance.messages.deleted'));
+    }
+
+    protected function visibleTeacherAttendanceDaysQuery(Builder $query): Builder
+    {
+        return $this->scopeTeacherAttendanceDaysQuery($query)
+            ->where(function (Builder $dayQuery): void {
+                $dayQuery
+                    ->whereHas('course', fn (Builder $courseQuery) => $courseQuery->whereNull('finished_at'))
+                    ->orWhere(function (Builder $legacyDayQuery): void {
+                        $legacyDayQuery
+                            ->whereNull('course_id')
+                            ->where(function (Builder $recordQuery): void {
+                                $recordQuery
+                                    ->whereDoesntHave('records')
+                                    ->orWhereHas('records', fn (Builder $query) => $query->whereNull('course_finished_at'));
+                            });
+                    });
+            });
     }
 
     protected function defaultTeacherAttendanceStatusId(): ?int
@@ -270,8 +289,8 @@ new class extends Component {
             <div class="admin-grid-meta__title">{{ __('workflow.teacher_attendance.days.table.title') }}</div>
             <div class="admin-toolbar__controls">
                 <div class="admin-filter-field">
-                    <label class="sr-only" for="teacher-attendance-search">{{ __('crud.common.filters.search') }}</label>
-                    <input id="teacher-attendance-search" wire:model.live.debounce.300ms="search" type="text" placeholder="DD-MM-YYYY">
+                    <label class="sr-only" for="teacher-attendance-search">{{ __('workflow.teacher_attendance.days.form.attendance_date') }}</label>
+                    <input id="teacher-attendance-search" wire:model.live="search" type="date" aria-label="{{ __('workflow.teacher_attendance.days.form.attendance_date') }}" data-date-placeholder="{{ __('workflow.teacher_attendance.days.form.attendance_date') }}">
                 </div>
 
                 <div class="admin-filter-field">
@@ -385,7 +404,7 @@ new class extends Component {
                     <select id="teacher-attendance-day-default-status" wire:model="default_attendance_status_id" class="h-12 min-h-12 w-full rounded-xl px-4 py-0 text-sm">
                         <option value="">{{ __('workflow.teacher_attendance.days.form.no_default_status') }}</option>
                         @foreach ($defaultStatusOptions as $status)
-                            <option value="{{ $status->id }}">{{ $status->name }}{{ $status->is_default ? ' - '.__('settings.tracking.labels.default_attendance_status') : '' }}</option>
+                            <option value="{{ $status->id }}">{{ $status->name }}</option>
                         @endforeach
                     </select>
                     @error('default_attendance_status_id')

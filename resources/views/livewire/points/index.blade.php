@@ -46,7 +46,7 @@ new class extends Component {
 
     public function with(): array
     {
-        $transactionsQuery = $this->scopePointTransactionsQuery(
+        $transactionsQuery = $this->visiblePointTransactionsQuery(
             PointTransaction::query()->with([
                 'enteredBy',
                 'pointType',
@@ -168,7 +168,7 @@ new class extends Component {
     {
         $this->authorizePermission('points.create-manual');
 
-        $transaction = $this->scopePointTransactionsQuery(PointTransaction::query())
+        $transaction = $this->visiblePointTransactionsQuery(PointTransaction::query())
             ->findOrFail($transactionId);
 
         if ($transaction->source_type !== 'manual' || $transaction->voided_at) {
@@ -215,7 +215,7 @@ new class extends Component {
         }
 
         if ($this->editingTransactionId) {
-            $transaction = $this->scopePointTransactionsQuery(PointTransaction::query())
+            $transaction = $this->visiblePointTransactionsQuery(PointTransaction::query())
                 ->findOrFail($this->editingTransactionId);
 
             if ($transaction->source_type !== 'manual' || $transaction->voided_at) {
@@ -302,7 +302,7 @@ new class extends Component {
     {
         $this->authorizePermission('points.void');
 
-        $this->scopePointTransactionsQuery(PointTransaction::query())
+        $this->visiblePointTransactionsQuery(PointTransaction::query())
             ->whereNull('voided_at')
             ->findOrFail($transactionId);
 
@@ -336,7 +336,7 @@ new class extends Component {
             return;
         }
 
-        $transaction = $this->scopePointTransactionsQuery(PointTransaction::query())
+        $transaction = $this->visiblePointTransactionsQuery(PointTransaction::query())
             ->whereKey($this->voidTransactionId)
             ->first();
 
@@ -395,6 +395,18 @@ new class extends Component {
         );
     }
 
+    protected function visiblePointTransactionsQuery(Builder $query): Builder
+    {
+        return $this->scopePointTransactionsQuery($query)
+            ->where(function (Builder $transactionQuery): void {
+                $transactionQuery
+                    ->whereNull('enrollment_id')
+                    ->orWhereHas('enrollment', fn (Builder $enrollmentQuery) => $enrollmentQuery
+                        ->whereNull('course_finished_at')
+                        ->whereDoesntHave('group.course', fn (Builder $courseQuery) => $courseQuery->whereNotNull('finished_at')));
+            });
+    }
+
     protected function applyPointSort(Builder $query): void
     {
         $direction = $this->sortDirection === 'desc' ? 'desc' : 'asc';
@@ -451,7 +463,7 @@ new class extends Component {
         <div class="flash-success px-4 py-3 text-sm">{{ session('status') }}</div>
     @endif
 
-    <section class="surface-table">
+    <section class="surface-table points-ledger-surface">
         <div class="admin-grid-meta admin-grid-meta--controls">
             <div class="admin-grid-meta__title">{{ __('workflow.points.workbench.table.title') }}</div>
             <div class="admin-toolbar__controls admin-toolbar__controls--compact">
@@ -480,22 +492,35 @@ new class extends Component {
         @if ($transactions->isEmpty())
             <div class="admin-empty-state">{{ __('workflow.points.workbench.table.empty') }}</div>
         @else
-            <div class="overflow-hidden">
-                <table class="w-full table-fixed text-sm">
+            <div class="points-ledger-desktop overflow-hidden">
+                <table class="points-ledger-table w-full table-fixed text-sm" data-has-void-reason="{{ $stateFilter !== 'active' ? 'true' : 'false' }}">
+                    <colgroup>
+                        <col class="points-ledger-col--student">
+                        <col class="points-ledger-col--group">
+                        <col class="points-ledger-col--entered">
+                        <col class="points-ledger-col--type">
+                        <col class="points-ledger-col--source">
+                        <col class="points-ledger-col--points">
+                        <col class="points-ledger-col--state">
+                        @if ($stateFilter !== 'active')
+                            <col class="points-ledger-col--void-reason">
+                        @endif
+                        <col class="points-ledger-col--actions">
+                    </colgroup>
                     <thead>
                         <tr>
-                            <th class="w-[18%] px-3 py-4 text-left">
+                            <th class="px-3 py-4 text-left">
                                 <button type="button" wire:click="sortBy('student')" class="inline-flex items-center gap-2 font-medium text-inherit">
                                     {{ __('workflow.points.workbench.table.headers.student') }} <span>{{ $this->sortIndicator('student') }}</span>
                                 </button>
                             </th>
-                            <th class="w-[18%] px-3 py-4 text-left">{{ __('workflow.points.workbench.table.headers.group') }}</th>
-                            <th class="w-[14%] px-3 py-4 text-left">
+                            <th class="px-3 py-4 text-left">{{ __('workflow.points.workbench.table.headers.group') }}</th>
+                            <th class="px-3 py-4 text-left">
                                 <button type="button" wire:click="sortBy('entered_at')" class="inline-flex items-center gap-2 font-medium text-inherit">
                                     {{ __('workflow.points.workbench.table.headers.entered_at') }} <span>{{ $this->sortIndicator('entered_at') }}</span>
                                 </button>
                             </th>
-                            <th class="w-[14%] px-3 py-4 text-left">
+                            <th class="px-3 py-4 text-left">
                                 <button type="button" wire:click="sortBy('point_type')" class="inline-flex items-center gap-2 font-medium text-inherit">
                                     {{ __('workflow.points.workbench.table.headers.type') }} <span>{{ $this->sortIndicator('point_type') }}</span>
                                 </button>
@@ -543,7 +568,12 @@ new class extends Component {
                                     <div class="truncate font-medium text-white" title="{{ $transaction->enrollment?->group?->name }}">{{ $transaction->enrollment?->group?->name ?: __('workflow.common.no_group') }}</div>
                                     <div class="mt-1 truncate text-xs uppercase tracking-[0.12em] text-neutral-500" title="{{ $transaction->enrollment?->group?->course?->name }}">{{ $transaction->enrollment?->group?->course?->name ?: __('workflow.common.no_course') }}</div>
                                 </td>
-                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $transaction->entered_at?->format('d-m-Y H:i') }}</td>
+                                <td class="px-5 py-4 text-neutral-300 lg:px-6">
+                                    <span class="points-ledger-entered-at" dir="ltr">
+                                        <span>{{ $transaction->entered_at?->format('d-m-Y') }}</span>
+                                        <span>{{ $transaction->entered_at?->format('H:i') }}</span>
+                                    </span>
+                                </td>
                                 <td class="whitespace-nowrap px-5 py-4 text-white lg:px-6">{{ $transaction->pointType?->name ?: __('workflow.common.not_available') }}</td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $sourceLabel }}</td>
                                 <td class="px-5 py-4 lg:px-6">
@@ -578,6 +608,85 @@ new class extends Component {
                 </table>
             </div>
 
+            <div class="points-ledger-mobile">
+                @foreach ($transactions as $transaction)
+                    @php
+                        $sourceTranslationKey = 'workflow.common.source_type.' . $transaction->source_type;
+                        $sourceLabel = trans()->has($sourceTranslationKey)
+                            ? __($sourceTranslationKey)
+                            : str($transaction->source_type)->headline();
+                        $state = $transaction->effectiveState();
+                    @endphp
+                    <article class="points-ledger-mobile__item {{ $state !== 'active' ? 'points-ledger-mobile__item--inactive' : '' }}" wire:key="points-mobile-{{ $transaction->id }}">
+                        <div class="points-ledger-mobile__header">
+                            @if ($transaction->student)
+                                <div class="student-inline min-w-0">
+                                    <x-student-avatar :student="$transaction->student" size="sm" />
+                                    <div class="student-inline__body min-w-0">
+                                        <div class="points-ledger-mobile__student-name">{{ trim($transaction->student->first_name.' '.$transaction->student->last_name) }}</div>
+                                    </div>
+                                </div>
+                            @else
+                                <span class="text-white">{{ __('crud.common.not_available') }}</span>
+                            @endif
+
+                            <span class="{{ $transaction->points >= 0 ? 'status-chip status-chip--emerald' : 'status-chip status-chip--rose' }}">
+                                <bdi>{{ $transaction->points }}</bdi>
+                            </span>
+                        </div>
+
+                        <div class="points-ledger-mobile__group">
+                            <div>{{ $transaction->enrollment?->group?->name ?: __('workflow.common.no_group') }}</div>
+                            <small>{{ $transaction->enrollment?->group?->course?->name ?: __('workflow.common.no_course') }}</small>
+                        </div>
+
+                        <dl class="points-ledger-mobile__metrics">
+                            <div>
+                                <dt>{{ __('workflow.points.workbench.table.headers.entered_at') }}</dt>
+                                <dd>
+                                    <span class="points-ledger-entered-at" dir="ltr">
+                                        <span>{{ $transaction->entered_at?->format('d-m-Y') }}</span>
+                                        <span>{{ $transaction->entered_at?->format('H:i') }}</span>
+                                    </span>
+                                </dd>
+                            </div>
+                            <div>
+                                <dt>{{ __('workflow.points.workbench.table.headers.type') }}</dt>
+                                <dd>{{ $transaction->pointType?->name ?: __('workflow.common.not_available') }}</dd>
+                            </div>
+                            <div>
+                                <dt>{{ __('workflow.points.workbench.table.headers.source') }}</dt>
+                                <dd>{{ $sourceLabel }}</dd>
+                            </div>
+                            <div>
+                                <dt>{{ __('workflow.points.workbench.table.headers.state') }}</dt>
+                                <dd>
+                                    <span class="{{ $state === 'active' ? 'status-chip status-chip--emerald' : 'status-chip status-chip--slate' }}">
+                                        {{ __('workflow.common.ledger_state.'.$state) }}
+                                    </span>
+                                </dd>
+                            </div>
+                            @if ($stateFilter !== 'active')
+                                <div class="points-ledger-mobile__void-reason">
+                                    <dt>{{ __('workflow.points.workbench.table.headers.void_reason') }}</dt>
+                                    <dd>{{ $transaction->voided_at ? ($transaction->void_reason ?: __('crud.common.not_available')) : __('crud.common.not_available') }}</dd>
+                                </div>
+                            @endif
+                        </dl>
+
+                        @if ((auth()->user()->can('points.create-manual') && $transaction->source_type === 'manual' && ! $transaction->voided_at) || (auth()->user()->can('points.void') && ! $transaction->voided_at))
+                            <div class="points-ledger-mobile__actions">
+                                @if (auth()->user()->can('points.create-manual') && $transaction->source_type === 'manual')
+                                    <button type="button" wire:click="editManual({{ $transaction->id }})" class="pill-link pill-link--compact">{{ __('workflow.common.actions.edit') }}</button>
+                                @else
+                                    <button type="button" wire:click="openVoidModal({{ $transaction->id }})" class="pill-link pill-link--compact pill-link--danger">{{ __('crud.common.actions.delete') }}</button>
+                                @endif
+                            </div>
+                        @endif
+                    </article>
+                @endforeach
+            </div>
+
             @if ($transactions->hasPages())
                 <div class="border-t border-white/8 px-5 py-4 lg:px-6">
                     {{ $transactions->links() }}
@@ -590,19 +699,17 @@ new class extends Component {
         :show="$showFormModal"
         :title="$editingTransactionId ? __('workflow.points.workbench.form.edit_title') : __('workflow.points.workbench.form.title')"
         close-method="closeFormModal"
-        max-width="2xl"
+        max-width="fit"
+        compact
     >
-        <form wire:submit="saveManual" class="space-y-3">
+        <form wire:submit="saveManual" class="w-[min(28rem,calc(100vw-3rem))] space-y-3">
             <div class="space-y-3">
                 <div>
                     <label for="points-workbench-student" class="mb-1 block text-sm font-medium">{{ __('workflow.points.workbench.form.student') }}</label>
-                    <select id="points-workbench-student" wire:model.live="selectedStudentId" class="w-full rounded-xl px-4 py-3 text-sm" @disabled($editingTransactionId !== null)>
+                    <select id="points-workbench-student" wire:model.live="selectedStudentId" data-search-input="true" data-open-on-focus="true" data-hide-placeholder-option="true" data-search-placeholder="{{ __('workflow.common.student_name_placeholder') }}" class="w-full rounded-xl px-4 py-3 text-sm" @disabled($editingTransactionId !== null)>
                         <option value="">{{ __('workflow.points.workbench.form.select_student') }}</option>
                         @foreach ($studentOptions as $student)
-                            <option
-                                value="{{ $student->id }}"
-                                data-search="{{ trim(implode(' ', array_filter([$student->student_number, $student->first_name, $student->last_name]))) }}"
-                            >
+                            <option value="{{ $student->id }}">
                                 {{ trim($student->first_name.' '.$student->last_name) }}
                             </option>
                         @endforeach
@@ -614,7 +721,7 @@ new class extends Component {
 
                 <div>
                     <label for="points-workbench-type" class="mb-1 block text-sm font-medium">{{ __('workflow.points.form.point_type') }}</label>
-                    <select id="points-workbench-type" wire:model="manual_point_type_id" class="w-full rounded-xl px-4 py-3 text-sm">
+                    <select id="points-workbench-type" wire:model="manual_point_type_id" data-search-input="true" data-open-on-focus="true" data-hide-placeholder-option="true" data-search-placeholder="{{ __('workflow.points.form.select_point_type') }}" class="w-full rounded-xl px-4 py-3 text-sm">
                         <option value="">{{ __('workflow.points.form.select_point_type') }}</option>
                         @foreach ($manualPointTypes as $pointType)
                             <option value="{{ $pointType->id }}">{{ $pointType->name }} ({{ $pointType->default_points > 0 ? '+'.$pointType->default_points : $pointType->default_points }})</option>

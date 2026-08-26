@@ -20,4 +20,11 @@ class School extends Model
             'is_active' => 'boolean',
         ];
     }
+
+    protected static function booted(): void
+    {
+        static::saving(function (self $school): void {
+            $school->is_active = true;
+        });
+    }
 }

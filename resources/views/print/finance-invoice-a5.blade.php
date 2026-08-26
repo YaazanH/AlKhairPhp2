@@ -30,6 +30,7 @@
         .meta td { border-bottom: 1px solid #d9e7dc; padding: 2.2mm 2mm; }
         .label { color: #5d7663; font-size: 8pt; font-weight: bold; width: 23%; }
         .value { font-weight: bold; width: 27%; }
+        .original-invoice-no { direction: ltr; text-align: left; unicode-bidi: embed; }
         .items { page-break-inside: auto; }
         .items thead { display: table-header-group; }
         .items tr { page-break-inside: avoid; }
@@ -67,7 +68,7 @@
 @unless($isPdf ?? false)<div class="actions"><button type="button" onclick="window.print()">{{ __('finance.actions.print') }}</button></div>@endunless
 
 <table class="meta">
-    <tr><td class="label">{{ __('finance.fields.invoice_issuer') }}</td><td class="value">{{ $invoice->invoicer_name ?: '-' }}</td><td class="label">{{ __('finance.fields.original_invoice_no') }}</td><td class="value">{{ $invoice->original_invoice_no ?: '-' }}</td></tr>
+    <tr><td class="label">{{ __('finance.fields.invoice_issuer') }}</td><td class="value">{{ $invoice->invoicer_name ?: '-' }}</td><td class="label">{{ __('finance.fields.original_invoice_no') }}</td><td class="value original-invoice-no" dir="ltr">{{ $invoice->original_invoice_no ?: '-' }}</td></tr>
     <tr><td class="label">{{ __('finance.common.date') }}</td><td class="value" colspan="3">{{ $invoice->issue_date?->format('d-m-Y') ?: '-' }}</td></tr>
 </table>
 

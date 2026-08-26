@@ -29,6 +29,11 @@ new class extends Component
 
         $this->currentGroupDay = GroupAttendanceDay::query()
             ->with(['studentAttendanceDay', 'group.course', 'group.academicYear', 'group.teacher', 'records'])
+            ->where(function ($query): void {
+                $query
+                    ->whereNull('student_attendance_day_id')
+                    ->orWhereHas('studentAttendanceDay', fn ($dayQuery) => $dayQuery->whereNull('course_finished_at'));
+            })
             ->findOrFail($groupAttendanceDay->id);
 
         $this->authorizeScopedGroupAttendanceDayAccess($this->currentGroupDay);
@@ -246,10 +251,10 @@ new class extends Component
     <section class="page-hero p-6 lg:p-8">
         <div class="flex flex-wrap items-start justify-between gap-4">
             <div>
-                <div class="eyebrow">{{ __('ui.nav.student_attendance') }}</div>
+                <x-back-link :href="route('student-attendance.show', $groupDayRecord->studentAttendanceDay)" navigate />
+                <div class="eyebrow mt-4">{{ __('ui.nav.student_attendance') }}</div>
                 <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('workflow.student_attendance.marking.title') }}</h1>
             </div>
-            <a href="{{ route('student-attendance.show', $groupDayRecord->studentAttendanceDay) }}" wire:navigate class="pill-link pill-link--compact">{{ __('workflow.student_attendance.marking.back') }}</a>
         </div>
     </section>
 

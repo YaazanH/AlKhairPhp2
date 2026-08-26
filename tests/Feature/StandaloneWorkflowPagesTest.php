@@ -358,6 +358,8 @@ class StandaloneWorkflowPagesTest extends TestCase
             ->assertSet('editingAttemptId', $partialAttempt->id)
             ->assertSet('selectedPartId', $part->id)
             ->assertSet('showAttemptModal', true)
+            ->assertSee('admin-modal__dialog--compact', false)
+            ->assertSee('admin-action-cluster admin-action-cluster--end', false)
             ->set('mistake_count', '2')
             ->assertSet('mistake_count', '2')
             ->call('saveAttempt')
@@ -384,12 +386,33 @@ class StandaloneWorkflowPagesTest extends TestCase
 
         Volt::test('quran-final-tests.show', ['finalTest' => $finalTest])
             ->call('openEditAttempt', $finalAttempt->id)
+            ->assertSee('admin-modal__dialog--compact', false)
+            ->assertSee('admin-action-cluster admin-action-cluster--end', false)
             ->set('score', '95.5')
             ->call('saveAttempt')
             ->assertHasNoErrors();
 
         $this->assertDatabaseHas('quran_final_test_attempts', ['id' => $finalAttempt->id, 'score' => 95.5, 'status' => 'passed']);
         $this->assertDatabaseHas('quran_final_tests', ['id' => $finalTest->id, 'status' => 'passed']);
+
+        $awqafType = QuranTestType::query()->where('code', 'awqaf')->firstOrFail();
+        QuranTest::query()->create([
+            'enrollment_id' => $enrollment->id,
+            'student_id' => $enrollment->student_id,
+            'teacher_id' => $teacher->id,
+            'juz_id' => $juz->id,
+            'quran_test_type_id' => $awqafType->id,
+            'tested_on' => '2026-09-12',
+            'score' => 96,
+            'status' => 'passed',
+            'attempt_no' => 1,
+        ]);
+
+        Volt::test('quran-final-tests.show', ['finalTest' => $finalTest])
+            ->assertViewHas('hasRelatedAwqafTest', true)
+            ->assertDontSee('data-final-saber-delete', false)
+            ->assertDontSee('data-final-saber-edit', false)
+            ->assertDontSee('data-final-saber-attempt-delete', false);
     }
 
     public function test_editing_a_final_saber_attempt_preserves_historic_notes_after_the_notes_field_is_removed(): void
@@ -462,9 +485,13 @@ class StandaloneWorkflowPagesTest extends TestCase
         ]);
 
         Volt::test('quran-partial-tests.show', ['partialTest' => $partialTest])
+            ->assertViewHas('hasRelatedFinalTest', true)
             ->assertSeeText(__('workflow.quran_partial_tests.part.quarters.1'))
-            ->call('openEditAttempt', $attempt->id)
+            ->assertDontSee('data-partial-saber-delete', false)
+            ->assertDontSee('data-partial-saber-edit', false)
+            ->assertDontSee('data-partial-saber-attempt-delete', false)
             ->assertDontSee('partial-attempt-notes', false)
+            ->set('editingAttemptId', $attempt->id)
             ->call('deleteAttempt')
             ->assertHasErrors(['attempt'])
             ->call('deleteTest')
@@ -683,14 +710,28 @@ class StandaloneWorkflowPagesTest extends TestCase
         Volt::test('points.index')
             ->assertDontSee('Workbench Manager Group Parent')
             ->assertDontSee(__('workflow.points.workbench.table.headers.void_reason'))
+            ->assertViewHas('manualPointTypes', function ($pointTypes): bool {
+                $names = $pointTypes->pluck('name')->values();
+
+                return $names->all() === $names->sort(SORT_NATURAL | SORT_FLAG_CASE)->values()->all();
+            })
+            ->call('openCreateModal')
+            ->assertSee('id="points-workbench-type" wire:model="manual_point_type_id" data-search-input="true" data-open-on-focus="true"', false)
             ->set('selectedStudentId', $enrollment->student_id)
             ->set('manual_point_type_id', $bonus->id)
             ->call('saveManualAndNew')
             ->assertHasNoErrors()
+            ->assertSee('points-ledger-table', false)
+            ->assertSee('points-ledger-desktop', false)
+            ->assertSee('points-ledger-mobile', false)
+            ->assertSee('points-ledger-mobile__metrics', false)
+            ->assertSee('points-ledger-entered-at', false)
+            ->assertSee('data-has-void-reason="false"', false)
             ->assertSet('showFormModal', true)
             ->assertSet('selectedStudentId', null)
             ->assertSet('manual_point_type_id', $bonus->id)
             ->set('stateFilter', 'all')
+            ->assertSee('data-has-void-reason="true"', false)
             ->assertSee(__('workflow.points.workbench.table.headers.void_reason'));
 
         $transaction = PointTransaction::query()->where('source_type', 'manual')->firstOrFail();
@@ -872,6 +913,8 @@ class StandaloneWorkflowPagesTest extends TestCase
             ->assertSee($firstEnrollment->student->parentProfile->father_name)
             ->assertSee($firstEnrollment->student->birth_date?->format('Y'))
             ->assertSee('2')
+            ->assertSee('data-eligible-awqaf-table', false)
+            ->assertSee('data-settings-record-table', false)
             ->assertDontSee(__('workflow.quran_tests.eligible_modal.summary', ['count' => 1]));
     }
 

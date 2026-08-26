@@ -81,7 +81,7 @@ new class extends Component {
             'issue_date' => ['required', 'date'],
             'discount' => ['required', 'numeric', 'min:0'],
             'notes' => ['nullable', 'string'],
-            'invoice_scan' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png,webp', 'max:10240'],
+            'invoice_scan' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png,webp', 'max:'.config('uploads.image_max_kb')],
             'remove_invoice_scan' => ['boolean'],
         ];
     }
@@ -320,9 +320,6 @@ new class extends Component {
                     <div class="flex flex-wrap gap-3">
                         <button type="submit" class="pill-link pill-link--accent">{{ $editingId ? __('invoices.index.form.update_submit') : __('invoices.index.form.create_submit') }}</button>
                         <x-admin.create-and-new-button :show="! $editingId" click="saveAndNew('save', 'create')" />
-                        @if ($editingId)
-                            <button type="button" wire:click="cancel" class="pill-link">{{ __('crud.common.actions.cancel') }}</button>
-                        @endif
                     </div>
                 </form>
             @else

@@ -22,6 +22,8 @@ new class extends Component {
 
         $this->currentEnrollment = Enrollment::query()
             ->with(['student', 'group.course'])
+            ->whereNull('course_finished_at')
+            ->whereDoesntHave('group.course', fn ($courseQuery) => $courseQuery->whereNotNull('finished_at'))
             ->findOrFail($enrollment->id);
 
         $this->authorizeTeacherEnrollmentAccess($this->currentEnrollment);
@@ -172,7 +174,7 @@ new class extends Component {
 
 <div class="page-stack">
     <section class="page-hero p-6 lg:p-8">
-        <div class="eyebrow">{{ __('workflow.common.back_to_enrollments') }}</div>
+        <x-back-link :href="route('enrollments.index')" navigate />
         <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('workflow.points.title') }}</h1>
         <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ __('workflow.points.subtitle') }}</p>
         <div class="mt-6 flex flex-wrap gap-3">
@@ -181,10 +183,6 @@ new class extends Component {
             <span class="badge-soft">{{ $enrollmentRecord->group?->course?->name ?: __('workflow.common.no_course') }}</span>
         </div>
     </section>
-
-    <div>
-        <a href="{{ route('enrollments.index') }}" wire:navigate class="pill-link pill-link--compact">{{ __('workflow.common.back_to_enrollments') }}</a>
-    </div>
 
     @if (session('status'))
         <div class="flash-success px-4 py-3 text-sm">{{ session('status') }}</div>
@@ -226,7 +224,7 @@ new class extends Component {
                 <form wire:submit="saveManual" class="mt-6 space-y-5">
                     <div>
                         <label for="manual-point-type" class="mb-1 block text-sm font-medium">{{ __('workflow.points.form.point_type') }}</label>
-                        <select id="manual-point-type" wire:model="manual_point_type_id" class="w-full rounded-xl px-4 py-3 text-sm">
+                        <select id="manual-point-type" wire:model="manual_point_type_id" data-search-input="true" data-open-on-focus="true" data-hide-placeholder-option="true" data-search-placeholder="{{ __('workflow.points.form.select_point_type') }}" class="w-full rounded-xl px-4 py-3 text-sm">
                             <option value="">{{ __('workflow.points.form.select_point_type') }}</option>
                             @foreach ($manualPointTypes as $pointType)
                                 <option value="{{ $pointType->id }}">{{ $pointType->name }} ({{ $pointType->default_points > 0 ? '+'.$pointType->default_points : $pointType->default_points }})</option>

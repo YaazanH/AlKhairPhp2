@@ -265,13 +265,16 @@ new class extends Component {
     $assistantName = $groupRecord->assistantTeacher ? trim($groupRecord->assistantTeacher->first_name.' '.$groupRecord->assistantTeacher->last_name) : __('crud.common.not_available');
     $viewerTeacherId = auth()->user()?->teacherProfile?->id;
     $isAssignedTeacher = $viewerTeacherId && in_array($viewerTeacherId, [$groupRecord->teacher_id, $groupRecord->assistant_teacher_id], true);
+    $groupIsEditable = ! $groupRecord->course_finished_at && ($groupRecord->course?->is_active ?? true);
+    $canManageGroup = $groupIsEditable && (bool) auth()->user()?->can('groups.update');
+    $showGroupActionStack = $canManageGroup || ! $isAssignedTeacher;
 @endphp
 
 <div class="page-stack">
     <section class="page-hero p-6 lg:p-8">
         <div class="group-show-hero-layout flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
             <div>
-                @unless($isAssignedTeacher)<a href="{{ route('groups.index') }}" wire:navigate class="text-sm text-neutral-300">{{ app()->isLocale('ar') ? '→' : '←' }} {{ __('crud.common.actions.back') }}</a>@endunless
+                @unless($isAssignedTeacher)<x-back-link :href="route('groups.index')" navigate />@endunless
                 <h1 class="font-display mt-4 text-4xl text-white md:text-5xl">{{ $groupRecord->name }}</h1>
             </div>
 
@@ -297,26 +300,26 @@ new class extends Component {
                     </dl>
                 </div>
 
-                <div class="group-show-action-stack flex w-fit max-w-full flex-col gap-3">
-                    <div class="group-show-actions surface-panel flex w-fit max-w-full flex-wrap items-center gap-2 p-3">
-                        @if (! $groupRecord->course_finished_at && ($groupRecord->course?->is_active ?? true))
-                            @can('groups.update')
+                @if($showGroupActionStack)
+                    <div class="group-show-action-stack flex w-fit max-w-full flex-col gap-3">
+                        @if($canManageGroup)
+                            <div class="group-show-actions surface-panel flex w-fit max-w-full flex-wrap items-center gap-2 p-3">
                                 <button wire:click="openEdit" class="pill-link pill-link--compact">{{ __('crud.common.actions.edit') }}</button>
                                 <button wire:click="$set('showScheduleModal', true)" class="pill-link pill-link--compact">{{ __('crud.groups.actions.schedule') }}</button>
                                 <button wire:click="deactivate" wire:confirm="{{ __('crud.common.confirm_deactivate.message') }}" class="pill-link pill-link--compact">{{ __('crud.common.actions.deactivate') }}</button>
-                            @endcan
+                            </div>
                         @endif
-                    </div>
 
-                    @unless($isAssignedTeacher)
-                        <div data-group-copy-summary class="group-show-summary surface-panel flex w-full flex-col gap-2 p-3">
-                            <input wire:model="progressDate" type="date" aria-label="{{ __('crud.common.fields.date') }}" class="min-w-0 flex-1 rounded-xl px-3 py-2 text-sm">
-                            <button wire:click="copyProgress" class="pill-link pill-link--accent pill-link--compact w-fit flex-none">
-                                {{ app()->isLocale('ar') ? 'نسخ' : 'Copy' }}
-                            </button>
-                        </div>
-                    @endunless
-                </div>
+                        @unless($isAssignedTeacher)
+                            <div data-group-copy-summary class="group-show-summary surface-panel flex w-full flex-col gap-2 p-3">
+                                <input wire:model="progressDate" type="date" aria-label="{{ __('crud.common.fields.date') }}" class="min-w-0 flex-1 rounded-xl px-3 py-2 text-sm">
+                                <button wire:click="copyProgress" class="pill-link pill-link--accent pill-link--compact w-fit flex-none">
+                                    {{ app()->isLocale('ar') ? 'نسخ' : 'Copy' }}
+                                </button>
+                            </div>
+                        @endunless
+                    </div>
+                @endif
             </div>
         </div>
     </section>
@@ -368,7 +371,7 @@ new class extends Component {
         </div>
         @if($roster->hasPages())<div class="border-t border-white/10 p-4">{{ $roster->links() }}</div>@endif
     </section>
-    <x-admin.modal :show="$showAddStudentModal" :title="__('crud.groups.roster.add_student')" close-method="showAddStudentModal" max-width="2xl"><div class="space-y-4"><div><label class="mb-1 block text-sm">{{ __('crud.students.table.headers.name') }}</label><select wire:model="roster_student_id" class="w-full rounded-xl px-4 py-3"><option value="">{{ __('crud.common.select') }}</option>@foreach($availableStudents as $student)<option value="{{ $student->id }}">{{ $student->full_name }}</option>@endforeach</select>@error('roster_student_id')<div class="text-sm text-red-400">{{ $message }}</div>@enderror</div><div><label class="mb-1 block text-sm">{{ __('crud.groups.roster.fields.enrolled_at') }}</label><input wire:model="roster_enrolled_at" type="date" class="w-full rounded-xl px-4 py-3"></div><div class="flex gap-2"><button wire:click="addStudent(false)" class="pill-link pill-link--accent">{{ __('crud.groups.roster.add_student') }}</button><button wire:click="addStudent(true)" class="pill-link">{{ __('crud.common.actions.add_and_new') }}</button></div></div></x-admin.modal>
+    <x-admin.modal :show="$showAddStudentModal" :title="__('crud.groups.roster.add_student')" close-method="showAddStudentModal" max-width="2xl"><div class="space-y-4"><div><label class="mb-1 block text-sm">{{ __('crud.students.table.headers.name') }}</label><select wire:model="roster_student_id" data-search-input="true" data-open-on-focus="true" data-hide-placeholder-option="true" data-search-placeholder="{{ __('workflow.common.student_name_placeholder') }}" class="w-full rounded-xl px-4 py-3"><option value="">{{ __('crud.common.select') }}</option>@foreach($availableStudents as $student)<option value="{{ $student->id }}">{{ $student->full_name }}</option>@endforeach</select>@error('roster_student_id')<div class="text-sm text-red-400">{{ $message }}</div>@enderror</div><div><label class="mb-1 block text-sm">{{ __('crud.groups.roster.fields.enrolled_at') }}</label><input wire:model="roster_enrolled_at" type="date" class="w-full rounded-xl px-4 py-3"></div><div class="flex gap-2"><button wire:click="addStudent(false)" class="pill-link pill-link--accent">{{ __('crud.groups.roster.add_student') }}</button><button wire:click="addStudent(true)" class="pill-link">{{ __('crud.common.actions.add_and_new') }}</button></div></div></x-admin.modal>
 
     <x-admin.modal :show="$showScheduleModal" :title="__('crud.groups.actions.schedule')" close-method="showScheduleModal" max-width="6xl">
         <form wire:submit="saveSchedule" class="grid gap-3 sm:grid-cols-[minmax(9rem,1fr)_minmax(9rem,1fr)_minmax(9rem,1fr)_max-content] sm:items-end">

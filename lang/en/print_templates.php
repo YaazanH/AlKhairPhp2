@@ -346,7 +346,7 @@ return [
                 'all_students' => 'All students',
                 'active_students' => 'Active students',
                 'non_active_students' => 'Non-active students',
-                'all_print_states' => 'All print states',
+                'all_print_states' => 'All printing statuses',
                 'printed_students' => 'Already printed',
                 'not_printed_students' => 'Not printed yet',
                 'printed_flag' => 'Printed',

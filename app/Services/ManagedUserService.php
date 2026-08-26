@@ -4,9 +4,11 @@ namespace App\Services;
 
 use App\Models\AppSetting;
 use App\Models\User;
+use App\Support\ArabicUsernameTransliterator;
 use App\Support\PhoneNumberFormatter;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
+
 use function random_int;
 
 class ManagedUserService
@@ -44,7 +46,7 @@ class ManagedUserService
             $payload['issued_password'] = $plainPassword;
         }
 
-        $user ??= new User();
+        $user ??= new User;
         $user->fill($payload);
         $user->save();
         $user->assignRole($role);
@@ -92,14 +94,16 @@ class ManagedUserService
 
     public function uniqueUsername(string $preferred, string $fallbackName, ?int $ignoreUserId = null): string
     {
-        $base = Str::of($preferred)
-            ->trim()
-            ->replaceMatches('/[^a-z0-9._-]+/i', '-')
-            ->trim('-_.')
-            ->value();
+        $base = preg_match('/\p{Arabic}/u', $preferred)
+            ? ArabicUsernameTransliterator::toUsername($preferred)
+            : Str::of($preferred)
+                ->trim()
+                ->replaceMatches('/[^a-z0-9._-]+/i', '-')
+                ->trim('-_.')
+                ->value();
 
         if ($base === '') {
-            $base = Str::slug($fallbackName, '.');
+            $base = ArabicUsernameTransliterator::toUsername($fallbackName);
         }
 
         if ($base === '') {

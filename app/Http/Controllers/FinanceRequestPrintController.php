@@ -113,6 +113,7 @@ class FinanceRequestPrintController extends Controller
             ->all();
 
         return view('print-templates.print.preview', [
+            'autoPrint' => request()->boolean('auto_print'),
             'backUrl' => route('finance.requests.print', ['financeRequest' => $financeRequest, 'choose' => 1]),
             'layout' => $layout,
             'pages' => $pages,

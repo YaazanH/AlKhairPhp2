@@ -9,6 +9,7 @@ use App\Models\AssessmentType;
 use App\Models\Course;
 use App\Models\Group;
 use App\Services\AssessmentService;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 use Livewire\Volt\Component;
 use Livewire\WithPagination;
@@ -80,10 +81,11 @@ new class extends Component
             ->when($this->groupCourseFilter !== 'all', fn ($groups) => $groups->where('course_id', (int) $this->groupCourseFilter))
             ->values();
         $courseIds = $allAvailableGroups->pluck('course_id')->filter()->unique()->values();
-        $assessmentQuery = $this->scopeAssessmentsQuery(
+        $assessmentQuery = $this->visibleAssessmentsQuery(
             Assessment::query()
                 ->with(['group.course', 'groups.course', 'type'])
                 ->withCount('results')
+                ->withAvg('results', 'score')
                 ->when($this->statusFilter === 'active', fn ($query) => $query->where('is_active', true))
                 ->when($this->courseFilter !== 'all', function ($query) {
                     $query->where(function ($builder) {
@@ -98,7 +100,6 @@ new class extends Component
         );
 
         $filteredCount = (clone $assessmentQuery)->count();
-        $assessmentIds = (clone $assessmentQuery)->pluck('id');
 
         return [
             'groups' => $availableGroups,
@@ -109,17 +110,6 @@ new class extends Component
                 ->get(['id', 'name']),
             'types' => AssessmentType::query()->where('is_active', true)->orderBy('name')->get(),
             'assessments' => $assessmentQuery->paginate($this->perPage),
-            'totals' => [
-                'all' => (clone $assessmentQuery)->count(),
-                'active' => (clone $assessmentQuery)->where('is_active', true)->count(),
-                'passed_students' => $assessmentIds->isEmpty()
-                    ? 0
-                    : AssessmentResult::query()
-                        ->whereIn('assessment_id', $assessmentIds)
-                        ->where('status', 'passed')
-                        ->distinct('student_id')
-                        ->count('student_id'),
-            ],
             'filteredCount' => $filteredCount,
             'editingHasResults' => $this->editingId
                 ? AssessmentResult::query()->where('assessment_id', $this->editingId)->exists()
@@ -277,7 +267,7 @@ new class extends Component
 
         $assessment = DB::transaction(function () use ($payload, $groupIds): Assessment {
             $assessment = $this->editingId
-                ? tap(Assessment::query()->findOrFail($this->editingId))->update($payload)
+                ? tap($this->visibleAssessmentsQuery(Assessment::query())->findOrFail($this->editingId))->update($payload)
                 : Assessment::query()->create($payload + ['created_by' => auth()->id()]);
 
             $this->syncAssessmentGroups($assessment, $groupIds);
@@ -298,7 +288,9 @@ new class extends Component
     {
         $this->authorizePermission('assessments.update');
 
-        $assessment = Assessment::query()->with(['group', 'groups'])->findOrFail($assessmentId);
+        $assessment = $this->visibleAssessmentsQuery(
+            Assessment::query()->with(['group', 'groups'])
+        )->findOrFail($assessmentId);
         $this->authorizeTeacherAssessmentAccess($assessment);
 
         $groupIds = $assessment->groups->pluck('id')->all();
@@ -367,7 +359,9 @@ new class extends Component
     {
         $this->authorizePermission('assessments.delete');
 
-        $assessment = Assessment::query()->with('group')->withCount('results')->findOrFail($assessmentId);
+        $assessment = $this->visibleAssessmentsQuery(
+            Assessment::query()->with('group')->withCount('results')
+        )->findOrFail($assessmentId);
         $this->authorizeTeacherAssessmentAccess($assessment);
 
         if ($assessment->results_count > 0) {
@@ -386,6 +380,14 @@ new class extends Component
         }
 
         session()->flash('status', __('workflow.assessments.index.messages.deleted'));
+    }
+
+    protected function visibleAssessmentsQuery(Builder $query): Builder
+    {
+        return $this->scopeAssessmentsQuery($query)
+            ->whereNull('course_finished_at')
+            ->whereDoesntHave('group.course', fn (Builder $courseQuery) => $courseQuery->whereNotNull('finished_at'))
+            ->whereDoesntHave('groups.course', fn (Builder $courseQuery) => $courseQuery->whereNotNull('finished_at'));
     }
 
     protected function syncMarksFromScoreBands(): void
@@ -455,21 +457,6 @@ new class extends Component
         <div class="flash-success px-4 py-3 text-sm">{{ session('status') }}</div>
     @endif
 
-    <section class="admin-kpi-grid">
-        <article class="stat-card">
-            <div class="kpi-label">{{ __('workflow.assessments.index.stats.all') }}</div>
-            <div class="metric-value mt-3">{{ number_format($totals['all']) }}</div>
-        </article>
-        <article class="stat-card">
-            <div class="kpi-label">{{ __('workflow.assessments.index.stats.active') }}</div>
-            <div class="metric-value mt-3">{{ number_format($totals['active']) }}</div>
-        </article>
-        <article class="stat-card">
-            <div class="kpi-label">{{ __('workflow.assessments.index.stats.passed_students') }}</div>
-            <div class="metric-value mt-3">{{ number_format($totals['passed_students']) }}</div>
-        </article>
-    </section>
-
     <div class="space-y-6">
         @if ($showForm)
         <section class="admin-modal" role="dialog" aria-modal="true">
@@ -528,7 +515,6 @@ new class extends Component
                             @can('assessments.delete')
                                 <button type="button" wire:click="delete({{ $editingId }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" @disabled($editingHasResults) class="pill-link border-red-400/25 text-red-200 disabled:cursor-not-allowed disabled:opacity-40">{{ __('crud.common.actions.delete') }}</button>
                             @endcan
-                            <button type="button" wire:click="closeForm" class="pill-link">{{ __('crud.common.actions.cancel') }}</button>
                         @endif
                     </div>
                 </form>
@@ -550,9 +536,6 @@ new class extends Component
                                     </button>
                                 @endforeach
                             </div>
-                            @if ($group_scope === 'multiple')
-                                <div class="mt-4 flex justify-end"><button type="button" wire:click="$set('showGroupPicker', false)" class="pill-link pill-link--accent">{{ __('crud.common.actions.close') }}</button></div>
-                            @endif
                         </div>
                     </div>
                 @endif
@@ -565,7 +548,7 @@ new class extends Component
         </section>
         @endif
 
-        <section class="surface-table">
+        <section class="surface-table mobile-records-surface">
             <div class="admin-grid-meta admin-grid-meta--controls">
                 <div>
                     <div class="admin-grid-meta__title">{{ __('workflow.assessments.index.table.title') }}</div>
@@ -599,18 +582,61 @@ new class extends Component
             @if ($assessments->isEmpty())
                 <div class="admin-empty-state">{{ __('workflow.assessments.index.table.empty') }}</div>
             @else
-                <div class="overflow-x-auto assessment-index-table-scroll">
+                <div class="assessment-index-mobile px-4 pb-4">
+                    @foreach ($assessments as $assessment)
+                        @php
+                            $assessmentGroups = $assessment->groups->isNotEmpty()
+                                ? $assessment->groups
+                                : collect([$assessment->group])->filter();
+                            $assessmentCourses = $assessmentGroups->pluck('course.name')->filter()->unique()->implode(', ');
+                        @endphp
+                        <article class="rounded-2xl border border-white/10 bg-white/4 p-4">
+                            <div class="flex items-start justify-between gap-3">
+                                <div class="min-w-0">
+                                    <div class="flex items-start gap-2">
+                                        <span class="shrink-0 text-xs text-neutral-500">#{{ $assessments->firstItem() + $loop->index }}</span>
+                                        <div class="min-w-0">
+                                            <div class="font-semibold text-white">{{ $assessment->title }}</div>
+                                            <div class="mt-1 text-xs text-neutral-400">{{ $assessment->type?->name ?: __('workflow.common.not_available') }}</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <span class="shrink-0 {{ $assessment->is_active ? 'status-chip status-chip--emerald' : 'status-chip status-chip--slate' }}">{{ $assessment->is_active ? __('crud.common.status_options.active') : ($assessment->course_finished_at ? __('crud.common.status_options.finished') : __('crud.common.status_options.inactive')) }}</span>
+                            </div>
+                            <dl class="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 border-t border-white/8 pt-4 text-sm">
+                                <div class="col-span-2"><dt class="kpi-label">{{ __('workflow.assessments.index.form.course') }}</dt><dd class="mt-1 break-words text-neutral-200">{{ $assessmentCourses ?: __('workflow.common.not_available') }}</dd></div>
+                                <div><dt class="kpi-label">{{ __('workflow.assessments.index.table.headers.schedule') }}</dt><dd class="mt-1 text-neutral-200">{{ $assessment->due_at?->format('d-m-Y') ?: __('workflow.common.not_available') }}</dd></div>
+                                <div><dt class="kpi-label">{{ __('workflow.assessments.index.table.headers.results') }}</dt><dd class="mt-1 font-semibold text-white">{{ number_format($assessment->results_count) }}</dd></div>
+                                <div>
+                                    <dt class="kpi-label">{{ __('workflow.assessments.index.table.headers.average') }}</dt>
+                                    <dd class="mt-1 text-neutral-200">
+                                        @if ($assessment->results_avg_score !== null)
+                                            <span dir="ltr">{{ number_format((float) $assessment->results_avg_score, 0) }}%</span>
+                                        @else
+                                            —
+                                        @endif
+                                    </dd>
+                                </div>
+                            </dl>
+                            @can('assessment-results.view')
+                                <a href="{{ route('assessments.results', $assessment) }}" wire:navigate class="pill-link pill-link--compact pill-link--accent mt-4 w-full justify-center text-center">{{ app()->isLocale('ar') ? 'فتح' : 'Open' }}</a>
+                            @endcan
+                        </article>
+                    @endforeach
+                </div>
+
+                <div class="assessment-index-desktop overflow-x-auto assessment-index-table-scroll">
                     <table class="w-full text-sm assessment-index-table">
                         <thead>
                             <tr>
                                 <th class="w-[4%] px-2 py-3 text-center font-medium">#</th>
-                                <th class="w-[19%] px-4 py-3 text-left font-medium">{{ __('workflow.assessments.index.table.headers.assessment') }}</th>
-                                <th class="w-[17%] px-4 py-3 text-left font-medium">{{ __('workflow.assessments.index.form.course') }}</th>
+                                <th class="w-[20%] px-4 py-3 text-left font-medium">{{ __('workflow.assessments.index.table.headers.assessment') }}</th>
+                                <th class="w-[18%] px-4 py-3 text-left font-medium">{{ __('workflow.assessments.index.form.course') }}</th>
                                 <th class="w-[12%] px-3 py-3 text-left font-medium">{{ __('workflow.assessments.index.table.headers.schedule') }}</th>
-                                <th class="w-[17%] px-3 py-3 text-left font-medium">{{ __('workflow.assessments.index.table.headers.marks') }}</th>
-                                <th class="w-[8%] px-2 py-3 text-left font-medium">{{ __('workflow.assessments.index.table.headers.results') }}</th>
-                                <th class="w-[9%] px-2 py-3 text-left font-medium">{{ __('workflow.assessments.index.table.headers.status') }}</th>
-                                <th class="w-[14%] px-3 py-3 text-end font-medium">{{ __('workflow.assessments.index.table.headers.actions') }}</th>
+                                <th class="w-[9%] px-2 py-3 text-left font-medium">{{ __('workflow.assessments.index.table.headers.results') }}</th>
+                                <th class="w-[10%] px-3 py-3 text-left font-medium">{{ __('workflow.assessments.index.table.headers.average') }}</th>
+                                <th class="w-[10%] px-2 py-3 text-left font-medium">{{ __('workflow.assessments.index.table.headers.status') }}</th>
+                                <th class="w-[17%] px-3 py-3 text-end font-medium">{{ __('workflow.assessments.index.table.headers.actions') }}</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-neutral-200 dark:divide-neutral-700">
@@ -632,11 +658,14 @@ new class extends Component
                                     <td class="px-5 py-3">
                                         <div>{{ $assessment->due_at?->format('d-m-Y') ?: __('workflow.common.not_available') }}</div>
                                     </td>
-                                    <td class="px-5 py-3">
-                                        <div>{{ __('workflow.common.labels.maximum_mark', ['value' => $assessment->total_mark !== null ? number_format((float) $assessment->total_mark, 2) : __('workflow.common.not_available')]) }}</div>
-                                        <div class="text-xs text-neutral-500">{{ __('workflow.common.labels.pass', ['value' => $assessment->pass_mark !== null ? number_format((float) $assessment->pass_mark, 2) : __('workflow.common.not_available')]) }}</div>
-                                    </td>
                                     <td class="px-5 py-3">{{ number_format($assessment->results_count) }}</td>
+                                    <td class="px-3 py-3">
+                                        @if ($assessment->results_avg_score !== null)
+                                            <span dir="ltr">{{ number_format((float) $assessment->results_avg_score, 0) }}%</span>
+                                        @else
+                                            —
+                                        @endif
+                                    </td>
                                     <td class="px-2 py-3"><span class="{{ $assessment->is_active ? 'status-chip status-chip--emerald' : 'status-chip status-chip--slate' }}">{{ $assessment->is_active ? __('crud.common.status_options.active') : ($assessment->course_finished_at ? __('crud.common.status_options.finished') : __('crud.common.status_options.inactive')) }}</span></td>
                                     <td class="px-5 py-3 text-end">
                                         <div class="admin-action-cluster admin-action-cluster--end">

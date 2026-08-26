@@ -30,7 +30,21 @@ new class extends Component {
 
         $this->currentDay = $this->scopeTeacherAttendanceDaysQuery(
             TeacherAttendanceDay::query()
-        )->findOrFail($teacherAttendanceDay->id);
+        )
+            ->where(function ($dayQuery): void {
+                $dayQuery
+                    ->whereHas('course', fn ($courseQuery) => $courseQuery->whereNull('finished_at'))
+                    ->orWhere(function ($legacyDayQuery): void {
+                        $legacyDayQuery
+                            ->whereNull('course_id')
+                            ->where(function ($recordQuery): void {
+                                $recordQuery
+                                    ->whereDoesntHave('records')
+                                    ->orWhereHas('records', fn ($query) => $query->whereNull('course_finished_at'));
+                            });
+                    });
+            })
+            ->findOrFail($teacherAttendanceDay->id);
 
         $this->authorizeScopedTeacherAttendanceDayAccess($this->currentDay);
         $this->loadDay();
@@ -40,7 +54,7 @@ new class extends Component {
     {
         $day = $this->currentDay->fresh([
             'records' => fn ($query) => $this->scopeTeacherAttendanceRecordsQuery(
-                $query->with(['teacher.accessRole', 'status'])
+                $query->with(['teacher.accessRole', 'status'])->whereNull('course_finished_at')
             ),
         ]);
 
@@ -321,7 +335,9 @@ new class extends Component {
         );
 
         $this->currentDay = $this->scopeTeacherAttendanceDaysQuery(
-            TeacherAttendanceDay::query()->with('records')
+            TeacherAttendanceDay::query()->with([
+                'records' => fn ($query) => $query->whereNull('course_finished_at'),
+            ])
         )->findOrFail($this->currentDay->id);
 
         $this->authorizeScopedTeacherAttendanceDayAccess($this->currentDay);
@@ -385,10 +401,10 @@ new class extends Component {
     <section class="page-hero p-6 lg:p-8">
         <div class="flex flex-wrap items-start justify-between gap-4">
             <div>
-                <div class="eyebrow">{{ __('ui.nav.tracking') }}</div>
+                <x-back-link :href="route('teacher-attendance.index')" navigate />
+                <div class="eyebrow mt-4">{{ __('ui.nav.tracking') }}</div>
                 <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('workflow.teacher_attendance.day_details.title') }}</h1>
             </div>
-            <a href="{{ route('teacher-attendance.index') }}" wire:navigate class="pill-link pill-link--compact">{{ __('workflow.teacher_attendance.day_details.back') }}</a>
         </div>
     </section>
 

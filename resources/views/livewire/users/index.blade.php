@@ -66,7 +66,7 @@ new class extends Component
 
     public string $search = '';
 
-    public string $roleFilter = 'all';
+    public string $profileFilter = 'all';
 
     public string $statusFilter = 'all';
 
@@ -94,7 +94,9 @@ new class extends Component
                         ->when($normalizedPhone, fn ($query) => $query->orWhere('phone', 'like', '%'.$normalizedPhone.'%'));
                 });
             })
-            ->when($this->roleFilter !== 'all', fn ($query) => $query->role($this->roleFilter))
+            ->when($this->profileFilter === 'student', fn ($query) => $query->whereHas('studentProfile'))
+            ->when($this->profileFilter === 'parent', fn ($query) => $query->whereHas('parentProfile'))
+            ->when($this->profileFilter === 'teacher', fn ($query) => $query->whereHas('teacherProfile'))
             ->when(in_array($this->statusFilter, ['active', 'inactive'], true), fn ($query) => $query->where('is_active', $this->statusFilter === 'active'))
             ->orderBy('name');
 
@@ -120,7 +122,7 @@ new class extends Component
         $this->resetPage();
     }
 
-    public function updatedRoleFilter(): void
+    public function updatedProfileFilter(): void
     {
         $this->resetPage();
     }
@@ -145,7 +147,7 @@ new class extends Component
             'email' => ['nullable', 'string', 'email', 'max:255', Rule::unique('users', 'email')->ignore($this->editingId)],
             'phone' => ['nullable', 'string', 'max:255', Rule::unique('users', 'phone')->ignore($this->editingId)],
             'password' => ['nullable', 'string', 'min:8'],
-            'profile_photo_upload' => ['nullable', 'image', 'max:2048'],
+            'profile_photo_upload' => ['nullable', 'image', 'max:'.config('uploads.image_max_kb')],
             'finance_signature_upload' => ['nullable', 'file', 'mimes:png', 'max:4096'],
             'is_active' => ['boolean'],
             'roles' => ['required', 'array', 'min:1'],
@@ -178,7 +180,8 @@ new class extends Component
 
         $validated = $this->validate();
         $accountService = app(ManagedUserService::class);
-        $existingUser = $this->editingId ? User::query()->findOrFail($this->editingId) : null;
+        $existingUser = $this->editingId ? User::query()->with('teacherProfile')->findOrFail($this->editingId) : null;
+        abort_if($existingUser?->teacherProfile, 403);
         $username = filled($validated['username'] ?? null)
             ? $accountService->uniqueUsername((string) $validated['username'], $validated['name'], $this->editingId)
             : ($existingUser?->username ?: $accountService->uniqueUsername('', $validated['name'], $this->editingId));
@@ -239,6 +242,7 @@ new class extends Component
         $this->authorizePermission('users.update');
 
         $user = User::query()->with(['roles', 'permissions', 'scopeOverrides', 'studentProfile', 'teacherProfile', 'parentProfile'])->findOrFail($userId);
+        abort_if($user->teacherProfile, 403);
 
         $this->editingId = $user->id;
         $this->name = $user->name;
@@ -315,6 +319,15 @@ new class extends Component
         session()->flash('status', __('access.users.messages.deleted'));
     }
 
+    public function deleteEditingUser(): void
+    {
+        if (! $this->editingId) {
+            return;
+        }
+
+        $this->delete($this->editingId);
+    }
+
     public function profileLabel(User $user): string
     {
         if ($user->teacherProfile) {
@@ -342,12 +355,8 @@ new class extends Component
             : Str::of($group)->replace('-', ' ')->headline()->toString();
     }
 
-    public function editingUserHasFullFinancialAccess(): bool
+    public function formUserHasFullFinancialAccess(): bool
     {
-        if (! $this->editingId) {
-            return false;
-        }
-
         $permissionNames = collect($this->direct_permissions)->merge(
             Role::query()
                 ->whereIn('name', $this->roles)
@@ -396,7 +405,7 @@ new class extends Component
         $activeUsersCount = $users->where('is_active', true)->count();
     @endphp
 
-    <section class="admin-kpi-grid">
+    <section class="admin-kpi-grid mobile-compact-highlights">
         <article class="stat-card">
             <div class="kpi-label">{{ __('access.users.stats.total') }}</div>
             <div class="metric-value mt-3">{{ number_format($filteredCount) }}</div>
@@ -411,21 +420,21 @@ new class extends Component
         </article>
     </section>
 
-    <section class="surface-table">
+    <section class="surface-table mobile-records-surface">
         <div class="admin-grid-meta admin-grid-meta--controls">
             <div class="admin-grid-meta__title">{{ __('access.users.title') }}</div>
-            <div class="admin-toolbar__controls">
+            <div class="admin-toolbar__controls admin-toolbar__controls--compact">
                 <div class="admin-filter-field">
                     <label class="sr-only" for="user-search">{{ __('crud.common.filters.search') }}</label>
                     <input id="user-search" wire:model.live.debounce.300ms="search" type="text" placeholder="{{ __('crud.common.filters.search_placeholder') }}">
                 </div>
                 <div class="admin-filter-field">
-                    <label class="sr-only" for="user-role-filter">{{ __('access.users.filters.role') }}</label>
-                    <select id="user-role-filter" wire:model.live="roleFilter">
-                        <option value="all">{{ __('access.users.filters.all_roles') }}</option>
-                        @foreach ($availableRoles as $availableRole)
-                            <option value="{{ $availableRole->name }}">{{ __('ui.roles.'.$availableRole->name) === 'ui.roles.'.$availableRole->name ? \Illuminate\Support\Str::of($availableRole->name)->replace('_', ' ')->headline()->toString() : __('ui.roles.'.$availableRole->name) }}</option>
-                        @endforeach
+                    <label class="sr-only" for="user-profile-filter">{{ __('access.users.filters.profile') }}</label>
+                    <select id="user-profile-filter" wire:model.live="profileFilter" data-user-profile-filter>
+                        <option value="all">{{ __('access.users.filters.all_profiles') }}</option>
+                        <option value="student">{{ __('ui.roles.student') }}</option>
+                        <option value="parent">{{ __('ui.roles.parent') }}</option>
+                        <option value="teacher">{{ __('ui.roles.teacher') }}</option>
                     </select>
                 </div>
                 <div class="admin-filter-field">
@@ -437,10 +446,7 @@ new class extends Component
                     </select>
                 </div>
                 <div class="admin-toolbar__actions">
-                    @can('users.create')
-                        <button type="button" wire:click="openCreateModal" class="pill-link pill-link--accent">{{ __('crud.common.actions.create') }}</button>
-                    @endcan
-                    <a href="{{ route('users.export', ['search' => $search, 'role' => $roleFilter, 'status' => $statusFilter]) }}" class="pill-link">{{ __('crud.common.actions.export') }}</a>
+                    <a href="{{ route('users.export', ['search' => $search, 'profile' => $profileFilter, 'status' => $statusFilter]) }}" class="pill-link">{{ __('crud.common.actions.export') }}</a>
                 </div>
             </div>
         </div>
@@ -452,7 +458,74 @@ new class extends Component
         @if ($users->isEmpty())
             <div class="admin-empty-state">{{ __('access.users.table.empty') }}</div>
         @else
-            <div class="overflow-x-auto">
+            <div class="responsive-records-mobile">
+                @foreach ($users as $user)
+                    @php
+                        $roleNames = RoleRegistry::sortCollection($user->roles)->pluck('name');
+                        $directPermissionNames = $user->permissions->pluck('name')->values();
+                    @endphp
+                    <article class="mobile-record-card">
+                        <div class="mobile-record-card__header">
+                            <div class="student-inline min-w-0">
+                                <x-user-avatar :user="$user" size="sm" />
+                                <div class="student-inline__body min-w-0">
+                                    <div class="student-inline__name">{{ $user->name }}</div>
+                                    <div class="student-inline__meta">{{ $user->username }}</div>
+                                </div>
+                            </div>
+                            <span class="status-chip {{ $user->is_active ? 'status-chip--emerald' : 'status-chip--rose' }}">{{ $user->is_active ? __('crud.common.status_options.active') : __('crud.common.status_options.inactive') }}</span>
+                        </div>
+
+                        <dl class="mobile-record-card__details">
+                            <div>
+                                <dt>{{ __('access.users.table.headers.roles') }}</dt>
+                                <dd>
+                                    @if ($roleNames->isEmpty())
+                                        {{ __('crud.common.not_available') }}
+                                    @else
+                                        <span class="mobile-record-card__chips">
+                                            @foreach ($roleNames as $roleName)
+                                                <span class="status-chip status-chip--slate"><x-admin.role-label :name="$roleName" /></span>
+                                            @endforeach
+                                        </span>
+                                    @endif
+                                </dd>
+                            </div>
+                            <div>
+                                <dt>{{ __('access.users.table.headers.profile') }}</dt>
+                                <dd>{{ $this->profileLabel($user) }}</dd>
+                            </div>
+                            <div class="mobile-record-card__detail--wide">
+                                <dt>{{ __('access.users.table.headers.permissions') }}</dt>
+                                <dd>
+                                    @if ($directPermissionNames->isEmpty())
+                                        {{ __('access.users.table.none') }}
+                                    @else
+                                        <span class="mobile-record-card__chips">
+                                            @foreach ($directPermissionNames->take(2) as $permissionName)
+                                                <span class="status-chip status-chip--slate">{{ $this->permissionLabel($permissionName) }}</span>
+                                            @endforeach
+                                            @if ($directPermissionNames->count() > 2)
+                                                <span class="status-chip status-chip--slate">+{{ $directPermissionNames->count() - 2 }}</span>
+                                            @endif
+                                        </span>
+                                    @endif
+                                </dd>
+                            </div>
+                        </dl>
+
+                        @if (! $user->teacherProfile)
+                            @can('users.update')
+                                <div class="mobile-record-card__actions">
+                                    <button type="button" wire:click="edit({{ $user->id }})" class="pill-link pill-link--compact" data-user-edit-action="{{ $user->id }}">{{ __('crud.common.actions.edit') }}</button>
+                                </div>
+                            @endcan
+                        @endif
+                    </article>
+                @endforeach
+            </div>
+
+            <div class="responsive-records-desktop overflow-x-auto">
                 <table class="users-index-table table-fixed text-sm">
                     <colgroup><col class="w-[24%]"><col class="w-[18%]"><col class="w-[24%]"><col class="w-[12%]"><col class="w-[10%]"><col class="w-[12%]"></colgroup>
                     <thead>
@@ -468,7 +541,7 @@ new class extends Component
                     <tbody class="divide-y divide-white/6">
                         @foreach ($users as $user)
                             @php
-                                $roleNames = $user->getRoleNames()->values();
+                                $roleNames = RoleRegistry::sortCollection($user->roles)->pluck('name');
                                 $directPermissionNames = $user->permissions->pluck('name')->values();
                             @endphp
                             <tr>
@@ -512,12 +585,11 @@ new class extends Component
                                 <td class="px-6 py-4"><span class="status-chip {{ $user->is_active ? 'status-chip--emerald' : 'status-chip--rose' }}">{{ $user->is_active ? __('crud.common.status_options.active') : __('crud.common.status_options.inactive') }}</span></td>
                                 <td class="px-6 py-4">
                                     <div class="flex justify-end gap-2">
-                                        @can('users.update')
-                                            <button type="button" wire:click="edit({{ $user->id }})" class="pill-link pill-link--compact">{{ __('crud.common.actions.edit') }}</button>
-                                        @endcan
-                                        @can('users.delete')
-                                            <button type="button" wire:click="delete({{ $user->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link pill-link--compact border-red-400/25 text-red-200 hover:border-red-300/35 hover:bg-red-500/12">{{ __('crud.common.actions.delete') }}</button>
-                                        @endcan
+                                        @if (! $user->teacherProfile)
+                                            @can('users.update')
+                                                <button type="button" wire:click="edit({{ $user->id }})" class="pill-link pill-link--compact" data-user-edit-action="{{ $user->id }}">{{ __('crud.common.actions.edit') }}</button>
+                                            @endcan
+                                        @endif
                                     </div>
                                 </td>
                             </tr>
@@ -537,44 +609,13 @@ new class extends Component
     <x-admin.modal
         :show="$showFormModal"
         :title="$editingId ? __('access.users.form.edit') : __('access.users.form.create')"
-        :description="__('access.users.subtitle')"
         close-method="cancel"
         max-width="6xl"
     >
-        <form wire:submit="save" class="space-y-4">
-            <section class="admin-section-card">
-                <div class="admin-section-card__header">
-                    <div class="admin-section-card__title">{{ __('access.users.sections.identity') }}</div>
-                    <p class="admin-section-card__copy">{{ __('access.users.help.password') }}</p>
-                </div>
-
-                <div class="admin-form-grid">
-                    <div class="admin-form-field admin-form-field--full">
-                        <div class="rounded-3xl border border-white/10 bg-white/5 p-4">
-                            <div class="grid gap-4 md:grid-cols-[auto_minmax(0,1fr)] md:items-center">
-                                <span class="student-avatar student-avatar--lg">
-                                    @if ($profile_photo_upload)
-                                        <img src="{{ $profile_photo_upload->temporaryUrl() }}" alt="{{ __('access.users.fields.profile_photo') }}" class="student-avatar__image">
-                                    @elseif ($profile_photo_url)
-                                        <img src="{{ $profile_photo_url }}" alt="{{ __('access.users.fields.profile_photo') }}" class="student-avatar__image">
-                                    @else
-                                        <span class="student-avatar__fallback">{{ \Illuminate\Support\Str::upper(\Illuminate\Support\Str::substr($name ?: 'U', 0, 1)) }}</span>
-                                    @endif
-                                </span>
-
-                                <div>
-                                    <label class="mb-1 block text-sm font-medium">{{ __('access.users.fields.profile_photo') }}</label>
-                                    <input wire:model="profile_photo_upload" type="file" accept="image/*" class="block w-full text-sm text-neutral-300">
-                                    <p class="mt-2 text-xs leading-5 text-neutral-400">{{ __('access.users.help.profile_photo') }}</p>
-                                    @error('profile_photo_upload')
-                                        <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
-                                    @enderror
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="admin-form-field admin-form-field--full">
+        <form wire:submit="save" class="space-y-4" data-user-form>
+            <section class="admin-section-card" data-user-identity-box>
+                <div class="admin-form-grid" data-user-identity-grid>
+                    <div class="admin-form-field">
                         <label class="mb-1 block text-sm font-medium">{{ __('access.users.fields.name') }}</label>
                         <input wire:model="name" type="text" class="w-full rounded-xl px-4 py-3 text-sm">
                         @error('name')
@@ -586,14 +627,6 @@ new class extends Component
                         <label class="mb-1 block text-sm font-medium">{{ __('access.users.fields.username') }}</label>
                         <input wire:model.live.debounce.300ms="username" type="text" class="w-full rounded-xl px-4 py-3 text-sm">
                         @error('username')
-                            <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
-                        @enderror
-                    </div>
-
-                    <div class="admin-form-field">
-                        <label class="mb-1 block text-sm font-medium">{{ __('access.users.fields.email') }}</label>
-                        <input wire:model="email" type="email" readonly class="w-full rounded-xl px-4 py-3 text-sm opacity-75">
-                        @error('email')
                             <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                         @enderror
                     </div>
@@ -615,14 +648,58 @@ new class extends Component
                     </div>
                 </div>
 
-                <label class="mt-2 flex items-center gap-3 text-sm">
-                    <input wire:model="is_active" type="checkbox" class="rounded">
-                    <span>{{ __('access.users.fields.is_active') }}</span>
-                </label>
+                @if ($editingId)
+                    <label class="mt-2 flex items-center gap-3 text-sm" data-user-active-toggle>
+                        <input wire:model="is_active" type="checkbox" class="rounded">
+                        <span>{{ __('access.users.fields.is_active') }}</span>
+                    </label>
+                @endif
+            </section>
 
-                @if ($editingId && $this->editingUserHasFullFinancialAccess())
-                    <div class="mt-4 rounded-3xl border border-emerald-400/20 bg-emerald-500/10 p-4">
-                        <div class="grid gap-4 md:grid-cols-[minmax(0,14rem)_minmax(0,1fr)] md:items-center">
+            <section class="admin-section-card" data-user-role-box>
+                <div class="grid gap-3 md:grid-cols-2">
+                    @foreach ($availableRoles as $availableRole)
+                        <label class="flex items-center gap-3 rounded-2xl border border-white/8 px-3 py-3 text-sm text-neutral-200">
+                            <input wire:model.live="roles" type="checkbox" value="{{ $availableRole->name }}" class="rounded">
+                            <span><x-admin.role-label :name="$availableRole->name" /></span>
+                        </label>
+                    @endforeach
+                </div>
+                @error('roles')
+                    <div class="text-sm text-red-400">{{ $message }}</div>
+                @enderror
+            </section>
+
+            <details
+                class="admin-collapsible"
+                data-user-media
+                @if ($errors->has('profile_photo_upload') || $errors->has('finance_signature_upload')) open @endif
+            >
+                <summary class="admin-collapsible__summary">
+                    <span>{{ __('access.users.sections.media') }}</span>
+                </summary>
+                <div class="grid gap-4 lg:grid-cols-2">
+                    <div class="grid gap-4 rounded-2xl border border-white/8 p-4 md:grid-cols-[auto_minmax(0,1fr)] md:items-center">
+                        <span class="student-avatar student-avatar--lg">
+                            @if ($profile_photo_upload)
+                                <img src="{{ $profile_photo_upload->temporaryUrl() }}" alt="{{ __('access.users.fields.profile_photo') }}" class="student-avatar__image">
+                            @elseif ($profile_photo_url)
+                                <img src="{{ $profile_photo_url }}" alt="{{ __('access.users.fields.profile_photo') }}" class="student-avatar__image">
+                            @else
+                                <span class="student-avatar__fallback">{{ \Illuminate\Support\Str::upper(\Illuminate\Support\Str::substr($name ?: 'U', 0, 1)) }}</span>
+                            @endif
+                        </span>
+                        <div class="min-w-0">
+                            <label class="mb-1 block text-sm font-medium">{{ __('access.users.fields.profile_photo') }}</label>
+                            <input wire:model="profile_photo_upload" type="file" accept="image/*" class="block w-full text-sm text-neutral-300">
+                            @error('profile_photo_upload')
+                                <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
+                            @enderror
+                        </div>
+                    </div>
+
+                    @if ($this->formUserHasFullFinancialAccess())
+                        <div class="grid gap-4 rounded-2xl border border-white/8 p-4 md:grid-cols-[minmax(0,10rem)_minmax(0,1fr)] md:items-center">
                             <div class="grid min-h-24 place-items-center rounded-2xl bg-white p-3">
                                 @if ($finance_signature_upload)
                                     <img src="{{ $finance_signature_upload->temporaryUrl() }}" alt="" class="max-h-20 max-w-full object-contain">
@@ -632,41 +709,19 @@ new class extends Component
                                     <span class="text-xs text-neutral-500">{{ __('access.users.help.finance_signature_empty') }}</span>
                                 @endif
                             </div>
-                            <div>
+                            <div class="min-w-0">
                                 <label class="mb-1 block text-sm font-semibold text-white">{{ __('access.users.fields.finance_signature') }}</label>
                                 <input wire:model="finance_signature_upload" type="file" accept="image/png" class="block w-full text-sm text-neutral-300">
-                                <p class="mt-2 text-xs leading-5 text-neutral-400">{{ __('access.users.help.finance_signature') }}</p>
                                 @error('finance_signature_upload')<div class="mt-1 text-sm text-red-400">{{ $message }}</div>@enderror
                             </div>
                         </div>
-                    </div>
-                @endif
-            </section>
-
-            <section class="admin-section-card">
-                <div class="admin-section-card__header">
-                    <div class="admin-section-card__title">{{ __('access.users.sections.access') }}</div>
-                    <p class="admin-section-card__copy">{{ __('access.users.help.permissions') }}</p>
+                    @endif
                 </div>
+            </details>
 
-                <div class="rounded-3xl border border-white/10 bg-white/5 p-4">
-                    <div class="text-sm font-semibold text-white">{{ __('access.users.fields.roles') }}</div>
-                    <div class="mt-2 text-sm text-neutral-400">{{ __('access.users.help.roles') }}</div>
-                    <div class="mt-3 grid gap-3 md:grid-cols-2">
-                        @foreach ($availableRoles as $availableRole)
-                            <label class="flex items-center gap-3 rounded-2xl border border-white/8 px-3 py-3 text-sm text-neutral-200">
-                                <input wire:model.live="roles" type="checkbox" value="{{ $availableRole->name }}" class="rounded">
-                                <span><x-admin.role-label :name="$availableRole->name" /></span>
-                            </label>
-                        @endforeach
-                    </div>
-                    @error('roles')
-                        <div class="mt-2 text-sm text-red-400">{{ $message }}</div>
-                    @enderror
-                </div>
-
+            <section class="admin-section-card" data-user-access-overrides-box>
                 <details
-                    class="admin-collapsible rounded-3xl border border-white/10 bg-white/5"
+                    class="admin-collapsible"
                     data-user-direct-permissions
                     @if ($errors->has('direct_permissions') || $errors->has('direct_permissions.*')) open @endif
                 >
@@ -675,8 +730,7 @@ new class extends Component
                         <span class="admin-collapsible__count">{{ count($direct_permissions) }}/{{ $permissionGroups->flatten(1)->count() }}</span>
                     </summary>
                     <div>
-                        <div class="text-sm text-neutral-400">{{ __('access.users.help.permissions') }}</div>
-                        <div class="mt-4 space-y-4">
+                        <div class="space-y-4">
                         @foreach ($permissionGroups as $group => $permissions)
                             @php
                                 $selectedPermissionCount = $permissions->pluck('name')->intersect($direct_permissions)->count();
@@ -699,9 +753,6 @@ new class extends Component
                         </div>
                     </div>
                 </details>
-            </section>
-
-            <section class="admin-section-card">
                 <details
                     class="admin-collapsible"
                     data-user-scope-overrides
@@ -714,10 +765,7 @@ new class extends Component
                         </span>
                     </summary>
                     <div>
-                        <p class="text-sm text-neutral-400">{{ __('access.users.help.scope') }}</p>
-                        <p class="mt-2 text-sm text-neutral-400">{{ __('access.users.scopes.help') }}</p>
-
-                        <div class="mt-4 space-y-4">
+                        <div class="space-y-4">
                         <details class="admin-collapsible">
                             <summary class="admin-collapsible__summary">
                                 <span>{{ __('access.users.scopes.groups') }}</span>
@@ -793,8 +841,15 @@ new class extends Component
             <div class="flex flex-wrap gap-3">
                 <button type="submit" class="pill-link pill-link--accent">{{ $editingId ? __('access.users.form.save_update') : __('access.users.form.save_create') }}</button>
                 <x-admin.create-and-new-button :show="! $editingId" />
-                <button type="button" wire:click="cancel" class="pill-link">{{ __('crud.common.actions.close') }}</button>
+                @if ($editingId)
+                    @can('users.delete')
+                        <button type="button" wire:click="deleteEditingUser" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link border-red-400/25 text-red-200 hover:border-red-300/35 hover:bg-red-500/12">{{ __('crud.common.actions.delete') }}</button>
+                    @endcan
+                @endif
             </div>
+            @error('delete')
+                <div class="text-sm text-red-300">{{ $message }}</div>
+            @enderror
         </form>
     </x-admin.modal>
 </div>

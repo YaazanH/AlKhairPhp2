@@ -24,7 +24,7 @@ class CourseEndService
             'points_before' => $rows->sum('points_before'),
             'points_after' => $rows->sum('points_after'),
             'memorized_pages' => $rows->sum('memorized_pages'),
-            'final_tests' => $tests->count(),
+            'final_tests' => $tests->sum('test_count'),
         ];
     }
 
@@ -76,6 +76,7 @@ class CourseEndService
                     'points_after' => $pointsAfter,
                     'attendance_average' => $attendanceDaysCreated > 0 ? round(($daysAttended / $attendanceDaysCreated) * 100, 2) : 0.0,
                     'attendance_days_created' => $attendanceDaysCreated,
+                    'attendance_records_count' => $attendance->pluck('group_attendance_day_id')->unique()->count(),
                     'days_attended' => $daysAttended,
                     'days_absent' => $attendance->filter(fn ($record) => $record->status && ! $record->status->is_present)->count(),
                     'memorized_pages' => $memorizedPages,
@@ -83,8 +84,8 @@ class CourseEndService
                     'weekly_memorization_average' => round($dailyMemorizationAverage * 3, 2),
                     'final_tests' => $finals->count(),
                     'final_score' => $finalExamScores->isEmpty() ? null : round((float) $finalExamScores->average(), 2),
-                    'final_juzs' => $finals->pluck('juz.juz_number')->filter()->sort()->implode(', '),
-                    'final_marks' => $scores->map(fn ($score) => \App\Support\PercentageFormatter::format($score))->implode(', '),
+                    'final_juzs' => $finals->pluck('juz.juz_number')->filter()->sort()->implode(' - '),
+                    'final_marks' => $scores->map(fn ($score) => \App\Support\PercentageFormatter::format($score))->implode(' - '),
                     'assessment_count' => $regularAssessmentResults->count(),
                     'assessment_average' => $assessmentScores->isEmpty() ? null : round((float) $assessmentScores->average(), 2),
                     'cheques_count' => $chequesCount,
@@ -93,6 +94,13 @@ class CourseEndService
                 ];
             })
             ->sortByDesc('points_after')
+            ->values();
+    }
+
+    public function studentResultRows(Course $course): Collection
+    {
+        return $this->studentRows($course)
+            ->filter(fn (array $row) => (int) ($row['attendance_records_count'] ?? 0) > 0)
             ->values();
     }
 
@@ -113,7 +121,23 @@ class CourseEndService
                         'grade' => self::finalTestGradeKey($score),
                     ];
                 }))
-            ->sort(fn (array $left, array $right) => [mb_strtolower($left['name']), (int) $left['juz']] <=> [mb_strtolower($right['name']), (int) $right['juz']])
+            ->groupBy('student_id')
+            ->map(function (Collection $studentTests): array {
+                $studentTests = $studentTests->sortBy(fn (array $row) => (int) $row['juz'])->values();
+                $scores = $studentTests->pluck('mark')->map(fn ($score) => (float) $score);
+                $averageScore = round((float) $scores->average(), 2);
+
+                return [
+                    'name' => (string) $studentTests->first()['name'],
+                    'student_id' => (int) $studentTests->first()['student_id'],
+                    'juz' => $studentTests->pluck('juz')->filter(fn ($juz) => $juz !== null)->implode(' - '),
+                    'mark' => $averageScore,
+                    'marks' => $scores->map(fn ($score) => \App\Support\PercentageFormatter::format($score))->implode(' - '),
+                    'grade' => self::finalTestGradeKey($averageScore),
+                    'test_count' => $studentTests->count(),
+                ];
+            })
+            ->sortBy(fn (array $row) => mb_strtolower($row['name']))
             ->values();
     }
 

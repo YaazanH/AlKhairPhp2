@@ -15,6 +15,7 @@ return [
         'final_tests' => 'إجمالي الأجزاء المسبورة',
     ],
     'students_title' => 'نتائج طلاب الدورة',
+    'student_records' => 'عدد السجلات: :count',
     'sorted_notice' => 'مرتبة حسب مجموع النقاط المحتسب بعد القواعد',
     'final_tests_title' => 'السبر النهائي',
     'final_tests_report_title' => 'بيان الأجزاء المسبورة',

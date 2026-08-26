@@ -77,6 +77,7 @@ class QuranWorkflowTest extends TestCase
         ]);
 
         Volt::test('teachers.attendance')
+            ->assertSee('id="teacher-attendance-search" wire:model.live="search" type="date"', false)
             ->call('openCreateModal')
             ->set('attendance_date', $attendanceDate)
             ->set('day_status', 'open')

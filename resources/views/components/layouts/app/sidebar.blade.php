@@ -16,9 +16,9 @@
     <head>
         @include('partials.head')
     </head>
-    <body class="app-body">
+    <body class="app-body" data-pdf-uploading-label="{{ __('curricula.fields.pdf_uploading') }}">
         @php
-            $primaryRole = auth()->user()->getRoleNames()->first();
+            $primaryRole = auth()->user()->primaryRoleName();
             $roleLabel = $primaryRole ? __('ui.roles.'.$primaryRole) : null;
             if ($primaryRole && $roleLabel === 'ui.roles.'.$primaryRole) {
                 $roleLabel = \Illuminate\Support\Str::of($primaryRole)->replace(['_', '-'], ' ')->headline()->toString();
@@ -125,7 +125,7 @@
 
                     <div class="{{ $mobileIdentitySpacingClass }} min-w-0">
                         <div class="text-[0.78rem] font-light tracking-normal text-neutral-400">{{ __('ui.app.name') }}</div>
-                        <div class="truncate text-sm text-neutral-200">{{ $roleLabel ?: __('ui.common.workspace') }}</div>
+                        <div class="truncate text-sm text-neutral-200" data-primary-role="{{ $primaryRole ?: '' }}">{{ $roleLabel ?: __('ui.common.workspace') }}</div>
                     </div>
 
                     <flux:spacer />
@@ -160,7 +160,9 @@
                             <flux:menu.separator />
 
                             <flux:menu.radio.group>
-                                <flux:menu.item href="/settings/profile" icon="cog" wire:navigate>{{ __('ui.common.settings') }}</flux:menu.item>
+                                @can('finance.reports.view')
+                                    <flux:menu.item href="{{ route('finance.reports.index') }}" icon="document-chart-bar" wire:navigate>{{ __('finance.reports.title') }}</flux:menu.item>
+                                @endcan
                                 <flux:menu.item href="{{ route('home') }}" icon="globe-alt">{{ __('ui.common.visit_site') }}</flux:menu.item>
                             </flux:menu.radio.group>
 
@@ -209,9 +211,6 @@
                     <div class="admin-modal__body">
                         <p id="admin-confirm-message" class="mb-5 leading-7 text-neutral-300">{{ __('crud.common.confirm_delete.message') }}</p>
                         <div class="admin-action-cluster admin-action-cluster--end">
-                            <button id="admin-confirm-cancel" type="button" class="pill-link">
-                                {{ __('crud.common.actions.cancel') }}
-                            </button>
                             <button id="admin-confirm-accept" type="button" class="pill-link pill-link--danger">
                                 {{ __('crud.common.confirm_delete.confirm') }}
                             </button>

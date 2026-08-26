@@ -5,6 +5,7 @@ namespace App\Models;
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use App\Support\AvatarDefaults;
 use App\Support\PhoneNumberFormatter;
+use App\Support\RoleRegistry;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -83,6 +84,13 @@ class User extends Authenticatable // implements MustVerifyEmail
             ->explode(' ')
             ->map(fn (string $name) => Str::of($name)->substr(0, 1))
             ->implode('');
+    }
+
+    public function primaryRoleName(): ?string
+    {
+        $this->loadMissing('roles');
+
+        return RoleRegistry::sortCollection($this->roles)->first()?->name;
     }
 
     public function profilePhotoPath(): ?string

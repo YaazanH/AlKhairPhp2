@@ -63,6 +63,7 @@ class StudentAttendanceDayModuleTest extends TestCase
         $this->actingAs($manager);
 
         Volt::test('student-attendance.index')
+            ->assertSee('id="student-attendance-search" wire:model.live="search" type="date"', false)
             ->call('openCreateModal')
             ->set('course_id', (string) $selectedCourse->id)
             ->set('attendance_date', '2026-10-01')

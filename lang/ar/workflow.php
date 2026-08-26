@@ -2,6 +2,7 @@
 
 return [
     'common' => [
+        'student_name_placeholder' => 'اسم الطالب',
         'not_available' => '-',
         'no_group' => 'لا توجد مجموعة',
         'no_course' => 'لا توجد دورة',
@@ -1079,8 +1080,8 @@ return [
                 'headers' => [
                     'assessment' => 'التقييم',
                     'schedule' => 'التاريخ',
-                    'marks' => 'الدرجات',
                     'results' => 'النتائج',
+                    'average' => 'الوسطي',
                     'status' => 'الحالة',
                     'actions' => 'الإجراءات',
                 ],
@@ -1132,6 +1133,10 @@ return [
             'title' => 'نتائج التقييم',
             'subtitle' => 'اختر المجموعة، وابحث عن الطالب بالاسم، ثم أدخل الدرجات من قائمة سريعة واحدة.',
             'pdf_export' => 'PDF',
+            'details' => [
+                'participants' => 'المشاركون',
+                'passed' => 'الناجحون',
+            ],
             'pdf' => [
                 'due_date' => 'التاريخ',
                 'average_mark' => 'المتوسط',
@@ -1222,7 +1227,11 @@ return [
         ],
         'actions' => [
             'details' => 'التفاصيل',
+            'update_photo' => 'تغيير الصورة',
             'view_all' => 'عرض الكل',
+        ],
+        'messages' => [
+            'photo_updated' => 'تم تحديث صورة الطالب بنجاح.',
         ],
         'filters' => [
             'title' => 'تصفية حسب الدورة',

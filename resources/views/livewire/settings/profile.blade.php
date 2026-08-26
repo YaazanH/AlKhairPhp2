@@ -14,7 +14,7 @@ new class extends Component {
         $user = Auth::user()->loadMissing(['studentProfile', 'teacherProfile']);
 
         $this->validate([
-            'profile_photo_upload' => ['required', 'image', 'max:2048'],
+            'profile_photo_upload' => ['required', 'image', 'max:'.config('uploads.image_max_kb')],
         ]);
 
         $user->storeProfilePhotoUpload($this->profile_photo_upload);

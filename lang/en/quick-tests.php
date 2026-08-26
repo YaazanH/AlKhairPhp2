@@ -1,6 +1,9 @@
 <?php
 
 return [
+    'memorization_disabled_warning' => 'Memorisation recording is currently paused.',
+    'saber_disabled_warning' => 'Saber recording is currently paused.',
+    'disabled_help' => 'If there is a problem, please contact administration.',
     'title' => 'Enter Saber',
     'saber_type' => 'Saber type',
     'partial' => 'Partial saber',
@@ -13,6 +16,7 @@ return [
     'no_quarters' => 'No quarter is currently available.',
     'quarter' => 'Quarter :number',
     'mistakes' => 'Number of mistakes',
+    'mistakes_suffix' => 'Mistakes',
     'date' => 'Date',
     'mark' => 'Mark',
     'save' => 'Save',

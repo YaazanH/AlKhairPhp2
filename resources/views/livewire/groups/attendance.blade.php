@@ -239,7 +239,7 @@ new class extends Component
 
 <div class="page-stack">
     <section class="page-hero p-6 lg:p-8">
-        <div class="eyebrow">{{ __('workflow.common.back_to_groups') }}</div>
+        <x-back-link :href="route('groups.index')" navigate />
         <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('workflow.student_attendance.title') }}</h1>
         <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ __('workflow.student_attendance.subtitle') }}</p>
         <div class="mt-6 flex flex-wrap gap-3">
@@ -248,10 +248,6 @@ new class extends Component
             <span class="badge-soft">{{ $groupRecord->academicYear?->name ?: __('workflow.common.no_academic_year') }}</span>
         </div>
     </section>
-
-    <div>
-        <a href="{{ route('groups.index') }}" wire:navigate class="pill-link pill-link--compact">{{ __('workflow.common.back_to_groups') }}</a>
-    </div>
 
     @if (session('status'))
         <div class="flash-success px-4 py-3 text-sm">{{ session('status') }}</div>

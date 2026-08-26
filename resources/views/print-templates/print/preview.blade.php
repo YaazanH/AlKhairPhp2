@@ -18,16 +18,18 @@
             @media print { body { background: white; padding: 0; } .print-template-toolbar { display: none !important; } .print-template-sheet { box-shadow: none; margin: 0; } }
         </style>
     </head>
-    <body>
-        <div class="print-template-toolbar">
-            <div>
-                <h1 class="font-display text-4xl text-white">{{ $pageTitle ?? __('print_templates.print.preview.title') }}</h1>
+    <body @if ($autoPrint ?? false) data-auto-print @endif>
+        @unless ($autoPrint ?? false)
+            <div class="print-template-toolbar">
+                <div>
+                    <x-back-link :href="$backUrl ?? route('print-templates.print.create')" />
+                    <h1 class="font-display mt-4 text-4xl text-white">{{ $pageTitle ?? __('print_templates.print.preview.title') }}</h1>
+                </div>
+                <div class="admin-action-cluster">
+                    <button type="button" class="pill-link pill-link--accent" data-print-trigger>{{ $printButtonLabel ?? __('print_templates.print.preview.buttons.print') }}</button>
+                </div>
             </div>
-            <div class="admin-action-cluster">
-                <button type="button" class="pill-link pill-link--accent" data-print-trigger>{{ $printButtonLabel ?? __('print_templates.print.preview.buttons.print') }}</button>
-                <a href="{{ $backUrl ?? route('print-templates.print.create') }}" class="pill-link">{{ $backButtonLabel ?? __('print_templates.print.preview.buttons.back') }}</a>
-            </div>
-        </div>
+        @endunless
 
         @foreach ($pages as $pageIndex => $pageItems)
             <section class="print-template-sheet">
@@ -82,6 +84,11 @@
                     recordStudentCardPrint();
                     window.print();
                 });
+
+                @if ($autoPrint ?? false)
+                    window.addEventListener('load', () => window.print(), { once: true });
+                    window.addEventListener('afterprint', () => window.close(), { once: true });
+                @endif
 
                 if (!trackingNode) {
                     return;

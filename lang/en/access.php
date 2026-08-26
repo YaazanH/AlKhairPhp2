@@ -60,7 +60,9 @@ return [
         'sections' => [
             'identity' => 'Login identity',
             'access' => 'Access package',
+            'media' => 'Media',
             'scope' => 'Scope overrides',
+            'additional_permissions' => 'Additional permissions',
         ],
         'help' => [
             'password' => 'When creating a user, leave username, email, or password blank to generate them automatically. When editing, blank password keeps the current password unchanged.',
@@ -93,8 +95,8 @@ return [
             'permissions' => 'Direct permissions',
         ],
         'filters' => [
-            'role' => 'Role',
-            'all_roles' => 'All roles',
+            'profile' => 'Profile',
+            'all_profiles' => 'All profiles',
         ],
         'scopes' => [
             'title' => 'Scope overrides',
@@ -134,6 +136,8 @@ return [
             'select' => 'Select',
             'save' => 'Save permissions',
             'cancel' => 'Cancel',
+            'reorder' => 'Drag to reorder role priority',
+            'fixed_order' => 'This role has a fixed position',
         ],
         'fields' => [
             'role' => 'Role',
@@ -150,10 +154,6 @@ return [
         ],
         'help' => [
             'super_admin' => 'Super Admin bypasses normal permission checks and always has full access.',
-            'system_role' => 'System roles are built into the workflow. You can edit their permissions, but you cannot rename or delete them.',
-            'custom_role' => 'Custom roles are flexible permission packages. They can be renamed, deleted, and assigned without changing actor-based scope rules.',
-            'clone_from' => 'Optional. Start from an existing role permission set instead of selecting every permission manually.',
-            'machine_name' => 'Saved internally as `:name`.',
         ],
         'errors' => [
             'protected' => 'This role is protected and cannot be renamed or deleted.',
@@ -224,6 +224,7 @@ return [
         'awqaf-subject-tests.record' => 'Record Awqaf subject tests',
         'awqaf-subject-tests.delete' => 'Delete Awqaf subject tests',
         'quran-tests.record-linked-teacher' => 'Auto-fill the linked teacher on awqaf Quran sabers',
+        'assessment-results.record-scores' => 'Add assessment scores',
         'finance.settings.manage' => 'Manage finance settings',
         'finance.currencies.manage' => 'Manage finance currencies',
         'finance.rates.manage' => 'Manage finance exchange rates',

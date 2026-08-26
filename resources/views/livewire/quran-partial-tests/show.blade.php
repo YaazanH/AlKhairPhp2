@@ -92,6 +92,10 @@ new class extends Component {
     {
         $this->authorizePermission('quran-partial-tests.record');
 
+        if ($this->editingAttemptId && $this->hasRelatedFinalTest()) {
+            abort(409);
+        }
+
         if (! $this->editingAttemptId) {
             \App\Support\OperationalFeatureSettings::ensureMemorizationAndSabersEnabled();
         }
@@ -141,6 +145,8 @@ new class extends Component {
 
     public function openEditAttempt(int $attemptId): void
     {
+        abort_if($this->hasRelatedFinalTest(), 409);
+
         $attempt = $this->partialTest->parts()->whereHas('attempts', fn ($query) => $query->whereKey($attemptId))->firstOrFail()
             ->attempts()->findOrFail($attemptId);
         abort_unless($this->canEditAttemptForTeacher($attempt->teacher_id), 403);
@@ -245,12 +251,22 @@ new class extends Component {
     <section class="page-hero p-6 lg:p-8">
         <div class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(20rem,auto)]">
             <div class="lg:self-center">
-                <h1 class="font-display text-4xl leading-none text-white md:text-5xl">{{ __('workflow.quran_partial_tests.details.title') }}</h1>
+                <x-back-link :href="route('quran-partial-tests.index')" navigate />
+                <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('workflow.quran_partial_tests.details.title') }}</h1>
             </div>
 
             <div class="w-full lg:min-w-80">
                 <div class="rounded-3xl border border-white/12 bg-black/15 px-5 py-4">
-                    <div class="text-lg font-semibold text-white">{{ $partialTestRecord->student?->full_name }}</div>
+                    <div class="flex items-start justify-between gap-4">
+                        <div class="text-lg font-semibold text-white">{{ $partialTestRecord->student?->full_name }}</div>
+                        @if (! $hasRelatedFinalTest)
+                            @can('quran-partial-tests.delete')
+                                <button type="button" wire:click="deleteTest" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="inline-flex size-9 shrink-0 items-center justify-center rounded-full border border-red-300/20 text-red-200 transition hover:border-red-300/40 hover:bg-red-400/10 hover:text-red-100" title="{{ __('crud.common.actions.delete') }}" aria-label="{{ __('crud.common.actions.delete') }}" data-partial-saber-delete>
+                                    <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5m-10.5 4.5v6m4.5-6v6m-8.25-10.5.75 13.5h10.5l.75-13.5M9 6.75V4.5h6v2.25" /></svg>
+                                </button>
+                            @endcan
+                        @endif
+                    </div>
                     <p class="mt-2 text-sm leading-6 text-neutral-200">
                         {{ $partialTestRecord->enrollment?->group?->name ?: __('workflow.common.no_group') }}
                         @if ($partialTestRecord->enrollment?->group?->course?->name)
@@ -258,15 +274,7 @@ new class extends Component {
                         @endif
                     </p>
                 </div>
-
-            </div>
-
-            <div class="flex flex-wrap gap-3 lg:col-start-2">
-                <a href="{{ route('quran-partial-tests.index') }}" wire:navigate class="pill-link">{{ __('workflow.quran_partial_tests.actions.back') }}</a>
-                @can('quran-partial-tests.delete')
-                    <button type="button" wire:click="deleteTest" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" @disabled($hasRelatedFinalTest) title="{{ $hasRelatedFinalTest ? __('workflow.quran_partial_tests.errors.final_saber_exists') : '' }}" class="pill-link border-red-400/25 text-red-200 hover:border-red-300/35 hover:bg-red-500/12 disabled:cursor-not-allowed disabled:opacity-40">{{ __('crud.common.actions.delete') }}</button>
-                @endcan
-                @error('deleteTest') <div class="w-full text-sm text-red-300">{{ $message }}</div> @enderror
+                @error('deleteTest') <div class="mt-2 text-sm text-red-300">{{ $message }}</div> @enderror
             </div>
         </div>
     </section>
@@ -297,7 +305,7 @@ new class extends Component {
                                     <th class="px-4 py-3 text-left">{{ __('workflow.quran_partial_tests.attempts.headers.teacher') }}</th>
                                     <th class="px-4 py-3 text-left">{{ __('workflow.quran_partial_tests.attempts.headers.mistake_count') }}</th>
                                     <th class="px-4 py-3 text-left">{{ __('workflow.quran_partial_tests.attempts.headers.status') }}</th>
-                                    @if ($part->attempts->contains(fn ($attempt) => $this->canEditAttemptForTeacher($attempt->teacher_id)))<th class="px-4 py-3 text-right">{{ __('crud.common.actions.actions') }}</th>@endif
+                                    @if (! $hasRelatedFinalTest && $part->attempts->contains(fn ($attempt) => $this->canEditAttemptForTeacher($attempt->teacher_id)))<th class="px-4 py-3 text-right">{{ __('crud.common.actions.actions') }}</th>@endif
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-white/6">
@@ -316,17 +324,17 @@ new class extends Component {
                                             @endif
                                         </td>
                                         <td class="px-4 py-3">{{ __('workflow.common.result_status.'.$attempt->status) }}</td>
-                                        @if ($part->attempts->contains(fn ($row) => $this->canEditAttemptForTeacher($row->teacher_id)))
+                                        @if (! $hasRelatedFinalTest && $part->attempts->contains(fn ($row) => $this->canEditAttemptForTeacher($row->teacher_id)))
                                             <td class="px-4 py-3 text-right">
                                                 @if ($this->canEditAttemptForTeacher($attempt->teacher_id))
-                                                    <button type="button" wire:click="openEditAttempt({{ $attempt->id }})" class="pill-link pill-link--compact">{{ __('crud.common.actions.edit') }}</button>
+                                                    <button type="button" wire:click="openEditAttempt({{ $attempt->id }})" class="pill-link pill-link--compact" data-partial-saber-edit>{{ __('crud.common.actions.edit') }}</button>
                                                 @endif
                                             </td>
                                         @endif
                                     </tr>
                                     @if ($attempt->notes)
                                         <tr>
-                                            <td class="px-4 pb-3 text-xs text-neutral-400" colspan="{{ $part->attempts->contains(fn ($row) => $this->canEditAttemptForTeacher($row->teacher_id)) ? 6 : 5 }}">{{ $attempt->notes }}</td>
+                                            <td class="px-4 pb-3 text-xs text-neutral-400" colspan="{{ ! $hasRelatedFinalTest && $part->attempts->contains(fn ($row) => $this->canEditAttemptForTeacher($row->teacher_id)) ? 6 : 5 }}">{{ $attempt->notes }}</td>
                                         </tr>
                                     @endif
                                 @endforeach
@@ -338,7 +346,7 @@ new class extends Component {
         @endforeach
     </div>
 
-    <x-admin.modal :show="$showAttemptModal" :title="__($editingAttemptId ? 'workflow.quran_partial_tests.attempts.edit_title' : 'workflow.quran_partial_tests.attempts.title')" :description="__('workflow.quran_partial_tests.attempts.copy')" close-method="closeAttemptModal" max-width="3xl">
+    <x-admin.modal :show="$showAttemptModal" :title="__($editingAttemptId ? 'workflow.quran_partial_tests.attempts.edit_title' : 'workflow.quran_partial_tests.attempts.title')" :description="__('workflow.quran_partial_tests.attempts.copy')" close-method="closeAttemptModal" max-width="xl" compact>
         <form wire:submit="saveAttempt" class="space-y-4">
             @if ($currentTeacher)
                 <div>
@@ -369,7 +377,10 @@ new class extends Component {
 
                 <div class="md:col-span-2">
                     <label for="partial-attempt-mistake-count" class="mb-1 block text-sm font-medium">{{ __('workflow.quran_partial_tests.attempts.fields.mistake_count') }}</label>
-                    <input id="partial-attempt-mistake-count" wire:model="mistake_count" type="number" min="0" max="999" step="1" placeholder="{{ __('workflow.quran_partial_tests.attempts.fail_threshold', ['count' => $failThreshold]) }}" class="w-full rounded-xl px-4 py-3 text-sm">
+                    <div @class(['quick-saber-affixed-input' => $editingAttemptId])>
+                        <input id="partial-attempt-mistake-count" wire:model="mistake_count" type="number" min="0" max="999" step="1" placeholder="{{ __('workflow.quran_partial_tests.attempts.fail_threshold', ['count' => $failThreshold]) }}" class="w-full rounded-xl px-4 py-3 text-sm">
+                        @if ($editingAttemptId)<span class="quick-saber-affixed-input__suffix" aria-hidden="true">أخطاء</span>@endif
+                    </div>
                     @error('mistake_count') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
                 </div>
             </div>
@@ -378,9 +389,9 @@ new class extends Component {
                 <div class="rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200">{{ $message }}</div>
             @enderror
 
-            <div class="flex justify-end gap-3">
-                @if ($editingAttemptId && auth()->user()?->hasRole('super_admin'))
-                    <button type="button" wire:click="deleteAttempt" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" @disabled($hasRelatedFinalTest) title="{{ $hasRelatedFinalTest ? __('workflow.quran_partial_tests.errors.final_saber_exists') : '' }}" class="pill-link me-auto border-red-400/25 text-red-200 hover:border-red-300/35 hover:bg-red-500/12 disabled:cursor-not-allowed disabled:opacity-40">{{ __('crud.common.actions.delete') }}</button>
+            <div class="admin-action-cluster admin-action-cluster--end">
+                @if (! $hasRelatedFinalTest && $editingAttemptId && auth()->user()?->hasRole('super_admin'))
+                    <button type="button" wire:click="deleteAttempt" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link border-red-400/25 text-red-200 hover:border-red-300/35 hover:bg-red-500/12" data-partial-saber-attempt-delete>{{ __('crud.common.actions.delete') }}</button>
                 @endif
                 <button type="button" wire:click="closeAttemptModal" class="pill-link">{{ __('crud.common.actions.cancel') }}</button>
                 <button type="submit" class="pill-link pill-link--accent">{{ __($editingAttemptId ? 'crud.common.actions.save' : 'workflow.quran_partial_tests.actions.save_attempt') }}</button>

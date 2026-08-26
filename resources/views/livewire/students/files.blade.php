@@ -42,9 +42,8 @@ new class extends Component {
                 ->where('student_id', $this->currentStudent->id)
                 ->latest()
                 ->get(),
-            'photoUrl' => $studentRecord?->photo_path
-                ? asset('storage/'.ltrim($studentRecord->photo_path, '/'))
-                : null,
+            'photoUrl' => $studentRecord?->photoUrl(),
+            'hasStudentPhoto' => filled($studentRecord?->photo_path),
         ];
     }
 
@@ -64,7 +63,7 @@ new class extends Component {
         }
 
         $validated = $this->validate([
-            'photo_upload' => ['required', 'file', 'mimes:jpg,jpeg,png,webp', 'max:10240'],
+            'photo_upload' => ['required', 'file', 'mimes:jpg,jpeg,png,webp', 'max:'.config('uploads.image_max_kb')],
         ]);
 
         $path = $validated['photo_upload']->store('students/photos/'.$this->currentStudent->id, 'public');
@@ -179,7 +178,7 @@ new class extends Component {
     <section class="page-hero p-6 lg:p-8">
         <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
-                <a href="{{ route('students.index') }}" wire:navigate class="text-sm font-medium text-neutral-200/80 hover:text-white">{{ __('media.student_files.back') }}</a>
+                <x-back-link :href="route('students.index')" navigate />
                 <div class="eyebrow mt-4">{{ __('ui.nav.people') }}</div>
                 <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('media.student_files.heading') }}</h1>
                 <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ __('media.student_files.subheading') }}</p>
@@ -206,7 +205,7 @@ new class extends Component {
         </article>
         <article class="stat-card">
             <div class="kpi-label">{{ __('media.student_files.photo.title') }}</div>
-            <div class="mt-4 text-lg font-semibold text-white">{{ $photoUrl ? __('crud.common.status_options.active') : __('crud.common.not_available') }}</div>
+            <div class="mt-4 text-lg font-semibold text-white">{{ $hasStudentPhoto ? __('crud.common.status_options.active') : __('crud.common.not_available') }}</div>
         </article>
         <article class="stat-card">
             <div class="kpi-label">{{ __('crud.students.form.fields.grade_level') }}</div>
@@ -249,7 +248,7 @@ new class extends Component {
                                 {{ __('media.student_files.photo.save') }}
                             </button>
 
-                            @if ($photoUrl)
+                            @if ($hasStudentPhoto)
                                 <button type="button" wire:click="removePhoto" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link border-red-400/25 text-red-200 hover:border-red-300/35 hover:bg-red-500/12">
                                     {{ __('media.student_files.photo.remove') }}
                                 </button>

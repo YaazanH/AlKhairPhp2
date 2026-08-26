@@ -621,6 +621,7 @@ class OperationalWriteController extends Controller
     public function storeAssessmentResults(Request $request, Assessment $assessment)
     {
         $this->authorizePermission($request, 'assessment-results.record');
+        $this->authorizePermission($request, 'assessment-results.record-scores');
         $this->authorizeTeacherAssessmentScope($request, $assessment);
 
         $maxMark = $assessment->total_mark !== null ? (float) $assessment->total_mark : 100;

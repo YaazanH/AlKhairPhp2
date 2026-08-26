@@ -86,12 +86,12 @@ new class extends Component {
 
     public function updatedLogoUpload(): void
     {
-        $this->autoSaveWebsiteAsset('logo_upload', 'logo_path', 'website/branding', ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,svg', 'max:2048']);
+        $this->autoSaveWebsiteAsset('logo_upload', 'logo_path', 'website/branding', ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,svg', 'max:'.config('uploads.image_max_kb')]);
     }
 
     public function updatedHeroImageUpload(): void
     {
-        $this->autoSaveWebsiteAsset('hero_image_upload', 'hero_image_path', 'website/gallery', ['nullable', 'image', 'max:4096']);
+        $this->autoSaveWebsiteAsset('hero_image_upload', 'hero_image_path', 'website/gallery', ['nullable', 'image', 'max:'.config('uploads.image_max_kb')]);
     }
 
     public function updatedFeaturedVideoUpload(): void
@@ -101,14 +101,14 @@ new class extends Component {
 
     public function updatedMaintenanceImageUpload(): void
     {
-        $this->autoSaveWebsiteAsset('maintenance_image_upload', 'maintenance_image_path', 'website/maintenance', ['nullable', 'image', 'max:4096']);
+        $this->autoSaveWebsiteAsset('maintenance_image_upload', 'maintenance_image_path', 'website/maintenance', ['nullable', 'image', 'max:'.config('uploads.image_max_kb')]);
     }
 
     public function updatedGalleryUploads(): void
     {
         $this->validate([
             'gallery_uploads' => ['nullable', 'array'],
-            'gallery_uploads.*' => ['image', 'max:4096'],
+            'gallery_uploads.*' => ['image', 'max:'.config('uploads.image_max_kb')],
         ]);
 
         foreach ($this->gallery_uploads as $galleryUpload) {
@@ -213,10 +213,10 @@ new class extends Component {
             'whatsapp_url' => ['nullable', 'url'],
             'primary_color' => ['required', 'regex:/^#([0-9a-fA-F]{6})$/'],
             'accent_color' => ['required', 'regex:/^#([0-9a-fA-F]{6})$/'],
-            'logo_upload' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,svg', 'max:2048'],
-            'hero_image_upload' => ['nullable', 'image', 'max:4096'],
+            'logo_upload' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,svg', 'max:'.config('uploads.image_max_kb')],
+            'hero_image_upload' => ['nullable', 'image', 'max:'.config('uploads.image_max_kb')],
             'featured_video_upload' => ['nullable', 'file', 'mimetypes:video/mp4,video/quicktime,video/webm', 'max:51200'],
-            'maintenance_image_upload' => ['nullable', 'image', 'max:4096'],
+            'maintenance_image_upload' => ['nullable', 'image', 'max:'.config('uploads.image_max_kb')],
             'maintenance_enabled' => ['boolean'],
             'teacher_signup_enabled' => ['boolean'],
             'maintenance_title_en' => ['nullable', 'string', 'max:255'],
@@ -224,7 +224,7 @@ new class extends Component {
             'maintenance_message_en' => ['nullable', 'string'],
             'maintenance_message_ar' => ['nullable', 'string'],
             'gallery_uploads' => ['nullable', 'array'],
-            'gallery_uploads.*' => ['image', 'max:4096'],
+            'gallery_uploads.*' => ['image', 'max:'.config('uploads.image_max_kb')],
             'gallery_items' => ['nullable', 'array'],
             'gallery_items.*.path' => ['nullable', 'string'],
             'gallery_items.*.title_en' => ['nullable', 'string', 'max:255'],

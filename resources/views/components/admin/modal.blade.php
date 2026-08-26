@@ -20,6 +20,24 @@
         '8xl' => 'admin-modal__dialog--8xl',
         default => 'admin-modal__dialog--4xl',
     };
+
+    $modalBody = (string) $slot;
+
+    if ($closeMethod) {
+        $redundantDismissLabels = collect([
+            __('crud.common.actions.cancel'),
+            __('crud.common.actions.close'),
+            __('finance.actions.cancel'),
+            __('access.roles.actions.cancel'),
+            __('activities.common.actions.cancel'),
+            __('crud.students.form.parent_shortcut.cancel'),
+        ])->filter()->unique();
+
+        foreach ($redundantDismissLabels as $dismissLabel) {
+            $pattern = '#<(button|a)\b[^>]*>\s*'.preg_quote(e($dismissLabel), '#').'\s*</\\1>#u';
+            $modalBody = preg_replace($pattern, '', $modalBody) ?? $modalBody;
+        }
+    }
 @endphp
 
 @if ($show)
@@ -48,7 +66,7 @@
                 </div>
 
                 <div class="admin-modal__body">
-                    {{ $slot }}
+                    {!! $modalBody !!}
                 </div>
             </div>
         </div>

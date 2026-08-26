@@ -216,11 +216,11 @@ new class extends Component
     <section class="page-hero p-6 lg:p-8">
         <div class="grid gap-6 xl:grid-cols-[minmax(0,1fr)_16rem] xl:items-end">
             <div>
-                <h1 class="font-display text-4xl leading-none text-white md:text-5xl">{{ __('reports.student_activity.title') }}</h1>
+                <x-back-link :href="route('reports.index')" navigate />
+                <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('reports.student_activity.title') }}</h1>
             </div>
 
             <div class="flex flex-wrap gap-3 xl:justify-end">
-                <a href="{{ route('reports.index') }}" class="pill-link">{{ __('reports.rankings.filters.back_to_reports') }}</a>
                 <a href="{{ route('reports.exports.student-activity-summary', ['course_id' => $course_id, 'group_id' => $group_id, 'date_from' => $date_from, 'date_to' => $date_to]) }}" class="pill-link pill-link--accent">
                     {{ __('reports.student_activity.export') }}
                 </a>

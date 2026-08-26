@@ -76,6 +76,7 @@ new class extends Component
                 ),
             ])
         )
+            ->whereNull('course_finished_at')
             ->when(filled($this->search), fn (Builder $query) => $query->whereDate('attendance_date', $this->search))
             ->when(
                 in_array($this->statusFilter, ['open', 'closed'], true),
@@ -199,7 +200,7 @@ new class extends Component
 
         $day = $this->scopeStudentAttendanceDaysQuery(
             StudentAttendanceDay::query()->with(['groupAttendanceDays.records.enrollment.student'])
-        )->findOrFail($dayId);
+        )->whereNull('course_finished_at')->findOrFail($dayId);
 
         $enrollmentIds = collect();
 
@@ -299,8 +300,8 @@ new class extends Component
             <div class="admin-grid-meta__title">{{ __('workflow.student_attendance.days.table.title') }}</div>
             <div class="admin-toolbar__controls">
                 <div class="admin-filter-field">
-                    <label class="sr-only" for="student-attendance-search">{{ __('crud.common.filters.search') }}</label>
-                    <input id="student-attendance-search" wire:model.live.debounce.300ms="search" type="text" placeholder="DD-MM-YYYY">
+                    <label class="sr-only" for="student-attendance-search">{{ __('workflow.student_attendance.days.form.attendance_date') }}</label>
+                    <input id="student-attendance-search" wire:model.live="search" type="date" aria-label="{{ __('workflow.student_attendance.days.form.attendance_date') }}" data-date-placeholder="{{ __('workflow.student_attendance.days.form.attendance_date') }}">
                 </div>
 
                 <div class="admin-filter-field">
@@ -441,7 +442,7 @@ new class extends Component
                     <select id="attendance-day-default-status" wire:model="default_attendance_status_id" class="h-12 min-h-12 w-full rounded-xl px-4 py-0 text-sm">
                         <option value="">{{ __('workflow.student_attendance.days.form.no_default_status') }}</option>
                         @foreach ($defaultStatusOptions as $status)
-                            <option value="{{ $status->id }}">{{ $status->name }}{{ $status->is_default ? ' - '.__('settings.tracking.labels.default_attendance_status') : '' }}</option>
+                            <option value="{{ $status->id }}">{{ $status->name }}</option>
                         @endforeach
                     </select>
                     @error('default_attendance_status_id')

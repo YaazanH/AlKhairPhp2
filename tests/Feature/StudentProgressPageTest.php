@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\AcademicYear;
+use App\Models\AppSetting;
 use App\Models\Assessment;
 use App\Models\AssessmentResult;
 use App\Models\AssessmentType;
@@ -23,8 +24,11 @@ use App\Models\Student;
 use App\Models\StudentNote;
 use App\Models\Teacher;
 use App\Models\User;
+use App\Support\AvatarDefaults;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Livewire\Volt\Volt;
 use Tests\TestCase;
 
@@ -61,30 +65,66 @@ class StudentProgressPageTest extends TestCase
             ->assertForbidden();
     }
 
-    public function test_progress_photo_and_fallback_stay_inside_the_fixed_profile_frame(): void
+    public function test_progress_photo_uses_the_student_default_and_stays_inside_a_fixed_square_frame(): void
     {
         $this->seed(RoleSeeder::class);
 
         [$parentUser, $student] = $this->makeScopedProgressData();
         $this->actingAs($parentUser);
 
-        $this->get(route('students.progress', $student, absolute: false))
-            ->assertOk()
-            ->assertSee('student-progress-profile__photo-fallback', false)
-            ->assertDontSee('student-progress-profile__photo-image', false);
+        AppSetting::storeValue('media', 'default_student_avatar_path', 'defaults/student.png');
+        AvatarDefaults::forget();
 
-        $student->update(['photo_path' => 'students/photos/wide-landscape-photo.jpg']);
+        try {
+            $this->get(route('students.progress', $student, absolute: false))
+                ->assertOk()
+                ->assertSee('src="/storage/defaults/student.png"', false)
+                ->assertSee('student-progress-profile__photo-image', false)
+                ->assertDontSee('data-student-progress-photo-upload', false)
+                ->assertDontSee('student-progress-profile__photo-fallback', false);
 
-        $this->get(route('students.progress', $student, absolute: false))
-            ->assertOk()
-            ->assertSee('student-progress-profile__photo-image', false)
-            ->assertDontSee('student-progress-profile__photo-fallback', false);
+            $student->update(['photo_path' => 'students/photos/wide-landscape-photo.jpg']);
+
+            $this->get(route('students.progress', $student, absolute: false))
+                ->assertOk()
+                ->assertSee('student-progress-profile__photo-image', false)
+                ->assertDontSee('student-progress-profile__photo-fallback', false);
+        } finally {
+            AvatarDefaults::forget();
+        }
 
         $css = file_get_contents(resource_path('css/app.css'));
         $this->assertStringContainsString('grid-template-columns: 9.5rem minmax(0, 1fr);', $css);
-        $this->assertStringContainsString('align-self: stretch;', $css);
+        $this->assertStringContainsString('height: 9.5rem;', $css);
+        $this->assertStringContainsString('aspect-ratio: 1;', $css);
+        $this->assertStringContainsString('align-self: start;', $css);
         $this->assertStringContainsString('object-fit: cover;', $css);
         $this->assertStringContainsString('contain: paint;', $css);
+    }
+
+    public function test_manager_can_replace_a_student_photo_from_the_progress_profile(): void
+    {
+        $this->seed(RoleSeeder::class);
+        Storage::fake('public');
+
+        [, $student] = $this->makeScopedProgressData();
+        $manager = User::factory()->create([
+            'username' => 'progress-photo-manager',
+            'phone' => '8111004',
+        ]);
+        $manager->assignRole('manager');
+        $this->actingAs($manager);
+
+        Volt::test('students.progress', ['student' => $student])
+            ->assertSee('data-student-progress-photo-upload', false)
+            ->set('progressPhotoUpload', UploadedFile::fake()->image('new-student-photo.jpg', 640, 640))
+            ->assertHasNoErrors()
+            ->assertSeeText(__('workflow.student_progress.messages.photo_updated'));
+
+        $photoPath = $student->fresh()->photo_path;
+
+        $this->assertNotNull($photoPath);
+        Storage::disk('public')->assertExists($photoPath);
     }
 
     public function test_student_can_view_only_their_own_progress(): void
@@ -167,6 +207,7 @@ class StudentProgressPageTest extends TestCase
             ->assertViewHas('assessmentResults', fn ($results) => $results->doesntContain('id', $finalResult->id))
             ->assertViewHas('finalAssessmentResults', fn ($results) => $results->contains('id', $finalResult->id))
             ->call('showDetails', 'final-assessments')
+            ->assertSee('data-student-progress-generic-table', false)
             ->assertSeeText('Course Final Exam · Quran Track');
     }
 
@@ -317,10 +358,48 @@ class StudentProgressPageTest extends TestCase
             ->assertDontSeeText(__('workflow.student_progress.selection.title'))
             ->assertDontSeeText(__('workflow.student_progress.selection.select_student'))
             ->assertSeeText(__('workflow.student_progress.selection.search_placeholder'))
+            ->assertSee('data-search-input="true"', false)
+            ->assertSee('data-open-on-focus="true"', false)
+            ->assertSee('data-hide-placeholder-option="true"', false)
             ->assertSeeText('Parent Student')
             ->assertSeeText('Other Student')
             ->assertSee('data-option-name="Parent Student"', false)
             ->assertSeeText('اختر طالباً من الأعلى لعرض صفحة التقدم الكاملة.');
+
+        $searchableSelectScript = file_get_contents(resource_path('js/app.js'));
+        $this->assertStringContainsString("const searchInputMode = select.dataset.searchInput !== 'false'", $searchableSelectScript);
+        $this->assertStringContainsString("const openOnFocus = searchInputMode && select.dataset.openOnFocus !== 'false'", $searchableSelectScript);
+        $this->assertStringContainsString("const clearable = searchInputMode && select.dataset.clearable !== 'false'", $searchableSelectScript);
+        $this->assertStringContainsString("'searchPlaceholder' in select.dataset", $searchableSelectScript);
+        $this->assertStringContainsString("select.classList.contains('finance-amount-input__currency')", $searchableSelectScript);
+        $this->assertStringContainsString("searchable-select__chevron--input", $searchableSelectScript);
+        $this->assertStringContainsString('function createSearchableSelectChevron(inputMode = false)', $searchableSelectScript);
+        $this->assertStringContainsString('stroke-linecap="round" stroke-linejoin="round"', $searchableSelectScript);
+        $this->assertStringContainsString('function searchableSelectPlaceholderOption(select)', $searchableSelectScript);
+        $this->assertStringContainsString("const SEARCHABLE_SELECT_BINDING_VERSION = '6'", $searchableSelectScript);
+        $this->assertStringContainsString("options.find((option) => option.value === 'all')", $searchableSelectScript);
+        $this->assertStringContainsString("searchableSelectBinding(select).includes('filter')", $searchableSelectScript);
+        $this->assertStringContainsString("hasSelectedValue || search.value.trim() !== ''", $searchableSelectScript);
+        $this->assertStringContainsString('select.value = searchableSelectPlaceholderValue(select)', $searchableSelectScript);
+        $this->assertStringContainsString("'searchable-select--placeholder'", $searchableSelectScript);
+        $this->assertStringContainsString("clear.className = 'searchable-select__clear'", $searchableSelectScript);
+        $this->assertStringContainsString("clear.addEventListener('click'", $searchableSelectScript);
+        $this->assertStringContainsString("clear.addEventListener('pointerdown'", $searchableSelectScript);
+        $this->assertStringContainsString('suppressSearchableSelectOpen();', $searchableSelectScript);
+        $this->assertStringContainsString('searchableSelectOpenIsSuppressed()', $searchableSelectScript);
+        $this->assertStringContainsString('clear.blur();', $searchableSelectScript);
+        $this->assertStringContainsString("search.addEventListener('focus'", $searchableSelectScript);
+        $this->assertStringContainsString("buildSearchableSelectOptions(select, list, '')", $searchableSelectScript);
+
+        $searchableSelectCss = file_get_contents(resource_path('css/app.css'));
+        $this->assertStringContainsString('.searchable-select--input.searchable-select--clearable.searchable-select--selected .searchable-select__chevron--input {', $searchableSelectCss);
+        $this->assertStringContainsString('.searchable-select--input.searchable-select--clearable.searchable-select--selected .searchable-select__clear {', $searchableSelectCss);
+        $this->assertStringContainsString('.searchable-select--input.searchable-select--placeholder .searchable-select__clear {', $searchableSelectCss);
+        $this->assertStringContainsString('.searchable-select--input.searchable-select--clearable:has(.searchable-select__search--trigger:not(:placeholder-shown)) .searchable-select__clear {', $searchableSelectCss);
+        $this->assertStringContainsString('.searchable-select__chevron--input,', $searchableSelectCss);
+        $this->assertStringContainsString('.searchable-select__chevron svg {', $searchableSelectCss);
+        $this->assertStringContainsString('align-items: center;', $searchableSelectCss);
+        $this->assertStringContainsString('display: none;', $searchableSelectCss);
     }
 
     public function test_progress_enrollments_only_show_active_and_completed_rows(): void
@@ -439,6 +518,7 @@ class StudentProgressPageTest extends TestCase
             ->assertSeeText(__('workflow.student_progress.juz_progress.add_awqaf_test'))
             ->call('openAwqafTest', $juz->id)
             ->assertSet('showAwqafTestModal', true)
+            ->assertDontSee('wire:click="closeAwqafTest" class="pill-link"', false)
             ->call('saveAwqafTest')
             ->assertHasErrors(['awqafScore' => 'required_if'])
             ->set('awqafTestedOn', '2026-09-16')

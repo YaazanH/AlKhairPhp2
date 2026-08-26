@@ -20,4 +20,11 @@ class FatherJob extends Model
             'is_active' => 'boolean',
         ];
     }
+
+    protected static function booted(): void
+    {
+        static::saving(function (self $fatherJob): void {
+            $fatherJob->is_active = true;
+        });
+    }
 }
