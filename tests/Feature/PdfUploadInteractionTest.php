@@ -19,5 +19,7 @@ class PdfUploadInteractionTest extends TestCase
         $this->assertStringContainsString('unlockPdfUploadInput(event.target);', $script);
         $this->assertStringContainsString("input[type='file'][data-pdf-upload-lock-state]", $styles);
         $this->assertStringContainsString("input[type='file'][data-pdf-upload-lock-state='complete']", $styles);
+        $this->assertStringContainsString('clearPreviousPdfUploadErrors(input);', $script);
+        $this->assertStringContainsString("scope.querySelectorAll('[data-pdf-upload-error-for]')", $script);
     }
 }

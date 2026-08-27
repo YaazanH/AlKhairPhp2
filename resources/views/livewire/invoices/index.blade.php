@@ -304,7 +304,7 @@ new class extends Component {
                     <div>
                         <label class="mb-1 block text-sm font-medium">{{ __('finance.fields.invoice_scan') }}</label>
                         <input wire:model="invoice_scan" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
-                        @error('invoice_scan') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+                        @error('invoice_scan') <div data-pdf-upload-error-for="invoice_scan" class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
                         @if ($editingId && \App\Models\Invoice::query()->find($editingId)?->original_image_path)
                             <label class="mt-2 flex items-center gap-2 text-sm text-red-300"><input wire:model="remove_invoice_scan" type="checkbox" class="rounded">{{ __('finance.actions.remove_scan') }}</label>
                         @endif

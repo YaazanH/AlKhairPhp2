@@ -2227,6 +2227,21 @@ function unlockPdfUploadInput(input) {
     input.removeAttribute('aria-disabled');
 }
 
+function clearPreviousPdfUploadErrors(input) {
+    const model = livewireModelName(input);
+    const scope = input.closest('form') || input.closest('[wire\\:id]');
+
+    if (!model || !scope) {
+        return;
+    }
+
+    scope.querySelectorAll('[data-pdf-upload-error-for]').forEach((error) => {
+        if (error.dataset.pdfUploadErrorFor === model) {
+            error.remove();
+        }
+    });
+}
+
 function setPdfUploadActive(input, active) {
     if (!acceptsPdf(input)) {
         return;
@@ -2280,6 +2295,10 @@ function initializePdfUploads() {
         const input = event.target;
 
         if (acceptsPdf(input) && livewireModelName(input)) {
+            if ((input.files?.length || 0) > 0) {
+                clearPreviousPdfUploadErrors(input);
+            }
+
             const includesPdf = selectedFilesIncludePdf(input);
 
             if (!includesPdf) {
