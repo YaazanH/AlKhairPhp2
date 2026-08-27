@@ -5,7 +5,6 @@
     $isRtl = $textDirection === 'rtl';
     $sidebarBorderClass = $isRtl ? 'border-l' : 'border-r';
     $sidebarToggleInset = $isRtl ? 'right' : 'left';
-    $desktopDropdownAlign = $isRtl ? 'end' : 'start';
     $mobileIdentitySpacingClass = $isRtl ? 'mr-3' : 'ml-3';
     $sidebarGroups = app(\App\Services\SidebarNavigationService::class)->sidebarFor(auth()->user());
     $monthLabel = \App\Support\ArabicMonthFormatter::monthYear(now());
@@ -35,52 +34,50 @@
             <flux:sidebar sticky stashable class="app-sidebar-shell {{ $sidebarBorderClass }}">
                 <flux:sidebar.toggle class="lg:hidden" icon="x-mark" />
 
-                <div class="px-1 pt-2">
-                    <a href="{{ route('dashboard') }}" class="flex items-center gap-3" wire:navigate>
-                        <x-app-logo :title="__('ui.app.quran_course')" :subtitle="$monthLabel" />
-                    </a>
+                <div class="app-sidebar-scroll-region">
+                    <div class="px-1 pt-2">
+                        <a href="{{ route('dashboard') }}" class="flex items-center gap-3" wire:navigate>
+                            <x-app-logo :title="__('ui.app.quran_course')" :subtitle="$monthLabel" />
+                        </a>
+                    </div>
+
+                    <flux:navlist variant="outline" class="mt-5">
+                        @foreach ($sidebarGroups as $group)
+                            <flux:navlist.group :heading="$group['title']" class="grid">
+                                @foreach ($group['items'] as $item)
+                                    <flux:navlist.item :icon="$item['icon']" :href="$item['href']" :current="$item['current']" wire:navigate>{{ $item['label'] }}</flux:navlist.item>
+                                @endforeach
+                            </flux:navlist.group>
+                        @endforeach
+                    </flux:navlist>
                 </div>
 
-                <flux:navlist variant="outline" class="mt-5">
-                    @foreach ($sidebarGroups as $group)
-                        <flux:navlist.group :heading="$group['title']" class="grid">
-                            @foreach ($group['items'] as $item)
-                                <flux:navlist.item :icon="$item['icon']" :href="$item['href']" :current="$item['current']" wire:navigate>{{ $item['label'] }}</flux:navlist.item>
-                            @endforeach
-                        </flux:navlist.group>
-                    @endforeach
-                </flux:navlist>
-
-                <flux:spacer />
-
                 <div
-                    class="app-sidebar-account mt-4"
-                    x-data="{
-                        preserveScrollPosition() {
-                            const pageY = window.scrollY;
-                            const sidebar = this.$el.closest('.app-sidebar-shell');
-                            const sidebarY = sidebar?.scrollTop || 0;
-                            const restore = () => {
-                                window.scrollTo(0, pageY);
-                                if (sidebar) sidebar.scrollTop = sidebarY;
-                            };
-                            requestAnimationFrame(restore);
-                            [0, 50, 150, 300].forEach(delay => setTimeout(restore, delay));
-                        },
-                    }"
-                    x-on:click.capture="if ($event.target.closest('[data-flux-profile]')) preserveScrollPosition()"
+                    class="app-sidebar-account"
+                    x-data="{ open: false }"
+                    x-on:click.outside="open = false"
+                    x-on:keydown.escape.window="open = false"
+                    x-on:livewire:navigating.window="open = false"
                 >
-                    <flux:dropdown position="top" align="{{ $desktopDropdownAlign }}">
+                    <div class="relative">
                         <flux:profile
                             :name="auth()->user()->name"
                             :avatar="auth()->user()->profilePhotoUrl()"
                             :initials="auth()->user()->initials()"
                             icon-trailing="chevrons-up-down"
-                            x-on:mousedown.prevent
+                            class="w-full"
+                            x-on:click="open = ! open"
+                            x-bind:aria-expanded="open.toString()"
                         />
 
-                        <flux:menu class="w-[220px]">
-                            <flux:menu.radio.group>
+                        <div
+                            x-cloak
+                            x-show="open"
+                            x-transition.opacity.duration.100ms
+                            class="app-sidebar-account-menu w-full rounded-lg border border-zinc-200 bg-white p-[.3125rem] shadow-xl dark:border-zinc-600 dark:bg-zinc-700"
+                            role="menu"
+                        >
+                            <div>
                                 <div class="p-0 text-sm font-normal">
                                     <div class="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
                                         <x-user-avatar :user="auth()->user()" size="sm" />
@@ -91,20 +88,18 @@
                                         </div>
                                     </div>
                                 </div>
-                            </flux:menu.radio.group>
-
-                            <flux:menu.separator />
-
-                            <div class="px-2 py-2">
-                                <x-locale-switcher compact />
                             </div>
 
                             <flux:menu.separator />
 
-                            <flux:menu.radio.group>
-                                <flux:menu.item href="/settings/profile" icon="cog" wire:navigate>{{ __('ui.common.settings') }}</flux:menu.item>
+                            <x-account-menu-preferences />
+
+                            <flux:menu.separator />
+
+                            <div>
+                                <flux:menu.item href="{{ route('settings.profile') }}" icon="user-circle" wire:navigate>{{ __('ui.common.my_account') }}</flux:menu.item>
                                 <flux:menu.item href="{{ route('home') }}" icon="globe-alt">{{ __('ui.common.visit_site') }}</flux:menu.item>
-                            </flux:menu.radio.group>
+                            </div>
 
                             <flux:menu.separator />
 
@@ -114,8 +109,8 @@
                                     {{ __('Log Out') }}
                                 </flux:menu.item>
                             </form>
-                        </flux:menu>
-                    </flux:dropdown>
+                        </div>
+                    </div>
                 </div>
             </flux:sidebar>
 
@@ -153,13 +148,12 @@
 
                             <flux:menu.separator />
 
-                            <div class="px-2 py-2">
-                                <x-locale-switcher compact />
-                            </div>
+                            <x-account-menu-preferences />
 
                             <flux:menu.separator />
 
                             <flux:menu.radio.group>
+                                <flux:menu.item href="{{ route('settings.profile') }}" icon="user-circle" wire:navigate>{{ __('ui.common.my_account') }}</flux:menu.item>
                                 @can('finance.reports.view')
                                     <flux:menu.item href="{{ route('finance.reports.index') }}" icon="document-chart-bar" wire:navigate>{{ __('finance.reports.title') }}</flux:menu.item>
                                 @endcan

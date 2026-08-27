@@ -74,4 +74,9 @@ class Invoice extends Model
     {
         return $this->hasMany(Payment::class);
     }
+
+    public function pointMarketCourseLinks(): HasMany
+    {
+        return $this->hasMany(CoursePointMarketInvoice::class);
+    }
 }

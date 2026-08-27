@@ -75,4 +75,19 @@ class Course extends Model
     {
         return $this->hasMany(Curriculum::class);
     }
+
+    public function pointMarketDepartments(): HasMany
+    {
+        return $this->hasMany(CoursePointMarketDepartment::class);
+    }
+
+    public function pointMarketInvoices(): HasMany
+    {
+        return $this->hasMany(CoursePointMarketInvoice::class);
+    }
+
+    public function pointMarketItems(): HasMany
+    {
+        return $this->hasMany(CoursePointMarketItem::class);
+    }
 }

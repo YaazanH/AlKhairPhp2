@@ -2,13 +2,15 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Enrollment;
 use App\Models\Course;
+use App\Models\Enrollment;
 use App\Models\Group;
 use App\Services\AccessScopeService;
 use App\Services\PdfBrandingService;
+use App\Support\ExportFilename;
 use App\Support\PdfOptions;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Validation\Rule;
 use Mpdf\Mpdf;
 use Symfony\Component\HttpFoundation\Response;
@@ -60,7 +62,14 @@ class StudentAttendanceExportController extends Controller
 
         return response($mpdf->Output('', 'S'), 200, [
             'Content-Type' => 'application/pdf',
-            'Content-Disposition' => 'inline; filename="student-attendance.pdf"',
+            'Content-Disposition' => ExportFilename::inlinePdf([
+                __('exports.pdf.student_attendance'),
+                $course->name,
+                __('exports.pdf.date_range', [
+                    'from' => Carbon::parse($validated['date_from'])->format('d-m-Y'),
+                    'to' => Carbon::parse($validated['date_to'])->format('d-m-Y'),
+                ]),
+            ], 'student-attendance-'.$course->id.'.pdf'),
         ]);
     }
 }

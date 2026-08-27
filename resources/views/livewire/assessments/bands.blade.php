@@ -296,8 +296,8 @@ new class extends Component {
             @if ($bands->isEmpty())
                 <div class="admin-empty-state">{{ __('workflow.assessments.bands.table.empty') }}</div>
             @else
-                <div class="overflow-x-auto">
-                    <table class="min-w-full divide-y divide-neutral-200 text-sm dark:divide-neutral-700">
+                <div class="assessment-score-bands-table-scroll overflow-x-auto">
+                    <table class="assessment-score-bands-table min-w-full divide-y divide-neutral-200 text-sm dark:divide-neutral-700">
                         <thead>
                             <tr>
                                 <th class="px-5 py-3 text-left font-medium">{{ __('workflow.assessments.bands.table.headers.band') }}</th>

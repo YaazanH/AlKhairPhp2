@@ -332,7 +332,7 @@ new class extends Component {
     $previousQuarterLine = collect($report['previous_year_quarter_totals'])->values()->map(fn (array $row, int $index) => $quarterX($index).','.$quarterY((float) $row['expense']))->implode(' ');
 @endphp
 
-<div class="page-stack">
+<div class="page-stack finance-dashboard" data-finance-dashboard>
     <section class="page-hero relative z-20 overflow-visible p-6 lg:p-8" style="overflow: visible">
         <div class="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
             <div><div class="eyebrow">{{ __('ui.nav.finance') }}</div><h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('ui.nav.finance_dashboard') }}</h1><p class="mt-4 max-w-3xl text-neutral-200">{{ __('finance.dashboard.subtitle') }}</p></div>
@@ -353,7 +353,7 @@ new class extends Component {
     <section class="grid gap-6 xl:grid-cols-2">
         <div class="surface-panel p-5 lg:p-6">
             @if ($pieTotal > 0)
-                <div class="grid min-w-0 gap-5 lg:grid-cols-[minmax(0,.8fr)_minmax(17rem,1.2fr)] lg:items-center">
+                <div class="finance-expense-chart-layout grid min-w-0 gap-5 lg:grid-cols-[minmax(0,.8fr)_minmax(17rem,1.2fr)] lg:items-center">
                     <div class="min-w-0 self-start">
                         <h2 class="font-display text-2xl text-white">{{ __('finance.dashboard.expense_chart') }}</h2>
                         <div class="mt-4 space-y-2 pe-1">
@@ -369,12 +369,14 @@ new class extends Component {
                         </div>
                     </div>
 
-                    <svg viewBox="0 0 42 42" class="mx-auto h-72 w-72 max-w-full -rotate-90 overflow-visible lg:h-80 lg:w-80 xl:h-[22rem] xl:w-[22rem]" role="img" aria-label="{{ __('finance.dashboard.expense_chart') }}">
-                        @foreach ($report['category_totals'] as $index => $row)
-                            @php($portion = ((float) $row['expense'] / $pieTotal) * 100)
-                            <circle cx="21" cy="21" r="15.9155" fill="transparent" stroke="{{ $pieColors[$index % count($pieColors)] }}" stroke-width="8" stroke-dasharray="{{ $portion }} {{ 100 - $portion }}" stroke-dashoffset="{{ -$pieOffset }}" class="origin-center transition-all duration-200 hover:scale-105 hover:stroke-[10]"><title>{{ $row['category'] }}: {{ number_format($portion, 1) }}% · {{ app(FinanceService::class)->formatCurrencyAmount($row['expense'], $report['summary']['local_currency']) }}</title></circle>
-                            @php($pieOffset += $portion)
-                        @endforeach
+                    <svg viewBox="0 0 42 42" class="finance-expense-donut mx-auto h-72 w-72 max-w-full overflow-visible lg:h-80 lg:w-80 xl:h-[22rem] xl:w-[22rem]" role="img" aria-label="{{ __('finance.dashboard.expense_chart') }}">
+                        <g transform="rotate(-90 21 21)">
+                            @foreach ($report['category_totals'] as $index => $row)
+                                @php($portion = ((float) $row['expense'] / $pieTotal) * 100)
+                                <circle cx="21" cy="21" r="15.9155" fill="transparent" stroke="{{ $pieColors[$index % count($pieColors)] }}" stroke-width="8" stroke-dasharray="{{ $portion }} {{ 100 - $portion }}" stroke-dashoffset="{{ -$pieOffset }}" class="origin-center transition-all duration-200 hover:scale-105 hover:stroke-[10]"><title>{{ $row['category'] }}: {{ number_format($portion, 1) }}% · {{ app(FinanceService::class)->formatCurrencyAmount($row['expense'], $report['summary']['local_currency']) }}</title></circle>
+                                @php($pieOffset += $portion)
+                            @endforeach
+                        </g>
                     </svg>
                 </div>
             @else

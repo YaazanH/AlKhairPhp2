@@ -127,8 +127,8 @@ new class extends Component {
                 'integer',
                 Rule::exists('academic_years', 'id')->where(fn ($query) => $query->where('is_active', true)),
             ],
-            'starts_on' => ['nullable', 'date'],
-            'ends_on' => ['nullable', 'date', 'after_or_equal:starts_on'],
+            'starts_on' => ['required', 'date'],
+            'ends_on' => ['required', 'date', 'after_or_equal:starts_on'],
             'is_default' => ['boolean'],
             'awards_points' => ['boolean'],
         ];
@@ -660,7 +660,7 @@ new class extends Component {
             <div class="grid gap-4 md:grid-cols-2">
                 <div>
                     <label for="course-starts-on" class="mb-1 block text-sm font-medium">{{ __('crud.courses.form.fields.starts_on') }}</label>
-                    <input id="course-starts-on" wire:model="starts_on" type="date" class="w-full rounded-xl px-4 py-3 text-sm">
+                    <input id="course-starts-on" wire:model="starts_on" type="date" required class="w-full rounded-xl px-4 py-3 text-sm">
                     @error('starts_on')
                         <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                     @enderror
@@ -668,7 +668,7 @@ new class extends Component {
 
                 <div>
                     <label for="course-ends-on" class="mb-1 block text-sm font-medium">{{ __('crud.courses.form.fields.ends_on') }}</label>
-                    <input id="course-ends-on" wire:model="ends_on" type="date" class="w-full rounded-xl px-4 py-3 text-sm">
+                    <input id="course-ends-on" wire:model="ends_on" type="date" required class="w-full rounded-xl px-4 py-3 text-sm">
                     @error('ends_on')
                         <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                     @enderror

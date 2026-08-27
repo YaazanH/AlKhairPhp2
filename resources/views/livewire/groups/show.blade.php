@@ -278,8 +278,12 @@ new class extends Component {
             Teacher::query()
                 ->where('status', 'active')
                 ->where('is_helping', true)
-                ->whereDoesntHave('assignedGroups', fn ($query) => $query->whereKeyNot($this->currentGroup->id))
-                ->whereDoesntHave('assistedGroups', fn ($query) => $query->whereKeyNot($this->currentGroup->id))
+                ->whereDoesntHave('assignedGroups', fn ($query) => $query
+                    ->whereNull('course_finished_at')
+                    ->whereKeyNot($this->currentGroup->id))
+                ->whereDoesntHave('assistedGroups', fn ($query) => $query
+                    ->whereNull('course_finished_at')
+                    ->whereKeyNot($this->currentGroup->id))
         );
     }
 
@@ -372,7 +376,7 @@ new class extends Component {
         <div class="admin-toolbar p-5">
             <div><div class="admin-toolbar__title">{{ __('crud.groups.roster.title') }}</div></div>
             <div class="admin-toolbar__actions">
-                <a target="_blank" href="{{ route('groups.roster.pdf', $groupRecord) }}" class="pill-link pill-link--compact">PDF</a>
+                <a target="_blank" rel="noopener" href="{{ route('groups.roster.pdf', $groupRecord) }}" class="admin-icon-button" title="{{ __('crud.groups.roster.download_pdf_action') }}" aria-label="{{ __('crud.groups.roster.download_pdf_action') }}"><x-pdf-export-icon /></a>
                 @if (! $groupRecord->course_finished_at && ($groupRecord->course?->is_active ?? true))
                     @can('enrollments.create')
                         <button wire:click="$set('showAddStudentModal', true)" class="pill-link pill-link--accent pill-link--compact w-fit">{{ __('crud.groups.roster.add_student') }}</button>

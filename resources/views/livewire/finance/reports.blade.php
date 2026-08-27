@@ -399,7 +399,7 @@ new class extends Component {
 
             <div class="mt-5 flex flex-wrap gap-3">
                 @if ($ledgerReady)
-                    <a href="{{ route('finance.reports.ledger.export', array_merge($ledgerQuery, ['format' => 'pdf'])) }}" target="_blank" rel="noopener" class="pill-link pill-link--accent">{{ __('finance.reports.generate_report') }}</a>
+                    <a href="{{ route('finance.reports.ledger.export', array_merge($ledgerQuery, ['format' => 'pdf'])) }}" target="_blank" rel="noopener" class="admin-icon-button admin-icon-button--accent" title="{{ __('finance.reports.generate_report') }}" aria-label="{{ __('finance.reports.generate_report') }}"><x-pdf-export-icon /></a>
                 @else
                     <span class="pill-link opacity-60">{{ __('finance.reports.choose_box_currency_first') }}</span>
                 @endif

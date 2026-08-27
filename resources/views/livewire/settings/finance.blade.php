@@ -889,6 +889,26 @@ new class extends Component {
         session()->flash('status', __('finance.reports.legacy_report_import_finished'));
     }
 
+    public function deleteWithdrawalRequests(): void
+    {
+        $this->authorizePermission('finance.settings.manage');
+        abort_if((bool) AppSetting::groupValues('finance')->get('withdrawal_request_cleanup_finished'), 403);
+
+        $deleted = app(FinanceService::class)->deleteWithdrawalRequests(
+            auth()->user(),
+            __('finance.descriptions.withdrawal_cleanup'),
+        );
+
+        session()->flash('status', __('finance.messages.withdrawal_cleanup_deleted', ['count' => $deleted]));
+    }
+
+    public function finishWithdrawalRequestCleanup(): void
+    {
+        $this->authorizePermission('finance.settings.manage');
+        AppSetting::storeValue('finance', 'withdrawal_request_cleanup_finished', true, 'boolean');
+        session()->flash('status', __('finance.messages.withdrawal_cleanup_finished'));
+    }
+
     public function savePaymentMethod(): void
     {
         $this->authorizePermission('finance.settings.manage');
@@ -934,6 +954,7 @@ new class extends Component {
             'pullRequestKinds' => FinancePullRequestKind::query()->orderBy('mode')->orderBy('name')->get(),
             'users' => User::query()->where('is_active', true)->orderBy('name')->get(),
             'legacyReportImportEnabled' => ! (bool) AppSetting::groupValues('finance')->get('legacy_report_import_finished'),
+            'withdrawalRequestCleanupEnabled' => ! (bool) AppSetting::groupValues('finance')->get('withdrawal_request_cleanup_finished'),
         ];
     }
 
@@ -1348,8 +1369,8 @@ new class extends Component {
             <div class="mt-5 flex flex-col gap-3 sm:flex-row">
                 <input wire:model="transaction_lookup_no" readonly class="min-w-0 flex-1 rounded-xl px-4 py-3 opacity-75">
                 @unless ($maintaining_transaction_deleted)<button type="submit" form="transaction-maintenance-form" class="pill-link pill-link--accent">{{ __('crud.common.actions.save') }}</button>@endunless
-                @if ($maintainingInvoice && auth()->user()?->can('invoices.view'))
-                    <a href="{{ route('invoices.payments', ['invoice' => $maintainingInvoice, 'maintenance' => 1]) }}" wire:navigate class="pill-link">{{ __('finance.actions.edit_invoice') }}</a>
+                @if ($maintainingInvoice && auth()->user()?->can('finance.expense-requests.review'))
+                    <a href="{{ route('finance.expense-requests.index', ['edit_invoice' => $maintainingInvoice->id]) }}" wire:navigate class="pill-link">{{ __('finance.actions.edit_invoice') }}</a>
                 @endif
             </div>
         @else
@@ -1392,6 +1413,21 @@ new class extends Component {
         </div>
         @error('report_lookup_no')<div class="mt-2 text-sm text-red-400">{{ $message }}</div>@enderror
     </section>
+
+    @if ($withdrawalRequestCleanupEnabled)
+        <section class="surface-panel border-red-400/20 p-5 lg:p-6" data-withdrawal-request-cleanup>
+            <div class="admin-toolbar">
+                <div>
+                    <div class="admin-toolbar__title">{{ __('finance.settings.withdrawal_cleanup') }}</div>
+                    <p class="admin-toolbar__subtitle">{{ __('finance.settings.withdrawal_cleanup_help') }}</p>
+                </div>
+            </div>
+            <div class="mt-5 flex flex-col gap-3 sm:flex-row sm:justify-end">
+                <button wire:click="deleteWithdrawalRequests" wire:confirm="{{ __('finance.settings.withdrawal_cleanup_confirm') }}" type="button" class="pill-link pill-link--danger">{{ __('finance.settings.delete_withdrawal_requests') }}</button>
+                <button wire:click="finishWithdrawalRequestCleanup" wire:confirm="{{ __('finance.settings.withdrawal_cleanup_finish_confirm') }}" type="button" class="pill-link">{{ __('finance.settings.withdrawal_cleanup_finished_action') }}</button>
+            </div>
+        </section>
+    @endif
 
     @if ($legacyReportImportEnabled)
         <x-admin.modal :show="$showLegacyReportModal" :title="__('finance.reports.import_legacy_report')" close-method="closeLegacyReportModal" max-width="3xl">

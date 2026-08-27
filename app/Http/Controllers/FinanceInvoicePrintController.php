@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Invoice;
 use App\Services\DataMatrixSvgRenderer;
 use App\Services\FinanceReportService;
+use App\Support\ExportFilename;
 use App\Support\PdfOptions;
 use Illuminate\Http\Response;
 use Mpdf\Mpdf;
@@ -47,7 +48,10 @@ class FinanceInvoicePrintController extends Controller
 
         return response($mpdf->Output('', 'S'), 200, [
             'Content-Type' => 'application/pdf',
-            'Content-Disposition' => 'inline; filename="invoice-'.$invoice->id.'.pdf"',
+            'Content-Disposition' => ExportFilename::inlinePdf([
+                __('exports.pdf.finance_invoice'),
+                $invoice->invoice_no ?: $invoice->id,
+            ], 'invoice-'.$invoice->id.'.pdf'),
         ]);
     }
 }

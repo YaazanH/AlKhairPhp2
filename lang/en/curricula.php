@@ -16,7 +16,7 @@ return [
     'fields' => [
         'curriculum' => 'Curriculum', 'name' => 'Name', 'chapter_number' => 'Chapter number', 'course' => 'Course', 'grade' => 'Grade', 'subject' => 'Subject',
         'subjects' => 'Subjects', 'lessons' => 'Lessons', 'lesson' => 'Lesson', 'page_count' => 'Number of pages',
-        'importance' => 'Importance', 'resources' => 'Resources', 'book_name' => 'Book name', 'author' => 'Author',
+        'importance' => 'Importance', 'resources' => 'Resources', 'book' => 'Book', 'book_name' => 'Book name', 'author' => 'Author',
         'publisher' => 'Publisher', 'published_on' => 'Publishing year', 'edition_number' => 'Edition no.', 'edition_and_year' => 'Edition no. + year', 'year' => 'Year', 'date' => 'Date', 'teacher' => 'Teacher', 'status' => 'Status',
         'resource' => 'Resource', 'topic_name' => 'Topic name', 'topics' => 'Topics', 'pages_short' => 'pages',
         'general_lessons' => 'General subject lessons',

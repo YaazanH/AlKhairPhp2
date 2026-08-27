@@ -64,6 +64,8 @@ new class extends Component {
         .course-end-students-mobile { display: none; }
         .course-end-final-tests-dual { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; overflow: hidden; background: rgba(255, 255, 255, .07); }
         .course-end-final-tests-single { display: none; }
+        .course-end-final-tests-single--full { display: block; }
+        .course-end-final-tests-dual--inactive { display: none; }
         .course-end-final-tests-desktop-pagination { display: block; }
         .course-end-final-tests-mobile-pagination { display: none; }
         .course-end-final-tests-table-wrap { min-width: 0; overflow-x: auto; background: var(--app-panel); }
@@ -115,13 +117,15 @@ new class extends Component {
         @forelse($students as $row)<tr><td class="px-4 py-3">{{ $students->firstItem() + $loop->index }}</td><td class="px-4 py-3 text-white">{{ $row['name'] }}</td><td class="px-4 py-3">{{ $row['group'] }}</td><td class="px-4 py-3">{{ number_format($row['points_after']) }}</td><td class="px-4 py-3">{{ number_format($row['days_attended']) }}</td><td class="px-4 py-3">{{ number_format($row['memorized_pages']) }}</td><td class="px-4 py-3">{{ number_format($row['final_tests']) }}</td><td class="px-4 py-3">{{ $row['final_score'] !== null ? number_format($row['final_score'], 2) : '-' }}</td></tr>@empty<tr><td colspan="8" class="admin-empty-state">{{ __('course_end.empty') }}</td></tr>@endforelse
         </tbody></table></div>@if($students->hasPages())<div class="border-t border-white/8 px-5 py-4">{{ $students->links() }}</div>@endif
     </section>
-    <section class="surface-table">
-        <div class="admin-grid-meta"><div><div class="admin-grid-meta__title">{{ __('course_end.final_tests_title') }}</div><div class="admin-grid-meta__summary">{{ __('crud.common.badges.in_view', ['count' => number_format($finalTestsDesktop->total())]) }}</div></div><a href="{{ route('courses.end.final-tests.pdf', $course) }}" target="_blank" class="pill-link pill-link--accent">PDF</a></div>
+    <section class="surface-table" data-course-end-final-tests-layout="{{ $finalTestsDesktop->total() > 5 ? 'split' : 'full' }}">
+        <div class="admin-grid-meta"><div><div class="admin-grid-meta__title">{{ __('course_end.final_tests_title') }}</div><div class="admin-grid-meta__summary">{{ __('crud.common.badges.in_view', ['count' => number_format($finalTestsDesktop->total())]) }}</div></div><a href="{{ route('courses.end.final-tests.pdf', $course) }}" target="_blank" rel="noopener" class="admin-icon-button admin-icon-button--accent" title="PDF" aria-label="PDF"><x-pdf-export-icon /></a></div>
         @php($finalTestDesktopRows = $finalTestsDesktop->getCollection()->values())
         @php($finalTestMobileRows = $finalTestsMobile->getCollection()->values())
-        @php($finalTestColumns = $finalTestDesktopRows->isEmpty() ? collect([collect()]) : $finalTestDesktopRows->chunk(10))
-        <div class="course-end-final-tests-single">
-            <table class="course-end-final-tests-mobile-table text-sm">
+        @php($finalTestsUseTwoColumns = $finalTestsDesktop->total() > 5)
+        @php($finalTestColumnSize = max(1, (int) ceil($finalTestDesktopRows->count() / 2)))
+        @php($finalTestColumns = $finalTestDesktopRows->isEmpty() ? collect([collect()]) : $finalTestDesktopRows->chunk($finalTestColumnSize))
+        <div class="course-end-final-tests-single {{ $finalTestsUseTwoColumns ? '' : 'course-end-final-tests-single--full' }}">
+            <table class="course-end-final-tests-mobile-table w-full table-fixed text-sm">
                 <thead><tr><th>#</th><th>{{ __('course_end.table.name') }}</th><th>{{ __('course_end.table.juz') }}</th><th>{{ __('course_end.table.mark') }}</th><th>{{ __('course_end.table.grade') }}</th></tr></thead>
                 <tbody class="divide-y divide-white/6">
                     @forelse($finalTestMobileRows as $rowIndex => $row)
@@ -132,14 +136,14 @@ new class extends Component {
                 </tbody>
             </table>
         </div>
-        <div class="course-end-final-tests-dual">
-            @foreach($finalTestColumns as $columnRows)
+        <div class="course-end-final-tests-dual {{ $finalTestsUseTwoColumns ? '' : 'course-end-final-tests-dual--inactive' }}">
+            @foreach($finalTestColumns as $columnIndex => $columnRows)
                 <div class="course-end-final-tests-table-wrap">
                     <table class="course-end-table course-end-final-tests-table text-sm">
                         <thead><tr><th class="px-3 py-3">#</th><th class="course-end-final-tests-spacer" aria-hidden="true"></th><th class="px-3 py-3">{{ __('course_end.table.name') }}</th><th class="px-3 py-3">{{ __('course_end.table.juz') }}</th><th class="px-3 py-3">{{ __('course_end.table.mark') }}</th><th class="px-3 py-3">{{ __('course_end.table.grade') }}</th></tr></thead>
                         <tbody class="divide-y divide-white/6">
                             @forelse($columnRows as $rowIndex => $row)
-                                <tr><td class="px-3 py-3 text-neutral-400">{{ $finalTestsDesktop->firstItem() + $rowIndex }}</td><td class="course-end-final-tests-spacer" aria-hidden="true"></td><td class="px-3 py-3 font-medium text-white" title="{{ $row['name'] }}">{{ $row['name'] }}</td><td class="px-3 py-3">{{ $row['juz'] }}</td><td class="px-3 py-3">{{ $row['marks'] ?? \App\Support\PercentageFormatter::format($row['mark']) }}</td><td class="px-3 py-3 font-medium text-emerald-100">{{ __('course_end.grades.'.$row['grade']) }}</td></tr>
+                                <tr><td class="px-3 py-3 text-neutral-400">{{ $finalTestsDesktop->firstItem() + ($columnIndex * $finalTestColumnSize) + $rowIndex }}</td><td class="course-end-final-tests-spacer" aria-hidden="true"></td><td class="px-3 py-3 font-medium text-white" title="{{ $row['name'] }}">{{ $row['name'] }}</td><td class="px-3 py-3">{{ $row['juz'] }}</td><td class="px-3 py-3">{{ $row['marks'] ?? \App\Support\PercentageFormatter::format($row['mark']) }}</td><td class="px-3 py-3 font-medium text-emerald-100">{{ __('course_end.grades.'.$row['grade']) }}</td></tr>
                             @empty
                                 <tr><td colspan="6" class="admin-empty-state">{{ __('course_end.empty') }}</td></tr>
                             @endforelse
@@ -151,5 +155,10 @@ new class extends Component {
         @if($finalTestsDesktop->hasPages())<div class="course-end-final-tests-desktop-pagination border-t border-white/8 px-5 py-4">{{ $finalTestsDesktop->links() }}</div>@endif
         @if($finalTestsMobile->hasPages())<div class="course-end-final-tests-mobile-pagination border-t border-white/8 px-5 py-4">{{ $finalTestsMobile->links() }}</div>@endif
     </section>
-    <section class="surface-panel p-5 lg:p-6"><div class="admin-toolbar"><div class="admin-toolbar__title">{{ __('course_end.report_cards') }}</div><div class="admin-toolbar__actions"><a href="{{ route('courses.end.report-cards.create', $course) }}" class="pill-link pill-link--accent">{{ __('course_end.print_cards') }}</a></div></div></section>
+    <div class="grid gap-4 lg:grid-cols-2">
+        <section class="surface-panel p-5 lg:p-6"><div class="admin-toolbar"><div class="admin-toolbar__title">{{ __('course_end.report_cards') }}</div><div class="admin-toolbar__actions"><a href="{{ route('courses.end.report-cards.create', $course) }}" class="pill-link pill-link--accent">{{ __('course_end.print_cards') }}</a></div></div></section>
+        @can('finance.expense-requests.view')
+            <section class="surface-panel p-5 lg:p-6" data-course-point-market-tab><div class="admin-toolbar"><div class="admin-toolbar__title">{{ __('course_end.point_market.title') }}</div><div class="admin-toolbar__actions"><a href="{{ route('courses.end.point-market', $course) }}" wire:navigate class="pill-link pill-link--accent">{{ __('course_end.point_market.open') }}</a></div></div></section>
+        @endcan
+    </div>
 </div>

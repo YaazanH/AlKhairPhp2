@@ -11,6 +11,7 @@ return [
         'workspace' => 'مساحة العمل',
         'language' => 'اللغة',
         'settings' => 'الإعدادات',
+        'my_account' => 'حسابي',
         'current_account' => 'الحساب الحالي',
         'visit_site' => 'زيارة الموقع',
         'menu' => 'القائمة',

@@ -155,7 +155,13 @@ new class extends Component {
     {
         $this->academic_year_id = $this->academicYearIdForCourse($this->course_id);
 
-        if ($this->curriculum_id && ! Curriculum::query()->whereKey($this->curriculum_id)->where('course_id', $this->course_id)->where('is_active', true)->exists()) {
+        if ($this->curriculum_id && ! Curriculum::query()
+            ->whereKey($this->curriculum_id)
+            ->where('is_active', true)
+            ->where(fn ($query) => $query
+                ->whereNull('course_id')
+                ->orWhere('course_id', $this->course_id))
+            ->exists()) {
             $this->curriculum_id = null;
         }
     }
@@ -168,13 +174,20 @@ new class extends Component {
             'teacher_id' => ['required', 'exists:teachers,id'],
             'assistant_teacher_id' => ['nullable', 'exists:teachers,id', 'different:teacher_id'],
             'grade_level_id' => ['nullable', 'exists:grade_levels,id'],
-            'curriculum_id' => ['nullable', Rule::exists('curricula', 'id')->where(fn ($query) => $query->where('course_id', $this->course_id)->where('is_active', true))],
+            'curriculum_id' => ['nullable', Rule::exists('curricula', 'id')->where(fn ($query) => $query
+                ->where('is_active', true)
+                ->where(fn ($curriculumQuery) => $curriculumQuery
+                    ->whereNull('course_id')
+                    ->orWhere('course_id', $this->course_id)))],
             'name' => [
                 'required',
                 'string',
                 'max:255',
                 Rule::unique('groups', 'name')
-                    ->where(fn ($query) => $query->where('course_id', $this->course_id))
+                    ->where(fn ($query) => $query
+                        ->where('course_id', $this->course_id)
+                        ->whereNull('course_finished_at')
+                        ->whereNull('deleted_at'))
                     ->ignore($this->editingId),
             ],
             'capacity' => ['required', 'integer', 'min:0'],
@@ -610,11 +623,15 @@ new class extends Component {
                 ->where('status', 'active')
                 ->where('is_helping', true)
                 ->whereDoesntHave('assignedGroups', function ($query) {
+                    $query->whereNull('course_finished_at');
+
                     if ($this->editingId) {
                         $query->whereKeyNot($this->editingId);
                     }
                 })
                 ->whereDoesntHave('assistedGroups', function ($query) {
+                    $query->whereNull('course_finished_at');
+
                     if ($this->editingId) {
                         $query->whereKeyNot($this->editingId);
                     }
@@ -724,7 +741,16 @@ new class extends Component {
             <div class="admin-empty-state">{{ __('crud.groups.table.empty') }}</div>
         @else
             <div class="overflow-x-auto">
-                <table class="w-full table-fixed text-sm">
+                <table class="groups-index-table w-full table-fixed text-sm">
+                    <colgroup>
+                        <col class="w-[17%]">
+                        <col class="w-[20%]" data-groups-course-column="20">
+                        <col class="w-[18%]">
+                        <col class="w-[12%]">
+                        <col class="w-[10%]">
+                        <col class="w-[8%]" data-groups-status-column="8">
+                        <col class="w-[15%]">
+                    </colgroup>
                     <thead>
                         <tr>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.groups.table.headers.group') }}</th>
@@ -855,7 +881,7 @@ new class extends Component {
                     <select id="group-curriculum" wire:model="curriculum_id" class="w-full rounded-xl px-4 py-3 text-sm">
                         <option value="">{{ __('curricula.options.no_curriculum') }}</option>
                         @foreach ($curricula as $curriculum)
-                            @continue($course_id && (int) $curriculum->course_id !== (int) $course_id)
+                            @continue($course_id && $curriculum->course_id && (int) $curriculum->course_id !== (int) $course_id)
                             <option value="{{ $curriculum->id }}">{{ $curriculum->name }}</option>
                         @endforeach
                     </select>
@@ -1107,8 +1133,8 @@ new class extends Component {
                                 <a href="{{ route('groups.roster.export', $rosterGroup) }}" class="pill-link pill-link--accent">
                                     {{ __('crud.groups.roster.download_action') }}
                                 </a>
-                                <a href="{{ route('groups.roster.pdf', $rosterGroup) }}" target="_blank" rel="noopener" class="pill-link">
-                                    {{ __('crud.groups.roster.download_pdf_action') }}
+                                <a href="{{ route('groups.roster.pdf', $rosterGroup) }}" target="_blank" rel="noopener" class="admin-icon-button" title="{{ __('crud.groups.roster.download_pdf_action') }}" aria-label="{{ __('crud.groups.roster.download_pdf_action') }}">
+                                    <x-pdf-export-icon />
                                 </a>
                             </div>
                         @endif

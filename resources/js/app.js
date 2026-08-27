@@ -227,7 +227,7 @@ window.AdminConfirm = {
 document.addEventListener('DOMContentLoaded', registerAdminConfirmListeners);
 document.addEventListener('livewire:navigated', registerAdminConfirmListeners);
 
-const SEARCHABLE_SELECT_BINDING_VERSION = '6';
+const SEARCHABLE_SELECT_BINDING_VERSION = '7';
 let searchableSelectOpenSuppressedUntil = 0;
 
 function suppressSearchableSelectOpen(duration = 400) {
@@ -337,7 +337,11 @@ function buildSearchableSelectOptions(select, list, query = '') {
     const placeholderOption = searchableSelectPlaceholderOption(select);
     let visibleCount = 0;
 
-    list.replaceChildren();
+    // Avoid replaceChildren(), which is unreliable on the older WebKit
+    // versions still used by some managed iPads and Macs.
+    while (list.firstChild) {
+        list.removeChild(list.firstChild);
+    }
 
     options.forEach((option) => {
         if (option.disabled || option.hidden) {
@@ -380,6 +384,11 @@ function buildSearchableSelectOptions(select, list, query = '') {
         if (option.value === '') {
             item.classList.add('searchable-select__option--placeholder');
         }
+
+        // Safari can move focus away from the search input before dispatching
+        // the option's click. Keep focus in the combobox until the selection is
+        // committed so focusout cannot hide the option underneath the pointer.
+        item.addEventListener('mousedown', (event) => event.preventDefault());
 
         item.addEventListener('click', () => {
             if (select.dataset.financeCurrencyRequired === 'true' || select.dataset.searchSelectionRequired === 'true') {
@@ -719,18 +728,26 @@ function enhanceSearchableSelect(select) {
                 return;
             }
 
-            if (searchSelectionRequired) {
-                const selectedOption = select.options[select.selectedIndex];
-                const selectedLabel = selectedOption?.value ? selectedOption.textContent.trim() : '';
-                const valid = searchSelectionConfirmed
-                    && select.value !== ''
-                    && search.value.trim() === selectedLabel;
+            // WebKit frequently reports a null relatedTarget for taps inside
+            // the option list. Deferring the close lets that tap finish first.
+            window.setTimeout(() => {
+                if (document.activeElement instanceof Node && wrapper.contains(document.activeElement)) {
+                    return;
+                }
 
-                updateRequiredSelectionValidity(valid);
-            }
+                if (searchSelectionRequired) {
+                    const selectedOption = select.options[select.selectedIndex];
+                    const selectedLabel = selectedOption?.value ? selectedOption.textContent.trim() : '';
+                    const valid = searchSelectionConfirmed
+                        && select.value !== ''
+                        && search.value.trim() === selectedLabel;
 
-            closeSearchableSelect(wrapper);
-            search.setAttribute('aria-expanded', 'false');
+                    updateRequiredSelectionValidity(valid);
+                }
+
+                closeSearchableSelect(wrapper);
+                search.setAttribute('aria-expanded', 'false');
+            }, 0);
         });
     } else {
         button.addEventListener('click', () => {
@@ -845,81 +862,291 @@ if (document.body) {
     });
 }
 
-function restoreNativeDateInput(input) {
-    if (!(input instanceof HTMLInputElement) || input.type !== 'date') return;
+function formattedDateValue(value) {
+    const match = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
 
-    const formattedWrapper = input.nextElementSibling?.classList.contains('formatted-date-input')
-        ? input.nextElementSibling
-        : null;
-    const wasFormatted = input.dataset.dateFormatBound === 'true'
-        || input.classList.contains('formatted-date-input__native');
+    return match ? `${match[3]}-${match[2]}-${match[1]}` : '';
+}
 
-    formattedWrapper?.remove();
-    input.classList.remove('formatted-date-input__native');
-    delete input.dataset.dateFormatBound;
-    delete input.formattedDateSync;
+function dateInputPlaceholder() {
+    return document.documentElement.lang.toLowerCase().startsWith('ar') ? 'التاريخ' : 'Date';
+}
 
-    if (wasFormatted && input.getAttribute('tabindex') === '-1') {
-        input.removeAttribute('tabindex');
+function isDateInputLayoutClass(className) {
+    const normalizedClassName = className.replace(/^!/, '').replace(/^(?:sm|md|lg|xl|2xl):/, '');
+
+    return /^(?:w-|min-w-|max-w-|m[trblxy]?-|self-|justify-self-|col-span-|row-span-|flex-|basis-|grow|shrink)/.test(normalizedClassName);
+}
+
+function syncFormattedDateInputAppearance(input, wrapper, display) {
+    const internalClasses = ['formatted-date-input__native', 'date-input--empty', 'date-input--filled'];
+    const inputClasses = Array.from(input.classList)
+        .filter((className) => !internalClasses.includes(className));
+    const layoutClasses = inputClasses.filter(isDateInputLayoutClass);
+    const controlClasses = inputClasses.filter((className) => !isDateInputLayoutClass(className));
+
+    wrapper.className = ['formatted-date-input', ...layoutClasses].join(' ');
+    display.className = [...controlClasses, 'formatted-date-input__display'].join(' ');
+
+    if (input.hasAttribute('data-flux-control')) {
+        display.setAttribute('data-flux-control', '');
+    } else {
+        display.removeAttribute('data-flux-control');
     }
 
-    if (wasFormatted && input.getAttribute('aria-hidden') === 'true') {
-        input.removeAttribute('aria-hidden');
+    if (input.getAttribute('aria-invalid') === 'true') {
+        display.setAttribute('aria-invalid', 'true');
+    } else {
+        display.removeAttribute('aria-invalid');
+    }
+}
+
+function createDatePickerIcon() {
+    const namespace = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(namespace, 'svg');
+    const outline = document.createElementNS(namespace, 'rect');
+    const topLine = document.createElementNS(namespace, 'path');
+    const bindingLine = document.createElementNS(namespace, 'path');
+
+    svg.setAttribute('viewBox', '0 0 24 24');
+    svg.setAttribute('fill', 'none');
+    svg.setAttribute('stroke', 'currentColor');
+    svg.setAttribute('stroke-width', '1.8');
+    svg.setAttribute('stroke-linecap', 'round');
+    svg.setAttribute('stroke-linejoin', 'round');
+    svg.setAttribute('aria-hidden', 'true');
+    svg.classList.add('formatted-date-input__calendar-icon');
+    outline.setAttribute('x', '3');
+    outline.setAttribute('y', '5');
+    outline.setAttribute('width', '18');
+    outline.setAttribute('height', '16');
+    outline.setAttribute('rx', '2');
+    topLine.setAttribute('d', 'M3 10h18');
+    bindingLine.setAttribute('d', 'M8 3v4m8-4v4');
+    svg.append(outline, topLine, bindingLine);
+
+    return svg;
+}
+
+function createDateClearIcon() {
+    const namespace = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(namespace, 'svg');
+    const path = document.createElementNS(namespace, 'path');
+
+    svg.setAttribute('viewBox', '0 0 24 24');
+    svg.setAttribute('fill', 'none');
+    svg.setAttribute('stroke', 'currentColor');
+    svg.setAttribute('stroke-width', '2');
+    svg.setAttribute('stroke-linecap', 'round');
+    svg.setAttribute('aria-hidden', 'true');
+    svg.classList.add('formatted-date-input__clear-icon');
+    path.setAttribute('d', 'M6 6l12 12M18 6 6 18');
+    svg.append(path);
+
+    return svg;
+}
+
+let activeNativeDateInput = null;
+
+function closeActiveNativeDatePicker() {
+    if (!(activeNativeDateInput instanceof HTMLInputElement)) return;
+
+    activeNativeDateInput.blur();
+    activeNativeDateInput = null;
+}
+
+function openNativeDatePicker(input) {
+    if (input.disabled || input.readOnly) return;
+
+    closeActiveNativeDatePicker();
+    activeNativeDateInput = input;
+
+    try {
+        input.focus({ preventScroll: true });
+    } catch (_error) {
+        input.focus();
     }
 
-    const syncDatePlaceholderState = () => {
-        input.classList.toggle('date-input--empty', input.value === '');
-    };
-
-    syncDatePlaceholderState();
-
-    if (input.dataset.datePlaceholderBound !== 'true') {
-        input.dataset.datePlaceholderBound = 'true';
-        input.addEventListener('input', syncDatePlaceholderState);
-        input.addEventListener('change', syncDatePlaceholderState);
-    }
-
-    if (input.dataset.nativeDatePickerBound === 'true') return;
-
-    input.dataset.nativeDatePickerBound = 'true';
-    input.addEventListener('click', () => {
-        if (input.disabled || input.readOnly || typeof input.showPicker !== 'function') return;
-
+    if (typeof input.showPicker === 'function') {
         try {
             input.showPicker();
-        } catch (_error) {
-            // The visible native control still provides its browser picker fallback.
-        }
-    });
-}
 
-function initializeNativeDateInputs(root = document) {
-    if (root instanceof HTMLInputElement && root.type === 'date') {
-        restoreNativeDateInput(root);
+            return;
+        } catch (_error) {
+            // Older Safari versions fall back to a trusted native click.
+        }
     }
 
-    root.querySelectorAll?.('input[type="date"]').forEach(restoreNativeDateInput);
+    input.click();
 }
 
-document.addEventListener('DOMContentLoaded', () => initializeNativeDateInputs());
-document.addEventListener('livewire:navigated', () => initializeNativeDateInputs());
+function enhanceDateInput(input) {
+    if (!(input instanceof HTMLInputElement) || input.type !== 'date' || input.dataset.dateFormatNative === 'true') return;
+
+    const existingWrapper = input.nextElementSibling?.classList.contains('formatted-date-input')
+        ? input.nextElementSibling
+        : null;
+
+    if (input.dataset.dateFormatBound === 'true' && existingWrapper) {
+        const existingDisplay = existingWrapper.querySelector('.formatted-date-input__display');
+
+        if (existingDisplay instanceof HTMLInputElement) {
+            syncFormattedDateInputAppearance(input, existingWrapper, existingDisplay);
+        }
+
+        input.formattedDateSync?.();
+
+        return;
+    }
+
+    existingWrapper?.remove();
+    input.dataset.dateFormatBound = 'true';
+    input.classList.remove('date-input--empty', 'date-input--filled');
+    input.classList.add('formatted-date-input__native');
+    input.tabIndex = -1;
+    input.setAttribute('aria-hidden', 'true');
+
+    const wrapper = document.createElement('div');
+    wrapper.className = 'formatted-date-input';
+    wrapper.setAttribute('wire:ignore', '');
+
+    const display = document.createElement('input');
+    display.type = 'text';
+    display.inputMode = 'none';
+    display.autocomplete = 'off';
+    display.readOnly = true;
+    display.dir = 'ltr';
+    display.placeholder = dateInputPlaceholder();
+    display.className = 'formatted-date-input__display';
+    display.setAttribute('aria-label', input.getAttribute('aria-label') || display.placeholder);
+
+    const picker = document.createElement('button');
+    picker.type = 'button';
+    picker.tabIndex = -1;
+    picker.className = 'formatted-date-input__picker';
+    picker.setAttribute('aria-label', document.documentElement.lang.toLowerCase().startsWith('ar') ? 'اختيار التاريخ' : 'Choose date');
+    picker.append(createDatePickerIcon(), createDateClearIcon());
+
+    wrapper.append(display, picker);
+    input.insertAdjacentElement('afterend', wrapper);
+    syncFormattedDateInputAppearance(input, wrapper, display);
+
+    const stopDateActionEvent = (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+    };
+    const openPicker = (event) => {
+        stopDateActionEvent(event);
+        openNativeDatePicker(input);
+    };
+    const runPickerAction = (event) => {
+        stopDateActionEvent(event);
+
+        if (input.value === '') {
+            openNativeDatePicker(input);
+
+            return;
+        }
+
+        input.value = '';
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+        closeActiveNativeDatePicker();
+    };
+    const sync = () => {
+        syncFormattedDateInputAppearance(input, wrapper, display);
+        const isEmpty = input.value === '';
+        display.value = formattedDateValue(input.value);
+        display.placeholder = dateInputPlaceholder();
+        display.disabled = input.disabled;
+        display.readOnly = true;
+        display.classList.toggle('date-input--empty', isEmpty);
+        display.classList.toggle('date-input--filled', !isEmpty);
+        picker.disabled = input.disabled || input.readOnly;
+        picker.setAttribute('aria-label', isEmpty
+            ? (document.documentElement.lang.toLowerCase().startsWith('ar') ? 'اختيار التاريخ' : 'Choose date')
+            : (document.documentElement.lang.toLowerCase().startsWith('ar') ? 'مسح التاريخ' : 'Clear date'));
+        picker.title = picker.getAttribute('aria-label');
+        wrapper.classList.toggle('formatted-date-input--has-value', !isEmpty);
+        wrapper.hidden = input.hidden;
+    };
+
+    input.formattedDateSync = sync;
+    display.addEventListener('click', openPicker);
+    display.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' || event.key === ' ' || event.key === 'ArrowDown') openPicker(event);
+    });
+    picker.addEventListener('click', runPickerAction);
+    input.addEventListener('input', sync);
+    input.addEventListener('change', () => {
+        sync();
+
+        if (activeNativeDateInput === input) closeActiveNativeDatePicker();
+    });
+    sync();
+}
+
+document.addEventListener('pointerdown', (event) => {
+    if (!(activeNativeDateInput instanceof HTMLInputElement)) return;
+
+    const wrapper = activeNativeDateInput.nextElementSibling;
+
+    if (wrapper instanceof Element && event.target instanceof Node && wrapper.contains(event.target)) return;
+
+    closeActiveNativeDatePicker();
+}, true);
+
+function cleanupOrphanedFormattedDateInputs() {
+    document.querySelectorAll('.formatted-date-input').forEach((wrapper) => {
+        const input = wrapper.previousElementSibling;
+
+        if (!(input instanceof HTMLInputElement) || input.type !== 'date') wrapper.remove();
+    });
+}
+
+function initializeFormattedDateInputs(root = document) {
+    cleanupOrphanedFormattedDateInputs();
+
+    if (root instanceof HTMLInputElement && root.type === 'date') enhanceDateInput(root);
+    root.querySelectorAll?.('input[type="date"]').forEach(enhanceDateInput);
+}
+
+let formattedDateInitializationTimer = null;
+function scheduleFormattedDateInitialization() {
+    if (formattedDateInitializationTimer) window.clearTimeout(formattedDateInitializationTimer);
+    window.requestAnimationFrame(() => initializeFormattedDateInputs());
+    formattedDateInitializationTimer = window.setTimeout(() => {
+        formattedDateInitializationTimer = null;
+        initializeFormattedDateInputs();
+    }, 160);
+}
+
+document.addEventListener('DOMContentLoaded', () => initializeFormattedDateInputs());
+document.addEventListener('livewire:navigated', () => initializeFormattedDateInputs());
 document.addEventListener('livewire:initialized', () => {
-    window.Livewire?.hook('morph.updated', ({ el }) => initializeNativeDateInputs(el));
-    window.Livewire?.hook('morph.added', ({ el }) => initializeNativeDateInputs(el));
+    scheduleFormattedDateInitialization();
+    window.Livewire?.hook('morph.updated', ({ el }) => {
+        if ((el instanceof HTMLInputElement && el.type === 'date') || el.querySelector?.('input[type="date"]')) {
+            scheduleFormattedDateInitialization();
+        }
+    });
+    window.Livewire?.hook('morph.added', ({ el }) => initializeFormattedDateInputs(el));
 });
 
-const nativeDateInputObserver = new MutationObserver((mutations) => {
-    mutations.forEach((mutation) => {
-        mutation.addedNodes.forEach((node) => {
-            if (node instanceof Element) initializeNativeDateInputs(node);
+const formattedDateObserver = new MutationObserver((mutations) => {
+    const datesChanged = mutations.some((mutation) => {
+        return [...mutation.addedNodes, ...mutation.removedNodes].some((node) => {
+            return node instanceof Element && (node.matches('input[type="date"], .formatted-date-input') || node.querySelector('input[type="date"]'));
         });
     });
+
+    if (datesChanged) scheduleFormattedDateInitialization();
 });
 
 if (document.body) {
-    nativeDateInputObserver.observe(document.body, { childList: true, subtree: true });
+    formattedDateObserver.observe(document.body, { childList: true, subtree: true });
 } else {
-    document.addEventListener('DOMContentLoaded', () => nativeDateInputObserver.observe(document.body, { childList: true, subtree: true }));
+    document.addEventListener('DOMContentLoaded', () => formattedDateObserver.observe(document.body, { childList: true, subtree: true }));
 }
 
 function createMobileFilterIcon() {
@@ -1054,6 +1281,107 @@ function initializeMobileTableHeaderActions(toolbar) {
     });
 }
 
+let mobileTableFilterScrollY = null;
+
+function isMobileTableFilterPopoverOpen(toolbar) {
+    if (!(toolbar instanceof HTMLElement) || !toolbar.hasAttribute('popover')) return false;
+
+    try {
+        return toolbar.matches(':popover-open');
+    } catch {
+        return toolbar.dataset.mobileTableFilterTopLayer === 'true';
+    }
+}
+
+function ensureMobileTableFilterBackdrop() {
+    let backdrop = document.querySelector('[data-mobile-table-filter-backdrop]');
+
+    if (!backdrop) {
+        backdrop = document.createElement('div');
+        backdrop.className = 'mobile-table-filter-backdrop';
+        backdrop.dataset.mobileTableFilterBackdrop = '';
+        backdrop.setAttribute('aria-hidden', 'true');
+        document.body.append(backdrop);
+    }
+
+    return backdrop;
+}
+
+function lockMobileTableFilterViewport() {
+    if (mobileTableFilterScrollY === null) {
+        mobileTableFilterScrollY = window.scrollY;
+        document.body.style.setProperty('--mobile-table-filter-scroll-y', `${mobileTableFilterScrollY}px`);
+    }
+
+    document.documentElement.classList.add('mobile-table-filters-active');
+    document.body.classList.add('mobile-table-filters-active');
+    ensureMobileTableFilterBackdrop();
+}
+
+function unlockMobileTableFilterViewport() {
+    const scrollY = mobileTableFilterScrollY;
+
+    document.documentElement.classList.remove('mobile-table-filters-active');
+    document.body.classList.remove('mobile-table-filters-active');
+    document.body.style.removeProperty('--mobile-table-filter-scroll-y');
+    document.querySelector('[data-mobile-table-filter-backdrop]')?.remove();
+    mobileTableFilterScrollY = null;
+
+    if (scrollY !== null) {
+        window.requestAnimationFrame(() => window.scrollTo(window.scrollX, scrollY));
+    }
+}
+
+function presentMobileTableFiltersInTopLayer(toolbar) {
+    if (!(toolbar instanceof HTMLElement)) return;
+
+    toolbar.setAttribute('role', 'dialog');
+    toolbar.setAttribute('aria-modal', 'true');
+    toolbar.setAttribute(
+        'aria-label',
+        toolbar.querySelector('[data-mobile-table-filter-open]')?.getAttribute('aria-label') || 'Search',
+    );
+
+    // Safari makes fixed descendants of backdrop-filter elements relative to
+    // that element. The browser top layer keeps this popup tied to the viewport
+    // without moving it out of its Livewire component.
+    if (typeof toolbar.showPopover !== 'function') {
+        toolbar.dataset.mobileTableFilterTopLayer = 'fallback';
+
+        return;
+    }
+
+    toolbar.setAttribute('popover', 'manual');
+
+    try {
+        if (!isMobileTableFilterPopoverOpen(toolbar)) {
+            toolbar.showPopover();
+        }
+        toolbar.dataset.mobileTableFilterTopLayer = 'true';
+    } catch {
+        toolbar.removeAttribute('popover');
+        toolbar.dataset.mobileTableFilterTopLayer = 'fallback';
+    }
+}
+
+function dismissMobileTableFilterTopLayer(toolbar) {
+    if (!(toolbar instanceof HTMLElement)) return;
+
+    if (typeof toolbar.hidePopover === 'function' && isMobileTableFilterPopoverOpen(toolbar)) {
+        try {
+            toolbar.hidePopover();
+        } catch {
+            // Removing the attribute below also restores the toolbar in place.
+        }
+    }
+
+    toolbar.removeAttribute('popover');
+    toolbar.removeAttribute('role');
+    toolbar.removeAttribute('aria-modal');
+    toolbar.removeAttribute('aria-label');
+    delete toolbar.dataset.mobileTableFilterTopLayer;
+}
+
 function initializeMobileTableFilters(root = document) {
     const toolbars = [];
     const selector = '.admin-grid-meta--controls .admin-toolbar__controls, [data-mobile-table-filter-controls]';
@@ -1123,6 +1451,17 @@ function initializeMobileTableFilters(root = document) {
         }
 
         toolbar.classList.toggle('mobile-table-filters--open', shouldRemainOpen);
+        const filterSurface = toolbar.closest('.surface-table, .surface-panel');
+
+        if (shouldRemainOpen) {
+            filterSurface?.classList.add('mobile-table-filter-surface--open');
+            lockMobileTableFilterViewport();
+            presentMobileTableFiltersInTopLayer(toolbar);
+        } else if (!filterSurface?.querySelector('.mobile-table-filters--open')) {
+            filterSurface?.classList.remove('mobile-table-filter-surface--open');
+            dismissMobileTableFilterTopLayer(toolbar);
+        }
+
         trigger.setAttribute('aria-expanded', shouldRemainOpen ? 'true' : 'false');
     });
 }
@@ -1130,21 +1469,39 @@ function initializeMobileTableFilters(root = document) {
 function openMobileTableFilters(toolbar) {
     if (!(toolbar instanceof Element)) return;
 
+    const openToolbar = document.querySelector('.mobile-table-filters--open');
+    if (openToolbar && openToolbar !== toolbar) {
+        closeMobileTableFilters(openToolbar);
+    }
+
     toolbar.classList.add('mobile-table-filters--open');
+    toolbar.closest('.surface-table, .surface-panel')
+        ?.classList.add('mobile-table-filter-surface--open');
     toolbar.querySelector('[data-mobile-table-filter-open]')?.setAttribute('aria-expanded', 'true');
     document.body.dataset.mobileTableFilterOwner = toolbar.dataset.mobileTableFilterKey || '';
-    document.body.classList.add('mobile-table-filters-active');
+    lockMobileTableFilterViewport();
+    presentMobileTableFiltersInTopLayer(toolbar);
 }
 
 function closeMobileTableFilters(toolbar) {
     if (toolbar instanceof Element) {
+        dismissMobileTableFilterTopLayer(toolbar);
         toolbar.classList.remove('mobile-table-filters--open');
+        toolbar.closest('.surface-table, .surface-panel')
+            ?.classList.remove('mobile-table-filter-surface--open');
         toolbar.querySelector('[data-mobile-table-filter-open]')?.setAttribute('aria-expanded', 'false');
         initializeMobileTableHeaderActions(toolbar);
     }
 
-    document.body.classList.remove('mobile-table-filters-active');
+    document.querySelectorAll('.mobile-table-filter-surface--open').forEach((surface) => {
+        surface.classList.remove('mobile-table-filter-surface--open');
+    });
+
     delete document.body.dataset.mobileTableFilterOwner;
+
+    if (!document.querySelector('.mobile-table-filters--open')) {
+        unlockMobileTableFilterViewport();
+    }
 
     // Closing a filter popup commonly coincides with a Livewire morph. Run once
     // after the current frame so its restored controls keep the mobile icons.
@@ -1850,6 +2207,26 @@ function updatePdfUploadForm(form) {
     });
 }
 
+function lockPdfUploadInput(input, state) {
+    if (!acceptsPdf(input)) {
+        return;
+    }
+
+    input.dataset.pdfUploadLockState = state;
+    input.disabled = true;
+    input.setAttribute('aria-disabled', 'true');
+}
+
+function unlockPdfUploadInput(input) {
+    if (!acceptsPdf(input) || !input.dataset.pdfUploadLockState) {
+        return;
+    }
+
+    delete input.dataset.pdfUploadLockState;
+    input.disabled = false;
+    input.removeAttribute('aria-disabled');
+}
+
 function setPdfUploadActive(input, active) {
     if (!acceptsPdf(input)) {
         return;
@@ -1885,6 +2262,11 @@ function initializePdfUploads() {
     document.querySelectorAll('input[type="file"]').forEach((input) => {
         if (acceptsPdf(input) && livewireModelName(input)) {
             pdfUploadStatus(input);
+
+            if (input.dataset.pdfUploadLockState) {
+                input.disabled = true;
+                input.setAttribute('aria-disabled', 'true');
+            }
         }
     });
 
@@ -1898,18 +2280,37 @@ function initializePdfUploads() {
         const input = event.target;
 
         if (acceptsPdf(input) && livewireModelName(input)) {
-            setPdfUploadActive(input, selectedFilesIncludePdf(input));
+            const includesPdf = selectedFilesIncludePdf(input);
+
+            if (!includesPdf) {
+                unlockPdfUploadInput(input);
+            }
+
+            setPdfUploadActive(input, includesPdf);
         }
     }, true);
 
     document.addEventListener('livewire-upload-start', (event) => {
         if (selectedFilesIncludePdf(event.target)) {
             setPdfUploadActive(event.target, true);
+            lockPdfUploadInput(event.target, 'uploading');
         }
     });
 
-    ['livewire-upload-finish', 'livewire-upload-error', 'livewire-upload-cancel'].forEach((eventName) => {
-        document.addEventListener(eventName, (event) => setPdfUploadActive(event.target, false));
+    document.addEventListener('livewire-upload-finish', (event) => {
+        if (!selectedFilesIncludePdf(event.target)) {
+            return;
+        }
+
+        setPdfUploadActive(event.target, false);
+        lockPdfUploadInput(event.target, 'complete');
+    });
+
+    ['livewire-upload-error', 'livewire-upload-cancel'].forEach((eventName) => {
+        document.addEventListener(eventName, (event) => {
+            setPdfUploadActive(event.target, false);
+            unlockPdfUploadInput(event.target);
+        });
     });
 
     document.addEventListener('submit', (event) => {
@@ -1933,3 +2334,117 @@ function initializePdfUploads() {
 document.addEventListener('DOMContentLoaded', initializePdfUploads);
 document.addEventListener('livewire:navigated', initializePdfUploads);
 document.addEventListener('livewire:commit', initializePdfUploads);
+
+const curriculumResourceColumnRules = {
+    index: { min: 64, max: 72 },
+    name: { min: 212, max: 372 },
+    author: { min: 128 },
+    publisher: { min: 128 },
+    edition: { min: 112 },
+    year: { min: 52, max: 110 },
+    book: { min: 80 },
+    actions: { min: 72 },
+};
+
+const curriculumResourceColumnGrowWeights = {
+    index: 0.05,
+    name: 0.275,
+    author: 0.16,
+    publisher: 0.16,
+    edition: 0.12,
+    year: 0.055,
+    book: 0.08,
+    actions: 0.10,
+};
+
+let curriculumResourceColumnFrame = null;
+
+function synchronizeCurriculumSubjectResourceColumns() {
+    curriculumResourceColumnFrame = null;
+
+    const tables = Array.from(document.querySelectorAll('[data-curriculum-subject-resource-grid]'));
+
+    if (!tables.length) {
+        return;
+    }
+
+    const columnNames = Object.keys(curriculumResourceColumnRules);
+    const widths = columnNames.map((name) => curriculumResourceColumnRules[name].min);
+
+    tables.forEach((table) => table.classList.add('curriculum-subject-resource-grid--measuring'));
+
+    tables.forEach((table) => {
+        table.querySelectorAll('tr').forEach((row) => {
+            if (row.cells.length !== columnNames.length) {
+                return;
+            }
+
+            Array.from(row.cells).forEach((cell, index) => {
+                const rules = curriculumResourceColumnRules[columnNames[index]];
+                const measuredWidth = Math.ceil(cell.getBoundingClientRect().width);
+                const boundedWidth = rules.max ? Math.min(measuredWidth, rules.max) : measuredWidth;
+
+                widths[index] = Math.max(widths[index], boundedWidth);
+            });
+        });
+    });
+
+    tables.forEach((table) => table.classList.remove('curriculum-subject-resource-grid--measuring'));
+
+    const availableWidth = Math.max(...tables.map((table) => table.parentElement?.clientWidth || 0));
+    const measuredTotal = widths.reduce((total, width) => total + width, 0);
+
+    if (availableWidth > measuredTotal) {
+        const extraWidth = availableWidth - measuredTotal;
+        let distributedWidth = 0;
+
+        columnNames.forEach((name, index) => {
+            const addition = Math.floor(extraWidth * curriculumResourceColumnGrowWeights[name]);
+
+            widths[index] += addition;
+            distributedWidth += addition;
+        });
+
+        widths[columnNames.indexOf('name')] += extraWidth - distributedWidth;
+    }
+
+    const tableWidth = widths.reduce((total, width) => total + width, 0);
+
+    tables.forEach((table) => {
+        table.style.width = `${tableWidth}px`;
+        table.style.minWidth = `${tableWidth}px`;
+
+        columnNames.forEach((name, index) => {
+            const column = table.querySelector(`[data-curriculum-resource-column="${name}"]`);
+
+            if (column) {
+                column.style.width = `${widths[index]}px`;
+            }
+        });
+    });
+}
+
+function scheduleCurriculumSubjectResourceColumnSync() {
+    if (curriculumResourceColumnFrame !== null) {
+        window.cancelAnimationFrame(curriculumResourceColumnFrame);
+    }
+
+    curriculumResourceColumnFrame = window.requestAnimationFrame(synchronizeCurriculumSubjectResourceColumns);
+}
+
+document.addEventListener('DOMContentLoaded', scheduleCurriculumSubjectResourceColumnSync);
+document.addEventListener('livewire:navigated', scheduleCurriculumSubjectResourceColumnSync);
+window.addEventListener('resize', scheduleCurriculumSubjectResourceColumnSync, { passive: true });
+document.addEventListener('livewire:initialized', () => {
+    window.Livewire?.hook('morph.updated', ({ el }) => {
+        if (el.matches?.('[data-curriculum-subject-resource-grid]') || el.querySelector?.('[data-curriculum-subject-resource-grid]')) {
+            scheduleCurriculumSubjectResourceColumnSync();
+        }
+    });
+
+    window.Livewire?.hook('morph.added', ({ el }) => {
+        if (el.matches?.('[data-curriculum-subject-resource-grid]') || el.querySelector?.('[data-curriculum-subject-resource-grid]')) {
+            scheduleCurriculumSubjectResourceColumnSync();
+        }
+    });
+});

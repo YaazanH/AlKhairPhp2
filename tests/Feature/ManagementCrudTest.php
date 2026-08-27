@@ -99,8 +99,10 @@ class ManagementCrudTest extends TestCase
         $this->signIn();
         $school = School::create(['name' => 'Old School', 'is_active' => false]);
         School::create(['name' => 'Existing School', 'is_active' => true]);
+        $unusedSchool = School::create(['name' => 'Unused School', 'is_active' => true]);
         $job = FatherJob::create(['name' => 'Old Job', 'is_active' => false]);
         FatherJob::create(['name' => 'Existing Job', 'is_active' => true]);
+        $unusedJob = FatherJob::create(['name' => 'Unused Job', 'is_active' => true]);
         $parent = ParentProfile::create(['father_name' => 'Settings Parent', 'father_work' => ' old JOB ']);
         $student = Student::create(['parent_id' => $parent->id, 'first_name' => 'Settings', 'last_name' => 'Student', 'birth_date' => '2013-01-01', 'school_name' => ' old SCHOOL ', 'status' => 'active']);
 
@@ -110,12 +112,19 @@ class ManagementCrudTest extends TestCase
             ->assertSee('data-school-reference-edit-icon', false)
             ->assertSee('data-father-job-edit-icon', false)
             ->call('editSchoolReference', $school->id)
-            ->assertSee('data-school-reference-delete', false)
+            ->assertDontSee('data-school-reference-delete', false)
             ->assertDontSee('wire:model="school_reference_is_active"', false)
             ->call('cancelSchoolReference')
             ->call('editFatherJob', $job->id)
-            ->assertSee('data-father-job-delete', false)
+            ->assertDontSee('data-father-job-delete', false)
             ->assertDontSee('wire:model="father_job_is_active"', false);
+
+        Volt::test('settings.organization')
+            ->call('editSchoolReference', $unusedSchool->id)
+            ->assertSee('data-school-reference-delete', false)
+            ->call('cancelSchoolReference')
+            ->call('editFatherJob', $unusedJob->id)
+            ->assertSee('data-father-job-delete', false);
 
         Volt::test('settings.organization')->call('editSchoolReference', $school->id)->set('school_reference_name', 'New School')->call('saveSchoolReference')->assertHasNoErrors();
         Volt::test('settings.organization')->call('editFatherJob', $job->id)->set('father_job_name', 'New Job')->call('saveFatherJob')->assertHasNoErrors();
@@ -141,12 +150,18 @@ class ManagementCrudTest extends TestCase
             'is_active' => true,
         ]);
 
-        Volt::test('courses.index')
+        $courseComponent = Volt::test('courses.index')
             ->assertSet('academicYearFilter', (string) $academicYear->id)
             ->assertSee('course-academic-year-filter', false)
             ->set('academic_year_id', $academicYear->id)
             ->set('name', 'Quran Foundations')
             ->set('description', 'Foundational memorization track')
+            ->call('save')
+            ->assertHasErrors(['starts_on' => 'required', 'ends_on' => 'required']);
+
+        $courseComponent
+            ->set('starts_on', '2026-08-01')
+            ->set('ends_on', '2027-07-31')
             ->call('save')
             ->assertHasNoErrors();
 
@@ -1502,6 +1517,73 @@ class ManagementCrudTest extends TestCase
         ]);
     }
 
+    public function test_finished_groups_release_their_name_teacher_and_assistant_for_future_groups(): void
+    {
+        $this->signIn();
+
+        $academicYear = AcademicYear::create([
+            'name' => 'Reusable Group 2026/2027',
+            'starts_on' => '2026-08-01',
+            'ends_on' => '2027-07-31',
+            'is_current' => true,
+            'is_active' => true,
+        ]);
+        $teacher = Teacher::create([
+            'first_name' => 'Reusable',
+            'last_name' => 'Teacher',
+            'phone' => '0944003191',
+            'status' => 'active',
+            'is_helping' => true,
+        ]);
+        $assistant = Teacher::create([
+            'first_name' => 'Reusable',
+            'last_name' => 'Assistant',
+            'phone' => '0944003192',
+            'status' => 'active',
+            'is_helping' => true,
+        ]);
+        $oldCourse = Course::create([
+            'academic_year_id' => $academicYear->id,
+            'name' => 'Completed reusable course',
+            'is_active' => true,
+        ]);
+        $oldGroup = Group::create([
+            'course_id' => $oldCourse->id,
+            'academic_year_id' => $academicYear->id,
+            'teacher_id' => $teacher->id,
+            'assistant_teacher_id' => $assistant->id,
+            'name' => 'Reusable Group Name',
+            'capacity' => 20,
+            'is_active' => true,
+        ]);
+
+        app(CourseLifecycleService::class)->finish($oldCourse);
+        $this->assertNotNull($oldGroup->fresh()->course_finished_at);
+
+        $futureCourse = Course::create([
+            'academic_year_id' => $academicYear->id,
+            'name' => 'Future reusable course',
+            'is_active' => true,
+        ]);
+
+        Volt::test('groups.index')
+            ->set('course_id', $futureCourse->id)
+            ->set('teacher_id', $teacher->id)
+            ->set('assistant_teacher_id', $assistant->id)
+            ->set('name', 'Reusable Group Name')
+            ->set('capacity', '20')
+            ->set('is_active', true)
+            ->call('save')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('groups', [
+            'course_id' => $futureCourse->id,
+            'teacher_id' => $teacher->id,
+            'assistant_teacher_id' => $assistant->id,
+            'name' => 'Reusable Group Name',
+        ]);
+    }
+
     public function test_group_dashboard_card_template_can_be_selected_from_group_actions(): void
     {
         $this->signIn();
@@ -1687,7 +1769,8 @@ class ManagementCrudTest extends TestCase
         $this->assertStringContainsString('width: 11.7%;', $groupCss);
         $this->assertStringContainsString('width: 16.7%;', $groupCss);
         $this->assertStringContainsString('width: 6.75rem !important;', $groupCss);
-        $this->assertStringContainsString('width: 8.25rem !important;', $groupCss);
+        $this->assertStringContainsString('width: 56.75rem !important;', $groupCss);
+        $this->assertStringContainsString('width: 9rem !important;', $groupCss);
         $this->assertStringContainsString('.group-show-hero-layout > :first-child,', $groupCss);
         $this->assertStringContainsString('flex: 0 0 auto;', $groupCss);
 

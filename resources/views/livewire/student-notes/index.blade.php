@@ -371,7 +371,7 @@ new class extends Component
                     </div>
                     <div class="admin-modal__body">
             @if (auth()->user()->can('student-notes.create') || auth()->user()->can('student-notes.update'))
-                <form wire:submit="save" class="space-y-4">
+                <form wire:submit="save" class="date-control-peer-group space-y-4">
                     <div>
                         <label class="mb-1 block text-sm font-medium">{{ __('notes.form.fields.student') }}</label>
                         <select wire:model="student_id" data-search-input="true" data-open-on-focus="true" data-hide-placeholder-option="true" data-search-placeholder="{{ __('workflow.common.student_name_placeholder') }}" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
@@ -407,7 +407,7 @@ new class extends Component
 
                     <div>
                         <label class="mb-1 block text-sm font-medium">{{ __('notes.form.fields.noted_at') }}</label>
-                        <input wire:model="noted_at" type="date" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                        <input wire:model="noted_at" type="date" class="date-control--match-select w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
                         @error('noted_at') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
                     </div>
 

@@ -25,6 +25,71 @@ class ManagementPagesTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_pdf_actions_use_the_shared_icon_without_visible_text(): void
+    {
+        $pdfActions = [
+            'livewire/courses/end.blade.php' => ['courses.end.final-tests.pdf' => 1],
+            'livewire/courses/point-market.blade.php' => ['courses.end.point-market.departments.pdf' => 1],
+            'livewire/groups/show.blade.php' => ['groups.roster.pdf' => 1],
+            'livewire/groups/index.blade.php' => ['groups.roster.pdf' => 1],
+            'livewire/assessments/results.blade.php' => ['assessments.results.pdf' => 2],
+            'livewire/finance/reports.blade.php' => ['finance.reports.ledger.export' => 1],
+        ];
+
+        foreach ($pdfActions as $view => $routes) {
+            $source = file_get_contents(resource_path('views/'.$view));
+
+            foreach ($routes as $route => $expectedCount) {
+                $needle = "route('{$route}'";
+                $offset = 0;
+                $actions = [];
+
+                while (($routePosition = strpos($source, $needle, $offset)) !== false) {
+                    $actionStart = strrpos(substr($source, 0, $routePosition), '<a ');
+                    $actionEnd = strpos($source, '</a>', $routePosition);
+
+                    $this->assertNotFalse($actionStart);
+                    $this->assertNotFalse($actionEnd);
+
+                    $actions[] = substr($source, $actionStart, $actionEnd + 4 - $actionStart);
+                    $offset = $routePosition + strlen($needle);
+                }
+
+                $this->assertCount($expectedCount, $actions, $view.' should render each PDF action as an icon button.');
+
+                foreach ($actions as $action) {
+                    $this->assertStringContainsString('class="admin-icon-button', $action);
+                    $this->assertStringContainsString('title="', $action);
+                    $this->assertStringContainsString('aria-label="', $action);
+                    $this->assertStringContainsString('<x-pdf-export-icon />', $action);
+                    $this->assertStringNotContainsString('<span', $action);
+                }
+            }
+        }
+
+        $assessmentResults = file_get_contents(resource_path('views/livewire/assessments/results.blade.php'));
+        $styles = file_get_contents(resource_path('css/app.css'));
+
+        $this->assertStringContainsString('admin-icon-button assessment-results-filter-pdf-button', $assessmentResults);
+        $this->assertStringContainsString('.assessment-results-filter-pdf-button {', $styles);
+        $this->assertStringContainsString('flex-basis: 3.125rem;', $styles);
+    }
+
+    public function test_attendance_day_actions_use_the_view_symbol_instead_of_visible_text(): void
+    {
+        foreach ([
+            'livewire/student-attendance/index.blade.php',
+            'livewire/teachers/attendance.blade.php',
+        ] as $view) {
+            $source = file_get_contents(resource_path('views/'.$view));
+
+            $this->assertStringContainsString('data-attendance-day-view-icon', $source);
+            $this->assertStringContainsString('class="admin-icon-button"', $source);
+            $this->assertStringContainsString('aria-label="{{ __(\'workflow.', $source);
+            $this->assertStringContainsString('<circle cx="12" cy="12" r="2.25"', $source);
+        }
+    }
+
     public function test_mobile_table_headers_use_symbol_actions_and_single_column_filter_dialogs(): void
     {
         $script = file_get_contents(resource_path('js/app.js'));
@@ -105,6 +170,7 @@ class ManagementPagesTest extends TestCase
 
         $customIcons = [
             'achievement-star',
+            'arrows-right-left',
             'assessment-review',
             'book-open-pencil',
             'books-leaning',
@@ -152,6 +218,18 @@ class ManagementPagesTest extends TestCase
         $this->assertStringContainsString('data-attendance-badge="graduation-cap"', file_get_contents(resource_path('views/flux/icon/clipboard-student.blade.php')));
         $this->assertStringContainsString('data-enrollment-icon="profile-card-add"', file_get_contents(resource_path('views/flux/icon/enrollment-add.blade.php')));
         $this->assertStringContainsString('data-certificate-style="centered-medal"', file_get_contents(resource_path('views/flux/icon/certificate-landscape.blade.php')));
+
+        $memorizationIcon = file_get_contents(resource_path('views/flux/icon/quran-stand.blade.php'));
+        $this->assertStringContainsString('<x-sidebar-outline-icon', $memorizationIcon);
+        $this->assertStringContainsString('data-memorization-icon="traced-quran-on-rehal"', $memorizationIcon);
+        $this->assertStringNotContainsString("asset('images/sidebar/memorization.svg')", $memorizationIcon);
+        $this->assertFileDoesNotExist(public_path('images/sidebar/memorization.svg'));
+
+        $expenseIcon = file_get_contents(resource_path('views/flux/icon/expense-receipt.blade.php'));
+        $this->assertStringContainsString('<x-sidebar-outline-icon', $expenseIcon);
+        $this->assertStringContainsString('data-expense-icon="traced-rolled-receipt"', $expenseIcon);
+        $this->assertStringNotContainsString("asset('images/sidebar/expenses.svg')", $expenseIcon);
+        $this->assertFileDoesNotExist(public_path('images/sidebar/expenses.svg'));
     }
 
     public function test_secondary_student_tools_are_buttons_in_their_parent_pages(): void
@@ -276,6 +354,10 @@ class ManagementPagesTest extends TestCase
         $pdfResponse
             ->assertOk()
             ->assertHeader('content-type', 'application/pdf');
+        $this->assertStringContainsString(
+            rawurlencode(__('exports.pdf.group_roster')),
+            (string) $pdfResponse->headers->get('content-disposition'),
+        );
         $this->assertStringStartsWith('%PDF', (string) $pdfResponse->getContent());
     }
 
@@ -390,7 +472,10 @@ class ManagementPagesTest extends TestCase
 
         $this->get(route('groups.index', absolute: false))
             ->assertOk()
-            ->assertSeeText($teacherGroup->name);
+            ->assertSeeText($teacherGroup->name)
+            ->assertSee('class="groups-index-table', false)
+            ->assertSee('data-groups-course-column="20"', false)
+            ->assertSee('data-groups-status-column="8"', false);
 
         foreach ([
             route('reports.index', absolute: false),

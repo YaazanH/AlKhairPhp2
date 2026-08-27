@@ -855,6 +855,50 @@ class FinanceAndActivitiesTest extends TestCase
             ->assertSee($ledgerOnlyExpense->transaction_no);
     }
 
+    public function test_expenses_can_use_any_active_fund_and_active_dropdown_currency(): void
+    {
+        $this->signIn();
+
+        $service = app(FinanceService::class);
+        $fund = FinanceCashBox::query()->firstOrFail();
+        $localCurrency = $service->localCurrency();
+        $otherCurrency = FinanceCurrency::query()
+            ->where('is_active', true)
+            ->where('show_in_dropdowns', true)
+            ->whereKeyNot($localCurrency->id)
+            ->firstOrFail();
+        $pullKind = FinancePullRequestKind::query()->where('is_active', true)->firstOrFail();
+
+        $fund->currencies()->syncWithoutDetaching([$otherCurrency->id]);
+        $service->postTransaction([
+            'amount' => 100,
+            'cash_box_id' => $fund->id,
+            'currency_id' => $otherCurrency->id,
+            'direction' => 'in',
+            'type' => 'opening_balance',
+        ]);
+        $fund->currencies()->sync([$localCurrency->id]);
+
+        Volt::test('finance.expense-requests')
+            ->call('openCreateModal')
+            ->assertSee($fund->name)
+            ->assertSee($otherCurrency->code)
+            ->set('amount', '25')
+            ->set('currency_id', $otherCurrency->id)
+            ->set('cash_box_id', $fund->id)
+            ->set('finance_pull_request_kind_id', $pullKind->id)
+            ->call('submitRequest')
+            ->assertHasNoErrors();
+
+        $this->assertTrue($fund->currencies()->whereKey($otherCurrency->id)->exists());
+        $this->assertDatabaseHas('finance_transactions', [
+            'cash_box_id' => $fund->id,
+            'currency_id' => $otherCurrency->id,
+            'signed_amount' => -25,
+            'type' => 'expense',
+        ]);
+    }
+
     public function test_finance_revenue_entries_can_be_named_edited_and_reversed(): void
     {
         $this->signIn();
@@ -2366,7 +2410,6 @@ class FinanceAndActivitiesTest extends TestCase
         $currency = $service->localCurrency();
         $fund = FinanceCashBox::query()->firstOrFail();
         $kind = FinancePullRequestKind::query()->where('mode', FinancePullRequestKind::MODE_COUNT)->firstOrFail();
-        $category = FinanceCategory::query()->whereIn('type', ['expense', 'management'])->firstOrFail();
 
         $service->postTransaction(['cash_box_id' => $fund->id, 'currency_id' => $currency->id, 'type' => 'opening_balance', 'direction' => 'in', 'amount' => 100]);
         $request = FinanceRequest::query()->create([
@@ -2374,7 +2417,7 @@ class FinanceAndActivitiesTest extends TestCase
             'type' => FinanceRequest::TYPE_PULL,
             'status' => FinanceRequest::STATUS_PENDING,
             'finance_pull_request_kind_id' => $kind->id,
-            'finance_category_id' => $category->id,
+            'finance_category_id' => $kind->id,
             'requested_currency_id' => $currency->id,
             'requested_amount' => 60,
             'requested_count' => 6,
@@ -2390,6 +2433,59 @@ class FinanceAndActivitiesTest extends TestCase
         $this->assertSame('45.00', $request->fresh()->accepted_amount);
         $this->assertDatabaseHas('finance_transactions', ['id' => $transactionId, 'signed_amount' => -45]);
         $this->assertSame(2, FinanceTransaction::query()->count());
+    }
+
+    public function test_editing_an_expense_category_mode_changes_the_finalisation_popup(): void
+    {
+        $this->signIn();
+
+        $service = app(FinanceService::class);
+        $currency = $service->localCurrency();
+        $fund = FinanceCashBox::query()->firstOrFail();
+        $category = FinancePullRequestKind::query()->where('mode', FinancePullRequestKind::MODE_COUNT)->firstOrFail();
+
+        $service->postTransaction([
+            'cash_box_id' => $fund->id,
+            'currency_id' => $currency->id,
+            'type' => 'opening_balance',
+            'direction' => 'in',
+            'amount' => 100,
+        ]);
+        $request = FinanceRequest::query()->create([
+            'request_no' => $service->nextRequestNumber(FinanceRequest::TYPE_EXPENSE),
+            'type' => FinanceRequest::TYPE_EXPENSE,
+            'status' => FinanceRequest::STATUS_PENDING,
+            'finance_pull_request_kind_id' => $category->id,
+            'finance_category_id' => $category->id,
+            'requested_currency_id' => $currency->id,
+            'requested_amount' => 20,
+            'requested_count' => 2,
+            'requested_by' => auth()->id(),
+        ]);
+        $request = $service->acceptRequest($request, 20, $fund, auth()->user(), acceptedCount: 2);
+
+        Volt::test('finance.expense-requests')
+            ->call('openFinaliseModal', $request->id)
+            ->assertSee('data-count-finalisation-form', false)
+            ->assertDontSee('data-invoice-finalisation-form', false);
+
+        Volt::test('settings.finance')
+            ->call('editFinanceCategory', $category->id)
+            ->assertSet('finance_category_type', 'expense')
+            ->assertSet('finance_category_mode', FinancePullRequestKind::MODE_COUNT)
+            ->set('finance_category_mode', FinancePullRequestKind::MODE_INVOICE)
+            ->call('saveFinanceCategory')
+            ->assertHasNoErrors();
+
+        Volt::test('finance.expense-requests')
+            ->call('openFinaliseModal', $request->id)
+            ->assertSee('data-invoice-finalisation-form', false)
+            ->assertDontSee('data-count-finalisation-form', false);
+
+        $this->assertSame('Pending', __('finance.statuses.accepted', locale: 'en'));
+        $this->assertSame('Pending', __('finance.expense_statuses.accepted', locale: 'en'));
+        $this->assertSame('معلق', __('finance.statuses.accepted', locale: 'ar'));
+        $this->assertSame('معلق', __('finance.expense_statuses.accepted', locale: 'ar'));
     }
 
     public function test_deleted_transactions_remain_auditable_but_are_excluded_from_active_balances(): void
@@ -2408,6 +2504,89 @@ class FinanceAndActivitiesTest extends TestCase
         $this->assertSame(0.0, (float) $service->cashBoxBalances(auth()->user())->first()['currencies']->first()['balance']);
     }
 
+    public function test_deleting_an_expense_deletes_its_withdrawal_request_and_does_not_reuse_finance_numbers(): void
+    {
+        $this->signIn();
+
+        $service = app(FinanceService::class);
+        $currency = $service->localCurrency();
+        $fund = FinanceCashBox::query()->firstOrFail();
+        $kind = FinancePullRequestKind::query()->where('mode', FinancePullRequestKind::MODE_COUNT)->firstOrFail();
+        $category = FinanceCategory::query()->whereIn('type', ['expense', 'management'])->firstOrFail();
+        $service->postTransaction(['cash_box_id' => $fund->id, 'currency_id' => $currency->id, 'type' => 'opening_balance', 'direction' => 'in', 'amount' => 100]);
+
+        $request = FinanceRequest::query()->create([
+            'request_no' => $service->nextRequestNumber(FinanceRequest::TYPE_PULL),
+            'type' => FinanceRequest::TYPE_PULL,
+            'status' => FinanceRequest::STATUS_PENDING,
+            'finance_pull_request_kind_id' => $kind->id,
+            'finance_category_id' => $category->id,
+            'requested_currency_id' => $currency->id,
+            'requested_amount' => 25,
+            'requested_by' => auth()->id(),
+        ]);
+        $request = $service->acceptRequest($request, 25, $fund, auth()->user());
+        $expense = FinanceTransaction::query()->findOrFail($request->posted_transaction_id);
+        $oldRequestNumber = $request->request_no;
+        $oldExpenseNumber = $request->expense_no;
+        $oldTransactionNumber = $expense->transaction_no;
+
+        $service->deleteTransactionRecord($expense, auth()->user(), 'Remove linked expense');
+
+        $this->assertSoftDeleted('finance_requests', ['id' => $request->id]);
+        $this->assertSoftDeleted('finance_transactions', ['id' => $expense->id]);
+        $this->assertNotSame($oldRequestNumber, $service->nextRequestNumber(FinanceRequest::TYPE_PULL));
+        $this->assertNotSame($oldExpenseNumber, $service->nextExpenseNumber());
+
+        $newTransaction = $service->postTransaction([
+            'cash_box_id' => $fund->id,
+            'currency_id' => $currency->id,
+            'type' => 'opening_balance',
+            'direction' => 'in',
+            'amount' => 1,
+        ]);
+        $this->assertNotSame($oldTransactionNumber, $newTransaction->transaction_no);
+    }
+
+    public function test_one_time_withdrawal_cleanup_cascades_records_and_disappears_only_when_finished(): void
+    {
+        $this->signIn();
+
+        $service = app(FinanceService::class);
+        $currency = $service->localCurrency();
+        $fund = FinanceCashBox::query()->firstOrFail();
+        $kind = FinancePullRequestKind::query()->where('mode', FinancePullRequestKind::MODE_COUNT)->firstOrFail();
+        $category = FinanceCategory::query()->whereIn('type', ['expense', 'management'])->firstOrFail();
+        $service->postTransaction(['cash_box_id' => $fund->id, 'currency_id' => $currency->id, 'type' => 'opening_balance', 'direction' => 'in', 'amount' => 100]);
+        $request = FinanceRequest::query()->create([
+            'request_no' => $service->nextRequestNumber(FinanceRequest::TYPE_PULL),
+            'type' => FinanceRequest::TYPE_PULL,
+            'status' => FinanceRequest::STATUS_PENDING,
+            'finance_pull_request_kind_id' => $kind->id,
+            'finance_category_id' => $category->id,
+            'requested_currency_id' => $currency->id,
+            'requested_amount' => 15,
+            'requested_by' => auth()->id(),
+        ]);
+        $request = $service->acceptRequest($request, 15, $fund, auth()->user());
+
+        $component = Volt::test('settings.finance')
+            ->assertSee('data-withdrawal-request-cleanup', false)
+            ->call('deleteWithdrawalRequests')
+            ->assertHasNoErrors()
+            ->assertSee('data-withdrawal-request-cleanup', false);
+
+        $this->assertSoftDeleted('finance_requests', ['id' => $request->id]);
+        $this->assertSoftDeleted('finance_transactions', ['id' => $request->posted_transaction_id]);
+
+        $component
+            ->call('finishWithdrawalRequestCleanup')
+            ->assertHasNoErrors()
+            ->assertDontSee('data-withdrawal-request-cleanup', false);
+
+        $this->assertTrue((bool) AppSetting::groupValues('finance')->get('withdrawal_request_cleanup_finished'));
+    }
+
     public function test_invoice_expense_finalisation_uses_the_locked_invoice_total(): void
     {
         $this->signIn();
@@ -2417,14 +2596,13 @@ class FinanceAndActivitiesTest extends TestCase
         $currency = $service->localCurrency();
         $fund = FinanceCashBox::query()->firstOrFail();
         $kind = FinancePullRequestKind::query()->where('mode', FinancePullRequestKind::MODE_INVOICE)->firstOrFail();
-        $category = FinanceCategory::query()->whereIn('type', ['expense', 'management'])->firstOrFail();
         $service->postTransaction(['cash_box_id' => $fund->id, 'currency_id' => $currency->id, 'type' => 'opening_balance', 'direction' => 'in', 'amount' => 100]);
         $request = FinanceRequest::query()->create([
             'request_no' => $service->nextRequestNumber(FinanceRequest::TYPE_PULL),
             'type' => FinanceRequest::TYPE_PULL,
             'status' => FinanceRequest::STATUS_PENDING,
             'finance_pull_request_kind_id' => $kind->id,
-            'finance_category_id' => $category->id,
+            'finance_category_id' => $kind->id,
             'requested_currency_id' => $currency->id,
             'requested_amount' => 40,
             'requested_by' => auth()->id(),
@@ -2447,6 +2625,9 @@ class FinanceAndActivitiesTest extends TestCase
             ->assertSee('data-invoice-items-header-divider', false)
             ->assertSet('invoice_items', [])
             ->assertSee('data-invoice-item-draft-row', false)
+            ->assertSee('x-on:invoice-item-saved.window', false)
+            ->assertSee('x-ref="invoiceItemName"', false)
+            ->assertSee('wire:keydown.tab.prevent.stop="saveInvoiceItem"', false)
             ->assertDontSee('wire:click="addInvoiceItem"', false)
             ->assertDontSee('wire:model="invoice_notes"', false)
             ->assertDontSee('mb-5 soft-callout p-4', false)
@@ -2454,6 +2635,7 @@ class FinanceAndActivitiesTest extends TestCase
             ->set('invoice_item_quantity', '1')
             ->set('invoice_item_unit_price', '50')
             ->call('saveInvoiceItem')
+            ->assertDispatched('invoice-item-saved')
             ->assertSet('invoice_items.0.item_name', 'Supplies')
             ->assertSet('invoice_items.0.unit_price', '50')
             ->assertSee('data-invoice-item-edit', false)
@@ -2465,6 +2647,7 @@ class FinanceAndActivitiesTest extends TestCase
             ->assertDontSee('data-invoice-item-draft-row', false)
             ->set('invoice_item_unit_price', '55')
             ->call('saveInvoiceItem')
+            ->assertDispatched('invoice-item-saved')
             ->assertSet('editing_invoice_item_index', null)
             ->assertSet('invoice_items.0.unit_price', '55')
             ->assertSee('data-invoice-item-saved-row', false)
@@ -2532,8 +2715,22 @@ class FinanceAndActivitiesTest extends TestCase
             $this->assertStringContainsString($value, $sheet);
         }
 
+        $invoiceEditUrl = route('finance.expense-requests.index', ['edit_invoice' => $invoice->id]);
+        $this->get($invoiceEditUrl)
+            ->assertOk()
+            ->assertSee('data-invoice-items-table', false)
+            ->assertSee('>#<', false);
+
+        Volt::test('settings.finance')
+            ->set('transaction_lookup_no', $request->postedTransaction->transaction_no)
+            ->call('findTransaction')
+            ->assertSee($invoiceEditUrl, false)
+            ->assertDontSee(route('invoices.payments', ['invoice' => $invoice, 'maintenance' => 1]), false);
+
         Volt::test('finance.expense-requests')
             ->call('editInvoice', $invoice->id)
+            ->assertSee('data-invoice-items-table', false)
+            ->assertSee('>#<', false)
             ->set('original_invoice_no', 'VENDOR-11')
             ->set('invoice_issuer', 'Updated Vendor')
             ->set('invoice_date', now()->subDay()->toDateString())

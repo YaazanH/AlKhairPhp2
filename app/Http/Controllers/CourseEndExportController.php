@@ -6,6 +6,7 @@ use App\Models\Course;
 use App\Services\CourseEndService;
 use App\Services\PdfBrandingService;
 use App\Services\XlsxExportService;
+use App\Support\ExportFilename;
 use App\Support\PdfOptions;
 use Mpdf\Mpdf;
 use Symfony\Component\HttpFoundation\Response;
@@ -43,7 +44,10 @@ class CourseEndExportController extends Controller
 
         return response($mpdf->Output('', 'S'), 200, [
             'Content-Type' => 'application/pdf',
-            'Content-Disposition' => 'inline; filename="course-final-tests-'.$course->id.'.pdf"',
+            'Content-Disposition' => ExportFilename::inlinePdf([
+                __('exports.pdf.course_final_tests'),
+                $course->name,
+            ], 'course-final-tests-'.$course->id.'.pdf'),
         ]);
     }
 }

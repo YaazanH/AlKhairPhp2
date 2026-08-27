@@ -203,12 +203,20 @@ class StudentProgressPageTest extends TestCase
 
         $this->actingAs($parentUser);
 
-        Volt::test('students.progress', ['student' => $student])
+        $component = Volt::test('students.progress', ['student' => $student])
             ->assertViewHas('assessmentResults', fn ($results) => $results->doesntContain('id', $finalResult->id))
             ->assertViewHas('finalAssessmentResults', fn ($results) => $results->contains('id', $finalResult->id))
             ->call('showDetails', 'final-assessments')
             ->assertSee('data-student-progress-generic-table', false)
-            ->assertSeeText('Course Final Exam · Quran Track');
+            ->assertSee('w-[65%]', false)
+            ->assertSee('w-28 min-w-28', false)
+            ->assertSeeText('Course Final Exam')
+            ->assertDontSeeText('Course Final Exam · Quran Track');
+
+        $component
+            ->call('showDetails', 'assessments')
+            ->assertSeeText('Weekly Quiz')
+            ->assertDontSeeText('Weekly Quiz · Quran Track');
     }
 
     public function test_student_progress_limits_highlights_to_default_course_but_keeps_history_general(): void
@@ -376,7 +384,7 @@ class StudentProgressPageTest extends TestCase
         $this->assertStringContainsString('function createSearchableSelectChevron(inputMode = false)', $searchableSelectScript);
         $this->assertStringContainsString('stroke-linecap="round" stroke-linejoin="round"', $searchableSelectScript);
         $this->assertStringContainsString('function searchableSelectPlaceholderOption(select)', $searchableSelectScript);
-        $this->assertStringContainsString("const SEARCHABLE_SELECT_BINDING_VERSION = '6'", $searchableSelectScript);
+        $this->assertStringContainsString("const SEARCHABLE_SELECT_BINDING_VERSION = '7'", $searchableSelectScript);
         $this->assertStringContainsString("options.find((option) => option.value === 'all')", $searchableSelectScript);
         $this->assertStringContainsString("searchableSelectBinding(select).includes('filter')", $searchableSelectScript);
         $this->assertStringContainsString("hasSelectedValue || search.value.trim() !== ''", $searchableSelectScript);

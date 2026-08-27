@@ -57,6 +57,8 @@ return [
     ],
     'account' => [
         'eyebrow' => 'Account settings',
+        'title' => 'My Account',
+        'subtitle' => 'Manage your profile and reset your account password.',
         'nav' => [
             'meta' => 'Account',
             'profile' => 'Profile',
@@ -64,15 +66,17 @@ return [
             'appearance' => 'Appearance',
         ],
         'profile' => [
-            'title' => 'Profile settings',
-            'subtitle' => 'Update your profile photo. Account identity is managed by administration.',
+            'title' => 'My Account',
+            'subtitle' => 'Update your profile picture and username.',
             'form_title' => 'Profile information',
-            'form_subtitle' => 'You can change your photo here. Name and email changes are handled by administration.',
+            'form_subtitle' => 'Change your profile picture or username. Your email updates automatically with the username.',
             'fields' => [
                 'name' => 'Name',
+                'username' => 'Username',
                 'email' => 'Email',
                 'photo' => 'Profile photo',
             ],
+            'email_generated_help' => 'The email is generated automatically from your username.',
             'email_help' => 'Email is kept for account identity. Password recovery is handled by mosque management.',
             'identity_locked' => 'Contact administration to change account identity.',
             'photo_help' => 'Upload a profile photo. It saves automatically after selection.',
@@ -83,12 +87,15 @@ return [
         'password' => [
             'title' => 'Password settings',
             'subtitle' => 'Update the password used to access your dashboard account.',
-            'form_title' => 'Update password',
+            'form_title' => 'Reset password',
             'form_subtitle' => 'Use a strong password and keep it available only to the account owner.',
             'fields' => [
                 'current_password' => 'Current password',
                 'password' => 'New password',
                 'password_confirmation' => 'Confirm password',
+            ],
+            'actions' => [
+                'reset' => 'Reset password',
             ],
             'saved' => 'Password saved.',
         ],

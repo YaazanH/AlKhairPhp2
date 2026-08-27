@@ -11,6 +11,7 @@ use App\Models\FinanceReportTemplate;
 use App\Models\FinanceRequest;
 use App\Models\FinanceTransaction;
 use App\Models\User;
+use App\Support\ExportFilename;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Storage;
@@ -533,7 +534,7 @@ class FinanceReportService
             'default_font' => $defaultFont,
             'fontDir' => array_merge((new ConfigVariables)->getDefaults()['fontDir'], [public_path('fonts/dubai'), public_path('fonts/barcode')]),
             'fontdata' => (new FontVariables)->getDefaults()['fontdata'] + [
-                'dubai' => ['R' => 'Dubai-Regular.ttf', 'M' => 'Dubai-Medium.ttf', 'B' => 'Dubai-Bold.ttf', 'L' => 'Dubai-Light.ttf', 'useOTL' => 0xFF, 'useKashida' => 75],
+                'dubai' => ['R' => 'Dubai-Regular.ttf', 'M' => 'Dubai-Medium.ttf', 'B' => 'Dubai-Bold.ttf', 'L' => 'Dubai-Light.ttf', 'useOTL' => 0x80, 'useKashida' => 75],
                 'code39' => ['R' => '3OF9_NEW.TTF'],
             ],
             'format' => 'A4',
@@ -578,20 +579,16 @@ class FinanceReportService
 
     public function ledgerPdfFilename(array $report, ?FinanceGeneratedReport $generatedReport = null): string
     {
-        $cashBox = Str::slug((string) data_get($report, 'cash_box.name', 'cash-box'));
-        $currency = Str::lower(Str::slug((string) data_get($report, 'currency.code', 'currency')));
-        $start = preg_replace('/[^0-9-]+/', '', (string) ($report['start'] ?? now()->toDateString())) ?: now()->toDateString();
-        $end = preg_replace('/[^0-9-]+/', '', (string) ($report['end'] ?? $start)) ?: $start;
-        $reportId = $generatedReport?->id ? '-'.str_pad((string) $generatedReport->id, 6, '0', STR_PAD_LEFT) : '';
+        $start = Carbon::parse($report['start'] ?? now())->format('d-m-Y');
+        $end = Carbon::parse($report['end'] ?? $report['start'] ?? now())->format('d-m-Y');
 
-        return sprintf(
-            'finance-ledger%s-%s-%s-%s-to-%s.pdf',
-            $reportId,
-            $cashBox !== '' ? $cashBox : 'cash-box',
-            $currency !== '' ? $currency : 'currency',
-            $start,
-            $end,
-        );
+        return ExportFilename::pdf([
+            __('exports.pdf.finance_ledger'),
+            $generatedReport ? $this->reportNumber($generatedReport, $report) : null,
+            data_get($report, 'cash_box.name'),
+            data_get($report, 'currency.code'),
+            __('exports.pdf.date_range', ['from' => $start, 'to' => $end]),
+        ]);
     }
 
     public function ledgerExportRows(FinanceReportTemplate $template, FinanceCashBox $cashBox, FinanceCurrency $currency, string $startDate, string $endDate, ?User $issuer = null): array

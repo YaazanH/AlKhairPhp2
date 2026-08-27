@@ -4,7 +4,10 @@ namespace Tests\Feature\Auth;
 
 use App\Models\User;
 use Database\Seeders\RoleSeeder;
+use Illuminate\Contracts\Debug\ExceptionHandler;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Request;
+use Illuminate\Session\TokenMismatchException;
 use Illuminate\Support\Facades\Auth;
 use Tests\TestCase;
 
@@ -16,7 +19,9 @@ class AuthenticationTest extends TestCase
     {
         $response = $this->get('/login');
 
-        $response->assertStatus(200);
+        $response
+            ->assertStatus(200)
+            ->assertHeader('Cache-Control', 'max-age=0, must-revalidate, no-cache, no-store, private');
     }
 
     public function test_users_can_authenticate_using_the_login_screen(): void
@@ -35,6 +40,18 @@ class AuthenticationTest extends TestCase
             ->assertRedirect(route('dashboard', absolute: false));
 
         $this->assertAuthenticated();
+    }
+
+    public function test_an_expired_login_form_refreshes_instead_of_showing_a_419_page(): void
+    {
+        $request = Request::create('/login', 'POST');
+        $request->setRouteResolver(fn () => app('router')->getRoutes()->match($request));
+        $request->setLaravelSession(app('session')->driver());
+
+        $response = app(ExceptionHandler::class)->render($request, new TokenMismatchException);
+
+        $this->assertTrue($response->isRedirect(route('login')));
+        $this->assertSame(__('auth.session_expired'), session('status'));
     }
 
     public function test_users_can_authenticate_using_username_or_phone(): void

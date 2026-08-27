@@ -16,6 +16,7 @@
 <div
     wire:key="phone-input-{{ $inputId }}-{{ md5((string) $value) }}"
     class="grid grid-cols-[max-content_minmax(0,1fr)] gap-2"
+    data-phone-input
     dir="ltr"
     x-data="{
         open: false,

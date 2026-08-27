@@ -239,9 +239,9 @@ class DashboardTest extends TestCase
         $this->assertStringContainsString('.dashboard-performance-map__point--below-average {', $dashboardCss);
         $this->assertStringContainsString('.dashboard-performance-map__dimmed-layer {', $dashboardCss);
         $this->assertStringContainsString('opacity: 0.08;', $dashboardCss);
-        $this->assertStringContainsString('width: 0.39rem;', $dashboardCss);
+        $this->assertStringContainsString('width: 6px;', $dashboardCss);
         $this->assertStringContainsString('.dashboard-performance-map__point--above-average .dashboard-performance-map__dot {', $dashboardCss);
-        $this->assertStringContainsString('width: var(--performance-dot-size, 0.78rem);', $dashboardCss);
+        $this->assertStringContainsString('width: var(--performance-dot-size, 12px);', $dashboardCss);
         $this->assertStringNotContainsString('.dashboard-performance-map__dimmed-border-layer {', $dashboardCss);
         $this->assertStringContainsString('.dashboard-performance-map__point:hover .dashboard-performance-map__dot,', $dashboardCss);
         $this->assertStringContainsString('background: #34d399;', $dashboardCss);
@@ -587,14 +587,16 @@ class DashboardTest extends TestCase
             ->assertSee('dashboard-line-chart', false)
             ->assertSee('teacher-memorization-ranking-row', false)
             ->assertSee('teacher-points-card', false)
-            ->assertSee('teacher-points-desktop', false)
-            ->assertSee('teacher-points-mobile', false)
+            ->assertSee('teacher-points-table', false)
+            ->assertDontSee('teacher-points-mobile', false)
             ->assertSee('teacher-curriculum-card', false);
 
         $dashboardCss = file_get_contents(resource_path('css/app.css'));
         $this->assertStringContainsString('.teacher-points-card {', $dashboardCss);
         $this->assertStringContainsString('overflow: hidden !important;', $dashboardCss);
-        $this->assertStringContainsString('.teacher-points-mobile {', $dashboardCss);
+        $this->assertStringContainsString('.teacher-points-table table {', $dashboardCss);
+        $this->assertStringContainsString('min-width: 34rem;', $dashboardCss);
+        $this->assertStringNotContainsString('.teacher-points-mobile {', $dashboardCss);
         $this->assertStringContainsString('.teacher-memorization-ranking-row {', $dashboardCss);
 
         Volt::test('dashboard')

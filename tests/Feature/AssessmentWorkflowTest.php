@@ -20,6 +20,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Volt\Volt;
 use Mpdf\Mpdf;
 use setasign\Fpdi\PdfParser\StreamReader;
+use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 class AssessmentWorkflowTest extends TestCase
@@ -100,6 +101,8 @@ class AssessmentWorkflowTest extends TestCase
             ->assertSet('selectedGroupId', $enrollment->group_id)
             ->assertSee('assessment-results-single', false)
             ->assertSee('assessment-results-dual', false)
+            ->assertSee('assessment-results-single--full', false)
+            ->assertSee('assessment-results-dual--inactive', false)
             ->assertSee('assessment-result-status-chip', false)
             ->assertDontSee('assessment-student-attempt')
             ->assertDontSee('assessment-student-notes')
@@ -114,6 +117,34 @@ class AssessmentWorkflowTest extends TestCase
             'status' => 'passed',
             'attempt_no' => 1,
         ]);
+    }
+
+    public function test_result_roster_splits_into_two_tables_only_after_five_students(): void
+    {
+        [$assessment, $enrollment] = $this->assessmentContext();
+
+        foreach (range(2, 6) as $number) {
+            $student = Student::create([
+                'parent_id' => $enrollment->student->parent_id,
+                'first_name' => 'Assessment',
+                'last_name' => 'Student '.$number,
+                'birth_date' => '2014-05-12',
+                'status' => 'active',
+            ]);
+
+            Enrollment::create([
+                'student_id' => $student->id,
+                'group_id' => $enrollment->group_id,
+                'enrolled_at' => '2026-09-01',
+                'status' => 'active',
+            ]);
+        }
+
+        Volt::test('assessments.results', ['assessment' => $assessment])
+            ->assertSee('assessment-results-single', false)
+            ->assertSee('assessment-results-dual', false)
+            ->assertDontSee('assessment-results-single--full', false)
+            ->assertDontSee('assessment-results-dual--inactive', false);
     }
 
     public function test_score_bands_cannot_overlap_for_the_same_assessment_type(): void
@@ -343,6 +374,10 @@ class AssessmentWorkflowTest extends TestCase
         $pdfResponse = $this->get(route('assessments.results.pdf', $assessment, absolute: false))
             ->assertOk()
             ->assertHeader('content-type', 'application/pdf');
+        $this->assertStringContainsString(
+            rawurlencode(__('exports.pdf.assessment_results')),
+            (string) $pdfResponse->headers->get('content-disposition'),
+        );
         $this->assertStringStartsWith('%PDF', $pdfResponse->getContent());
 
         $pdfInspector = new Mpdf(['tempDir' => storage_path('app/mpdf')]);
@@ -377,8 +412,8 @@ class AssessmentWorkflowTest extends TestCase
 
         Volt::test('assessments.index')
             ->set('courseFilter', 'all')
-            ->assertSee('assessment-index-mobile', false)
-            ->assertSee('assessment-index-desktop', false)
+            ->assertDontSee('assessment-index-mobile', false)
+            ->assertSee('assessment-index-table-scroll', false)
             ->assertSeeInOrder(['Later Due Assessment', 'Earlier Due Assessment', $undatedAssessment->title]);
     }
 
@@ -394,7 +429,7 @@ class AssessmentWorkflowTest extends TestCase
 
         $this->assertFalse($teacherUser->can('assessment-results.record-scores'));
         foreach (['super_admin', 'admin', 'manager'] as $roleName) {
-            $this->assertTrue(\Spatie\Permission\Models\Role::findByName($roleName)->hasPermissionTo('assessment-results.record-scores'));
+            $this->assertTrue(Role::findByName($roleName)->hasPermissionTo('assessment-results.record-scores'));
         }
 
         $assignedTeacher = Teacher::create([

@@ -18,6 +18,7 @@ use App\Services\CurriculumProgressService;
 use App\Services\SidebarNavigationService;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\File;
 use Livewire\Volt\Volt;
 use Tests\TestCase;
 
@@ -31,7 +32,10 @@ class CurriculumModuleTest extends TestCase
 
         $manager = User::factory()->create();
         $manager->assignRole('manager');
-        $this->actingAs($manager)->get(route('curricula.index', absolute: false))->assertOk();
+        $this->actingAs($manager)->get(route('curricula.index', absolute: false))
+            ->assertOk()
+            ->assertSee('data-curricula-table-toolbar', false)
+            ->assertSee('data-curricula-add-icon', false);
         $this->actingAs($manager)->get(route('settings.curriculum-subjects', absolute: false))->assertOk();
 
         $regularTeacherUser = User::factory()->create();
@@ -65,9 +69,66 @@ class CurriculumModuleTest extends TestCase
         $platform = collect(app(SidebarNavigationService::class)->sidebarFor($user))->firstWhere('key', 'platform');
         $this->assertSame('books-leaning', collect($platform['items'])->firstWhere('key', 'curricula')['icon']);
         $this->assertFileExists(resource_path('views/flux/icon/books-leaning.blade.php'));
+        $icon = File::get(resource_path('views/flux/icon/books-leaning.blade.php'));
+        $this->assertStringContainsString('data-curricula-icon="three-standing-books-one-leaning"', $icon);
+        $this->assertStringNotContainsString('three-stacked-bookmarked-books', $icon);
 
         $this->assertSame(['dashboard', 'reports', 'curricula'], array_column($platform['items'], 'key'));
         $this->assertSame(__('ui.nav.my_curriculum'), $platform['items'][2]['label']);
+    }
+
+    public function test_subject_resource_tables_share_column_widths_and_show_book_upload_status(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $manager = User::factory()->create();
+        $manager->assignRole('manager');
+        $this->actingAs($manager);
+
+        $definition = CurriculumSubjectDefinition::query()->create([
+            'name' => 'Arabic',
+            'is_active' => true,
+        ]);
+
+        CurriculumResource::query()->create([
+            'subject_definition_id' => $definition->id,
+            'book_name' => 'Uploaded book',
+            'pdf_path' => 'curriculum/books/uploaded.pdf',
+            'is_active' => true,
+        ]);
+
+        CurriculumResource::query()->create([
+            'subject_definition_id' => $definition->id,
+            'book_name' => 'Resource without book',
+            'pdf_path' => null,
+            'is_active' => true,
+        ]);
+
+        Volt::test('settings.curriculum-subjects')
+            ->assertSee('data-curriculum-subject-resource-grid', false)
+            ->assertSee('data-curriculum-resource-column="name"', false)
+            ->assertSee('curriculum-subject-resource-name', false)
+            ->assertSee('data-curriculum-resource-edit-icon', false)
+            ->assertSee(__('curricula.fields.book'))
+            ->assertSee('curriculum-resource-book-status--available', false)
+            ->assertSee('>✓</span>', false)
+            ->assertSee('>--</span>', false);
+
+        $styles = file_get_contents(resource_path('css/app.css'));
+
+        $this->assertStringContainsString('.curriculum-subject-resource-grid {', $styles);
+        $this->assertStringContainsString('table-layout: fixed;', $styles);
+        $this->assertStringContainsString('.curriculum-subject-resource-name {', $styles);
+        $this->assertStringContainsString('.curriculum-resource-edit-button {', $styles);
+        $this->assertStringContainsString('padding-inline-end: 0.625rem !important;', $styles);
+        $this->assertStringContainsString('text-overflow: ellipsis;', $styles);
+        $this->assertStringContainsString('white-space: nowrap !important;', $styles);
+
+        $script = file_get_contents(resource_path('js/app.js'));
+        $this->assertStringContainsString('synchronizeCurriculumSubjectResourceColumns', $script);
+        $this->assertStringContainsString("name: { min: 212, max: 372 }", $script);
+        $this->assertStringContainsString("year: { min: 52, max: 110 }", $script);
+        $this->assertStringContainsString('curriculumResourceColumnGrowWeights', $script);
     }
 
     public function test_manager_can_build_a_curriculum_and_assign_it_to_a_group(): void

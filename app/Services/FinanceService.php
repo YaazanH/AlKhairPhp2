@@ -224,9 +224,9 @@ class FinanceService
     public function finaliseCountExpense(FinanceRequest $request, int $finalCount, float $remainingAmount, ?User $user = null): FinanceRequest
     {
         return DB::transaction(function () use ($finalCount, $remainingAmount, $request, $user): FinanceRequest {
-            $request->loadMissing(['acceptedCurrency', 'postedTransaction', 'pullRequestKind']);
+            $request->loadMissing(['acceptedCurrency', 'postedTransaction', 'pullRequestKind', 'category']);
 
-            if ($request->status !== FinanceRequest::STATUS_ACCEPTED || $request->pullRequestKind?->mode !== FinancePullRequestKind::MODE_COUNT) {
+            if ($request->status !== FinanceRequest::STATUS_ACCEPTED || $this->expenseFinalisationMode($request) !== FinancePullRequestKind::MODE_COUNT) {
                 throw ValidationException::withMessages(['request' => __('finance.validation.pull_request_not_settleable')]);
             }
 
@@ -256,10 +256,10 @@ class FinanceService
     public function finaliseInvoiceExpense(FinanceRequest $request, Invoice $invoice, ?User $user = null): FinanceRequest
     {
         return DB::transaction(function () use ($invoice, $request, $user): FinanceRequest {
-            $request->loadMissing(['postedTransaction', 'pullRequestKind']);
+            $request->loadMissing(['postedTransaction', 'pullRequestKind', 'category']);
             $invoice->refresh();
 
-            if ($request->status !== FinanceRequest::STATUS_ACCEPTED || $request->pullRequestKind?->mode !== FinancePullRequestKind::MODE_INVOICE) {
+            if ($request->status !== FinanceRequest::STATUS_ACCEPTED || $this->expenseFinalisationMode($request) !== FinancePullRequestKind::MODE_INVOICE) {
                 throw ValidationException::withMessages(['request' => __('finance.validation.pull_request_not_settleable')]);
             }
 
@@ -774,6 +774,7 @@ class FinanceService
         $prefix = $this->numberingPrefix('invoice_prefix', 'INV');
 
         $lastInvoiceNo = Invoice::query()
+            ->withTrashed()
             ->where('invoice_no', 'like', $prefix.'-%')
             ->latest('id')
             ->value('invoice_no');
@@ -786,6 +787,7 @@ class FinanceService
         $prefix = $this->requestNumberPrefix($type);
 
         $lastRequestNo = FinanceRequest::query()
+            ->withTrashed()
             ->where('request_no', 'like', $prefix.'-%')
             ->latest('id')
             ->value('request_no');
@@ -796,7 +798,7 @@ class FinanceService
     public function nextExpenseNumber(): string
     {
         $prefix = $this->numberingPrefix('expense_request_prefix', 'EXP');
-        $last = FinanceRequest::query()->where('expense_no', 'like', $prefix.'-%')->latest('id')->value('expense_no');
+        $last = FinanceRequest::query()->withTrashed()->where('expense_no', 'like', $prefix.'-%')->latest('id')->value('expense_no');
 
         return $this->sequencedNumber($prefix, $last, 6);
     }
@@ -978,6 +980,48 @@ class FinanceService
 
             $transactions = $query->get();
 
+            $requestIds = $transactions
+                ->flatMap(function (FinanceTransaction $row): array {
+                    $metadata = $row->metadata ?? [];
+
+                    return array_filter([
+                        $row->finance_request_id,
+                        $row->source_type === FinanceRequest::class ? $row->source_id : null,
+                        $metadata['parent_pull_request_id'] ?? null,
+                    ]);
+                })
+                ->map(fn ($id) => (int) $id)
+                ->unique()
+                ->values();
+
+            $requestIds = FinanceRequest::query()
+                ->whereIn('id', $requestIds)
+                ->whereIn('type', [FinanceRequest::TYPE_EXPENSE, FinanceRequest::TYPE_PULL])
+                ->pluck('id');
+
+            if ($requestIds->isNotEmpty()) {
+                $linkedTransactionRequestIds = FinanceTransaction::query()
+                    ->whereIn('metadata->parent_pull_request_id', $requestIds)
+                    ->pluck('finance_request_id')
+                    ->filter()
+                    ->map(fn ($id) => (int) $id);
+
+                $requestIds = $requestIds->merge($linkedTransactionRequestIds)->unique()->values();
+
+                $transactions = FinanceTransaction::query()
+                    ->where(function (Builder $linkedQuery) use ($requestIds, $transactions): void {
+                        $linkedQuery
+                            ->whereIn('id', $transactions->pluck('id'))
+                            ->orWhereIn('finance_request_id', $requestIds)
+                            ->orWhere(function (Builder $sourceQuery) use ($requestIds): void {
+                                $sourceQuery
+                                    ->where('source_type', FinanceRequest::class)
+                                    ->whereIn('source_id', $requestIds);
+                            });
+                    })
+                    ->get();
+            }
+
             foreach ($transactions as $row) {
                 $row->update([
                     'status' => 'deleted',
@@ -987,7 +1031,57 @@ class FinanceService
                 $row->delete();
             }
 
+            if ($requestIds->isNotEmpty()) {
+                Invoice::query()->whereIn('finance_request_id', $requestIds)->eachById(fn (Invoice $invoice) => $invoice->delete());
+                FinanceRequest::query()->whereIn('id', $requestIds)->eachById(fn (FinanceRequest $request) => $request->delete());
+            }
+
             return $transactions->count();
+        });
+    }
+
+    public function deleteWithdrawalRequests(?User $user = null, ?string $reason = null): int
+    {
+        return DB::transaction(function () use ($reason, $user): int {
+            $pullRequestIds = FinanceRequest::query()
+                ->where('type', FinanceRequest::TYPE_PULL)
+                ->pluck('id');
+
+            if ($pullRequestIds->isEmpty()) {
+                return 0;
+            }
+
+            $linkedRequestIds = FinanceTransaction::query()
+                ->whereIn('metadata->parent_pull_request_id', $pullRequestIds)
+                ->pluck('finance_request_id')
+                ->filter()
+                ->map(fn ($id) => (int) $id);
+            $allRequestIds = $pullRequestIds->merge($linkedRequestIds)->unique()->values();
+
+            FinanceTransaction::query()
+                ->where(function (Builder $query) use ($allRequestIds, $pullRequestIds): void {
+                    $query
+                        ->whereIn('finance_request_id', $allRequestIds)
+                        ->orWhere(function (Builder $sourceQuery) use ($allRequestIds): void {
+                            $sourceQuery
+                                ->where('source_type', FinanceRequest::class)
+                                ->whereIn('source_id', $allRequestIds);
+                        })
+                        ->orWhereIn('metadata->parent_pull_request_id', $pullRequestIds);
+                })
+                ->eachById(function (FinanceTransaction $transaction) use ($reason, $user): void {
+                    $transaction->update([
+                        'status' => 'deleted',
+                        'deleted_by' => $user?->id,
+                        'deletion_reason' => $reason,
+                    ]);
+                    $transaction->delete();
+                });
+
+            Invoice::query()->whereIn('finance_request_id', $allRequestIds)->eachById(fn (Invoice $invoice) => $invoice->delete());
+            FinanceRequest::query()->whereIn('id', $allRequestIds)->eachById(fn (FinanceRequest $request) => $request->delete());
+
+            return $pullRequestIds->count();
         });
     }
 
@@ -1441,6 +1535,16 @@ class FinanceService
         return $request->request_no;
     }
 
+    protected function expenseFinalisationMode(FinanceRequest $request): ?string
+    {
+        $request->loadMissing(['category', 'pullRequestKind']);
+        $categoryMode = $request->category?->categoryMode();
+
+        return in_array($categoryMode, FinancePullRequestKind::MODES, true)
+            ? $categoryMode
+            : $request->pullRequestKind?->mode;
+    }
+
     protected function ensureCashBoxSupportsCurrency(FinanceCashBox $cashBox, FinanceCurrency $currency): void
     {
         if ($cashBox->currencies()->whereKey($currency->id)->exists()) {
@@ -1589,6 +1693,7 @@ class FinanceService
         $prefix = $this->numberingPrefix('transaction_prefix', 'TX');
 
         $lastTransactionNo = FinanceTransaction::query()
+            ->withTrashed()
             ->where('transaction_no', 'like', $prefix.'-%')
             ->latest('id')
             ->value('transaction_no');

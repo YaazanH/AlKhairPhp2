@@ -11,6 +11,7 @@ return [
         'workspace' => 'Workspace',
         'language' => 'Language',
         'settings' => 'Settings',
+        'my_account' => 'My Account',
         'current_account' => 'Current Account',
         'visit_site' => 'Visit Site',
         'menu' => 'Menu',

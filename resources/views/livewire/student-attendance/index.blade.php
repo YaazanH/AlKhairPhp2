@@ -383,8 +383,11 @@ new class extends Component
                                 </td>
                                 <td class="px-5 py-4 lg:px-6">
                                     <div class="flex flex-wrap justify-end gap-2">
-                                        <a href="{{ route('student-attendance.show', $day) }}" wire:navigate class="pill-link pill-link--compact">
-                                            {{ __('workflow.student_attendance.days.table.view') }}
+                                        <a href="{{ route('student-attendance.show', $day) }}" wire:navigate class="admin-icon-button" title="{{ __('workflow.student_attendance.days.table.view') }}" aria-label="{{ __('workflow.student_attendance.days.table.view') }}" data-attendance-day-view-icon>
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12s3.75-6.75 9.75-6.75S21.75 12 21.75 12 18 18.75 12 18.75 2.25 12 2.25 12Z" />
+                                                <circle cx="12" cy="12" r="2.25" />
+                                            </svg>
                                         </a>
                                     </div>
                                 </td>
@@ -409,7 +412,7 @@ new class extends Component
         max-width="3xl"
         compact
     >
-        <form wire:submit="saveDay" class="space-y-4">
+        <form wire:submit="saveDay" class="date-control-peer-group space-y-4">
             <div class="grid gap-4 md:grid-cols-2">
                 <div>
                     <label for="attendance-day-course" class="mb-1 block text-sm font-medium">{{ __('workflow.student_attendance.days.form.course') }}</label>
@@ -432,7 +435,7 @@ new class extends Component
             <div class="grid gap-4 md:grid-cols-2">
                 <div>
                     <label for="attendance-day-date" class="mb-1 block text-sm font-medium">{{ __('workflow.student_attendance.days.form.attendance_date') }}</label>
-                    <input id="attendance-day-date" wire:model.live="attendance_date" value="{{ $attendance_date }}" type="date" class="h-12 min-h-12 w-full rounded-xl px-4 py-0 text-sm">
+                    <input id="attendance-day-date" wire:model.live="attendance_date" value="{{ $attendance_date }}" type="date" class="date-control--match-select h-12 min-h-12 w-full rounded-xl px-4 py-0 text-sm">
                     @error('attendance_date')
                         <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                     @enderror

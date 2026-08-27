@@ -76,10 +76,12 @@ new class extends Component {
 
     public ?int $school_reference_editing_id = null;
     public string $school_reference_name = '';
+    public bool $school_reference_in_use = false;
     public bool $showSchoolReferenceModal = false;
 
     public ?int $father_job_editing_id = null;
     public string $father_job_name = '';
+    public bool $father_job_in_use = false;
     public bool $showFatherJobModal = false;
 
     public ?int $expense_category_editing_id = null;
@@ -336,6 +338,9 @@ new class extends Component {
         $school = School::query()->findOrFail($schoolId);
         $this->school_reference_editing_id = $school->id;
         $this->school_reference_name = $school->name;
+        $this->school_reference_in_use = Student::query()
+            ->whereRaw('LOWER(TRIM(school_name)) = ?', [mb_strtolower(trim($school->name))])
+            ->exists();
         $this->showSchoolReferenceModal = true;
         $this->resetValidation();
     }
@@ -395,6 +400,7 @@ new class extends Component {
     {
         $this->school_reference_editing_id = null;
         $this->school_reference_name = '';
+        $this->school_reference_in_use = false;
         $this->showSchoolReferenceModal = false;
         $this->resetValidation();
     }
@@ -413,6 +419,9 @@ new class extends Component {
         $fatherJob = FatherJob::query()->findOrFail($fatherJobId);
         $this->father_job_editing_id = $fatherJob->id;
         $this->father_job_name = $fatherJob->name;
+        $this->father_job_in_use = ParentProfile::query()
+            ->whereRaw('LOWER(TRIM(father_work)) = ?', [mb_strtolower(trim($fatherJob->name))])
+            ->exists();
         $this->showFatherJobModal = true;
         $this->resetValidation();
     }
@@ -472,6 +481,7 @@ new class extends Component {
     {
         $this->father_job_editing_id = null;
         $this->father_job_name = '';
+        $this->father_job_in_use = false;
         $this->showFatherJobModal = false;
         $this->resetValidation();
     }
@@ -1434,12 +1444,12 @@ new class extends Component {
                     <div class="grid gap-4 md:grid-cols-2">
                         <div>
                             <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.starts_on') }}</label>
-                            <input wire:model="academic_year_starts_on" type="date" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                            <input wire:model="academic_year_starts_on" type="date" required class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
                             @error('academic_year_starts_on') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
                         </div>
                         <div>
                             <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.ends_on') }}</label>
-                            <input wire:model="academic_year_ends_on" type="date" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                            <input wire:model="academic_year_ends_on" type="date" required class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
                             @error('academic_year_ends_on') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
                         </div>
                     </div>
@@ -1882,12 +1892,12 @@ new class extends Component {
             <div class="grid gap-4 md:grid-cols-2">
                 <div>
                     <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.starts_on') }}</label>
-                    <input wire:model="academic_year_starts_on" type="date" @disabled($academic_year_editing_id && ! $academic_year_is_active) class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60 dark:border-neutral-700 dark:bg-neutral-900">
+                    <input wire:model="academic_year_starts_on" type="date" required @disabled($academic_year_editing_id && ! $academic_year_is_active) class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60 dark:border-neutral-700 dark:bg-neutral-900">
                     @error('academic_year_starts_on') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
                 </div>
                 <div>
                     <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.ends_on') }}</label>
-                    <input wire:model="academic_year_ends_on" type="date" @disabled($academic_year_editing_id && ! $academic_year_is_active) class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60 dark:border-neutral-700 dark:bg-neutral-900">
+                    <input wire:model="academic_year_ends_on" type="date" required @disabled($academic_year_editing_id && ! $academic_year_is_active) class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60 dark:border-neutral-700 dark:bg-neutral-900">
                     @error('academic_year_ends_on') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
                 </div>
             </div>
@@ -1942,7 +1952,7 @@ new class extends Component {
                 @error('schoolReferenceDelete') <div class="mt-2 text-sm text-red-600">{{ $message }}</div> @enderror
             </div>
             <div class="flex justify-end gap-3">
-                @if ($school_reference_editing_id)
+                @if ($school_reference_editing_id && ! $school_reference_in_use)
                     <button type="button" wire:click="deleteSchoolReference({{ $school_reference_editing_id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link pill-link--danger" data-school-reference-delete>{{ __('crud.common.actions.delete') }}</button>
                 @endif
                 <button type="submit" class="pill-link pill-link--accent">{{ $school_reference_editing_id ? __('settings.organization.actions.update_school') : __('settings.organization.actions.create_school') }}</button>
@@ -1960,7 +1970,7 @@ new class extends Component {
                 @error('fatherJobDelete') <div class="mt-2 text-sm text-red-600">{{ $message }}</div> @enderror
             </div>
             <div class="flex justify-end gap-3">
-                @if ($father_job_editing_id)
+                @if ($father_job_editing_id && ! $father_job_in_use)
                     <button type="button" wire:click="deleteFatherJob({{ $father_job_editing_id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link pill-link--danger" data-father-job-delete>{{ __('crud.common.actions.delete') }}</button>
                 @endif
                 <button type="submit" class="pill-link pill-link--accent">{{ $father_job_editing_id ? __('settings.organization.actions.update_father_job') : __('settings.organization.actions.create_father_job') }}</button>

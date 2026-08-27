@@ -61,7 +61,14 @@ class PublicWebsiteTest extends TestCase
             ->assertOk()
             ->assertSee('property="og:image"', false)
             ->assertSee('content="'.$logoUrl.'"', false)
-            ->assertSee('name="twitter:image"', false);
+            ->assertSee('name="twitter:image"', false)
+            ->assertSee('public-brand__mark public-brand__mark--image', false);
+
+        $styles = file_get_contents(resource_path('css/app.css'));
+
+        $this->assertStringContainsString('.public-brand__mark--image {', $styles);
+        $this->assertStringContainsString('background: var(--site-primary);', $styles);
+        $this->assertStringContainsString('transform: scale(1.035);', $styles);
     }
 
     public function test_public_homepage_can_be_put_under_maintenance_without_blocking_dashboard_route(): void

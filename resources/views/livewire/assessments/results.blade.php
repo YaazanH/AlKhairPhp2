@@ -568,7 +568,7 @@ new class extends Component
                 </div>
                 <div class="mt-1 text-sm text-neutral-400">{{ __('workflow.assessments.results.details.participants') }}: {{ number_format($totalSavedResults) }} | {{ __('workflow.assessments.results.details.passed') }}: {{ number_format($totalPassedStudents) }}</div>
                 <div class="mt-3 flex flex-wrap gap-2">
-                    <a href="{{ route('assessments.results.pdf', $assessmentRecord) }}" target="_blank" rel="noopener" class="pill-link pill-link--compact w-fit whitespace-nowrap">{{ __('workflow.assessments.results.pdf_export') }}</a>
+                    <a href="{{ route('assessments.results.pdf', $assessmentRecord) }}" target="_blank" rel="noopener" class="admin-icon-button" title="{{ __('workflow.assessments.results.pdf_export') }}" aria-label="{{ __('workflow.assessments.results.pdf_export') }}"><x-pdf-export-icon /></a>
                     @if($canRecordAssessmentScores)<button type="button" wire:click="openQuickResultModal" class="pill-link pill-link--compact pill-link--accent">{{ __('workflow.assessments.results.student_entry.title') }}</button>@endif
                     @can('assessments.update')<a href="{{ route('assessments.index', ['edit' => $assessmentRecord->id, 'return_to' => 'results']) }}" wire:navigate class="pill-link pill-link--compact">{{ __('crud.common.actions.edit') }}</a>@endcan
                 </div>
@@ -627,7 +627,7 @@ new class extends Component
                     </select>
                 </div>
                 @if ($selectedGroup)
-                    <a href="{{ route('assessments.results.pdf', ['assessment' => $assessmentRecord, 'group_id' => $selectedGroup->id]) }}" target="_blank" rel="noopener" class="pill-link h-[3.125rem] w-fit items-center justify-center whitespace-nowrap px-4">{{ __('workflow.assessments.results.pdf_export') }}</a>
+                    <a href="{{ route('assessments.results.pdf', ['assessment' => $assessmentRecord, 'group_id' => $selectedGroup->id]) }}" target="_blank" rel="noopener" class="admin-icon-button assessment-results-filter-pdf-button" title="{{ __('workflow.assessments.results.pdf_export') }}" aria-label="{{ __('workflow.assessments.results.pdf_export') }}"><x-pdf-export-icon /></a>
                 @endif
             </div>
         </div>
@@ -639,8 +639,9 @@ new class extends Component
             <div class="admin-empty-state">{{ __('workflow.assessments.results.groups.select_first') }}</div>
         @else
         @php($assessmentResultRowNumbers = $enrollments->values()->mapWithKeys(fn ($enrollment, $index) => [$enrollment->id => $index + 1]))
+        @php($assessmentResultsUseTwoColumns = $enrollments->count() > 5)
         @php($assessmentResultColumns = $enrollments->isEmpty() ? collect([collect()]) : $enrollments->chunk((int) ceil($enrollments->count() / 2)))
-        <div class="assessment-results-single">
+        <div class="assessment-results-single {{ $assessmentResultsUseTwoColumns ? '' : 'assessment-results-single--full' }}">
             <table class="assessment-results-data-table w-full table-fixed text-sm">
                 <thead>
                     <tr>
@@ -667,7 +668,7 @@ new class extends Component
                 </tbody>
             </table>
         </div>
-        <div class="assessment-results-dual">
+        <div class="assessment-results-dual {{ $assessmentResultsUseTwoColumns ? '' : 'assessment-results-dual--inactive' }}">
             @foreach ($assessmentResultColumns as $columnEnrollments)
                 <div class="assessment-results-table-wrap">
                     <table class="assessment-results-data-table w-full table-fixed text-sm">

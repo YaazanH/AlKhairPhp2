@@ -29,6 +29,17 @@ Initial product and schema planning lives in:
 
 - `docs/architecture/blueprint.md`
 - `docs/architecture/permissions-matrix.md`
+- `docs/codebase-index.md` (generated source, symbol, and route map)
+
+Regenerate and search the whole-program source index with:
+
+```bash
+php artisan codebase:index
+php artisan codebase:search "assessment score"
+php artisan codebase:search "حضور الطالب" --limit=50
+```
+
+The generated SQLite FTS5 index is stored locally at `storage/app/private/codebase-search.sqlite`; it is ignored by Git and can be rebuilt at any time.
 
 ## Current State
 

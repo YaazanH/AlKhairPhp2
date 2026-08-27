@@ -30,7 +30,7 @@
         .meta td { border-bottom: 1px solid #d9e7dc; padding: 2.2mm 2mm; }
         .label { color: #5d7663; font-size: 8pt; font-weight: bold; width: 23%; }
         .value { font-weight: bold; width: 27%; }
-        .original-invoice-no { direction: ltr; text-align: left; unicode-bidi: embed; }
+        .original-invoice-no { direction: ltr; text-align: {{ app()->isLocale('ar') ? 'right' : 'left' }}; unicode-bidi: embed; }
         .items { page-break-inside: auto; }
         .items thead { display: table-header-group; }
         .items tr { page-break-inside: avoid; }

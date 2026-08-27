@@ -364,6 +364,14 @@ class SystemSettingsTest extends TestCase
         $this->assertSame('F'.str_pad((string) $secondParent->id, 5, '0', STR_PAD_LEFT), $secondParent->fresh()->parent_number);
 
         Volt::test('settings.organization')
+            ->set('academic_year_name', 'Dates are required')
+            ->call('saveAcademicYear')
+            ->assertHasErrors([
+                'academic_year_starts_on' => 'required',
+                'academic_year_ends_on' => 'required',
+            ]);
+
+        Volt::test('settings.organization')
             ->set('academic_year_name', '2026/2027')
             ->set('academic_year_starts_on', '2026-08-01')
             ->set('academic_year_ends_on', '2027-07-31')
@@ -742,7 +750,7 @@ class SystemSettingsTest extends TestCase
             ->assertSee(__('settings.course_completion.labels.no_assessment_types'))
             ->assertSee('class="admin-empty-state admin-empty-state--compact"', false)
             ->call('openAssessmentTypeModal')
-            ->assertSee('wire:click.prevent.stop="closeAssessmentTypeModal"', false)
+            ->assertSee('wire:click="closeAssessmentTypeModal"', false)
             ->assertSee($firstType->name)
             ->assertSee($secondType->name)
             ->assertSee('data-course-completion-assessment-choice', false)
@@ -750,7 +758,7 @@ class SystemSettingsTest extends TestCase
             ->call('toggleAssessmentTypeSelection', $firstType->id)
             ->assertSet('assessment_type_selections', [$firstType->id])
             ->assertSee('data-course-completion-assessment-add', false)
-            ->assertDontSee('wire:click.prevent.stop="closeAssessmentTypeModal"', false)
+            ->assertDontSee('wire:click="closeAssessmentTypeModal"', false)
             ->call('addSelectedAssessmentType')
             ->assertSet('enabled_assessment_type_ids', [$firstType->id])
             ->assertSet('assessment_rule_grade_ids.'.$firstType->id, [$firstGrade->id, $secondGrade->id])
