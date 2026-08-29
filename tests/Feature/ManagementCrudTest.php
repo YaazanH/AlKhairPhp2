@@ -20,10 +20,12 @@ use App\Models\ParentProfile;
 use App\Models\PointTransaction;
 use App\Models\PointType;
 use App\Models\PrintTemplate;
+use App\Models\QuranFinalTest;
 use App\Models\QuranJuz;
 use App\Models\School;
 use App\Models\Student;
 use App\Models\StudentAttendanceDay;
+use App\Models\StudentAttendanceRecord;
 use App\Models\StudentFile;
 use App\Models\Teacher;
 use App\Models\TeacherAttendanceDay;
@@ -388,6 +390,23 @@ class ManagementCrudTest extends TestCase
             'attendance_date' => '2026-08-15',
             'status' => 'open',
         ]);
+        StudentAttendanceRecord::create([
+            'group_attendance_day_id' => $groupAttendanceDay->id,
+            'enrollment_id' => $activeEnrollment->id,
+            'attendance_status_id' => $attendanceStatus->id,
+        ]);
+        $juz = QuranJuz::create([
+            'juz_number' => 1,
+            'from_page' => 1,
+            'to_page' => 21,
+        ]);
+        QuranFinalTest::create([
+            'enrollment_id' => $activeEnrollment->id,
+            'student_id' => $student->id,
+            'juz_id' => $juz->id,
+            'status' => 'passed',
+            'passed_on' => '2026-08-15',
+        ]);
         $teacherAttendanceDay = TeacherAttendanceDay::create([
             'attendance_date' => '2026-08-15',
             'status' => 'open',
@@ -447,6 +466,8 @@ class ManagementCrudTest extends TestCase
         $this->assertSame('closed', $groupAttendanceDay->fresh()->status);
         $this->assertSame($course->id, $teacherAttendanceRecord->fresh()->archived_course_id);
         $this->assertNotNull($teacherAttendanceRecord->fresh()->course_finished_at);
+        $this->assertSame(1, app(CourseLifecycleService::class)->archiveSummary($course->fresh())['average_student_attendance']);
+        $this->assertSame(1, app(CourseLifecycleService::class)->archiveSummary($course->fresh())['passed_final_tests']);
 
         Volt::test('student-attendance.index')->assertDontSee('15-08-2026');
         Volt::test('teachers.attendance')->assertDontSee('15-08-2026');
@@ -459,6 +480,7 @@ class ManagementCrudTest extends TestCase
             ->assertDontSee('Lifecycle Student');
 
         Volt::test('groups.show', ['group' => $activeGroup])
+            ->assertDontSee('data-group-roster-pdf-action', false)
             ->call('openEdit')
             ->assertHasErrors('group');
 
@@ -474,6 +496,11 @@ class ManagementCrudTest extends TestCase
 
         Volt::test('courses.index')
             ->call('openArchive', $course->id)
+            ->assertSee(__('crud.courses.archive.average_student_attendance'))
+            ->assertSee(__('crud.courses.archive.passed_final_tests'))
+            ->assertSeeInOrder(['data-course-archive-reactivate-action', 'data-course-archive-copy-action'], false)
+            ->assertSee('data-course-archive-reactivate-action', false)
+            ->assertSee('data-icon-name="reactivate"', false)
             ->assertSet('editingAcademicYearIsActive', true);
 
         Volt::test('courses.index')
@@ -618,7 +645,8 @@ class ManagementCrudTest extends TestCase
             'enrollments' => 2,
             'assessments' => 1,
             'student_attendance' => 0,
-            'teacher_attendance' => 0,
+            'average_student_attendance' => 0,
+            'passed_final_tests' => 0,
         ], $lifecycle->archiveSummary($course->fresh()));
 
         Volt::test('courses.index')
@@ -734,6 +762,99 @@ class ManagementCrudTest extends TestCase
             'day_of_week' => 6,
             'time_slot' => 'morning',
         ]);
+    }
+
+    public function test_copying_an_archived_course_targets_the_current_active_academic_year_and_opens_the_normal_copy_workflow(): void
+    {
+        $this->signIn();
+
+        $archivedAcademicYear = AcademicYear::create([
+            'name' => 'Archived copy source 2025/2026',
+            'starts_on' => '2025-08-01',
+            'ends_on' => '2026-07-31',
+            'is_current' => false,
+            'is_active' => false,
+        ]);
+        $currentAcademicYear = AcademicYear::create([
+            'name' => 'Current copy target 2026/2027',
+            'starts_on' => '2026-08-01',
+            'ends_on' => '2027-07-31',
+            'is_current' => true,
+            'is_active' => true,
+        ]);
+        $course = Course::create([
+            'academic_year_id' => $archivedAcademicYear->id,
+            'name' => 'Archived metadata source',
+            'description' => 'Copy this archived description',
+            'starts_on' => '2025-09-01',
+            'ends_on' => '2026-05-31',
+            'finished_at' => '2026-06-01 12:00:00',
+            'is_active' => false,
+            'is_default' => false,
+            'awards_points' => false,
+            'course_finished_was_awarding_points' => true,
+        ]);
+        $teacher = Teacher::create([
+            'first_name' => 'Archived',
+            'last_name' => 'Teacher',
+            'phone' => '0944000099',
+            'course_id' => $course->id,
+            'status' => 'active',
+        ]);
+        $group = Group::create([
+            'course_id' => $course->id,
+            'academic_year_id' => $archivedAcademicYear->id,
+            'teacher_id' => $teacher->id,
+            'name' => 'Archived metadata group',
+            'capacity' => 24,
+            'starts_on' => '2025-09-03',
+            'ends_on' => '2026-05-28',
+            'monthly_fee' => 100,
+            'is_active' => false,
+            'course_finished_at' => '2026-06-01 12:00:00',
+            'course_finished_was_active' => true,
+        ]);
+        $course->schedules()->create([
+            'day_of_week' => 5,
+            'time_slot' => 'morning',
+        ]);
+
+        $component = Volt::test('courses.index')
+            ->call('openArchive', $course->id)
+            ->assertSee('data-course-archive-copy-action', false)
+            ->assertSee('data-icon-name="copy"', false)
+            ->assertSet('showArchiveModal', true)
+            ->call('duplicateArchived', $course->id)
+            ->assertHasNoErrors()
+            ->assertSet('showArchiveModal', false)
+            ->assertSet('showFormModal', true)
+            ->assertSet('showScheduleModal', false)
+            ->assertSet('copySetup', true);
+
+        $copy = Course::query()
+            ->whereKeyNot($course->id)
+            ->where('description', 'Copy this archived description')
+            ->firstOrFail();
+        $copiedGroup = $copy->groups()->firstOrFail();
+
+        $this->assertSame($currentAcademicYear->id, $copy->academic_year_id);
+        $this->assertTrue($copy->is_active);
+        $this->assertTrue($copy->awards_points);
+        $this->assertNull($copy->finished_at);
+        $this->assertNull($copy->course_finished_was_awarding_points);
+        $this->assertSame($currentAcademicYear->id, $copiedGroup->academic_year_id);
+        $this->assertTrue($copiedGroup->is_active);
+        $this->assertNull($copiedGroup->course_finished_at);
+        $this->assertNull($copiedGroup->course_finished_was_active);
+        $this->assertSame($group->name, $copiedGroup->name);
+
+        $component
+            ->assertSet('editingId', $copy->id)
+            ->call('save')
+            ->assertHasNoErrors()
+            ->assertSet('showFormModal', false)
+            ->assertSet('showScheduleModal', true)
+            ->assertSet('syncScheduleToGroups', true);
     }
 
     public function test_profile_account_credentials_can_be_updated(): void
@@ -1829,17 +1950,18 @@ class ManagementCrudTest extends TestCase
             ->assertSee('Fares Hamdan')
             ->assertSee('+963 999 000 001')
             ->assertSee('group-show-details__grid', false)
-            ->assertDontSee('data-group-copy-summary', false)
+            ->assertSee('data-group-copy-summary', false)
+            ->assertSee('data-group-roster-pdf-action', false)
             ->assertSee('data-group-hero-edit-action', false)
             ->assertSee('data-group-hero-schedule-action', false)
             ->assertSee('data-group-hero-deactivate-action', false)
-            ->assertDontSee('data-group-hero-copy-action', false)
+            ->assertSee('data-group-hero-copy-action', false)
             ->assertSee('data-icon-name="edit"', false)
             ->assertSee('data-icon-name="schedule"', false)
             ->assertSee('data-icon-name="disable-group"', false)
             ->assertSee('data-group-disable-sign', false)
             ->assertSee('data-group-disable-mark', false)
-            ->assertDontSee('data-icon-name="copy"', false)
+            ->assertSee('data-icon-name="copy"', false)
             ->assertSee('group-roster-table__name-value', false)
             ->assertDontSee('min-w-[88rem]', false)
             ->set('showScheduleModal', true)

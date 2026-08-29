@@ -324,6 +324,7 @@ return [
         'confirm_deactivate' => 'Finish this course and archive its groups, enrollments, assessments, and attendance?',
         'copy' => [
             'confirm' => 'Copy this course and its group metadata without students or enrollments?',
+            'confirm_archive' => 'Copy this archived course and its group metadata to the current academic year without students or enrollments?',
             'name' => ':name copy',
             'name_numbered' => ':name copy :number',
         ],
@@ -334,12 +335,14 @@ return [
             'enrollments' => 'Archived enrollments',
             'assessments' => 'Archived assessments',
             'student_attendance' => 'Student attendance days',
-            'teacher_attendance' => 'Teacher attendance records',
+            'average_student_attendance' => 'Average daily student attendance',
+            'passed_final_tests' => 'Passed final-tested Juz',
         ],
         'errors' => [
             'delete_linked' => 'This course cannot be deleted while it is linked to other records.',
             'finished_read_only' => 'A finished course cannot be edited.',
             'finished_academic_year' => 'This course cannot be reactivated because its academic year is finished.',
+            'no_current_academic_year' => 'This course cannot be copied because there is no current active academic year.',
         ],
     ],
     'students' => [

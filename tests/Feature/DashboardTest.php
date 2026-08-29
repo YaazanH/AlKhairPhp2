@@ -53,6 +53,39 @@ class DashboardTest extends TestCase
             ->assertSee('Assign a role');
     }
 
+    public function test_dashboard_context_falls_back_to_the_active_academic_year_then_the_holiday_message(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $manager = User::factory()->create([
+            'username' => 'manager-dashboard-context-fallback',
+            'phone' => '7000099',
+        ]);
+        $manager->assignRole('manager');
+
+        $academicYear = AcademicYear::create([
+            'name' => 'Academic Year 2026/2027',
+            'starts_on' => '2026-08-01',
+            'ends_on' => '2027-07-31',
+            'is_current' => true,
+            'is_active' => true,
+        ]);
+
+        $this->actingAs($manager)
+            ->get('/dashboard')
+            ->assertOk()
+            ->assertSee('dashboard-course-context__course', false)
+            ->assertSee('Academic Year 2026/2027')
+            ->assertDontSee(__('dashboard.common.no_active_courses'));
+
+        $academicYear->update(['is_active' => false]);
+        config(['app.locale' => 'ar']);
+
+        $this->get('/dashboard')
+            ->assertOk()
+            ->assertSee('عطلة - لا يوجد دورات فعالة حالياً');
+    }
+
     public function test_manager_users_see_the_management_dashboard(): void
     {
         $this->seed(RoleSeeder::class);

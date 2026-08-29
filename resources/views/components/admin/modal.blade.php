@@ -3,6 +3,8 @@
     'title' => null,
     'description' => null,
     'closeMethod' => null,
+    'dismissible' => true,
+    'hideHeader' => false,
     'maxWidth' => '4xl',
     'compact' => false,
     'fullViewport' => false,
@@ -47,25 +49,27 @@
         <div class="admin-modal__backdrop"></div>
         <div class="admin-modal__viewport">
             <div class="admin-modal__dialog {{ $widthClass }} {{ ($compact || $maxWidth === '8xl') ? 'admin-modal__dialog--compact' : '' }}">
-                <div class="admin-modal__header">
-                    <div>
-                        @if ($title)
-                            <h2 class="admin-modal__title">{{ $title }}</h2>
-                        @endif
+                @unless ($hideHeader)
+                    <div class="admin-modal__header">
+                        <div>
+                            @if ($title)
+                                <h2 class="admin-modal__title">{{ $title }}</h2>
+                            @endif
 
-                    </div>
+                        </div>
 
-                    <div class="admin-modal__header-actions">
-                        @isset($headerActions)
-                            {{ $headerActions }}
-                        @endisset
-                        @if ($closeMethod)
-                            <button type="button" wire:click="{{ $closeMethod }}" class="admin-modal__close" aria-label="{{ __('crud.common.actions.close') }}">
-                                <span aria-hidden="true">&times;</span>
-                            </button>
-                        @endif
+                        <div class="admin-modal__header-actions">
+                            @isset($headerActions)
+                                {{ $headerActions }}
+                            @endisset
+                            @if ($closeMethod && $dismissible)
+                                <button type="button" wire:click="{{ $closeMethod }}" class="admin-modal__close" aria-label="{{ __('crud.common.actions.close') }}">
+                                    <span aria-hidden="true">&times;</span>
+                                </button>
+                            @endif
+                        </div>
                     </div>
-                </div>
+                @endunless
 
                 <div class="admin-modal__body">
                     {!! $modalBody !!}

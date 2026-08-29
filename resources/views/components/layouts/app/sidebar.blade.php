@@ -196,17 +196,16 @@
                         <div>
                             <h2 id="admin-confirm-title" class="admin-modal__title">{{ __('crud.common.confirm_delete.title') }}</h2>
                         </div>
-
-                        <button type="button" data-admin-confirm-close class="admin-modal__close" aria-label="{{ __('crud.common.actions.close') }}">
-                            <span aria-hidden="true">&times;</span>
-                        </button>
                     </div>
 
                     <div class="admin-modal__body">
-                        <p id="admin-confirm-message" class="mb-5 leading-7 text-neutral-300">{{ __('crud.common.confirm_delete.message') }}</p>
-                        <div class="admin-action-cluster admin-action-cluster--end">
-                            <button id="admin-confirm-accept" type="button" class="pill-link pill-link--danger">
-                                {{ __('crud.common.confirm_delete.confirm') }}
+                        <p id="admin-confirm-message" class="admin-confirm-message leading-7 text-neutral-300">{{ __('crud.common.confirm_delete.message') }}</p>
+                        <div class="admin-confirm-actions">
+                            <button id="admin-confirm-accept" type="button" class="admin-confirm-action admin-confirm-action--accept" data-modal-action-icon-ignore aria-label="{{ __('crud.common.confirm_delete.confirm') }}" title="{{ __('crud.common.confirm_delete.confirm') }}">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m5 12.5 4.25 4.25L19 7" /></svg>
+                            </button>
+                            <button id="admin-confirm-deny" type="button" class="admin-confirm-action admin-confirm-action--deny" data-admin-confirm-close data-modal-action-icon-ignore aria-label="{{ __('crud.common.actions.cancel') }}" title="{{ __('crud.common.actions.cancel') }}">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" aria-hidden="true"><path stroke-linecap="round" d="M6.5 6.5l11 11m0-11-11 11" /></svg>
                             </button>
                         </div>
                     </div>

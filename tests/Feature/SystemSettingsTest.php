@@ -77,7 +77,10 @@ class SystemSettingsTest extends TestCase
             ->call('editAcademicYear', $newerYear->id)
             ->assertSet('academic_year_unfinished_courses_count', 0)
             ->call('finishAcademicYear')
-            ->assertHasNoErrors();
+            ->assertHasNoErrors()
+            ->assertSet('showAcademicYearModal', true)
+            ->assertSet('academic_year_creation_required', true)
+            ->assertSet('academic_year_name', 'العام الدراسي ٢٠٢٩ - ٢٠٣٠م');
 
         $this->assertDatabaseHas('academic_years', [
             'id' => $newerYear->id,
@@ -91,12 +94,68 @@ class SystemSettingsTest extends TestCase
             'is_current' => true,
         ]);
 
+        $nextAcademicYear = AcademicYear::query()->where('is_current', true)->firstOrFail();
+
+        $component
+            ->assertSet('academic_year_editing_id', $nextAcademicYear->id)
+            ->call('closeAcademicYearModal')
+            ->assertSet('showAcademicYearModal', true)
+            ->assertSet('academic_year_creation_required', true)
+            ->set('academic_year_name', 'Edited New Academic Year')
+            ->call('saveAcademicYear')
+            ->assertHasNoErrors()
+            ->assertSet('showAcademicYearModal', false)
+            ->assertSet('academic_year_creation_required', false);
+
+        $this->assertDatabaseHas('academic_years', [
+            'id' => $nextAcademicYear->id,
+            'name' => 'Edited New Academic Year',
+        ]);
+
         Volt::test('settings.organization')
             ->call('editAcademicYear', $newerYear->id)
             ->assertHasErrors('academicYear')
             ->assertSet('academic_year_editing_id', null)
             ->call('reactivateAcademicYear', $newerYear->id)
             ->assertHasErrors('academicYearReactivation');
+    }
+
+    public function test_empty_active_academic_year_can_be_deleted_then_an_inactive_year_can_be_reactivated(): void
+    {
+        $this->signIn();
+
+        $inactiveYear = AcademicYear::query()->create([
+            'name' => 'Available for Reactivation',
+            'starts_on' => '2025-08-01',
+            'ends_on' => '2026-07-31',
+            'is_current' => false,
+            'is_active' => false,
+        ]);
+        $emptyActiveYear = AcademicYear::query()->create([
+            'name' => 'Empty Active Year',
+            'starts_on' => '2026-08-01',
+            'ends_on' => '2027-07-31',
+            'is_current' => true,
+            'is_active' => true,
+        ]);
+
+        $component = Volt::test('settings.organization')
+            ->assertDontSee('wire:click="deleteAcademicYear('.$emptyActiveYear->id.')"', false)
+            ->assertDontSee('wire:click="reactivateAcademicYear('.$inactiveYear->id.')"', false)
+            ->call('editAcademicYear', $emptyActiveYear->id)
+            ->assertSee('data-settings-academic-year-delete-action', false)
+            ->call('deleteAcademicYear', $emptyActiveYear->id)
+            ->assertHasNoErrors()
+            ->assertSee('wire:click="reactivateAcademicYear('.$inactiveYear->id.')"', false)
+            ->call('reactivateAcademicYear', $inactiveYear->id)
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseMissing('academic_years', ['id' => $emptyActiveYear->id]);
+        $this->assertDatabaseHas('academic_years', [
+            'id' => $inactiveYear->id,
+            'is_active' => true,
+            'is_current' => true,
+        ]);
     }
 
     public function test_finished_academic_year_can_be_reactivated_only_when_no_year_is_active_then_its_course_records_can_be_restored(): void

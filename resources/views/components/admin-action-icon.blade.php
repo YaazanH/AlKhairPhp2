@@ -94,14 +94,15 @@
             />
             @break
         @case('archive')
-            <rect x="3.75" y="5.5" width="16.5" height="15" rx="2" />
-            <path d="M6.25 5.5v-1.5a2 2 0 0 1 2-2h7.5a2 2 0 0 1 2 2V5.5" />
-            <path d="M8.5 12h7m-3.5 0v-4m-1.75 0L12 10.5m1.75 3v3" />
+            <path stroke-linejoin="round" d="M4.5 8.75h15v10.5a1.75 1.75 0 0 1-1.75 1.75H6.25a1.75 1.75 0 0 1-1.75-1.75V8.75Z" />
+            <rect x="2.75" y="3.25" width="18.5" height="5.75" rx="1.35" stroke-linejoin="round" />
+            <rect x="8.75" y="12" width="6.5" height="2.25" rx="1.1" />
             @break
         @case('reactivate')
-            <path stroke-linecap="round" stroke-linejoin="round" d="M19.25 8.25V4.5h-3.75" />
-            <path stroke-linecap="round" stroke-linejoin="round" d="M19 4.75a8 8 0 1 0 1 9.1" />
-            <path stroke-linecap="round" stroke-linejoin="round" d="m8.75 12 2.1 2.1 4.4-4.4" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.25" d="M20 8.5A8.25 8.25 0 0 0 6.15 5.05L4 7.25" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.25" d="M4 7.25V3.75m0 3.5h3.5" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.25" d="M4 15.5a8.25 8.25 0 0 0 13.85 3.45L20 16.75" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.25" d="M20 16.75v3.5m0-3.5h-3.5" />
             @break
         @case('add')
             <path stroke-linecap="round" d="M12 5v14M5 12h14" />
@@ -138,11 +139,9 @@
             <path stroke-linecap="round" stroke-linejoin="round" d="m9 11 3 3L22 4" />
             @break
         @case('finish-line')
-            <circle cx="4" cy="3.5" r="1.1" fill="currentColor" stroke="none" />
-            <path stroke-linecap="round" d="M4 4.75v16.5M2 21.25h4" />
-            <path stroke-linejoin="round" d="M5.25 5h15.5v12H5.25z" />
-            <path fill="currentColor" stroke="none" d="M5.25 5h3.875v4H5.25zm7.75 0h3.875v4H13zm-3.875 4H13v4H9.125zm7.75 0h3.875v4h-3.875zM5.25 13h3.875v4H5.25zM13 13h3.875v4H13z" />
-            <path stroke-width="1.15" d="M9.125 5v12M13 5v12m3.875-12v12M5.25 9h15.5M5.25 13h15.5" />
+            <path stroke-linecap="round" stroke-width="2.2" d="M4.25 21 8.5 3" />
+            <path stroke-linejoin="round" d="M8.35 3.65c2.35 1.8 4.15 1.95 6.15 1.45 2.1-.52 3.55-.3 5.5 1.3l-2.25 8.15c-1.95-1.6-3.4-1.82-5.5-1.3-2 .5-3.8.35-6.15-1.45l2.25-8.15Z" />
+            <path fill="currentColor" stroke="none" d="m8.28 4.05 3.02 1.15-.9 3.15-3.02-1.15.9-3.15Zm6.05 1.25 3.08.15-.9 3.22-3.08-.15.9-3.22Zm-4.83 3.2 3.03.18-.9 3.18-3.03-.18.9-3.18Zm6.08.35 2.93 1.05-.92 3.27-2.91-1.08.9-3.24Z" />
             @break
         @case('receipt')
             <g data-receipt-icon="supplied-invoice-sheet" transform="scale(0.2666667)" fill="currentColor" stroke="none">

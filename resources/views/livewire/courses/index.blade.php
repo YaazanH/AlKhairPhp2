@@ -52,6 +52,11 @@ new class extends Component {
 
     public function with(): array
     {
+        $currentActiveAcademicYearId = AcademicYear::query()
+            ->where('is_current', true)
+            ->where('is_active', true)
+            ->value('id');
+
         $baseQuery = Course::query()
             ->with('academicYear')
             ->withCount('groups')
@@ -87,6 +92,7 @@ new class extends Component {
             ],
             'filteredCount' => $filteredCount,
             'archivedCourse' => $archivedCourse,
+            'currentActiveAcademicYearId' => $currentActiveAcademicYearId,
             'archiveSummary' => $archivedCourse
                 ? app(CourseLifecycleService::class)->archiveSummary($archivedCourse)
                 : [],
@@ -312,16 +318,50 @@ new class extends Component {
     {
         $this->authorizePermission('courses.create');
 
+        $this->duplicateCourse($courseId);
+    }
+
+    public function duplicateArchived(int $courseId): void
+    {
+        $this->authorizePermission('courses.create');
+
+        $currentActiveAcademicYearId = AcademicYear::query()
+            ->where('is_current', true)
+            ->where('is_active', true)
+            ->value('id');
+
+        if (! $currentActiveAcademicYearId) {
+            $this->addError('course', __('crud.courses.errors.no_current_academic_year'));
+
+            return;
+        }
+
+        $course = Course::query()->findOrFail($courseId);
+        abort_if($course->is_active, 409);
+
+        $this->duplicateCourse($courseId, (int) $currentActiveAcademicYearId, true);
+    }
+
+    protected function duplicateCourse(
+        int $courseId,
+        ?int $targetAcademicYearId = null,
+        bool $restoreArchivedState = false,
+    ): void {
         $source = Course::query()
             ->with(['groups', 'schedules'])
             ->findOrFail($courseId);
 
-        $newCourseId = DB::transaction(function () use ($source): int {
-            $newCourse = $source->replicate(['name', 'finished_at']);
+        $newCourseId = DB::transaction(function () use ($source, $targetAcademicYearId, $restoreArchivedState): int {
+            $newCourse = $source->replicate(['name', 'finished_at', 'course_finished_was_awarding_points']);
+            $newCourse->academic_year_id = $targetAcademicYearId ?? $source->academic_year_id;
             $newCourse->name = $this->uniqueCopyName($source->name);
             $newCourse->finished_at = null;
             $newCourse->is_active = true;
             $newCourse->is_default = false;
+            $newCourse->awards_points = $restoreArchivedState
+                ? (bool) ($source->course_finished_was_awarding_points ?? $source->awards_points)
+                : $source->awards_points;
+            $newCourse->course_finished_was_awarding_points = null;
             $newCourse->save();
 
             foreach ($source->schedules as $schedule) {
@@ -332,10 +372,15 @@ new class extends Component {
             }
 
             foreach ($source->groups as $group) {
-                $newGroup = $group->replicate(['course_id', 'name', 'course_finished_at']);
+                $newGroup = $group->replicate(['course_id', 'academic_year_id', 'name', 'course_finished_at', 'course_finished_was_active']);
                 $newGroup->course_id = $newCourse->id;
+                $newGroup->academic_year_id = $targetAcademicYearId ?? $group->academic_year_id;
                 $newGroup->name = $group->name;
                 $newGroup->course_finished_at = null;
+                $newGroup->is_active = $restoreArchivedState
+                    ? (bool) ($group->course_finished_was_active ?? $group->is_active)
+                    : $group->is_active;
+                $newGroup->course_finished_was_active = null;
                 $newGroup->save();
             }
 
@@ -343,6 +388,7 @@ new class extends Component {
         });
 
         session()->flash('status', __('crud.courses.messages.copied'));
+        $this->closeArchive();
         $this->edit($newCourseId);
         $this->copySetup = true;
     }
@@ -737,7 +783,7 @@ new class extends Component {
         @if ($archivedCourse)
             <div class="space-y-5">
                 <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                    @foreach (['groups', 'enrollments', 'assessments', 'student_attendance', 'teacher_attendance'] as $archiveKey)
+                    @foreach (['groups', 'enrollments', 'assessments', 'student_attendance', 'average_student_attendance', 'passed_final_tests'] as $archiveKey)
                         <div class="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
                             <div class="text-xs uppercase tracking-[0.16em] text-neutral-400">{{ __('crud.courses.archive.'.$archiveKey) }}</div>
                             <div class="mt-2 text-2xl font-semibold text-white">{{ number_format($archiveSummary[$archiveKey] ?? 0) }}</div>
@@ -752,8 +798,17 @@ new class extends Component {
                 <div class="flex flex-wrap items-center justify-end gap-3">
                     <button type="button" wire:click="closeArchive" class="pill-link">{{ __('crud.common.actions.close') }}</button>
                     @if ($editingAcademicYearIsActive)
-                        <button type="button" wire:click="reactivate({{ $archivedCourse->id }})" class="pill-link border-red-400/30 bg-red-500/10 text-red-200">{{ __('crud.courses.actions.reactivate') }}</button>
+                        <button type="button" wire:click="reactivate({{ $archivedCourse->id }})" class="admin-icon-button admin-icon-button--accent admin-modal-action-button" title="{{ __('crud.courses.actions.reactivate') }}" aria-label="{{ __('crud.courses.actions.reactivate') }}" data-course-archive-reactivate-action>
+                            <x-admin-action-icon name="reactivate" class="admin-modal-action__icon" />
+                        </button>
                     @endif
+                    @can('courses.create')
+                        @if ($currentActiveAcademicYearId)
+                            <button type="button" wire:click="duplicateArchived({{ $archivedCourse->id }})" wire:confirm="{{ __('crud.courses.copy.confirm_archive') }}" class="admin-icon-button admin-modal-action-button border-sky-300/30 bg-sky-400/10 text-sky-100" title="{{ __('crud.common.actions.copy') }}" aria-label="{{ __('crud.common.actions.copy') }}" data-course-archive-copy-action>
+                                <x-admin-action-icon name="copy" class="admin-modal-action__icon" />
+                            </button>
+                        @endif
+                    @endcan
                 </div>
             </div>
         @endif

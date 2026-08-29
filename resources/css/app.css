@@ -2709,6 +2709,76 @@ form[data-admin-confirm-message] button[type='submit']:hover {
     color: #fff1f2 !important;
 }
 
+.admin-confirm-message {
+    margin-bottom: 1.25rem;
+    text-align: center;
+}
+
+.admin-confirm-actions {
+    display: grid;
+    width: min(100%, 30rem);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.8rem;
+    margin-inline: auto;
+}
+
+.admin-confirm-action {
+    display: inline-flex;
+    min-width: 0;
+    height: 3.25rem;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid transparent;
+    border-radius: 0.9rem;
+    transition: border-color 160ms ease, background-color 160ms ease, transform 160ms ease;
+}
+
+.admin-confirm-action:hover,
+.admin-confirm-action:focus-visible {
+    transform: translateY(-1px);
+}
+
+.admin-confirm-action > svg {
+    width: 1.4rem;
+    height: 1.4rem;
+}
+
+.admin-confirm-action--accept {
+    border-color: rgba(74, 222, 128, 0.35);
+    background: rgba(22, 163, 74, 0.2);
+    color: #bbf7d0;
+}
+
+.admin-confirm-action--accept:hover,
+.admin-confirm-action--accept:focus-visible {
+    border-color: rgba(74, 222, 128, 0.58);
+    background: rgba(22, 163, 74, 0.3);
+}
+
+.admin-confirm-action--deny {
+    border-color: rgba(248, 113, 113, 0.38);
+    background: rgba(185, 28, 28, 0.2);
+    color: #fecaca;
+}
+
+.admin-confirm-action--deny:hover,
+.admin-confirm-action--deny:focus-visible {
+    border-color: rgba(248, 113, 113, 0.62);
+    background: rgba(185, 28, 28, 0.3);
+}
+
+html:not(.dark) .admin-confirm-action--accept {
+    border-color: rgba(21, 128, 61, 0.28);
+    background: rgba(220, 252, 231, 0.94);
+    color: #166534;
+}
+
+html:not(.dark) .admin-confirm-action--deny {
+    border-color: rgba(185, 28, 28, 0.28);
+    background: rgba(254, 226, 226, 0.94);
+    color: #991b1b;
+}
+
 html:not(.dark) .pill-link--danger,
 html:not(.dark) button[wire\:confirm],
 html:not(.dark) form[data-admin-confirm-message] button[type='submit'] {
@@ -6354,23 +6424,87 @@ html:not(.dark) .barcode-import-page [class*='bg-black/'] {
     padding: 1rem;
 }
 
-.student-progress-missing-pages__count {
-    display: inline-flex;
-    min-width: 2.5rem;
-    height: 2.5rem;
-    align-items: center;
-    justify-content: center;
-    border-radius: 0.75rem;
-    background: rgba(245, 158, 11, 0.14);
-    color: #fcd98d;
-    font-weight: 700;
+.student-progress-missing-pages__table {
+    width: 100%;
+    table-layout: fixed;
+    border-collapse: separate;
+    border-spacing: 0.45rem;
 }
 
-.student-progress-missing-pages__ranges {
+.student-progress-missing-pages__table td {
+    height: 3rem;
+    border: 1px solid rgba(245, 158, 11, 0.2);
+    border-radius: 0.75rem;
+    background: rgba(245, 158, 11, 0.075);
+    color: rgb(245 245 245);
+    font-size: 0.95rem;
+    font-weight: 650;
+    text-align: center;
+    vertical-align: middle;
+}
+
+.student-progress-missing-pages__table td.student-progress-missing-pages__empty {
+    border-color: transparent;
+    background: transparent;
+}
+
+.awqaf-unavailable-warning {
+    display: grid;
+    justify-items: center;
+    gap: 1.25rem;
+    padding: 0.5rem 0 0.25rem;
+    text-align: center;
+}
+
+.awqaf-unavailable-warning__octagon {
+    display: grid;
+    width: 2.5rem;
+    height: 2.5rem;
+    place-items: center;
+    background: #ef4444;
+    clip-path: polygon(29% 0, 71% 0, 100% 29%, 100% 71%, 71% 100%, 29% 100%, 0 71%, 0 29%);
+}
+
+.awqaf-unavailable-warning__octagon-inner {
+    display: grid;
+    width: calc(100% - 0.16rem);
+    height: calc(100% - 0.16rem);
+    place-items: center;
+    background: rgba(69, 10, 10, 0.96);
+    clip-path: inherit;
+    color: #fca5a5;
+}
+
+.awqaf-unavailable-warning__octagon svg {
+    width: 1.1rem;
+    height: 1.1rem;
+}
+
+.awqaf-unavailable-warning p {
+    max-width: none;
     color: rgb(245 245 245);
     font-size: 1rem;
-    line-height: 1.9;
-    text-align: start;
+    font-weight: 650;
+    line-height: 1.85;
+    white-space: nowrap;
+}
+
+.awqaf-unavailable-warning__close {
+    min-width: 9rem;
+    justify-content: center;
+}
+
+html:not(.dark) .awqaf-unavailable-warning__octagon-inner {
+    background: #fff1f2;
+    color: #dc2626;
+}
+
+html:not(.dark) .awqaf-unavailable-warning p {
+    color: #262626;
+}
+
+.settings-academic-year-table tbody tr {
+    height: 4.25rem;
 }
 
 .student-juz-progress-table :is(

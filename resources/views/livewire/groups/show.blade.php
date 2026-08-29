@@ -357,6 +357,9 @@ new class extends Component {
                     <div class="group-show-action-stack flex w-fit max-w-full flex-col gap-3">
                         <div class="group-show-actions surface-panel flex w-fit max-w-full flex-wrap items-center gap-2 p-3">
                             <x-edit-action-button wire:click="openEdit" :label="__('crud.common.actions.edit')" data-group-hero-edit-action />
+                            <button type="button" wire:click="copyProgress" class="admin-icon-button" title="{{ __('crud.groups.quick_summary.copy_group_action') }}" aria-label="{{ __('crud.groups.quick_summary.copy_group_action') }}" data-group-copy-summary data-group-hero-copy-action>
+                                <x-admin-action-icon name="copy" />
+                            </button>
                             <button type="button" wire:click="$set('showScheduleModal', true)" class="admin-icon-button" title="{{ __('crud.groups.actions.schedule') }}" aria-label="{{ __('crud.groups.actions.schedule') }}" data-group-hero-schedule-action>
                                 <x-admin-action-icon name="schedule" />
                             </button>
@@ -375,7 +378,9 @@ new class extends Component {
         <div class="admin-toolbar p-5">
             <div><div class="admin-toolbar__title">{{ __('crud.groups.roster.title') }}</div></div>
             <div class="admin-toolbar__actions">
-                <a target="_blank" rel="noopener" href="{{ route('groups.roster.pdf', $groupRecord) }}" class="admin-icon-button" title="{{ __('crud.groups.roster.download_pdf_action') }}" aria-label="{{ __('crud.groups.roster.download_pdf_action') }}"><x-pdf-export-icon /></a>
+                @if ($groupIsEditable)
+                    <a target="_blank" rel="noopener" href="{{ route('groups.roster.pdf', $groupRecord) }}" class="admin-icon-button" title="{{ __('crud.groups.roster.download_pdf_action') }}" aria-label="{{ __('crud.groups.roster.download_pdf_action') }}" data-group-roster-pdf-action><x-pdf-export-icon /></a>
+                @endif
                 @if (! $groupRecord->course_finished_at && ($groupRecord->course?->is_active ?? true))
                     @can('enrollments.create')
                         <x-add-action-button wire:click="$set('showAddStudentModal', true)" :label="__('crud.groups.roster.add_student')" />

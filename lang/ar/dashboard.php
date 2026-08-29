@@ -25,6 +25,7 @@ return [
     ],
     'common' => [
         'no_course' => 'بدون دورة',
+        'no_active_courses' => 'عطلة - لا يوجد دورات فعالة حالياً',
         'no_year' => 'بدون سنة',
         'no_teacher' => 'بدون معلم',
         'no_grade' => 'بدون مرحلة',

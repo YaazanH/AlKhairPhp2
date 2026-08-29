@@ -45,6 +45,8 @@ new class extends Component
 
     public bool $showAwqafTestModal = false;
 
+    public bool $showAwqafUnavailableModal = false;
+
     public ?int $awqafEnrollmentId = null;
 
     public ?int $awqafJuzId = null;
@@ -81,6 +83,7 @@ new class extends Component
             $this->selectedStudentId = null;
             $this->missingJuzId = null;
             $this->openDetails = '';
+            $this->showAwqafUnavailableModal = false;
             $this->closeAwqafTest();
 
             return;
@@ -139,14 +142,32 @@ new class extends Component
     {
         $this->authorizeAnyPermission(['quran-awqaf-tests.record', 'quran-tests.record']);
 
-        abort_unless($this->currentStudent, 404);
+        if (! $this->currentStudent) {
+            $this->addError('awqaf', __('workflow.quran_tests.errors.no_active_enrollment'));
+
+            return;
+        }
 
         $enrollment = $this->scopeEnrollmentsQuery(
             Enrollment::query()->with(['group.teacher', 'student'])
                 ->currentActiveForStudent((int) $this->currentStudent->id)
-        )->firstOrFail();
+        )->first();
+
+        if (! $enrollment) {
+            $this->showAwqafTestModal = false;
+            $this->showAwqafUnavailableModal = true;
+            $this->resetValidation();
+
+            return;
+        }
+
         $this->authorizeTeacherEnrollmentAccess($enrollment);
-        QuranJuz::query()->findOrFail($juzId);
+
+        if (! QuranJuz::query()->whereKey($juzId)->exists()) {
+            $this->addError('awqaf', __('crud.common.not_available'));
+
+            return;
+        }
 
         $this->awqafEnrollmentId = $enrollment->id;
         $this->awqafJuzId = $juzId;
@@ -154,6 +175,7 @@ new class extends Component
         $this->awqafScore = '';
         $this->awqafStatus = 'passed';
         $this->awqafNotes = '';
+        $this->showAwqafUnavailableModal = false;
         $this->showAwqafTestModal = true;
         $this->resetValidation();
     }
@@ -163,6 +185,11 @@ new class extends Component
         $this->reset('showAwqafTestModal', 'awqafEnrollmentId', 'awqafJuzId', 'awqafTestedOn', 'awqafScore', 'awqafNotes');
         $this->awqafStatus = 'passed';
         $this->resetValidation();
+    }
+
+    public function closeAwqafUnavailable(): void
+    {
+        $this->showAwqafUnavailableModal = false;
     }
 
     public function saveAwqafTest(): void
@@ -179,15 +206,27 @@ new class extends Component
             'awqafScore' => __('workflow.quran_tests.form.score'),
         ]);
 
-        abort_unless($this->currentStudent, 404);
+        if (! $this->currentStudent) {
+            $this->addError('awqafEnrollmentId', __('workflow.quran_tests.errors.no_active_enrollment'));
+
+            return;
+        }
 
         $enrollment = $this->scopeEnrollmentsQuery(
-            Enrollment::query()->with(['group.teacher', 'student'])
+            Enrollment::query()
+                ->with(['group.teacher', 'student'])
+                ->whereKey((int) $validated['awqafEnrollmentId'])
                 ->currentActiveForStudent((int) $this->currentStudent->id)
-        )->firstOrFail();
-        $this->authorizeTeacherEnrollmentAccess($enrollment);
-        $this->awqafEnrollmentId = $enrollment->id;
+        )->first();
 
+        if (! $enrollment) {
+            $this->closeAwqafTest();
+            $this->showAwqafUnavailableModal = true;
+
+            return;
+        }
+
+        $this->authorizeTeacherEnrollmentAccess($enrollment);
         $teacherId = $this->currentTeacher()?->id ?: $enrollment->group?->teacher_id;
 
         if (! $teacherId) {
@@ -471,6 +510,7 @@ new class extends Component
         $this->selectedStudentId = $student->id;
         $this->missingJuzId = null;
         $this->openDetails = '';
+        $this->showAwqafUnavailableModal = false;
         $this->closeAwqafTest();
     }
 
@@ -509,32 +549,6 @@ new class extends Component
         'failed', 'missing', 'withdrawn', 'cancelled' => 'status-chip--rose',
         'awaiting', 'in_progress', 'pending' => 'status-chip--amber',
         default => 'status-chip--slate',
-    };
-    $formatPageRanges = function ($pages): string {
-        $ranges = [];
-        $start = null;
-        $previous = null;
-
-        foreach (collect($pages)->map(fn ($page) => (int) $page)->sort()->values() as $page) {
-            if ($start === null) {
-                $start = $previous = $page;
-                continue;
-            }
-
-            if ($page === $previous + 1) {
-                $previous = $page;
-                continue;
-            }
-
-            $ranges[] = $start === $previous ? (string) $start : $start.'–'.$previous;
-            $start = $previous = $page;
-        }
-
-        if ($start !== null) {
-            $ranges[] = $start === $previous ? (string) $start : $start.'–'.$previous;
-        }
-
-        return implode('، ', $ranges);
     };
 @endphp
 
@@ -607,6 +621,7 @@ new class extends Component
 
         <section class="surface-table standard-mobile-table student-juz-progress-table">
             <div class="admin-grid-meta"><div><div class="admin-grid-meta__title">{{ __('workflow.student_progress.juz_progress.title') }}</div><div class="admin-grid-meta__summary">{{ __('workflow.student_progress.juz_progress.summary', ['count' => number_format($quranJuzProgress->where('status', 'finished')->count())]) }}</div></div></div>
+            @error('awqaf')<div class="flash-error mx-5 mb-4 px-4 py-3 text-sm">{{ $message }}</div>@enderror
             @if ($quranJuzProgress->isEmpty())<div class="admin-empty-state">{{ __('workflow.student_progress.juz_progress.empty') }}</div>@else
                 <div class="responsive-records-mobile">
                     @foreach ($quranJuzProgress as $row)
@@ -744,11 +759,22 @@ new class extends Component
         <x-admin.modal :show="$selectedMissingJuz !== null" :title="$selectedMissingJuz ? __('workflow.student_progress.juz_progress.missing_title', ['juz' => $selectedMissingJuz->juz->juz_number]) : ''" :description="__('workflow.student_progress.juz_progress.missing_subtitle')" close-method="closeMissingPages" max-width="2xl">
             @if ($selectedMissingJuz)
                 <div class="student-progress-missing-pages" data-student-progress-missing-pages>
-                    <div class="flex items-center gap-3">
-                        <span class="student-progress-missing-pages__count">{{ number_format($selectedMissingJuz->missing_pages->count()) }}</span>
-                        <span class="text-sm text-neutral-300">{{ __('workflow.student_progress.juz_progress.missing_count') }}</span>
+                    <div class="overflow-x-auto">
+                        <table class="student-progress-missing-pages__table" dir="rtl">
+                            <tbody>
+                                @foreach ($selectedMissingJuz->missing_pages->values()->chunk(5) as $missingPageRow)
+                                    <tr>
+                                        @foreach ($missingPageRow as $missingPage)
+                                            <td>{{ number_format((int) $missingPage) }}</td>
+                                        @endforeach
+                                        @for ($emptyCell = $missingPageRow->count(); $emptyCell < 5; $emptyCell++)
+                                            <td class="student-progress-missing-pages__empty" aria-hidden="true"></td>
+                                        @endfor
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
                     </div>
-                    <div class="student-progress-missing-pages__ranges" dir="ltr">{{ $formatPageRanges($selectedMissingJuz->missing_pages) }}</div>
                 </div>
             @endif
         </x-admin.modal>
@@ -764,6 +790,18 @@ new class extends Component
                 @error('awqafEnrollmentId')<div class="text-sm text-red-400">{{ $message }}</div>@enderror
                 <div class="flex justify-end gap-3"><x-admin.save-button :label="__('workflow.common.actions.save_quran_test')" data-student-progress-awqaf-save-action /></div>
             </form>
+        </x-admin.modal>
+
+        <x-admin.modal :show="$showAwqafUnavailableModal" :hide-header="true" max-width="md">
+            <div class="awqaf-unavailable-warning" role="alert" data-awqaf-unavailable-warning>
+                <div class="awqaf-unavailable-warning__octagon" aria-hidden="true">
+                    <div class="awqaf-unavailable-warning__octagon-inner">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" d="M7 7l10 10M17 7 7 17" /></svg>
+                    </div>
+                </div>
+                <p>{{ __('workflow.student_progress.juz_progress.awqaf_unavailable') }}</p>
+                <button type="button" wire:click="closeAwqafUnavailable" class="pill-link awqaf-unavailable-warning__close" data-modal-action-icon-ignore>{{ __('crud.common.actions.close') }}</button>
+            </div>
         </x-admin.modal>
     @else
         <section class="surface-panel p-6"><div class="admin-empty-state">{{ $studentOptions->isEmpty() ? __('workflow.student_progress.selection.no_students') : __('workflow.student_progress.selection.empty') }}</div></section>

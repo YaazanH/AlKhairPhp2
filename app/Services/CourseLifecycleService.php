@@ -6,7 +6,10 @@ use App\Models\Assessment;
 use App\Models\Course;
 use App\Models\Enrollment;
 use App\Models\Group;
+use App\Models\GroupAttendanceDay;
+use App\Models\QuranFinalTest;
 use App\Models\StudentAttendanceDay;
+use App\Models\StudentAttendanceRecord;
 use App\Models\Teacher;
 use App\Models\TeacherAttendanceRecord;
 use Illuminate\Database\Eloquent\Model;
@@ -282,6 +285,14 @@ class CourseLifecycleService
     public function archiveSummary(Course $course): array
     {
         $groupIds = Group::query()->where('course_id', $course->id)->pluck('id');
+        $attendanceDays = GroupAttendanceDay::query()
+            ->whereIn('group_id', $groupIds)
+            ->distinct()
+            ->count('attendance_date');
+        $presentStudentRecords = StudentAttendanceRecord::query()
+            ->whereHas('attendanceDay', fn ($query) => $query->whereIn('group_id', $groupIds))
+            ->whereHas('status', fn ($query) => $query->where('is_present', true))
+            ->count();
 
         return [
             'groups' => Group::query()->whereIn('id', $groupIds)->whereNotNull('course_finished_at')->count(),
@@ -291,7 +302,11 @@ class CourseLifecycleService
                     ->orWhereHas('groups', fn ($groups) => $groups->whereIn('groups.id', $groupIds));
             })->count(),
             'student_attendance' => StudentAttendanceDay::query()->where('course_id', $course->id)->whereNotNull('course_finished_at')->count(),
-            'teacher_attendance' => TeacherAttendanceRecord::query()->where('archived_course_id', $course->id)->whereNotNull('course_finished_at')->count(),
+            'average_student_attendance' => $attendanceDays > 0 ? (int) round($presentStudentRecords / $attendanceDays) : 0,
+            'passed_final_tests' => QuranFinalTest::query()
+                ->whereHas('enrollment', fn ($query) => $query->whereIn('group_id', $groupIds))
+                ->where('status', 'passed')
+                ->count(),
         ];
     }
 

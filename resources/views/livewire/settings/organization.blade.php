@@ -67,6 +67,7 @@ new class extends Component {
     public int $academic_year_courses_count = 0;
     public int $academic_year_unfinished_courses_count = 0;
     public bool $showAcademicYearModal = false;
+    public bool $academic_year_creation_required = false;
 
     public ?int $grade_level_editing_id = null;
     public string $grade_level_name = '';
@@ -230,9 +231,7 @@ new class extends Component {
                 ->orderByDesc('starts_on')
                 ->first();
 
-            $replacement
-                ? $replacement->update(['is_current' => true])
-                : $this->createNextAcademicYear($academicYear);
+            $replacement?->update(['is_current' => true]);
         }
         $this->resetPage('academic_years_page');
 
@@ -261,7 +260,7 @@ new class extends Component {
             return;
         }
 
-        DB::transaction(function () use ($academicYear): void {
+        $nextAcademicYear = DB::transaction(function () use ($academicYear): ?AcademicYear {
             $wasCurrent = $academicYear->is_current;
 
             $academicYear->update([
@@ -269,12 +268,18 @@ new class extends Component {
                 'is_current' => false,
             ]);
 
-            if ($wasCurrent) {
-                $this->createNextAcademicYear($academicYear);
-            }
+            return $wasCurrent ? $this->createNextAcademicYear($academicYear) : null;
         });
 
         session()->flash('status', __('settings.organization.messages.academic_year_finished'));
+
+        if ($nextAcademicYear) {
+            $this->editAcademicYear($nextAcademicYear->id);
+            $this->academic_year_creation_required = true;
+
+            return;
+        }
+
         $this->cancelAcademicYear();
     }
 
@@ -615,6 +620,10 @@ new class extends Component {
 
     public function closeAcademicYearModal(): void
     {
+        if ($this->academic_year_creation_required) {
+            return;
+        }
+
         $this->cancelAcademicYear();
     }
 
@@ -738,6 +747,7 @@ new class extends Component {
     public function saveAcademicYear(): void
     {
         $this->authorizePermission('settings.manage');
+        $wasRequiredCreation = $this->academic_year_creation_required;
 
         $existingAcademicYear = $this->academic_year_editing_id
             ? AcademicYear::query()->findOrFail($this->academic_year_editing_id)
@@ -780,7 +790,7 @@ new class extends Component {
 
         session()->flash(
             'status',
-            $this->academic_year_editing_id
+            $this->academic_year_editing_id && ! $wasRequiredCreation
                 ? __('settings.organization.messages.academic_year_updated')
                 : __('settings.organization.messages.academic_year_created'),
         );
@@ -791,12 +801,15 @@ new class extends Component {
     {
         $startsOn = ($academicYear->ends_on ?: $academicYear->starts_on ?: now())->copy()->addDay();
         $endsOn = $startsOn->copy()->addYear()->subDay();
-        $baseName = $startsOn->format('Y').'/'.$endsOn->format('Y');
+        $arabicIndicDigits = ['0' => '٠', '1' => '١', '2' => '٢', '3' => '٣', '4' => '٤', '5' => '٥', '6' => '٦', '7' => '٧', '8' => '٨', '9' => '٩'];
+        $startYear = strtr($startsOn->format('Y'), $arabicIndicDigits);
+        $endYear = strtr($endsOn->format('Y'), $arabicIndicDigits);
+        $baseName = 'العام الدراسي '.$startYear.' - '.$endYear.'م';
         $name = $baseName;
         $suffix = 2;
 
         while (AcademicYear::query()->where('name', $name)->exists()) {
-            $name = $baseName.' ('.$suffix.')';
+            $name = $baseName.' ('.strtr((string) $suffix, $arabicIndicDigits).')';
             $suffix++;
         }
 
@@ -1067,6 +1080,7 @@ new class extends Component {
         $this->academic_year_courses_count = 0;
         $this->academic_year_unfinished_courses_count = 0;
         $this->showAcademicYearModal = false;
+        $this->academic_year_creation_required = false;
         $this->resetValidation();
     }
 
@@ -1546,7 +1560,7 @@ new class extends Component {
                     <div class="px-5 py-10 text-sm text-neutral-500">{{ __('settings.organization.sections.academic_year.empty') }}</div>
                 @else
                     <div class="overflow-x-auto">
-                        <table class="min-w-full divide-y divide-neutral-200 text-sm dark:divide-neutral-700">
+                        <table class="settings-academic-year-table min-w-full divide-y divide-neutral-200 text-sm dark:divide-neutral-700">
                             <thead class="bg-neutral-50 dark:bg-neutral-900/60"><tr><th class="px-5 py-3 text-left font-medium">{{ __('settings.organization.table.name') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.organization.table.dates') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.organization.fields.current_academic_year') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.organization.table.courses') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.organization.table.state') }}</th><th class="admin-actions-column px-5 py-3 text-center font-medium">{{ __('settings.organization.table.actions') }}</th></tr></thead>
                             <tbody class="divide-y divide-neutral-200 dark:divide-neutral-700">
                                 @foreach ($academicYears as $academicYear)
@@ -1557,7 +1571,7 @@ new class extends Component {
                                         <td class="px-5 py-3">{{ $academicYear->courses_count }}</td>
                                         <td class="px-5 py-3">{{ $academicYear->is_active ? __('settings.common.states.active') : __('settings.common.states.finished') }}</td>
                                         <td class="px-5 py-3">
-                                            <div class="flex flex-nowrap justify-end gap-2">
+                                            <div class="flex min-h-11 flex-nowrap items-center justify-center gap-2">
                                                 @if ($academicYear->is_active)
                                                     <x-edit-action-button wire:click="editAcademicYear({{ $academicYear->id }})" :label="__('crud.common.actions.edit')" data-settings-academic-year-edit-action />
                                                 @elseif ($canReactivateAcademicYear)
@@ -1915,7 +1929,7 @@ new class extends Component {
         </form>
     </x-admin.modal>
 
-    <x-admin.modal :show="$showAcademicYearModal" :title="$academic_year_editing_id ? __('settings.organization.sections.academic_year.edit') : __('settings.organization.sections.academic_year.create')" :description="__('settings.organization.sections.academic_year.copy')" close-method="closeAcademicYearModal" max-width="3xl">
+    <x-admin.modal :show="$showAcademicYearModal" :title="$academic_year_creation_required || ! $academic_year_editing_id ? __('settings.organization.sections.academic_year.create') : __('settings.organization.sections.academic_year.edit')" :description="__('settings.organization.sections.academic_year.copy')" close-method="closeAcademicYearModal" :dismissible="! $academic_year_creation_required" max-width="3xl">
         <form wire:submit="saveAcademicYear" class="space-y-4">
             @error('academicYear') <div class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{{ $message }}</div> @enderror
             <div>
@@ -1943,13 +1957,15 @@ new class extends Component {
             @error('academicYearReactivation') <div class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{{ $message }}</div> @enderror
             <div class="flex flex-wrap justify-end gap-3">
                 @if ($academic_year_editing_id && $academic_year_is_active)
-                    <x-admin.save-button :label="__('settings.organization.actions.update_year')" data-settings-academic-year-save-action />
+                    <x-admin.save-button :label="$academic_year_creation_required ? __('settings.organization.actions.create_year') : __('settings.organization.actions.update_year')" data-settings-academic-year-save-action />
                 @elseif (! $academic_year_editing_id)
                     <x-admin.create-and-new-button click="saveAndNew('saveAcademicYear', 'openAcademicYearModal')" />
                 @endif
-                @if ($academic_year_editing_id && $academic_year_is_active)
-                    <button type="button" wire:click="finishAcademicYear" @disabled($academic_year_unfinished_courses_count > 0) class="admin-icon-button admin-modal-action-button border-amber-400/30 text-amber-200 disabled:cursor-not-allowed disabled:opacity-40" title="{{ __('crud.courses.actions.finish') }}" aria-label="{{ __('crud.courses.actions.finish') }}" data-settings-academic-year-finish-action><x-admin-action-icon name="finish-line" class="admin-modal-action__icon" /></button>
-                    <x-delete-action-button wire:click="deleteAcademicYear({{ $academic_year_editing_id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" @disabled($academic_year_courses_count > 0) class="disabled:cursor-not-allowed disabled:opacity-40" :label="__('crud.common.actions.delete')" data-settings-academic-year-delete-action />
+                @if ($academic_year_editing_id && $academic_year_is_active && ! $academic_year_creation_required)
+                    <button type="button" wire:click="finishAcademicYear" wire:confirm="{{ __('settings.organization.actions.finish_academic_year_confirm') }}" @disabled($academic_year_unfinished_courses_count > 0) class="admin-icon-button admin-modal-action-button border-amber-400/30 text-amber-200 disabled:cursor-not-allowed disabled:opacity-40" title="{{ __('crud.courses.actions.finish') }}" aria-label="{{ __('crud.courses.actions.finish') }}" data-settings-academic-year-finish-action><x-admin-action-icon name="finish-line" class="admin-modal-action__icon" /></button>
+                    @if ($academic_year_courses_count === 0)
+                        <x-delete-action-button wire:click="deleteAcademicYear({{ $academic_year_editing_id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" :label="__('crud.common.actions.delete')" data-settings-academic-year-delete-action />
+                    @endif
                 @endif
             </div>
         </form>

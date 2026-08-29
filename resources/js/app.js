@@ -104,9 +104,10 @@ function openAdminConfirm(options = {}) {
 
     title.textContent = options.title ?? modal.dataset.defaultTitle ?? 'Confirm action';
     message.textContent = options.message ?? modal.dataset.defaultMessage ?? '';
-    accept.textContent = options.confirmLabel ?? modal.dataset.defaultConfirmLabel ?? 'Continue';
+    const confirmLabel = options.confirmLabel ?? modal.dataset.defaultConfirmLabel ?? 'Continue';
+    accept.setAttribute('aria-label', confirmLabel);
+    accept.setAttribute('title', confirmLabel);
     accept.dataset.modalActionForceKind = options.actionKind ?? 'approve';
-    initializeAdminModalActionIcons(accept);
 
     modal.hidden = false;
     modal.setAttribute('aria-hidden', 'false');

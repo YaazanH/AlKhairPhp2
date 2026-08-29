@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\AcademicYear;
 use App\Models\AppSetting;
 use App\Models\Course;
 use App\Models\Enrollment;
@@ -262,7 +263,7 @@ new class extends Component {
             'intro' => __('dashboard.manager.intro'),
             'profileName' => $user->name,
             'profileJob' => __('dashboard.roles.manager'),
-            'currentAcademicYearName' => $defaultCourse?->name ?: __('dashboard.manager.profile_meta_no_course'),
+            'currentAcademicYearName' => $this->dashboardCourseName(),
             'profileMeta' => $defaultCourse
                 ? __('dashboard.manager.profile_meta_default_course', ['course' => $defaultCourse->name])
                 : __('dashboard.manager.profile_meta_no_course'),
@@ -631,8 +632,21 @@ new class extends Component {
 
     protected function dashboardCourseName(): string
     {
-        return Course::query()->where('is_default', true)->where('is_active', true)->value('name')
-            ?: __('dashboard.manager.profile_meta_no_course');
+        $courseName = Course::query()
+            ->where('is_default', true)
+            ->where('is_active', true)
+            ->value('name');
+
+        if ($courseName) {
+            return $courseName;
+        }
+
+        return AcademicYear::query()
+            ->where('is_active', true)
+            ->orderByDesc('is_current')
+            ->orderByDesc('starts_on')
+            ->value('name')
+            ?: __('dashboard.common.no_active_courses');
     }
 
     protected function parentData($user): array

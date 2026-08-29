@@ -500,6 +500,21 @@ class StudentProgressPageTest extends TestCase
 
         $finalTest->update(['status' => 'passed', 'passed_on' => '2026-09-16']);
         $finalTest->attempts()->firstOrFail()->update(['status' => 'passed']);
+        $enrollment->update(['status' => 'completed', 'left_at' => '2026-09-15']);
+
+        $component
+            ->call('$refresh')
+            ->assertSee('wire:click="openAwqafTest('.$juz->id.')" class="pill-link pill-link--compact"', false)
+            ->call('openAwqafTest', $juz->id)
+            ->assertHasNoErrors()
+            ->assertSet('showAwqafTestModal', false)
+            ->assertSet('showAwqafUnavailableModal', true)
+            ->assertSee('data-awqaf-unavailable-warning', false)
+            ->assertSeeText(__('workflow.student_progress.juz_progress.awqaf_unavailable'))
+            ->assertDontSee('admin-modal__header', false)
+            ->assertSee('wire:click="closeAwqafUnavailable"', false)
+            ->call('closeAwqafUnavailable')
+            ->assertSet('showAwqafUnavailableModal', false);
 
         $currentCourse = Course::create([
             'name' => 'Current Awqaf Course',
@@ -519,7 +534,6 @@ class StudentProgressPageTest extends TestCase
             'enrolled_at' => '2026-09-16',
             'status' => 'active',
         ]);
-        $enrollment->update(['status' => 'completed', 'left_at' => '2026-09-15']);
 
         $component
             ->call('$refresh')

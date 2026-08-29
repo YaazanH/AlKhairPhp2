@@ -312,6 +312,7 @@ return [
             'update_expense_category' => 'Update expense category',
             'promote_students' => 'Promote all students',
             'promote_students_confirm' => 'Move every student with an assigned grade to the next active grade? Students in the highest active grade and students without a grade remain unchanged. Inactive grades are skipped.',
+            'finish_academic_year_confirm' => 'Finish this academic year? A new academic year will be created immediately and you must review and save its details before continuing.',
             'create_teacher_job_title' => 'Create job title',
             'update_teacher_job_title' => 'Update job title',
             'create_student_gender' => 'Create gender',

@@ -810,11 +810,6 @@ new class extends Component {
                                 <td class="px-5 py-4 lg:px-6">
                                     <div class="flex flex-nowrap justify-end gap-2">
                                         <x-open-action-button :href="route('groups.show', $group)" wire:navigate :label="__('crud.common.actions.open')" />
-                                        @if ($group->is_active && ! $groupIsFinished && ($group->course?->is_active ?? true) && ($group->academicYear?->is_active ?? true))
-                                            @can('groups.update')
-                                                <x-edit-action-button wire:click="edit({{ $group->id }})" :label="__('crud.common.actions.edit')" data-group-edit-action />
-                                            @endcan
-                                        @endif
                                     </div>
                                 </td>
                             </tr>

@@ -741,7 +741,8 @@ class ManagementPagesTest extends TestCase
         $this->assertStringContainsString("action.setAttribute('aria-label', label);", $script);
         $this->assertStringContainsString("action.setAttribute('title', action.getAttribute('title') || label);", $script);
         $this->assertStringContainsString("accept.dataset.modalActionForceKind = options.actionKind ?? 'approve';", $script);
-        $this->assertStringContainsString('initializeAdminModalActionIcons(accept);', $script);
+        $this->assertStringNotContainsString('initializeAdminModalActionIcons(accept);', $script);
+        $this->assertStringContainsString("accept.setAttribute('aria-label', confirmLabel);", $script);
         $this->assertStringContainsString("if (/delete|remove|destroy|void|حذف|إزالة|ازالة/.test(descriptor)) return 'delete';", $script);
         $this->assertStringContainsString("if (/save|update|submit|confirm|apply|post|finish|حفظ|تحديث|تأكيد|تاكيد|تطبيق|إنهاء|انهاء/.test(descriptor)) return 'save';", $script);
         $this->assertStringContainsString("if (/create|add|new|إنشاء|انشاء|إضافة|اضافة|جديد/.test(descriptor)) return 'add';", $script);
@@ -1184,7 +1185,9 @@ class ManagementPagesTest extends TestCase
         $this->assertStringContainsString('grid-template-columns: 0.45rem minmax(0, 1fr) 0.45rem;', $styles);
         $this->assertStringContainsString('flex: 0 0 0.45rem;', $styles);
         $this->assertStringContainsString('data-student-progress-missing-pages', $studentProgressView);
-        $this->assertStringContainsString('student-progress-missing-pages__ranges', $studentProgressView);
+        $this->assertStringContainsString('student-progress-missing-pages__table', $studentProgressView);
+        $this->assertStringContainsString('missing_pages->values()->chunk(5)', $studentProgressView);
+        $this->assertStringContainsString('.student-progress-missing-pages__table td {', $styles);
 
         foreach (['memorization', 'quran-partial-tests', 'quran-final-tests', 'quran-tests'] as $page) {
             $view = file_get_contents(resource_path("views/livewire/{$page}/index.blade.php"));
@@ -1315,6 +1318,42 @@ class ManagementPagesTest extends TestCase
         $this->assertArrayNotHasKey('scanner_import', $items);
         $this->assertArrayNotHasKey('awqaf_subject_tests', $items);
         $this->assertFalse(Route::has('awqaf-subject-tests.index'));
+    }
+
+    public function test_lifecycle_and_confirmation_controls_keep_the_requested_icon_layout(): void
+    {
+        $layout = file_get_contents(resource_path('views/components/layouts/app/sidebar.blade.php'));
+        $confirmation = substr($layout, strpos($layout, 'id="admin-confirm-modal"'));
+        $styles = file_get_contents(resource_path('css/app.css'));
+        $modal = file_get_contents(resource_path('views/components/admin/modal.blade.php'));
+        $organization = file_get_contents(resource_path('views/livewire/settings/organization.blade.php'));
+        $groupIndex = file_get_contents(resource_path('views/livewire/groups/index.blade.php'));
+        $groupShow = file_get_contents(resource_path('views/livewire/groups/show.blade.php'));
+        $icons = file_get_contents(resource_path('views/components/admin-action-icon.blade.php'));
+
+        $this->assertStringNotContainsString('class="admin-modal__close"', $confirmation);
+        $this->assertStringContainsString('id="admin-confirm-accept"', $confirmation);
+        $this->assertStringContainsString('id="admin-confirm-deny"', $confirmation);
+        $this->assertStringContainsString('admin-confirm-action--accept', $confirmation);
+        $this->assertStringContainsString('admin-confirm-action--deny', $confirmation);
+        $this->assertStringContainsString('grid-template-columns: repeat(2, minmax(0, 1fr));', $styles);
+        $this->assertStringContainsString("'dismissible' => true", $modal);
+        $this->assertStringContainsString("'hideHeader' => false", $modal);
+        $this->assertStringContainsString('@if ($closeMethod && $dismissible)', $modal);
+        $this->assertStringContainsString('@unless ($hideHeader)', $modal);
+        $this->assertStringContainsString(':dismissible="! $academic_year_creation_required"', $organization);
+        $this->assertStringContainsString('settings-academic-year-table', $organization);
+        $this->assertStringNotContainsString('data-settings-academic-year-row-delete-action', $organization);
+        $this->assertStringContainsString('data-settings-academic-year-delete-action', $organization);
+        $this->assertStringContainsString("wire:confirm=\"{{ __('settings.organization.actions.finish_academic_year_confirm') }}\"", $organization);
+        $this->assertStringNotContainsString('data-group-edit-action', $groupIndex);
+        $this->assertStringContainsString('data-group-hero-edit-action', $groupShow);
+        $this->assertStringContainsString('data-group-copy-summary data-group-hero-copy-action', $groupShow);
+        $this->assertStringContainsString('M4.5 8.75h15v10.5', $icons);
+        $this->assertStringContainsString('M20 8.5A8.25 8.25', $icons);
+        $this->assertStringContainsString('M4.25 21 8.5 3', $icons);
+        $this->assertStringContainsString(':hide-header="true"', file_get_contents(resource_path('views/livewire/students/progress.blade.php')));
+        $this->assertStringContainsString('.awqaf-unavailable-warning__octagon {', $styles);
     }
 
     public function test_management_pages_require_authentication(): void

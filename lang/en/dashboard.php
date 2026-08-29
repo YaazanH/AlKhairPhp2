@@ -25,6 +25,7 @@ return [
     ],
     'common' => [
         'no_course' => 'No course',
+        'no_active_courses' => 'Holiday - there are currently no active courses',
         'no_year' => 'No year',
         'no_teacher' => 'No teacher',
         'no_grade' => 'No grade',

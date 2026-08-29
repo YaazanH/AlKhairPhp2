@@ -312,6 +312,7 @@ return [
             'update_expense_category' => 'تحديث فئة المصروف',
             'promote_students' => 'ترفيع جميع الطلاب',
             'promote_students_confirm' => 'هل تريد ترفيع كل طالب له صف دراسي إلى الصف النشط التالي؟ يبقى طلاب أعلى صف والطلاب بلا صف دون تغيير، ويتم تجاوز الصفوف غير النشطة.',
+            'finish_academic_year_confirm' => 'هل تريد إنهاء هذه السنة الدراسية؟ سيتم إنشاء سنة دراسية جديدة مباشرة، ويجب مراجعة بياناتها وحفظها قبل المتابعة.',
             'create_teacher_job_title' => 'إنشاء المسمى',
             'update_teacher_job_title' => 'تحديث المسمى',
             'create_student_gender' => 'إنشاء خيار الجنس',
