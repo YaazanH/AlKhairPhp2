@@ -294,9 +294,12 @@ new class extends Component {
 
     protected function ensureGroupIsEditable(): bool
     {
-        $group = $this->currentGroup->fresh('course');
+        $group = $this->currentGroup->fresh(['course', 'academicYear']);
 
-        if (! $group->course_finished_at && ($group->course?->is_active ?? true)) {
+        if ($group->is_active
+            && ! $group->course_finished_at
+            && ($group->course?->is_active ?? true)
+            && ($group->academicYear?->is_active ?? true)) {
             return true;
         }
 
@@ -312,7 +315,10 @@ new class extends Component {
     $assistantName = $groupRecord->assistantTeacher ? trim($groupRecord->assistantTeacher->first_name.' '.$groupRecord->assistantTeacher->last_name) : __('crud.common.not_available');
     $viewerTeacherId = auth()->user()?->teacherProfile?->id;
     $isAssignedTeacher = $viewerTeacherId && in_array($viewerTeacherId, [$groupRecord->teacher_id, $groupRecord->assistant_teacher_id], true);
-    $groupIsEditable = ! $groupRecord->course_finished_at && ($groupRecord->course?->is_active ?? true);
+    $groupIsEditable = $groupRecord->is_active
+        && ! $groupRecord->course_finished_at
+        && ($groupRecord->course?->is_active ?? true)
+        && ($groupRecord->academicYear?->is_active ?? true);
     $canManageGroup = $groupIsEditable && (bool) auth()->user()?->can('groups.update');
     $showGroupActionStack = $canManageGroup || ! $isAssignedTeacher;
 @endphp
@@ -347,24 +353,17 @@ new class extends Component {
                     </dl>
                 </div>
 
-                @if($showGroupActionStack)
+                @if($showGroupActionStack && $canManageGroup)
                     <div class="group-show-action-stack flex w-fit max-w-full flex-col gap-3">
-                        @if($canManageGroup)
-                            <div class="group-show-actions surface-panel flex w-fit max-w-full flex-wrap items-center gap-2 p-3">
-                                <button wire:click="openEdit" class="pill-link pill-link--compact">{{ __('crud.common.actions.edit') }}</button>
-                                <button wire:click="$set('showScheduleModal', true)" class="pill-link pill-link--compact">{{ __('crud.groups.actions.schedule') }}</button>
-                                <button wire:click="deactivate" wire:confirm="{{ __('crud.common.confirm_deactivate.message') }}" class="pill-link pill-link--compact">{{ __('crud.common.actions.deactivate') }}</button>
-                            </div>
-                        @endif
-
-                        @unless($isAssignedTeacher)
-                            <div data-group-copy-summary class="group-show-summary surface-panel flex w-full flex-col gap-2 p-3">
-                                <input wire:model="progressDate" type="date" aria-label="{{ __('crud.common.fields.date') }}" class="min-w-0 flex-1 rounded-xl px-3 py-2 text-sm">
-                                <button wire:click="copyProgress" class="pill-link pill-link--accent pill-link--compact w-fit flex-none">
-                                    {{ app()->isLocale('ar') ? 'نسخ' : 'Copy' }}
-                                </button>
-                            </div>
-                        @endunless
+                        <div class="group-show-actions surface-panel flex w-fit max-w-full flex-wrap items-center gap-2 p-3">
+                            <x-edit-action-button wire:click="openEdit" :label="__('crud.common.actions.edit')" data-group-hero-edit-action />
+                            <button type="button" wire:click="$set('showScheduleModal', true)" class="admin-icon-button" title="{{ __('crud.groups.actions.schedule') }}" aria-label="{{ __('crud.groups.actions.schedule') }}" data-group-hero-schedule-action>
+                                <x-admin-action-icon name="schedule" />
+                            </button>
+                            <button type="button" wire:click="deactivate" wire:confirm="{{ __('crud.common.confirm_deactivate.message') }}" class="admin-icon-button admin-icon-button--danger" title="{{ __('crud.common.actions.deactivate') }}" aria-label="{{ __('crud.common.actions.deactivate') }}" data-group-hero-deactivate-action>
+                                <x-admin-action-icon name="disable-group" />
+                            </button>
+                        </div>
                     </div>
                 @endif
             </div>
@@ -379,7 +378,7 @@ new class extends Component {
                 <a target="_blank" rel="noopener" href="{{ route('groups.roster.pdf', $groupRecord) }}" class="admin-icon-button" title="{{ __('crud.groups.roster.download_pdf_action') }}" aria-label="{{ __('crud.groups.roster.download_pdf_action') }}"><x-pdf-export-icon /></a>
                 @if (! $groupRecord->course_finished_at && ($groupRecord->course?->is_active ?? true))
                     @can('enrollments.create')
-                        <button wire:click="$set('showAddStudentModal', true)" class="pill-link pill-link--accent pill-link--compact w-fit">{{ __('crud.groups.roster.add_student') }}</button>
+                        <x-add-action-button wire:click="$set('showAddStudentModal', true)" :label="__('crud.groups.roster.add_student')" />
                     @endcan
                 @endif
             </div>
@@ -432,7 +431,7 @@ new class extends Component {
         <section class="surface-table settings-record-table overflow-visible">
             <div class="overflow-visible">
                 <table class="w-full text-sm">
-                    <thead><tr><th class="px-4 py-3">{{ __('schedules.group.form.fields.day') }}</th><th class="px-4 py-3">{{ __('schedules.group.form.fields.timing') }}</th><th class="w-24 px-4 py-3 text-end">{{ __('schedules.group.table.headers.actions') }}</th></tr></thead>
+                    <thead><tr><th class="px-4 py-3">{{ __('schedules.group.form.fields.day') }}</th><th class="px-4 py-3">{{ __('schedules.group.form.fields.timing') }}</th><th class="admin-actions-column w-24 px-4 py-3 text-center">{{ __('schedules.group.table.headers.actions') }}</th></tr></thead>
                     <tbody>
                         @foreach($schedules as $schedule)
                             <tr>
@@ -475,10 +474,12 @@ new class extends Component {
                 <label class="block text-sm">{{ __('crud.groups.dashboard_card.fields.template') }}<select wire:model="dashboard_card_template_id" class="mt-1 w-full rounded-xl px-4 py-3"><option value="">{{ __('crud.groups.dashboard_card.placeholders.none') }}</option>@foreach($dashboardCardTemplates as $template)<option value="{{ $template->id }}">{{ $template->name }}</option>@endforeach</select></label>
             </div>
             @error('delete')<div class="flash-error px-4 py-3 text-sm">{{ $message }}</div>@enderror
-            <div class="flex flex-wrap items-center gap-2">
-                <button class="pill-link pill-link--accent">{{ __('crud.common.actions.update') }}</button>
+            <div class="admin-action-cluster admin-action-cluster--end">
+                <button type="submit" class="admin-icon-button admin-icon-button--accent admin-modal-action-button" title="{{ __('crud.common.actions.update') }}" aria-label="{{ __('crud.common.actions.update') }}" data-group-edit-save-action>
+                    <x-admin-action-icon name="save" class="admin-modal-action__icon" />
+                </button>
                 @can('groups.delete')
-                    <button type="button" wire:click="deleteGroup" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link pill-link--danger">{{ __('crud.common.actions.delete') }}</button>
+                    <x-delete-action-button wire:click="deleteGroup" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" :label="__('crud.common.actions.delete')" class="admin-modal-action-button" data-group-edit-delete-action />
                 @endcan
             </div>
         </form>

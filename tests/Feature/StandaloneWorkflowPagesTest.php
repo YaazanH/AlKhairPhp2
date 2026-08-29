@@ -737,7 +737,18 @@ class StandaloneWorkflowPagesTest extends TestCase
         $transaction = PointTransaction::query()->where('source_type', 'manual')->firstOrFail();
 
         Volt::test('points.index')
+            ->assertSee('wire:click="editManual('.$transaction->id.')"', false)
+            ->assertDontSee('wire:click="openVoidModal('.$transaction->id.')"', false)
             ->call('editManual', $transaction->id)
+            ->assertSee('wire:click="openVoidModal('.$transaction->id.')"', false)
+            ->assertSee('data-points-manual-update-action', false)
+            ->assertSee('data-points-manual-delete-action', false)
+            ->assertSee('admin-modal-action-button', false)
+            ->call('openVoidModal', $transaction->id)
+            ->assertSee('data-points-void-confirm-action', false)
+            ->assertDontSee('data-points-void-close-action', false)
+            ->assertSee('data-icon-name="delete"', false)
+            ->call('closeVoidModal')
             ->call('saveManual')
             ->assertHasNoErrors();
 

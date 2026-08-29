@@ -221,9 +221,7 @@ new class extends Component
             </div>
 
             <div class="flex flex-wrap gap-3 xl:justify-end">
-                <a href="{{ route('reports.exports.student-activity-summary', ['course_id' => $course_id, 'group_id' => $group_id, 'date_from' => $date_from, 'date_to' => $date_to]) }}" class="pill-link pill-link--accent">
-                    {{ __('reports.student_activity.export') }}
-                </a>
+                <x-export-action-button :href="route('reports.exports.student-activity-summary', ['course_id' => $course_id, 'group_id' => $group_id, 'date_from' => $date_from, 'date_to' => $date_to])" class="admin-icon-button--accent" :label="__('reports.student_activity.export')" />
             </div>
         </div>
     </section>
@@ -259,9 +257,9 @@ new class extends Component
                     <div class="admin-toolbar__controls student-activity-report-filters">
                         <div class="admin-filter-field"><label class="sr-only" for="activity-course">{{ __('reports.filters.course') }}</label><select id="activity-course" wire:model.live="course_id"><option value="">{{ __('reports.filters.all_courses') }}</option>@foreach ($courses as $course)<option value="{{ $course->id }}">{{ $course->name }}</option>@endforeach</select></div>
                         <div class="admin-filter-field"><label class="sr-only" for="activity-group">{{ __('reports.filters.group') }}</label><select id="activity-group" wire:model.live="group_id"><option value="">{{ __('reports.filters.all_groups') }}</option>@foreach ($groups as $group)<option value="{{ $group->id }}">{{ $group->name }}</option>@endforeach</select></div>
-                        <div class="admin-filter-field"><label class="sr-only" for="activity-from">{{ __('reports.filters.date_from') }}</label><input id="activity-from" wire:model.live="date_from" type="date" aria-label="{{ __('reports.filters.date_from') }}" data-date-placeholder="{{ __('reports.filters.date_from') }}"></div>
-                        <div class="admin-filter-field"><label class="sr-only" for="activity-to">{{ __('reports.filters.date_to') }}</label><input id="activity-to" wire:model.live="date_to" type="date" aria-label="{{ __('reports.filters.date_to') }}" data-date-placeholder="{{ __('reports.filters.date_to') }}"></div>
-                        <div class="admin-toolbar__actions"><button type="button" wire:click="clearFilters" class="pill-link h-[3.125rem] justify-center whitespace-nowrap">{{ __('reports.filters.clear') }}</button></div>
+                        <div class="admin-filter-field"><label class="sr-only" for="activity-from">{{ __('reports.filters.date_from') }}</label><input id="activity-from" wire:model.live="date_from" type="date" placeholder="{{ __('reports.filters.date_from') }}" aria-label="{{ __('reports.filters.date_from') }}" data-date-placeholder="{{ __('reports.filters.date_from') }}"></div>
+                        <div class="admin-filter-field"><label class="sr-only" for="activity-to">{{ __('reports.filters.date_to') }}</label><input id="activity-to" wire:model.live="date_to" type="date" placeholder="{{ __('reports.filters.date_to') }}" aria-label="{{ __('reports.filters.date_to') }}" data-date-placeholder="{{ __('reports.filters.date_to') }}"></div>
+                        <div class="admin-toolbar__actions"><x-clear-filter-button wire:click="clearFilters" :label="__('reports.filters.clear')" /></div>
                     </div>
                 </div>
 

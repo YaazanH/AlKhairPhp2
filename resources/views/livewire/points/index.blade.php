@@ -483,7 +483,7 @@ new class extends Component {
 
                 <div class="admin-toolbar__actions">
                     @can('points.create-manual')
-                        <button type="button" wire:click="openCreateModal" class="pill-link pill-link--accent">{{ __('workflow.points.workbench.create') }}</button>
+                        <x-add-action-button wire:click="openCreateModal" :label="__('workflow.points.workbench.create')" />
                     @endcan
                 </div>
             </div>
@@ -539,7 +539,7 @@ new class extends Component {
                             @if ($stateFilter !== 'active')
                                 <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.points.workbench.table.headers.void_reason') }}</th>
                             @endif
-                            <th class="px-5 py-4 text-right lg:px-6">{{ __('workflow.points.workbench.table.headers.actions') }}</th>
+                            <th class="admin-actions-column px-5 py-4 text-center lg:px-6">{{ __('workflow.points.workbench.table.headers.actions') }}</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-white/6">
@@ -594,11 +594,11 @@ new class extends Component {
                                     </td>
                                 @endif
                                 <td class="px-5 py-4 lg:px-6">
-                                    <div class="flex flex-wrap justify-end gap-2">
+                                    <div class="flex flex-wrap justify-center gap-2">
                                         @if (auth()->user()->can('points.create-manual') && $transaction->source_type === 'manual' && ! $transaction->voided_at)
-                                            <button type="button" wire:click="editManual({{ $transaction->id }})" class="pill-link pill-link--compact">{{ __('workflow.common.actions.edit') }}</button>
+                                            <button type="button" wire:click="editManual({{ $transaction->id }})" class="admin-icon-button" title="{{ __('workflow.common.actions.edit') }}" aria-label="{{ __('workflow.common.actions.edit') }}"><x-admin-action-icon name="edit" /></button>
                                         @elseif (auth()->user()->can('points.void') && ! $transaction->voided_at)
-                                            <button type="button" wire:click="openVoidModal({{ $transaction->id }})" class="pill-link pill-link--compact pill-link--danger">{{ __('crud.common.actions.delete') }}</button>
+                                            <button type="button" wire:click="openVoidModal({{ $transaction->id }})" class="admin-icon-button admin-icon-button--danger" title="{{ __('crud.common.actions.delete') }}" aria-label="{{ __('crud.common.actions.delete') }}"><x-admin-action-icon name="delete" /></button>
                                         @endif
                                     </div>
                                 </td>
@@ -677,9 +677,9 @@ new class extends Component {
                         @if ((auth()->user()->can('points.create-manual') && $transaction->source_type === 'manual' && ! $transaction->voided_at) || (auth()->user()->can('points.void') && ! $transaction->voided_at))
                             <div class="points-ledger-mobile__actions">
                                 @if (auth()->user()->can('points.create-manual') && $transaction->source_type === 'manual')
-                                    <button type="button" wire:click="editManual({{ $transaction->id }})" class="pill-link pill-link--compact">{{ __('workflow.common.actions.edit') }}</button>
-                                @else
-                                    <button type="button" wire:click="openVoidModal({{ $transaction->id }})" class="pill-link pill-link--compact pill-link--danger">{{ __('crud.common.actions.delete') }}</button>
+                                    <button type="button" wire:click="editManual({{ $transaction->id }})" class="admin-icon-button" title="{{ __('workflow.common.actions.edit') }}" aria-label="{{ __('workflow.common.actions.edit') }}"><x-admin-action-icon name="edit" /></button>
+                                @elseif (auth()->user()->can('points.void') && ! $transaction->voided_at)
+                                    <button type="button" wire:click="openVoidModal({{ $transaction->id }})" class="admin-icon-button admin-icon-button--danger" title="{{ __('crud.common.actions.delete') }}" aria-label="{{ __('crud.common.actions.delete') }}"><x-admin-action-icon name="delete" /></button>
                                 @endif
                             </div>
                         @endif
@@ -734,13 +734,26 @@ new class extends Component {
             </div>
 
             <div class="flex flex-wrap items-center justify-start gap-2">
-                <button type="submit" class="pill-link pill-link--accent">
-                    {{ $editingTransactionId ? __('workflow.common.actions.update_point_entry') : __('workflow.common.actions.save_point_entry') }}
-                </button>
-                @if ($editingTransactionId && auth()->user()->can('points.void'))
-                    <button type="button" wire:click="openVoidModal({{ $editingTransactionId }})" class="pill-link pill-link--danger">{{ __('crud.common.actions.delete') }}</button>
+                @if ($editingTransactionId)
+                    <button
+                        type="submit"
+                        class="admin-icon-button admin-icon-button--accent admin-modal-action-button"
+                        title="{{ __('workflow.common.actions.update_point_entry') }}"
+                        aria-label="{{ __('workflow.common.actions.update_point_entry') }}"
+                        data-points-manual-update-action
+                    >
+                        <x-admin-action-icon name="save" class="admin-modal-action__icon" />
+                    </button>
+                    @if (auth()->user()->can('points.void'))
+                        <x-delete-action-button
+                            wire:click="openVoidModal({{ $editingTransactionId }})"
+                            :label="__('crud.common.actions.delete')"
+                            data-points-manual-delete-action
+                        />
+                    @endif
+                @else
+                    <x-admin.create-and-new-button click="saveManualAndNew" />
                 @endif
-                <x-admin.create-and-new-button :show="! $editingTransactionId" click="saveManualAndNew" />
             </div>
         </form>
     </x-admin.modal>
@@ -761,12 +774,9 @@ new class extends Component {
                 @enderror
             </div>
 
-            <div class="flex flex-wrap items-center gap-3">
-                <button type="submit" wire:loading.attr="disabled" wire:target="voidSelected" class="pill-link pill-link--danger">
-                    {{ __('crud.common.actions.delete') }}
-                </button>
-                <button type="button" wire:click="closeVoidModal" class="pill-link">
-                    {{ __('crud.common.actions.close') }}
+            <div class="admin-action-cluster admin-action-cluster--end">
+                <button type="submit" wire:loading.attr="disabled" wire:target="voidSelected" class="admin-icon-button admin-icon-button--danger admin-modal-action-button" title="{{ __('crud.common.actions.delete') }}" aria-label="{{ __('crud.common.actions.delete') }}" data-points-void-confirm-action>
+                    <x-admin-action-icon name="delete" class="admin-modal-action__icon" />
                 </button>
             </div>
         </form>

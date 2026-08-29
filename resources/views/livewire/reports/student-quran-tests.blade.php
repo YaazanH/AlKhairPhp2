@@ -161,8 +161,8 @@ new class extends Component
                 <div><label class="report-field-label mb-2 block text-sm font-medium">{{ __('reports.filters.date_to') }}</label><input wire:model.live="date_to" type="date" class="report-control w-full rounded-xl px-3 py-2.5 text-sm"></div>
             </div>
             <div class="mt-5 flex flex-wrap justify-end gap-3">
-                <a href="{{ route('reports.exports.student-quran-tests', ['course_id' => $course_id, 'group_id' => $group_id, 'date_from' => $date_from, 'date_to' => $date_to]) }}" class="pill-link pill-link--accent justify-center">{{ __('reports.quran_tests.export') }}</a>
-                <button type="button" wire:click="clearFilters" class="pill-link justify-center">{{ __('reports.filters.clear') }}</button>
+                <x-export-action-button :href="route('reports.exports.student-quran-tests', ['course_id' => $course_id, 'group_id' => $group_id, 'date_from' => $date_from, 'date_to' => $date_to])" class="admin-icon-button--accent" :label="__('reports.quran_tests.export')" />
+                <x-clear-filter-button wire:click="clearFilters" :label="__('reports.filters.clear')" />
             </div>
         </section>
 

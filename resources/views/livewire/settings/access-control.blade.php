@@ -399,7 +399,7 @@ new class extends Component {
     <section class="overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700" x-data="{ draggedRole: null, roleDropTarget: null, settledRole: null }">
         <div class="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-200 px-5 py-4 dark:border-neutral-700">
             <div class="admin-grid-meta__title">{{ __('access.common.roles') }}</div>
-            <div class="flex flex-wrap items-end gap-3" data-mobile-table-filter-controls><div class="admin-filter-field"><label class="sr-only" for="role-search">{{ __('access.roles.fields.search') }}</label><input id="role-search" wire:model.live.debounce.300ms="role_search" type="text" placeholder="{{ __('access.roles.fields.search') }}"></div><button type="button" wire:click="openCreateRoleModal" class="pill-link pill-link--accent">{{ __('access.roles.actions.create') }}</button></div>
+            <div class="access-role-table-controls flex flex-wrap items-end gap-3" data-mobile-table-filter-controls><div class="admin-filter-field"><label class="sr-only" for="role-search">{{ __('access.roles.fields.search') }}</label><input id="role-search" wire:model.live.debounce.300ms="role_search" type="text" placeholder="{{ __('access.roles.fields.search') }}"></div><x-add-action-button wire:click="openCreateRoleModal" :label="__('access.roles.actions.create')" /></div>
         </div>
 
         @if ($roles->isEmpty())
@@ -413,7 +413,7 @@ new class extends Component {
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('access.roles.table.headers.users') }}</th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('access.roles.table.headers.permissions') }}</th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('access.roles.table.headers.type') }}</th>
-                            <th class="px-5 py-4 text-right lg:px-6">{{ __('access.roles.table.headers.actions') }}</th>
+                            <th class="admin-actions-column px-5 py-4 text-center lg:px-6">{{ __('access.roles.table.headers.actions') }}</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-neutral-200 dark:divide-neutral-700">
@@ -466,13 +466,18 @@ new class extends Component {
                                     </span>
                                 </td>
                                 <td class="px-5 py-4 lg:px-6">
-                                    <div class="flex flex-wrap justify-end gap-2">
-                                        <button type="button" wire:click="openPermissionsModal('{{ $role->name }}')" class="pill-link pill-link--compact">
-                                            {{ __('access.roles.actions.permissions') }}
+                                    <div class="admin-action-cluster">
+                                        <button
+                                            type="button"
+                                            wire:click="openPermissionsModal('{{ $role->name }}')"
+                                            class="admin-icon-button"
+                                            title="{{ __('access.roles.actions.permissions') }}"
+                                            aria-label="{{ __('access.roles.actions.permissions') }}"
+                                            data-role-permissions-action
+                                        >
+                                            <x-admin-action-icon name="permissions" />
                                         </button>
-                                        <button type="button" wire:click="openEditRoleModal('{{ $role->name }}')" class="pill-link pill-link--compact">
-                                            {{ __('access.roles.actions.edit') }}
-                                        </button>
+                                        <x-edit-action-button wire:click="openEditRoleModal('{{ $role->name }}')" :label="__('access.roles.actions.edit')" data-role-edit-action />
                                     </div>
                                 </td>
                             </tr>
@@ -493,7 +498,7 @@ new class extends Component {
         :show="$showRoleModal"
         :title="$editing_role !== '' ? __('access.roles.actions.edit') : __('access.roles.actions.create')"
         close-method="closeRoleModal"
-        max-width="2xl"
+        :max-width="$editing_role !== '' ? 'sm' : '2xl'"
     >
         <div class="space-y-4">
             <div>
@@ -524,18 +529,18 @@ new class extends Component {
             @enderror
 
             <div class="flex flex-wrap items-center gap-3">
-                <button type="button" wire:click="saveRole" class="pill-link pill-link--accent">
-                    {{ $editing_role !== '' ? __('access.roles.actions.edit') : __('access.roles.actions.create') }}
-                </button>
-                <x-admin.create-and-new-button :show="$editing_role === ''" click="saveAndNew('saveRole', 'openCreateRoleModal')" />
                 @if ($editing_role === '')
+                    <x-admin.create-and-new-button click="saveAndNew('saveRole', 'openCreateRoleModal')" />
                     <button type="button" wire:click="closeRoleModal" class="pill-link">
                         {{ __('access.roles.actions.cancel') }}
                     </button>
-                @elseif (! $this->isSystemRole($editing_role))
-                    <button type="button" wire:click="deleteEditingRole" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link pill-link--danger">
-                        {{ __('access.roles.actions.delete') }}
+                @else
+                    <button type="button" wire:click="saveRole" class="admin-icon-button admin-icon-button--accent admin-modal-action-button" title="{{ __('access.roles.actions.edit') }}" aria-label="{{ __('access.roles.actions.edit') }}" data-role-save-action>
+                        <x-admin-action-icon name="save" class="admin-modal-action__icon" />
                     </button>
+                    @unless ($this->isSystemRole($editing_role))
+                        <x-delete-action-button wire:click="deleteEditingRole" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" :label="__('access.roles.actions.delete')" data-role-delete-action />
+                    @endunless
                 @endif
             </div>
         </div>

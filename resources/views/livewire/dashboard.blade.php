@@ -15,6 +15,7 @@ use App\Services\CourseEndService;
 use App\Services\CurriculumProgressService;
 use App\Services\GroupDailySummaryService;
 use App\Services\PrintTemplates\PrintTemplateRenderService;
+use App\Services\ReportingService;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
@@ -172,6 +173,13 @@ new class extends Component {
             ->orderByDesc('pages')
             ->get();
         $activeEnrollmentIds = (clone $activeEnrollments)->pluck('id');
+        $averageDailyAttendance = (int) round($courseId
+            ? app(ReportingService::class)->studentActivityAverageAttendance(['course_id' => $courseId])
+            : 0.0);
+        $finalTestedJuz = QuranFinalTest::query()
+            ->whereIn('enrollment_id', $activeEnrollmentIds)
+            ->where('status', 'passed')
+            ->count();
         $courseEndPointTotals = $defaultCourse
             ? app(CourseEndService::class)
                 ->studentRows($defaultCourse)
@@ -261,8 +269,10 @@ new class extends Component {
             'stats' => [
                 ['label' => __('dashboard.manager.stats.enrolled_students.label'), 'value' => (clone $activeEnrollments)->distinct('student_id')->count('student_id'), 'hint' => __('dashboard.manager.stats.enrolled_students.hint')],
                 ['label' => __('dashboard.manager.stats.active_groups.label'), 'value' => $groups->count(), 'hint' => __('dashboard.manager.stats.active_groups.hint')],
-                ['label' => __('dashboard.manager.stats.total_points.label'), 'value' => (int) (clone $activeEnrollments)->sum('final_points_cached'), 'hint' => __('dashboard.manager.stats.total_points.hint')],
+                ['label' => __('dashboard.manager.stats.average_daily_attendance.label'), 'value' => $averageDailyAttendance, 'hint' => __('dashboard.manager.stats.average_daily_attendance.hint')],
                 ['label' => __('dashboard.manager.stats.memorized_pages.label'), 'value' => (int) (clone $activeEnrollments)->sum('memorized_pages_cached'), 'hint' => __('dashboard.manager.stats.memorized_pages.hint')],
+                ['label' => __('dashboard.manager.stats.final_tested_juz.label'), 'value' => $finalTestedJuz, 'hint' => __('dashboard.manager.stats.final_tested_juz.hint')],
+                ['label' => __('dashboard.manager.stats.total_points.label'), 'value' => (int) (clone $activeEnrollments)->sum('final_points_cached'), 'hint' => __('dashboard.manager.stats.total_points.hint')],
             ],
             'cards' => [
                 [
@@ -923,16 +933,13 @@ new class extends Component {
         <div class="{{ $dashboardRole === 'manager' ? 'dashboard-manager-highlights gap-3' : 'gap-4' }} grid md:grid-cols-2 xl:grid-cols-4">
             @foreach ($stats as $stat)
                 <article class="stat-card">
-                    <div class="flex items-start justify-between gap-4">
-                        <div class="kpi-label">{{ $stat['label'] }}</div>
-                        <span class="badge-soft {{ $loop->even ? 'badge-soft--emerald' : '' }}">{{ str_pad((string) $loop->iteration, 2, '0', STR_PAD_LEFT) }}</span>
-                    </div>
+                    <div class="kpi-label">{{ $stat['label'] }}</div>
                     @if (filled($stat['action'] ?? null))
                         <button type="button" wire:click="{{ $stat['action'] }}" class="pill-link pill-link--accent mt-3 w-full justify-center">
                             {{ $stat['value'] }}
                         </button>
                     @else
-                        <div class="metric-value mt-3">{{ is_numeric($stat['value']) ? number_format($stat['value']) : $stat['value'] }}</div>
+                        <div class="metric-value mt-3">{{ $stat['formatted_value'] ?? (is_numeric($stat['value']) ? number_format($stat['value']) : $stat['value']) }}</div>
                     @endif
                 </article>
             @endforeach
@@ -1353,7 +1360,18 @@ new class extends Component {
                 <article class="teacher-points-card surface-table">
                     <div class="teacher-points-card__header admin-grid-meta">
                         <div><div class="admin-grid-meta__title">{{ __('dashboard.teacher.group_dashboard.top_students_by_points') }}</div><div class="admin-grid-meta__summary">{{ __('dashboard.teacher.group_dashboard.top_five') }}</div></div>
-                        @if ($teacherRankedStudents->isNotEmpty())<button type="button" wire:click="openTeacherLeaderboard" class="pill-link pill-link--compact">{{ __('dashboard.teacher.group_dashboard.view_all') }}</button>@endif
+                        @if ($teacherRankedStudents->isNotEmpty())
+                            <button
+                                type="button"
+                                wire:click="openTeacherLeaderboard"
+                                class="admin-icon-button"
+                                title="{{ __('dashboard.teacher.group_dashboard.view_all') }}"
+                                aria-label="{{ __('dashboard.teacher.group_dashboard.view_all') }}"
+                                data-view-all-expand
+                            >
+                                <x-admin-action-icon name="expand" />
+                            </button>
+                        @endif
                     </div>
                     @if ($teacherTopStudents->isEmpty())
                         <div class="admin-empty-state">{{ __('dashboard.teacher.group_dashboard.empty_students') }}</div>

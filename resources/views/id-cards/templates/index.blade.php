@@ -7,7 +7,7 @@
 
             <div class="mt-6 flex flex-wrap gap-3">
                 @can('id-cards.templates.manage')
-                    <a href="{{ route('id-cards.templates.create') }}" class="pill-link pill-link--accent">{{ __('id_cards.templates.actions.create') }}</a>
+                    <x-add-action-button :href="route('id-cards.templates.create')" :label="__('id_cards.templates.actions.create')" />
                 @endcan
                 @can('id-cards.print')
                     <a href="{{ route('id-cards.print.create') }}" class="pill-link">{{ __('id_cards.templates.actions.generate') }}</a>
@@ -38,7 +38,7 @@
                                 <th class="px-5 py-4 text-left lg:px-6">{{ __('id_cards.templates.table.headers.size') }}</th>
                                 <th class="px-5 py-4 text-left lg:px-6">{{ __('id_cards.templates.table.headers.elements') }}</th>
                                 <th class="px-5 py-4 text-left lg:px-6">{{ __('id_cards.templates.table.headers.status') }}</th>
-                                <th class="px-5 py-4 text-right lg:px-6">{{ __('id_cards.templates.table.headers.actions') }}</th>
+                                <th class="admin-actions-column px-5 py-4 text-center lg:px-6">{{ __('id_cards.templates.table.headers.actions') }}</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-white/6">

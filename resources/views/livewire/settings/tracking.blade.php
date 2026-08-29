@@ -581,11 +581,11 @@ new class extends Component
                         <div class="text-sm font-medium">{{ __('settings.tracking.sections.attendance_status.table') }}</div>
                         <p class="mt-1 text-xs text-neutral-500 dark:text-neutral-400">{{ __('settings.tracking.sections.attendance_status.copy') }}</p>
                     </div>
-                    <button type="button" wire:click="openAttendanceStatusModal" class="pill-link pill-link--accent">{{ __('settings.tracking.actions.create_status') }}</button>
+                    <x-add-action-button wire:click="openAttendanceStatusModal" :label="__('settings.tracking.actions.create_status')" />
                 </div>
                 <div class="overflow-x-auto">
                     <table class="min-w-full divide-y divide-neutral-200 text-sm dark:divide-neutral-700">
-                        <thead class="bg-neutral-50 dark:bg-neutral-900/60"><tr><th class="px-5 py-3 text-left font-medium">{{ __('settings.tracking.table.name') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.tracking.table.code') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.tracking.table.scope') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.tracking.table.default_points') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.tracking.table.state') }}</th><th class="px-5 py-3 text-right font-medium">{{ __('settings.tracking.table.actions') }}</th></tr></thead>
+                        <thead class="bg-neutral-50 dark:bg-neutral-900/60"><tr><th class="px-5 py-3 text-left font-medium">{{ __('settings.tracking.table.name') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.tracking.table.code') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.tracking.table.scope') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.tracking.table.default_points') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.tracking.table.state') }}</th><th class="admin-actions-column px-5 py-3 text-center font-medium">{{ __('settings.tracking.table.actions') }}</th></tr></thead>
                         <tbody class="divide-y divide-neutral-200 dark:divide-neutral-700">
                             @foreach ($attendanceStatuses as $attendanceStatus)
                                 <tr>
@@ -594,7 +594,7 @@ new class extends Component
                                     <td class="px-5 py-3">{{ __('settings.tracking.scopes.'.$attendanceStatus->scope) }}</td>
                                     <td class="px-5 py-3">{{ $attendanceStatus->default_points }}</td>
                                     <td class="px-5 py-3">{{ $attendanceStatus->is_active ? __('settings.common.states.active') : __('settings.common.states.inactive') }}</td>
-                                    <td class="px-5 py-3"><div class="flex justify-end gap-2"><button type="button" wire:click="editAttendanceStatus({{ $attendanceStatus->id }})" class="rounded-lg border border-neutral-300 px-3 py-1.5 dark:border-neutral-700">{{ __('crud.common.actions.edit') }}</button><button type="button" wire:click="deleteAttendanceStatus({{ $attendanceStatus->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="rounded-lg border border-red-300 px-3 py-1.5 text-red-700 dark:border-red-800 dark:text-red-300">{{ __('crud.common.actions.delete') }}</button></div></td>
+                                    <td class="px-5 py-3"><div class="admin-action-cluster admin-action-cluster--end"><x-edit-action-button wire:click="editAttendanceStatus({{ $attendanceStatus->id }})" :label="__('crud.common.actions.edit')" data-settings-attendance-status-edit-action /></div></td>
                                 </tr>
                             @endforeach
                         </tbody>
@@ -608,11 +608,11 @@ new class extends Component
                         <div class="text-sm font-medium">{{ __('settings.tracking.sections.assessment_type.table') }}</div>
                         <p class="mt-1 text-xs text-neutral-500 dark:text-neutral-400">{{ __('settings.tracking.sections.assessment_type.copy') }}</p>
                     </div>
-                    <button type="button" wire:click="openAssessmentTypeModal" class="pill-link pill-link--accent">{{ __('settings.tracking.actions.create_type') }}</button>
+                    <x-add-action-button wire:click="openAssessmentTypeModal" :label="__('settings.tracking.actions.create_type')" />
                 </div>
                 <div class="overflow-x-auto">
                     <table class="min-w-full divide-y divide-neutral-200 text-sm dark:divide-neutral-700">
-                        <thead class="bg-neutral-50 dark:bg-neutral-900/60"><tr><th class="px-5 py-3 text-left font-medium">{{ __('settings.tracking.table.type') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.tracking.table.code') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.tracking.table.assessments') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.tracking.table.state') }}</th><th class="px-5 py-3 text-right font-medium">{{ __('settings.tracking.table.actions') }}</th></tr></thead>
+                        <thead class="bg-neutral-50 dark:bg-neutral-900/60"><tr><th class="px-5 py-3 text-left font-medium">{{ __('settings.tracking.table.type') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.tracking.table.code') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.tracking.table.assessments') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.tracking.table.state') }}</th><th class="admin-actions-column px-5 py-3 text-center font-medium">{{ __('settings.tracking.table.actions') }}</th></tr></thead>
                         <tbody class="divide-y divide-neutral-200 dark:divide-neutral-700">
                             @foreach ($assessmentTypes as $assessmentType)
                                 <tr>
@@ -620,7 +620,7 @@ new class extends Component
                                     <td class="px-5 py-3">{{ $assessmentType->code }}</td>
                                     <td class="px-5 py-3">{{ $assessmentType->assessments_count }}</td>
                                     <td class="px-5 py-3">{{ $assessmentType->is_active ? __('settings.common.states.active') : __('settings.common.states.inactive') }}</td>
-                                    <td class="px-5 py-3"><div class="flex justify-end gap-2"><button type="button" wire:click="editAssessmentType({{ $assessmentType->id }})" class="rounded-lg border border-neutral-300 px-3 py-1.5 dark:border-neutral-700">{{ __('crud.common.actions.edit') }}</button><button type="button" wire:click="deleteAssessmentType({{ $assessmentType->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="rounded-lg border border-red-300 px-3 py-1.5 text-red-700 dark:border-red-800 dark:text-red-300">{{ __('crud.common.actions.delete') }}</button></div></td>
+                                    <td class="px-5 py-3"><div class="admin-action-cluster admin-action-cluster--end"><x-edit-action-button wire:click="editAssessmentType({{ $assessmentType->id }})" :label="__('crud.common.actions.edit')" data-settings-assessment-type-edit-action /></div></td>
                                 </tr>
                             @endforeach
                         </tbody>
@@ -649,8 +649,14 @@ new class extends Component
             @error('attendanceStatusDelete') <div class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{{ $message }}</div> @enderror
             <div class="flex justify-end gap-3">
                 <button type="button" wire:click="closeAttendanceStatusModal" class="pill-link">{{ __('crud.common.actions.cancel') }}</button>
-                <button type="submit" class="pill-link pill-link--accent">{{ $attendance_status_editing_id ? __('settings.tracking.actions.update_status') : __('settings.tracking.actions.create_status') }}</button>
-                <x-admin.create-and-new-button :show="! $attendance_status_editing_id" click="saveAndNew('saveAttendanceStatus', 'openAttendanceStatusModal')" />
+                @if ($attendance_status_editing_id)
+                    <x-delete-action-button wire:click="deleteAttendanceStatus({{ $attendance_status_editing_id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" :label="__('crud.common.actions.delete')" data-settings-attendance-status-delete-action />
+                @endif
+                @if ($attendance_status_editing_id)
+                    <x-admin.save-button :label="__('settings.tracking.actions.update_status')" data-settings-attendance-status-save-action />
+                @else
+                    <x-admin.create-and-new-button click="saveAndNew('saveAttendanceStatus', 'openAttendanceStatusModal')" />
+                @endif
             </div>
         </form>
     </x-admin.modal>
@@ -664,8 +670,14 @@ new class extends Component
             @error('assessmentTypeDelete') <div class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{{ $message }}</div> @enderror
             <div class="flex justify-end gap-3">
                 <button type="button" wire:click="closeAssessmentTypeModal" class="pill-link">{{ __('crud.common.actions.cancel') }}</button>
-                <button type="submit" class="pill-link pill-link--accent">{{ $assessment_type_editing_id ? __('settings.tracking.actions.update_type') : __('settings.tracking.actions.create_type') }}</button>
-                <x-admin.create-and-new-button :show="! $assessment_type_editing_id" click="saveAndNew('saveAssessmentType', 'openAssessmentTypeModal')" />
+                @if ($assessment_type_editing_id)
+                    <x-delete-action-button wire:click="deleteAssessmentType({{ $assessment_type_editing_id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" :label="__('crud.common.actions.delete')" data-settings-assessment-type-delete-action />
+                @endif
+                @if ($assessment_type_editing_id)
+                    <x-admin.save-button :label="__('settings.tracking.actions.update_type')" data-settings-assessment-type-save-action />
+                @else
+                    <x-admin.create-and-new-button click="saveAndNew('saveAssessmentType', 'openAssessmentTypeModal')" />
+                @endif
             </div>
         </form>
     </x-admin.modal>

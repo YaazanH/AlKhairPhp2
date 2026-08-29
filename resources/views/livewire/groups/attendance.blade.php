@@ -231,9 +231,24 @@ new class extends Component
         $this->attendanceDayId = $day?->id;
         $this->day_status = $day?->studentAttendanceDay?->status ?? 'open';
         $this->notes = $day?->notes ?? '';
-        $this->selected_statuses = $day
+        $savedStatuses = $day
             ? $day->records->mapWithKeys(fn (StudentAttendanceRecord $record) => [$record->enrollment_id => $record->attendance_status_id])->toArray()
             : [];
+        $defaultStatusId = AttendanceStatus::query()
+            ->where('is_active', true)
+            ->whereIn('scope', ['student', 'both'])
+            ->orderByDesc('is_default')
+            ->orderByDesc('is_present')
+            ->orderBy('name')
+            ->value('id');
+        $this->selected_statuses = Enrollment::query()
+            ->where('group_id', $this->currentGroup->id)
+            ->where('status', 'active')
+            ->pluck('id')
+            ->mapWithKeys(fn (int $enrollmentId) => [
+                $enrollmentId => $savedStatuses[$enrollmentId] ?? $defaultStatusId,
+            ])
+            ->all();
     }
 }; ?>
 
@@ -377,16 +392,14 @@ new class extends Component
                                 <td class="px-5 py-4 text-white lg:px-6">{{ $enrollment->final_points_cached }}</td>
                                 <td class="px-5 py-4 lg:px-6">
                                     @if ($isDayClosed)
-                                        <span class="text-neutral-200">{{ $statuses->firstWhere('id', (int) ($selected_statuses[$enrollment->id] ?? 0))?->name ?: __('workflow.student_attendance.table.not_marked') }}</span>
+                                        <span class="text-neutral-200">{{ $statuses->firstWhere('id', (int) ($selected_statuses[$enrollment->id] ?? 0))?->name ?: $statuses->firstWhere('is_default', true)?->name ?: $statuses->first()?->name ?: '-' }}</span>
                                     @else
                                         <select
                                             wire:model="selected_statuses.{{ $enrollment->id }}"
                                             wire:change="saveEnrollmentStatus({{ $enrollment->id }})"
                                             @disabled(! auth()->user()->can('attendance.student.take'))
-                                            data-searchable="false"
                                             class="w-full rounded-xl px-4 py-3 text-sm"
                                         >
-                                            <option value="">{{ __('workflow.student_attendance.table.not_marked') }}</option>
                                             @foreach ($statuses as $status)
                                                 <option value="{{ $status->id }}">{{ $status->name }}</option>
                                             @endforeach

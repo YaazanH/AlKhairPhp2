@@ -233,7 +233,7 @@ new class extends Component {
                                     <th class="px-5 py-3 text-left font-medium">{{ __('activities.family.table.headers.student') }}</th>
                                     <th class="px-5 py-3 text-left font-medium">{{ __('activities.family.table.headers.group') }}</th>
                                     <th class="px-5 py-3 text-left font-medium">{{ __('activities.family.table.headers.response') }}</th>
-                                    <th class="px-5 py-3 text-right font-medium">{{ __('activities.family.table.headers.actions') }}</th>
+                                    <th class="admin-actions-column px-5 py-3 text-center font-medium">{{ __('activities.family.table.headers.actions') }}</th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-white/6">

@@ -14,7 +14,7 @@
                 </div>
                 @if ($studentCardMode ?? false)
                     <div class="admin-form-field relative z-50 min-w-64 overflow-visible">
-                        <label for="student-card-course">{{ __('crud.students.bulk_status.fields.course') }}</label>
+                        <label for="student-card-course" class="sr-only">{{ __('crud.students.bulk_status.fields.course') }}</label>
                         <select id="student-card-course" class="relative z-30" onchange="window.location.href = `${window.location.pathname}?course_id=${this.value}`">
                             @foreach ($activeCourses as $course)<option value="{{ $course->id }}" @selected((int)$selectedCourseId === (int)$course->id)>{{ $course->name }}</option>@endforeach
                         </select>
@@ -54,7 +54,7 @@
                     <p class="mt-2 text-sm leading-7 text-neutral-300">{{ $emptyStateDescription }}</p>
                     @can('id-cards.templates.manage')
                         <div class="mt-4">
-                            <a href="{{ $emptyStateCreateUrl }}" class="pill-link pill-link--accent">{{ __('print_templates.templates.actions.create') }}</a>
+                            <x-add-action-button :href="$emptyStateCreateUrl" :label="__('print_templates.templates.actions.create')" />
                         </div>
                     @endcan
                 </div>
@@ -85,20 +85,10 @@
                             </div>
 
                             @if (($studentCardMode ?? false) || ($courseReportMode ?? false))
-                                <button type="submit" class="pill-link pill-link--accent">{{ __('print_templates.print.setup.buttons.preview') }}</button>
-                            @endif
-                            @if ($studentCardMode ?? false)
-                                <button
-                                    type="button"
-                                    class="pill-link"
-                                    data-toggle-selected-print-status
-                                    data-record-url="{{ route('id-cards.print.record') }}"
-                                    data-clear-url="{{ route('id-cards.print.clear') }}"
-                                >
-                                    {{ __('print_templates.print.setup.buttons.mark_printed') }}
+                                <button type="submit" class="admin-icon-button admin-icon-button--accent" title="{{ __('print_templates.print.setup.buttons.preview') }}" aria-label="{{ __('print_templates.print.setup.buttons.preview') }}" data-print-preview-action>
+                                    <x-admin-action-icon name="print" />
                                 </button>
                             @endif
-
                             @foreach (['page_width_mm', 'page_height_mm', 'margin_top_mm', 'margin_right_mm', 'margin_bottom_mm', 'margin_left_mm', 'gap_x_mm', 'gap_y_mm'] as $field)
                                 <input name="{{ $field }}" type="hidden" value="{{ old($field, $defaults[$field]) }}" data-page-layout-field="{{ $field }}">
                             @endforeach
@@ -169,8 +159,23 @@
                                                     @endif
                                                 @endif
                                                 <div class="admin-toolbar__actions print-template-source-toolbar__actions">
-                                                    <button type="button" class="pill-link pill-link--compact" data-source-select-visible="{{ $entity }}">{{ __('print_templates.print.setup.buttons.select_visible') }}</button>
-                                                    <button type="button" class="pill-link pill-link--compact" data-source-clear="{{ $entity }}">{{ __('print_templates.print.setup.buttons.clear') }}</button>
+                                                    <button type="button" class="admin-icon-button selection-toolbar-icon-button" title="{{ __('print_templates.print.setup.buttons.clear') }}" aria-label="{{ __('print_templates.print.setup.buttons.clear') }}" data-source-clear="{{ $entity }}"><x-admin-action-icon name="clear-filter" /></button>
+                                                    <button type="button" class="admin-icon-button selection-toolbar-icon-button" title="{{ __('print_templates.print.setup.buttons.select_visible') }}" aria-label="{{ __('print_templates.print.setup.buttons.select_visible') }}" data-source-select-visible="{{ $entity }}" data-source-selection-mode="select"><x-admin-action-icon name="select-visible" data-select-visible-icon /><x-admin-action-icon name="clear-selection" data-clear-selection-icon hidden /></button>
+                                                    @if (($studentCardMode ?? false) && $entity === 'student')
+                                                        <button
+                                                            type="button"
+                                                            class="admin-icon-button selection-toolbar-icon-button id-card-print-status-action"
+                                                            title="{{ __('print_templates.print.setup.buttons.mark_printed') }}"
+                                                            aria-label="{{ __('print_templates.print.setup.buttons.mark_printed') }}"
+                                                            data-toggle-selected-print-status
+                                                            data-print-status-action="mark-printed"
+                                                            data-record-url="{{ route('id-cards.print.record') }}"
+                                                            data-clear-url="{{ route('id-cards.print.clear') }}"
+                                                        >
+                                                            <x-id-card-print-status-icon state="printed" data-mark-printed-icon />
+                                                            <x-id-card-print-status-icon state="unprinted" data-mark-unprinted-icon hidden />
+                                                        </button>
+                                                    @endif
                                                 </div>
                                             </div>
                                         </div>
@@ -272,6 +277,8 @@
             const copyPanel = document.querySelector('[data-copy-count-panel]');
             const printStatusButton = document.querySelector('[data-toggle-selected-print-status]');
             const printStatusNotice = document.querySelector('[data-print-status-notice]');
+            const markPrintedIcon = printStatusButton?.querySelector('[data-mark-printed-icon]');
+            const markUnprintedIcon = printStatusButton?.querySelector('[data-mark-unprinted-icon]');
 
             if (!templateSelect) {
                 return;
@@ -285,6 +292,8 @@
             const markUnprintedBusyLabel = @json(__('print_templates.print.setup.buttons.mark_unprinted_busy'));
             const markPrintedSuccessMessage = @json(__('print_templates.print.setup.messages.marked_printed'));
             const markUnprintedSuccessMessage = @json(__('print_templates.print.setup.messages.marked_unprinted'));
+            const selectVisibleLabel = @json(__('print_templates.print.setup.buttons.select_visible'));
+            const clearSelectionLabel = @json(__('print_templates.print.setup.buttons.clear_selection'));
             const markPrintedEmptyMessage = @json(__('print_templates.print.setup.errors.no_students_selected'));
             const markPrintedFailedMessage = @json(__('print_templates.print.setup.errors.mark_printed_failed'));
             const markUnprintedFailedMessage = @json(__('print_templates.print.setup.errors.mark_unprinted_failed'));
@@ -383,7 +392,24 @@
                 checkbox.checked = checked;
                 card.classList.toggle('is-selected', checked);
                 card.setAttribute('aria-checked', checked ? 'true' : 'false');
+                updateSourceSelectionButton(card.dataset.sourceCard);
                 updatePrintStatusButton();
+            }
+
+            function updateSourceSelectionButton(entity) {
+                const button = document.querySelector(`[data-source-select-visible="${entity}"]`);
+
+                if (!button) return;
+
+                const hasSelection = [...document.querySelectorAll(`[data-source-card="${entity}"] input[type="checkbox"]`)]
+                    .some((checkbox) => checkbox.checked);
+                const label = hasSelection ? clearSelectionLabel : selectVisibleLabel;
+
+                button.dataset.sourceSelectionMode = hasSelection ? 'clear' : 'select';
+                button.title = label;
+                button.setAttribute('aria-label', label);
+                button.querySelector('[data-select-visible-icon]')?.toggleAttribute('hidden', hasSelection);
+                button.querySelector('[data-clear-selection-icon]')?.toggleAttribute('hidden', !hasSelection);
             }
 
             function relatedIds(element, entity) {
@@ -510,14 +536,28 @@
             function shouldClearSelectedPrints() {
                 const selectedCards = [...document.querySelectorAll('[data-source-card="student"]')]
                     .filter((card) => card.querySelector('input[type="checkbox"]')?.checked);
-                const printedCount = selectedCards.filter((card) => card.dataset.cardPrinted === '1').length;
 
-                return printedCount > (selectedCards.length - printedCount);
+                return selectedCards.length > 0
+                    && selectedCards.every((card) => card.dataset.cardPrinted === '1');
+            }
+
+            function setPrintStatusButtonState(clearPrints, busy = false) {
+                if (!printStatusButton) return;
+
+                const label = busy
+                    ? (clearPrints ? markUnprintedBusyLabel : markPrintedBusyLabel)
+                    : (clearPrints ? markUnprintedDefaultLabel : markPrintedDefaultLabel);
+
+                printStatusButton.title = label;
+                printStatusButton.setAttribute('aria-label', label);
+                printStatusButton.dataset.printStatusAction = clearPrints ? 'mark-unprinted' : 'mark-printed';
+
+                if (markPrintedIcon) markPrintedIcon.toggleAttribute('hidden', clearPrints);
+                if (markUnprintedIcon) markUnprintedIcon.toggleAttribute('hidden', !clearPrints);
             }
 
             function updatePrintStatusButton() {
-                if (!printStatusButton) return;
-                printStatusButton.textContent = shouldClearSelectedPrints() ? markUnprintedDefaultLabel : markPrintedDefaultLabel;
+                setPrintStatusButtonState(shouldClearSelectedPrints());
             }
 
             function updateStudentPrintedState(studentIds, printedAtLabel = '') {
@@ -626,21 +666,30 @@
 
             document.querySelectorAll('[data-source-select-visible]').forEach((button) => {
                 button.addEventListener('click', () => {
-                    document.querySelectorAll(`[data-source-card="${button.dataset.sourceSelectVisible}"]`).forEach((card) => {
-                        if (card.hidden) {
-                            return;
-                        }
+                    const entity = button.dataset.sourceSelectVisible;
+                    const clearSelection = button.dataset.sourceSelectionMode === 'clear';
 
-                        setSourceCardChecked(card, true);
+                    document.querySelectorAll(`[data-source-card="${entity}"]`).forEach((card) => {
+                        if (!clearSelection && card.hidden) return;
+                        setSourceCardChecked(card, !clearSelection);
                     });
+                    updateSourceSelectionButton(entity);
                 });
             });
 
             document.querySelectorAll('[data-source-clear]').forEach((button) => {
                 button.addEventListener('click', () => {
-                    document.querySelectorAll(`[data-source-card="${button.dataset.sourceClear}"]`).forEach((card) => {
-                        setSourceCardChecked(card, false);
-                    });
+                    const entity = button.dataset.sourceClear;
+                    const searchInput = document.querySelector(`[data-source-search="${entity}"]`);
+                    const groupFilter = document.querySelector(`[data-source-group-filter="${entity}"]`);
+                    const statusFilter = document.querySelector(`[data-source-status-filter="${entity}"]`);
+                    const printedFilter = document.querySelector(`[data-source-printed-filter="${entity}"]`);
+
+                    if (searchInput) searchInput.value = '';
+                    if (groupFilter) groupFilter.value = '';
+                    if (statusFilter) statusFilter.value = '';
+                    if (printedFilter) printedFilter.value = '';
+                    applySourceFilter(entity);
                 });
             });
 
@@ -655,7 +704,7 @@
                 setPrintStatusNotice('', 'neutral');
                 const clearPrints = shouldClearSelectedPrints();
                 printStatusButton.disabled = true;
-                printStatusButton.textContent = clearPrints ? markUnprintedBusyLabel : markPrintedBusyLabel;
+                setPrintStatusButtonState(clearPrints, true);
 
                 try {
                     const response = await fetch(clearPrints ? printStatusButton.dataset.clearUrl : printStatusButton.dataset.recordUrl, {
@@ -697,6 +746,10 @@
 
             templateSelect.addEventListener('change', updatePanels);
             updatePanels();
+            document.querySelectorAll('[data-source-select-visible]').forEach((button) => {
+                updateSourceSelectionButton(button.dataset.sourceSelectVisible);
+            });
+            updatePrintStatusButton();
         })();
     </script>
 </x-layouts.app>

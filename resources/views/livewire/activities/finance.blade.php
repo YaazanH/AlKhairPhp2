@@ -475,7 +475,7 @@ new class extends Component {
                 </div>
                 <div class="overflow-x-auto">
                     <table class="text-sm">
-                        <thead><tr><th class="px-5 py-3 text-left font-medium">{{ __('activities.finance.registrations.headers.student') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('activities.finance.registrations.headers.enrollment') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('activities.finance.registrations.headers.fee') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('activities.finance.registrations.headers.paid') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('activities.finance.registrations.headers.status') }}</th><th class="px-5 py-3 text-right font-medium">{{ __('activities.finance.registrations.headers.actions') }}</th></tr></thead>
+                        <thead><tr><th class="px-5 py-3 text-left font-medium">{{ __('activities.finance.registrations.headers.student') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('activities.finance.registrations.headers.enrollment') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('activities.finance.registrations.headers.fee') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('activities.finance.registrations.headers.paid') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('activities.finance.registrations.headers.status') }}</th><th class="admin-actions-column px-5 py-3 text-center font-medium">{{ __('activities.finance.registrations.headers.actions') }}</th></tr></thead>
                         <tbody class="divide-y divide-white/6">
                             @forelse ($registrations as $registration)
                                 <tr>
@@ -510,7 +510,7 @@ new class extends Component {
                 </div>
                 <div class="overflow-x-auto">
                     <table class="text-sm">
-                        <thead><tr><th class="px-5 py-3 text-left font-medium">{{ __('activities.finance.payments.headers.date') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('activities.finance.payments.headers.student') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('activities.finance.payments.headers.method') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('activities.finance.payments.headers.amount') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('activities.finance.payments.headers.state') }}</th><th class="px-5 py-3 text-right font-medium">{{ __('activities.finance.payments.headers.actions') }}</th></tr></thead>
+                        <thead><tr><th class="px-5 py-3 text-left font-medium">{{ __('activities.finance.payments.headers.date') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('activities.finance.payments.headers.student') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('activities.finance.payments.headers.method') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('activities.finance.payments.headers.amount') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('activities.finance.payments.headers.state') }}</th><th class="admin-actions-column px-5 py-3 text-center font-medium">{{ __('activities.finance.payments.headers.actions') }}</th></tr></thead>
                         <tbody class="divide-y divide-white/6">
                             @forelse ($payments as $payment)
                                 <tr class="{{ $payment->voided_at ? 'opacity-60' : '' }}">
@@ -545,7 +545,7 @@ new class extends Component {
                 </div>
                 <div class="overflow-x-auto">
                     <table class="text-sm">
-                        <thead><tr><th class="px-5 py-3 text-left font-medium">{{ __('activities.finance.expenses.headers.date') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('activities.finance.expenses.headers.category') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('activities.finance.expenses.headers.description') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('activities.finance.expenses.headers.amount') }}</th><th class="px-5 py-3 text-right font-medium">{{ __('activities.finance.expenses.headers.actions') }}</th></tr></thead>
+                        <thead><tr><th class="px-5 py-3 text-left font-medium">{{ __('activities.finance.expenses.headers.date') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('activities.finance.expenses.headers.category') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('activities.finance.expenses.headers.description') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('activities.finance.expenses.headers.amount') }}</th><th class="admin-actions-column px-5 py-3 text-center font-medium">{{ __('activities.finance.expenses.headers.actions') }}</th></tr></thead>
                         <tbody class="divide-y divide-white/6">
                             @forelse ($expenses as $expense)
                                 <tr>

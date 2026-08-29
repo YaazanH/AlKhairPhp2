@@ -547,7 +547,7 @@ new class extends Component {
                                 </button>
                             </th>
                             @can('memorization.record')
-                                <th class="px-5 py-4 text-right lg:px-6">{{ __('workflow.memorization.workbench.table.headers.actions') }}</th>
+                                <th class="admin-actions-column px-5 py-4 text-center lg:px-6">{{ __('workflow.memorization.workbench.table.headers.actions') }}</th>
                             @endcan
                         </tr>
                     </thead>
@@ -581,8 +581,8 @@ new class extends Component {
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $session->teacher?->first_name }} {{ $session->teacher?->last_name }}</td>
                                 @can('memorization.record')
                                     <td class="px-5 py-4 lg:px-6">
-                                        <div class="flex flex-wrap justify-end gap-2">
-                                            <button type="button" wire:click="editSession({{ $session->id }})" class="pill-link pill-link--compact">{{ __('workflow.common.actions.edit') }}</button>
+                                        <div class="flex flex-wrap justify-center gap-2">
+                                            <button type="button" wire:click="editSession({{ $session->id }})" class="admin-icon-button" title="{{ __('workflow.common.actions.edit') }}" aria-label="{{ __('workflow.common.actions.edit') }}"><x-admin-action-icon name="edit" /></button>
                                         </div>
                                     </td>
                                 @endcan
@@ -683,18 +683,25 @@ new class extends Component {
                 </div>
             </div>
 
-            <div class="flex flex-wrap items-center gap-3">
-                <button type="submit" class="pill-link pill-link--accent">
-                    {{ $editingSessionId ? __('workflow.common.actions.update_memorization') : __('workflow.common.actions.save_memorization') }}
-                </button>
-                <x-admin.create-and-new-button :show="! $editingSessionId" />
-                <button type="button" wire:click="closeFormModal" class="pill-link">
-                    {{ __('crud.common.actions.close') }}
-                </button>
+            <div class="memorization-modal-actions flex w-full flex-wrap items-center gap-3">
                 @if ($editingSessionId)
-                    <button type="button" wire:click="deleteSession({{ $editingSessionId }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link ms-auto border-red-400/25 text-red-200 hover:border-red-300/35 hover:bg-red-500/12">
-                        {{ __('crud.common.actions.delete') }}
+                    <x-delete-action-button
+                        wire:click="deleteSession({{ $editingSessionId }})"
+                        wire:confirm="{{ __('crud.common.confirm_delete.message') }}"
+                        :label="__('crud.common.actions.delete')"
+                        data-memorization-session-delete-action
+                    />
+                    <button
+                        type="submit"
+                        class="admin-icon-button admin-icon-button--accent admin-modal-action-button"
+                        title="{{ __('workflow.common.actions.update_memorization') }}"
+                        aria-label="{{ __('workflow.common.actions.update_memorization') }}"
+                        data-memorization-session-save-action
+                    >
+                        <x-admin-action-icon name="save" class="admin-modal-action__icon" />
                     </button>
+                @else
+                    <x-admin.create-and-new-button />
                 @endif
             </div>
         </form>

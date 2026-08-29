@@ -6,7 +6,7 @@ return [
             'home' => 'الرئيسية',
             'login' => 'تسجيل الدخول',
             'register' => 'إنشاء حساب',
-            'dashboard' => 'الصفحة الرئيسية',
+            'dashboard' => 'تطبيق الدورة',
         ],
         'sections' => [
             'story' => 'قصتنا',

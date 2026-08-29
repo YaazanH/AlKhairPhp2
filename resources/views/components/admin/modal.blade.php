@@ -11,6 +11,8 @@
 @php
     $widthClass = match ($maxWidth) {
         'fit' => 'admin-modal__dialog--fit',
+        'sm' => 'admin-modal__dialog--sm',
+        'md' => 'admin-modal__dialog--md',
         'xl' => 'admin-modal__dialog--xl',
         '2xl' => 'admin-modal__dialog--2xl',
         '3xl' => 'admin-modal__dialog--3xl',

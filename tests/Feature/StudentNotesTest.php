@@ -109,6 +109,11 @@ class StudentNotesTest extends TestCase
             ->assertSee(__('notes.log.table.actions'))
             ->assertSee('data-student-notes-actions-column', false)
             ->assertSee('data-student-note-edit', false)
+            ->assertSee('data-edit-action', false)
+            ->assertSee('data-student-note-save', false)
+            ->assertSee('data-icon-name="save"', false)
+            ->assertDontSee('data-create-and-new-action', false)
+            ->assertDontSee('data-icon-name="save-new"', false)
             ->assertDontSee('data-student-note-delete', false)
             ->assertSee('Notes Student')
             ->assertDontSee('Notes Parent')
@@ -118,7 +123,10 @@ class StudentNotesTest extends TestCase
 
         Volt::test('student-notes.index')
             ->call('edit', StudentNote::query()->firstOrFail()->id)
-            ->assertSee('data-student-note-delete', false);
+            ->assertSee('data-student-note-update-action', false)
+            ->assertSee('data-student-note-delete', false)
+            ->assertSee('data-icon-name="save"', false)
+            ->assertSee('data-icon-name="delete"', false);
     }
 
     public function test_teacher_notes_are_scoped_to_assigned_students_and_own_entries(): void

@@ -643,7 +643,7 @@ new class extends Component {
                     </div>
                 @endforeach
             </div>
-            <button type="button" wire:click="addProgramCard" class="pill-link mt-4">{{ __('site.admin.website.actions.add_program') }}</button>
+            <x-add-action-button wire:click="addProgramCard" :label="__('site.admin.website.actions.add_program')" :accent="false" class="mt-4" />
         </section>
 
         <section id="stats" class="surface-panel p-6 website-section-card">
@@ -662,7 +662,7 @@ new class extends Component {
                 @endforeach
             </div>
             <div class="mt-4 flex flex-wrap gap-3">
-                <button type="button" wire:click="addStat" class="pill-link">{{ __('site.admin.website.actions.add_stat') }}</button>
+                <x-add-action-button wire:click="addStat" :label="__('site.admin.website.actions.add_stat')" :accent="false" />
                 <button type="submit" class="pill-link pill-link--accent">{{ __('site.admin.website.actions.save') }}</button>
             </div>
         </section>

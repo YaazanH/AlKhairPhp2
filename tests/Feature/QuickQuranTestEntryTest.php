@@ -29,13 +29,19 @@ class QuickQuranTestEntryTest extends TestCase
 
         Volt::test('quran-tests.quick-entry')
             ->assertSee('quick-saber-affixed-input', false)
+            ->assertSee('data-quick-saber-partial-save-action', false)
+            ->assertSee('data-icon-name="save"', false)
             ->assertSee(__('quick-tests.mistakes_suffix'))
             ->assertSee(__('workflow.common.student_name_placeholder'));
 
         Volt::test('quran-tests.quick-entry')
             ->set('tab', 'final')
             ->assertSee('quick-saber-affixed-input', false)
+            ->assertSee('data-quick-saber-final-save-action', false)
             ->assertSee('>%</span>', false);
+
+        $source = file_get_contents(resource_path('views/livewire/quran-tests/quick-entry.blade.php'));
+        $this->assertStringContainsString('data-quick-saber-current-juz-save-action', $source);
 
         AppSetting::storeValue('general', 'memorization_saber_entries_enabled', false, 'boolean');
 

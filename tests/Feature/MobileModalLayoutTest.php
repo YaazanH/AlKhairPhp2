@@ -46,9 +46,12 @@ class MobileModalLayoutTest extends TestCase
         $styles = file_get_contents(resource_path('css/app.css'));
 
         $this->assertStringContainsString('`${match[3]}-${match[2]}-${match[1]}`', $script);
+        $this->assertStringContainsString('input.dataset.datePlaceholder?.trim()', $script);
+        $this->assertStringContainsString('display.placeholder = dateInputPlaceholder(input)', $script);
         $this->assertStringContainsString("? 'التاريخ' : 'Date'", $script);
         $this->assertStringContainsString("svg.classList.add('formatted-date-input__calendar-icon')", $script);
-        $this->assertStringContainsString("svg.classList.add('formatted-date-input__clear-icon')", $script);
+        $this->assertStringContainsString("clear.classList.add('formatted-date-input__clear-icon')", $script);
+        $this->assertStringContainsString("clear.textContent = '×'", $script);
         $this->assertStringContainsString("wrapper.classList.toggle('formatted-date-input--has-value', !isEmpty)", $script);
         $this->assertStringContainsString("input.dispatchEvent(new Event('change', { bubbles: true }))", $script);
         $this->assertStringContainsString("display.classList.toggle('date-input--empty', isEmpty)", $script);

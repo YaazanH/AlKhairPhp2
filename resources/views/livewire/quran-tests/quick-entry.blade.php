@@ -464,7 +464,7 @@ new class extends Component
                 </div>
 
                 <div>
-                    <button type="submit" class="pill-link pill-link--accent quick-saber-control" @disabled(! $partialJuzId || ! $partialQuarter || $availableQuarters->isEmpty())>{{ __('quick-tests.save') }}</button>
+                    <button type="submit" class="admin-icon-button admin-icon-button--accent quick-saber-save-action" title="{{ __('quick-tests.save') }}" aria-label="{{ __('quick-tests.save') }}" data-quick-saber-partial-save-action @disabled(! $partialJuzId || ! $partialQuarter || $availableQuarters->isEmpty())><x-admin-action-icon name="save" /></button>
                 </div>
             </form>
         @else
@@ -514,7 +514,7 @@ new class extends Component
                 </div>
 
                 <div>
-                    <button type="submit" class="pill-link pill-link--accent quick-saber-control" @disabled($finalJuzs->isEmpty())>{{ __('quick-tests.save') }}</button>
+                    <button type="submit" class="admin-icon-button admin-icon-button--accent quick-saber-save-action" title="{{ __('quick-tests.save') }}" aria-label="{{ __('quick-tests.save') }}" data-quick-saber-final-save-action @disabled($finalJuzs->isEmpty())><x-admin-action-icon name="save" /></button>
                 </div>
             </form>
         @endif
@@ -527,7 +527,7 @@ new class extends Component
                 <input id="quick-new-current-juz" wire:model="newCurrentJuzNumber" type="number" min="1" max="30" step="1" inputmode="numeric" class="w-full rounded-xl px-4 py-3 text-sm">
                 @error('newCurrentJuzNumber') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
             </div>
-            <div class="flex justify-end"><button type="submit" class="pill-link pill-link--accent">{{ __('crud.common.actions.save') }}</button></div>
+            <div class="flex justify-end"><button type="submit" class="admin-icon-button admin-icon-button--accent admin-modal-action-button" title="{{ __('crud.common.actions.save') }}" aria-label="{{ __('crud.common.actions.save') }}" data-quick-saber-current-juz-save-action><x-admin-action-icon name="save" class="admin-modal-action__icon" /></button></div>
         </form>
     </x-admin.modal>
 </div>

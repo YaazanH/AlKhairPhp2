@@ -1040,26 +1040,28 @@ class FinanceService
         });
     }
 
-    public function deleteWithdrawalRequests(?User $user = null, ?string $reason = null): int
+    public function deleteWithdrawalRequest(FinanceRequest $pullRequest, ?User $user = null, ?string $reason = null): bool
     {
-        return DB::transaction(function () use ($reason, $user): int {
-            $pullRequestIds = FinanceRequest::query()
+        return DB::transaction(function () use ($pullRequest, $reason, $user): bool {
+            $pullRequestId = FinanceRequest::query()
+                ->whereKey($pullRequest->getKey())
                 ->where('type', FinanceRequest::TYPE_PULL)
-                ->pluck('id');
+                ->lockForUpdate()
+                ->value('id');
 
-            if ($pullRequestIds->isEmpty()) {
-                return 0;
+            if (! $pullRequestId) {
+                return false;
             }
 
             $linkedRequestIds = FinanceTransaction::query()
-                ->whereIn('metadata->parent_pull_request_id', $pullRequestIds)
+                ->where('metadata->parent_pull_request_id', $pullRequestId)
                 ->pluck('finance_request_id')
                 ->filter()
                 ->map(fn ($id) => (int) $id);
-            $allRequestIds = $pullRequestIds->merge($linkedRequestIds)->unique()->values();
+            $allRequestIds = $linkedRequestIds->prepend((int) $pullRequestId)->unique()->values();
 
             FinanceTransaction::query()
-                ->where(function (Builder $query) use ($allRequestIds, $pullRequestIds): void {
+                ->where(function (Builder $query) use ($allRequestIds, $pullRequestId): void {
                     $query
                         ->whereIn('finance_request_id', $allRequestIds)
                         ->orWhere(function (Builder $sourceQuery) use ($allRequestIds): void {
@@ -1067,7 +1069,7 @@ class FinanceService
                                 ->where('source_type', FinanceRequest::class)
                                 ->whereIn('source_id', $allRequestIds);
                         })
-                        ->orWhereIn('metadata->parent_pull_request_id', $pullRequestIds);
+                        ->orWhere('metadata->parent_pull_request_id', $pullRequestId);
                 })
                 ->eachById(function (FinanceTransaction $transaction) use ($reason, $user): void {
                     $transaction->update([
@@ -1081,7 +1083,7 @@ class FinanceService
             Invoice::query()->whereIn('finance_request_id', $allRequestIds)->eachById(fn (Invoice $invoice) => $invoice->delete());
             FinanceRequest::query()->whereIn('id', $allRequestIds)->eachById(fn (FinanceRequest $request) => $request->delete());
 
-            return $pullRequestIds->count();
+            return true;
         });
     }
 

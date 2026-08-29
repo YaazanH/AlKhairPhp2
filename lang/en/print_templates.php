@@ -360,6 +360,7 @@ return [
                 'mark_printed_busy' => 'Updating...',
                 'mark_unprinted_busy' => 'Updating...',
                 'select_visible' => 'Select visible',
+                'clear_selection' => 'Clear selection',
                 'clear' => 'Clear',
             ],
             'messages' => [

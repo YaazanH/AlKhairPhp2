@@ -261,8 +261,8 @@ new class extends Component {
                         <div class="text-lg font-semibold text-white">{{ $partialTestRecord->student?->full_name }}</div>
                         @if (! $hasRelatedFinalTest)
                             @can('quran-partial-tests.delete')
-                                <button type="button" wire:click="deleteTest" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="inline-flex size-9 shrink-0 items-center justify-center rounded-full border border-red-300/20 text-red-200 transition hover:border-red-300/40 hover:bg-red-400/10 hover:text-red-100" title="{{ __('crud.common.actions.delete') }}" aria-label="{{ __('crud.common.actions.delete') }}" data-partial-saber-delete>
-                                    <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5m-10.5 4.5v6m4.5-6v6m-8.25-10.5.75 13.5h10.5l.75-13.5M9 6.75V4.5h6v2.25" /></svg>
+                                <button type="button" wire:click="deleteTest" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="admin-icon-button admin-icon-button--danger" title="{{ __('crud.common.actions.delete') }}" aria-label="{{ __('crud.common.actions.delete') }}" data-partial-saber-delete>
+                                    <x-admin-action-icon name="delete" />
                                 </button>
                             @endcan
                         @endif
@@ -305,7 +305,7 @@ new class extends Component {
                                     <th class="px-4 py-3 text-left">{{ __('workflow.quran_partial_tests.attempts.headers.teacher') }}</th>
                                     <th class="px-4 py-3 text-left">{{ __('workflow.quran_partial_tests.attempts.headers.mistake_count') }}</th>
                                     <th class="px-4 py-3 text-left">{{ __('workflow.quran_partial_tests.attempts.headers.status') }}</th>
-                                    @if (! $hasRelatedFinalTest && $part->attempts->contains(fn ($attempt) => $this->canEditAttemptForTeacher($attempt->teacher_id)))<th class="px-4 py-3 text-right">{{ __('crud.common.actions.actions') }}</th>@endif
+                                    @if (! $hasRelatedFinalTest && $part->attempts->contains(fn ($attempt) => $this->canEditAttemptForTeacher($attempt->teacher_id)))<th class="admin-actions-column px-4 py-3 text-center">{{ __('crud.common.actions.actions') }}</th>@endif
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-white/6">
@@ -325,9 +325,9 @@ new class extends Component {
                                         </td>
                                         <td class="px-4 py-3">{{ __('workflow.common.result_status.'.$attempt->status) }}</td>
                                         @if (! $hasRelatedFinalTest && $part->attempts->contains(fn ($row) => $this->canEditAttemptForTeacher($row->teacher_id)))
-                                            <td class="px-4 py-3 text-right">
+                                            <td class="px-4 py-3 text-center">
                                                 @if ($this->canEditAttemptForTeacher($attempt->teacher_id))
-                                                    <button type="button" wire:click="openEditAttempt({{ $attempt->id }})" class="pill-link pill-link--compact" data-partial-saber-edit>{{ __('crud.common.actions.edit') }}</button>
+                                                    <button type="button" wire:click="openEditAttempt({{ $attempt->id }})" class="admin-icon-button" title="{{ __('crud.common.actions.edit') }}" aria-label="{{ __('crud.common.actions.edit') }}" data-partial-saber-edit><x-admin-action-icon name="edit" /></button>
                                                 @endif
                                             </td>
                                         @endif
@@ -390,11 +390,13 @@ new class extends Component {
             @enderror
 
             <div class="admin-action-cluster admin-action-cluster--end">
-                @if (! $hasRelatedFinalTest && $editingAttemptId && auth()->user()?->hasRole('super_admin'))
-                    <button type="button" wire:click="deleteAttempt" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link border-red-400/25 text-red-200 hover:border-red-300/35 hover:bg-red-500/12" data-partial-saber-attempt-delete>{{ __('crud.common.actions.delete') }}</button>
-                @endif
+                <button type="submit" class="admin-icon-button admin-icon-button--accent admin-modal-action-button" title="{{ __($editingAttemptId ? 'crud.common.actions.save' : 'workflow.quran_partial_tests.actions.save_attempt') }}" aria-label="{{ __($editingAttemptId ? 'crud.common.actions.save' : 'workflow.quran_partial_tests.actions.save_attempt') }}" data-partial-saber-attempt-save>
+                    <x-admin-action-icon name="save" class="admin-modal-action__icon" />
+                </button>
                 <button type="button" wire:click="closeAttemptModal" class="pill-link">{{ __('crud.common.actions.cancel') }}</button>
-                <button type="submit" class="pill-link pill-link--accent">{{ __($editingAttemptId ? 'crud.common.actions.save' : 'workflow.quran_partial_tests.actions.save_attempt') }}</button>
+                @if (! $hasRelatedFinalTest && $editingAttemptId && auth()->user()?->hasRole('super_admin'))
+                    <x-delete-action-button wire:click="deleteAttempt" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" :label="__('crud.common.actions.delete')" data-partial-saber-attempt-delete />
+                @endif
             </div>
         </form>
     </x-admin.modal>

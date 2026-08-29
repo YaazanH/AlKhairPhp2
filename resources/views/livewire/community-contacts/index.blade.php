@@ -1,7 +1,6 @@
 <?php
 
 use App\Livewire\Concerns\AuthorizesPermissions;
-use App\Livewire\Concerns\SupportsCreateAndNew;
 use App\Models\CommunityContact;
 use App\Support\PhoneNumberFormatter;
 use Livewire\Volt\Component;
@@ -9,7 +8,6 @@ use Livewire\WithPagination;
 
 new class extends Component {
     use AuthorizesPermissions;
-    use SupportsCreateAndNew;
     use WithPagination;
 
     public ?int $editingId = null;
@@ -235,9 +233,9 @@ new class extends Component {
                 <option value="inactive">{{ __('community_contacts.statuses.inactive') }}</option>
             </select>
 
-            <button type="button" wire:click="clearFilters" class="pill-link whitespace-nowrap px-5">{{ __('crud.common.actions.reset') }}</button>
+            <x-clear-filter-button wire:click="clearFilters" :label="__('crud.common.actions.reset')" />
             @can('community-contacts.create')
-                <button type="button" wire:click="openCreateModal" class="pill-link pill-link--accent whitespace-nowrap px-5">{{ __('community_contacts.actions.create') }}</button>
+                <x-add-action-button wire:click="openCreateModal" :label="__('community_contacts.actions.create')" />
             @endcan
             </div>
         </div>
@@ -250,7 +248,7 @@ new class extends Component {
                         <th class="px-5 py-4 text-left">{{ __('community_contacts.table.headers.category') }}</th>
                         <th class="px-5 py-4 text-left">{{ __('community_contacts.table.headers.contact') }}</th>
                         <th class="px-5 py-4 text-left">{{ __('community_contacts.table.headers.status') }}</th>
-                        <th class="px-5 py-4 text-right">{{ __('community_contacts.table.headers.actions') }}</th>
+                        <th class="admin-actions-column px-5 py-4 text-center">{{ __('community_contacts.table.headers.actions') }}</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-white/10">
@@ -363,15 +361,28 @@ new class extends Component {
                 @error('notes') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
             </div>
 
-            <label class="flex items-center gap-3 text-sm">
-                <input wire:model="is_active" type="checkbox" class="rounded border-neutral-300 text-neutral-900">
-                <span>{{ __('community_contacts.fields.is_active') }}</span>
-            </label>
+            @if ($editingId)
+                <label class="flex items-center gap-3 text-sm">
+                    <input wire:model="is_active" type="checkbox" class="rounded border-neutral-300 text-neutral-900">
+                    <span>{{ __('community_contacts.fields.is_active') }}</span>
+                </label>
+            @endif
 
             <div class="admin-action-cluster admin-action-cluster--end">
                 <button type="button" wire:click="cancel" class="pill-link">{{ __('crud.common.actions.cancel') }}</button>
-                <x-admin.create-and-new-button :show="! $editingId" click="saveAndNew('save', 'openCreateModal')" />
-                <button type="submit" class="pill-link pill-link--accent">{{ $editingId ? __('community_contacts.actions.update') : __('community_contacts.actions.save') }}</button>
+                @if ($editingId)
+                    <button type="submit" class="pill-link pill-link--accent">{{ __('community_contacts.actions.update') }}</button>
+                @else
+                    <button
+                        type="submit"
+                        class="admin-icon-button admin-icon-button--accent admin-modal-action-button"
+                        title="{{ __('crud.common.actions.save') }}"
+                        aria-label="{{ __('crud.common.actions.save') }}"
+                        data-community-contact-save-action
+                    >
+                        <x-admin-action-icon name="save" class="admin-modal-action__icon" />
+                    </button>
+                @endif
             </div>
         </form>
     </x-admin.modal>

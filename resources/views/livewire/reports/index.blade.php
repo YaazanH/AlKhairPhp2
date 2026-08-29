@@ -146,9 +146,7 @@ new class extends Component {
                 <div>
                     <input wire:model.live="date_to" type="date" aria-label="{{ __('reports.filters.date_to') }}" data-date-placeholder="{{ __('reports.filters.date_to') }}" class="date-control--match-select report-control w-full rounded-xl px-3 py-2.5 text-sm">
                 </div>
-                <button type="button" wire:click="clearFilters" class="pill-link whitespace-nowrap">
-                    {{ __('reports.filters.clear') }}
-                </button>
+                <x-clear-filter-button wire:click="clearFilters" :label="__('reports.filters.clear')" />
             </div>
         </section>
 
@@ -287,19 +285,23 @@ new class extends Component {
     <div class="grid gap-3 lg:grid-cols-2">
         <a href="{{ route('reports.student-activity-summary') }}" class="surface-panel report-panel report-nav-card flex min-w-0 items-center justify-between gap-4 p-4">
             <h2 class="font-display text-xl text-white">{{ __('reports.navigation.student_activity_title') }}</h2>
-            <span class="pill-link pill-link--compact report-nav-card__cta inline-flex shrink-0">{{ __('reports.navigation.open') }}</span>
+            <span class="admin-icon-button report-nav-card__cta shrink-0" title="{{ __('reports.navigation.open') }}" aria-hidden="true" data-report-nav-open-icon>
+                <x-admin-action-icon name="open" />
+            </span>
         </a>
 
         <a href="{{ route('reports.rankings') }}" class="surface-panel report-panel report-nav-card flex min-w-0 items-center justify-between gap-4 p-4">
             <h2 class="font-display text-xl text-white">{{ __('reports.rankings.combined_title') }}</h2>
-            <span class="pill-link pill-link--compact report-nav-card__cta inline-flex shrink-0">{{ __('reports.navigation.open') }}</span>
+            <span class="admin-icon-button report-nav-card__cta shrink-0" title="{{ __('reports.navigation.open') }}" aria-hidden="true" data-report-nav-open-icon>
+                <x-admin-action-icon name="open" />
+            </span>
         </a>
     </div>
 
     <section class="surface-panel report-panel report-panel--exports min-w-0 p-6">
         <h2 class="font-display text-2xl text-white">{{ __('reports.exports.title') }}</h2>
 
-        <div class="report-export-list mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+        <div class="report-export-list mt-4">
             <a href="{{ route('reports.exports.attendance', ['course_id' => $course_id, 'group_id' => $group_id, 'assessment_type_id' => $assessment_type_id, 'date_from' => $date_from, 'date_to' => $date_to]) }}" class="pill-link pill-link--accent report-export-link">{{ __('reports.exports.attendance') }}</a>
             <a href="{{ route('reports.exports.memorization', ['course_id' => $course_id, 'group_id' => $group_id, 'assessment_type_id' => $assessment_type_id, 'date_from' => $date_from, 'date_to' => $date_to]) }}" class="pill-link report-export-link">{{ __('reports.exports.memorization') }}</a>
             <a href="{{ route('reports.exports.points', ['course_id' => $course_id, 'group_id' => $group_id, 'assessment_type_id' => $assessment_type_id, 'date_from' => $date_from, 'date_to' => $date_to]) }}" class="pill-link report-export-link">{{ __('reports.exports.points') }}</a>

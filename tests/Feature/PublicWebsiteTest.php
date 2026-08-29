@@ -49,6 +49,21 @@ class PublicWebsiteTest extends TestCase
             ->assertSee('مسجد الخير');
     }
 
+    public function test_public_header_hides_language_selection_and_names_the_signed_in_course_app_action(): void
+    {
+        $this->seed(WebsiteSeeder::class);
+
+        $user = User::factory()->create();
+
+        $this->withSession(['locale' => 'ar', 'locale_user_selected' => true])
+            ->actingAs($user)
+            ->get('/')
+            ->assertOk()
+            ->assertDontSee('locale-compact-switch', false)
+            ->assertDontSee('الصفحة الرئيسية')
+            ->assertSee('تطبيق الدورة');
+    }
+
     public function test_public_homepage_uses_website_logo_for_social_preview(): void
     {
         $this->seed(WebsiteSeeder::class);

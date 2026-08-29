@@ -230,7 +230,14 @@ new class extends Component {
         $this->academic_year_id = $this->academicYearIdForCourse($this->course_id);
 
         if ($this->editingId) {
-            $this->authorizeScopedGroupAccess(Group::query()->findOrFail($this->editingId));
+            $editingGroup = Group::query()->with(['course', 'academicYear'])->findOrFail($this->editingId);
+            $this->authorizeScopedGroupAccess($editingGroup);
+
+            if (! $this->groupIsEditable($editingGroup)) {
+                $this->addError('group', __('crud.groups.errors.inactive_read_only'));
+
+                return;
+            }
         }
 
         $validated = $this->validate();
@@ -287,8 +294,14 @@ new class extends Component {
     {
         $this->authorizePermission('groups.update');
 
-        $group = Group::query()->findOrFail($groupId);
+        $group = Group::query()->with(['course', 'academicYear'])->findOrFail($groupId);
         $this->authorizeScopedGroupAccess($group);
+
+        if (! $this->groupIsEditable($group)) {
+            $this->addError('group', __('crud.groups.errors.inactive_read_only'));
+
+            return;
+        }
 
         $this->editingId = $group->id;
         $this->course_id = $group->course_id;
@@ -616,6 +629,14 @@ new class extends Component {
         $this->resetValidation();
     }
 
+    protected function groupIsEditable(Group $group): bool
+    {
+        return $group->is_active
+            && ! $group->course_finished_at
+            && ($group->course?->is_active ?? true)
+            && ($group->academicYear?->is_active ?? true);
+    }
+
     protected function availableTeachersQuery()
     {
         return $this->scopeTeachersQuery(
@@ -726,9 +747,9 @@ new class extends Component {
 
                 <div class="admin-toolbar__actions">
                     @can('groups.create')
-                        <button type="button" wire:click="openCreateModal" class="pill-link pill-link--accent">{{ __('crud.common.actions.create') }}</button>
+                        <x-add-action-button wire:click="openCreateModal" :label="__('crud.common.actions.create')" />
                     @endcan
-                    <a href="{{ route('groups.export', ['search' => $search, 'status' => $statusFilter, 'course_id' => $courseFilter]) }}" class="pill-link">{{ __('crud.common.actions.export') }}</a>
+                    <x-export-action-button :href="route('groups.export', ['search' => $search, 'status' => $statusFilter, 'course_id' => $courseFilter])" :label="__('crud.common.actions.export')" />
                 </div>
             </div>
         </div>
@@ -759,7 +780,7 @@ new class extends Component {
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.groups.table.headers.grade') }}</th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.groups.table.headers.students') }}</th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.groups.table.headers.status') }}</th>
-                            <th class="px-5 py-4 text-right lg:px-6">{{ __('crud.groups.table.headers.actions') }}</th>
+                            <th class="admin-actions-column px-5 py-4 text-center lg:px-6">{{ __('crud.groups.table.headers.actions') }}</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-white/6">
@@ -786,8 +807,15 @@ new class extends Component {
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $group->gradeLevel?->name ?: __('crud.common.not_available') }}</td>
                                 <td class="px-5 py-4 text-white lg:px-6">{{ $group->enrollments_count }}</td>
                                 <td class="px-5 py-4 lg:px-6"><span class="{{ $groupStatusClass }}">{{ $groupStatusLabel }}</span></td>
-                                <td class="px-5 py-4 text-right lg:px-6">
-                                    <a href="{{ route('groups.show', $group) }}" wire:navigate class="pill-link pill-link--compact">{{ __('crud.common.actions.open') }}</a>
+                                <td class="px-5 py-4 lg:px-6">
+                                    <div class="flex flex-nowrap justify-end gap-2">
+                                        <x-open-action-button :href="route('groups.show', $group)" wire:navigate :label="__('crud.common.actions.open')" />
+                                        @if ($group->is_active && ! $groupIsFinished && ($group->course?->is_active ?? true) && ($group->academicYear?->is_active ?? true))
+                                            @can('groups.update')
+                                                <x-edit-action-button wire:click="edit({{ $group->id }})" :label="__('crud.common.actions.edit')" data-group-edit-action />
+                                            @endcan
+                                        @endif
+                                    </div>
                                 </td>
                             </tr>
                         @endforeach
@@ -911,11 +939,12 @@ new class extends Component {
             </div>
 
             <div class="flex flex-wrap items-center gap-3">
-                <button type="submit" class="pill-link pill-link--accent">
-                    {{ $editingId ? __('crud.groups.form.update_submit') : __('crud.groups.form.create_submit') }}
-                </button>
-                <x-admin.create-and-new-button :show="! $editingId" click="createAndNew" />
-                @if($editingId) @can('groups.delete')<button type="button" wire:click="delete({{ $editingId }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link pill-link--danger">{{ __('crud.common.actions.delete') }}</button>@endcan @endif
+                @if ($editingId)
+                    <button type="submit" class="pill-link pill-link--accent">{{ __('crud.groups.form.update_submit') }}</button>
+                    @can('groups.delete')<button type="button" wire:click="delete({{ $editingId }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link pill-link--danger">{{ __('crud.common.actions.delete') }}</button>@endcan
+                @else
+                    <x-admin.create-and-new-button click="createAndNew" />
+                @endif
             </div>
         </form>
     </x-admin.modal>
@@ -1164,7 +1193,7 @@ new class extends Component {
                                         <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.groups.roster.table.headers.enrolled_at') }}</th>
                                         <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.groups.roster.table.headers.status') }}</th>
                                         @can('enrollments.delete')
-                                            <th class="px-5 py-4 text-right lg:px-6">{{ __('crud.groups.roster.table.headers.actions') }}</th>
+                                            <th class="admin-actions-column px-5 py-4 text-center lg:px-6">{{ __('crud.groups.roster.table.headers.actions') }}</th>
                                         @endcan
                                     </tr>
                                 </thead>

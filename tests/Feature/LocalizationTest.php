@@ -24,6 +24,29 @@ class LocalizationTest extends TestCase
             ->assertSee('تسجيل الدخول');
     }
 
+    public function test_compact_locale_switcher_uses_short_segmented_labels_and_arabic_logo_text_has_no_tracking(): void
+    {
+        $switcher = file_get_contents(resource_path('views/components/locale-switcher.blade.php'));
+        $logo = file_get_contents(resource_path('views/components/app-logo.blade.php'));
+        $styles = file_get_contents(resource_path('css/app.css'));
+
+        $this->assertStringContainsString('locale-compact-switch', $switcher);
+        $this->assertStringContainsString('$localeCode === \'en\' ? \'EN\'', $switcher);
+        $this->assertStringContainsString('$localeCode === \'ar\' ? \'ع\'', $switcher);
+        $this->assertStringContainsString('aria-label="{{ $localeConfig[\'native\'] }}"', $switcher);
+        $this->assertStringContainsString("'locale-compact-switch__label--ar' => \$localeCode === 'ar'", $switcher);
+        $this->assertStringNotContainsString('tracking-[0.28em]', $logo);
+        $this->assertStringContainsString('.locale-compact-switch {', $styles);
+        $this->assertStringContainsString(".locale-compact-switch__label--ar {\n    position: relative;\n    top: -2px;", $styles);
+        $this->assertStringContainsString(".locale-compact-switch .account-preference-switch__option + .account-preference-switch__option {\n    border-inline-start: 0;", $styles);
+        $this->assertStringContainsString("html[dir='rtl'] .locale-compact-switch .account-preference-switch__option + .account-preference-switch__option {\n    border-right: 1px solid var(--locale-compact-divider);", $styles);
+        $this->assertStringContainsString("html:not([dir='rtl']) .locale-compact-switch .account-preference-switch__option + .account-preference-switch__option {\n    border-left: 1px solid var(--locale-compact-divider);", $styles);
+        $this->assertStringContainsString("\$displaySubtitle = \$useJustifiedArabicSubtitle ? 'مــنــصــة الــتــعــلــم' : \$subtitle;", $logo);
+        $this->assertStringContainsString("'text-[0.72rem]' => \$useJustifiedArabicSubtitle", $logo);
+        $this->assertStringContainsString('data-app-logo-kashida-subtitle', $logo);
+        $this->assertStringContainsString('aria-label="{{ $subtitle }}"', $logo);
+    }
+
     public function test_authenticated_users_receive_localized_navigation_when_arabic_is_selected(): void
     {
         $this->seed(RoleSeeder::class);

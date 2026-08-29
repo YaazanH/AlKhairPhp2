@@ -310,7 +310,7 @@ new class extends Component {
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.points.table.headers.points') }}</th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.points.table.headers.notes') }}</th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.points.table.headers.state') }}</th>
-                            <th class="px-5 py-4 text-right lg:px-6">{{ __('workflow.points.table.headers.actions') }}</th>
+                            <th class="admin-actions-column px-5 py-4 text-center lg:px-6">{{ __('workflow.points.table.headers.actions') }}</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-white/6">
@@ -336,12 +336,12 @@ new class extends Component {
                                     </span>
                                 </td>
                                 <td class="px-5 py-4 lg:px-6">
-                                    <div class="flex flex-wrap justify-end gap-2">
+                                    <div class="flex flex-wrap justify-center gap-2">
                                         @if (auth()->user()->can('points.create-manual') && $transaction->source_type === 'manual' && ! $transaction->voided_at)
-                                            <button type="button" wire:click="editManual({{ $transaction->id }})" class="pill-link pill-link--compact">{{ __('workflow.common.actions.edit') }}</button>
+                                            <button type="button" wire:click="editManual({{ $transaction->id }})" class="admin-icon-button" title="{{ __('workflow.common.actions.edit') }}" aria-label="{{ __('workflow.common.actions.edit') }}"><x-admin-action-icon name="edit" /></button>
                                         @endif
                                         @if (auth()->user()->can('points.void') && ! $transaction->voided_at)
-                                            <button type="button" wire:click="void({{ $transaction->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link pill-link--compact pill-link--danger">{{ __('workflow.common.actions.void') }}</button>
+                                            <button type="button" wire:click="void({{ $transaction->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="admin-icon-button admin-icon-button--danger" title="{{ __('workflow.common.actions.void') }}" aria-label="{{ __('workflow.common.actions.void') }}"><x-admin-action-icon name="delete" /></button>
                                         @endif
                                     </div>
                                 </td>

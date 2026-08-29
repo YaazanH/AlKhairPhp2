@@ -372,6 +372,8 @@ new class extends Component
             $this->quick_enrollment_id = '';
             $this->quick_score = '';
             $this->loadResults();
+            $this->dispatch('assessment-quick-score-saved');
+            $this->js('window.scheduleAssessmentQuickScoreStudentFocus?.()');
             session()->flash('status', __('workflow.assessments.results.messages.score_removed'));
 
             return;
@@ -397,6 +399,8 @@ new class extends Component
         $this->quick_enrollment_id = '';
         $this->quick_score = '';
         $this->loadResults();
+        $this->dispatch('assessment-quick-score-saved');
+        $this->js('window.scheduleAssessmentQuickScoreStudentFocus?.()');
         session()->flash('status', __('workflow.assessments.results.messages.quick_saved'));
     }
 
@@ -567,10 +571,10 @@ new class extends Component
                         : ($assessmentRecord->group?->name ?: __('workflow.common.not_available')) }}
                 </div>
                 <div class="mt-1 text-sm text-neutral-400">{{ __('workflow.assessments.results.details.participants') }}: {{ number_format($totalSavedResults) }} | {{ __('workflow.assessments.results.details.passed') }}: {{ number_format($totalPassedStudents) }}</div>
-                <div class="mt-3 flex flex-wrap gap-2">
+                <div class="assessment-results-card-actions mt-3">
+                    @can('assessments.update')<x-edit-action-button :href="route('assessments.index', ['edit' => $assessmentRecord->id, 'return_to' => 'results'])" wire:navigate :label="__('crud.common.actions.edit')" data-assessment-edit-action />@endcan
                     <a href="{{ route('assessments.results.pdf', $assessmentRecord) }}" target="_blank" rel="noopener" class="admin-icon-button" title="{{ __('workflow.assessments.results.pdf_export') }}" aria-label="{{ __('workflow.assessments.results.pdf_export') }}"><x-pdf-export-icon /></a>
-                    @if($canRecordAssessmentScores)<button type="button" wire:click="openQuickResultModal" class="pill-link pill-link--compact pill-link--accent">{{ __('workflow.assessments.results.student_entry.title') }}</button>@endif
-                    @can('assessments.update')<a href="{{ route('assessments.index', ['edit' => $assessmentRecord->id, 'return_to' => 'results']) }}" wire:navigate class="pill-link pill-link--compact">{{ __('crud.common.actions.edit') }}</a>@endcan
+                    @if($canRecordAssessmentScores)<button type="button" wire:click="openQuickResultModal" class="admin-icon-button admin-icon-button--accent assessment-results-card-actions__add" title="{{ __('workflow.assessments.results.student_entry.title') }}" aria-label="{{ __('workflow.assessments.results.student_entry.title') }}" data-assessment-add-result-action><x-admin-action-icon name="add" /></button>@endif
                 </div>
             </div>
         </div>
@@ -710,7 +714,12 @@ new class extends Component
             max-width="xl"
             compact
         >
-            <form wire:submit="saveQuickResult" class="space-y-4" data-searchable-refresh>
+            <form
+                wire:submit="saveQuickResult"
+                class="space-y-4"
+                data-searchable-refresh
+                data-assessment-quick-score-form
+            >
                 <div class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_12rem] sm:items-end">
                     <div>
                         <label for="assessment-student-entry" class="mb-1 block text-sm font-medium">{{ __('workflow.assessments.results.quick_entry.student') }}</label>
@@ -738,12 +747,20 @@ new class extends Component
 
                 <div>
                     <label for="assessment-student-score" class="mb-1 block text-sm font-medium">{{ __('workflow.assessments.results.quick_entry.score') }}</label>
-                    <input id="assessment-student-score" wire:model="quick_score" type="number" min="0" max="{{ $assessmentRecord->total_mark !== null ? (float) $assessmentRecord->total_mark : 100 }}" step="0.01" class="h-11 w-full rounded-xl px-4 text-sm">
+                    <input id="assessment-student-score" wire:model="quick_score" wire:keydown.enter.prevent.stop="saveQuickResult" wire:keydown.tab.prevent.stop="saveQuickResult" type="number" min="0" max="{{ $assessmentRecord->total_mark !== null ? (float) $assessmentRecord->total_mark : 100 }}" step="0.01" class="h-11 w-full rounded-xl px-4 text-sm">
                     @error('quick_score') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
                 </div>
 
                 <div>
-                    <button type="submit" class="pill-link pill-link--accent justify-center">{{ __('crud.common.actions.add_and_new') }}</button>
+                    <button
+                        type="submit"
+                        class="admin-icon-button admin-icon-button--accent admin-modal-action-button"
+                        title="{{ __('crud.common.actions.add_and_new') }}"
+                        aria-label="{{ __('crud.common.actions.add_and_new') }}"
+                        data-assessment-quick-score-save
+                    >
+                        <x-admin-action-icon name="save-new" class="admin-modal-action__icon admin-modal-action__icon--save-new" />
+                    </button>
                 </div>
             </form>
         </x-admin.modal>

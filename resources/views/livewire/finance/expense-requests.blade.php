@@ -3,7 +3,6 @@
 use App\Livewire\Concerns\AuthorizesPermissions;
 use App\Livewire\Concerns\FormatsFinanceNumbers;
 use App\Livewire\Concerns\HandlesFinanceRequestMaintenance;
-use App\Livewire\Concerns\SupportsCreateAndNew;
 use App\Models\FinanceCashBox;
 use App\Models\FinanceCurrency;
 use App\Models\FinancePullRequestKind;
@@ -25,7 +24,6 @@ new class extends Component {
     use AuthorizesPermissions;
     use FormatsFinanceNumbers;
     use HandlesFinanceRequestMaintenance;
-    use SupportsCreateAndNew;
     use WithFileUploads;
     use WithPagination;
 
@@ -718,15 +716,22 @@ new class extends Component {
             <div class="lg:col-span-6" data-finance-entry-attachments><label class="mb-1 block text-sm font-medium">{{ __('finance.common.attachments') }}</label><input wire:model="attachments" type="file" multiple accept="image/jpeg,image/png,image/webp,application/pdf" class="w-full rounded-xl px-4 py-3 text-sm">@error('attachments.*') <div data-pdf-upload-error-for="attachments" class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
             <div class="lg:col-span-6 flex flex-wrap justify-end gap-3">
                 <button type="button" wire:click="closeCreateModal" class="pill-link">{{ __('crud.common.actions.close') }}</button>
-                <x-admin.create-and-new-button click="saveAndNew('submitRequest', 'openCreateModal')" />
-                <button type="submit" class="pill-link pill-link--accent">{{ __('finance.actions.save_expense') }}</button>
+                <button
+                    type="submit"
+                    class="admin-icon-button admin-icon-button--accent admin-modal-action-button"
+                    title="{{ __('crud.common.actions.save') }}"
+                    aria-label="{{ __('crud.common.actions.save') }}"
+                    data-expense-request-save
+                >
+                    <x-admin-action-icon name="save" class="admin-modal-action__icon" />
+                </button>
             </div>
         </form>
     </x-admin.modal>
 
     <section class="surface-table">
-        <div class="admin-grid-meta"><div><div class="admin-grid-meta__title">{{ __('finance.expense_requests.title') }}</div><div class="admin-grid-meta__summary">{{ __('crud.common.badges.in_view', ['count' => number_format($expenses->total())]) }}</div></div>@can('finance.expense-requests.create')<button wire:click="openCreateModal" class="pill-link pill-link--accent">{{ __('finance.expense_requests.new') }}</button>@endcan</div>
-        <div class="overflow-x-auto"><table class="text-sm"><thead><tr><th class="px-4 py-3 text-left">{{ __('finance.fields.expense_no') }}</th><th class="px-4 py-3 text-left">{{ __('finance.fields.category') }}</th><th class="px-4 py-3 text-left">{{ __('finance.common.description') }}</th><th class="px-4 py-3 text-left">{{ __('finance.fields.amount') }}</th><th class="px-4 py-3 text-left">{{ __('finance.common.status') }}</th><th class="px-4 py-3 text-right">{{ __('finance.actions.actions') }}</th></tr></thead><tbody class="divide-y divide-white/6">
+        <div class="admin-grid-meta"><div><div class="admin-grid-meta__title">{{ __('finance.expense_requests.title') }}</div><div class="admin-grid-meta__summary">{{ __('crud.common.badges.in_view', ['count' => number_format($expenses->total())]) }}</div></div>@can('finance.expense-requests.create')<x-add-action-button wire:click="openCreateModal" :label="__('finance.expense_requests.new')" />@endcan</div>
+        <div class="overflow-x-auto"><table class="text-sm"><thead><tr><th class="px-4 py-3 text-left">{{ __('finance.fields.expense_no') }}</th><th class="px-4 py-3 text-left">{{ __('finance.fields.category') }}</th><th class="px-4 py-3 text-left">{{ __('finance.common.description') }}</th><th class="px-4 py-3 text-left">{{ __('finance.fields.amount') }}</th><th class="px-4 py-3 text-left">{{ __('finance.common.status') }}</th><th class="admin-actions-column px-4 py-3 text-center">{{ __('finance.actions.actions') }}</th></tr></thead><tbody class="divide-y divide-white/6">
             @forelse ($expenses as $transaction)
                 @php($request = $transaction->financeRequest)
                 @php($category = $transaction->category ?: $request?->category ?: $request?->pullRequestKind)
@@ -738,9 +743,9 @@ new class extends Component {
                     <td class="px-4 py-3"><bdi dir="ltr" class="font-semibold text-white">{{ app(FinanceService::class)->formatCurrencyAmount($transaction->amount, $transaction->currency) }}</bdi></td>
                     <td class="px-4 py-3"><span class="status-chip {{ in_array($rowStatus, ['active', 'settled'], true) ? 'status-chip--emerald' : 'status-chip--amber' }}">{{ $request ? ($rowStatus === 'accepted' ? __('finance.expense_statuses.accepted') : __('finance.statuses.'.$rowStatus)) : ($rowStatus === 'active' ? __('finance.common.active') : $rowStatus) }}</span></td>
                     <td class="px-4 py-3"><div class="admin-action-cluster admin-action-cluster--end">
-                        @if ($request?->status === 'accepted')<button wire:click="openFinaliseModal({{ $request->id }})" class="pill-link pill-link--compact pill-link--accent">{{ __('finance.actions.finalise') }}</button>@endif
+                        @if ($request?->status === 'accepted')<button wire:click="openFinaliseModal({{ $request->id }})" class="admin-icon-button admin-icon-button--accent" title="{{ __('finance.actions.finalise') }}" aria-label="{{ __('finance.actions.finalise') }}" data-expense-finalise-action><x-admin-action-icon name="finalise" /></button>@endif
                         @if ($request?->invoice)
-                            <button wire:click="$set('viewingInvoiceId', {{ $request->invoice->id }})" class="pill-link pill-link--compact">{{ __('finance.actions.view_invoice') }}</button>
+                            <button wire:click="$set('viewingInvoiceId', {{ $request->invoice->id }})" class="admin-icon-button" title="{{ __('finance.actions.view_invoice') }}" aria-label="{{ __('finance.actions.view_invoice') }}" data-expense-receipt-action><x-admin-action-icon name="receipt" /></button>
                         @endif
                     </div></td>
                 </tr>
@@ -783,7 +788,7 @@ new class extends Component {
                     <div class="overflow-hidden rounded-2xl border border-white/10 bg-black/10" data-invoice-items-table>
                         <div class="overflow-x-auto">
                             <table class="w-full min-w-[46rem] text-sm">
-                                <thead class="border-b border-white/15 bg-white/[0.04]" data-invoice-items-header-divider><tr><th class="w-[5%] px-3 py-3 text-start">#</th><th class="w-[33%] px-3 py-3 text-start">{{ __('finance.fields.item_name') }}</th><th class="w-[15%] px-3 py-3 text-start">{{ __('finance.fields.quantity') }}</th><th class="w-[19%] px-3 py-3 text-start">{{ __('finance.fields.unit_price') }}</th><th class="w-[18%] px-3 py-3 text-start">{{ __('finance.fields.amount') }}</th><th class="w-[10%] px-3 py-3 text-end">{{ __('finance.actions.actions') }}</th></tr></thead>
+                                <thead class="border-b border-white/15 bg-white/[0.04]" data-invoice-items-header-divider><tr><th class="w-[5%] px-3 py-3 text-start">#</th><th class="w-[33%] px-3 py-3 text-start">{{ __('finance.fields.item_name') }}</th><th class="w-[15%] px-3 py-3 text-start">{{ __('finance.fields.quantity') }}</th><th class="w-[19%] px-3 py-3 text-start">{{ __('finance.fields.unit_price') }}</th><th class="w-[18%] px-3 py-3 text-start">{{ __('finance.fields.amount') }}</th><th class="admin-actions-column w-[10%] px-3 py-3 text-center">{{ __('finance.actions.actions') }}</th></tr></thead>
                                 <tbody class="divide-y divide-white/6">
                                     @foreach ($invoice_items as $index => $item)
                                         @php($lineAmount = round((float) str_replace(',', '', (string) ($item['quantity'] ?? 0)) * (float) str_replace(',', '', (string) ($item['unit_price'] ?? 0)), 2))
@@ -842,19 +847,13 @@ new class extends Component {
     <x-admin.modal :show="$viewingInvoiceId !== null" :title="__('finance.actions.view_invoice')" close-method="$set('viewingInvoiceId', null)" max-width="3xl">
         <x-slot:header-actions>
             @if ($viewingInvoice?->original_image_path)
-                <a href="{{ asset('storage/'.$viewingInvoice->original_image_path) }}" target="_blank" rel="noopener" class="admin-modal__close" title="{{ __('finance.actions.view_attachment') }}" aria-label="{{ __('finance.actions.view_attachment') }}">
-                    <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12s3.5-6 9.75-6 9.75 6 9.75 6-3.5 6-9.75 6-9.75-6-9.75-6Z" />
-                        <circle cx="12" cy="12" r="2.75" />
-                    </svg>
+                <a href="{{ asset('storage/'.$viewingInvoice->original_image_path) }}" target="_blank" rel="noopener" class="admin-modal__close" title="{{ __('finance.actions.view_attachment') }}" aria-label="{{ __('finance.actions.view_attachment') }}" data-invoice-original-scan-action>
+                    <x-admin-action-icon name="scanner" class="size-5" />
                 </a>
             @endif
             @if ($viewingInvoice)
-                <a href="{{ route('finance.invoices.items.xlsx', $viewingInvoice) }}" class="admin-modal__close" title="XLSX" aria-label="XLSX" data-invoice-xlsx-icon>
-                    <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 2.75h8l4 4V21.25H6V2.75Z" />
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M14 2.75v4h4M8.5 11l3 5m0-5-3 5m5-5h2.25M13.5 13.5h2.25M13.5 16h2.25" />
-                    </svg>
+                <a href="{{ route('finance.invoices.items.xlsx', $viewingInvoice) }}" class="admin-modal__close" title="{{ __('finance.actions.export_excel') }}" aria-label="{{ __('finance.actions.export_excel') }}" data-invoice-xlsx-icon>
+                    <x-invoice-xlsx-export-icon />
                 </a>
                 <a href="{{ route('finance.invoices.print', $viewingInvoice) }}" target="_blank" rel="noopener" class="admin-modal__close" title="{{ __('finance.actions.print_a5') }}" aria-label="{{ __('finance.actions.print_a5') }}" data-invoice-print-icon>
                     <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">

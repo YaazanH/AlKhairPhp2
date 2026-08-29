@@ -105,6 +105,8 @@ function openAdminConfirm(options = {}) {
     title.textContent = options.title ?? modal.dataset.defaultTitle ?? 'Confirm action';
     message.textContent = options.message ?? modal.dataset.defaultMessage ?? '';
     accept.textContent = options.confirmLabel ?? modal.dataset.defaultConfirmLabel ?? 'Continue';
+    accept.dataset.modalActionForceKind = options.actionKind ?? 'approve';
+    initializeAdminModalActionIcons(accept);
 
     modal.hidden = false;
     modal.setAttribute('aria-hidden', 'false');
@@ -165,6 +167,7 @@ function handleLivewireConfirm(event) {
         title: trigger.dataset.confirmTitle,
         message: trigger.getAttribute('wire:confirm'),
         confirmLabel: trigger.dataset.confirmLabel,
+        actionKind: modalActionKind(trigger) ?? 'approve',
     });
 }
 
@@ -185,6 +188,7 @@ function handleFormConfirm(event) {
         title: form.dataset.adminConfirmTitle,
         message: form.dataset.adminConfirmMessage,
         confirmLabel: form.dataset.adminConfirmLabel,
+        actionKind: event.submitter instanceof Element ? modalActionKind(event.submitter) ?? 'approve' : 'approve',
     });
 }
 
@@ -227,7 +231,7 @@ window.AdminConfirm = {
 document.addEventListener('DOMContentLoaded', registerAdminConfirmListeners);
 document.addEventListener('livewire:navigated', registerAdminConfirmListeners);
 
-const SEARCHABLE_SELECT_BINDING_VERSION = '7';
+const SEARCHABLE_SELECT_BINDING_VERSION = '8';
 let searchableSelectOpenSuppressedUntil = 0;
 
 function suppressSearchableSelectOpen(duration = 400) {
@@ -280,6 +284,24 @@ function createSearchableSelectChevron(inputMode = false) {
     chevron.innerHTML = '<svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="m4 6 4 4 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg>';
 
     return chevron;
+}
+
+function restoreSearchableSelectClear(clear) {
+    if (!(clear instanceof HTMLButtonElement) || !clear.classList.contains('searchable-select__clear')) return;
+
+    clear.replaceChildren('×');
+    clear.dataset.modalActionIconIgnore = 'true';
+    clear.classList.remove(
+        'admin-icon-button',
+        'admin-modal-action-button',
+        'admin-icon-button--accent',
+        'admin-icon-button--danger',
+        'mobile-table-header-action',
+        'mobile-table-header-action--native-icon',
+    );
+    clear.removeAttribute('data-modal-action-icon');
+    clear.removeAttribute('data-mobile-table-header-action');
+    clear.removeAttribute('title');
 }
 
 function selectedOptionText(select) {
@@ -431,6 +453,7 @@ function enhanceSearchableSelect(select) {
         && select.dataset.searchableBindingVersion === SEARCHABLE_SELECT_BINDING_VERSION
         && existingWrapper
     ) {
+        restoreSearchableSelectClear(existingWrapper.querySelector('.searchable-select__clear'));
         select.searchableSelectSync?.();
 
         return;
@@ -526,7 +549,7 @@ function enhanceSearchableSelect(select) {
             clear.type = 'button';
             clear.className = 'searchable-select__clear';
             clear.setAttribute('aria-label', select.dataset.clearLabel || 'Clear selection');
-            clear.textContent = '×';
+            restoreSearchableSelectClear(clear);
             wrapper.append(clear);
         }
 
@@ -802,6 +825,66 @@ function scheduleSearchableSelectInitialization() {
 
 window.initializeSearchableSelects = initializeSearchableSelects;
 
+function assessmentQuickScoreStudentNameInput() {
+    const select = document.getElementById('assessment-student-entry');
+
+    if (!(select instanceof HTMLSelectElement)) {
+        return null;
+    }
+
+    enhanceSearchableSelect(select);
+    select.searchableSelectSync?.(true);
+
+    const wrapper = select.nextElementSibling;
+    const input = wrapper?.classList.contains('searchable-select')
+        ? wrapper.querySelector('.searchable-select__search--trigger')
+        : null;
+
+    return input instanceof HTMLInputElement ? input : null;
+}
+
+function focusAssessmentQuickScoreStudentName() {
+    const input = assessmentQuickScoreStudentNameInput();
+
+    if (!input) {
+        return null;
+    }
+
+    input.focus({ preventScroll: true });
+    input.select();
+
+    return input;
+}
+
+function scheduleAssessmentQuickScoreStudentFocus() {
+    let firstInput = null;
+
+    window.requestAnimationFrame(() => {
+        firstInput = focusAssessmentQuickScoreStudentName();
+    });
+
+    // Livewire's searchable-select morph recovery runs on a short timer. If
+    // that recovery replaced the focused input, restore focus to the rebuilt
+    // student-name control without stealing it after a deliberate user click.
+    window.setTimeout(() => {
+        const activeElement = document.activeElement;
+        const mayRestoreFocus = !activeElement
+            || activeElement === document.body
+            || activeElement === firstInput
+            || activeElement?.id === 'assessment-student-score';
+        const focusNeedsRestoring = firstInput === null
+            || !firstInput.isConnected
+            || activeElement !== firstInput;
+
+        if (mayRestoreFocus && focusNeedsRestoring) {
+            focusAssessmentQuickScoreStudentName();
+        }
+    }, 180);
+}
+
+window.scheduleAssessmentQuickScoreStudentFocus = scheduleAssessmentQuickScoreStudentFocus;
+window.addEventListener('assessment-quick-score-saved', scheduleAssessmentQuickScoreStudentFocus);
+
 document.addEventListener('click', (event) => {
     if (!(event.target instanceof Element) || event.target.closest('.searchable-select')) {
         return;
@@ -868,7 +951,13 @@ function formattedDateValue(value) {
     return match ? `${match[3]}-${match[2]}-${match[1]}` : '';
 }
 
-function dateInputPlaceholder() {
+function dateInputPlaceholder(input = null) {
+    const specifiedPlaceholder = input instanceof HTMLInputElement
+        ? input.dataset.datePlaceholder?.trim()
+        : '';
+
+    if (specifiedPlaceholder) return specifiedPlaceholder;
+
     return document.documentElement.lang.toLowerCase().startsWith('ar') ? 'التاريخ' : 'Date';
 }
 
@@ -929,21 +1018,13 @@ function createDatePickerIcon() {
 }
 
 function createDateClearIcon() {
-    const namespace = 'http://www.w3.org/2000/svg';
-    const svg = document.createElementNS(namespace, 'svg');
-    const path = document.createElementNS(namespace, 'path');
+    const clear = document.createElement('span');
 
-    svg.setAttribute('viewBox', '0 0 24 24');
-    svg.setAttribute('fill', 'none');
-    svg.setAttribute('stroke', 'currentColor');
-    svg.setAttribute('stroke-width', '2');
-    svg.setAttribute('stroke-linecap', 'round');
-    svg.setAttribute('aria-hidden', 'true');
-    svg.classList.add('formatted-date-input__clear-icon');
-    path.setAttribute('d', 'M6 6l12 12M18 6 6 18');
-    svg.append(path);
+    clear.classList.add('formatted-date-input__clear-icon');
+    clear.setAttribute('aria-hidden', 'true');
+    clear.textContent = '×';
 
-    return svg;
+    return clear;
 }
 
 let activeNativeDateInput = null;
@@ -1016,7 +1097,7 @@ function enhanceDateInput(input) {
     display.autocomplete = 'off';
     display.readOnly = true;
     display.dir = 'ltr';
-    display.placeholder = dateInputPlaceholder();
+    display.placeholder = dateInputPlaceholder(input);
     display.className = 'formatted-date-input__display';
     display.setAttribute('aria-label', input.getAttribute('aria-label') || display.placeholder);
 
@@ -1057,7 +1138,7 @@ function enhanceDateInput(input) {
         syncFormattedDateInputAppearance(input, wrapper, display);
         const isEmpty = input.value === '';
         display.value = formattedDateValue(input.value);
-        display.placeholder = dateInputPlaceholder();
+        display.placeholder = dateInputPlaceholder(input);
         display.disabled = input.disabled;
         display.readOnly = true;
         display.classList.toggle('date-input--empty', isEmpty);
@@ -1177,6 +1258,7 @@ function createMobileTableActionIcon(kind) {
         const path = document.createElementNS(namespace, 'path');
         path.setAttribute('d', definition);
         svg.append(path);
+        return path;
     };
     const addCircle = (cx, cy, radius) => {
         const circle = document.createElementNS(namespace, 'circle');
@@ -1184,6 +1266,16 @@ function createMobileTableActionIcon(kind) {
         circle.setAttribute('cy', cy);
         circle.setAttribute('r', radius);
         svg.append(circle);
+        return circle;
+    };
+    const addRect = (x, y, width, height, radius) => {
+        const rect = document.createElementNS(namespace, 'rect');
+        rect.setAttribute('x', x);
+        rect.setAttribute('y', y);
+        rect.setAttribute('width', width);
+        rect.setAttribute('height', height);
+        rect.setAttribute('rx', radius);
+        svg.append(rect);
     };
 
     svg.setAttribute('viewBox', '0 0 24 24');
@@ -1210,8 +1302,9 @@ function createMobileTableActionIcon(kind) {
             addPath('M7 3h7l4 4v14H7zM14 3v5h4M9.5 16h5M9.5 12h5');
             break;
         case 'clear':
-            addCircle('12', '12', '8');
-            addPath('m9 9 6 6m0-6-6 6');
+            addPath('M4 4.5h16v3.6l-6.25 6.1v3.25L10.5 20v-5.5L4 8.1V4.5');
+            addCircle('8.65', '14.2', '4').classList.add('clear-filter-icon__badge');
+            addPath('m6.95 12.5 3.4 3.4m0-3.4-3.4 3.4').classList.add('clear-filter-icon__mark');
             break;
         case 'settings':
             addCircle('12', '12', '2.5');
@@ -1224,6 +1317,59 @@ function createMobileTableActionIcon(kind) {
             addCircle('11', '11', '7');
             addPath('m20 20-4-4');
             break;
+        case 'edit':
+            addPath('m4 20 4.2-1 10.7-10.7a2.1 2.1 0 0 0-3-3L5.2 16 4 20Z');
+            break;
+        case 'delete':
+            addPath('M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13M10 11v5m4-5v5');
+            break;
+        case 'save':
+            svg.setAttribute('viewBox', '300 280 720 720');
+            svg.setAttribute('fill', 'currentColor');
+            svg.setAttribute('stroke', 'currentColor');
+            svg.setAttribute('stroke-width', '16');
+            svg.setAttribute('stroke-linecap', 'round');
+            svg.setAttribute('stroke-linejoin', 'round');
+            svg.dataset.iconName = 'save';
+            addPath('M385.8,337.3l453.7-.2c12.7,1.9,18.5,10.5,26.6,18.4,15.3,15.1,30.1,30.7,45,46,13.3,13.7,44.7,39.6,49,57,2.5,150.4.3,301.4,1.1,452-5.8,38-41.8,29.7-69.5,29.7-158.4.2-317.4.6-476,.8-7.7,0-16.3,0-23.8-.2-16.9-.4-29.4-16.2-29.6-32.4V371.5c1-17,5.8-29.8,23.8-34.2h-.3ZM484,354h-94.5c-2.4,0-8.7,5-9,8v552.1c.7,3.5,6.7,9,10,9h37.5v-237.5c0-8,15.7-21.3,24.5-19.5h401.1c7.9-.2,21.5,12.2,21.5,19.5v237.5h56.5c5.9,0,13-10.6,12.5-16.5l-.2-438.9c-.9-5.3-3.2-10.3-6.4-14.6l-90-92c-2.6-2.3-9.8-7-13-7h-18.5v182.5c0,.6-3.2,8-3.8,9.2-4.4,8.1-11.6,12.9-20.7,14.3h-280c-12.4.7-27.5-13.3-27.5-25.5v-180.5h0ZM799,354h-298c.7,1.5,1,2.7,1.1,4.4,1.3,52.8-.4,106.3-1,159,2.7,13.5-4.1,24.1,14.4,25.6,91.4-.5,183,.9,274.4-.7,3.8-.3,9.2-6.5,9.2-9.8v-178.5h-.1ZM858,682.9h-413v240h413v-240Z');
+            addPath('M506.7,752.2l287.8-.2c11.2,1.3,11.9,16.5-1,18h-285c-11.4-1.4-12.7-14.6-1.8-17.8h0Z');
+            addPath('M800.7,829.3c5.3,4.9,1.7,15.5-6.1,14.7h-288.1c-8.9-2.3-9.9-12.6-1.5-16.6l288.6-.5c2.2,0,5.5.9,7.1,2.4h0Z');
+            addPath('M705.7,385.2c16.3,1,36-2.1,51.8-.2,5.2.6,6.1,2.6,6.5,7.5,3.3,35.9-2.6,76.7,0,113.1,0,6.5-3.8,8-9.5,8.5-10.4,1-33.8,1.1-44,0-4.2-.5-7.3-1.9-9-6l-.5-113.6c0-3.6,1.2-7.6,4.8-9.2h0ZM719,402v94h28v-94h-28Z');
+            break;
+        case 'close':
+            addPath('M6 6l12 12M18 6 6 18');
+            break;
+        case 'approve':
+            addCircle('12', '12', '8.5');
+            addPath('m8.25 12 2.5 2.5 5-5');
+            break;
+        case 'decline':
+            addCircle('12', '12', '8.5');
+            addPath('m9 9 6 6m0-6-6 6');
+            break;
+        case 'copy':
+            addRect('8', '8', '11', '12', '2');
+            addPath('M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h2');
+            break;
+        case 'upload':
+            addPath('M12 15.5V4m0 0L7.75 8.25M12 4l4.25 4.25M5 13v4.5A2.5 2.5 0 0 0 7.5 20h9a2.5 2.5 0 0 0 2.5-2.5V13');
+            break;
+        case 'open':
+            addRect('4', '4', '16', '16', '3');
+            addPath('m9 15 6-6m-5 0h5v5');
+            break;
+        case 'up':
+            addPath('m6 14 6-6 6 6');
+            break;
+        case 'down':
+            addPath('m6 10 6 6 6-6');
+            break;
+        case 'refresh':
+            addPath('M20 6v5h-5M4 18v-5h5M6.1 9A7 7 0 0 1 18.5 7.5L20 11M4 13l1.5 3.5A7 7 0 0 0 17.9 15');
+            break;
+        case 'transfer':
+            addPath('M4 8h14m0 0-3.5-3.5M18 8l-3.5 3.5M20 16H6m0 0 3.5-3.5M6 16l3.5 3.5');
+            break;
         default:
             addCircle('6', '12', '1');
             addCircle('12', '12', '1');
@@ -1232,6 +1378,137 @@ function createMobileTableActionIcon(kind) {
 
     return svg;
 }
+
+function modalActionDescriptor(action) {
+    const submitsClosestForm = action.matches('button[type="submit"], button:not([type])')
+        && !action.hasAttribute('wire:click');
+    const formAction = submitsClosestForm
+        ? action.closest('form')?.getAttribute('wire:submit')
+        : null;
+    const attributes = Array.from(action.attributes)
+        .filter((attribute) => attribute.name.startsWith('wire:') || attribute.name.startsWith('data-'))
+        .map((attribute) => attribute.value);
+
+    return [
+        action.textContent,
+        action.getAttribute('title'),
+        action.getAttribute('aria-label'),
+        action.getAttribute('href'),
+        formAction,
+        ...attributes,
+    ].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim().toLocaleLowerCase();
+}
+
+function modalActionKind(action) {
+    const descriptor = modalActionDescriptor(action);
+
+    if (/\bpdf\b/.test(descriptor)) return 'pdf';
+    if (/print|طباعة/.test(descriptor)) return 'print';
+    if (/download|export|تنزيل|تحميل|تصدير/.test(descriptor)) return 'export';
+    if (/upload|import|رفع|استيراد/.test(descriptor)) return 'upload';
+    if (/move.?up|تحريك.*أعلى|تحريك.*اعلى/.test(descriptor)) return 'up';
+    if (/move.?down|تحريك.*أسفل|تحريك.*اسفل/.test(descriptor)) return 'down';
+    if (/delete|remove|destroy|void|حذف|إزالة|ازالة/.test(descriptor)) return 'delete';
+    if (/decline|reject|deactivate|رفض|تعطيل/.test(descriptor)) return 'decline';
+    if (/save.?and.?close|حفظ.*(?:إغلاق|اغلاق)/.test(descriptor)) return 'save';
+    if (/close|cancel|dismiss|إغلاق|اغلاق|إلغاء|الغاء/.test(descriptor)) return 'close';
+    if (/copy|clone|duplicate|نسخ|تكرار/.test(descriptor)) return 'copy';
+    if (/edit|تعديل/.test(descriptor)) return 'edit';
+    if (/search|find|بحث/.test(descriptor)) return 'search';
+    if (/clear|reset|مسح|إعادة ضبط|اعادة ضبط/.test(descriptor)) return 'clear';
+    if (/setting|إعداد|اعداد/.test(descriptor)) return 'settings';
+    if (/reactivate|refresh|regenerate|generate.?password|إعادة تفعيل|اعادة تفعيل|تحديث كلمة/.test(descriptor)) return 'refresh';
+    if (/transfer|move.?money|تحويل/.test(descriptor)) return 'transfer';
+    if (/create|add|new|إنشاء|انشاء|إضافة|اضافة|جديد/.test(descriptor)) return 'add';
+    if (/view|show|details|preview|open|عرض|تفاصيل|معاينة|فتح/.test(descriptor)) return 'open';
+    if (/scan|مسح.*ضوئي/.test(descriptor)) return 'search';
+    if (/accept|approve|finali[sz]e|settle|promote|respond|send.?verification|mark|اعتماد|قبول|ترفيع|استجابة|تحقق|تسجيل|إنهاء|انهاء/.test(descriptor)) return 'approve';
+    if (/save|update|submit|confirm|apply|post|finish|حفظ|تحديث|تأكيد|تاكيد|تطبيق|إنهاء|انهاء/.test(descriptor)) return 'save';
+    if (action.classList.contains('pill-link--danger')) return 'delete';
+    if (action.matches('button[type="submit"], button:not([type])') && action.closest('form[wire\\:submit]')) return 'save';
+
+    return null;
+}
+
+function initializeAdminModalActionIcons(root = document) {
+    const selector = '.admin-modal__body :is(button, a)';
+    const actions = [];
+
+    if (root instanceof Element && root.matches(selector)) actions.push(root);
+    root.querySelectorAll?.(selector).forEach((action) => actions.push(action));
+
+    actions.forEach((action) => {
+        if (action.closest('.searchable-select')) {
+            // Dropdown clear controls must remain the compact native ×. An
+            // earlier modal pass may already have replaced one, so restore it
+            // while excluding every searchable-select control from icon work.
+            restoreSearchableSelectClear(action);
+
+            return;
+        }
+        if (action.hasAttribute('data-modal-action-icon-ignore')) return;
+        if (action.closest('[role="tablist"], [role="listbox"]')) return;
+        if (action.classList.contains('admin-icon-button') && action.querySelector(':scope > svg')) return;
+
+        const kind = action.dataset.modalActionForceKind || modalActionKind(action);
+
+        if (!kind) return;
+
+        const label = action.getAttribute('aria-label')
+            || action.getAttribute('title')
+            || action.textContent.replace(/\s+/g, ' ').trim();
+        const isAccent = action.classList.contains('pill-link--accent');
+        const isDanger = action.classList.contains('pill-link--danger')
+            || action.classList.contains('admin-icon-button--danger')
+            || /border-red|text-red/.test(action.className);
+        const icon = createMobileTableActionIcon(kind);
+
+        icon.classList.remove('mobile-table-action__icon');
+        icon.classList.add('admin-modal-action__icon');
+        action.replaceChildren(icon);
+        action.classList.remove('pill-link', 'pill-link--compact', 'pill-link--accent', 'pill-link--danger');
+        action.classList.add('admin-icon-button', 'admin-modal-action-button');
+        if (isAccent) action.classList.add('admin-icon-button--accent');
+        if (isDanger) action.classList.add('admin-icon-button--danger');
+        action.dataset.modalActionIcon = kind;
+        action.setAttribute('aria-label', label);
+        action.setAttribute('title', action.getAttribute('title') || label);
+    });
+}
+
+let adminModalActionObserverStarted = false;
+
+function startAdminModalActionObserver() {
+    initializeAdminModalActionIcons(document);
+
+    if (adminModalActionObserverStarted || !document.body) return;
+
+    const observer = new MutationObserver((mutations) => {
+        const modalRoots = new Set();
+
+        mutations.forEach((mutation) => {
+            const target = mutation.target instanceof Element
+                ? mutation.target.closest('.admin-modal')
+                : null;
+
+            if (target) modalRoots.add(target);
+
+            mutation.addedNodes.forEach((node) => {
+                if (!(node instanceof Element)) return;
+                if (node.matches('.admin-modal')) modalRoots.add(node);
+                node.querySelectorAll?.('.admin-modal').forEach((modal) => modalRoots.add(modal));
+            });
+        });
+
+        modalRoots.forEach((modal) => initializeAdminModalActionIcons(modal));
+    });
+
+    observer.observe(document.body, { childList: true, subtree: true });
+    adminModalActionObserverStarted = true;
+}
+
+document.addEventListener('DOMContentLoaded', startAdminModalActionObserver);
+document.addEventListener('livewire:navigated', startAdminModalActionObserver);
 
 function mobileTableActionKind(action) {
     const descriptor = [
@@ -1271,6 +1548,21 @@ function initializeMobileTableHeaderActions(toolbar) {
         action.classList.add('mobile-table-header-action');
         action.setAttribute('aria-label', label);
         action.setAttribute('title', action.getAttribute('title') || label);
+
+        const nativeIcons = Array.from(action.querySelectorAll(':scope > svg:not(.mobile-table-action__icon)'));
+
+        if (action.classList.contains('admin-icon-button') && nativeIcons.length > 0) {
+            // Shared symbol buttons already ship with their final icon. Remove
+            // responsive icons left by an earlier enhancement or Livewire
+            // morph, and collapse any restored native duplicates to one.
+            action.querySelectorAll(':scope > .mobile-table-action__icon').forEach((icon) => icon.remove());
+            nativeIcons.slice(1).forEach((icon) => icon.remove());
+            action.classList.add('mobile-table-header-action--native-icon');
+
+            return;
+        }
+
+        action.classList.remove('mobile-table-header-action--native-icon');
 
         // Livewire may restore the server-rendered button contents while leaving
         // the enhancement marker in place. Re-create the mobile icon whenever

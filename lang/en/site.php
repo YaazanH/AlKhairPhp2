@@ -6,7 +6,7 @@ return [
             'home' => 'Home',
             'login' => 'Login',
             'register' => 'Register',
-            'dashboard' => 'Dashboard',
+            'dashboard' => 'Course App',
         ],
         'sections' => [
             'story' => 'Our Story',

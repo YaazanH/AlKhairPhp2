@@ -26,7 +26,7 @@ return [
     'status' => ['untaught' => 'لم يُدرّس', 'partial' => 'منجز جزئياً', 'taught' => 'تم تدريسه'],
     'progress' => ['title' => 'تقدم المنهاج', 'completed' => 'مكتمل بنسبة :percent٪', 'empty' => 'لا يوجد منهاج معيّن.', 'group_details' => 'منهاج مجموعة :group'],
     'table' => ['curricula' => 'المناهج', 'latest' => 'آخر 5 دروس تم تدريسها', 'empty' => 'لا توجد مناهج لهذه الدورة.', 'no_lessons' => 'لا توجد دروس بعد.'],
-    'form' => ['curriculum_title' => 'بيانات المنهاج', 'subject_title' => 'إضافة مادة', 'lesson_title' => 'بيانات الدرس', 'progress_title' => 'تسجيل تقدم الدرس', 'custom_title' => 'إضافة درس مخصص'],
+    'form' => ['curriculum_title' => 'بيانات المنهاج', 'subject_title' => 'إضافة مادة', 'edit_subject_title' => 'تعديل المادة', 'edit_resource_title' => 'تعديل المرجع', 'lesson_title' => 'بيانات الدرس', 'progress_title' => 'تسجيل تقدم الدرس', 'custom_title' => 'إضافة درس مخصص'],
     'messages' => ['curriculum_saved' => 'تم حفظ المنهاج.', 'subject_added' => 'تمت إضافة المادة.', 'lesson_saved' => 'تم حفظ الدرس.', 'progress_saved' => 'تم حفظ تقدم الدرس.', 'custom_saved' => 'تمت إضافة الدرس المخصص.', 'subject_saved' => 'تم حفظ المادة.', 'resource_saved' => 'تم حفظ المرجع.'],
     'errors' => ['course_mismatch' => 'المنهاج المحدد تابع لدورة أخرى.', 'no_group' => 'لا توجد مجموعة متاحة لها منهاج معيّن.', 'subject_used' => 'هذه المادة مستخدمة في منهاج ولا يمكن حذفها.', 'curriculum_used' => 'هذا المنهاج معيّن لمجموعة ولا يمكن حذفه.', 'resource_required' => 'اختر مرجعاً واحداً على الأقل لهذه المادة.', 'lesson_resource_required' => 'اختر المرجع الذي يتبع له الدرس.'],
 ];

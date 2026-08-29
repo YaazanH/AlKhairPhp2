@@ -451,9 +451,9 @@ new class extends Component {
 
                 <div class="admin-toolbar__actions">
                     @can('enrollments.create')
-                        <button type="button" wire:click="openCreateModal" class="pill-link pill-link--accent">{{ __('crud.common.actions.create') }}</button>
+                        <x-add-action-button wire:click="openCreateModal" :label="__('crud.common.actions.create')" />
                     @endcan
-                    <a href="{{ route('enrollments.export', ['search' => $search, 'status' => $statusFilter, 'course_id' => $courseFilter, 'group_id' => $groupFilter]) }}" class="pill-link">{{ __('crud.common.actions.export') }}</a>
+                    <x-export-action-button :href="route('enrollments.export', ['search' => $search, 'status' => $statusFilter, 'course_id' => $courseFilter, 'group_id' => $groupFilter])" :label="__('crud.common.actions.export')" />
                 </div>
             </div>
         </div>
@@ -491,7 +491,7 @@ new class extends Component {
                                 </button>
                             </th>
                             @can('enrollments.update')
-                                <th class="px-5 py-4 text-right lg:px-6">{{ __('crud.enrollments.table.headers.actions') }}</th>
+                                <th class="admin-actions-column px-5 py-4 text-center lg:px-6">{{ __('crud.enrollments.table.headers.actions') }}</th>
                             @endcan
                         </tr>
                     </thead>
@@ -523,9 +523,9 @@ new class extends Component {
                                 <td class="px-5 py-4 lg:px-6"><span class="{{ $enrollmentStatusClass }}">{{ __('crud.common.status_options.'.$enrollment->status) }}</span></td>
                                 @can('enrollments.update')
                                     <td class="px-5 py-4 lg:px-6">
-                                        <div class="flex flex-wrap justify-end gap-2">
-                                            <button type="button" wire:click="edit({{ $enrollment->id }})" class="pill-link pill-link--compact">
-                                                {{ __('crud.common.actions.edit') }}
+                                        <div class="flex flex-wrap justify-center gap-2">
+                                            <button type="button" wire:click="edit({{ $enrollment->id }})" class="admin-icon-button" title="{{ __('crud.common.actions.edit') }}" aria-label="{{ __('crud.common.actions.edit') }}">
+                                                <x-admin-action-icon name="edit" />
                                             </button>
                                         </div>
                                     </td>
@@ -604,26 +604,18 @@ new class extends Component {
                 </div>
             </div>
 
-                <div>
-                    <label for="enrollment-notes" class="mb-1 block text-sm font-medium">{{ __('crud.enrollments.form.fields.notes') }}</label>
-                    <textarea id="enrollment-notes" wire:model="notes" rows="4" class="w-full rounded-xl px-4 py-3 text-sm"></textarea>
-                    @error('notes')
-                        <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
-                    @enderror
-                </div>
             @endif
 
-            <div class="flex flex-wrap items-center gap-3">
-                <button type="submit" class="pill-link pill-link--accent">
-                    {{ $editingId ? __('crud.enrollments.form.update_submit') : __('crud.enrollments.form.create_submit') }}
-                </button>
-                <x-admin.create-and-new-button :show="! $editingId" />
+            <div class="admin-action-cluster admin-action-cluster--end">
                 @if ($editingId)
+                    <button type="submit" class="admin-icon-button admin-icon-button--accent admin-modal-action-button" title="{{ __('crud.enrollments.form.update_submit') }}" aria-label="{{ __('crud.enrollments.form.update_submit') }}" data-enrollment-update-action>
+                        <x-admin-action-icon name="save" class="admin-modal-action__icon" />
+                    </button>
                     @can('enrollments.delete')
-                        <button type="button" wire:click="delete({{ $editingId }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link ms-auto border-red-400/25 text-red-200 hover:border-red-300/35 hover:bg-red-500/12">
-                            {{ __('crud.common.actions.delete') }}
-                        </button>
+                        <x-delete-action-button wire:click="delete({{ $editingId }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" :label="__('crud.common.actions.delete')" data-enrollment-delete-action />
                     @endcan
+                @else
+                    <x-admin.create-and-new-button />
                 @endif
             </div>
         </form>

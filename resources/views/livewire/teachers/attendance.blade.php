@@ -304,9 +304,9 @@ new class extends Component {
 
                 <div class="admin-toolbar__actions">
                     @can('attendance.teacher.take')
-                        <button type="button" wire:click="openCreateModal" class="pill-link pill-link--accent">{{ __('workflow.teacher_attendance.days.create') }}</button>
+                        <x-add-action-button wire:click="openCreateModal" :label="__('workflow.teacher_attendance.days.create')" />
                     @endcan
-                    <button type="button" wire:click="openExportModal" class="pill-link">{{ __('workflow.teacher_attendance.export.action') }}</button>
+                    <x-export-action-button wire:click="openExportModal" :label="__('workflow.teacher_attendance.export.action')" />
                 </div>
             </div>
         </div>
@@ -323,7 +323,7 @@ new class extends Component {
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.teacher_attendance.days.table.headers.teachers') }}</th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.teacher_attendance.days.table.headers.marked') }}</th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.teacher_attendance.days.table.headers.status') }}</th>
-                            <th class="px-5 py-4 text-right lg:px-6">{{ __('workflow.teacher_attendance.days.table.headers.actions') }}</th>
+                            <th class="admin-actions-column px-5 py-4 text-center lg:px-6">{{ __('workflow.teacher_attendance.days.table.headers.actions') }}</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-white/6">
@@ -345,12 +345,7 @@ new class extends Component {
                                 </td>
                                 <td class="px-5 py-4 lg:px-6">
                                     <div class="flex flex-wrap justify-end gap-2">
-                                        <a href="{{ route('teacher-attendance.show', $day) }}" wire:navigate class="admin-icon-button" title="{{ __('workflow.teacher_attendance.days.table.view') }}" aria-label="{{ __('workflow.teacher_attendance.days.table.view') }}" data-attendance-day-view-icon>
-                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
-                                                <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12s3.75-6.75 9.75-6.75S21.75 12 21.75 12 18 18.75 12 18.75 2.25 12 2.25 12Z" />
-                                                <circle cx="12" cy="12" r="2.25" />
-                                            </svg>
-                                        </a>
+                                        <x-open-action-button :href="route('teacher-attendance.show', $day)" wire:navigate :label="__('workflow.teacher_attendance.days.table.view')" />
                                     </div>
                                 </td>
                             </tr>
@@ -430,7 +425,7 @@ new class extends Component {
                 <div><label class="mb-1 block text-sm font-medium">{{ __('workflow.teacher_attendance.export.from') }}</label><input wire:model.live="export_date_from" type="date" class="w-full rounded-xl px-4 py-3"></div>
                 <div><label class="mb-1 block text-sm font-medium">{{ __('workflow.teacher_attendance.export.to') }}</label><input wire:model.live="export_date_to" type="date" class="w-full rounded-xl px-4 py-3"></div>
             </div>
-            <div class="attendance-export-actions mt-5 flex justify-end"><a href="{{ route('teacher-attendance.export', ['date_from' => $export_date_from, 'date_to' => $export_date_to]) }}" target="_blank" class="pill-link pill-link--accent">{{ __('workflow.teacher_attendance.export.action') }}</a></div>
+            <div class="attendance-export-actions mt-5 flex justify-end"><x-export-action-button :href="route('teacher-attendance.export', ['date_from' => $export_date_from, 'date_to' => $export_date_to])" target="_blank" class="admin-icon-button--accent" :label="__('workflow.teacher_attendance.export.action')" /></div>
         </x-admin.modal>
     </div>
     @endteleport

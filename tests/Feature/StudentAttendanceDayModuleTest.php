@@ -291,8 +291,11 @@ class StudentAttendanceDayModuleTest extends TestCase
 
         $this->actingAs($manager);
 
-        Volt::test('student-attendance.show', ['studentAttendanceDay' => $day])
+        $dayComponent = Volt::test('student-attendance.show', ['studentAttendanceDay' => $day])
+            ->call('openManualGroupModal')
+            ->assertSet('showManualGroupModal', true)
             ->call('toggleDayStatus')
+            ->assertSet('showManualGroupModal', false)
             ->assertHasNoErrors();
 
         $this->assertSame('closed', $day->fresh()->status);
@@ -302,8 +305,10 @@ class StudentAttendanceDayModuleTest extends TestCase
             ->set('attendance_date', '2026-10-08');
         $this->assertStringNotContainsString('wire:model="selected_statuses.'.$enrollment->id.'"', $closedGroupAttendance->html());
 
-        Volt::test('student-attendance.show', ['studentAttendanceDay' => $day->fresh()])
+        $dayComponent
             ->call('toggleDayStatus')
+            ->assertSet('showManualGroupModal', false)
+            ->assertDontSee(__('workflow.student_attendance.day_details.manual_add.title'))
             ->assertHasNoErrors();
 
         $this->assertSame('open', $day->fresh()->status);
@@ -624,7 +629,8 @@ class StudentAttendanceDayModuleTest extends TestCase
         $this->actingAs($manager)
             ->get(route('student-attendance.index', absolute: false))
             ->assertOk()
-            ->assertSeeText(__('workflow.student_attendance.export.action'))
+            ->assertSee('data-export-action', false)
+            ->assertSee('aria-label="'.__('workflow.student_attendance.export.action').'"', false)
             ->assertSeeText('Export Attendance Group');
 
         Volt::test('student-attendance.index')

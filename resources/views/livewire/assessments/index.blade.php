@@ -2,7 +2,6 @@
 
 use App\Livewire\Concerns\AuthorizesPermissions;
 use App\Livewire\Concerns\AuthorizesTeacherAssignments;
-use App\Livewire\Concerns\SupportsCreateAndNew;
 use App\Models\Assessment;
 use App\Models\AssessmentResult;
 use App\Models\AssessmentType;
@@ -18,7 +17,6 @@ new class extends Component
 {
     use AuthorizesPermissions;
     use AuthorizesTeacherAssignments;
-    use SupportsCreateAndNew;
     use WithPagination;
 
     public ?int $editingId = null;
@@ -509,12 +507,21 @@ new class extends Component
                     @error('delete') <div class="rounded-2xl border border-red-500/25 bg-red-500/10 px-3 py-2 text-sm text-red-200">{{ $message }}</div> @enderror
 
                     <div class="flex gap-3">
-                        <button type="submit" class="pill-link pill-link--accent">{{ $editingId ? __('workflow.assessments.index.form.update_submit') : __('workflow.assessments.index.form.create_submit') }}</button>
-                        <x-admin.create-and-new-button :show="! $editingId" click="saveAndNew('save', 'create')" />
                         @if ($editingId)
+                            <button type="submit" class="pill-link pill-link--accent">{{ __('workflow.assessments.index.form.update_submit') }}</button>
                             @can('assessments.delete')
                                 <button type="button" wire:click="delete({{ $editingId }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" @disabled($editingHasResults) class="pill-link border-red-400/25 text-red-200 disabled:cursor-not-allowed disabled:opacity-40">{{ __('crud.common.actions.delete') }}</button>
                             @endcan
+                        @else
+                            <button
+                                type="submit"
+                                class="admin-icon-button admin-icon-button--accent admin-modal-action-button"
+                                title="{{ __('crud.common.actions.save') }}"
+                                aria-label="{{ __('crud.common.actions.save') }}"
+                                data-assessment-save-action
+                            >
+                                <x-admin-action-icon name="save" class="admin-modal-action__icon" />
+                            </button>
                         @endif
                     </div>
                 </form>
@@ -572,9 +579,7 @@ new class extends Component
                         </select>
                     </div>
                     @can('assessments.create')
-                        <button type="button" wire:click="create" class="pill-link pill-link--accent inline-flex min-w-40 justify-center text-center">
-                            {{ __('workflow.assessments.index.form.create_title') }}
-                        </button>
+                        <x-add-action-button wire:click="create" :label="__('workflow.assessments.index.form.create_title')" />
                     @endcan
                 </div>
             </div>
@@ -593,7 +598,7 @@ new class extends Component
                                 <th class="w-[9%] px-2 py-3 text-left font-medium">{{ __('workflow.assessments.index.table.headers.results') }}</th>
                                 <th class="w-[10%] px-3 py-3 text-left font-medium">{{ __('workflow.assessments.index.table.headers.average') }}</th>
                                 <th class="w-[10%] px-2 py-3 text-left font-medium">{{ __('workflow.assessments.index.table.headers.status') }}</th>
-                                <th class="w-[17%] px-3 py-3 text-end font-medium">{{ __('workflow.assessments.index.table.headers.actions') }}</th>
+                                <th class="admin-actions-column w-[17%] px-3 py-3 text-center font-medium">{{ __('workflow.assessments.index.table.headers.actions') }}</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-neutral-200 dark:divide-neutral-700">
@@ -627,7 +632,7 @@ new class extends Component
                                     <td class="px-5 py-3 text-end">
                                         <div class="admin-action-cluster admin-action-cluster--end">
                                             @can('assessment-results.view')
-                                                <a href="{{ route('assessments.results', $assessment) }}" wire:navigate class="pill-link pill-link--compact">{{ app()->isLocale('ar') ? 'فتح' : 'Open' }}</a>
+                                                <x-open-action-button :href="route('assessments.results', $assessment)" wire:navigate :label="__('crud.common.actions.open')" />
                                             @endcan
                                         </div>
                                     </td>

@@ -394,7 +394,7 @@ new class extends Component {
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.memorization.table.headers.teacher') }}</th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.memorization.table.headers.notes') }}</th>
                             @can('memorization.record')
-                                <th class="px-5 py-4 text-right lg:px-6">{{ __('workflow.memorization.table.headers.actions') }}</th>
+                                <th class="admin-actions-column px-5 py-4 text-center lg:px-6">{{ __('workflow.memorization.table.headers.actions') }}</th>
                             @endcan
                         </tr>
                     </thead>
@@ -410,8 +410,8 @@ new class extends Component {
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $session->notes ?: __('workflow.common.not_available') }}</td>
                                 @can('memorization.record')
                                     <td class="px-5 py-4 lg:px-6">
-                                        <div class="flex justify-end">
-                                            <button type="button" wire:click="editSession({{ $session->id }})" class="pill-link pill-link--compact">{{ __('workflow.common.actions.edit') }}</button>
+                                        <div class="flex justify-center">
+                                            <button type="button" wire:click="editSession({{ $session->id }})" class="admin-icon-button" title="{{ __('workflow.common.actions.edit') }}" aria-label="{{ __('workflow.common.actions.edit') }}"><x-admin-action-icon name="edit" /></button>
                                         </div>
                                     </td>
                                 @endcan

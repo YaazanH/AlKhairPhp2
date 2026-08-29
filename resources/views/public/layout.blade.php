@@ -84,8 +84,6 @@
                     </nav>
 
                     <div class="public-actions">
-                        <x-locale-switcher compact />
-
                         @auth
                             <a href="{{ route('dashboard') }}" class="pill-link pill-link--accent">{{ __('site.public.nav.dashboard') }}</a>
                         @else

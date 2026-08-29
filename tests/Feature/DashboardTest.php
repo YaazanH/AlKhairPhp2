@@ -176,6 +176,10 @@ class DashboardTest extends TestCase
             ->assertOk()
             ->assertSee('Management Dashboard')
             ->assertSee('Quran Foundations')
+            ->assertSee('Average Attendance')
+            ->assertSee('Final Tested Juz')
+            ->assertSeeInOrder(['Active Groups', 'Average Attendance', 'Memorized Pages', 'Final Tested Juz', 'Total Points'])
+            ->assertSee('dashboard-manager-highlights', false)
             ->assertSee('dashboard-course-context__course', false)
             ->assertSee('Number of Students per Group')
             ->assertSee('Comparison between Attendance and Memorisation')
@@ -233,6 +237,8 @@ class DashboardTest extends TestCase
             ->assertDontSee('Excluded Group');
 
         $dashboardCss = file_get_contents(resource_path('css/app.css'));
+        $dashboardSource = file_get_contents(resource_path('views/livewire/dashboard.blade.php'));
+        $this->assertStringNotContainsString("\$loop->even ? 'badge-soft--emerald' : ''", $dashboardSource);
         $this->assertStringContainsString('.dashboard-performance-map__plot {', $dashboardCss);
         $this->assertStringContainsString('.dashboard-performance-map__average-line--vertical {', $dashboardCss);
         $this->assertStringContainsString('background-size: 20% 100%, 100% 20%', $dashboardCss);

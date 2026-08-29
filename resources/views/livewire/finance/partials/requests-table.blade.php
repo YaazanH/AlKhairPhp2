@@ -15,7 +15,7 @@
         </div>
         @if (($createPermission ?? null) && ($createMethod ?? null) && ($createLabel ?? null))
             @can($createPermission)
-                <button type="button" wire:click="{{ $createMethod }}" class="pill-link pill-link--accent">{{ $createLabel }}</button>
+                <x-add-action-button wire:click="{{ $createMethod }}" :label="$createLabel" />
             @endcan
         @endif
     </div>
@@ -31,7 +31,7 @@
                     <th class="px-5 py-3 text-left">{{ __('finance.fields.category') }}</th>
                     <th class="px-5 py-3 text-left">{{ $amountHeader }}</th>
                     <th class="px-5 py-3 text-left">{{ __('finance.common.status') }}</th>
-                    <th class="px-5 py-3 text-right">{{ __('finance.actions.actions') }}</th>
+                    <th class="admin-actions-column px-5 py-3 text-center">{{ __('finance.actions.actions') }}</th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-white/6">

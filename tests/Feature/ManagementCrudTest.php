@@ -801,6 +801,13 @@ class ManagementCrudTest extends TestCase
 
         Volt::test('students.index')
             ->call('openAccountModal', $student->id)
+            ->assertSee('data-student-account-access-summary', false)
+            ->assertSee('data-student-account-username', false)
+            ->assertSee('data-student-account-password', false)
+            ->assertDontSee('wire:model="account_email"', false)
+            ->assertDontSee('wire:model="account_is_active"', false)
+            ->assertDontSee('wire:click="generateAccountPassword"', false)
+            ->assertDontSee('wire:submit="saveAccount"', false)
             ->set('account_password', 'StudentPass123!')
             ->call('saveAccount')
             ->assertHasNoErrors();
@@ -1016,7 +1023,7 @@ class ManagementCrudTest extends TestCase
             ->call('addExternalMemorizedJuz')
             ->assertSet('external_memorized_juz_ids', [$firstJuz->id])
             ->assertSet('external_memorized_juz_input', '')
-            ->assertDontSee(__('crud.students.form.placeholders.enter_memorized_juz'))
+            ->assertSee(__('crud.students.form.placeholders.enter_memorized_juz'))
             ->assertSee('student-memorized-juz-'.$firstJuz->id, false)
             ->set('external_memorized_juz_input', '7')
             ->call('addExternalMemorizedJuz')
@@ -1062,6 +1069,48 @@ class ManagementCrudTest extends TestCase
             'student_id' => $student->id,
             'quran_juz_id' => $firstJuz->id,
         ]);
+    }
+
+    public function test_existing_parent_editor_replaces_the_summary_and_uses_an_unlink_icon(): void
+    {
+        $this->signIn();
+
+        $parent = ParentProfile::create([
+            'father_name' => 'Parent Before Edit',
+            'is_active' => true,
+        ]);
+        $student = Student::create([
+            'parent_id' => $parent->id,
+            'first_name' => 'Parent',
+            'last_name' => 'Editor',
+            'birth_date' => '2014-01-01',
+            'status' => 'active',
+        ]);
+
+        Volt::test('students.index')
+            ->call('edit', $student->id)
+            ->assertSet('editingStudentHasRelatedRecords', false)
+            ->assertSee('data-student-delete-action', false)
+            ->assertSee('data-student-parent-summary', false)
+            ->assertSee('data-student-parent-edit-action', false)
+            ->assertSee('data-student-parent-unlink-action', false)
+            ->assertSee('data-icon-name="unlink"', false)
+            ->call('openQuickParentForm')
+            ->assertSet('showQuickParentForm', true)
+            ->assertDontSee('data-student-parent-summary', false)
+            ->assertDontSee('data-student-parent-edit-action', false)
+            ->assertDontSee('wire:click="closeQuickParentForm"', false)
+            ->assertSee('data-student-parent-update-action', false)
+            ->set('quick_parent_father_name', 'Parent After Edit')
+            ->call('saveQuickParent')
+            ->assertHasNoErrors()
+            ->assertSet('showQuickParentForm', false)
+            ->assertSee('data-student-parent-summary', false)
+            ->assertSee('Parent After Edit');
+
+        $styles = file_get_contents(resource_path('css/app.css'));
+        $this->assertStringContainsString("html[dir='rtl'] [data-teacher-profile-account-form] .admin-collapsible__summary::before", $styles);
+        $this->assertStringContainsString("content: '‹';", $styles);
     }
 
     public function test_editing_parent_with_duplicate_primary_phone_uses_another_available_phone_for_the_linked_user(): void
@@ -1137,6 +1186,34 @@ class ManagementCrudTest extends TestCase
             ->assertSee('Ali Family')
             ->assertSee('Mona Family')
             ->assertSee('Children');
+    }
+
+    public function test_parent_table_only_offers_delete_for_profiles_without_students(): void
+    {
+        $this->signIn();
+
+        $linkedParent = ParentProfile::create([
+            'father_name' => 'Linked Parent',
+            'is_active' => true,
+        ]);
+        $orphanParent = ParentProfile::create([
+            'father_name' => 'Orphan Parent',
+            'is_active' => true,
+        ]);
+        Student::create([
+            'parent_id' => $linkedParent->id,
+            'first_name' => 'Linked',
+            'last_name' => 'Student',
+            'birth_date' => '2014-01-01',
+            'status' => 'active',
+        ]);
+
+        Volt::test('parents.index')
+            ->assertDontSee('data-parent-edit-action', false)
+            ->assertSee('wire:click="openChildrenModal('.$linkedParent->id.')"', false)
+            ->assertDontSee('wire:click="openChildrenModal('.$orphanParent->id.')"', false)
+            ->assertSee('wire:click="delete('.$orphanParent->id.')"', false)
+            ->assertDontSee('wire:click="delete('.$linkedParent->id.')"', false);
     }
 
     public function test_student_group_and_enrollment_components_support_crud_and_delete_guards(): void
@@ -1247,6 +1324,13 @@ class ManagementCrudTest extends TestCase
         Volt::test('students.index')
             ->call('delete', $student->id)
             ->assertHasErrors(['delete']);
+
+        Volt::test('students.index')
+            ->call('edit', $student->id)
+            ->assertSet('editingStudentHasEnrollments', true)
+            ->assertSet('editingStudentHasRelatedRecords', true)
+            ->assertDontSee('data-student-delete-action', false)
+            ->assertSee('data-student-update-action', false);
 
         Volt::test('groups.index')
             ->call('delete', $group->id)
@@ -1745,7 +1829,17 @@ class ManagementCrudTest extends TestCase
             ->assertSee('Fares Hamdan')
             ->assertSee('+963 999 000 001')
             ->assertSee('group-show-details__grid', false)
-            ->assertSee('data-group-copy-summary', false)
+            ->assertDontSee('data-group-copy-summary', false)
+            ->assertSee('data-group-hero-edit-action', false)
+            ->assertSee('data-group-hero-schedule-action', false)
+            ->assertSee('data-group-hero-deactivate-action', false)
+            ->assertDontSee('data-group-hero-copy-action', false)
+            ->assertSee('data-icon-name="edit"', false)
+            ->assertSee('data-icon-name="schedule"', false)
+            ->assertSee('data-icon-name="disable-group"', false)
+            ->assertSee('data-group-disable-sign', false)
+            ->assertSee('data-group-disable-mark', false)
+            ->assertDontSee('data-icon-name="copy"', false)
             ->assertSee('group-roster-table__name-value', false)
             ->assertDontSee('min-w-[88rem]', false)
             ->set('showScheduleModal', true)
@@ -1756,6 +1850,10 @@ class ManagementCrudTest extends TestCase
             ->assertSee('data-group-form-row="teachers"', false)
             ->assertSee('data-group-form-row="learning"', false)
             ->assertSee('data-group-form-row="capacity-template"', false)
+            ->assertSee('data-group-edit-save-action', false)
+            ->assertSee('data-group-edit-delete-action', false)
+            ->assertSee('data-icon-name="save"', false)
+            ->assertSee('data-icon-name="delete"', false)
             ->assertDontSee(__('crud.groups.form.fields.monthly_fee'))
             ->assertDontSee(__('crud.groups.form.fields.starts_on'))
             ->assertDontSee(__('crud.groups.form.fields.ends_on'));

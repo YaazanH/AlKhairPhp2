@@ -225,7 +225,9 @@ class ReportsAndApiTest extends TestCase
 
         Volt::test('reports.student-activity-summary')
             ->set('group_id', $group->id)
-            ->assertSeeText('السبر التجريبي');
+            ->assertSeeText('السبر التجريبي')
+            ->assertSee('data-date-placeholder="التاريخ من"', false)
+            ->assertSee('data-date-placeholder="التاريخ إلى"', false);
 
         app()->setLocale('en');
     }

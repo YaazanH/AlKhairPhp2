@@ -502,7 +502,7 @@ new class extends Component {
                 </div>
 
                 <div class="rounded-2xl border border-white/10 bg-white/5 p-4">
-                    <div class="flex items-center justify-end"><button type="button" wire:click="openAssessmentTypeModal" class="pill-link pill-link--compact" aria-label="{{ __('settings.course_completion.actions.add_assessment_type') }}">+</button></div>
+                    <div class="flex items-center justify-end"><x-add-action-button wire:click="openAssessmentTypeModal" :label="__('settings.course_completion.actions.add_assessment_type')" :accent="false" /></div>
 
                     <div class="mt-4 space-y-3">
                         @forelse ($assessmentTypes->whereIn('id', $enabled_assessment_type_ids) as $assessmentType)

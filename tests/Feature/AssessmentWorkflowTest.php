@@ -326,6 +326,12 @@ class AssessmentWorkflowTest extends TestCase
             ->assertSee('Assessment Group')
             ->assertSee('Second Assessment Group')
             ->assertSee(__('workflow.assessments.results.student_entry.title'))
+            ->assertSee('assessment-results-card-actions', false)
+            ->assertSee('assessment-results-card-actions__add', false)
+            ->assertSee('data-assessment-add-result-action', false)
+            ->assertSee('data-assessment-edit-action', false)
+            ->assertSee('data-icon-name="add"', false)
+            ->assertSee('data-icon-name="edit"', false)
             ->assertDontSee('<div class="admin-toolbar__title">'.__('workflow.assessments.results.groups.choose_title').'</div>', false)
             ->assertSee('assessment-group-selector', false)
             ->assertDontSee(__('workflow.assessments.results.groups.scores_entered', ['count' => 0]))
@@ -515,16 +521,30 @@ class AssessmentWorkflowTest extends TestCase
     public function test_quick_result_modal_keeps_group_separate_and_zero_removes_the_result(): void
     {
         [$assessment, $enrollment] = $this->assessmentContext();
+        $script = file_get_contents(resource_path('js/app.js'));
+
+        $this->assertStringContainsString("window.addEventListener('assessment-quick-score-saved', scheduleAssessmentQuickScoreStudentFocus);", $script);
+        $this->assertStringContainsString('window.scheduleAssessmentQuickScoreStudentFocus = scheduleAssessmentQuickScoreStudentFocus;', $script);
+        $this->assertStringContainsString("document.getElementById('assessment-student-entry')", $script);
+        $this->assertStringContainsString("wrapper.querySelector('.searchable-select__search--trigger')", $script);
+        $this->assertStringContainsString('focusAssessmentQuickScoreStudentName();', $script);
 
         $component = Volt::test('assessments.results', ['assessment' => $assessment])
             ->assertSet('showQuickResultModal', false)
             ->call('openQuickResultModal')
             ->assertSet('showQuickResultModal', true)
             ->assertSee('assessment-selected-group', false)
+            ->assertSee('wire:keydown.enter.prevent.stop="saveQuickResult"', false)
+            ->assertSee('wire:keydown.tab.prevent.stop="saveQuickResult"', false)
+            ->assertSee('data-assessment-quick-score-form', false)
+            ->assertSee('data-assessment-quick-score-save', false)
+            ->assertSee('data-icon-name="save-new"', false)
+            ->assertDontSee('class="pill-link pill-link--accent justify-center" data-assessment-quick-score-save', false)
             ->set('quick_enrollment_id', (string) $enrollment->id)
             ->assertSee($enrollment->group->name)
             ->set('quick_score', '75')
             ->call('saveQuickResult')
+            ->assertDispatched('assessment-quick-score-saved')
             ->assertHasNoErrors()
             ->assertSet('showQuickResultModal', true)
             ->assertSet('quick_enrollment_id', '')

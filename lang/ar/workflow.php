@@ -1280,6 +1280,7 @@ return [
             'add_awqaf_test' => 'سبر أوقاف',
             'missing_title' => 'الصفحات الناقصة للجزء :juz',
             'missing_subtitle' => 'هذه الصفحات غير مسجلة كمحفوظة ضمن فلتر الدورة الحالي.',
+            'missing_count' => 'عدد الصفحات الناقصة',
             'no_missing_pages' => 'لا توجد صفحات ناقصة في هذا الجزء.',
             'headers' => [
                 'actions' => 'الإجراءات',

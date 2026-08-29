@@ -96,7 +96,7 @@ new class extends Component {
     <section class="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         @foreach(['students','points_before','points_after','memorized_pages','final_tests'] as $key)<article class="stat-card"><div class="kpi-label">{{ __('course_end.highlights.'.$key) }}</div><div class="metric-value mt-3">{{ number_format($summary[$key]) }}</div></article>@endforeach
     </section>
-    <section class="surface-table"><div class="admin-grid-meta"><div><div class="admin-grid-meta__title">{{ __('course_end.students_title') }}</div><div class="admin-grid-meta__summary">{{ __('course_end.student_records', ['count' => number_format($studentResultCount)]) }}</div></div><a href="{{ route('courses.end.students.xlsx', $course) }}" class="pill-link pill-link--accent">XLSX</a></div>
+    <section class="surface-table"><div class="admin-grid-meta"><div><div class="admin-grid-meta__title">{{ __('course_end.students_title') }}</div><div class="admin-grid-meta__summary">{{ __('course_end.student_records', ['count' => number_format($studentResultCount)]) }}</div></div><a href="{{ route('courses.end.students.xlsx', $course) }}" class="admin-icon-button admin-icon-button--accent" title="{{ __('finance.actions.export_excel') }}" aria-label="{{ __('finance.actions.export_excel') }}" data-course-students-xlsx-action><x-invoice-xlsx-export-icon /></a></div>
         <div class="course-end-students-mobile">
             @forelse($students as $row)
                 <article class="rounded-2xl border border-white/10 bg-white/4 p-4">
@@ -156,9 +156,9 @@ new class extends Component {
         @if($finalTestsMobile->hasPages())<div class="course-end-final-tests-mobile-pagination border-t border-white/8 px-5 py-4">{{ $finalTestsMobile->links() }}</div>@endif
     </section>
     <div class="grid gap-4 lg:grid-cols-2">
-        <section class="surface-panel p-5 lg:p-6"><div class="admin-toolbar"><div class="admin-toolbar__title">{{ __('course_end.report_cards') }}</div><div class="admin-toolbar__actions"><a href="{{ route('courses.end.report-cards.create', $course) }}" class="pill-link pill-link--accent">{{ __('course_end.print_cards') }}</a></div></div></section>
+        <section class="surface-panel p-5 lg:p-6"><div class="admin-toolbar"><div class="admin-toolbar__title">{{ __('course_end.report_cards') }}</div><div class="admin-toolbar__actions"><a href="{{ route('courses.end.report-cards.create', $course) }}" class="admin-icon-button admin-icon-button--accent" title="{{ __('course_end.print_cards') }}" aria-label="{{ __('course_end.print_cards') }}" data-course-report-cards-print-action><x-admin-action-icon name="print" /></a></div></div></section>
         @can('finance.expense-requests.view')
-            <section class="surface-panel p-5 lg:p-6" data-course-point-market-tab><div class="admin-toolbar"><div class="admin-toolbar__title">{{ __('course_end.point_market.title') }}</div><div class="admin-toolbar__actions"><a href="{{ route('courses.end.point-market', $course) }}" wire:navigate class="pill-link pill-link--accent">{{ __('course_end.point_market.open') }}</a></div></div></section>
+            <section class="surface-panel p-5 lg:p-6" data-course-point-market-tab><div class="admin-toolbar"><div class="admin-toolbar__title">{{ __('course_end.point_market.title') }}</div><div class="admin-toolbar__actions"><x-open-action-button :href="route('courses.end.point-market', $course)" wire:navigate class="admin-icon-button--accent" :label="__('course_end.point_market.open')" data-course-point-market-open-action /></div></div></section>
         @endcan
     </div>
 </div>

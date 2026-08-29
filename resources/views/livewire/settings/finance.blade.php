@@ -107,6 +107,7 @@ new class extends Component {
     public ?int $maint_entered_by = null;
     public string $maint_delete_reason = '';
     public string $report_lookup_no = '';
+    public string $withdrawal_cleanup_request_no = '';
     public $legacy_report_pdf = null;
     public string $legacy_report_number = '';
     public string $legacy_report_period_mode = 'quarter';
@@ -889,17 +890,51 @@ new class extends Component {
         session()->flash('status', __('finance.reports.legacy_report_import_finished'));
     }
 
-    public function deleteWithdrawalRequests(): void
+    public function deleteWithdrawalRequest(): void
     {
         $this->authorizePermission('finance.settings.manage');
         abort_if((bool) AppSetting::groupValues('finance')->get('withdrawal_request_cleanup_finished'), 403);
+        $this->resetValidation('withdrawal_cleanup_request_no');
 
-        $deleted = app(FinanceService::class)->deleteWithdrawalRequests(
-            auth()->user(),
-            __('finance.descriptions.withdrawal_cleanup'),
+        $validated = $this->validate(
+            ['withdrawal_cleanup_request_no' => ['required', 'string', 'max:50']],
+            [],
+            ['withdrawal_cleanup_request_no' => __('finance.fields.request_no')],
         );
 
-        session()->flash('status', __('finance.messages.withdrawal_cleanup_deleted', ['count' => $deleted]));
+        $lookup = trim($validated['withdrawal_cleanup_request_no']);
+        $request = FinanceRequest::query()
+            ->where('type', FinanceRequest::TYPE_PULL)
+            ->whereRaw('LOWER(request_no) = ?', [strtolower($lookup)])
+            ->first();
+
+        if (! $request) {
+            $this->addError('withdrawal_cleanup_request_no', __('finance.messages.withdrawal_cleanup_not_found'));
+
+            return;
+        }
+
+        try {
+            $deleted = app(FinanceService::class)->deleteWithdrawalRequest(
+                $request,
+                auth()->user(),
+                __('finance.descriptions.withdrawal_cleanup'),
+            );
+        } catch (\Throwable $exception) {
+            report($exception);
+            $this->addError('withdrawal_cleanup_request_no', __('finance.messages.withdrawal_cleanup_failed'));
+
+            return;
+        }
+
+        if (! $deleted) {
+            $this->addError('withdrawal_cleanup_request_no', __('finance.messages.withdrawal_cleanup_not_found'));
+
+            return;
+        }
+
+        $this->withdrawal_cleanup_request_no = '';
+        session()->flash('status', __('finance.messages.withdrawal_cleanup_deleted', ['request' => $request->request_no]));
     }
 
     public function finishWithdrawalRequestCleanup(): void
@@ -1083,7 +1118,7 @@ new class extends Component {
                 <p class="admin-toolbar__subtitle">{{ __('finance.settings.defaults_subtitle') }}</p>
             </div>
             <div class="admin-toolbar__actions">
-                <button type="button" wire:click="openFinanceSettingsModal" class="pill-link">{{ __('finance.actions.edit') }}</button>
+                <x-edit-action-button wire:click="openFinanceSettingsModal" :label="__('finance.actions.edit')" data-finance-settings-edit-action />
             </div>
         </div>
         <div class="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-3" data-finance-settings-primary-row>
@@ -1289,13 +1324,13 @@ new class extends Component {
                 <div class="admin-grid-meta__summary">{{ __('finance.settings.currencies_subtitle') }}</div>
             </div>
             @can('finance.currencies.manage')
-                <button type="button" wire:click="openCurrencyModal" class="pill-link pill-link--accent">{{ __('finance.actions.create_currency') }}</button>
+                <x-add-action-button wire:click="openCurrencyModal" :label="__('finance.actions.create_currency')" />
             @endcan
         </div>
             @error('currencyDelete') <div class="mx-5 mb-4 rounded-2xl border border-red-500/25 bg-red-500/10 px-3 py-2 text-sm text-red-200">{{ $message }}</div> @enderror
             <div class="overflow-x-auto">
                 <table class="min-w-full divide-y divide-neutral-200 text-sm dark:divide-neutral-700">
-                    <thead class="bg-neutral-50 dark:bg-neutral-900/60"><tr><th class="px-5 py-3 text-left">{{ __('finance.common.currency') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.exchange_rate') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.flags') }}</th><th class="px-5 py-3 text-right">{{ __('finance.actions.actions') }}</th></tr></thead>
+                    <thead class="bg-neutral-50 dark:bg-neutral-900/60"><tr><th class="px-5 py-3 text-left">{{ __('finance.common.currency') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.exchange_rate') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.flags') }}</th><th class="admin-actions-column px-5 py-3 text-center">{{ __('finance.actions.actions') }}</th></tr></thead>
                     <tbody class="divide-y divide-neutral-200 dark:divide-neutral-700">
                         @foreach ($currencies as $currency)
                             <tr>
@@ -1308,7 +1343,7 @@ new class extends Component {
                                         @unless($currency->is_local || $currency->is_base)<span class="status-chip {{ $currency->is_active ? 'status-chip--emerald' : 'status-chip--rose' }}">{{ $currency->is_active ? __('finance.common.active') : __('finance.common.inactive') }}</span>@endunless
                                     </div>
                                 </td>
-                                <td class="px-5 py-3"><div class="admin-action-cluster admin-action-cluster--end"><button type="button" wire:click="editCurrency({{ $currency->id }})" class="pill-link pill-link--compact">{{ __('finance.actions.edit') }}</button><button type="button" wire:click="deleteCurrency({{ $currency->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link pill-link--compact border-red-400/25 text-red-200">{{ __('finance.actions.delete') }}</button></div></td>
+                                <td class="px-5 py-3"><div class="admin-action-cluster admin-action-cluster--end"><x-edit-action-button wire:click="editCurrency({{ $currency->id }})" :label="__('finance.actions.edit')" data-finance-currency-edit-action /></div></td>
                             </tr>
                         @endforeach
                     </tbody>
@@ -1323,14 +1358,14 @@ new class extends Component {
                 <div class="admin-grid-meta__summary">{{ __('finance.settings.cash_boxes_subtitle') }}</div>
             </div>
             @can('finance.cash-box.manage')
-                <button type="button" wire:click="openCashBoxModal" class="pill-link pill-link--accent">{{ __('finance.actions.create_box') }}</button>
+                <x-add-action-button wire:click="openCashBoxModal" :label="__('finance.actions.create_box')" />
             @endcan
         </div>
             @error('cashBoxDelete') <div class="mx-5 mb-4 rounded-2xl border border-red-500/25 bg-red-500/10 px-3 py-2 text-sm text-red-200">{{ $message }}</div> @enderror
             <div class="overflow-x-auto">
                 <table class="min-w-full divide-y divide-neutral-200 text-sm dark:divide-neutral-700">
-                    <thead class="bg-neutral-50 dark:bg-neutral-900/60"><tr><th class="px-5 py-3 text-left">{{ __('finance.fields.cash_box') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.supported_currencies') }}</th><th class="px-5 py-3 text-left">{{ __('finance.common.status') }}</th><th class="px-5 py-3 text-right">{{ __('finance.actions.actions') }}</th></tr></thead>
-                    <tbody class="divide-y divide-neutral-200 dark:divide-neutral-700">@foreach ($cashBoxes as $box)<tr><td class="px-5 py-3"><div class="font-medium text-white">{{ $box->name }}</div><div class="text-xs text-neutral-500">{{ $box->code }}</div></td><td class="px-5 py-3">{{ $box->currencies->pluck('code')->implode(', ') ?: '-' }}</td><td class="px-5 py-3">{{ $box->is_active ? __('finance.common.active') : __('finance.common.inactive') }}</td><td class="px-5 py-3"><div class="admin-action-cluster admin-action-cluster--end"><button type="button" wire:click="editCashBox({{ $box->id }})" class="pill-link pill-link--compact">{{ __('finance.actions.edit') }}</button><button type="button" wire:click="deleteCashBox({{ $box->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link pill-link--compact border-red-400/25 text-red-200">{{ __('finance.actions.delete') }}</button></div></td></tr>@endforeach</tbody>
+                    <thead class="bg-neutral-50 dark:bg-neutral-900/60"><tr><th class="px-5 py-3 text-left">{{ __('finance.fields.cash_box') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.supported_currencies') }}</th><th class="px-5 py-3 text-left">{{ __('finance.common.status') }}</th><th class="admin-actions-column px-5 py-3 text-center">{{ __('finance.actions.actions') }}</th></tr></thead>
+                    <tbody class="divide-y divide-neutral-200 dark:divide-neutral-700">@foreach ($cashBoxes as $box)<tr><td class="px-5 py-3"><div class="font-medium text-white">{{ $box->name }}</div><div class="text-xs text-neutral-500">{{ $box->code }}</div></td><td class="px-5 py-3">{{ $box->currencies->pluck('code')->implode(', ') ?: '-' }}</td><td class="px-5 py-3">{{ $box->is_active ? __('finance.common.active') : __('finance.common.inactive') }}</td><td class="px-5 py-3"><div class="admin-action-cluster admin-action-cluster--end"><x-edit-action-button wire:click="editCashBox({{ $box->id }})" :label="__('finance.actions.edit')" data-finance-cash-box-edit-action /></div></td></tr>@endforeach</tbody>
                 </table>
             </div>
     </section>
@@ -1342,11 +1377,11 @@ new class extends Component {
                 <div class="admin-grid-meta__summary">{{ __('finance.settings.finance_categories_subtitle') }}</div>
             </div>
             @can('finance.categories.manage')
-                <button type="button" wire:click="openFinanceCategoryModal" class="pill-link pill-link--accent">{{ __('finance.actions.create_category') }}</button>
+                <x-add-action-button wire:click="openFinanceCategoryModal" :label="__('finance.actions.create_category')" />
             @endcan
         </div>
             @error('financeCategoryDelete') <div class="mx-5 mb-4 rounded-2xl border border-red-500/25 bg-red-500/10 px-3 py-2 text-sm text-red-200">{{ $message }}</div> @enderror
-            <div class="overflow-x-auto"><table class="min-w-full divide-y divide-neutral-200 text-sm dark:divide-neutral-700"><thead class="bg-neutral-50 dark:bg-neutral-900/60"><tr><th class="px-5 py-3 text-left">{{ __('finance.fields.name') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.type') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.mode') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.state') }}</th><th class="px-5 py-3 text-right">{{ __('finance.actions.actions') }}</th></tr></thead><tbody class="divide-y divide-neutral-200 dark:divide-neutral-700">@foreach ($financeCategories as $category)<tr><td class="px-5 py-3"><div class="font-medium text-white">{{ $category->name }}</div><div class="text-xs text-neutral-500">{{ $category->code }}</div></td><td class="px-5 py-3">{{ __('finance.category_types.'.$category->categoryType()) }}</td><td class="px-5 py-3">{{ __('finance.category_modes.'.$category->categoryMode()) }}</td><td class="px-5 py-3">{{ $category->is_active ? __('finance.common.active') : __('finance.common.inactive') }}</td><td class="px-5 py-3"><div class="admin-action-cluster admin-action-cluster--end"><button type="button" wire:click="editFinanceCategory({{ $category->id }})" class="pill-link pill-link--compact">{{ __('finance.actions.edit') }}</button><button type="button" wire:click="deleteFinanceCategory({{ $category->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link pill-link--compact border-red-400/25 text-red-200">{{ __('finance.actions.delete') }}</button></div></td></tr>@endforeach</tbody></table></div>
+            <div class="overflow-x-auto"><table class="min-w-full divide-y divide-neutral-200 text-sm dark:divide-neutral-700"><thead class="bg-neutral-50 dark:bg-neutral-900/60"><tr><th class="px-5 py-3 text-left">{{ __('finance.fields.name') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.type') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.mode') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.state') }}</th><th class="admin-actions-column px-5 py-3 text-center">{{ __('finance.actions.actions') }}</th></tr></thead><tbody class="divide-y divide-neutral-200 dark:divide-neutral-700">@foreach ($financeCategories as $category)<tr><td class="px-5 py-3"><div class="font-medium text-white">{{ $category->name }}</div><div class="text-xs text-neutral-500">{{ $category->code }}</div></td><td class="px-5 py-3">{{ __('finance.category_types.'.$category->categoryType()) }}</td><td class="px-5 py-3">{{ __('finance.category_modes.'.$category->categoryMode()) }}</td><td class="px-5 py-3">{{ $category->is_active ? __('finance.common.active') : __('finance.common.inactive') }}</td><td class="px-5 py-3"><div class="admin-action-cluster admin-action-cluster--end"><x-edit-action-button wire:click="editFinanceCategory({{ $category->id }})" :label="__('finance.actions.edit')" data-finance-category-edit-action /></div></td></tr>@endforeach</tbody></table></div>
     </section>
 
     @if (false)
@@ -1354,11 +1389,11 @@ new class extends Component {
         <div class="admin-grid-meta">
             <div><div class="admin-grid-meta__title">{{ __('settings.finance.sections.payment_method.table') }}</div></div>
             @can('finance.settings.manage')
-                <button type="button" wire:click="openPaymentMethodModal" class="pill-link pill-link--accent">{{ __('settings.finance.actions.create_method') }}</button>
+                <x-add-action-button wire:click="openPaymentMethodModal" :label="__('settings.finance.actions.create_method')" />
             @endcan
         </div>
         @error('paymentMethodDelete') <div class="mx-5 mb-4 rounded-2xl border border-red-500/25 bg-red-500/10 px-3 py-2 text-sm text-red-200">{{ $message }}</div> @enderror
-        <div class="overflow-x-auto"><table class="text-sm"><thead><tr><th class="px-5 py-3 text-left">{{ __('settings.finance.table.method') }}</th><th class="px-5 py-3 text-left">{{ __('settings.finance.table.state') }}</th><th class="px-5 py-3 text-right">{{ __('settings.finance.table.actions') }}</th></tr></thead><tbody class="divide-y divide-white/6">@foreach ($paymentMethods as $method)<tr><td class="px-5 py-3"><div class="font-medium text-white">{{ $method->name }}</div><div class="text-xs text-neutral-500">{{ $method->code }}</div></td><td class="px-5 py-3">{{ $method->is_active ? __('finance.common.active') : __('finance.common.inactive') }}</td><td class="px-5 py-3"><div class="admin-action-cluster admin-action-cluster--end"><button type="button" wire:click="editPaymentMethod({{ $method->id }})" class="pill-link pill-link--compact">{{ __('finance.actions.edit') }}</button><button type="button" wire:click="deletePaymentMethod({{ $method->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link pill-link--compact border-red-400/25 text-red-200">{{ __('finance.actions.delete') }}</button></div></td></tr>@endforeach</tbody></table></div>
+        <div class="overflow-x-auto"><table class="text-sm"><thead><tr><th class="px-5 py-3 text-left">{{ __('settings.finance.table.method') }}</th><th class="px-5 py-3 text-left">{{ __('settings.finance.table.state') }}</th><th class="admin-actions-column px-5 py-3 text-center">{{ __('settings.finance.table.actions') }}</th></tr></thead><tbody class="divide-y divide-white/6">@foreach ($paymentMethods as $method)<tr><td class="px-5 py-3"><div class="font-medium text-white">{{ $method->name }}</div><div class="text-xs text-neutral-500">{{ $method->code }}</div></td><td class="px-5 py-3">{{ $method->is_active ? __('finance.common.active') : __('finance.common.inactive') }}</td><td class="px-5 py-3"><div class="admin-action-cluster admin-action-cluster--end"><x-edit-action-button wire:click="editPaymentMethod({{ $method->id }})" :label="__('finance.actions.edit')" data-finance-payment-method-edit-action /></div></td></tr>@endforeach</tbody></table></div>
     </section>
     @endif
 
@@ -1367,14 +1402,14 @@ new class extends Component {
         @php($maintainingInvoice = $maintaining_transaction_id ? \App\Models\FinanceTransaction::withTrashed()->with('financeRequest.invoice')->find($maintaining_transaction_id)?->financeRequest?->invoice : null)
         @if ($maintaining_transaction_id)
             <div class="mt-5 flex flex-col gap-3 sm:flex-row">
-                <input wire:model="transaction_lookup_no" readonly class="min-w-0 flex-1 rounded-xl px-4 py-3 opacity-75">
-                @unless ($maintaining_transaction_deleted)<button type="submit" form="transaction-maintenance-form" class="pill-link pill-link--accent">{{ __('crud.common.actions.save') }}</button>@endunless
+                <input wire:model="transaction_lookup_no" readonly class="transaction-maintenance-lookup min-w-0 flex-1 rounded-xl px-4 py-3 opacity-75">
+                @unless ($maintaining_transaction_deleted)<button type="submit" form="transaction-maintenance-form" class="admin-icon-button admin-icon-button--accent transaction-maintenance-action-button" title="{{ __('crud.common.actions.save') }}" aria-label="{{ __('crud.common.actions.save') }}" data-transaction-maintenance-save-action><x-admin-action-icon name="save" /></button>@endunless
                 @if ($maintainingInvoice && auth()->user()?->can('finance.expense-requests.review'))
-                    <a href="{{ route('finance.expense-requests.index', ['edit_invoice' => $maintainingInvoice->id]) }}" wire:navigate class="pill-link">{{ __('finance.actions.edit_invoice') }}</a>
+                    <a href="{{ route('finance.expense-requests.index', ['edit_invoice' => $maintainingInvoice->id]) }}" wire:navigate class="admin-icon-button transaction-maintenance-action-button" title="{{ __('finance.actions.edit_invoice') }}" aria-label="{{ __('finance.actions.edit_invoice') }}" data-transaction-maintenance-receipt-action><x-admin-action-icon name="receipt" /></a>
                 @endif
             </div>
         @else
-            <form wire:submit="findTransaction" class="mt-5 flex flex-col gap-3 sm:flex-row"><input wire:model="transaction_lookup_no" placeholder="{{ __('finance.fields.transaction_lookup') }}" class="min-w-0 flex-1 rounded-xl px-4 py-3"> <button class="pill-link pill-link--accent">{{ __('finance.actions.find') }}</button></form>
+            <form wire:submit="findTransaction" class="mt-5 flex flex-col gap-3 sm:flex-row"><input wire:model="transaction_lookup_no" placeholder="{{ __('finance.fields.transaction_lookup') }}" class="transaction-maintenance-lookup min-w-0 flex-1 rounded-xl px-4 py-3"> <button type="submit" class="admin-icon-button admin-icon-button--accent transaction-maintenance-action-button" title="{{ __('finance.actions.find') }}" aria-label="{{ __('finance.actions.find') }}" data-transaction-maintenance-search-action><x-admin-action-icon name="search" /></button></form>
         @endif
         @error('transaction_lookup_no')<div class="mt-2 text-sm text-red-400">{{ $message }}</div>@enderror
         @if ($maintaining_transaction_id)
@@ -1393,7 +1428,7 @@ new class extends Component {
             </form>
             @unless ($maintaining_transaction_deleted)
                 @can('finance.entries.delete')
-                    <div class="mt-5 border-t border-white/10 pt-5"><label class="mb-1 block text-sm">{{ __('finance.fields.deletion_reason') }}</label><div class="flex flex-col gap-3 sm:flex-row"><textarea wire:model="maint_delete_reason" class="min-w-0 flex-1 rounded-xl px-4 py-3"></textarea><button wire:click="deleteTransactionMaintenance" wire:confirm="{{ __('finance.messages.transaction_delete_warning') }}" type="button" class="pill-link pill-link--danger">{{ __('finance.actions.delete') }}</button></div>@error('maint_delete_reason')<div class="text-sm text-red-400">{{ $message }}</div>@enderror</div>
+                    <div class="mt-5 border-t border-white/10 pt-5"><label class="mb-1 block text-sm">{{ __('finance.fields.deletion_reason') }}</label><div class="flex flex-col gap-3 sm:flex-row"><textarea wire:model="maint_delete_reason" class="min-w-0 flex-1 rounded-xl px-4 py-3"></textarea><button wire:click="deleteTransactionMaintenance" wire:confirm="{{ __('finance.messages.transaction_delete_warning') }}" type="button" class="admin-icon-button admin-icon-button--danger transaction-maintenance-action-button self-center" title="{{ __('finance.actions.delete') }}" aria-label="{{ __('finance.actions.delete') }}" data-transaction-maintenance-delete-action><x-admin-action-icon name="delete" /></button></div>@error('maint_delete_reason')<div class="text-sm text-red-400">{{ $message }}</div>@enderror</div>
                 @endcan
             @endunless
         @endif
@@ -1407,9 +1442,9 @@ new class extends Component {
             </div>
         </div>
         <div class="mt-5 flex flex-col gap-3 sm:flex-row">
-            <input wire:model="report_lookup_no" placeholder="{{ $report_prefix }}-000001" class="min-w-0 flex-1 rounded-xl px-4 py-3" dir="ltr">
-            <button wire:click="deleteGeneratedReport" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" type="button" class="pill-link pill-link--danger">{{ __('finance.reports.delete_saved_report') }}</button>
-            @if ($legacyReportImportEnabled)<button wire:click="openLegacyReportModal" type="button" class="pill-link pill-link--accent" aria-label="{{ __('finance.reports.import_legacy_report') }}">+</button>@endif
+            <input wire:model="report_lookup_no" placeholder="{{ __('finance.settings.generated_report_placeholder') }}" class="generated-report-lookup min-w-0 flex-1 rounded-xl px-4 py-3 {{ app()->isLocale('ar') ? 'text-right' : 'text-left' }}" dir="{{ app()->isLocale('ar') ? 'rtl' : 'ltr' }}" data-generated-report-number>
+            <button wire:click="deleteGeneratedReport" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" type="button" class="admin-icon-button admin-icon-button--danger generated-report-maintenance-action-button" title="{{ __('finance.reports.delete_saved_report') }}" aria-label="{{ __('finance.reports.delete_saved_report') }}" data-generated-report-delete-action><x-admin-action-icon name="delete" /></button>
+            @if ($legacyReportImportEnabled)<x-add-action-button wire:click="openLegacyReportModal" :label="__('finance.reports.import_legacy_report')" class="generated-report-import-action-button" data-legacy-report-import-action />@endif
         </div>
         @error('report_lookup_no')<div class="mt-2 text-sm text-red-400">{{ $message }}</div>@enderror
     </section>
@@ -1422,9 +1457,14 @@ new class extends Component {
                     <p class="admin-toolbar__subtitle">{{ __('finance.settings.withdrawal_cleanup_help') }}</p>
                 </div>
             </div>
-            <div class="mt-5 flex flex-col gap-3 sm:flex-row sm:justify-end">
-                <button wire:click="deleteWithdrawalRequests" wire:confirm="{{ __('finance.settings.withdrawal_cleanup_confirm') }}" type="button" class="pill-link pill-link--danger">{{ __('finance.settings.delete_withdrawal_requests') }}</button>
-                <button wire:click="finishWithdrawalRequestCleanup" wire:confirm="{{ __('finance.settings.withdrawal_cleanup_finish_confirm') }}" type="button" class="pill-link">{{ __('finance.settings.withdrawal_cleanup_finished_action') }}</button>
+            <div class="mt-5">
+                <label class="mb-1 block text-sm" for="withdrawal-cleanup-request-no">{{ __('finance.fields.request_no') }}</label>
+                <div class="flex flex-col gap-3 sm:flex-row">
+                    <input id="withdrawal-cleanup-request-no" wire:model="withdrawal_cleanup_request_no" type="text" class="min-w-0 flex-1 rounded-xl px-4 py-3" placeholder="{{ __('finance.settings.withdrawal_cleanup_placeholder', ['prefix' => $pull_request_prefix]) }}" dir="ltr" data-withdrawal-cleanup-request-number>
+                    <button wire:click="deleteWithdrawalRequest" wire:confirm="{{ __('finance.settings.withdrawal_cleanup_confirm') }}" type="button" class="pill-link pill-link--danger">{{ __('finance.settings.delete_withdrawal_request') }}</button>
+                    <button wire:click="finishWithdrawalRequestCleanup" wire:confirm="{{ __('finance.settings.withdrawal_cleanup_finish_confirm') }}" type="button" class="pill-link">{{ __('finance.settings.withdrawal_cleanup_finished_action') }}</button>
+                </div>
+                @error('withdrawal_cleanup_request_no')<div class="mt-2 text-sm text-red-400">{{ $message }}</div>@enderror
             </div>
         </section>
     @endif
@@ -1503,8 +1543,12 @@ new class extends Component {
             @error('currency_is_active') <div class="text-sm text-red-400">{{ $message }}</div> @enderror
             @error('currency_is_local') <div class="text-sm text-red-400">{{ $message }}</div> @enderror
             @error('currency_is_base') <div class="text-sm text-red-400">{{ $message }}</div> @enderror
+            @error('currencyDelete') <div class="rounded-2xl border border-red-500/25 bg-red-500/10 px-3 py-2 text-sm text-red-200">{{ $message }}</div> @enderror
             <div class="flex justify-end gap-3">
                 <button type="button" wire:click="closeCurrencyModal" class="pill-link">{{ __('finance.actions.cancel') }}</button>
+                @if ($currency_editing_id)
+                    <x-delete-action-button wire:click="deleteCurrency({{ $currency_editing_id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" :label="__('finance.actions.delete')" data-finance-currency-delete-action />
+                @endif
                 <button type="submit" class="pill-link pill-link--accent">{{ $currency_editing_id ? __('finance.actions.update_currency') : __('finance.actions.create_currency') }}</button>
             </div>
         </form>
@@ -1528,8 +1572,12 @@ new class extends Component {
             <div><label class="mb-1 block text-sm font-medium">{{ __('finance.common.notes') }}</label><textarea wire:model="cash_box_notes" rows="2" class="w-full rounded-xl px-4 py-3 text-sm"></textarea></div>
             <label class="flex items-center gap-3 text-sm"><input wire:model="cash_box_is_active" type="checkbox" class="rounded"> {{ __('finance.common.active') }}</label>
             @error('cash_box_is_active') <div class="text-sm text-red-400">{{ $message }}</div> @enderror
+            @error('cashBoxDelete') <div class="rounded-2xl border border-red-500/25 bg-red-500/10 px-3 py-2 text-sm text-red-200">{{ $message }}</div> @enderror
             <div class="flex justify-end gap-3">
                 <button type="button" wire:click="closeCashBoxModal" class="pill-link">{{ __('finance.actions.cancel') }}</button>
+                @if ($cash_box_editing_id)
+                    <x-delete-action-button wire:click="deleteCashBox({{ $cash_box_editing_id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" :label="__('finance.actions.delete')" data-finance-cash-box-delete-action />
+                @endif
                 <button type="submit" class="pill-link pill-link--accent">{{ $cash_box_editing_id ? __('finance.actions.update_box') : __('finance.actions.create_box') }}</button>
             </div>
         </form>
@@ -1544,8 +1592,12 @@ new class extends Component {
             <div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.type') }}</label><select wire:model.live="finance_category_type" class="w-full rounded-xl px-4 py-3 text-sm">@foreach (\App\Models\FinanceCategory::TYPES as $type)<option value="{{ $type }}">{{ __('finance.category_types.'.$type) }}</option>@endforeach</select></div>
             <div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.mode') }}</label><select wire:model="finance_category_mode" class="w-full rounded-xl px-4 py-3 text-sm">@foreach (\App\Models\FinanceCategory::modesForType($finance_category_type) as $mode)<option value="{{ $mode }}">{{ __('finance.category_modes.'.$mode) }}</option>@endforeach</select></div>
             <div class="flex flex-wrap gap-6"><label class="flex items-center gap-3 text-sm"><input wire:model="finance_category_is_active" type="checkbox" class="rounded"> {{ __('finance.common.active') }}</label>@if ($finance_category_type === 'revenue')<label class="flex items-center gap-3 text-sm"><input wire:model="finance_category_is_donation" type="checkbox" class="rounded"> {{ __('finance.settings.donation_category') }}</label>@endif</div>
+            @error('financeCategoryDelete') <div class="rounded-2xl border border-red-500/25 bg-red-500/10 px-3 py-2 text-sm text-red-200">{{ $message }}</div> @enderror
             <div class="flex justify-end gap-3">
                 <button type="button" wire:click="closeFinanceCategoryModal" class="pill-link">{{ __('finance.actions.cancel') }}</button>
+                @if ($finance_category_editing_id)
+                    <x-delete-action-button wire:click="deleteFinanceCategory({{ $finance_category_editing_id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" :label="__('finance.actions.delete')" data-finance-category-delete-action />
+                @endif
                 <button type="submit" class="pill-link pill-link--accent">{{ $finance_category_editing_id ? __('finance.actions.update_category') : __('finance.actions.create_category') }}</button>
             </div>
         </form>
@@ -1572,8 +1624,12 @@ new class extends Component {
             <div><label class="mb-1 block text-sm font-medium">{{ __('settings.finance.fields.name') }}</label><input wire:model="payment_method_name" type="text" class="w-full rounded-xl px-4 py-3 text-sm">@error('payment_method_name') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
             <div><label class="mb-1 block text-sm font-medium">{{ __('settings.finance.fields.code') }}</label><input wire:model="payment_method_code" type="text" class="w-full rounded-xl px-4 py-3 text-sm">@error('payment_method_code') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
             <label class="flex items-center gap-3 text-sm"><input wire:model="payment_method_is_active" type="checkbox" class="rounded"> {{ __('settings.finance.fields.is_active') }}</label>
+            @error('paymentMethodDelete') <div class="rounded-2xl border border-red-500/25 bg-red-500/10 px-3 py-2 text-sm text-red-200">{{ $message }}</div> @enderror
             <div class="flex justify-end gap-3">
                 <button type="button" wire:click="closePaymentMethodModal" class="pill-link">{{ __('finance.actions.cancel') }}</button>
+                @if ($payment_method_editing_id)
+                    <x-delete-action-button wire:click="deletePaymentMethod({{ $payment_method_editing_id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" :label="__('finance.actions.delete')" data-finance-payment-method-delete-action />
+                @endif
                 <button type="submit" class="pill-link pill-link--accent">{{ $payment_method_editing_id ? __('settings.finance.actions.update_method') : __('settings.finance.actions.create_method') }}</button>
             </div>
         </form>
