@@ -15,6 +15,7 @@ use App\Services\AccessScopeService;
 use App\Services\PdfBrandingService;
 use App\Services\QuranProgressionService;
 use App\Services\XlsxExportService;
+use App\Support\ExportFilename;
 use App\Support\PdfOptions;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -306,7 +307,11 @@ class AdminExportController extends Controller
         ])->render());
 
         return response($mpdf->Output('', Destination::STRING_RETURN), 200, [
-            'Content-Disposition' => 'inline; filename="group-roster-'.$group->id.'.pdf"',
+            'Content-Disposition' => ExportFilename::inlinePdf([
+                __('exports.pdf.group_roster'),
+                $group->name,
+                $group->course?->name,
+            ], 'group-roster-'.$group->id.'.pdf'),
             'Content-Type' => 'application/pdf',
         ]);
     }

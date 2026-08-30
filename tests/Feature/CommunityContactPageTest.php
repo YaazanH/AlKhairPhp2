@@ -29,6 +29,11 @@ class CommunityContactPageTest extends TestCase
 
         Volt::test('community-contacts.index')
             ->call('openCreateModal')
+            ->assertSee('data-community-contact-save-action', false)
+            ->assertSee('data-icon-name="save"', false)
+            ->assertDontSee('data-create-and-new-action', false)
+            ->assertDontSee('wire:model="is_active"', false)
+            ->assertSet('is_active', true)
             ->set('name', 'Ahmad Driver')
             ->set('category', 'Bus driver')
             ->set('phone', '0999000111')
@@ -40,6 +45,7 @@ class CommunityContactPageTest extends TestCase
 
         Volt::test('community-contacts.index')
             ->call('edit', $contact->id)
+            ->assertSee('wire:model="is_active"', false)
             ->set('category', 'Transport')
             ->set('is_active', false)
             ->call('save')

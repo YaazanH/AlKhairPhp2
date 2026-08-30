@@ -332,7 +332,7 @@ new class extends Component {
     $previousQuarterLine = collect($report['previous_year_quarter_totals'])->values()->map(fn (array $row, int $index) => $quarterX($index).','.$quarterY((float) $row['expense']))->implode(' ');
 @endphp
 
-<div class="page-stack">
+<div class="page-stack finance-dashboard" data-finance-dashboard>
     <section class="page-hero relative z-20 overflow-visible p-6 lg:p-8" style="overflow: visible">
         <div class="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
             <div><div class="eyebrow">{{ __('ui.nav.finance') }}</div><h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('ui.nav.finance_dashboard') }}</h1><p class="mt-4 max-w-3xl text-neutral-200">{{ __('finance.dashboard.subtitle') }}</p></div>
@@ -353,7 +353,7 @@ new class extends Component {
     <section class="grid gap-6 xl:grid-cols-2">
         <div class="surface-panel p-5 lg:p-6">
             @if ($pieTotal > 0)
-                <div class="grid min-w-0 gap-5 lg:grid-cols-[minmax(0,.8fr)_minmax(17rem,1.2fr)] lg:items-center">
+                <div class="finance-expense-chart-layout grid min-w-0 gap-5 lg:grid-cols-[minmax(0,.8fr)_minmax(17rem,1.2fr)] lg:items-center">
                     <div class="min-w-0 self-start">
                         <h2 class="font-display text-2xl text-white">{{ __('finance.dashboard.expense_chart') }}</h2>
                         <div class="mt-4 space-y-2 pe-1">
@@ -369,12 +369,14 @@ new class extends Component {
                         </div>
                     </div>
 
-                    <svg viewBox="0 0 42 42" class="mx-auto h-72 w-72 max-w-full -rotate-90 overflow-visible lg:h-80 lg:w-80 xl:h-[22rem] xl:w-[22rem]" role="img" aria-label="{{ __('finance.dashboard.expense_chart') }}">
-                        @foreach ($report['category_totals'] as $index => $row)
-                            @php($portion = ((float) $row['expense'] / $pieTotal) * 100)
-                            <circle cx="21" cy="21" r="15.9155" fill="transparent" stroke="{{ $pieColors[$index % count($pieColors)] }}" stroke-width="8" stroke-dasharray="{{ $portion }} {{ 100 - $portion }}" stroke-dashoffset="{{ -$pieOffset }}" class="origin-center transition-all duration-200 hover:scale-105 hover:stroke-[10]"><title>{{ $row['category'] }}: {{ number_format($portion, 1) }}% · {{ app(FinanceService::class)->formatCurrencyAmount($row['expense'], $report['summary']['local_currency']) }}</title></circle>
-                            @php($pieOffset += $portion)
-                        @endforeach
+                    <svg viewBox="0 0 42 42" class="finance-expense-donut mx-auto h-72 w-72 max-w-full overflow-visible lg:h-80 lg:w-80 xl:h-[22rem] xl:w-[22rem]" role="img" aria-label="{{ __('finance.dashboard.expense_chart') }}">
+                        <g transform="rotate(-90 21 21)">
+                            @foreach ($report['category_totals'] as $index => $row)
+                                @php($portion = ((float) $row['expense'] / $pieTotal) * 100)
+                                <circle cx="21" cy="21" r="15.9155" fill="transparent" stroke="{{ $pieColors[$index % count($pieColors)] }}" stroke-width="8" stroke-dasharray="{{ $portion }} {{ 100 - $portion }}" stroke-dashoffset="{{ -$pieOffset }}" class="origin-center transition-all duration-200 hover:scale-105 hover:stroke-[10]"><title>{{ $row['category'] }}: {{ number_format($portion, 1) }}% · {{ app(FinanceService::class)->formatCurrencyAmount($row['expense'], $report['summary']['local_currency']) }}</title></circle>
+                                @php($pieOffset += $portion)
+                            @endforeach
+                        </g>
                     </svg>
                 </div>
             @else
@@ -383,13 +385,13 @@ new class extends Component {
             @endif
         </div>
 
-        <div class="surface-table"><div class="admin-grid-meta"><div class="admin-grid-meta__title">{{ __('finance.dashboard.pending_withdrawals') }}</div><div class="flex gap-2"><button wire:click="$set('showRequestHistoryModal', true)" class="pill-link pill-link--compact">{{ __('finance.dashboard.previous_requests') }}</button><button wire:click="$set('showCreateRequestModal', true)" class="pill-link pill-link--compact pill-link--accent">{{ __('finance.actions.create') }}</button></div></div><div class="overflow-x-auto"><table class="text-sm"><thead><tr><th class="px-4 py-3 text-left">{{ __('finance.common.request') }}</th><th class="px-4 py-3 text-left">{{ __('finance.fields.requester') }}</th><th class="px-4 py-3 text-left">{{ __('finance.fields.category') }}</th><th class="px-4 py-3 text-left">{{ __('finance.fields.amount') }}</th><th></th></tr></thead><tbody>@forelse ($pendingRequests as $request)<tr><td class="px-4 py-3">{{ $request->request_no }}</td><td class="px-4 py-3">{{ $request->teacher ? trim($request->teacher->first_name.' '.$request->teacher->last_name) : ($request->requestedBy?->name ?: '-') }}</td><td class="px-4 py-3">{{ $request->pullRequestKind?->name ?: '-' }}</td><td class="px-4 py-3"><bdi dir="ltr">{{ app(FinanceService::class)->formatCurrencyAmount($request->requested_amount, $request->requestedCurrency) }}</bdi></td><td class="px-4 py-3 text-right"><button wire:click="openReviewModal({{ $request->id }})" class="pill-link pill-link--compact">{{ __('finance.actions.review') }}</button></td></tr>@empty<tr><td colspan="5" class="px-5 py-10 text-center text-neutral-500">{{ __('finance.empty.no_pending_pull_requests') }}</td></tr>@endforelse</tbody></table></div></div>
+        <div class="surface-table"><div class="admin-grid-meta finance-dashboard-table-header" data-finance-dashboard-inline-header><div class="admin-grid-meta__title">{{ __('finance.dashboard.pending_withdrawals') }}</div><div class="flex shrink-0 gap-2"><button type="button" wire:click="$set('showRequestHistoryModal', true)" class="admin-icon-button finance-dashboard-header-action" title="{{ __('finance.dashboard.previous_requests') }}" aria-label="{{ __('finance.dashboard.previous_requests') }}" data-finance-dashboard-request-history><x-admin-action-icon name="history" /></button><button type="button" wire:click="$set('showCreateRequestModal', true)" class="admin-icon-button admin-icon-button--accent finance-dashboard-header-action" title="{{ __('finance.pull_requests.new') }}" aria-label="{{ __('finance.pull_requests.new') }}" data-finance-dashboard-new-request><x-admin-action-icon name="add" /></button></div></div><div class="overflow-x-auto"><table class="text-sm"><thead><tr><th class="px-4 py-3 text-left">{{ __('finance.common.request') }}</th><th class="px-4 py-3 text-left">{{ __('finance.fields.requester') }}</th><th class="px-4 py-3 text-left">{{ __('finance.fields.category') }}</th><th class="px-4 py-3 text-left">{{ __('finance.fields.amount') }}</th><th></th></tr></thead><tbody>@forelse ($pendingRequests as $request)<tr><td class="px-4 py-3">{{ $request->request_no }}</td><td class="px-4 py-3">{{ $request->teacher ? trim($request->teacher->first_name.' '.$request->teacher->last_name) : ($request->requestedBy?->name ?: '-') }}</td><td class="px-4 py-3">{{ $request->pullRequestKind?->name ?: '-' }}</td><td class="px-4 py-3"><bdi dir="ltr">{{ app(FinanceService::class)->formatCurrencyAmount($request->requested_amount, $request->requestedCurrency) }}</bdi></td><td class="px-4 py-3 text-right"><button wire:click="openReviewModal({{ $request->id }})" class="pill-link pill-link--compact">{{ __('finance.actions.review') }}</button></td></tr>@empty<tr><td colspan="5" class="px-5 py-10 text-center text-neutral-500">{{ __('finance.empty.no_pending_pull_requests') }}</td></tr>@endforelse</tbody></table></div></div>
     </section>
 
     <section class="grid gap-6 xl:grid-cols-2">
-        <div class="surface-table"><div class="admin-grid-meta"><div class="admin-grid-meta__title">{{ __('finance.dashboard.quarter_totals') }}</div><button wire:click="$set('showQuarterDetailsModal', true)" class="pill-link pill-link--compact">{{ __('finance.actions.details') }}</button></div><div class="overflow-x-auto"><table class="text-sm"><thead><tr><th class="px-5 py-3 text-left">{{ __('finance.fields.quarter') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.income') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.expense') }}</th></tr></thead><tbody>@foreach ($report['quarter_totals'] as $row)<tr><td class="px-5 py-3">Q{{ $row['quarter'] }}</td><td class="px-5 py-3"><bdi dir="ltr">{{ app(FinanceService::class)->formatCurrencyAmount($row['income'], $report['summary']['local_currency']) }}</bdi></td><td class="px-5 py-3"><bdi dir="ltr">{{ app(FinanceService::class)->formatCurrencyAmount($row['expense'], $report['summary']['local_currency']) }}</bdi></td></tr>@endforeach</tbody></table></div></div>
+        <div class="surface-table"><div class="admin-grid-meta finance-dashboard-table-header" data-finance-dashboard-inline-header><div class="admin-grid-meta__title">{{ __('finance.dashboard.quarter_totals') }}</div><button type="button" wire:click="$set('showQuarterDetailsModal', true)" class="admin-icon-button finance-dashboard-header-action shrink-0" title="{{ __('finance.actions.details') }}" aria-label="{{ __('finance.actions.details') }}" data-finance-dashboard-details><x-admin-action-icon name="chart" /></button></div><div class="overflow-x-auto"><table class="text-sm"><thead><tr><th class="px-5 py-3 text-left">{{ __('finance.fields.quarter') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.income') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.expense') }}</th></tr></thead><tbody>@foreach ($report['quarter_totals'] as $row)<tr><td class="px-5 py-3">Q{{ $row['quarter'] }}</td><td class="px-5 py-3"><bdi dir="ltr">{{ app(FinanceService::class)->formatCurrencyAmount($row['income'], $report['summary']['local_currency']) }}</bdi></td><td class="px-5 py-3"><bdi dir="ltr">{{ app(FinanceService::class)->formatCurrencyAmount($row['expense'], $report['summary']['local_currency']) }}</bdi></td></tr>@endforeach</tbody></table></div></div>
         @include('livewire.finance.partials.quarter-expense-chart')
-        <div class="surface-table"><div class="admin-grid-meta"><div class="admin-grid-meta__title">{{ __('finance.dashboard.latest_activity') }}</div><button wire:click="$set('showTransactionsModal', true)" class="pill-link pill-link--compact">{{ __('finance.actions.view_all') }}</button></div><div class="overflow-x-auto"><table class="text-sm"><thead><tr><th class="px-5 py-3 text-left">{{ __('finance.common.date') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.category') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.amount') }}</th></tr></thead><tbody>@forelse ($report['latest_transactions'] as $transaction)<tr><td class="px-5 py-3">{{ $transaction->transaction_date?->format('d-m-Y') }}</td><td class="px-5 py-3">{{ app(FinanceService::class)->transactionCategoryLabel($transaction) }}</td><td class="px-5 py-3"><bdi dir="ltr">{{ app(FinanceService::class)->formatCurrencyAmount($transaction->signed_amount, $transaction->currency) }}</bdi></td></tr>@empty<tr><td colspan="3" class="px-5 py-10 text-center text-neutral-500">{{ __('finance.empty.no_transactions') }}</td></tr>@endforelse</tbody></table></div></div>
+        <div class="surface-table"><div class="admin-grid-meta finance-dashboard-table-header" data-finance-dashboard-inline-header><div class="admin-grid-meta__title">{{ __('finance.dashboard.latest_activity') }}</div><button type="button" wire:click="$set('showTransactionsModal', true)" class="admin-icon-button finance-dashboard-header-action shrink-0" title="{{ __('finance.actions.view_all') }}" aria-label="{{ __('finance.actions.view_all') }}" data-view-all-expand><x-admin-action-icon name="expand" /></button></div><div class="overflow-x-auto"><table class="text-sm"><thead><tr><th class="px-5 py-3 text-left">{{ __('finance.common.date') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.category') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.amount') }}</th></tr></thead><tbody>@forelse ($report['latest_transactions'] as $transaction)<tr><td class="px-5 py-3">{{ $transaction->transaction_date?->format('d-m-Y') }}</td><td class="px-5 py-3">{{ app(FinanceService::class)->transactionCategoryLabel($transaction) }}</td><td class="px-5 py-3"><bdi dir="ltr">{{ app(FinanceService::class)->formatCurrencyAmount($transaction->signed_amount, $transaction->currency) }}</bdi></td></tr>@empty<tr><td colspan="3" class="px-5 py-10 text-center text-neutral-500">{{ __('finance.empty.no_transactions') }}</td></tr>@endforelse</tbody></table></div></div>
     </section>
 
     <x-admin.modal :show="$showTransferModal" :title="__('finance.dashboard.move_money')" close-method="$set('showTransferModal', false)" max-width="3xl">
@@ -403,7 +405,11 @@ new class extends Component {
             </div>
             <div><label class="mb-1 block text-sm">{{ __('finance.common.date') }}</label><input wire:model="transfer_date" type="date" class="w-full rounded-xl px-4 py-3"></div>
             <div><label class="mb-1 block text-sm">{{ __('finance.common.notes') }}</label><input wire:model="transfer_notes" class="w-full rounded-xl px-4 py-3"></div>
-            <div class="md:col-span-2 flex justify-end"><button class="pill-link pill-link--accent">{{ __('finance.actions.transfer') }}</button></div>
+            <div class="admin-action-cluster admin-action-cluster--end md:col-span-2">
+                <button type="submit" class="admin-icon-button admin-icon-button--accent admin-modal-action-button" title="{{ __('finance.actions.transfer') }}" aria-label="{{ __('finance.actions.transfer') }}" data-finance-dashboard-transfer-action>
+                    <x-admin-action-icon name="transfer" class="admin-modal-action__icon" />
+                </button>
+            </div>
         </form>
     </x-admin.modal>
 
@@ -419,7 +425,17 @@ new class extends Component {
             </div>
             @if ($selectedRequestKind?->mode === 'count')<div><label class="mb-1 block text-sm">{{ __('finance.fields.people_count') }}</label><input wire:model="request_count" type="number" min="1" class="w-full rounded-xl px-4 py-3"></div>@endif
             <div class="md:col-span-2"><label class="mb-1 block text-sm">{{ __('finance.common.description') }}</label><textarea wire:model="request_reason" class="w-full rounded-xl px-4 py-3"></textarea></div>
-            <div class="admin-action-cluster admin-action-cluster--end md:col-span-2"><button class="pill-link pill-link--accent">{{ __('finance.actions.create') }}</button></div>
+            <div class="admin-action-cluster admin-action-cluster--end md:col-span-2">
+                <button
+                    type="submit"
+                    class="admin-icon-button admin-icon-button--accent admin-modal-action-button"
+                    title="{{ __('crud.common.actions.save') }}"
+                    aria-label="{{ __('crud.common.actions.save') }}"
+                    data-finance-dashboard-create-request-save
+                >
+                    <x-admin-action-icon name="save" class="admin-modal-action__icon" />
+                </button>
+            </div>
         </form>
     </x-admin.modal>
 

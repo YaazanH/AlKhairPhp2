@@ -16,6 +16,7 @@
 <div
     wire:key="phone-input-{{ $inputId }}-{{ md5((string) $value) }}"
     class="grid grid-cols-[max-content_minmax(0,1fr)] gap-2"
+    data-phone-input
     dir="ltr"
     x-data="{
         open: false,
@@ -105,7 +106,7 @@
             x-cloak
             x-show="open"
             x-transition
-            class="absolute left-0 z-50 mt-2 w-max max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border border-neutral-700 bg-neutral-900 shadow-2xl"
+            class="phone-country-menu absolute left-0 z-50 mt-2 w-max max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border border-neutral-700 bg-neutral-900 shadow-2xl"
         >
             <div class="border-b border-neutral-700 p-2">
                 <input x-ref="countrySearch" x-model="search" type="search" class="w-full rounded-lg px-3 py-2 text-sm" placeholder="{{ __('phone.search_country') }}">

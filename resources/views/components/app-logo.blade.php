@@ -7,6 +7,8 @@
     $siteLogoUrl = app(\App\Services\WebsiteService::class)->siteSettings()['logo_url'] ?? null;
     $fallbackLogoPath = public_path('storage/website/branding/logo.jpeg');
     $logoUrl = $siteLogoUrl ?: (file_exists($fallbackLogoPath) ? asset('storage/website/branding/logo.jpeg') : null);
+    $useJustifiedArabicSubtitle = app()->isLocale('ar') && $subtitle === __('ui.app.short_tagline');
+    $displaySubtitle = $useJustifiedArabicSubtitle ? 'مــنــصــة الــتــعــلــم' : $subtitle;
 @endphp
 
 <div class="flex aspect-square size-11 items-center justify-center overflow-hidden rounded-2xl bg-white shadow-[0_18px_30px_-18px_rgba(0,107,45,0.6)]">
@@ -18,5 +20,12 @@
 </div>
 <div class="grid flex-1 text-left leading-tight">
     <span class="font-display truncate text-base text-white">{{ $title }}</span>
-    <span class="mt-1 truncate text-[0.68rem] font-semibold uppercase tracking-[0.28em] text-neutral-400">{{ $subtitle }}</span>
+    <span
+        @class([
+            'mt-1 truncate font-semibold text-neutral-400',
+            'text-[0.72rem]' => $useJustifiedArabicSubtitle,
+            'text-[0.68rem]' => ! $useJustifiedArabicSubtitle,
+        ])
+        @if ($useJustifiedArabicSubtitle) aria-label="{{ $subtitle }}" data-app-logo-kashida-subtitle @endif
+    >{{ $displaySubtitle }}</span>
 </div>

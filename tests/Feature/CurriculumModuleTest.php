@@ -18,6 +18,7 @@ use App\Services\CurriculumProgressService;
 use App\Services\SidebarNavigationService;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\File;
 use Livewire\Volt\Volt;
 use Tests\TestCase;
 
@@ -31,7 +32,10 @@ class CurriculumModuleTest extends TestCase
 
         $manager = User::factory()->create();
         $manager->assignRole('manager');
-        $this->actingAs($manager)->get(route('curricula.index', absolute: false))->assertOk();
+        $this->actingAs($manager)->get(route('curricula.index', absolute: false))
+            ->assertOk()
+            ->assertSee('data-curricula-table-toolbar', false)
+            ->assertSee('data-curricula-add-icon', false);
         $this->actingAs($manager)->get(route('settings.curriculum-subjects', absolute: false))->assertOk();
 
         $regularTeacherUser = User::factory()->create();
@@ -65,9 +69,65 @@ class CurriculumModuleTest extends TestCase
         $platform = collect(app(SidebarNavigationService::class)->sidebarFor($user))->firstWhere('key', 'platform');
         $this->assertSame('books-leaning', collect($platform['items'])->firstWhere('key', 'curricula')['icon']);
         $this->assertFileExists(resource_path('views/flux/icon/books-leaning.blade.php'));
+        $icon = File::get(resource_path('views/flux/icon/books-leaning.blade.php'));
+        $this->assertStringContainsString('data-curricula-icon="three-standing-books-one-leaning"', $icon);
+        $this->assertStringNotContainsString('three-stacked-bookmarked-books', $icon);
 
         $this->assertSame(['dashboard', 'reports', 'curricula'], array_column($platform['items'], 'key'));
         $this->assertSame(__('ui.nav.my_curriculum'), $platform['items'][2]['label']);
+    }
+
+    public function test_subject_resource_tables_share_column_widths_and_show_book_upload_status(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $manager = User::factory()->create();
+        $manager->assignRole('manager');
+        $this->actingAs($manager);
+
+        $definition = CurriculumSubjectDefinition::query()->create([
+            'name' => 'Arabic',
+            'is_active' => true,
+        ]);
+
+        CurriculumResource::query()->create([
+            'subject_definition_id' => $definition->id,
+            'book_name' => 'Uploaded book',
+            'pdf_path' => 'curriculum/books/uploaded.pdf',
+            'is_active' => true,
+        ]);
+
+        CurriculumResource::query()->create([
+            'subject_definition_id' => $definition->id,
+            'book_name' => 'Resource without book',
+            'pdf_path' => null,
+            'is_active' => true,
+        ]);
+
+        Volt::test('settings.curriculum-subjects')
+            ->assertSee('data-curriculum-subject-resource-grid', false)
+            ->assertSee('data-curriculum-resource-column="name"', false)
+            ->assertSee('curriculum-subject-resource-name', false)
+            ->assertSee('data-curriculum-resource-edit-icon', false)
+            ->assertSee(__('curricula.fields.book'))
+            ->assertSee('curriculum-resource-book-status--available', false)
+            ->assertSee('>✓</span>', false)
+            ->assertSee('>--</span>', false);
+
+        $styles = file_get_contents(resource_path('css/app.css'));
+
+        $this->assertStringContainsString('.curriculum-subject-resource-grid {', $styles);
+        $this->assertStringContainsString('table-layout: fixed;', $styles);
+        $this->assertStringContainsString('.curriculum-subject-resource-name {', $styles);
+        $this->assertStringContainsString('padding-inline-end: 0.625rem !important;', $styles);
+        $this->assertStringContainsString('text-overflow: ellipsis;', $styles);
+        $this->assertStringContainsString('white-space: nowrap !important;', $styles);
+
+        $script = file_get_contents(resource_path('js/app.js'));
+        $this->assertStringContainsString('synchronizeCurriculumSubjectResourceColumns', $script);
+        $this->assertStringContainsString("name: { min: 212, max: 372 }", $script);
+        $this->assertStringContainsString("year: { min: 52, max: 110 }", $script);
+        $this->assertStringContainsString('curriculumResourceColumnGrowWeights', $script);
     }
 
     public function test_manager_can_build_a_curriculum_and_assign_it_to_a_group(): void
@@ -90,14 +150,15 @@ class CurriculumModuleTest extends TestCase
 
         $definition = CurriculumSubjectDefinition::query()->firstOrFail();
         Volt::test('settings.curriculum-subjects')
-            ->assertSee('curriculum-subject-pencil', false)
+            ->assertSee('data-curriculum-subject-edit-action', false)
             ->assertDontSee('wire:click="deleteSubject('.$definition->id.')"', false)
             ->call('editSubject', $definition->id)
             ->assertSet('showSubjectModal', true)
+            ->assertSee(__('curricula.form.edit_subject_title'))
             ->assertSee('wire:click="deleteSubject('.$definition->id.')"', false);
-        $subjectsCss = file_get_contents(resource_path('css/app.css'));
-        $this->assertStringContainsString('.curriculum-subject-pencil {', $subjectsCss);
-        $this->assertStringContainsString('transform: scaleX(-1);', $subjectsCss);
+
+        $settingsSource = file_get_contents(resource_path('views/livewire/settings/curriculum-subjects.blade.php'));
+        $this->assertStringContainsString("\$editingResourceId ? __('curricula.form.edit_resource_title')", $settingsSource);
 
         Volt::test('curricula.index')
             ->call('openCurriculum')
@@ -145,6 +206,8 @@ class CurriculumModuleTest extends TestCase
             ->assertDontSee('wire:click="deleteLesson('.$lesson->id.')"', false)
             ->call('openLesson', $subject->id, $lesson->id)
             ->assertSee('data-compact-lesson-modal', false)
+            ->assertSee('data-curriculum-lesson-save-action', false)
+            ->assertSee('data-icon-name="save"', false)
             ->assertSee('data-delete-lesson-in-edit', false)
             ->assertSee('wire:click="deleteLesson('.$lesson->id.')"', false);
 
@@ -164,6 +227,41 @@ class CurriculumModuleTest extends TestCase
         $this->assertDatabaseHas('curriculum_lessons', ['name' => 'First lesson', 'page_count' => 0, 'importance' => 3]);
     }
 
+    public function test_curriculum_detail_uses_shared_square_edit_add_and_delete_icons(): void
+    {
+        $indexSource = file_get_contents(resource_path('views/livewire/curricula/index.blade.php'));
+        $source = file_get_contents(resource_path('views/livewire/curricula/show.blade.php'));
+
+        foreach ([$indexSource, $source] as $curriculumModalSource) {
+            $this->assertStringContainsString('wire:submit="saveCurriculum" class="w-[min(28rem,calc(100vw-3rem))] space-y-4"', $curriculumModalSource);
+            $this->assertStringContainsString('data-curriculum-save-action', $curriculumModalSource);
+            $this->assertStringContainsString('<x-admin-action-icon name="save" class="admin-modal-action__icon" />', $curriculumModalSource);
+        }
+
+        $this->assertStringContainsString('class="flex flex-wrap items-center justify-between gap-4" data-curriculum-detail-hero-content', $source);
+        $this->assertStringContainsString('data-curriculum-title-edit-action', $source);
+        $this->assertStringContainsString('<x-edit-action-button wire:click="$set(\'showCurriculumModal\', true)"', $source);
+        $this->assertStringContainsString('class="admin-action-cluster admin-action-cluster--end" data-curriculum-modal-actions', $source);
+        $this->assertStringContainsString('data-curriculum-delete-action', $source);
+        $this->assertStringContainsString('<x-delete-action-button wire:click="deleteCurriculum" wire:confirm=', $source);
+        $this->assertStringContainsString('class="admin-modal-action-button" data-curriculum-delete-action', $source);
+        $this->assertStringContainsString('data-curriculum-subject-delete-action', $source);
+        $this->assertStringContainsString('class="admin-icon-button admin-icon-button--danger"', $source);
+        $this->assertStringContainsString('max-width="md"><form wire:submit="saveSubject"', $source);
+        $this->assertStringContainsString('data-curriculum-subject-save-action', $source);
+        $this->assertStringContainsString('<x-admin-action-icon name="add" class="admin-modal-action__icon" />', $source);
+        $this->assertStringContainsString("'md' => 'admin-modal__dialog--md'", file_get_contents(resource_path('views/components/admin/modal.blade.php')));
+        $this->assertStringContainsString('.admin-modal__dialog--md { max-width: 26rem; }', file_get_contents(resource_path('css/app.css')));
+        $this->assertStringContainsString('data-edit-lesson-icon', $source);
+        $this->assertStringContainsString('<x-edit-action-button wire:click="openLesson(', $source);
+        $this->assertStringContainsString('data-add-lesson-icon', $source);
+        $this->assertStringContainsString('<x-add-action-button wire:click="saveInlineLesson(', $source);
+        $this->assertStringContainsString('data-curriculum-topic-delete-action', $source);
+        $this->assertStringContainsString('data-delete-lesson-in-edit', $source);
+        $this->assertStringNotContainsString('data-edit-lesson-icon><svg', $source);
+        $this->assertStringNotContainsString('data-add-lesson-icon><svg', $source);
+    }
+
     public function test_standalone_books_are_managed_inline_inside_their_popup(): void
     {
         $this->seed(RoleSeeder::class);
@@ -178,6 +276,7 @@ class CurriculumModuleTest extends TestCase
             ->assertSee('curriculum-resource-table', false)
             ->call('openStandaloneResourceForm')
             ->assertSet('showStandaloneResourceForm', true)
+            ->assertDontSee('wire:click="closeStandaloneResourceForm"', false)
             ->assertSet('showResourceModal', false)
             ->set('bookName', 'Standalone handbook')
             ->set('editionNumber', '2')

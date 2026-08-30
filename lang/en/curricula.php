@@ -16,7 +16,7 @@ return [
     'fields' => [
         'curriculum' => 'Curriculum', 'name' => 'Name', 'chapter_number' => 'Chapter number', 'course' => 'Course', 'grade' => 'Grade', 'subject' => 'Subject',
         'subjects' => 'Subjects', 'lessons' => 'Lessons', 'lesson' => 'Lesson', 'page_count' => 'Number of pages',
-        'importance' => 'Importance', 'resources' => 'Resources', 'book_name' => 'Book name', 'author' => 'Author',
+        'importance' => 'Importance', 'resources' => 'Resources', 'book' => 'Book', 'book_name' => 'Book name', 'author' => 'Author',
         'publisher' => 'Publisher', 'published_on' => 'Publishing year', 'edition_number' => 'Edition no.', 'edition_and_year' => 'Edition no. + year', 'year' => 'Year', 'date' => 'Date', 'teacher' => 'Teacher', 'status' => 'Status',
         'resource' => 'Resource', 'topic_name' => 'Topic name', 'topics' => 'Topics', 'pages_short' => 'pages',
         'general_lessons' => 'General subject lessons',
@@ -26,7 +26,7 @@ return [
     'status' => ['untaught' => 'Untaught', 'partial' => 'Partially done', 'taught' => 'Taught'],
     'progress' => ['title' => 'Curriculum progress', 'completed' => ':percent% completed', 'empty' => 'No curriculum is assigned.', 'group_details' => ':group curriculum'],
     'table' => ['curricula' => 'Curricula', 'latest' => 'Last 5 lessons taught', 'empty' => 'No curricula found for this course.', 'no_lessons' => 'No lessons yet.'],
-    'form' => ['curriculum_title' => 'Curriculum details', 'subject_title' => 'Add subject', 'lesson_title' => 'Lesson details', 'progress_title' => 'Record lesson progress', 'custom_title' => 'Add custom lesson'],
+    'form' => ['curriculum_title' => 'Curriculum details', 'subject_title' => 'Add subject', 'edit_subject_title' => 'Edit subject', 'edit_resource_title' => 'Edit resource', 'lesson_title' => 'Lesson details', 'progress_title' => 'Record lesson progress', 'custom_title' => 'Add custom lesson'],
     'messages' => ['curriculum_saved' => 'Curriculum saved.', 'subject_added' => 'Subject added.', 'lesson_saved' => 'Lesson saved.', 'progress_saved' => 'Lesson progress saved.', 'custom_saved' => 'Custom lesson added.', 'subject_saved' => 'Subject saved.', 'resource_saved' => 'Resource saved.'],
     'errors' => ['course_mismatch' => 'The selected curriculum belongs to another course.', 'no_group' => 'No accessible group has an assigned curriculum.', 'subject_used' => 'This subject is already used by a curriculum and cannot be deleted.', 'curriculum_used' => 'This curriculum is assigned to a group and cannot be deleted.', 'resource_required' => 'Select at least one resource for this subject.', 'lesson_resource_required' => 'Select the resource this lesson belongs to.'],
 ];

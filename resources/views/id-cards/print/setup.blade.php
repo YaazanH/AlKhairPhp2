@@ -57,8 +57,8 @@
                             </div>
                             <div class="admin-toolbar__actions">
                                 <span class="badge-soft" data-id-card-selected-count>{{ __('id_cards.print.setup.selected', ['count' => 0]) }}</span>
-                                <button type="button" class="pill-link pill-link--compact" data-id-card-select-visible>{{ __('id_cards.print.setup.buttons.select_all') }}</button>
-                                <button type="button" class="pill-link pill-link--compact" data-id-card-clear-selection>{{ __('id_cards.print.setup.buttons.clear') }}</button>
+                                <button type="button" class="admin-icon-button selection-toolbar-icon-button" title="{{ __('id_cards.print.setup.buttons.clear_filters') }}" aria-label="{{ __('id_cards.print.setup.buttons.clear_filters') }}" data-id-card-clear-selection><x-admin-action-icon name="clear-filter" /></button>
+                                <button type="button" class="admin-icon-button selection-toolbar-icon-button" title="{{ __('id_cards.print.setup.buttons.select_all') }}" aria-label="{{ __('id_cards.print.setup.buttons.select_all') }}" data-id-card-select-visible data-id-card-selection-mode="select"><x-admin-action-icon name="select-visible" data-select-visible-icon /><x-admin-action-icon name="clear-selection" data-clear-selection-icon hidden /></button>
                             </div>
                         </div>
                     </div>
@@ -91,7 +91,9 @@
             </div>
 
             <div class="admin-action-cluster">
-                <button type="submit" class="pill-link pill-link--accent">{{ __('id_cards.print.setup.buttons.preview') }}</button>
+                <button type="submit" class="admin-icon-button admin-icon-button--accent" title="{{ __('id_cards.print.setup.buttons.preview') }}" aria-label="{{ __('id_cards.print.setup.buttons.preview') }}" data-print-preview-action>
+                    <x-admin-action-icon name="print" />
+                </button>
                 <a href="{{ route('id-cards.templates.index') }}" class="pill-link">{{ __('crud.common.actions.cancel') }}</a>
             </div>
         </form>
@@ -109,9 +111,23 @@
             if (!cards.length || !selectedCount) return;
 
             const selectedTemplate = @json(__('id_cards.print.setup.selected', ['count' => ':count']));
+            const selectVisibleLabel = @json(__('id_cards.print.setup.buttons.select_all'));
+            const clearSelectionLabel = @json(__('id_cards.print.setup.buttons.clear_selection'));
 
             const updateSelectedCount = () => {
-                selectedCount.textContent = selectedTemplate.replace(':count', checkboxes.filter((checkbox) => checkbox.checked).length.toLocaleString());
+                const selectedTotal = checkboxes.filter((checkbox) => checkbox.checked).length;
+                selectedCount.textContent = selectedTemplate.replace(':count', selectedTotal.toLocaleString());
+
+                if (selectVisibleButton) {
+                    const hasSelection = selectedTotal > 0;
+                    const label = hasSelection ? clearSelectionLabel : selectVisibleLabel;
+
+                    selectVisibleButton.dataset.idCardSelectionMode = hasSelection ? 'clear' : 'select';
+                    selectVisibleButton.title = label;
+                    selectVisibleButton.setAttribute('aria-label', label);
+                    selectVisibleButton.querySelector('[data-select-visible-icon]')?.toggleAttribute('hidden', hasSelection);
+                    selectVisibleButton.querySelector('[data-clear-selection-icon]')?.toggleAttribute('hidden', !hasSelection);
+                }
             };
 
             const applyFilter = () => {
@@ -139,16 +155,18 @@
 
             searchInput?.addEventListener('input', applyFilter);
             selectVisibleButton?.addEventListener('click', () => {
-                cards.filter((card) => !card.hidden).forEach((card) => {
-                    card.classList.add('is-selected');
-                    card.querySelector('[data-id-card-student-checkbox]').checked = true;
+                const clearSelection = selectVisibleButton.dataset.idCardSelectionMode === 'clear';
+
+                cards.forEach((card) => {
+                    if (!clearSelection && card.hidden) return;
+                    card.classList.toggle('is-selected', !clearSelection);
+                    card.querySelector('[data-id-card-student-checkbox]').checked = !clearSelection;
                 });
                 updateSelectedCount();
             });
             clearButton?.addEventListener('click', () => {
-                cards.forEach((card) => card.classList.remove('is-selected'));
-                checkboxes.forEach((checkbox) => checkbox.checked = false);
-                updateSelectedCount();
+                if (searchInput) searchInput.value = '';
+                applyFilter();
             });
 
             updateSelectedCount();

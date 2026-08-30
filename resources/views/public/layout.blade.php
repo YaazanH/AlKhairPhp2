@@ -31,7 +31,7 @@
             <header class="public-header">
                 <div class="public-header__inner">
                     <a href="{{ route('home') }}" class="public-brand">
-                        <div class="public-brand__mark">
+                        <div @class(['public-brand__mark', 'public-brand__mark--image' => ! empty($site['logo_url'])])>
                             @if (! empty($site['logo_url']))
                                 <img src="{{ $site['logo_url'] }}" alt="{{ $site['site_name'] }}" class="public-brand__image">
                             @else
@@ -84,8 +84,6 @@
                     </nav>
 
                     <div class="public-actions">
-                        <x-locale-switcher compact />
-
                         @auth
                             <a href="{{ route('dashboard') }}" class="pill-link pill-link--accent">{{ __('site.public.nav.dashboard') }}</a>
                         @else

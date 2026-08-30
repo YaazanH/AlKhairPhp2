@@ -337,7 +337,7 @@ new class extends Component {
                                     <th class="px-4 py-4 text-left lg:px-5">{{ __('media.student_files.files.headers.type') }}</th>
                                     <th class="px-4 py-4 text-left lg:px-5">{{ __('media.student_files.files.headers.uploaded_by') }}</th>
                                     <th class="px-4 py-4 text-left lg:px-5">{{ __('media.student_files.files.headers.uploaded_at') }}</th>
-                                    <th class="px-4 py-4 text-right lg:px-5">{{ __('media.student_files.files.headers.actions') }}</th>
+                                    <th class="admin-actions-column px-4 py-4 text-center lg:px-5">{{ __('media.student_files.files.headers.actions') }}</th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-white/6">

@@ -14,7 +14,7 @@
                 <div class="admin-grid-meta__title">{{ __('print_templates.templates.title') }}</div>
                 <div class="admin-toolbar__actions">
                     @can('id-cards.templates.manage')
-                        <a href="{{ route('print-templates.templates.create') }}" class="pill-link pill-link--accent">{{ __('print_templates.templates.actions.create') }}</a>
+                        <x-add-action-button :href="route('print-templates.templates.create')" :label="__('print_templates.templates.actions.create')" />
                     @endcan
                 </div>
             </div>
@@ -31,7 +31,7 @@
                                 <th class="px-5 py-4 text-left lg:px-6">{{ __('print_templates.templates.table.headers.sources') }}</th>
                                 <th class="px-5 py-4 text-left lg:px-6">{{ __('print_templates.templates.table.headers.elements') }}</th>
                                 <th class="px-5 py-4 text-left lg:px-6">{{ __('print_templates.templates.table.headers.status') }}</th>
-                                <th class="px-5 py-4 text-left lg:px-6">{{ __('print_templates.templates.table.headers.actions') }}</th>
+                                <th class="admin-actions-column px-5 py-4 text-center lg:px-6">{{ __('print_templates.templates.table.headers.actions') }}</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-white/6">
@@ -52,7 +52,7 @@
                                     </td>
                                     <td class="px-5 py-4 lg:px-6">
                                         @can('id-cards.templates.manage')
-                                            <a href="{{ route('print-templates.templates.edit', $template) }}" class="pill-link pill-link--compact">{{ __('crud.common.actions.open') }}</a>
+                                            <x-open-action-button :href="route('print-templates.templates.edit', $template)" :label="__('crud.common.actions.open')" />
                                         @endcan
                                     </td>
                                 </tr>

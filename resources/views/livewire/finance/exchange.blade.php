@@ -210,9 +210,11 @@ new class extends Component {
                         </div>
                     </div>
                 </div>
-                <div><label class="mb-1 block text-sm font-medium">{{ __('finance.common.notes') }}</label><input wire:model="notes" type="text" class="w-full rounded-xl px-4 py-3 text-sm"></div>
+                <div class="exchange-notes-action">
+                    <div class="min-w-0"><label class="mb-1 block text-sm font-medium">{{ __('finance.common.notes') }}</label><input wire:model="notes" type="text" class="w-full rounded-xl px-4 py-3 text-sm"></div>
+                    <button type="submit" class="admin-icon-button admin-icon-button--accent" title="{{ __('finance.actions.post_exchange') }}" aria-label="{{ __('finance.actions.post_exchange') }}" data-exchange-save-action><x-admin-action-icon name="save" /></button>
+                </div>
                 @error('from_currency_id') <div class="lg:col-span-4 text-sm text-red-400">{{ $message }}</div> @enderror
-                <div class="lg:col-span-4"><button type="submit" class="pill-link pill-link--accent">{{ __('finance.actions.post_exchange') }}</button></div>
             </form>
         </section>
     @endcan

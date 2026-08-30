@@ -52,6 +52,11 @@ new class extends Component {
 
     public function with(): array
     {
+        $currentActiveAcademicYearId = AcademicYear::query()
+            ->where('is_current', true)
+            ->where('is_active', true)
+            ->value('id');
+
         $baseQuery = Course::query()
             ->with('academicYear')
             ->withCount('groups')
@@ -87,6 +92,7 @@ new class extends Component {
             ],
             'filteredCount' => $filteredCount,
             'archivedCourse' => $archivedCourse,
+            'currentActiveAcademicYearId' => $currentActiveAcademicYearId,
             'archiveSummary' => $archivedCourse
                 ? app(CourseLifecycleService::class)->archiveSummary($archivedCourse)
                 : [],
@@ -127,8 +133,8 @@ new class extends Component {
                 'integer',
                 Rule::exists('academic_years', 'id')->where(fn ($query) => $query->where('is_active', true)),
             ],
-            'starts_on' => ['nullable', 'date'],
-            'ends_on' => ['nullable', 'date', 'after_or_equal:starts_on'],
+            'starts_on' => ['required', 'date'],
+            'ends_on' => ['required', 'date', 'after_or_equal:starts_on'],
             'is_default' => ['boolean'],
             'awards_points' => ['boolean'],
         ];
@@ -312,16 +318,50 @@ new class extends Component {
     {
         $this->authorizePermission('courses.create');
 
+        $this->duplicateCourse($courseId);
+    }
+
+    public function duplicateArchived(int $courseId): void
+    {
+        $this->authorizePermission('courses.create');
+
+        $currentActiveAcademicYearId = AcademicYear::query()
+            ->where('is_current', true)
+            ->where('is_active', true)
+            ->value('id');
+
+        if (! $currentActiveAcademicYearId) {
+            $this->addError('course', __('crud.courses.errors.no_current_academic_year'));
+
+            return;
+        }
+
+        $course = Course::query()->findOrFail($courseId);
+        abort_if($course->is_active, 409);
+
+        $this->duplicateCourse($courseId, (int) $currentActiveAcademicYearId, true);
+    }
+
+    protected function duplicateCourse(
+        int $courseId,
+        ?int $targetAcademicYearId = null,
+        bool $restoreArchivedState = false,
+    ): void {
         $source = Course::query()
             ->with(['groups', 'schedules'])
             ->findOrFail($courseId);
 
-        $newCourseId = DB::transaction(function () use ($source): int {
-            $newCourse = $source->replicate(['name', 'finished_at']);
+        $newCourseId = DB::transaction(function () use ($source, $targetAcademicYearId, $restoreArchivedState): int {
+            $newCourse = $source->replicate(['name', 'finished_at', 'course_finished_was_awarding_points']);
+            $newCourse->academic_year_id = $targetAcademicYearId ?? $source->academic_year_id;
             $newCourse->name = $this->uniqueCopyName($source->name);
             $newCourse->finished_at = null;
             $newCourse->is_active = true;
             $newCourse->is_default = false;
+            $newCourse->awards_points = $restoreArchivedState
+                ? (bool) ($source->course_finished_was_awarding_points ?? $source->awards_points)
+                : $source->awards_points;
+            $newCourse->course_finished_was_awarding_points = null;
             $newCourse->save();
 
             foreach ($source->schedules as $schedule) {
@@ -332,10 +372,15 @@ new class extends Component {
             }
 
             foreach ($source->groups as $group) {
-                $newGroup = $group->replicate(['course_id', 'name', 'course_finished_at']);
+                $newGroup = $group->replicate(['course_id', 'academic_year_id', 'name', 'course_finished_at', 'course_finished_was_active']);
                 $newGroup->course_id = $newCourse->id;
+                $newGroup->academic_year_id = $targetAcademicYearId ?? $group->academic_year_id;
                 $newGroup->name = $group->name;
                 $newGroup->course_finished_at = null;
+                $newGroup->is_active = $restoreArchivedState
+                    ? (bool) ($group->course_finished_was_active ?? $group->is_active)
+                    : $group->is_active;
+                $newGroup->course_finished_was_active = null;
                 $newGroup->save();
             }
 
@@ -343,6 +388,7 @@ new class extends Component {
         });
 
         session()->flash('status', __('crud.courses.messages.copied'));
+        $this->closeArchive();
         $this->edit($newCourseId);
         $this->copySetup = true;
     }
@@ -545,9 +591,9 @@ new class extends Component {
 
                 <div class="admin-toolbar__actions">
                     @can('courses.create')
-                        <button type="button" wire:click="openCreateModal" class="pill-link pill-link--accent">{{ __('crud.common.actions.create') }}</button>
+                        <x-add-action-button wire:click="openCreateModal" :label="__('crud.common.actions.create')" />
                     @endcan
-                    <a href="{{ route('courses.export', ['search' => $search, 'status' => $statusFilter, 'academic_year_id' => $academicYearFilter]) }}" class="pill-link">{{ __('crud.common.actions.export') }}</a>
+                    <x-export-action-button :href="route('courses.export', ['search' => $search, 'status' => $statusFilter, 'academic_year_id' => $academicYearFilter])" :label="__('crud.common.actions.export')" />
                 </div>
             </div>
         </div>
@@ -569,7 +615,8 @@ new class extends Component {
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.courses.table.headers.groups') }}</th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.courses.table.headers.points') }}</th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.courses.table.headers.status') }}</th>
-                            <th class="px-5 py-4 text-right lg:px-6">{{ __('crud.courses.table.headers.actions') }}</th>
+                            <th class="px-5 py-4 text-center lg:px-6" data-course-end-column>{{ __('crud.courses.table.headers.end_course') }}</th>
+                            <th class="admin-actions-column px-5 py-4 text-center lg:px-6">{{ __('crud.courses.table.headers.actions') }}</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-white/6">
@@ -602,16 +649,22 @@ new class extends Component {
                                         </span>
                                     @endif
                                 </td>
+                                <td class="px-5 py-4 text-center lg:px-6">
+                                    @if ($course->is_active && $course->awards_points)
+                                        <a href="{{ route('courses.end', $course) }}" wire:navigate class="pill-link pill-link--compact pill-link--accent min-w-max px-4" data-course-end-action>{{ __('crud.courses.actions.end_course') }}</a>
+                                    @else
+                                        <span aria-hidden="true">—</span>
+                                    @endif
+                                </td>
                                 <td class="px-5 py-4 lg:px-6">
                                     <div class="flex flex-nowrap justify-end gap-2">
-                                        @if ($course->is_active && $course->awards_points)
-                                            <a href="{{ route('courses.end', $course) }}" wire:navigate class="pill-link pill-link--compact pill-link--accent min-w-max px-4">{{ __('crud.courses.actions.end_course') }}</a>
-                                        @endif
                                         @can('courses.update')
-                                            @if ($course->is_active)
-                                                <button type="button" wire:click="edit({{ $course->id }})" class="pill-link pill-link--compact">{{ __('crud.common.actions.edit') }}</button>
-                                            @else
-                                                <button type="button" wire:click="openArchive({{ $course->id }})" class="pill-link pill-link--compact border-red-400/30 bg-red-500/10 text-red-200">{{ __('crud.courses.actions.archive') }}</button>
+                                            @if ($course->is_active && ($course->academicYear?->is_active ?? true))
+                                                <x-edit-action-button wire:click="edit({{ $course->id }})" :label="__('crud.common.actions.edit')" data-course-edit-action />
+                                            @elseif (! $course->is_active)
+                                                <button type="button" wire:click="openArchive({{ $course->id }})" class="admin-icon-button admin-icon-button--danger" title="{{ __('crud.courses.actions.archive') }}" aria-label="{{ __('crud.courses.actions.archive') }}" data-course-archive-action>
+                                                    <x-admin-action-icon name="archive" />
+                                                </button>
                                             @endif
                                         @endcan
                                     </div>
@@ -660,7 +713,7 @@ new class extends Component {
             <div class="grid gap-4 md:grid-cols-2">
                 <div>
                     <label for="course-starts-on" class="mb-1 block text-sm font-medium">{{ __('crud.courses.form.fields.starts_on') }}</label>
-                    <input id="course-starts-on" wire:model="starts_on" type="date" class="w-full rounded-xl px-4 py-3 text-sm">
+                    <input id="course-starts-on" wire:model="starts_on" type="date" required class="w-full rounded-xl px-4 py-3 text-sm">
                     @error('starts_on')
                         <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                     @enderror
@@ -668,7 +721,7 @@ new class extends Component {
 
                 <div>
                     <label for="course-ends-on" class="mb-1 block text-sm font-medium">{{ __('crud.courses.form.fields.ends_on') }}</label>
-                    <input id="course-ends-on" wire:model="ends_on" type="date" class="w-full rounded-xl px-4 py-3 text-sm">
+                    <input id="course-ends-on" wire:model="ends_on" type="date" required class="w-full rounded-xl px-4 py-3 text-sm">
                     @error('ends_on')
                         <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                     @enderror
@@ -680,17 +733,23 @@ new class extends Component {
                 <label class="flex items-center gap-3 text-sm"><input wire:model="awards_points" type="checkbox" class="rounded border-neutral-300 text-neutral-900"><span>{{ __('crud.courses.form.awards_points') }}</span></label>
             </div>
 
-            <div class="flex flex-wrap items-center gap-3">
-                <button type="submit" class="pill-link pill-link--accent">
-                    {{ $editingId ? __('crud.courses.form.update_submit') : __('crud.courses.form.create_submit') }}
+            <div class="admin-action-cluster admin-action-cluster--end">
+                <button type="submit" class="admin-icon-button admin-icon-button--accent admin-modal-action-button" title="{{ $editingId ? __('crud.courses.form.update_submit') : __('crud.courses.form.create_submit') }}" aria-label="{{ $editingId ? __('crud.courses.form.update_submit') : __('crud.courses.form.create_submit') }}" data-course-form-save-action>
+                    <x-admin-action-icon name="save" class="admin-modal-action__icon" />
                 </button>
                 @if ($editingId)
                     @unless($copySetup)
-                        <button type="button" wire:click="deactivate({{ $editingId }})" wire:confirm="{{ __('crud.courses.confirm_deactivate') }}" class="pill-link border-amber-300/30 bg-amber-400/10 text-amber-100">{{ __('crud.courses.actions.finish') }}</button>
-                        @can('courses.create')<button type="button" wire:click="duplicate({{ $editingId }})" wire:confirm="{{ __('crud.courses.copy.confirm') }}" class="pill-link border-sky-300/30 bg-sky-400/10 text-sky-100">{{ __('crud.common.actions.copy') }}</button>@endcan
+                        <button type="button" wire:click="deactivate({{ $editingId }})" wire:confirm="{{ __('crud.courses.confirm_deactivate') }}" class="admin-icon-button admin-modal-action-button border-amber-300/30 bg-amber-400/10 text-amber-100" title="{{ __('crud.courses.actions.finish') }}" aria-label="{{ __('crud.courses.actions.finish') }}" data-course-form-finish-action>
+                            <x-admin-action-icon name="finish-line" class="admin-modal-action__icon" />
+                        </button>
+                        @can('courses.create')
+                            <button type="button" wire:click="duplicate({{ $editingId }})" wire:confirm="{{ __('crud.courses.copy.confirm') }}" class="admin-icon-button admin-modal-action-button border-sky-300/30 bg-sky-400/10 text-sky-100" title="{{ __('crud.common.actions.copy') }}" aria-label="{{ __('crud.common.actions.copy') }}" data-course-form-copy-action>
+                                <x-admin-action-icon name="copy" class="admin-modal-action__icon" />
+                            </button>
+                        @endcan
                     @endunless
                     @can('courses.delete')
-                        @if($editingCourseCanBeDeleted)<button type="button" wire:click="delete({{ $editingId }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link pill-link--danger">{{ __('crud.common.actions.delete') }}</button>@endif
+                        @if($editingCourseCanBeDeleted)<x-delete-action-button wire:click="delete({{ $editingId }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" :label="__('crud.common.actions.delete')" class="admin-modal-action-button" data-course-form-delete-action />@endif
                     @endcan
                 @endif
             </div>
@@ -707,7 +766,7 @@ new class extends Component {
             </button>
         </x-slot:header-actions>
         <section class="surface-table settings-record-table overflow-visible">
-            <div class="overflow-visible"><table class="w-full table-fixed text-sm"><thead><tr><th class="px-4 py-3">{{ __('schedules.group.form.fields.day') }}</th><th class="px-4 py-3">{{ __('schedules.group.form.fields.timing') }}</th><th class="w-32 px-2 py-3">{{ __('schedules.group.table.headers.actions') }}</th></tr></thead><tbody>
+            <div class="overflow-visible"><table class="w-full table-fixed text-sm"><thead><tr><th class="px-4 py-3">{{ __('schedules.group.form.fields.day') }}</th><th class="px-4 py-3">{{ __('schedules.group.form.fields.timing') }}</th><th class="admin-actions-column w-32 px-2 py-3 text-center">{{ __('schedules.group.table.headers.actions') }}</th></tr></thead><tbody>
                 @foreach($scheduleRows as $index => $row)<tr wire:key="course-schedule-{{ $index }}"><td class="px-4 py-3">{{ $scheduleDays[$row['day_of_week']] }}</td><td class="px-4 py-3">{{ $scheduleTimeSlots[$row['time_slot']] }}</td><td class="px-2 py-3"><div class="flex flex-nowrap items-center justify-center gap-2"><button type="button" wire:click="editScheduleRow({{ $index }})" class="admin-icon-button" aria-label="{{ __('crud.common.actions.edit') }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="m4 20 4.2-1 10.7-10.7a2.1 2.1 0 0 0-3-3L5.2 16 4 20Z"/></svg></button><button type="button" wire:click="deleteScheduleRow({{ $index }})" class="admin-icon-button admin-icon-button--danger" aria-label="{{ __('crud.common.actions.delete') }}"><x-icons.trash class="size-5" /></button></div></td></tr>@endforeach
                 <tr class="schedule-add-row"><td class="px-4 py-3"><select wire:model.live="scheduleDay" data-search-input="true" data-open-on-focus="true" data-hide-placeholder-option="true" class="h-11 w-full rounded-xl px-3"><option value="">{{ __('schedules.group.form.placeholders.day') }}</option>@foreach($scheduleDays as $value=>$label)<option value="{{ $value }}">{{ $label }}</option>@endforeach</select>@error('scheduleDay')<div class="mt-1 text-xs text-red-400">{{ $message }}</div>@enderror</td><td class="px-4 py-3"><select wire:model.live="scheduleTimeSlot" data-search-input="true" data-open-on-focus="true" data-hide-placeholder-option="true" class="h-11 w-full rounded-xl px-3"><option value="">{{ __('schedules.group.form.placeholders.timing') }}</option>@foreach($scheduleTimeSlots as $value=>$label)<option value="{{ $value }}">{{ $label }}</option>@endforeach</select>@error('scheduleTimeSlot')<div class="mt-1 text-xs text-red-400">{{ $message }}</div>@enderror</td><td class="px-2 py-3 text-center">@if($editingScheduleRow !== null)<button type="button" wire:click="saveScheduleRow" class="admin-icon-button admin-icon-button--accent" aria-label="{{ __('crud.common.actions.update') }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="m5 12 4 4L19 6"/></svg></button>@endif</td></tr>
             </tbody></table></div>
@@ -723,12 +782,8 @@ new class extends Component {
     >
         @if ($archivedCourse)
             <div class="space-y-5">
-                <div class="rounded-2xl border border-amber-300/20 bg-amber-400/10 p-5 text-sm leading-6 text-amber-100">
-                    {{ __('crud.courses.archive.read_only') }}
-                </div>
-
                 <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                    @foreach (['groups', 'enrollments', 'assessments', 'student_attendance', 'teacher_attendance'] as $archiveKey)
+                    @foreach (['groups', 'enrollments', 'assessments', 'student_attendance', 'average_student_attendance', 'passed_final_tests'] as $archiveKey)
                         <div class="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
                             <div class="text-xs uppercase tracking-[0.16em] text-neutral-400">{{ __('crud.courses.archive.'.$archiveKey) }}</div>
                             <div class="mt-2 text-2xl font-semibold text-white">{{ number_format($archiveSummary[$archiveKey] ?? 0) }}</div>
@@ -743,8 +798,17 @@ new class extends Component {
                 <div class="flex flex-wrap items-center justify-end gap-3">
                     <button type="button" wire:click="closeArchive" class="pill-link">{{ __('crud.common.actions.close') }}</button>
                     @if ($editingAcademicYearIsActive)
-                        <button type="button" wire:click="reactivate({{ $archivedCourse->id }})" class="pill-link border-red-400/30 bg-red-500/10 text-red-200">{{ __('crud.courses.actions.reactivate') }}</button>
+                        <button type="button" wire:click="reactivate({{ $archivedCourse->id }})" class="admin-icon-button admin-icon-button--accent admin-modal-action-button" title="{{ __('crud.courses.actions.reactivate') }}" aria-label="{{ __('crud.courses.actions.reactivate') }}" data-course-archive-reactivate-action>
+                            <x-admin-action-icon name="reactivate" class="admin-modal-action__icon" />
+                        </button>
                     @endif
+                    @can('courses.create')
+                        @if ($currentActiveAcademicYearId)
+                            <button type="button" wire:click="duplicateArchived({{ $archivedCourse->id }})" wire:confirm="{{ __('crud.courses.copy.confirm_archive') }}" class="admin-icon-button admin-modal-action-button border-sky-300/30 bg-sky-400/10 text-sky-100" title="{{ __('crud.common.actions.copy') }}" aria-label="{{ __('crud.common.actions.copy') }}" data-course-archive-copy-action>
+                                <x-admin-action-icon name="copy" class="admin-modal-action__icon" />
+                            </button>
+                        @endif
+                    @endcan
                 </div>
             </div>
         @endif

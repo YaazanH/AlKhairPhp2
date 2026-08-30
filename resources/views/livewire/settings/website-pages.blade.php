@@ -407,7 +407,7 @@ new class extends Component {
                     <p class="mt-2 text-sm leading-6 text-neutral-400">{{ __('site.admin.pages.workspace.library_copy') }}</p>
                 </div>
                 <div class="admin-action-cluster">
-                    <button type="button" wire:click="createPage" class="pill-link">{{ __('site.admin.pages.workspace.new_page') }}</button>
+                    <x-add-action-button wire:click="createPage" :label="__('site.admin.pages.workspace.new_page')" :accent="false" />
                     <a href="{{ route('settings.website.navigation') }}" wire:navigate class="pill-link">{{ __('site.admin.pages.workspace.open_navigation') }}</a>
                 </div>
             </div>
@@ -456,7 +456,7 @@ new class extends Component {
                     @if ($editing_page_id)
                         <a href="{{ route('website.pages.show', WebsitePage::query()->find($editing_page_id)) }}" target="_blank" class="pill-link">{{ __('site.admin.pages.workspace.preview_page') }}</a>
                     @endif
-                    <button type="button" wire:click="createPage" class="pill-link">{{ __('site.admin.pages.workspace.new_page') }}</button>
+                    <x-add-action-button wire:click="createPage" :label="__('site.admin.pages.workspace.new_page')" :accent="false" />
                 </div>
             </div>
 
@@ -591,10 +591,11 @@ new class extends Component {
                 @error('pageDelete') <div class="text-sm text-red-400">{{ $message }}</div> @enderror
 
                 <div class="admin-action-cluster">
-                    <button type="submit" class="pill-link pill-link--accent">{{ $editing_page_id ? __('site.admin.pages.form.save_update') : __('site.admin.pages.form.save_create') }}</button>
-                    <x-admin.create-and-new-button :show="! $editing_page_id" click="saveAndNew('savePage', 'createPage')" />
                     @if ($editing_page_id)
-                        <button type="button" wire:click="createPage" class="pill-link">{{ __('site.admin.pages.workspace.new_page') }}</button>
+                        <button type="submit" class="pill-link pill-link--accent">{{ __('site.admin.pages.form.save_update') }}</button>
+                        <x-add-action-button wire:click="createPage" :label="__('site.admin.pages.workspace.new_page')" :accent="false" />
+                    @else
+                        <x-admin.create-and-new-button click="saveAndNew('savePage', 'createPage')" />
                     @endif
                 </div>
             </form>

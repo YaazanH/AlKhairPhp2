@@ -2,7 +2,6 @@
 
 use App\Livewire\Concerns\AuthorizesPermissions;
 use App\Livewire\Concerns\AuthorizesTeacherAssignments;
-use App\Livewire\Concerns\SupportsCreateAndNew;
 use App\Models\Enrollment;
 use App\Models\Student;
 use App\Models\StudentNote;
@@ -13,7 +12,6 @@ new class extends Component
 {
     use AuthorizesPermissions;
     use AuthorizesTeacherAssignments;
-    use SupportsCreateAndNew;
 
     public ?int $editingId = null;
 
@@ -371,7 +369,7 @@ new class extends Component
                     </div>
                     <div class="admin-modal__body">
             @if (auth()->user()->can('student-notes.create') || auth()->user()->can('student-notes.update'))
-                <form wire:submit="save" class="space-y-4">
+                <form wire:submit="save" class="date-control-peer-group space-y-4">
                     <div>
                         <label class="mb-1 block text-sm font-medium">{{ __('notes.form.fields.student') }}</label>
                         <select wire:model="student_id" data-search-input="true" data-open-on-focus="true" data-hide-placeholder-option="true" data-search-placeholder="{{ __('workflow.common.student_name_placeholder') }}" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
@@ -407,7 +405,7 @@ new class extends Component
 
                     <div>
                         <label class="mb-1 block text-sm font-medium">{{ __('notes.form.fields.noted_at') }}</label>
-                        <input wire:model="noted_at" type="date" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                        <input wire:model="noted_at" type="date" class="date-control--match-select w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
                         @error('noted_at') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
                     </div>
 
@@ -417,17 +415,24 @@ new class extends Component
                         @error('body') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
                     </div>
 
-                    <div class="flex gap-3">
-                        <button type="submit" class="pill-link pill-link--accent">
-                            {{ $editingId ? __('notes.form.update_submit') : __('notes.form.create_submit') }}
-                        </button>
-                        <x-admin.create-and-new-button :show="! $editingId" click="saveAndNew('save', 'create')" />
+                    <div class="admin-action-cluster admin-action-cluster--end">
                         @if ($editingId)
+                            <button type="submit" class="admin-icon-button admin-icon-button--accent admin-modal-action-button" title="{{ __('notes.form.update_submit') }}" aria-label="{{ __('notes.form.update_submit') }}" data-student-note-update-action>
+                                <x-admin-action-icon name="save" class="admin-modal-action__icon" />
+                            </button>
                             @can('student-notes.delete')
-                                <button type="button" wire:click="delete({{ $editingId }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link pill-link--danger" data-student-note-delete>
-                                    {{ __('crud.common.actions.delete') }}
-                                </button>
+                                <x-delete-action-button wire:click="delete({{ $editingId }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" :label="__('crud.common.actions.delete')" data-student-note-delete />
                             @endcan
+                        @else
+                            <button
+                                type="submit"
+                                class="admin-icon-button admin-icon-button--accent admin-modal-action-button"
+                                title="{{ __('crud.common.actions.save') }}"
+                                aria-label="{{ __('crud.common.actions.save') }}"
+                                data-student-note-save
+                            >
+                                <x-admin-action-icon name="save" class="admin-modal-action__icon" />
+                            </button>
                         @endif
                     </div>
                 </form>
@@ -477,9 +482,7 @@ new class extends Component
 
                     @can('student-notes.create')
                         <div class="admin-toolbar__actions">
-                            <button type="button" wire:click="create" class="pill-link pill-link--accent">
-                                {{ __('notes.form.create_title') }}
-                            </button>
+                            <x-add-action-button wire:click="create" :label="__('notes.form.create_title')" />
                         </div>
                     @endcan
                 </div>
@@ -505,7 +508,7 @@ new class extends Component
                                 <th class="student-notes-table__date px-4 py-4 text-left">{{ __('notes.log.table.date') }}</th>
                                 <th class="student-notes-table__visibility px-4 py-4 text-left">{{ __('notes.log.table.visibility') }}</th>
                                 <th class="student-notes-table__note px-4 py-4 text-left">{{ __('notes.log.table.note') }}</th>
-                                <th class="student-notes-table__actions px-4 py-4 text-left">{{ __('notes.log.table.actions') }}</th>
+                                <th class="admin-actions-column student-notes-table__actions px-4 py-4 text-center">{{ __('notes.log.table.actions') }}</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-white/6">
@@ -523,7 +526,7 @@ new class extends Component
                                     </td>
                                     <td class="student-notes-table__actions px-4 py-4">
                                         @if ($canMutate)
-                                            <button type="button" wire:click="edit({{ $note->id }})" class="pill-link pill-link--compact" data-student-note-edit>{{ __('crud.common.actions.edit') }}</button>
+                                            <x-edit-action-button wire:click="edit({{ $note->id }})" :label="__('crud.common.actions.edit')" data-student-note-edit />
                                         @else
                                             <span aria-hidden="true">—</span>
                                         @endif

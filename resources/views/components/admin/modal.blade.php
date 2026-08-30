@@ -3,6 +3,8 @@
     'title' => null,
     'description' => null,
     'closeMethod' => null,
+    'dismissible' => true,
+    'hideHeader' => false,
     'maxWidth' => '4xl',
     'compact' => false,
     'fullViewport' => false,
@@ -11,6 +13,8 @@
 @php
     $widthClass = match ($maxWidth) {
         'fit' => 'admin-modal__dialog--fit',
+        'sm' => 'admin-modal__dialog--sm',
+        'md' => 'admin-modal__dialog--md',
         'xl' => 'admin-modal__dialog--xl',
         '2xl' => 'admin-modal__dialog--2xl',
         '3xl' => 'admin-modal__dialog--3xl',
@@ -45,25 +49,27 @@
         <div class="admin-modal__backdrop"></div>
         <div class="admin-modal__viewport">
             <div class="admin-modal__dialog {{ $widthClass }} {{ ($compact || $maxWidth === '8xl') ? 'admin-modal__dialog--compact' : '' }}">
-                <div class="admin-modal__header">
-                    <div>
-                        @if ($title)
-                            <h2 class="admin-modal__title">{{ $title }}</h2>
-                        @endif
+                @unless ($hideHeader)
+                    <div class="admin-modal__header">
+                        <div>
+                            @if ($title)
+                                <h2 class="admin-modal__title">{{ $title }}</h2>
+                            @endif
 
-                    </div>
+                        </div>
 
-                    <div class="admin-modal__header-actions">
-                        @isset($headerActions)
-                            {{ $headerActions }}
-                        @endisset
-                        @if ($closeMethod)
-                            <button type="button" wire:click="{{ $closeMethod }}" class="admin-modal__close" aria-label="{{ __('crud.common.actions.close') }}">
-                                <span aria-hidden="true">&times;</span>
-                            </button>
-                        @endif
+                        <div class="admin-modal__header-actions">
+                            @isset($headerActions)
+                                {{ $headerActions }}
+                            @endisset
+                            @if ($closeMethod && $dismissible)
+                                <button type="button" wire:click="{{ $closeMethod }}" class="admin-modal__close" aria-label="{{ __('crud.common.actions.close') }}">
+                                    <span aria-hidden="true">&times;</span>
+                                </button>
+                            @endif
+                        </div>
                     </div>
-                </div>
+                @endunless
 
                 <div class="admin-modal__body">
                     {!! $modalBody !!}

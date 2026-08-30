@@ -20,10 +20,12 @@ use App\Models\ParentProfile;
 use App\Models\PointTransaction;
 use App\Models\PointType;
 use App\Models\PrintTemplate;
+use App\Models\QuranFinalTest;
 use App\Models\QuranJuz;
 use App\Models\School;
 use App\Models\Student;
 use App\Models\StudentAttendanceDay;
+use App\Models\StudentAttendanceRecord;
 use App\Models\StudentFile;
 use App\Models\Teacher;
 use App\Models\TeacherAttendanceDay;
@@ -99,8 +101,10 @@ class ManagementCrudTest extends TestCase
         $this->signIn();
         $school = School::create(['name' => 'Old School', 'is_active' => false]);
         School::create(['name' => 'Existing School', 'is_active' => true]);
+        $unusedSchool = School::create(['name' => 'Unused School', 'is_active' => true]);
         $job = FatherJob::create(['name' => 'Old Job', 'is_active' => false]);
         FatherJob::create(['name' => 'Existing Job', 'is_active' => true]);
+        $unusedJob = FatherJob::create(['name' => 'Unused Job', 'is_active' => true]);
         $parent = ParentProfile::create(['father_name' => 'Settings Parent', 'father_work' => ' old JOB ']);
         $student = Student::create(['parent_id' => $parent->id, 'first_name' => 'Settings', 'last_name' => 'Student', 'birth_date' => '2013-01-01', 'school_name' => ' old SCHOOL ', 'status' => 'active']);
 
@@ -110,12 +114,19 @@ class ManagementCrudTest extends TestCase
             ->assertSee('data-school-reference-edit-icon', false)
             ->assertSee('data-father-job-edit-icon', false)
             ->call('editSchoolReference', $school->id)
-            ->assertSee('data-school-reference-delete', false)
+            ->assertDontSee('data-school-reference-delete', false)
             ->assertDontSee('wire:model="school_reference_is_active"', false)
             ->call('cancelSchoolReference')
             ->call('editFatherJob', $job->id)
-            ->assertSee('data-father-job-delete', false)
+            ->assertDontSee('data-father-job-delete', false)
             ->assertDontSee('wire:model="father_job_is_active"', false);
+
+        Volt::test('settings.organization')
+            ->call('editSchoolReference', $unusedSchool->id)
+            ->assertSee('data-school-reference-delete', false)
+            ->call('cancelSchoolReference')
+            ->call('editFatherJob', $unusedJob->id)
+            ->assertSee('data-father-job-delete', false);
 
         Volt::test('settings.organization')->call('editSchoolReference', $school->id)->set('school_reference_name', 'New School')->call('saveSchoolReference')->assertHasNoErrors();
         Volt::test('settings.organization')->call('editFatherJob', $job->id)->set('father_job_name', 'New Job')->call('saveFatherJob')->assertHasNoErrors();
@@ -141,12 +152,18 @@ class ManagementCrudTest extends TestCase
             'is_active' => true,
         ]);
 
-        Volt::test('courses.index')
+        $courseComponent = Volt::test('courses.index')
             ->assertSet('academicYearFilter', (string) $academicYear->id)
             ->assertSee('course-academic-year-filter', false)
             ->set('academic_year_id', $academicYear->id)
             ->set('name', 'Quran Foundations')
             ->set('description', 'Foundational memorization track')
+            ->call('save')
+            ->assertHasErrors(['starts_on' => 'required', 'ends_on' => 'required']);
+
+        $courseComponent
+            ->set('starts_on', '2026-08-01')
+            ->set('ends_on', '2027-07-31')
             ->call('save')
             ->assertHasNoErrors();
 
@@ -373,6 +390,23 @@ class ManagementCrudTest extends TestCase
             'attendance_date' => '2026-08-15',
             'status' => 'open',
         ]);
+        StudentAttendanceRecord::create([
+            'group_attendance_day_id' => $groupAttendanceDay->id,
+            'enrollment_id' => $activeEnrollment->id,
+            'attendance_status_id' => $attendanceStatus->id,
+        ]);
+        $juz = QuranJuz::create([
+            'juz_number' => 1,
+            'from_page' => 1,
+            'to_page' => 21,
+        ]);
+        QuranFinalTest::create([
+            'enrollment_id' => $activeEnrollment->id,
+            'student_id' => $student->id,
+            'juz_id' => $juz->id,
+            'status' => 'passed',
+            'passed_on' => '2026-08-15',
+        ]);
         $teacherAttendanceDay = TeacherAttendanceDay::create([
             'attendance_date' => '2026-08-15',
             'status' => 'open',
@@ -432,6 +466,8 @@ class ManagementCrudTest extends TestCase
         $this->assertSame('closed', $groupAttendanceDay->fresh()->status);
         $this->assertSame($course->id, $teacherAttendanceRecord->fresh()->archived_course_id);
         $this->assertNotNull($teacherAttendanceRecord->fresh()->course_finished_at);
+        $this->assertSame(1, app(CourseLifecycleService::class)->archiveSummary($course->fresh())['average_student_attendance']);
+        $this->assertSame(1, app(CourseLifecycleService::class)->archiveSummary($course->fresh())['passed_final_tests']);
 
         Volt::test('student-attendance.index')->assertDontSee('15-08-2026');
         Volt::test('teachers.attendance')->assertDontSee('15-08-2026');
@@ -444,6 +480,7 @@ class ManagementCrudTest extends TestCase
             ->assertDontSee('Lifecycle Student');
 
         Volt::test('groups.show', ['group' => $activeGroup])
+            ->assertDontSee('data-group-roster-pdf-action', false)
             ->call('openEdit')
             ->assertHasErrors('group');
 
@@ -459,6 +496,11 @@ class ManagementCrudTest extends TestCase
 
         Volt::test('courses.index')
             ->call('openArchive', $course->id)
+            ->assertSee(__('crud.courses.archive.average_student_attendance'))
+            ->assertSee(__('crud.courses.archive.passed_final_tests'))
+            ->assertSeeInOrder(['data-course-archive-reactivate-action', 'data-course-archive-copy-action'], false)
+            ->assertSee('data-course-archive-reactivate-action', false)
+            ->assertSee('data-icon-name="reactivate"', false)
             ->assertSet('editingAcademicYearIsActive', true);
 
         Volt::test('courses.index')
@@ -603,7 +645,8 @@ class ManagementCrudTest extends TestCase
             'enrollments' => 2,
             'assessments' => 1,
             'student_attendance' => 0,
-            'teacher_attendance' => 0,
+            'average_student_attendance' => 0,
+            'passed_final_tests' => 0,
         ], $lifecycle->archiveSummary($course->fresh()));
 
         Volt::test('courses.index')
@@ -721,6 +764,99 @@ class ManagementCrudTest extends TestCase
         ]);
     }
 
+    public function test_copying_an_archived_course_targets_the_current_active_academic_year_and_opens_the_normal_copy_workflow(): void
+    {
+        $this->signIn();
+
+        $archivedAcademicYear = AcademicYear::create([
+            'name' => 'Archived copy source 2025/2026',
+            'starts_on' => '2025-08-01',
+            'ends_on' => '2026-07-31',
+            'is_current' => false,
+            'is_active' => false,
+        ]);
+        $currentAcademicYear = AcademicYear::create([
+            'name' => 'Current copy target 2026/2027',
+            'starts_on' => '2026-08-01',
+            'ends_on' => '2027-07-31',
+            'is_current' => true,
+            'is_active' => true,
+        ]);
+        $course = Course::create([
+            'academic_year_id' => $archivedAcademicYear->id,
+            'name' => 'Archived metadata source',
+            'description' => 'Copy this archived description',
+            'starts_on' => '2025-09-01',
+            'ends_on' => '2026-05-31',
+            'finished_at' => '2026-06-01 12:00:00',
+            'is_active' => false,
+            'is_default' => false,
+            'awards_points' => false,
+            'course_finished_was_awarding_points' => true,
+        ]);
+        $teacher = Teacher::create([
+            'first_name' => 'Archived',
+            'last_name' => 'Teacher',
+            'phone' => '0944000099',
+            'course_id' => $course->id,
+            'status' => 'active',
+        ]);
+        $group = Group::create([
+            'course_id' => $course->id,
+            'academic_year_id' => $archivedAcademicYear->id,
+            'teacher_id' => $teacher->id,
+            'name' => 'Archived metadata group',
+            'capacity' => 24,
+            'starts_on' => '2025-09-03',
+            'ends_on' => '2026-05-28',
+            'monthly_fee' => 100,
+            'is_active' => false,
+            'course_finished_at' => '2026-06-01 12:00:00',
+            'course_finished_was_active' => true,
+        ]);
+        $course->schedules()->create([
+            'day_of_week' => 5,
+            'time_slot' => 'morning',
+        ]);
+
+        $component = Volt::test('courses.index')
+            ->call('openArchive', $course->id)
+            ->assertSee('data-course-archive-copy-action', false)
+            ->assertSee('data-icon-name="copy"', false)
+            ->assertSet('showArchiveModal', true)
+            ->call('duplicateArchived', $course->id)
+            ->assertHasNoErrors()
+            ->assertSet('showArchiveModal', false)
+            ->assertSet('showFormModal', true)
+            ->assertSet('showScheduleModal', false)
+            ->assertSet('copySetup', true);
+
+        $copy = Course::query()
+            ->whereKeyNot($course->id)
+            ->where('description', 'Copy this archived description')
+            ->firstOrFail();
+        $copiedGroup = $copy->groups()->firstOrFail();
+
+        $this->assertSame($currentAcademicYear->id, $copy->academic_year_id);
+        $this->assertTrue($copy->is_active);
+        $this->assertTrue($copy->awards_points);
+        $this->assertNull($copy->finished_at);
+        $this->assertNull($copy->course_finished_was_awarding_points);
+        $this->assertSame($currentAcademicYear->id, $copiedGroup->academic_year_id);
+        $this->assertTrue($copiedGroup->is_active);
+        $this->assertNull($copiedGroup->course_finished_at);
+        $this->assertNull($copiedGroup->course_finished_was_active);
+        $this->assertSame($group->name, $copiedGroup->name);
+
+        $component
+            ->assertSet('editingId', $copy->id)
+            ->call('save')
+            ->assertHasNoErrors()
+            ->assertSet('showFormModal', false)
+            ->assertSet('showScheduleModal', true)
+            ->assertSet('syncScheduleToGroups', true);
+    }
+
     public function test_profile_account_credentials_can_be_updated(): void
     {
         $this->signIn();
@@ -786,6 +922,13 @@ class ManagementCrudTest extends TestCase
 
         Volt::test('students.index')
             ->call('openAccountModal', $student->id)
+            ->assertSee('data-student-account-access-summary', false)
+            ->assertSee('data-student-account-username', false)
+            ->assertSee('data-student-account-password', false)
+            ->assertDontSee('wire:model="account_email"', false)
+            ->assertDontSee('wire:model="account_is_active"', false)
+            ->assertDontSee('wire:click="generateAccountPassword"', false)
+            ->assertDontSee('wire:submit="saveAccount"', false)
             ->set('account_password', 'StudentPass123!')
             ->call('saveAccount')
             ->assertHasNoErrors();
@@ -1001,7 +1144,7 @@ class ManagementCrudTest extends TestCase
             ->call('addExternalMemorizedJuz')
             ->assertSet('external_memorized_juz_ids', [$firstJuz->id])
             ->assertSet('external_memorized_juz_input', '')
-            ->assertDontSee(__('crud.students.form.placeholders.enter_memorized_juz'))
+            ->assertSee(__('crud.students.form.placeholders.enter_memorized_juz'))
             ->assertSee('student-memorized-juz-'.$firstJuz->id, false)
             ->set('external_memorized_juz_input', '7')
             ->call('addExternalMemorizedJuz')
@@ -1047,6 +1190,48 @@ class ManagementCrudTest extends TestCase
             'student_id' => $student->id,
             'quran_juz_id' => $firstJuz->id,
         ]);
+    }
+
+    public function test_existing_parent_editor_replaces_the_summary_and_uses_an_unlink_icon(): void
+    {
+        $this->signIn();
+
+        $parent = ParentProfile::create([
+            'father_name' => 'Parent Before Edit',
+            'is_active' => true,
+        ]);
+        $student = Student::create([
+            'parent_id' => $parent->id,
+            'first_name' => 'Parent',
+            'last_name' => 'Editor',
+            'birth_date' => '2014-01-01',
+            'status' => 'active',
+        ]);
+
+        Volt::test('students.index')
+            ->call('edit', $student->id)
+            ->assertSet('editingStudentHasRelatedRecords', false)
+            ->assertSee('data-student-delete-action', false)
+            ->assertSee('data-student-parent-summary', false)
+            ->assertSee('data-student-parent-edit-action', false)
+            ->assertSee('data-student-parent-unlink-action', false)
+            ->assertSee('data-icon-name="unlink"', false)
+            ->call('openQuickParentForm')
+            ->assertSet('showQuickParentForm', true)
+            ->assertDontSee('data-student-parent-summary', false)
+            ->assertDontSee('data-student-parent-edit-action', false)
+            ->assertDontSee('wire:click="closeQuickParentForm"', false)
+            ->assertSee('data-student-parent-update-action', false)
+            ->set('quick_parent_father_name', 'Parent After Edit')
+            ->call('saveQuickParent')
+            ->assertHasNoErrors()
+            ->assertSet('showQuickParentForm', false)
+            ->assertSee('data-student-parent-summary', false)
+            ->assertSee('Parent After Edit');
+
+        $styles = file_get_contents(resource_path('css/app.css'));
+        $this->assertStringContainsString("html[dir='rtl'] [data-teacher-profile-account-form] .admin-collapsible__summary::before", $styles);
+        $this->assertStringContainsString("content: '‹';", $styles);
     }
 
     public function test_editing_parent_with_duplicate_primary_phone_uses_another_available_phone_for_the_linked_user(): void
@@ -1122,6 +1307,34 @@ class ManagementCrudTest extends TestCase
             ->assertSee('Ali Family')
             ->assertSee('Mona Family')
             ->assertSee('Children');
+    }
+
+    public function test_parent_table_only_offers_delete_for_profiles_without_students(): void
+    {
+        $this->signIn();
+
+        $linkedParent = ParentProfile::create([
+            'father_name' => 'Linked Parent',
+            'is_active' => true,
+        ]);
+        $orphanParent = ParentProfile::create([
+            'father_name' => 'Orphan Parent',
+            'is_active' => true,
+        ]);
+        Student::create([
+            'parent_id' => $linkedParent->id,
+            'first_name' => 'Linked',
+            'last_name' => 'Student',
+            'birth_date' => '2014-01-01',
+            'status' => 'active',
+        ]);
+
+        Volt::test('parents.index')
+            ->assertDontSee('data-parent-edit-action', false)
+            ->assertSee('wire:click="openChildrenModal('.$linkedParent->id.')"', false)
+            ->assertDontSee('wire:click="openChildrenModal('.$orphanParent->id.')"', false)
+            ->assertSee('wire:click="delete('.$orphanParent->id.')"', false)
+            ->assertDontSee('wire:click="delete('.$linkedParent->id.')"', false);
     }
 
     public function test_student_group_and_enrollment_components_support_crud_and_delete_guards(): void
@@ -1232,6 +1445,13 @@ class ManagementCrudTest extends TestCase
         Volt::test('students.index')
             ->call('delete', $student->id)
             ->assertHasErrors(['delete']);
+
+        Volt::test('students.index')
+            ->call('edit', $student->id)
+            ->assertSet('editingStudentHasEnrollments', true)
+            ->assertSet('editingStudentHasRelatedRecords', true)
+            ->assertDontSee('data-student-delete-action', false)
+            ->assertSee('data-student-update-action', false);
 
         Volt::test('groups.index')
             ->call('delete', $group->id)
@@ -1502,6 +1722,73 @@ class ManagementCrudTest extends TestCase
         ]);
     }
 
+    public function test_finished_groups_release_their_name_teacher_and_assistant_for_future_groups(): void
+    {
+        $this->signIn();
+
+        $academicYear = AcademicYear::create([
+            'name' => 'Reusable Group 2026/2027',
+            'starts_on' => '2026-08-01',
+            'ends_on' => '2027-07-31',
+            'is_current' => true,
+            'is_active' => true,
+        ]);
+        $teacher = Teacher::create([
+            'first_name' => 'Reusable',
+            'last_name' => 'Teacher',
+            'phone' => '0944003191',
+            'status' => 'active',
+            'is_helping' => true,
+        ]);
+        $assistant = Teacher::create([
+            'first_name' => 'Reusable',
+            'last_name' => 'Assistant',
+            'phone' => '0944003192',
+            'status' => 'active',
+            'is_helping' => true,
+        ]);
+        $oldCourse = Course::create([
+            'academic_year_id' => $academicYear->id,
+            'name' => 'Completed reusable course',
+            'is_active' => true,
+        ]);
+        $oldGroup = Group::create([
+            'course_id' => $oldCourse->id,
+            'academic_year_id' => $academicYear->id,
+            'teacher_id' => $teacher->id,
+            'assistant_teacher_id' => $assistant->id,
+            'name' => 'Reusable Group Name',
+            'capacity' => 20,
+            'is_active' => true,
+        ]);
+
+        app(CourseLifecycleService::class)->finish($oldCourse);
+        $this->assertNotNull($oldGroup->fresh()->course_finished_at);
+
+        $futureCourse = Course::create([
+            'academic_year_id' => $academicYear->id,
+            'name' => 'Future reusable course',
+            'is_active' => true,
+        ]);
+
+        Volt::test('groups.index')
+            ->set('course_id', $futureCourse->id)
+            ->set('teacher_id', $teacher->id)
+            ->set('assistant_teacher_id', $assistant->id)
+            ->set('name', 'Reusable Group Name')
+            ->set('capacity', '20')
+            ->set('is_active', true)
+            ->call('save')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('groups', [
+            'course_id' => $futureCourse->id,
+            'teacher_id' => $teacher->id,
+            'assistant_teacher_id' => $assistant->id,
+            'name' => 'Reusable Group Name',
+        ]);
+    }
+
     public function test_group_dashboard_card_template_can_be_selected_from_group_actions(): void
     {
         $this->signIn();
@@ -1664,6 +1951,17 @@ class ManagementCrudTest extends TestCase
             ->assertSee('+963 999 000 001')
             ->assertSee('group-show-details__grid', false)
             ->assertSee('data-group-copy-summary', false)
+            ->assertSee('data-group-roster-pdf-action', false)
+            ->assertSee('data-group-hero-edit-action', false)
+            ->assertSee('data-group-hero-schedule-action', false)
+            ->assertSee('data-group-hero-deactivate-action', false)
+            ->assertSee('data-group-hero-copy-action', false)
+            ->assertSee('data-icon-name="edit"', false)
+            ->assertSee('data-icon-name="schedule"', false)
+            ->assertSee('data-icon-name="disable-group"', false)
+            ->assertSee('data-group-disable-sign', false)
+            ->assertSee('data-group-disable-mark', false)
+            ->assertSee('data-icon-name="copy"', false)
             ->assertSee('group-roster-table__name-value', false)
             ->assertDontSee('min-w-[88rem]', false)
             ->set('showScheduleModal', true)
@@ -1674,6 +1972,10 @@ class ManagementCrudTest extends TestCase
             ->assertSee('data-group-form-row="teachers"', false)
             ->assertSee('data-group-form-row="learning"', false)
             ->assertSee('data-group-form-row="capacity-template"', false)
+            ->assertSee('data-group-edit-save-action', false)
+            ->assertSee('data-group-edit-delete-action', false)
+            ->assertSee('data-icon-name="save"', false)
+            ->assertSee('data-icon-name="delete"', false)
             ->assertDontSee(__('crud.groups.form.fields.monthly_fee'))
             ->assertDontSee(__('crud.groups.form.fields.starts_on'))
             ->assertDontSee(__('crud.groups.form.fields.ends_on'));
@@ -1687,7 +1989,8 @@ class ManagementCrudTest extends TestCase
         $this->assertStringContainsString('width: 11.7%;', $groupCss);
         $this->assertStringContainsString('width: 16.7%;', $groupCss);
         $this->assertStringContainsString('width: 6.75rem !important;', $groupCss);
-        $this->assertStringContainsString('width: 8.25rem !important;', $groupCss);
+        $this->assertStringContainsString('width: 56.75rem !important;', $groupCss);
+        $this->assertStringContainsString('width: 9rem !important;', $groupCss);
         $this->assertStringContainsString('.group-show-hero-layout > :first-child,', $groupCss);
         $this->assertStringContainsString('flex: 0 0 auto;', $groupCss);
 

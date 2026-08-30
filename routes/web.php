@@ -4,7 +4,9 @@ use App\Http\Controllers\AdminExportController;
 use App\Http\Controllers\AssessmentResultPdfController;
 use App\Http\Controllers\BarcodeActionPrintController;
 use App\Http\Controllers\CourseEndExportController;
+use App\Http\Controllers\CoursePointMarketExportController;
 use App\Http\Controllers\CurriculumResourceDownloadController;
+use App\Http\Controllers\DubaiFontController;
 use App\Http\Controllers\FinanceInvoiceItemsExportController;
 use App\Http\Controllers\FinanceInvoicePrintController;
 use App\Http\Controllers\FinanceRequestPrintController;
@@ -17,11 +19,29 @@ use App\Http\Controllers\ReportExportController;
 use App\Http\Controllers\StudentAttendanceExportController;
 use App\Http\Controllers\TeacherAttendanceExportController;
 use App\Http\Controllers\WebsiteController;
+use App\Http\Middleware\SetLocale;
+use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
+use Illuminate\Cookie\Middleware\EncryptCookies;
+use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
 use Illuminate\Http\Request;
+use Illuminate\Session\Middleware\StartSession;
 use Illuminate\Support\Facades\Route;
+use Illuminate\View\Middleware\ShareErrorsFromSession;
 use Livewire\Volt\Volt;
 
 Route::get('/', [WebsiteController::class, 'home'])->name('home');
+Route::get('web-fonts/dubai/{weight}/{format}', DubaiFontController::class)
+    ->whereIn('weight', ['light', 'regular', 'medium', 'bold'])
+    ->whereIn('format', ['woff2', 'ttf'])
+    ->withoutMiddleware([
+        SetLocale::class,
+        EncryptCookies::class,
+        AddQueuedCookiesToResponse::class,
+        StartSession::class,
+        ShareErrorsFromSession::class,
+        ValidateCsrfToken::class,
+    ])
+    ->name('web-fonts.dubai');
 Route::get('pages/{page:slug}', [WebsiteController::class, 'show'])->name('website.pages.show');
 Volt::route('teacher-signup', 'public.teacher-signup')->name('teacher-signup');
 
@@ -107,8 +127,10 @@ Route::middleware(['auth'])->group(function () {
     Volt::route('students/{student}/files', 'students.files')->middleware('permission:students.view')->name('students.files');
     Volt::route('courses', 'courses.index')->middleware('permission:courses.view')->name('courses.index');
     Volt::route('courses/{course}/end', 'courses.end')->middleware('permission:courses.view')->name('courses.end');
+    Volt::route('courses/{course}/end/point-market', 'courses.point-market')->middleware(['permission:courses.view', 'permission:finance.expense-requests.view'])->name('courses.end.point-market');
     Route::get('courses/{course}/end/students.xlsx', [CourseEndExportController::class, 'students'])->middleware('permission:courses.view')->name('courses.end.students.xlsx');
     Route::get('courses/{course}/end/final-tests.pdf', [CourseEndExportController::class, 'finalTests'])->middleware('permission:courses.view')->name('courses.end.final-tests.pdf');
+    Route::get('courses/{course}/end/point-market/departments/{department}/pdf', CoursePointMarketExportController::class)->middleware(['permission:courses.view', 'permission:finance.expense-requests.view'])->name('courses.end.point-market.departments.pdf');
     Route::get('courses/{course}/end/report-cards', [PrintTemplatePrintController::class, 'createCourseReportCards'])->middleware(['permission:courses.view', 'permission:id-cards.print'])->name('courses.end.report-cards.create');
     Route::post('courses/{course}/end/report-cards/preview', [PrintTemplatePrintController::class, 'previewCourseReportCards'])->middleware(['permission:courses.view', 'permission:id-cards.print'])->name('courses.end.report-cards.preview');
     Route::patch('courses/{course}/end/report-cards/notes/{enrollment}', [PrintTemplatePrintController::class, 'updateCourseReportNote'])->middleware(['permission:courses.view', 'permission:id-cards.print'])->name('courses.end.report-cards.notes.update');
@@ -171,8 +193,8 @@ Route::middleware(['auth'])->group(function () {
     Route::redirect('settings', 'settings/profile');
 
     Volt::route('settings/profile', 'settings.profile')->name('settings.profile');
-    Volt::route('settings/password', 'settings.password')->name('settings.password');
-    Volt::route('settings/appearance', 'settings.appearance')->name('settings.appearance');
+    Route::redirect('settings/password', '/settings/profile')->name('settings.password');
+    Route::redirect('settings/appearance', '/settings/profile')->name('settings.appearance');
 });
 
 require __DIR__.'/auth.php';

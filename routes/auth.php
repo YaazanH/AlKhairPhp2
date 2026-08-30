@@ -7,6 +7,7 @@ use Livewire\Volt\Volt;
 
 Route::middleware('guest')->group(function () {
     Route::get('login', [AuthenticatedSessionController::class, 'create'])
+        ->middleware('no-store')
         ->name('login');
 
     Route::post('login', [AuthenticatedSessionController::class, 'store'])

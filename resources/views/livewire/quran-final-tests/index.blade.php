@@ -486,7 +486,7 @@ new class extends Component
                                     {{ __('workflow.quran_final_tests.table.headers.status') }} <span>{{ $this->sortIndicator('status') }}</span>
                                 </button>
                             </th>
-                            <th class="px-5 py-4 text-right lg:px-6">{{ __('workflow.quran_final_tests.table.headers.actions') }}</th>
+                            <th class="admin-actions-column px-5 py-4 text-center lg:px-6">{{ __('workflow.quran_final_tests.table.headers.actions') }}</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-white/6">
@@ -507,9 +507,9 @@ new class extends Component
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ number_format($finalTest->attempts->count()) }}</td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $finalTest->last_tested_on?->format('d-m-Y') ?: __('workflow.common.not_available') }}</td>
                                 <td class="px-5 py-4 lg:px-6"><span class="status-chip status-chip--slate">{{ __('workflow.quran_final_tests.statuses.'.$finalTest->status) }}</span></td>
-                                <td class="px-5 py-4 text-right lg:px-6">
-                                    <div class="flex flex-wrap justify-end gap-2">
-                                        <a href="{{ route('quran-final-tests.show', $finalTest) }}" wire:navigate class="pill-link pill-link--compact">{{ __('workflow.quran_final_tests.actions.open') }}</a>
+                                <td class="px-5 py-4 text-center lg:px-6">
+                                    <div class="flex flex-wrap justify-center gap-2">
+                                        <x-open-action-button :href="route('quran-final-tests.show', $finalTest)" wire:navigate :label="__('workflow.quran_final_tests.actions.open')" />
                                     </div>
                                 </td>
                             </tr>
@@ -575,7 +575,6 @@ new class extends Component
             </div>
 
             <div class="flex flex-wrap items-center gap-2">
-                <button type="submit" class="pill-link pill-link--accent">{{ __('workflow.quran_final_tests.actions.create') }}</button>
                 <x-admin.create-and-new-button />
                 <button type="button" wire:click="closeFormModal" class="pill-link">{{ __('crud.common.actions.close') }}</button>
             </div>

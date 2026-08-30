@@ -489,7 +489,7 @@ new class extends Component
             <div class="points-multiplier-field"><select wire:model="automatic_multiplier" class="points-multiplier-select h-12 w-12 rounded-xl px-0 py-0" data-clearable="false" data-search-selection-required="true" data-show-chevron="false" data-search-placeholder="" aria-label="{{ __('settings.points.multiplier.value') }}"><option value="1.5">x1.5</option><option value="2">x2</option><option value="2.5">x2.5</option><option value="3">x3</option></select></div>
             <div><label class="mb-1 block text-sm font-medium">{{ __('settings.points.fields.active_from') }}</label><input wire:model="automatic_multiplier_from" type="date" class="h-12 min-h-12 w-full rounded-xl px-4 py-0">@error('automatic_multiplier_from')<div class="mt-1 text-sm text-red-400">{{ $message }}</div>@enderror</div>
             <div><label class="mb-1 block text-sm font-medium">{{ __('settings.points.fields.active_until') }}</label><input wire:model="automatic_multiplier_until" type="date" class="h-12 min-h-12 w-full rounded-xl px-4 py-0">@error('automatic_multiplier_until')<div class="mt-1 text-sm text-red-400">{{ $message }}</div>@enderror</div>
-            <button type="submit" class="pill-link pill-link--accent">{{ __('crud.common.actions.save') }}</button>
+            <button type="submit" class="admin-icon-button admin-icon-button--accent points-multiplier-save-button" title="{{ __('crud.common.actions.save') }}" aria-label="{{ __('crud.common.actions.save') }}" data-points-multiplier-save-action><x-admin-action-icon name="save" /></button>
         </form>
     </section>
 
@@ -561,11 +561,11 @@ new class extends Component
                     <div>
                         <div class="text-sm font-medium">{{ __('settings.points.sections.point_type.table') }}</div>
                     </div>
-                    <button type="button" wire:click="openPointTypeModal" class="pill-link pill-link--accent">{{ __('settings.points.actions.create_point_type') }}</button>
+                    <x-add-action-button wire:click="openPointTypeModal" :label="__('settings.points.actions.create_point_type')" />
                 </div>
                 <div class="overflow-x-auto">
                     <table class="min-w-full divide-y divide-neutral-200 text-sm dark:divide-neutral-700">
-                        <thead class="bg-neutral-50 dark:bg-neutral-900/60"><tr><th class="px-5 py-3 text-left font-medium">{{ __('settings.points.table.type') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.points.table.category') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.points.table.amount') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.points.table.usage') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.points.table.state') }}</th><th class="px-5 py-3 text-right font-medium">{{ __('settings.points.table.actions') }}</th></tr></thead>
+                        <thead class="bg-neutral-50 dark:bg-neutral-900/60"><tr><th class="px-5 py-3 text-left font-medium">{{ __('settings.points.table.type') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.points.table.category') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.points.table.amount') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.points.table.usage') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.points.table.state') }}</th><th class="admin-actions-column px-5 py-3 text-center font-medium">{{ __('settings.points.table.actions') }}</th></tr></thead>
                         <tbody class="divide-y divide-neutral-200 dark:divide-neutral-700">
                             @foreach ($pointTypes as $pointType)
                                 <tr>
@@ -574,7 +574,7 @@ new class extends Component
                                     <td class="px-5 py-3"><span class="{{ $pointType->default_points >= 0 ? 'status-chip status-chip--emerald' : 'status-chip status-chip--rose' }}">{{ $pointType->default_points }}</span></td>
                                     <td class="px-5 py-3">{{ __('settings.points.labels.point_type_usage', ['policies' => $pointType->policies_count, 'transactions' => $pointType->transactions_count, 'bands' => $pointType->assessment_score_bands_count]) }}</td>
                                     <td class="px-5 py-3">{{ $pointType->is_active ? __('settings.common.states.active') : __('settings.common.states.inactive') }}</td>
-                                    <td class="px-5 py-3"><div class="flex justify-end gap-2"><button type="button" wire:click="editPointType({{ $pointType->id }})" class="rounded-lg border border-neutral-300 px-3 py-1.5 dark:border-neutral-700">{{ __('crud.common.actions.edit') }}</button><button type="button" wire:click="deletePointType({{ $pointType->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="rounded-lg border border-red-300 px-3 py-1.5 text-red-700 dark:border-red-800 dark:text-red-300">{{ __('crud.common.actions.delete') }}</button></div></td>
+                                    <td class="px-5 py-3"><div class="admin-action-cluster admin-action-cluster--end"><x-edit-action-button wire:click="editPointType({{ $pointType->id }})" :label="__('crud.common.actions.edit')" data-settings-point-type-edit-action /></div></td>
                                 </tr>
                             @endforeach
                         </tbody>
@@ -605,11 +605,11 @@ new class extends Component
                     <div>
                         <div class="text-sm font-medium">{{ __('settings.points.sections.point_policy.table') }}</div>
                     </div>
-                    <button type="button" wire:click="openPointPolicyModal" class="pill-link pill-link--accent">{{ __('settings.points.actions.create_policy') }}</button>
+                    <x-add-action-button wire:click="openPointPolicyModal" :label="__('settings.points.actions.create_policy')" />
                 </div>
                 <div class="overflow-x-auto">
                     <table class="min-w-full divide-y divide-neutral-200 text-sm dark:divide-neutral-700">
-                        <thead class="bg-neutral-50 dark:bg-neutral-900/60"><tr><th class="px-5 py-3 text-left font-medium">{{ __('settings.points.table.policy') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.points.table.trigger') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.points.table.range') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.points.table.points') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.points.table.state') }}</th><th class="px-5 py-3 text-right font-medium">{{ __('settings.points.table.actions') }}</th></tr></thead>
+                        <thead class="bg-neutral-50 dark:bg-neutral-900/60"><tr><th class="px-5 py-3 text-left font-medium">{{ __('settings.points.table.policy') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.points.table.trigger') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.points.table.range') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.points.table.points') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.points.table.state') }}</th><th class="admin-actions-column px-5 py-3 text-center font-medium">{{ __('settings.points.table.actions') }}</th></tr></thead>
                         <tbody class="divide-y divide-neutral-200 dark:divide-neutral-700">
                             @foreach ($pointPolicies as $pointPolicy)
                                 <tr>
@@ -625,7 +625,7 @@ new class extends Component
                                     <td class="px-5 py-3">{{ __('settings.points.labels.point_policy_range', ['from' => $pointPolicy->from_value ?? __('crud.common.not_available'), 'to' => $pointPolicy->to_value ?? __('crud.common.not_available')]) }}</td>
                                     <td class="px-5 py-3">{{ number_format($pointPolicy->points) }}</td>
                                     <td class="px-5 py-3">{{ $pointPolicy->is_active ? __('settings.common.states.active') : __('settings.common.states.inactive') }}</td>
-                                    <td class="px-5 py-3"><div class="flex justify-end gap-2"><button type="button" wire:click="editPointPolicy({{ $pointPolicy->id }})" class="rounded-lg border border-neutral-300 px-3 py-1.5 dark:border-neutral-700">{{ __('crud.common.actions.edit') }}</button><button type="button" wire:click="deletePointPolicy({{ $pointPolicy->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="rounded-lg border border-red-300 px-3 py-1.5 text-red-700 dark:border-red-800 dark:text-red-300">{{ __('crud.common.actions.delete') }}</button></div></td>
+                                    <td class="px-5 py-3"><div class="admin-action-cluster admin-action-cluster--end"><x-edit-action-button wire:click="editPointPolicy({{ $pointPolicy->id }})" :label="__('crud.common.actions.edit')" data-settings-point-policy-edit-action /></div></td>
                                 </tr>
                             @endforeach
                         </tbody>
@@ -645,13 +645,18 @@ new class extends Component
                 <div><label class="mb-1 block text-sm font-medium">{{ __('settings.points.fields.category') }}</label><select wire:model.live="point_type_category" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900"><option value="">—</option>@foreach ($pointTypeCategories as $category)<option value="{{ $category }}">{{ $category }}</option>@endforeach</select>@error('point_type_category') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror</div>
             </div>
             <div><label class="mb-1 block text-sm font-medium">{{ __('settings.points.fields.default_points') }}</label><input wire:model="point_type_default_points" type="number" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">@error('point_type_default_points') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror</div>
-            @if ($point_type_category === 'ManualEntry')<div class="rounded-xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-3 text-sm">{{ __('settings.points.labels.manual_entry_automatic') }}</div>@endif
             <label class="flex items-center gap-3 text-sm"><input wire:model="point_type_is_active" type="checkbox" class="rounded border-neutral-300 text-neutral-900"><span>{{ __('settings.points.fields.is_active') }}</span></label>
             @error('pointTypeDelete') <div class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{{ $message }}</div> @enderror
             <div class="flex justify-end gap-3">
                 <button type="button" wire:click="closePointTypeModal" class="pill-link">{{ __('crud.common.actions.cancel') }}</button>
-                <button type="submit" class="pill-link pill-link--accent">{{ $point_type_editing_id ? __('settings.points.actions.update_point_type') : __('settings.points.actions.create_point_type') }}</button>
-                <x-admin.create-and-new-button :show="! $point_type_editing_id" click="saveAndNew('savePointType', 'openPointTypeModal')" />
+                @if ($point_type_editing_id)
+                    <x-delete-action-button wire:click="deletePointType({{ $point_type_editing_id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" :label="__('crud.common.actions.delete')" data-settings-point-type-delete-action />
+                @endif
+                @if ($point_type_editing_id)
+                    <x-admin.save-button :label="__('settings.points.actions.update_point_type')" data-settings-point-type-save-action />
+                @else
+                    <x-admin.create-and-new-button click="saveAndNew('savePointType', 'openPointTypeModal')" />
+                @endif
             </div>
         </form>
     </x-admin.modal>
@@ -720,8 +725,14 @@ new class extends Component
             @error('pointPolicyDelete') <div class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{{ $message }}</div> @enderror
             <div class="flex justify-end gap-3">
                 <button type="button" wire:click="closePointPolicyModal" class="pill-link">{{ __('crud.common.actions.cancel') }}</button>
-                <button type="submit" class="pill-link pill-link--accent">{{ $point_policy_editing_id ? __('settings.points.actions.update_policy') : __('settings.points.actions.create_policy') }}</button>
-                <x-admin.create-and-new-button :show="! $point_policy_editing_id" click="saveAndNew('savePointPolicy', 'openPointPolicyModal')" />
+                @if ($point_policy_editing_id)
+                    <x-delete-action-button wire:click="deletePointPolicy({{ $point_policy_editing_id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" :label="__('crud.common.actions.delete')" data-settings-point-policy-delete-action />
+                @endif
+                @if ($point_policy_editing_id)
+                    <x-admin.save-button :label="__('settings.points.actions.update_policy')" data-settings-point-policy-save-action />
+                @else
+                    <x-admin.create-and-new-button click="saveAndNew('savePointPolicy', 'openPointPolicyModal')" />
+                @endif
             </div>
         </form>
     </x-admin.modal>

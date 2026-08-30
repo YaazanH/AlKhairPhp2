@@ -446,7 +446,7 @@ new class extends Component
                     </select>
                 </div>
                 <div class="admin-toolbar__actions">
-                    <a href="{{ route('users.export', ['search' => $search, 'profile' => $profileFilter, 'status' => $statusFilter]) }}" class="pill-link">{{ __('crud.common.actions.export') }}</a>
+                    <x-export-action-button :href="route('users.export', ['search' => $search, 'profile' => $profileFilter, 'status' => $statusFilter])" :label="__('crud.common.actions.export')" />
                 </div>
             </div>
         </div>
@@ -517,7 +517,7 @@ new class extends Component
                         @if (! $user->teacherProfile)
                             @can('users.update')
                                 <div class="mobile-record-card__actions">
-                                    <button type="button" wire:click="edit({{ $user->id }})" class="pill-link pill-link--compact" data-user-edit-action="{{ $user->id }}">{{ __('crud.common.actions.edit') }}</button>
+                                    <x-edit-action-button wire:click="edit({{ $user->id }})" :label="__('crud.common.actions.edit')" data-user-edit-action="{{ $user->id }}" />
                                 </div>
                             @endcan
                         @endif
@@ -535,7 +535,7 @@ new class extends Component
                             <th class="px-6 py-4 text-left">{{ __('access.users.table.headers.permissions') }}</th>
                             <th class="px-6 py-4 text-left">{{ __('access.users.table.headers.profile') }}</th>
                             <th class="px-6 py-4 text-left">{{ __('access.users.table.headers.status') }}</th>
-                            <th class="px-6 py-4 text-right">{{ __('access.users.table.headers.actions') }}</th>
+                            <th class="admin-actions-column px-6 py-4 text-center">{{ __('access.users.table.headers.actions') }}</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-white/6">
@@ -587,7 +587,7 @@ new class extends Component
                                     <div class="flex justify-end gap-2">
                                         @if (! $user->teacherProfile)
                                             @can('users.update')
-                                                <button type="button" wire:click="edit({{ $user->id }})" class="pill-link pill-link--compact" data-user-edit-action="{{ $user->id }}">{{ __('crud.common.actions.edit') }}</button>
+                                                <x-edit-action-button wire:click="edit({{ $user->id }})" :label="__('crud.common.actions.edit')" data-user-edit-action="{{ $user->id }}" />
                                             @endcan
                                         @endif
                                     </div>
@@ -838,13 +838,16 @@ new class extends Component
                 </details>
             </section>
 
-            <div class="flex flex-wrap gap-3">
-                <button type="submit" class="pill-link pill-link--accent">{{ $editingId ? __('access.users.form.save_update') : __('access.users.form.save_create') }}</button>
-                <x-admin.create-and-new-button :show="! $editingId" />
+            <div class="admin-action-cluster admin-action-cluster--end">
                 @if ($editingId)
+                    <button type="submit" class="admin-icon-button admin-icon-button--accent admin-modal-action-button" title="{{ __('access.users.form.save_update') }}" aria-label="{{ __('access.users.form.save_update') }}" data-user-form-save-action>
+                        <x-admin-action-icon name="save" class="admin-modal-action__icon" />
+                    </button>
                     @can('users.delete')
-                        <button type="button" wire:click="deleteEditingUser" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link border-red-400/25 text-red-200 hover:border-red-300/35 hover:bg-red-500/12">{{ __('crud.common.actions.delete') }}</button>
+                        <x-delete-action-button wire:click="deleteEditingUser" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" :label="__('crud.common.actions.delete')" class="admin-modal-action-button" data-user-form-delete-action />
                     @endcan
+                @else
+                    <x-admin.create-and-new-button />
                 @endif
             </div>
             @error('delete')

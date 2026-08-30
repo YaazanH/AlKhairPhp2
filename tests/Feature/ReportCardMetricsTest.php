@@ -56,6 +56,7 @@ class ReportCardMetricsTest extends TestCase
             ->assertSee($reportCardSetupUrl, false)
             ->assertSee('course-end-final-tests-dual', false)
             ->assertSee('course-end-final-tests-single', false)
+            ->assertSee('data-course-end-final-tests-layout="full"', false)
             ->assertSee('course-end-final-tests-desktop-pagination', false)
             ->assertSee('course-end-final-tests-mobile-pagination', false)
             ->assertSee('course-end-students-mobile', false)
@@ -255,10 +256,46 @@ class ReportCardMetricsTest extends TestCase
 
         \Livewire\Volt\Volt::test('courses.end', ['course' => $course])
             ->assertViewHas('finalTestsDesktop', fn ($rows) => $rows->perPage() === 20)
-            ->assertViewHas('finalTestsMobile', fn ($rows) => $rows->perPage() === 15);
+            ->assertViewHas('finalTestsMobile', fn ($rows) => $rows->perPage() === 15)
+            ->assertSee('data-course-end-final-tests-layout="full"', false);
+
+        $juz = QuranJuz::query()->where('juz_number', 3)->firstOrFail();
+        foreach (range(2, 6) as $number) {
+            $additionalStudent = Student::create([
+                'first_name' => 'Split',
+                'last_name' => 'Student '.$number,
+                'birth_date' => '2014-01-01',
+                'status' => 'active',
+            ]);
+            $additionalEnrollment = Enrollment::create([
+                'student_id' => $additionalStudent->id,
+                'group_id' => $group->id,
+                'enrolled_at' => '2026-09-01',
+                'status' => 'active',
+            ]);
+            $additionalTest = QuranFinalTest::create([
+                'enrollment_id' => $additionalEnrollment->id,
+                'student_id' => $additionalStudent->id,
+                'juz_id' => $juz->id,
+                'status' => 'passed',
+                'passed_on' => '2026-09-10',
+            ]);
+            QuranFinalTestAttempt::create([
+                'quran_final_test_id' => $additionalTest->id,
+                'teacher_id' => $teacher->id,
+                'tested_on' => '2026-09-10',
+                'score' => 75,
+                'status' => 'passed',
+                'attempt_no' => 1,
+            ]);
+        }
+
+        \Livewire\Volt\Volt::test('courses.end', ['course' => $course])
+            ->assertSee('data-course-end-final-tests-layout="split"', false);
 
         $courseEndView = file_get_contents(resource_path('views/livewire/courses/end.blade.php'));
-        $this->assertStringContainsString('$finalTestDesktopRows->chunk(10)', $courseEndView);
+        $this->assertStringContainsString('$finalTestsDesktop->total() > 5', $courseEndView);
+        $this->assertStringContainsString('$finalTestDesktopRows->chunk($finalTestColumnSize)', $courseEndView);
     }
 
     public function test_report_card_notes_are_course_scoped_and_persisted_from_the_dedicated_preview(): void

@@ -304,7 +304,7 @@ new class extends Component {
                     <div>
                         <label class="mb-1 block text-sm font-medium">{{ __('finance.fields.invoice_scan') }}</label>
                         <input wire:model="invoice_scan" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
-                        @error('invoice_scan') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+                        @error('invoice_scan') <div data-pdf-upload-error-for="invoice_scan" class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
                         @if ($editingId && \App\Models\Invoice::query()->find($editingId)?->original_image_path)
                             <label class="mt-2 flex items-center gap-2 text-sm text-red-300"><input wire:model="remove_invoice_scan" type="checkbox" class="rounded">{{ __('finance.actions.remove_scan') }}</label>
                         @endif
@@ -318,8 +318,11 @@ new class extends Component {
                     @error('delete') <div class="rounded-xl border border-red-500/20 bg-red-500/10 px-3 py-2 text-sm text-red-300">{{ $message }}</div> @enderror
 
                     <div class="flex flex-wrap gap-3">
-                        <button type="submit" class="pill-link pill-link--accent">{{ $editingId ? __('invoices.index.form.update_submit') : __('invoices.index.form.create_submit') }}</button>
-                        <x-admin.create-and-new-button :show="! $editingId" click="saveAndNew('save', 'create')" />
+                        @if ($editingId)
+                            <button type="submit" class="pill-link pill-link--accent">{{ __('invoices.index.form.update_submit') }}</button>
+                        @else
+                            <x-admin.create-and-new-button click="saveAndNew('save', 'create')" />
+                        @endif
                     </div>
                 </form>
             @else
@@ -341,9 +344,7 @@ new class extends Component {
                     <div class="admin-action-cluster admin-action-cluster--end">
                         <span class="badge-soft">{{ __('crud.common.badges.in_view', ['count' => number_format($filteredCount)]) }}</span>
                         @can('invoices.create')
-                            <button type="button" wire:click="create" class="pill-link pill-link--accent">
-                                {{ __('invoices.index.form.create_title') }}
-                            </button>
+                            <x-add-action-button wire:click="create" :label="__('invoices.index.form.create_title')" />
                         @endcan
                     </div>
                 </div>
@@ -360,7 +361,7 @@ new class extends Component {
                                 <th class="px-5 py-4 text-left lg:px-6">{{ __('finance.fields.invoicer_name') }}</th>
                                 <th class="px-5 py-4 text-left lg:px-6">{{ __('invoices.index.table.headers.amounts') }}</th>
                                 <th class="px-5 py-4 text-left lg:px-6">{{ __('invoices.index.table.headers.status') }}</th>
-                                <th class="px-5 py-4 text-right lg:px-6">{{ __('invoices.index.table.headers.actions') }}</th>
+                                <th class="admin-actions-column px-5 py-4 text-center lg:px-6">{{ __('invoices.index.table.headers.actions') }}</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-white/6">
@@ -387,7 +388,7 @@ new class extends Component {
                                     <td class="px-5 py-4 lg:px-6">
                                         <div class="flex flex-wrap justify-end gap-2">
                                             @can('invoices.view')
-                                                <a href="{{ route('invoices.payments', $invoice) }}" wire:navigate class="pill-link pill-link--compact">{{ __('invoices.index.table.actions.detail') }}</a>
+                                                <a href="{{ route('invoices.payments', $invoice) }}" wire:navigate class="admin-icon-button" title="{{ __('invoices.index.table.actions.detail') }}" aria-label="{{ __('invoices.index.table.actions.detail') }}" data-invoice-receipt-action><x-admin-action-icon name="receipt" /></a>
                                             @endcan
                                             @can('invoices.view')
                                                 <a href="{{ route('invoices.print', $invoice) }}" target="_blank" class="pill-link pill-link--compact">{{ __('invoices.index.table.actions.print') }}</a>

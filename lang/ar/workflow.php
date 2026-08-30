@@ -1278,8 +1278,10 @@ return [
             'incomplete' => ':count صفحة ناقصة',
             'show_missing' => 'الصفحات الناقصة',
             'add_awqaf_test' => 'سبر أوقاف',
+            'awqaf_unavailable' => 'لا يمكن تسجيل السبر، الطالب غير مسجل بدورة حالياً',
             'missing_title' => 'الصفحات الناقصة للجزء :juz',
             'missing_subtitle' => 'هذه الصفحات غير مسجلة كمحفوظة ضمن فلتر الدورة الحالي.',
+            'missing_count' => 'عدد الصفحات الناقصة',
             'no_missing_pages' => 'لا توجد صفحات ناقصة في هذا الجزء.',
             'headers' => [
                 'actions' => 'الإجراءات',

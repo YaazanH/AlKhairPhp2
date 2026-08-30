@@ -165,6 +165,8 @@ return [
                 'preview' => 'Generate preview',
                 'select_all' => 'Select all visible',
                 'clear' => 'Clear selection',
+                'clear_filters' => 'Clear filters',
+                'clear_selection' => 'Clear selection',
             ],
             'selected' => ':count students selected',
             'empty' => 'No students available for printing.',

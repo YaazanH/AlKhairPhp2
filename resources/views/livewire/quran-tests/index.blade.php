@@ -518,11 +518,13 @@ new class extends Component {
 
 <div class="page-stack">
     <section class="page-hero p-6 lg:p-8">
-        <div class="eyebrow">{{ __('ui.nav.tracking_quran') }}</div>
-        <div class="mt-4 flex flex-wrap items-center justify-between gap-4">
-            <h1 class="font-display text-4xl leading-none text-white md:text-5xl">{{ __('workflow.quran_tests.workbench.title') }}</h1>
-            <button type="button" wire:click="openEligibleAwqafModal" class="pill-link">
-                {{ __('workflow.quran_tests.workbench.eligible_awqaf_action') }}
+        <div class="eligible-awqaf-hero-layout flex flex-wrap items-center justify-between gap-4">
+            <div>
+                <div class="eyebrow">{{ __('ui.nav.tracking_quran') }}</div>
+                <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('workflow.quran_tests.workbench.title') }}</h1>
+            </div>
+            <button type="button" wire:click="openEligibleAwqafModal" class="admin-icon-button eligible-awqaf-action" title="{{ __('workflow.quran_tests.workbench.eligible_awqaf_action') }}" aria-label="{{ __('workflow.quran_tests.workbench.eligible_awqaf_action') }}" data-eligible-awqaf-action>
+                <x-admin-action-icon name="eligible-students" />
             </button>
         </div>
     </section>
@@ -602,7 +604,7 @@ new class extends Component {
                                 </button>
                             </th>
                             @can('quran-awqaf-tests.delete')
-                                <th class="px-5 py-4 text-right lg:px-6">{{ __('crud.common.actions.actions') }}</th>
+                                <th class="admin-actions-column px-5 py-4 text-center lg:px-6">{{ __('crud.common.actions.actions') }}</th>
                             @endcan
                         </tr>
                     </thead>
@@ -630,8 +632,8 @@ new class extends Component {
                                 <td class="px-5 py-4 lg:px-6"><span class="status-chip {{ $test->status === 'passed' ? 'status-chip--emerald' : 'status-chip--slate' }}">{{ __('workflow.common.result_status.'.$test->status) }}</span></td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $test->teacher?->first_name }} {{ $test->teacher?->last_name }}</td>
                                 @can('quran-awqaf-tests.delete')
-                                    <td class="px-5 py-4 text-right lg:px-6">
-                                        <button type="button" wire:click="delete({{ $test->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link pill-link--compact border-red-400/25 text-red-200 hover:border-red-300/35 hover:bg-red-500/12">{{ __('crud.common.actions.delete') }}</button>
+                                    <td class="px-5 py-4 text-center lg:px-6">
+                                        <button type="button" wire:click="delete({{ $test->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="admin-icon-button admin-icon-button--danger" title="{{ __('crud.common.actions.delete') }}" aria-label="{{ __('crud.common.actions.delete') }}"><x-admin-action-icon name="delete" /></button>
                                     </td>
                                 @endcan
                             </tr>
@@ -761,7 +763,6 @@ new class extends Component {
             </div>
 
             <div class="flex flex-wrap items-center gap-3">
-                <button type="submit" class="pill-link pill-link--accent">{{ __('workflow.common.actions.save_quran_test') }}</button>
                 <x-admin.create-and-new-button />
                 <button type="button" wire:click="closeFormModal" class="pill-link">{{ __('crud.common.actions.close') }}</button>
             </div>

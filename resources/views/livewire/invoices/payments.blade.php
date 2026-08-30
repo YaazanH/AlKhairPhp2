@@ -379,7 +379,7 @@ new class extends Component {
                 </div>
                 <div class="overflow-x-auto">
                     <table class="text-sm">
-                        <thead><tr><th class="px-5 py-4 text-left lg:px-6">#</th><th class="px-5 py-4 text-left lg:px-6">{{ __('finance.fields.item_name') }}</th><th class="px-5 py-4 text-left lg:px-6">{{ __('invoices.detail.tables.items.headers.qty') }}</th><th class="px-5 py-4 text-left lg:px-6">{{ __('finance.fields.unit_price') }}</th><th class="px-5 py-4 text-left lg:px-6">{{ __('invoices.detail.tables.items.headers.amount') }}</th><th class="px-5 py-4 text-right lg:px-6">{{ __('invoices.detail.tables.items.headers.actions') }}</th></tr></thead>
+                        <thead><tr><th class="px-5 py-4 text-left lg:px-6">#</th><th class="px-5 py-4 text-left lg:px-6">{{ __('finance.fields.item_name') }}</th><th class="px-5 py-4 text-left lg:px-6">{{ __('invoices.detail.tables.items.headers.qty') }}</th><th class="px-5 py-4 text-left lg:px-6">{{ __('finance.fields.unit_price') }}</th><th class="px-5 py-4 text-left lg:px-6">{{ __('invoices.detail.tables.items.headers.amount') }}</th><th class="admin-actions-column px-5 py-4 text-center lg:px-6">{{ __('invoices.detail.tables.items.headers.actions') }}</th></tr></thead>
                         <tbody class="divide-y divide-white/6">
                             @forelse ($items as $item)
                                 <tr>

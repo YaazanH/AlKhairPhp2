@@ -303,7 +303,7 @@ new class extends Component {
                     </select>
                 </div>
                 <div class="flex items-end">
-                    <button type="button" wire:click="resetFilters" class="pill-link w-full justify-center">{{ __('crud.common.actions.reset') }}</button>
+                    <x-clear-filter-button wire:click="resetFilters" :label="__('crud.common.actions.reset')" />
                 </div>
             </div>
         </div>

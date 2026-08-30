@@ -3,7 +3,7 @@
 use App\Livewire\Concerns\AuthorizesPermissions;
 use App\Livewire\Concerns\FormatsFinanceNumbers;
 use App\Livewire\Concerns\HandlesFinanceRequestMaintenance;
-use App\Livewire\Concerns\SupportsCreateAndNew;
+use App\Models\FinanceCashBox;
 use App\Models\FinanceCurrency;
 use App\Models\FinancePullRequestKind;
 use App\Models\FinanceRequest;
@@ -24,7 +24,6 @@ new class extends Component {
     use AuthorizesPermissions;
     use FormatsFinanceNumbers;
     use HandlesFinanceRequestMaintenance;
-    use SupportsCreateAndNew;
     use WithFileUploads;
     use WithPagination;
 
@@ -64,22 +63,27 @@ new class extends Component {
     {
         $this->authorizePermission('finance.expense-requests.view');
         $this->currency_id = app(FinanceService::class)->localCurrency()->id;
+
+        if ($invoiceId = request()->integer('edit_invoice')) {
+            $this->editInvoice($invoiceId);
+        }
     }
 
     public function with(): array
     {
         $canReview = auth()->user()?->can('finance.expense-requests.review') ?? false;
         $cashBoxes = app(FinanceService::class)->accessibleCashBoxes(auth()->user())->get();
+        $currencies = app(FinanceService::class)->currenciesForCashBox()->get();
+        $finalisingRequest = $this->finalisingRequestId
+            ? FinanceRequest::query()->with(['invoice.items', 'pullRequestKind', 'category', 'acceptedCurrency'])->find($this->finalisingRequestId)
+            : null;
 
         return [
-            'cashBoxes' => app(FinanceService::class)->accessibleCashBoxesForCurrency(auth()->user(), $this->currency_id)->get(),
-            'cashBoxesByCurrency' => FinanceCurrency::query()
-                ->where('is_active', true)
-                ->where('show_in_dropdowns', true)
-                ->pluck('id')
-                ->mapWithKeys(fn ($currencyId) => [(int) $currencyId => app(FinanceService::class)->accessibleCashBoxesForCurrency(auth()->user(), (int) $currencyId)->get()])
+            'cashBoxes' => $cashBoxes,
+            'cashBoxesByCurrency' => $currencies
+                ->mapWithKeys(fn (FinanceCurrency $currency) => [$currency->id => $cashBoxes])
                 ->all(),
-            'currencies' => app(FinanceService::class)->currenciesForCashBox($this->cash_box_id)->get(),
+            'currencies' => $currencies,
             'pullKinds' => FinancePullRequestKind::query()->where('is_active', true)->orderBy('mode')->orderBy('name')->get(),
             'expenses' => FinanceTransaction::query()
                 ->with([
@@ -103,7 +107,8 @@ new class extends Component {
                 ->latest('transaction_date')
                 ->latest('id')
                 ->paginate($this->perPage),
-            'finalisingRequest' => $this->finalisingRequestId ? FinanceRequest::query()->with(['invoice.items', 'pullRequestKind', 'acceptedCurrency'])->find($this->finalisingRequestId) : null,
+            'finalisingRequest' => $finalisingRequest,
+            'finalisingMode' => $finalisingRequest ? $this->expenseFinalisationMode($finalisingRequest) : null,
             'viewingInvoice' => $this->viewingInvoiceId ? Invoice::query()->with(['items', 'financeRequest.acceptedCurrency'])->find($this->viewingInvoiceId) : null,
         ];
     }
@@ -123,8 +128,16 @@ new class extends Component {
             'amount' => ['required', 'numeric', 'gt:0'],
             'attachments' => ['array'],
             'attachments.*' => ['file', 'max:'.config('uploads.image_max_kb'), 'mimes:jpg,jpeg,png,webp,pdf'],
-            'cash_box_id' => [$canReview ? 'required' : 'nullable', 'exists:finance_cash_boxes,id'],
-            'currency_id' => ['required', 'exists:finance_currencies,id'],
+            'cash_box_id' => [
+                $canReview ? 'required' : 'nullable',
+                Rule::exists('finance_cash_boxes', 'id')->where('is_active', true),
+            ],
+            'currency_id' => [
+                'required',
+                Rule::exists('finance_currencies', 'id')
+                    ->where('is_active', true)
+                    ->where('show_in_dropdowns', true),
+            ],
             'finance_pull_request_kind_id' => ['required', Rule::exists('finance_categories', 'id')->where('type', 'expense')->where('is_active', true)],
             'request_date' => [auth()->user()?->can('finance.entries.update') ? 'required' : 'nullable', 'date'],
             'requested_reason' => ['nullable', 'string', 'max:2000'],
@@ -145,17 +158,23 @@ new class extends Component {
         $this->storeAttachments($request);
 
         if ($canReview) {
+            $cashBox = app(FinanceService::class)->cashBoxForUser((int) $validated['cash_box_id'], auth()->user());
+            $currencyWasAttached = $this->attachExpenseCurrency($cashBox, (int) $validated['currency_id']);
+
             try {
                 app(FinanceService::class)->acceptRequest(
                     $request,
                     (float) $validated['amount'],
-                    app(FinanceService::class)->cashBoxForUser((int) $validated['cash_box_id'], auth()->user()),
+                    $cashBox,
                     auth()->user(),
                     'Auto-posted by finance management.',
                     null,
                     auth()->user()?->can('finance.entries.update') ? $validated['request_date'] : null,
                 );
             } catch (ValidationException $exception) {
+                if ($currencyWasAttached) {
+                    $cashBox->currencies()->detach((int) $validated['currency_id']);
+                }
                 $request->delete();
                 $this->addError('amount', $this->firstValidationMessage($exception));
 
@@ -182,20 +201,6 @@ new class extends Component {
         $this->showCreateModal = false;
     }
 
-    public function updatedCashBoxId(): void
-    {
-        if ($this->cash_box_id && $this->currency_id && ! app(FinanceService::class)->currenciesForCashBox($this->cash_box_id)->whereKey($this->currency_id)->exists()) {
-            $this->currency_id = app(FinanceService::class)->currenciesForCashBox($this->cash_box_id)->value('id');
-        }
-    }
-
-    public function updatedCurrencyId(): void
-    {
-        if ($this->cash_box_id && $this->currency_id && ! app(FinanceService::class)->accessibleCashBoxesForCurrency(auth()->user(), $this->currency_id)->whereKey($this->cash_box_id)->exists()) {
-            $this->cash_box_id = null;
-        }
-    }
-
     public function accept(int $requestId): void
     {
         $this->authorizePermission('finance.expense-requests.review');
@@ -208,23 +213,29 @@ new class extends Component {
 
         $this->validate([
             "review_amounts.{$requestId}" => ['nullable', 'numeric', 'gt:0'],
-            "review_cash_boxes.{$requestId}" => ['required', 'exists:finance_cash_boxes,id'],
+            "review_cash_boxes.{$requestId}" => ['required', Rule::exists('finance_cash_boxes', 'id')->where('is_active', true)],
             "review_dates.{$requestId}" => [auth()->user()?->can('finance.entries.update') ? 'required' : 'nullable', 'date'],
         ]);
 
         $reviewAmount = $this->review_amounts[$requestId] ?? null;
+        $cashBox = app(FinanceService::class)->cashBoxForUser((int) $this->review_cash_boxes[$requestId], auth()->user());
+        $currencyId = (int) ($request->accepted_currency_id ?: $request->requested_currency_id);
+        $currencyWasAttached = $this->attachExpenseCurrency($cashBox, $currencyId);
 
         try {
             app(FinanceService::class)->acceptRequest(
                 $request,
                 (float) (($reviewAmount === null || $reviewAmount === '') ? $request->requested_amount : $reviewAmount),
-                app(FinanceService::class)->cashBoxForUser((int) $this->review_cash_boxes[$requestId], auth()->user()),
+                $cashBox,
                 auth()->user(),
                 $this->review_notes[$requestId] ?? null,
                 null,
                 auth()->user()?->can('finance.entries.update') ? ($this->review_dates[$requestId] ?? null) : null,
             );
         } catch (ValidationException $exception) {
+            if ($currencyWasAttached) {
+                $cashBox->currencies()->detach($currencyId);
+            }
             $this->addError("review_amounts.{$requestId}", $this->firstValidationMessage($exception));
 
             return;
@@ -262,12 +273,23 @@ new class extends Component {
         $this->amount = '';
         $this->request_date = now()->toDateString();
         $this->currency_id = app(FinanceService::class)->localCurrency()->id;
-        $this->cash_box_id = app(FinanceService::class)->defaultCashBoxForUser(auth()->user(), $this->currency_id)?->id;
+        $this->cash_box_id = app(FinanceService::class)->defaultCashBoxForUser(auth()->user())?->id;
         $this->finance_pull_request_kind_id = app(FinanceService::class)->defaultPullRequestKindId();
         $this->requested_reason = '';
         $this->attachments = [];
 
         $this->resetValidation();
+    }
+
+    protected function attachExpenseCurrency(FinanceCashBox $cashBox, int $currencyId): bool
+    {
+        if ($cashBox->currencies()->whereKey($currencyId)->exists()) {
+            return false;
+        }
+
+        $cashBox->currencies()->attach($currencyId);
+
+        return true;
     }
 
     protected function firstValidationMessage(ValidationException $exception): string
@@ -284,13 +306,14 @@ new class extends Component {
     public function openFinaliseModal(int $requestId): void
     {
         $this->authorizePermission('finance.expense-requests.review');
-        $request = FinanceRequest::query()->with(['invoice.items', 'pullRequestKind'])->where('status', FinanceRequest::STATUS_ACCEPTED)->findOrFail($requestId);
+        $request = FinanceRequest::query()->with(['invoice.items', 'pullRequestKind', 'category'])->where('status', FinanceRequest::STATUS_ACCEPTED)->findOrFail($requestId);
+        $finalisingMode = $this->expenseFinalisationMode($request);
         $keepTemporaryUpload = $this->paused_invoice_draft_request_id === $request->id;
         $this->finalisingRequestId = $request->id;
         $this->editingInvoiceId = null;
         $this->final_count = (string) ($request->accepted_count ?: $request->requested_count ?: '');
         $this->remaining_amount = '0';
-        $draft = $request->pullRequestKind?->mode === FinancePullRequestKind::MODE_INVOICE
+        $draft = $finalisingMode === FinancePullRequestKind::MODE_INVOICE
             ? session()->get($this->invoiceDraftSessionKey($request->id))
             : null;
 
@@ -351,10 +374,10 @@ new class extends Component {
     {
         $requestId = $this->finalisingRequestId;
         $request = $requestId && ! $this->editingInvoiceId
-            ? FinanceRequest::query()->with('pullRequestKind')->find($requestId)
+            ? FinanceRequest::query()->with(['pullRequestKind', 'category'])->find($requestId)
             : null;
 
-        if ($preserveInvoiceDraft && $request?->pullRequestKind?->mode === FinancePullRequestKind::MODE_INVOICE) {
+        if ($preserveInvoiceDraft && $request && $this->expenseFinalisationMode($request) === FinancePullRequestKind::MODE_INVOICE) {
             session()->put($this->invoiceDraftSessionKey($request->id), [
                 'original_invoice_no' => $this->original_invoice_no,
                 'invoice_issuer' => $this->invoice_issuer,
@@ -390,6 +413,16 @@ new class extends Component {
         return 'finance.invoice_expense_drafts.'.auth()->id().'.'.$requestId;
     }
 
+    protected function expenseFinalisationMode(FinanceRequest $request): ?string
+    {
+        $request->loadMissing(['category', 'pullRequestKind']);
+        $categoryMode = $request->category?->categoryMode();
+
+        return in_array($categoryMode, FinancePullRequestKind::MODES, true)
+            ? $categoryMode
+            : $request->pullRequestKind?->mode;
+    }
+
     public function saveInvoiceItem(): void
     {
         $this->invoice_item_name = trim($this->invoice_item_name);
@@ -416,6 +449,7 @@ new class extends Component {
 
         $this->resetInvoiceItemDraft();
         $this->resetValidation(['invoice_items', 'invoice_item_name', 'invoice_item_quantity', 'invoice_item_unit_price']);
+        $this->dispatch('invoice-item-saved');
     }
 
     public function editInvoiceItem(int $index): void
@@ -679,18 +713,25 @@ new class extends Component {
             @can('finance.entries.update')<div class="lg:col-span-3" data-finance-entry-date><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.entry_date') }}</label><input wire:model="request_date" type="date" class="w-full rounded-xl px-4 py-3 text-sm">@error('request_date') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>@endcan
             @can('finance.expense-requests.review')<div class="lg:col-span-3" data-finance-entry-fund><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.cash_box') }}</label><select wire:model="cash_box_id" class="w-full rounded-xl px-4 py-3 text-sm"><option value="">{{ __('finance.actions.choose_box') }}</option>@foreach ($cashBoxes as $box)<option value="{{ $box->id }}">{{ $box->name }}</option>@endforeach</select>@error('cash_box_id') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>@endcan
             <div class="lg:col-span-6" data-finance-entry-description><label class="mb-1 block text-sm font-medium">{{ __('finance.common.description') }}</label><textarea wire:model="requested_reason" rows="2" class="w-full rounded-xl px-4 py-3 text-sm"></textarea>@error('requested_reason') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
-            <div class="lg:col-span-6" data-finance-entry-attachments><label class="mb-1 block text-sm font-medium">{{ __('finance.common.attachments') }}</label><input wire:model="attachments" type="file" multiple accept="image/jpeg,image/png,image/webp,application/pdf" class="w-full rounded-xl px-4 py-3 text-sm">@error('attachments.*') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
+            <div class="lg:col-span-6" data-finance-entry-attachments><label class="mb-1 block text-sm font-medium">{{ __('finance.common.attachments') }}</label><input wire:model="attachments" type="file" multiple accept="image/jpeg,image/png,image/webp,application/pdf" class="w-full rounded-xl px-4 py-3 text-sm">@error('attachments.*') <div data-pdf-upload-error-for="attachments" class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
             <div class="lg:col-span-6 flex flex-wrap justify-end gap-3">
                 <button type="button" wire:click="closeCreateModal" class="pill-link">{{ __('crud.common.actions.close') }}</button>
-                <x-admin.create-and-new-button click="saveAndNew('submitRequest', 'openCreateModal')" />
-                <button type="submit" class="pill-link pill-link--accent">{{ __('finance.actions.save_expense') }}</button>
+                <button
+                    type="submit"
+                    class="admin-icon-button admin-icon-button--accent admin-modal-action-button"
+                    title="{{ __('crud.common.actions.save') }}"
+                    aria-label="{{ __('crud.common.actions.save') }}"
+                    data-expense-request-save
+                >
+                    <x-admin-action-icon name="save" class="admin-modal-action__icon" />
+                </button>
             </div>
         </form>
     </x-admin.modal>
 
     <section class="surface-table">
-        <div class="admin-grid-meta"><div><div class="admin-grid-meta__title">{{ __('finance.expense_requests.title') }}</div><div class="admin-grid-meta__summary">{{ __('crud.common.badges.in_view', ['count' => number_format($expenses->total())]) }}</div></div>@can('finance.expense-requests.create')<button wire:click="openCreateModal" class="pill-link pill-link--accent">{{ __('finance.expense_requests.new') }}</button>@endcan</div>
-        <div class="overflow-x-auto"><table class="text-sm"><thead><tr><th class="px-4 py-3 text-left">{{ __('finance.fields.expense_no') }}</th><th class="px-4 py-3 text-left">{{ __('finance.fields.category') }}</th><th class="px-4 py-3 text-left">{{ __('finance.common.description') }}</th><th class="px-4 py-3 text-left">{{ __('finance.fields.amount') }}</th><th class="px-4 py-3 text-left">{{ __('finance.common.status') }}</th><th class="px-4 py-3 text-right">{{ __('finance.actions.actions') }}</th></tr></thead><tbody class="divide-y divide-white/6">
+        <div class="admin-grid-meta"><div><div class="admin-grid-meta__title">{{ __('finance.expense_requests.title') }}</div><div class="admin-grid-meta__summary">{{ __('crud.common.badges.in_view', ['count' => number_format($expenses->total())]) }}</div></div>@can('finance.expense-requests.create')<x-add-action-button wire:click="openCreateModal" :label="__('finance.expense_requests.new')" />@endcan</div>
+        <div class="overflow-x-auto"><table class="text-sm"><thead><tr><th class="px-4 py-3 text-left">{{ __('finance.fields.expense_no') }}</th><th class="px-4 py-3 text-left">{{ __('finance.fields.category') }}</th><th class="px-4 py-3 text-left">{{ __('finance.common.description') }}</th><th class="px-4 py-3 text-left">{{ __('finance.fields.amount') }}</th><th class="px-4 py-3 text-left">{{ __('finance.common.status') }}</th><th class="admin-actions-column px-4 py-3 text-center">{{ __('finance.actions.actions') }}</th></tr></thead><tbody class="divide-y divide-white/6">
             @forelse ($expenses as $transaction)
                 @php($request = $transaction->financeRequest)
                 @php($category = $transaction->category ?: $request?->category ?: $request?->pullRequestKind)
@@ -702,9 +743,9 @@ new class extends Component {
                     <td class="px-4 py-3"><bdi dir="ltr" class="font-semibold text-white">{{ app(FinanceService::class)->formatCurrencyAmount($transaction->amount, $transaction->currency) }}</bdi></td>
                     <td class="px-4 py-3"><span class="status-chip {{ in_array($rowStatus, ['active', 'settled'], true) ? 'status-chip--emerald' : 'status-chip--amber' }}">{{ $request ? ($rowStatus === 'accepted' ? __('finance.expense_statuses.accepted') : __('finance.statuses.'.$rowStatus)) : ($rowStatus === 'active' ? __('finance.common.active') : $rowStatus) }}</span></td>
                     <td class="px-4 py-3"><div class="admin-action-cluster admin-action-cluster--end">
-                        @if ($request?->status === 'accepted')<button wire:click="openFinaliseModal({{ $request->id }})" class="pill-link pill-link--compact pill-link--accent">{{ __('finance.actions.finalise') }}</button>@endif
+                        @if ($request?->status === 'accepted')<button wire:click="openFinaliseModal({{ $request->id }})" class="admin-icon-button admin-icon-button--accent" title="{{ __('finance.actions.finalise') }}" aria-label="{{ __('finance.actions.finalise') }}" data-expense-finalise-action><x-admin-action-icon name="finalise" /></button>@endif
                         @if ($request?->invoice)
-                            <button wire:click="$set('viewingInvoiceId', {{ $request->invoice->id }})" class="pill-link pill-link--compact">{{ __('finance.actions.view_invoice') }}</button>
+                            <button wire:click="$set('viewingInvoiceId', {{ $request->invoice->id }})" class="admin-icon-button" title="{{ __('finance.actions.view_invoice') }}" aria-label="{{ __('finance.actions.view_invoice') }}" data-expense-receipt-action><x-admin-action-icon name="receipt" /></button>
                         @endif
                     </div></td>
                 </tr>
@@ -712,21 +753,21 @@ new class extends Component {
         </tbody></table></div>@if ($expenses->hasPages())<div class="border-t border-white/8 px-5 py-4">{{ $expenses->links() }}</div>@endif
     </section>
 
-    <x-admin.modal :show="$finalisingRequestId !== null" :title="__('finance.actions.finalise')" close-method="closeFinaliseModal" max-width="5xl">
+    <x-admin.modal :show="$finalisingRequestId !== null" :title="$editingInvoiceId ? __('finance.actions.edit_invoice') : __('finance.actions.finalise')" close-method="closeFinaliseModal" max-width="5xl">
         @if ($finalisingRequest)
-            @if ($finalisingRequest->pullRequestKind?->mode === 'count')
+            @if ($finalisingMode === \App\Models\FinancePullRequestKind::MODE_COUNT)
                 <div class="mb-5 soft-callout p-4">
                     <div class="font-semibold text-white">{{ $finalisingRequest->expense_no ?: $finalisingRequest->request_no }}</div>
                     <div class="mt-1 text-sm text-neutral-300"><bdi dir="ltr">{{ app(FinanceService::class)->formatCurrencyAmount($finalisingRequest->accepted_amount, $finalisingRequest->acceptedCurrency) }}</bdi></div>
                 </div>
-                <form wire:submit="finaliseCountExpense" class="grid gap-4 md:grid-cols-2">
+                <form wire:submit="finaliseCountExpense" class="grid gap-4 md:grid-cols-2" data-count-finalisation-form>
                     <div><label class="mb-1 block text-sm">{{ __('finance.fields.final_count') }}</label><input wire:model="final_count" data-thousand-separator class="w-full rounded-xl px-4 py-3">@error('final_count')<div class="text-sm text-red-400">{{ $message }}</div>@enderror</div>
                     <div><label class="mb-1 block text-sm">{{ __('finance.fields.remaining_amount') }}</label><input wire:model="remaining_amount" data-thousand-separator class="w-full rounded-xl px-4 py-3">@error('remaining_amount')<div class="text-sm text-red-400">{{ $message }}</div>@enderror</div>
                     <div class="flex justify-end md:col-span-2"><button class="pill-link pill-link--accent">{{ __('finance.actions.finalise') }}</button></div>
                 </form>
             @else
                 @php($invoiceTotals = $this->invoicePreviewTotals())
-                <form wire:submit="saveInvoiceExpense" class="space-y-5" data-invoice-finalisation-form>
+                <form wire:submit="saveInvoiceExpense" x-on:invoice-item-saved.window="$nextTick(() => { if ($refs.invoiceItemName) $refs.invoiceItemName.focus() })" class="space-y-5" data-invoice-finalisation-form>
                     <div class="grid gap-3 sm:grid-cols-3" data-invoice-finalisation-metrics>
                         <div class="rounded-xl border border-white/8 bg-white/4 p-4"><div class="kpi-label">{{ __('finance.fields.subtotal') }}</div><bdi dir="ltr" class="mt-2 block font-semibold text-white">{{ app(FinanceService::class)->formatCurrencyAmount($invoiceTotals['subtotal'], $finalisingRequest->acceptedCurrency) }}</bdi></div>
                         <div class="rounded-xl border border-white/8 bg-white/4 p-4"><div class="kpi-label">{{ __('finance.fields.deduction') }}</div><bdi dir="ltr" class="mt-2 block font-semibold text-white">{{ app(FinanceService::class)->formatCurrencyAmount(-$invoiceTotals['deduction'], $finalisingRequest->acceptedCurrency) }}</bdi></div>
@@ -747,21 +788,23 @@ new class extends Component {
                     <div class="overflow-hidden rounded-2xl border border-white/10 bg-black/10" data-invoice-items-table>
                         <div class="overflow-x-auto">
                             <table class="w-full min-w-[46rem] text-sm">
-                                <thead class="border-b border-white/15 bg-white/[0.04]" data-invoice-items-header-divider><tr><th class="w-[38%] px-3 py-3 text-start">{{ __('finance.fields.item_name') }}</th><th class="w-[15%] px-3 py-3 text-start">{{ __('finance.fields.quantity') }}</th><th class="w-[19%] px-3 py-3 text-start">{{ __('finance.fields.unit_price') }}</th><th class="w-[18%] px-3 py-3 text-start">{{ __('finance.fields.amount') }}</th><th class="w-[10%] px-3 py-3 text-end">{{ __('finance.actions.actions') }}</th></tr></thead>
+                                <thead class="border-b border-white/15 bg-white/[0.04]" data-invoice-items-header-divider><tr><th class="w-[5%] px-3 py-3 text-start">#</th><th class="w-[33%] px-3 py-3 text-start">{{ __('finance.fields.item_name') }}</th><th class="w-[15%] px-3 py-3 text-start">{{ __('finance.fields.quantity') }}</th><th class="w-[19%] px-3 py-3 text-start">{{ __('finance.fields.unit_price') }}</th><th class="w-[18%] px-3 py-3 text-start">{{ __('finance.fields.amount') }}</th><th class="admin-actions-column w-[10%] px-3 py-3 text-center">{{ __('finance.actions.actions') }}</th></tr></thead>
                                 <tbody class="divide-y divide-white/6">
                                     @foreach ($invoice_items as $index => $item)
                                         @php($lineAmount = round((float) str_replace(',', '', (string) ($item['quantity'] ?? 0)) * (float) str_replace(',', '', (string) ($item['unit_price'] ?? 0)), 2))
                                         @if ($editing_invoice_item_index === $index)
                                             @php($editingLineAmount = round((float) str_replace(',', '', $invoice_item_quantity ?: '0') * (float) str_replace(',', '', $invoice_item_unit_price ?: '0'), 2))
                                             <tr wire:key="invoice-expense-item-edit-{{ $index }}" class="bg-emerald-400/[0.035]" data-invoice-item-edit-row>
-                                                <td class="px-3 py-3"><input wire:model="invoice_item_name" x-on:keydown.enter.prevent.stop="void 0" aria-label="{{ __('finance.fields.item_name') }}" class="w-full min-w-56 rounded-lg px-3 py-2">@error('invoice_item_name')<div class="mt-1 text-xs text-red-400">{{ $message }}</div>@enderror</td>
+                                                <td class="px-3 py-3"><bdi dir="ltr">{{ $index + 1 }}</bdi></td>
+                                                <td class="px-3 py-3"><input wire:model="invoice_item_name" x-ref="invoiceItemName" x-on:keydown.enter.prevent.stop="void 0" aria-label="{{ __('finance.fields.item_name') }}" class="w-full min-w-56 rounded-lg px-3 py-2" data-invoice-item-name-input>@error('invoice_item_name')<div class="mt-1 text-xs text-red-400">{{ $message }}</div>@enderror</td>
                                                 <td class="px-3 py-3"><input wire:model="invoice_item_quantity" x-on:keydown.enter.prevent.stop="void 0" data-thousand-separator inputmode="decimal" aria-label="{{ __('finance.fields.quantity') }}" class="w-full min-w-24 rounded-lg px-3 py-2">@error('invoice_item_quantity')<div class="mt-1 text-xs text-red-400">{{ $message }}</div>@enderror</td>
-                                                <td class="px-3 py-3"><input wire:model="invoice_item_unit_price" wire:keydown.enter.prevent.stop="saveInvoiceItem" data-thousand-separator inputmode="decimal" aria-label="{{ __('finance.fields.unit_price') }}" class="w-full min-w-32 rounded-lg px-3 py-2">@error('invoice_item_unit_price')<div class="mt-1 text-xs text-red-400">{{ $message }}</div>@enderror</td>
+                                                <td class="px-3 py-3"><input wire:model="invoice_item_unit_price" wire:keydown.enter.prevent.stop="saveInvoiceItem" wire:keydown.tab.prevent.stop="saveInvoiceItem" data-thousand-separator inputmode="decimal" aria-label="{{ __('finance.fields.unit_price') }}" class="w-full min-w-32 rounded-lg px-3 py-2">@error('invoice_item_unit_price')<div class="mt-1 text-xs text-red-400">{{ $message }}</div>@enderror</td>
                                                 <td class="whitespace-nowrap px-3 py-3 font-semibold text-white"><bdi dir="ltr">{{ app(FinanceService::class)->formatCurrencyAmount($editingLineAmount, $finalisingRequest->acceptedCurrency) }}</bdi></td>
                                                 <td class="px-3 py-3"></td>
                                             </tr>
                                         @else
                                             <tr wire:key="invoice-expense-item-view-{{ $index }}" class="{{ $loop->even ? 'bg-white/[0.045]' : 'bg-black/[0.09]' }}" data-invoice-item-saved-row data-invoice-item-row-tone="{{ $loop->even ? 'even' : 'odd' }}">
+                                                <td class="px-3 py-3"><bdi dir="ltr">{{ $index + 1 }}</bdi></td>
                                                 <td class="px-3 py-3 font-medium text-white">{{ $item['item_name'] }}</td>
                                                 <td class="px-3 py-3"><bdi dir="ltr">{{ $item['quantity'] }}</bdi></td>
                                                 <td class="px-3 py-3"><bdi dir="ltr">{{ app(FinanceService::class)->formatCurrencyAmount((float) str_replace(',', '', (string) $item['unit_price']), $finalisingRequest->acceptedCurrency) }}</bdi></td>
@@ -780,9 +823,10 @@ new class extends Component {
                                     @if ($editing_invoice_item_index === null)
                                         @php($draftLineAmount = round((float) str_replace(',', '', $invoice_item_quantity ?: '0') * (float) str_replace(',', '', $invoice_item_unit_price ?: '0'), 2))
                                         <tr wire:key="invoice-expense-item-draft" class="bg-white/[0.025]" data-invoice-item-draft-row>
-                                            <td class="px-3 py-3"><input wire:model="invoice_item_name" x-on:keydown.enter.prevent.stop="void 0" aria-label="{{ __('finance.fields.item_name') }}" class="w-full min-w-56 rounded-lg px-3 py-2">@error('invoice_item_name')<div class="mt-1 text-xs text-red-400">{{ $message }}</div>@enderror</td>
+                                            <td class="px-3 py-3"><bdi dir="ltr">{{ count($invoice_items) + 1 }}</bdi></td>
+                                            <td class="px-3 py-3"><input wire:model="invoice_item_name" x-ref="invoiceItemName" x-on:keydown.enter.prevent.stop="void 0" aria-label="{{ __('finance.fields.item_name') }}" class="w-full min-w-56 rounded-lg px-3 py-2" data-invoice-item-name-input>@error('invoice_item_name')<div class="mt-1 text-xs text-red-400">{{ $message }}</div>@enderror</td>
                                             <td class="px-3 py-3"><input wire:model="invoice_item_quantity" x-on:keydown.enter.prevent.stop="void 0" data-thousand-separator inputmode="decimal" aria-label="{{ __('finance.fields.quantity') }}" class="w-full min-w-24 rounded-lg px-3 py-2">@error('invoice_item_quantity')<div class="mt-1 text-xs text-red-400">{{ $message }}</div>@enderror</td>
-                                            <td class="px-3 py-3"><input wire:model="invoice_item_unit_price" wire:keydown.enter.prevent.stop="saveInvoiceItem" data-thousand-separator inputmode="decimal" aria-label="{{ __('finance.fields.unit_price') }}" class="w-full min-w-32 rounded-lg px-3 py-2">@error('invoice_item_unit_price')<div class="mt-1 text-xs text-red-400">{{ $message }}</div>@enderror</td>
+                                            <td class="px-3 py-3"><input wire:model="invoice_item_unit_price" wire:keydown.enter.prevent.stop="saveInvoiceItem" wire:keydown.tab.prevent.stop="saveInvoiceItem" data-thousand-separator inputmode="decimal" aria-label="{{ __('finance.fields.unit_price') }}" class="w-full min-w-32 rounded-lg px-3 py-2">@error('invoice_item_unit_price')<div class="mt-1 text-xs text-red-400">{{ $message }}</div>@enderror</td>
                                             <td class="whitespace-nowrap px-3 py-3 font-semibold text-white"><bdi dir="ltr">{{ app(FinanceService::class)->formatCurrencyAmount($draftLineAmount, $finalisingRequest->acceptedCurrency) }}</bdi></td>
                                             <td class="px-3 py-3"></td>
                                         </tr>
@@ -803,19 +847,13 @@ new class extends Component {
     <x-admin.modal :show="$viewingInvoiceId !== null" :title="__('finance.actions.view_invoice')" close-method="$set('viewingInvoiceId', null)" max-width="3xl">
         <x-slot:header-actions>
             @if ($viewingInvoice?->original_image_path)
-                <a href="{{ asset('storage/'.$viewingInvoice->original_image_path) }}" target="_blank" rel="noopener" class="admin-modal__close" title="{{ __('finance.actions.view_attachment') }}" aria-label="{{ __('finance.actions.view_attachment') }}">
-                    <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12s3.5-6 9.75-6 9.75 6 9.75 6-3.5 6-9.75 6-9.75-6-9.75-6Z" />
-                        <circle cx="12" cy="12" r="2.75" />
-                    </svg>
+                <a href="{{ asset('storage/'.$viewingInvoice->original_image_path) }}" target="_blank" rel="noopener" class="admin-modal__close" title="{{ __('finance.actions.view_attachment') }}" aria-label="{{ __('finance.actions.view_attachment') }}" data-invoice-original-scan-action>
+                    <x-admin-action-icon name="scanner" class="size-5" />
                 </a>
             @endif
             @if ($viewingInvoice)
-                <a href="{{ route('finance.invoices.items.xlsx', $viewingInvoice) }}" class="admin-modal__close" title="XLSX" aria-label="XLSX" data-invoice-xlsx-icon>
-                    <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 2.75h8l4 4V21.25H6V2.75Z" />
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M14 2.75v4h4M8.5 11l3 5m0-5-3 5m5-5h2.25M13.5 13.5h2.25M13.5 16h2.25" />
-                    </svg>
+                <a href="{{ route('finance.invoices.items.xlsx', $viewingInvoice) }}" class="admin-modal__close" title="{{ __('finance.actions.export_excel') }}" aria-label="{{ __('finance.actions.export_excel') }}" data-invoice-xlsx-icon>
+                    <x-invoice-xlsx-export-icon />
                 </a>
                 <a href="{{ route('finance.invoices.print', $viewingInvoice) }}" target="_blank" rel="noopener" class="admin-modal__close" title="{{ __('finance.actions.print_a5') }}" aria-label="{{ __('finance.actions.print_a5') }}" data-invoice-print-icon>
                     <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">

@@ -5,7 +5,7 @@
         throw new \Exception('The supplied courses icon supports the outline variant only.');
     }
 
-    $classes = Flux::classes('inline-block shrink-0 bg-current')->add('[:where(&)]:size-6');
+    $classes = Flux::classes('inline-block shrink-0 bg-current align-middle')->add('[:where(&)]:size-6');
     $iconUrl = asset('images/sidebar/courses.png');
 @endphp
 
@@ -15,5 +15,5 @@
     data-slot="icon"
     data-courses-icon="supplied-artwork"
     aria-hidden="true"
-    style="-webkit-mask: url('{{ $iconUrl }}') center / contain no-repeat; mask: url('{{ $iconUrl }}') center / contain no-repeat;"
+    style="-webkit-mask: url('{{ $iconUrl }}') center / contain no-repeat; mask: url('{{ $iconUrl }}') center / contain no-repeat; transform: translateY(-2px);"
 ></span>

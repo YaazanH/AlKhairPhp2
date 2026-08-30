@@ -244,7 +244,7 @@ new class extends Component {
             <div class="admin-toolbar">
                 <div></div>
                 <div class="admin-toolbar__actions">
-                    <button type="button" wire:click="addGroup" class="pill-link pill-link--compact text-xl" aria-label="{{ __('settings.sidebar_navigation.actions.add_group') }}">+</button>
+                    <x-add-action-button wire:click="addGroup" :label="__('settings.sidebar_navigation.actions.add_group')" :accent="false" />
                 </div>
             </div>
 
@@ -263,7 +263,22 @@ new class extends Component {
                         @dragover.prevent
                         @drop.prevent="if (draggedGroup && draggedGroup !== @js($group['key'])) { const movingGroup = draggedGroup; groupDropTarget = @js($group['key']); $wire.moveGroup(movingGroup, @js($group['key'])).then(() => { draggedGroup = null; groupDropTarget = null; settledGroup = movingGroup; setTimeout(() => settledGroup = null, 320) }) }"
                     >
-                        <summary class="flex cursor-pointer list-none items-center gap-3"><span draggable="true" @dragstart.stop="draggedGroup = @js($group['key']); groupDropTarget = null" @dragend="draggedGroup = null; groupDropTarget = null" class="nav-sort-handle" aria-hidden="true">⠿</span><span class="min-w-0 flex-1 text-sm font-semibold text-white">{{ $group['title'] ?: $group['default_title'] ?: __('settings.sidebar_navigation.labels.custom_group') }}</span><button type="button" @click.prevent="editing=!editing" class="pill-link pill-link--compact" aria-label="{{ __('crud.common.actions.edit') }}">✎</button>@if ($group['is_custom'])<button type="button" wire:click="removeGroup('{{ $group['key'] }}')" class="pill-link pill-link--compact pill-link--danger">{{ __('crud.common.actions.delete') }}</button>@endif</summary>
+                        <summary class="flex cursor-pointer list-none items-center gap-3">
+                            <span draggable="true" @dragstart.stop="draggedGroup = @js($group['key']); groupDropTarget = null" @dragend="draggedGroup = null; groupDropTarget = null" class="nav-sort-handle" aria-hidden="true">⠿</span>
+                            <span class="min-w-0 flex-1 text-sm font-semibold text-white">{{ $group['title'] ?: $group['default_title'] ?: __('settings.sidebar_navigation.labels.custom_group') }}</span>
+                            <x-edit-action-button
+                                x-on:click.prevent="editing = ! editing"
+                                :label="__('crud.common.actions.edit')"
+                                data-sidebar-group-edit-action
+                            />
+                            @if ($group['is_custom'])
+                                <x-delete-action-button
+                                    wire:click="removeGroup('{{ $group['key'] }}')"
+                                    :label="__('crud.common.actions.delete')"
+                                    data-sidebar-group-delete-action
+                                />
+                            @endif
+                        </summary>
                         <div x-show="editing" x-cloak class="mt-4"><input wire:model="group_settings.{{ $group['key'] }}.title" type="text" class="w-full rounded-xl px-4 py-3 text-sm" placeholder="{{ __('settings.sidebar_navigation.fields.use_default_title') }}"></div>
                         <div class="mt-4 space-y-2 rounded-xl border border-dashed border-white/10 p-2" @dragover.prevent @drop.prevent.stop="if(draggedItem){ const movingItem = draggedItem; $wire.moveItem(movingItem, @js($group['key'])).then(() => { draggedItem = null; itemDropTarget = null; settledItem = movingItem; setTimeout(() => settledItem = null, 320) }) }">
                             @foreach (collect($availableItems)->where('group_key', $group['key']) as $item)

@@ -9,6 +9,7 @@ use App\Services\FinanceReportService;
 use App\Services\FinanceService;
 use App\Services\ReportingService;
 use App\Services\XlsxExportService;
+use App\Support\ExportFilename;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Storage;
@@ -156,17 +157,21 @@ class ReportExportController extends Controller
     protected function ledgerPdfResponse(FinanceReportService $reportService, array $report, ?FinanceGeneratedReport $generatedReport = null): Response
     {
         $filename = $reportService->ledgerPdfFilename($report, $generatedReport);
+        $fallback = 'financial-report'.($generatedReport ? '-'.$generatedReport->id : '').'.pdf';
+        $disposition = ExportFilename::inlinePdf([
+            pathinfo($filename, PATHINFO_FILENAME),
+        ], $fallback);
         $storedPath = $generatedReport ? $reportService->ensureStoredLedgerPdf($generatedReport, $report) : null;
 
         if ($storedPath !== null && Storage::disk('local')->exists($storedPath)) {
             return response(Storage::disk('local')->get($storedPath), 200, [
-                'Content-Disposition' => 'inline; filename="'.$filename.'"',
+                'Content-Disposition' => $disposition,
                 'Content-Type' => 'application/pdf',
             ]);
         }
 
         return response($reportService->renderLedgerPdf($report, $generatedReport), 200, [
-            'Content-Disposition' => 'inline; filename="'.$filename.'"',
+            'Content-Disposition' => $disposition,
             'Content-Type' => 'application/pdf',
         ]);
     }

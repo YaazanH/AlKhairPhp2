@@ -438,7 +438,6 @@ new class extends Component {
             <div class="lg:col-span-4 flex flex-wrap justify-end gap-3">
                 <button type="button" wire:click="closeCreateModal" class="pill-link">{{ __('crud.common.actions.close') }}</button>
                 <x-admin.create-and-new-button click="saveAndNew('submitRequest', 'openCreateModal')" />
-                <button type="submit" class="pill-link pill-link--accent">{{ __('finance.actions.submit_request') }}</button>
             </div>
         </form>
     </x-admin.modal>
@@ -586,7 +585,7 @@ new class extends Component {
                 <div class="admin-grid-meta__summary">{{ __('crud.common.badges.in_view', ['count' => number_format($requests->total())]) }}</div>
             </div>
             @can('finance.pull-requests.create')
-                <button type="button" wire:click="openCreateModal" class="pill-link pill-link--accent">{{ __('finance.pull_requests.new') }}</button>
+                <x-add-action-button wire:click="openCreateModal" :label="__('finance.pull_requests.new')" />
             @endcan
         </div>
         <div class="overflow-x-auto">

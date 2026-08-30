@@ -155,7 +155,13 @@ new class extends Component {
     {
         $this->academic_year_id = $this->academicYearIdForCourse($this->course_id);
 
-        if ($this->curriculum_id && ! Curriculum::query()->whereKey($this->curriculum_id)->where('course_id', $this->course_id)->where('is_active', true)->exists()) {
+        if ($this->curriculum_id && ! Curriculum::query()
+            ->whereKey($this->curriculum_id)
+            ->where('is_active', true)
+            ->where(fn ($query) => $query
+                ->whereNull('course_id')
+                ->orWhere('course_id', $this->course_id))
+            ->exists()) {
             $this->curriculum_id = null;
         }
     }
@@ -168,13 +174,20 @@ new class extends Component {
             'teacher_id' => ['required', 'exists:teachers,id'],
             'assistant_teacher_id' => ['nullable', 'exists:teachers,id', 'different:teacher_id'],
             'grade_level_id' => ['nullable', 'exists:grade_levels,id'],
-            'curriculum_id' => ['nullable', Rule::exists('curricula', 'id')->where(fn ($query) => $query->where('course_id', $this->course_id)->where('is_active', true))],
+            'curriculum_id' => ['nullable', Rule::exists('curricula', 'id')->where(fn ($query) => $query
+                ->where('is_active', true)
+                ->where(fn ($curriculumQuery) => $curriculumQuery
+                    ->whereNull('course_id')
+                    ->orWhere('course_id', $this->course_id)))],
             'name' => [
                 'required',
                 'string',
                 'max:255',
                 Rule::unique('groups', 'name')
-                    ->where(fn ($query) => $query->where('course_id', $this->course_id))
+                    ->where(fn ($query) => $query
+                        ->where('course_id', $this->course_id)
+                        ->whereNull('course_finished_at')
+                        ->whereNull('deleted_at'))
                     ->ignore($this->editingId),
             ],
             'capacity' => ['required', 'integer', 'min:0'],
@@ -217,7 +230,14 @@ new class extends Component {
         $this->academic_year_id = $this->academicYearIdForCourse($this->course_id);
 
         if ($this->editingId) {
-            $this->authorizeScopedGroupAccess(Group::query()->findOrFail($this->editingId));
+            $editingGroup = Group::query()->with(['course', 'academicYear'])->findOrFail($this->editingId);
+            $this->authorizeScopedGroupAccess($editingGroup);
+
+            if (! $this->groupIsEditable($editingGroup)) {
+                $this->addError('group', __('crud.groups.errors.inactive_read_only'));
+
+                return;
+            }
         }
 
         $validated = $this->validate();
@@ -274,8 +294,14 @@ new class extends Component {
     {
         $this->authorizePermission('groups.update');
 
-        $group = Group::query()->findOrFail($groupId);
+        $group = Group::query()->with(['course', 'academicYear'])->findOrFail($groupId);
         $this->authorizeScopedGroupAccess($group);
+
+        if (! $this->groupIsEditable($group)) {
+            $this->addError('group', __('crud.groups.errors.inactive_read_only'));
+
+            return;
+        }
 
         $this->editingId = $group->id;
         $this->course_id = $group->course_id;
@@ -603,6 +629,14 @@ new class extends Component {
         $this->resetValidation();
     }
 
+    protected function groupIsEditable(Group $group): bool
+    {
+        return $group->is_active
+            && ! $group->course_finished_at
+            && ($group->course?->is_active ?? true)
+            && ($group->academicYear?->is_active ?? true);
+    }
+
     protected function availableTeachersQuery()
     {
         return $this->scopeTeachersQuery(
@@ -610,11 +644,15 @@ new class extends Component {
                 ->where('status', 'active')
                 ->where('is_helping', true)
                 ->whereDoesntHave('assignedGroups', function ($query) {
+                    $query->whereNull('course_finished_at');
+
                     if ($this->editingId) {
                         $query->whereKeyNot($this->editingId);
                     }
                 })
                 ->whereDoesntHave('assistedGroups', function ($query) {
+                    $query->whereNull('course_finished_at');
+
                     if ($this->editingId) {
                         $query->whereKeyNot($this->editingId);
                     }
@@ -709,9 +747,9 @@ new class extends Component {
 
                 <div class="admin-toolbar__actions">
                     @can('groups.create')
-                        <button type="button" wire:click="openCreateModal" class="pill-link pill-link--accent">{{ __('crud.common.actions.create') }}</button>
+                        <x-add-action-button wire:click="openCreateModal" :label="__('crud.common.actions.create')" />
                     @endcan
-                    <a href="{{ route('groups.export', ['search' => $search, 'status' => $statusFilter, 'course_id' => $courseFilter]) }}" class="pill-link">{{ __('crud.common.actions.export') }}</a>
+                    <x-export-action-button :href="route('groups.export', ['search' => $search, 'status' => $statusFilter, 'course_id' => $courseFilter])" :label="__('crud.common.actions.export')" />
                 </div>
             </div>
         </div>
@@ -724,7 +762,16 @@ new class extends Component {
             <div class="admin-empty-state">{{ __('crud.groups.table.empty') }}</div>
         @else
             <div class="overflow-x-auto">
-                <table class="w-full table-fixed text-sm">
+                <table class="groups-index-table w-full table-fixed text-sm">
+                    <colgroup>
+                        <col class="w-[17%]">
+                        <col class="w-[20%]" data-groups-course-column="20">
+                        <col class="w-[18%]">
+                        <col class="w-[12%]">
+                        <col class="w-[10%]">
+                        <col class="w-[8%]" data-groups-status-column="8">
+                        <col class="w-[15%]">
+                    </colgroup>
                     <thead>
                         <tr>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.groups.table.headers.group') }}</th>
@@ -733,7 +780,7 @@ new class extends Component {
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.groups.table.headers.grade') }}</th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.groups.table.headers.students') }}</th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.groups.table.headers.status') }}</th>
-                            <th class="px-5 py-4 text-right lg:px-6">{{ __('crud.groups.table.headers.actions') }}</th>
+                            <th class="admin-actions-column px-5 py-4 text-center lg:px-6">{{ __('crud.groups.table.headers.actions') }}</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-white/6">
@@ -760,8 +807,10 @@ new class extends Component {
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $group->gradeLevel?->name ?: __('crud.common.not_available') }}</td>
                                 <td class="px-5 py-4 text-white lg:px-6">{{ $group->enrollments_count }}</td>
                                 <td class="px-5 py-4 lg:px-6"><span class="{{ $groupStatusClass }}">{{ $groupStatusLabel }}</span></td>
-                                <td class="px-5 py-4 text-right lg:px-6">
-                                    <a href="{{ route('groups.show', $group) }}" wire:navigate class="pill-link pill-link--compact">{{ __('crud.common.actions.open') }}</a>
+                                <td class="px-5 py-4 lg:px-6">
+                                    <div class="flex flex-nowrap justify-end gap-2">
+                                        <x-open-action-button :href="route('groups.show', $group)" wire:navigate :label="__('crud.common.actions.open')" />
+                                    </div>
                                 </td>
                             </tr>
                         @endforeach
@@ -855,7 +904,7 @@ new class extends Component {
                     <select id="group-curriculum" wire:model="curriculum_id" class="w-full rounded-xl px-4 py-3 text-sm">
                         <option value="">{{ __('curricula.options.no_curriculum') }}</option>
                         @foreach ($curricula as $curriculum)
-                            @continue($course_id && (int) $curriculum->course_id !== (int) $course_id)
+                            @continue($course_id && $curriculum->course_id && (int) $curriculum->course_id !== (int) $course_id)
                             <option value="{{ $curriculum->id }}">{{ $curriculum->name }}</option>
                         @endforeach
                     </select>
@@ -885,11 +934,12 @@ new class extends Component {
             </div>
 
             <div class="flex flex-wrap items-center gap-3">
-                <button type="submit" class="pill-link pill-link--accent">
-                    {{ $editingId ? __('crud.groups.form.update_submit') : __('crud.groups.form.create_submit') }}
-                </button>
-                <x-admin.create-and-new-button :show="! $editingId" click="createAndNew" />
-                @if($editingId) @can('groups.delete')<button type="button" wire:click="delete({{ $editingId }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link pill-link--danger">{{ __('crud.common.actions.delete') }}</button>@endcan @endif
+                @if ($editingId)
+                    <button type="submit" class="pill-link pill-link--accent">{{ __('crud.groups.form.update_submit') }}</button>
+                    @can('groups.delete')<button type="button" wire:click="delete({{ $editingId }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link pill-link--danger">{{ __('crud.common.actions.delete') }}</button>@endcan
+                @else
+                    <x-admin.create-and-new-button click="createAndNew" />
+                @endif
             </div>
         </form>
     </x-admin.modal>
@@ -1107,8 +1157,8 @@ new class extends Component {
                                 <a href="{{ route('groups.roster.export', $rosterGroup) }}" class="pill-link pill-link--accent">
                                     {{ __('crud.groups.roster.download_action') }}
                                 </a>
-                                <a href="{{ route('groups.roster.pdf', $rosterGroup) }}" target="_blank" rel="noopener" class="pill-link">
-                                    {{ __('crud.groups.roster.download_pdf_action') }}
+                                <a href="{{ route('groups.roster.pdf', $rosterGroup) }}" target="_blank" rel="noopener" class="admin-icon-button" title="{{ __('crud.groups.roster.download_pdf_action') }}" aria-label="{{ __('crud.groups.roster.download_pdf_action') }}">
+                                    <x-pdf-export-icon />
                                 </a>
                             </div>
                         @endif
@@ -1138,7 +1188,7 @@ new class extends Component {
                                         <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.groups.roster.table.headers.enrolled_at') }}</th>
                                         <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.groups.roster.table.headers.status') }}</th>
                                         @can('enrollments.delete')
-                                            <th class="px-5 py-4 text-right lg:px-6">{{ __('crud.groups.roster.table.headers.actions') }}</th>
+                                            <th class="admin-actions-column px-5 py-4 text-center lg:px-6">{{ __('crud.groups.roster.table.headers.actions') }}</th>
                                         @endcan
                                     </tr>
                                 </thead>

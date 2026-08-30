@@ -92,7 +92,6 @@ new class extends Component
             'dayRecord' => $day,
             'enrollments' => $enrollments,
             'isDayClosed' => $day->status === 'closed',
-            'markedCount' => $records->count(),
             'recordsByEnrollment' => $records,
             'statuses' => AttendanceStatus::query()
                 ->where('is_active', true)
@@ -384,12 +383,6 @@ new class extends Component
         <div class="eyebrow mt-4">{{ __('ui.nav.student_attendance') }}</div>
         <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('workflow.student_attendance.quick.title') }}</h1>
         <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ __('workflow.student_attendance.quick.subtitle') }}</p>
-        <div class="mt-6 flex flex-wrap gap-3">
-            <span class="badge-soft">{{ $dayRecord->attendance_date?->format('d-m-Y') }}</span>
-            <span class="badge-soft badge-soft--emerald">{{ $dayRecord->course?->name ?: __('workflow.common.no_course') }}</span>
-            <span class="badge-soft">{{ __('workflow.student_attendance.day_details.stats.groups') }}: {{ number_format($dayRecord->groupAttendanceDays->count()) }}</span>
-            <span class="badge-soft">{{ __('workflow.student_attendance.day_details.stats.marked') }}: {{ number_format($markedCount) }}</span>
-        </div>
     </section>
 
     @if (session('status'))
@@ -434,7 +427,7 @@ new class extends Component
             <div class="space-y-4">
                 <div>
                     <label for="quick-attendance-status" class="mb-1 block text-sm font-medium">{{ __('workflow.student_attendance.quick.status') }}</label>
-                    <select id="quick-attendance-status" wire:model="selected_status_id" class="w-full rounded-xl px-4 py-3 text-sm" data-searchable="false" @disabled($isDayClosed)>
+                    <select id="quick-attendance-status" wire:model="selected_status_id" class="w-full rounded-xl px-4 py-3 text-sm" @disabled($isDayClosed)>
                         @foreach ($statuses as $status)
                             <option value="{{ $status->id }}">{{ $status->name }}{{ $status->is_default ? ' - '.__('settings.tracking.labels.default_attendance_status') : '' }}</option>
                         @endforeach
@@ -508,7 +501,7 @@ new class extends Component
                                     @endif
                                 </button>
                             </th>
-                            <th class="px-5 py-4 text-right lg:px-6">{{ __('workflow.student_attendance.day_details.table.headers.actions') }}</th>
+                            <th class="admin-actions-column px-5 py-4 text-center lg:px-6">{{ __('workflow.student_attendance.day_details.table.headers.actions') }}</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-white/6">

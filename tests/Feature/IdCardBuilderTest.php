@@ -292,6 +292,7 @@ class IdCardBuilderTest extends TestCase
                 'data-print-template-symbol-action="settings"',
             ], false)
             ->assertSee('form="print-template-delete-form"', false)
+            ->assertSee('admin-modal__close print-template-symbol-button print-template-settings-delete', false)
             ->assertSee('print-template-settings-delete', false)
             ->assertSee('print-template-symbol-button', false)
             ->assertDontSee('>'.__('crud.common.actions.cancel').'</a>', false)
@@ -308,6 +309,12 @@ class IdCardBuilderTest extends TestCase
             ->assertSee('const moveStep = event.shiftKey ? keyboardMoveStepLarge : keyboardMoveStep;', false)
             ->assertSee('ArrowLeft: [-moveStep, 0]', false)
             ->assertSee('data-layer-duplicate', false);
+
+        $styles = file_get_contents(resource_path('css/app.css'));
+        $this->assertMatchesRegularExpression(
+            '/\.print-template-symbol-button\s*\{[^}]*border-radius:\s*0\.85rem !important;/s',
+            $styles,
+        );
     }
 
     public function test_generic_templates_are_printed_only_from_their_editor_with_a_locked_setup(): void
@@ -569,12 +576,22 @@ class IdCardBuilderTest extends TestCase
             ->assertSee('<option value="" selected>'.e(__('print_templates.print.setup.fields.all_print_states')).'</option>', false)
             ->assertDontSee('<option value="not_printed" selected>', false)
             ->assertSee('data-toggle-selected-print-status', false)
+            ->assertSee('data-print-preview-action', false)
+            ->assertSee('data-id-card-print-status-icon="printed"', false)
+            ->assertSee('data-id-card-print-status-icon="unprinted"', false)
+            ->assertSee('data-supplied-id-card-print-status="mark-as-printed"', false)
+            ->assertSee('data-supplied-id-card-print-status="mark-as-not-printed"', false)
+            ->assertSee('M147 48h178l60 60v50H147Z', false)
+            ->assertSee('M355 326l78 78M433 326l-78 78', false)
+            ->assertSee('data-mark-printed-icon', false)
+            ->assertSee('data-mark-unprinted-icon', false)
             ->assertSee('data-card-printed="1"', false)
             ->assertDontSee(__('print_templates.print.setup.sections.selected_students'))
             ->assertSee('Card Group')
             ->assertSee(__('print_templates.print.setup.fields.printed_flag'))
             ->assertSee(__('print_templates.print.setup.buttons.mark_printed'))
-            ->assertSee('markUnprintedDefaultLabel', false);
+            ->assertSee('markUnprintedDefaultLabel', false)
+            ->assertDontSee('printStatusButton.textContent', false);
     }
 
     public function test_student_card_print_record_endpoint_creates_history_rows(): void

@@ -15,7 +15,7 @@ return [
         'fields' => [
             'username' => 'Username',
             'email' => 'Email',
-            'password' => 'New password',
+            'password' => 'Password',
             'issued_password' => 'Last issued password',
             'is_active' => 'Active login account',
         ],

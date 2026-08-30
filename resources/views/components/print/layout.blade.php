@@ -6,6 +6,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ $title ?? __('print.layout.title') }}</title>
     <style>
+        @font-face { font-family: 'DubaiApp2026'; src: url('{{ route('web-fonts.dubai', ['weight' => 'light', 'format' => 'woff2']) }}?v=2017-20220205-r2') format('woff2'), url('{{ route('web-fonts.dubai', ['weight' => 'light', 'format' => 'ttf']) }}?v=2017-20220205-r2') format('truetype'); font-style: normal; font-weight: 300; font-display: swap; }
+        @font-face { font-family: 'DubaiApp2026'; src: url('{{ route('web-fonts.dubai', ['weight' => 'regular', 'format' => 'woff2']) }}?v=2017-20220205-r2') format('woff2'), url('{{ route('web-fonts.dubai', ['weight' => 'regular', 'format' => 'ttf']) }}?v=2017-20220205-r2') format('truetype'); font-style: normal; font-weight: 400; font-display: swap; }
+        @font-face { font-family: 'DubaiApp2026'; src: url('{{ route('web-fonts.dubai', ['weight' => 'medium', 'format' => 'woff2']) }}?v=2017-20220205-r2') format('woff2'), url('{{ route('web-fonts.dubai', ['weight' => 'medium', 'format' => 'ttf']) }}?v=2017-20220205-r2') format('truetype'); font-style: normal; font-weight: 500; font-display: swap; }
+        @font-face { font-family: 'DubaiApp2026'; src: url('{{ route('web-fonts.dubai', ['weight' => 'bold', 'format' => 'woff2']) }}?v=2017-20220205-r2') format('woff2'), url('{{ route('web-fonts.dubai', ['weight' => 'bold', 'format' => 'ttf']) }}?v=2017-20220205-r2') format('truetype'); font-style: normal; font-weight: 700; font-display: swap; }
         :root {
             color-scheme: light;
         }
@@ -14,7 +18,7 @@
         }
         body {
             margin: 0;
-            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+            font-family: 'DubaiApp2026', Tahoma, sans-serif;
             color: #111827;
             background: #f5f5f4;
             direction: {{ $isRtl ? 'rtl' : 'ltr' }};

@@ -256,14 +256,23 @@ class QuranWorkflowTest extends TestCase
         $laterDayComponent = Volt::test('teachers.attendance-show', ['teacherAttendanceDay' => $laterDay]);
         $this->assertStringContainsString('teacher-attendance-record-'.$scheduledTeacher->id, $laterDayComponent->html());
         $this->assertStringContainsString('teacher-attendance-actions-column', $laterDayComponent->html());
-        $laterDayComponent->call('toggleDayStatus')->assertHasNoErrors();
+        $laterDayComponent
+            ->call('openManualTeacherModal')
+            ->assertSet('showManualTeacherModal', true)
+            ->call('toggleDayStatus')
+            ->assertSet('showManualTeacherModal', false)
+            ->assertHasNoErrors();
         $this->assertStringNotContainsString('teacher-attendance-record-'.$scheduledTeacher->id, $laterDayComponent->html());
         $this->assertStringNotContainsString('wire:click="removeTeacher('.$scheduledTeacher->id.')"', $laterDayComponent->html());
         $this->assertStringNotContainsString('teacher-attendance-actions-column', $laterDayComponent->html());
         $this->assertStringContainsString('teacher-attendance-records-table--closed', $laterDayComponent->html());
         $this->assertStringNotContainsString('wire:click="openManualTeacherModal"', $laterDayComponent->html());
         $this->assertStringContainsString($present->name, $laterDayComponent->html());
-        $laterDayComponent->call('toggleDayStatus')->assertHasNoErrors();
+        $laterDayComponent
+            ->call('toggleDayStatus')
+            ->assertSet('showManualTeacherModal', false)
+            ->assertDontSee(__('workflow.teacher_attendance.day_details.manual_add.title'))
+            ->assertHasNoErrors();
         $this->assertStringContainsString('teacher-attendance-record-'.$scheduledTeacher->id, $laterDayComponent->html());
         $this->assertStringContainsString('teacher-attendance-actions-column', $laterDayComponent->html());
         $this->assertStringContainsString('wire:click="openManualTeacherModal"', $laterDayComponent->html());

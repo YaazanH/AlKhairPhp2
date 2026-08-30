@@ -86,14 +86,12 @@
 
                     <flux:menu.separator />
 
-                    <div class="px-2 py-2">
-                        <x-locale-switcher compact />
-                    </div>
+                    <x-account-menu-preferences />
 
                     <flux:menu.separator />
 
                     <flux:menu.radio.group>
-                        <flux:menu.item href="/settings/profile" icon="cog" wire:navigate>{{ __('ui.common.settings') }}</flux:menu.item>
+                        <flux:menu.item href="{{ route('settings.profile') }}" icon="user-circle" wire:navigate>{{ __('ui.common.my_account') }}</flux:menu.item>
                     </flux:menu.radio.group>
 
                     <flux:menu.separator />

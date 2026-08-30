@@ -153,7 +153,7 @@ new class extends Component {
                                     <th class="px-5 py-4 text-left lg:px-6">{{ __('barcodes.actions.table.headers.code') }}</th>
                                     <th class="px-5 py-4 text-left lg:px-6">{{ __('barcodes.actions.table.headers.type') }}</th>
                                     <th class="px-5 py-4 text-left lg:px-6">{{ __('barcodes.actions.table.headers.status') }}</th>
-                                    <th class="px-5 py-4 text-right lg:px-6">{{ __('barcodes.actions.table.headers.actions') }}</th>
+                                    <th class="admin-actions-column px-5 py-4 text-center lg:px-6">{{ __('barcodes.actions.table.headers.actions') }}</th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-white/6">

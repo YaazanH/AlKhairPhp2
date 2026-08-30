@@ -33,6 +33,10 @@ class PhoneInputTest extends TestCase
         $this->assertStringContainsString('height: 23.8px;', $css);
         $this->assertStringContainsString('width: 36.4px;', $css);
         $this->assertStringContainsString('object-fit: cover;', $css);
+        $this->assertStringContainsString('class="phone-country-menu ', $html);
+        $this->assertStringContainsString('--phone-country-menu-bg: var(--color-neutral-900);', $css);
+        $this->assertStringContainsString('.phone-country-flag::after {', $css);
+        $this->assertStringContainsString('border: 1px solid var(--phone-country-menu-bg, var(--color-neutral-900));', $css);
         $this->assertStringContainsString('x-text="country.name"', $html);
         $this->assertStringContainsString('x-text="country.dial_code"', $html);
         $this->assertStringContainsString('phone-country-name', $html);

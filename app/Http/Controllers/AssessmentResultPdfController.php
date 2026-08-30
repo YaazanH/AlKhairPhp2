@@ -6,6 +6,7 @@ use App\Models\Assessment;
 use App\Models\Group;
 use App\Services\AccessScopeService;
 use App\Services\PdfBrandingService;
+use App\Support\ExportFilename;
 use App\Support\PdfOptions;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -78,7 +79,12 @@ class AssessmentResultPdfController extends Controller
         ])->render());
 
         return response($mpdf->Output('', Destination::STRING_RETURN), 200, [
-            'Content-Disposition' => 'inline; filename="assessment-results-'.$assessment->id.'.pdf"',
+            'Content-Disposition' => ExportFilename::inlinePdf([
+                __('exports.pdf.assessment_results'),
+                $assessment->title,
+                $groups->count() === 1 ? $groups->first()?->name : null,
+                $assessment->scheduled_at?->format('d-m-Y'),
+            ], 'assessment-results-'.$assessment->id.'.pdf'),
             'Content-Type' => 'application/pdf',
         ]);
     }

@@ -268,7 +268,7 @@ new class extends Component {
                     <p class="mt-2 text-sm leading-6 text-neutral-400">{{ __('site.admin.menus.workspace.structure_copy') }}</p>
                 </div>
                 <div class="admin-action-cluster">
-                    <button type="button" wire:click="startRootItem" class="pill-link">{{ __('site.admin.menus.workspace.new_root') }}</button>
+                    <x-add-action-button wire:click="startRootItem" :label="__('site.admin.menus.workspace.new_root')" :accent="false" />
                     <a href="{{ route('home') }}" target="_blank" class="pill-link">{{ __('site.admin.menus.workspace.preview_site') }}</a>
                 </div>
             </div>
@@ -293,7 +293,7 @@ new class extends Component {
                                     <div class="website-tree__meta">{{ __('site.admin.menus.workspace.child_count', ['count' => $children->count()]) }}</div>
                                 </div>
                                 <div class="admin-action-cluster">
-                                    <button type="button" wire:click="startChildItem({{ $rootItem->id }})" class="pill-link pill-link--compact">{{ __('site.admin.menus.workspace.add_child') }}</button>
+                                    <x-add-action-button wire:click="startChildItem({{ $rootItem->id }})" :label="__('site.admin.menus.workspace.add_child')" :accent="false" />
                                     <button type="button" wire:click="editItem({{ $rootItem->id }})" class="pill-link pill-link--compact">{{ __('crud.common.actions.edit') }}</button>
                                     <button type="button" wire:click="deleteItem({{ $rootItem->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link pill-link--compact border-red-400/25 text-red-200 hover:border-red-300/35 hover:bg-red-500/12">{{ __('crud.common.actions.delete') }}</button>
                                 </div>
@@ -389,7 +389,7 @@ new class extends Component {
                     @if ($editing_item_id)
                         <button type="button" wire:click="cancelItem" class="pill-link">{{ __('site.admin.menus.form.cancel') }}</button>
                     @else
-                        <button type="button" wire:click="startRootItem" class="pill-link">{{ __('site.admin.menus.workspace.new_root') }}</button>
+                        <x-add-action-button wire:click="startRootItem" :label="__('site.admin.menus.workspace.new_root')" :accent="false" />
                     @endif
                 </div>
             </form>

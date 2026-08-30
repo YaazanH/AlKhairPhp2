@@ -79,6 +79,8 @@ new class extends Component
             return;
         }
 
+        $this->closeManualGroupModal();
+
         $status = $this->currentDay->fresh()->status === 'closed' ? 'open' : 'closed';
         $this->currentDay = app(StudentAttendanceDayService::class)->setDayStatus($this->currentDay, $status);
 
@@ -252,11 +254,15 @@ new class extends Component
 
 <div class="page-stack">
     <section class="page-hero p-6 lg:p-8">
-        <div class="flex flex-wrap items-start justify-between gap-4">
+        <div class="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
             <div>
                 <x-back-link :href="route('student-attendance.index')" navigate />
                 <div class="eyebrow mt-4">{{ __('ui.nav.student_attendance') }}</div>
                 <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('workflow.student_attendance.day_details.title') }}</h1>
+            </div>
+            <div class="shrink-0 rounded-2xl border border-emerald-300/20 bg-emerald-400/10 px-5 py-3 text-center shadow-inner" data-student-attendance-day-date-metric>
+                <div class="text-xs text-neutral-300">{{ __('workflow.student_attendance.form.attendance_date') }}</div>
+                <bdi dir="ltr" class="mt-1 block text-lg font-semibold text-emerald-100">{{ $dayRecord->attendance_date?->format('d-m-Y') ?: __('workflow.common.not_available') }}</bdi>
             </div>
         </div>
     </section>
@@ -311,17 +317,32 @@ new class extends Component
             @if ($canAddManualGroup || $canQuickAttend || $canToggleDayStatus)
                 <div class="admin-toolbar__actions">
                     @if ($canQuickAttend)
-                        <a href="{{ route('student-attendance.quick', $dayRecord) }}" wire:navigate class="pill-link pill-link--accent">{{ __('workflow.student_attendance.day_details.controls.quick_attend') }}</a>
+                        <a href="{{ route('student-attendance.quick', $dayRecord) }}" wire:navigate wire:key="student-attendance-quick-action-{{ $dayRecord->id }}" class="admin-icon-button admin-icon-button--accent attendance-quick-action" title="{{ __('workflow.student_attendance.day_details.controls.quick_attend') }}" aria-label="{{ __('workflow.student_attendance.day_details.controls.quick_attend') }}" data-student-quick-attendance-action>
+                            <x-quick-attendance-icon />
+                        </a>
                     @endif
                     @if ($canAddManualGroup)
-                        <button type="button" wire:click="openManualGroupModal" class="pill-link" @disabled($availableExtraGroups->isEmpty())>{{ __('workflow.student_attendance.day_details.manual_add.action') }}</button>
+                        <x-add-action-button wire:click="openManualGroupModal" wire:key="student-attendance-add-group-action-{{ $dayRecord->id }}" :label="__('workflow.student_attendance.day_details.manual_add.action')" :accent="false" @disabled($availableExtraGroups->isEmpty()) />
                     @endif
                     @if ($canToggleDayStatus)
-                        <button type="button" wire:click="toggleDayStatus" class="pill-link">{{ $dayRecord->status === 'closed' ? __('workflow.student_attendance.day_details.controls.reopen_day') : __('workflow.student_attendance.day_details.controls.close_day') }}</button>
+                        @php
+                            $dayStatusActionLabel = $dayRecord->status === 'closed'
+                                ? __('workflow.student_attendance.day_details.controls.reopen_day')
+                                : __('workflow.student_attendance.day_details.controls.close_day');
+                        @endphp
+                        <button type="button" wire:click="toggleDayStatus" wire:key="student-attendance-day-status-action-{{ $dayRecord->id }}" class="admin-icon-button" title="{{ $dayStatusActionLabel }}" aria-label="{{ $dayStatusActionLabel }}" data-student-attendance-day-status-action>
+                            @if ($dayRecord->status === 'closed')
+                                <x-admin-action-icon name="unlock" />
+                            @else
+                                <x-admin-action-icon name="lock" />
+                            @endif
+                        </button>
                     @endif
                     @can('attendance.student.take')
                         @if ($dayRecord->status !== 'closed')
-                            <button type="button" wire:click="deleteDay" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link border-red-400/25 text-red-200 hover:border-red-300/35 hover:bg-red-500/12">{{ __('crud.common.actions.delete') }}</button>
+                            <button type="button" wire:click="deleteDay" wire:key="student-attendance-day-delete-action-{{ $dayRecord->id }}" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="admin-icon-button admin-icon-button--danger" title="{{ __('crud.common.actions.delete') }}" aria-label="{{ __('crud.common.actions.delete') }}" data-student-attendance-day-delete-action>
+                                <x-admin-action-icon name="delete" />
+                            </button>
                         @endif
                     @endcan
                 </div>
@@ -343,7 +364,7 @@ new class extends Component
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.day_details.table.headers.teacher') }}</th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.day_details.table.headers.students') }}</th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.day_details.table.headers.present') }}</th>
-                            <th class="px-5 py-4 text-right lg:px-6">{{ __('workflow.student_attendance.day_details.table.headers.actions') }}</th>
+                            <th class="admin-actions-column px-5 py-4 text-center lg:px-6">{{ __('workflow.student_attendance.day_details.table.headers.actions') }}</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-white/6">
@@ -359,9 +380,7 @@ new class extends Component
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ number_format((int) $groupDay->present_records_count) }}</td>
                                 <td class="px-5 py-4 lg:px-6">
                                     <div class="flex justify-end">
-                                        <a href="{{ route('student-attendance.mark', $groupDay) }}" wire:navigate class="pill-link pill-link--compact">
-                                            {{ __('workflow.student_attendance.day_details.table.open') }}
-                                        </a>
+                                        <x-open-action-button :href="route('student-attendance.mark', $groupDay)" wire:navigate :label="__('workflow.student_attendance.day_details.table.open')" />
                                     </div>
                                 </td>
                             </tr>

@@ -1278,8 +1278,10 @@ return [
             'incomplete' => ':count missing pages',
             'show_missing' => 'Missing pages',
             'add_awqaf_test' => 'Awqaf Saber',
+            'awqaf_unavailable' => 'The saber cannot be recorded because the student is not currently enrolled in a course.',
             'missing_title' => 'Missing pages for Juz :juz',
             'missing_subtitle' => 'These pages are not recorded as memorized for the selected course filter.',
+            'missing_count' => 'Missing-page count',
             'no_missing_pages' => 'No missing pages in this juz.',
             'headers' => [
                 'actions' => 'Actions',

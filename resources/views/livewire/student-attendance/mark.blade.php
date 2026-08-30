@@ -319,7 +319,6 @@ new class extends Component
                                             wire:model="selected_statuses.{{ $enrollment->id }}"
                                             wire:change="saveEnrollmentStatus({{ $enrollment->id }})"
                                             @disabled(! auth()->user()->can('attendance.student.take'))
-                                            data-searchable="false"
                                             class="w-full rounded-xl px-4 py-3 text-sm"
                                         >
                                             @foreach ($statuses as $status)

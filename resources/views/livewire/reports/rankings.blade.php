@@ -148,7 +148,7 @@ new class extends Component {
                     @foreach ($groups as $group)<option value="{{ $group->id }}">{{ $group->name }}</option>@endforeach
                 </select>
             </div>
-            <button type="button" wire:click="clearFilters" class="pill-link h-[3.125rem] justify-center whitespace-nowrap">{{ __('reports.filters.clear') }}</button>
+            <x-clear-filter-button wire:click="clearFilters" :label="__('reports.filters.clear')" />
         </div>
         <div class="mt-3 grid gap-3 xl:grid-cols-2">
             <div class="grid min-w-0 gap-2 sm:grid-cols-[auto_minmax(0,1fr)] sm:items-center">

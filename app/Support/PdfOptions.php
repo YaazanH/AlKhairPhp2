@@ -19,8 +19,8 @@ class PdfOptions
             'default_font' => 'dubai',
             'fontDir' => array_merge((new ConfigVariables)->getDefaults()['fontDir'], [public_path('fonts/dubai')]),
             'fontdata' => (new FontVariables)->getDefaults()['fontdata'] + [
-                'dubai' => ['R' => 'Dubai-Regular.ttf', 'L' => 'Dubai-Light.ttf', 'M' => 'Dubai-Medium.ttf', 'B' => 'Dubai-Bold.ttf', 'useOTL' => 0xFF, 'useKashida' => 75],
-                'dubaimedium' => ['R' => 'Dubai-Medium.ttf', 'useOTL' => 0xFF, 'useKashida' => 75],
+                'dubai' => ['R' => 'Dubai-Regular.ttf', 'L' => 'Dubai-Light.ttf', 'M' => 'Dubai-Medium.ttf', 'B' => 'Dubai-Bold.ttf', 'useOTL' => 0x80, 'useKashida' => 75],
+                'dubaimedium' => ['R' => 'Dubai-Medium.ttf', 'useOTL' => 0x80, 'useKashida' => 75],
             ],
             'tempDir' => $tempDir,
         ], $options);

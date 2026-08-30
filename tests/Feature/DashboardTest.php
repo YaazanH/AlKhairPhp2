@@ -53,6 +53,39 @@ class DashboardTest extends TestCase
             ->assertSee('Assign a role');
     }
 
+    public function test_dashboard_context_falls_back_to_the_active_academic_year_then_the_holiday_message(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $manager = User::factory()->create([
+            'username' => 'manager-dashboard-context-fallback',
+            'phone' => '7000099',
+        ]);
+        $manager->assignRole('manager');
+
+        $academicYear = AcademicYear::create([
+            'name' => 'Academic Year 2026/2027',
+            'starts_on' => '2026-08-01',
+            'ends_on' => '2027-07-31',
+            'is_current' => true,
+            'is_active' => true,
+        ]);
+
+        $this->actingAs($manager)
+            ->get('/dashboard')
+            ->assertOk()
+            ->assertSee('dashboard-course-context__course', false)
+            ->assertSee('Academic Year 2026/2027')
+            ->assertDontSee(__('dashboard.common.no_active_courses'));
+
+        $academicYear->update(['is_active' => false]);
+        config(['app.locale' => 'ar']);
+
+        $this->get('/dashboard')
+            ->assertOk()
+            ->assertSee('عطلة - لا يوجد دورات فعالة حالياً');
+    }
+
     public function test_manager_users_see_the_management_dashboard(): void
     {
         $this->seed(RoleSeeder::class);
@@ -176,6 +209,10 @@ class DashboardTest extends TestCase
             ->assertOk()
             ->assertSee('Management Dashboard')
             ->assertSee('Quran Foundations')
+            ->assertSee('Average Attendance')
+            ->assertSee('Final Tested Juz')
+            ->assertSeeInOrder(['Active Groups', 'Average Attendance', 'Memorized Pages', 'Final Tested Juz', 'Total Points'])
+            ->assertSee('dashboard-manager-highlights', false)
             ->assertSee('dashboard-course-context__course', false)
             ->assertSee('Number of Students per Group')
             ->assertSee('Comparison between Attendance and Memorisation')
@@ -233,15 +270,17 @@ class DashboardTest extends TestCase
             ->assertDontSee('Excluded Group');
 
         $dashboardCss = file_get_contents(resource_path('css/app.css'));
+        $dashboardSource = file_get_contents(resource_path('views/livewire/dashboard.blade.php'));
+        $this->assertStringNotContainsString("\$loop->even ? 'badge-soft--emerald' : ''", $dashboardSource);
         $this->assertStringContainsString('.dashboard-performance-map__plot {', $dashboardCss);
         $this->assertStringContainsString('.dashboard-performance-map__average-line--vertical {', $dashboardCss);
         $this->assertStringContainsString('background-size: 20% 100%, 100% 20%', $dashboardCss);
         $this->assertStringContainsString('.dashboard-performance-map__point--below-average {', $dashboardCss);
         $this->assertStringContainsString('.dashboard-performance-map__dimmed-layer {', $dashboardCss);
         $this->assertStringContainsString('opacity: 0.08;', $dashboardCss);
-        $this->assertStringContainsString('width: 0.39rem;', $dashboardCss);
+        $this->assertStringContainsString('width: 6px;', $dashboardCss);
         $this->assertStringContainsString('.dashboard-performance-map__point--above-average .dashboard-performance-map__dot {', $dashboardCss);
-        $this->assertStringContainsString('width: var(--performance-dot-size, 0.78rem);', $dashboardCss);
+        $this->assertStringContainsString('width: var(--performance-dot-size, 12px);', $dashboardCss);
         $this->assertStringNotContainsString('.dashboard-performance-map__dimmed-border-layer {', $dashboardCss);
         $this->assertStringContainsString('.dashboard-performance-map__point:hover .dashboard-performance-map__dot,', $dashboardCss);
         $this->assertStringContainsString('background: #34d399;', $dashboardCss);
@@ -587,14 +626,16 @@ class DashboardTest extends TestCase
             ->assertSee('dashboard-line-chart', false)
             ->assertSee('teacher-memorization-ranking-row', false)
             ->assertSee('teacher-points-card', false)
-            ->assertSee('teacher-points-desktop', false)
-            ->assertSee('teacher-points-mobile', false)
+            ->assertSee('teacher-points-table', false)
+            ->assertDontSee('teacher-points-mobile', false)
             ->assertSee('teacher-curriculum-card', false);
 
         $dashboardCss = file_get_contents(resource_path('css/app.css'));
         $this->assertStringContainsString('.teacher-points-card {', $dashboardCss);
         $this->assertStringContainsString('overflow: hidden !important;', $dashboardCss);
-        $this->assertStringContainsString('.teacher-points-mobile {', $dashboardCss);
+        $this->assertStringContainsString('.teacher-points-table table {', $dashboardCss);
+        $this->assertStringContainsString('min-width: 34rem;', $dashboardCss);
+        $this->assertStringNotContainsString('.teacher-points-mobile {', $dashboardCss);
         $this->assertStringContainsString('.teacher-memorization-ranking-row {', $dashboardCss);
 
         Volt::test('dashboard')

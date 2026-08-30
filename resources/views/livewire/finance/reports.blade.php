@@ -282,7 +282,7 @@ new class extends Component {
                         <div class="admin-grid-meta__summary">{{ __('finance.reports.saved_reports_count', ['count' => number_format($generatedReports->total())]) }}</div>
                     </div>
                     <div class="admin-toolbar__controls financial-report-symbol-controls">
-                        <button type="button" wire:click="openCreateReport" @disabled(! $canGenerateReport) title="{{ $canGenerateReport ? __('finance.reports.generate_report') : __('finance.reports.signature_required') }}" aria-label="{{ __('finance.reports.generate_report') }}" class="financial-report-symbol-button mobile-financial-report-admin-action pill-link pill-link--accent disabled:cursor-not-allowed disabled:opacity-50">
+                        <button type="button" wire:click="openCreateReport" @disabled(! $canGenerateReport) title="{{ $canGenerateReport ? __('finance.reports.generate_report') : __('finance.reports.signature_required') }}" aria-label="{{ __('finance.reports.generate_report') }}" class="financial-report-symbol-button financial-report-generate-button mobile-financial-report-admin-action pill-link pill-link--accent disabled:cursor-not-allowed disabled:opacity-50" data-finance-report-generate-action>
                             <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>
                         </button>
                     </div>
@@ -298,7 +298,7 @@ new class extends Component {
                                 <th class="px-5 py-3 text-left">{{ __('finance.common.currency') }}</th>
                                 <th class="px-5 py-3 text-left">{{ __('finance.fields.user') }}</th>
                                 <th class="px-5 py-3 text-left">{{ __('finance.common.date') }}</th>
-                                <th class="px-5 py-3 text-right">{{ __('finance.actions.actions') }}</th>
+                                <th class="admin-actions-column px-5 py-3 text-center">{{ __('finance.actions.actions') }}</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-white/6">
@@ -314,7 +314,7 @@ new class extends Component {
                                     <td class="px-5 py-3">{{ $generatedReport->created_at?->format('d-m-Y') }}</td>
                                     <td class="px-5 py-3">
                                         <div class="admin-action-cluster admin-action-cluster--end">
-                                            <a href="{{ route('finance.reports.generated.show', $generatedReport) }}" target="_blank" rel="noopener" class="pill-link pill-link--compact">{{ __('finance.reports.review_saved_report') }}</a>
+                                            <a href="{{ route('finance.reports.generated.show', $generatedReport) }}" target="_blank" rel="noopener" class="admin-icon-button" title="{{ __('finance.reports.review_saved_report') }}" aria-label="{{ __('finance.reports.review_saved_report') }}" data-financial-record-view-action><x-admin-action-icon name="view-file" /></a>
                                         </div>
                                     </td>
                                 </tr>
@@ -399,7 +399,7 @@ new class extends Component {
 
             <div class="mt-5 flex flex-wrap gap-3">
                 @if ($ledgerReady)
-                    <a href="{{ route('finance.reports.ledger.export', array_merge($ledgerQuery, ['format' => 'pdf'])) }}" target="_blank" rel="noopener" class="pill-link pill-link--accent">{{ __('finance.reports.generate_report') }}</a>
+                    <a href="{{ route('finance.reports.ledger.export', array_merge($ledgerQuery, ['format' => 'pdf'])) }}" target="_blank" rel="noopener" class="admin-icon-button admin-icon-button--accent admin-modal-action-button" title="{{ __('finance.reports.generate_report') }}" aria-label="{{ __('finance.reports.generate_report') }}" data-finance-report-create-save-action><x-admin-action-icon name="save" class="admin-modal-action__icon" /></a>
                 @else
                     <span class="pill-link opacity-60">{{ __('finance.reports.choose_box_currency_first') }}</span>
                 @endif
@@ -433,9 +433,10 @@ new class extends Component {
                     @error('report_stamp_upload')<div class="mt-1 text-sm text-red-400">{{ $message }}</div>@enderror
                     @if ($reportStampPath)<img src="{{ asset('storage/'.ltrim($reportStampPath, '/')) }}" alt="" class="mt-3 h-28 max-w-52 rounded-xl bg-white object-contain p-2"><label class="mt-3 flex items-center gap-2 text-sm"><input wire:model="remove_report_stamp" type="checkbox"><span>{{ __('finance.reports.remove_stamp') }}</span></label>@endif
                 </div>
-                <div class="lg:col-span-2 flex justify-end gap-3">
-                    <button type="button" wire:click="closeReportSettings" class="pill-link">{{ __('crud.common.actions.close') }}</button>
-                    <button class="pill-link pill-link--accent">{{ __('finance.actions.save') }}</button>
+                <div class="admin-action-cluster admin-action-cluster--end lg:col-span-2">
+                    <button type="submit" class="admin-icon-button admin-icon-button--accent admin-modal-action-button" title="{{ __('finance.actions.save') }}" aria-label="{{ __('finance.actions.save') }}" data-finance-report-settings-save-action>
+                        <x-admin-action-icon name="save" class="admin-modal-action__icon" />
+                    </button>
                 </div>
             </form>
         </x-admin.modal>

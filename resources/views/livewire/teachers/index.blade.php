@@ -741,9 +741,9 @@ new class extends Component {
 
                 <div class="admin-toolbar__actions">
                     @can('teachers.create')
-                        <button type="button" wire:click="openCreateModal" class="pill-link pill-link--accent">{{ __('crud.common.actions.create') }}</button>
+                        <x-add-action-button wire:click="openCreateModal" :label="__('crud.common.actions.create')" />
                     @endcan
-                    <a href="{{ route('teachers.export', ['search' => $search, 'status' => $statusFilter, 'helping' => $helpingFilter]) }}" class="pill-link">{{ __('crud.common.actions.export') }}</a>
+                    <x-export-action-button :href="route('teachers.export', ['search' => $search, 'status' => $statusFilter, 'helping' => $helpingFilter])" :label="__('crud.common.actions.export')" />
                 </div>
             </div>
         </div>
@@ -807,11 +807,11 @@ new class extends Component {
                         <div class="mobile-record-card__actions">
                             @can('teachers.review-signups')
                                 @if ($teacher->status === 'pending')
-                                    <button type="button" wire:click="openReviewModal({{ $teacher->id }})" class="pill-link pill-link--compact">{{ __('crud.teachers.review.action') }}</button>
+                                    <button type="button" wire:click="openReviewModal({{ $teacher->id }})" class="admin-icon-button" title="{{ __('crud.teachers.review.action') }}" aria-label="{{ __('crud.teachers.review.action') }}" data-teacher-review-action><x-admin-action-icon name="review" /></button>
                                 @endif
                             @endcan
                             @can('teachers.update')
-                                <button type="button" wire:click="edit({{ $teacher->id }})" class="pill-link pill-link--compact">{{ __('crud.common.actions.edit') }}</button>
+                                <x-edit-action-button wire:click="edit({{ $teacher->id }})" :label="__('crud.common.actions.edit')" data-teacher-edit-action />
                             @endcan
                         </div>
                     </article>
@@ -827,7 +827,7 @@ new class extends Component {
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.teachers.table.headers.access_role') }}</th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.teachers.table.headers.helping') }}</th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.teachers.table.headers.status') }}</th>
-                            <th class="px-5 py-4 text-right lg:px-6">{{ __('crud.teachers.table.headers.actions') }}</th>
+                            <th class="admin-actions-column px-5 py-4 text-center lg:px-6">{{ __('crud.teachers.table.headers.actions') }}</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-white/6">
@@ -872,11 +872,11 @@ new class extends Component {
                                     <div class="flex flex-wrap justify-end gap-2">
                                         @can('teachers.review-signups')
                                             @if ($teacher->status === 'pending')
-                                                <button type="button" wire:click="openReviewModal({{ $teacher->id }})" class="pill-link pill-link--compact">{{ __('crud.teachers.review.action') }}</button>
+                                                <button type="button" wire:click="openReviewModal({{ $teacher->id }})" class="admin-icon-button" title="{{ __('crud.teachers.review.action') }}" aria-label="{{ __('crud.teachers.review.action') }}" data-teacher-review-action><x-admin-action-icon name="review" /></button>
                                             @endif
                                         @endcan
                                         @can('teachers.update')
-                                            <button type="button" wire:click="edit({{ $teacher->id }})" class="pill-link pill-link--compact">{{ __('crud.common.actions.edit') }}</button>
+                                            <x-edit-action-button wire:click="edit({{ $teacher->id }})" :label="__('crud.common.actions.edit')" data-teacher-edit-action />
                                         @endcan
                                     </div>
                                 </td>
@@ -1150,15 +1150,16 @@ new class extends Component {
                 </div>
             </details>
 
-            <div class="flex flex-wrap items-center gap-3">
-                <button type="submit" class="pill-link pill-link--accent">
-                    {{ $editingId ? __('crud.teachers.form.update_submit') : __('crud.teachers.form.create_submit') }}
-                </button>
-                <x-admin.create-and-new-button :show="! $editingId" />
+            <div class="admin-action-cluster admin-action-cluster--end">
                 @if ($editingId)
+                    <button type="submit" class="admin-icon-button admin-icon-button--accent admin-modal-action-button" title="{{ __('crud.teachers.form.update_submit') }}" aria-label="{{ __('crud.teachers.form.update_submit') }}" data-teacher-form-save-action>
+                        <x-admin-action-icon name="save" class="admin-modal-action__icon" />
+                    </button>
                     @can('teachers.delete')
-                        <button type="button" wire:click="deleteEditingTeacher" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link border-red-400/25 text-red-200 hover:border-red-300/35 hover:bg-red-500/12">{{ __('crud.common.actions.delete') }}</button>
+                        <x-delete-action-button wire:click="deleteEditingTeacher" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" :label="__('crud.common.actions.delete')" class="admin-modal-action-button" data-teacher-form-delete-action />
                     @endcan
+                @else
+                    <x-admin.create-and-new-button />
                 @endif
             </div>
             @error('delete')

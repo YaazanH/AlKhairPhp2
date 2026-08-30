@@ -55,7 +55,7 @@
                             <div class="admin-modal__header-actions">
                                 @if ($isEditing)
                                     @can('id-cards.templates.manage')
-                                        <button type="submit" form="print-template-delete-form" class="admin-modal__close print-template-settings-delete" title="{{ __('crud.common.actions.delete') }}" aria-label="{{ __('crud.common.actions.delete') }}" data-print-template-symbol-action="delete"><x-print-template-icon name="trash" /></button>
+                                        <button type="submit" form="print-template-delete-form" class="admin-modal__close print-template-symbol-button print-template-settings-delete" title="{{ __('crud.common.actions.delete') }}" aria-label="{{ __('crud.common.actions.delete') }}" data-print-template-symbol-action="delete"><x-print-template-icon name="trash" /></button>
                                     @endcan
                                 @endif
                                 <button type="button" class="admin-modal__close" onclick="this.closest('dialog').close()" aria-label="{{ __('crud.common.actions.close') }}">&times;</button>

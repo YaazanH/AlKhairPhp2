@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\AcademicYear;
 use App\Models\AppSetting;
 use App\Models\Course;
 use App\Models\Enrollment;
@@ -15,6 +16,7 @@ use App\Services\CourseEndService;
 use App\Services\CurriculumProgressService;
 use App\Services\GroupDailySummaryService;
 use App\Services\PrintTemplates\PrintTemplateRenderService;
+use App\Services\ReportingService;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
@@ -172,6 +174,13 @@ new class extends Component {
             ->orderByDesc('pages')
             ->get();
         $activeEnrollmentIds = (clone $activeEnrollments)->pluck('id');
+        $averageDailyAttendance = (int) round($courseId
+            ? app(ReportingService::class)->studentActivityAverageAttendance(['course_id' => $courseId])
+            : 0.0);
+        $finalTestedJuz = QuranFinalTest::query()
+            ->whereIn('enrollment_id', $activeEnrollmentIds)
+            ->where('status', 'passed')
+            ->count();
         $courseEndPointTotals = $defaultCourse
             ? app(CourseEndService::class)
                 ->studentRows($defaultCourse)
@@ -254,15 +263,17 @@ new class extends Component {
             'intro' => __('dashboard.manager.intro'),
             'profileName' => $user->name,
             'profileJob' => __('dashboard.roles.manager'),
-            'currentAcademicYearName' => $defaultCourse?->name ?: __('dashboard.manager.profile_meta_no_course'),
+            'currentAcademicYearName' => $this->dashboardCourseName(),
             'profileMeta' => $defaultCourse
                 ? __('dashboard.manager.profile_meta_default_course', ['course' => $defaultCourse->name])
                 : __('dashboard.manager.profile_meta_no_course'),
             'stats' => [
                 ['label' => __('dashboard.manager.stats.enrolled_students.label'), 'value' => (clone $activeEnrollments)->distinct('student_id')->count('student_id'), 'hint' => __('dashboard.manager.stats.enrolled_students.hint')],
                 ['label' => __('dashboard.manager.stats.active_groups.label'), 'value' => $groups->count(), 'hint' => __('dashboard.manager.stats.active_groups.hint')],
-                ['label' => __('dashboard.manager.stats.total_points.label'), 'value' => (int) (clone $activeEnrollments)->sum('final_points_cached'), 'hint' => __('dashboard.manager.stats.total_points.hint')],
+                ['label' => __('dashboard.manager.stats.average_daily_attendance.label'), 'value' => $averageDailyAttendance, 'hint' => __('dashboard.manager.stats.average_daily_attendance.hint')],
                 ['label' => __('dashboard.manager.stats.memorized_pages.label'), 'value' => (int) (clone $activeEnrollments)->sum('memorized_pages_cached'), 'hint' => __('dashboard.manager.stats.memorized_pages.hint')],
+                ['label' => __('dashboard.manager.stats.final_tested_juz.label'), 'value' => $finalTestedJuz, 'hint' => __('dashboard.manager.stats.final_tested_juz.hint')],
+                ['label' => __('dashboard.manager.stats.total_points.label'), 'value' => (int) (clone $activeEnrollments)->sum('final_points_cached'), 'hint' => __('dashboard.manager.stats.total_points.hint')],
             ],
             'cards' => [
                 [
@@ -621,8 +632,21 @@ new class extends Component {
 
     protected function dashboardCourseName(): string
     {
-        return Course::query()->where('is_default', true)->where('is_active', true)->value('name')
-            ?: __('dashboard.manager.profile_meta_no_course');
+        $courseName = Course::query()
+            ->where('is_default', true)
+            ->where('is_active', true)
+            ->value('name');
+
+        if ($courseName) {
+            return $courseName;
+        }
+
+        return AcademicYear::query()
+            ->where('is_active', true)
+            ->orderByDesc('is_current')
+            ->orderByDesc('starts_on')
+            ->value('name')
+            ?: __('dashboard.common.no_active_courses');
     }
 
     protected function parentData($user): array
@@ -923,16 +947,13 @@ new class extends Component {
         <div class="{{ $dashboardRole === 'manager' ? 'dashboard-manager-highlights gap-3' : 'gap-4' }} grid md:grid-cols-2 xl:grid-cols-4">
             @foreach ($stats as $stat)
                 <article class="stat-card">
-                    <div class="flex items-start justify-between gap-4">
-                        <div class="kpi-label">{{ $stat['label'] }}</div>
-                        <span class="badge-soft {{ $loop->even ? 'badge-soft--emerald' : '' }}">{{ str_pad((string) $loop->iteration, 2, '0', STR_PAD_LEFT) }}</span>
-                    </div>
+                    <div class="kpi-label">{{ $stat['label'] }}</div>
                     @if (filled($stat['action'] ?? null))
                         <button type="button" wire:click="{{ $stat['action'] }}" class="pill-link pill-link--accent mt-3 w-full justify-center">
                             {{ $stat['value'] }}
                         </button>
                     @else
-                        <div class="metric-value mt-3">{{ is_numeric($stat['value']) ? number_format($stat['value']) : $stat['value'] }}</div>
+                        <div class="metric-value mt-3">{{ $stat['formatted_value'] ?? (is_numeric($stat['value']) ? number_format($stat['value']) : $stat['value']) }}</div>
                     @endif
                 </article>
             @endforeach
@@ -1001,7 +1022,7 @@ new class extends Component {
                     ->mapWithKeys(function (array $entry, int $index) use ($aboveAveragePerformanceCount): array {
                         $percentile = $aboveAveragePerformanceCount <= 1 ? 1.0 : $index / ($aboveAveragePerformanceCount - 1);
                         $growth = min(1.0, $percentile / 0.9);
-                        $size = round(0.42 + (0.36 * $growth), 3);
+                        $size = (int) round(7 + (5 * $growth));
 
                         return [$entry['student']->id => $size];
                     });
@@ -1104,14 +1125,14 @@ new class extends Component {
                         <polyline points="{{ $attendanceLine }}" fill="none" stroke="#38bdf8" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
                         @foreach ($dailyTrend as $index => $day)
                             <g class="dashboard-line-point" tabindex="0" aria-label="{{ $day['label'] }} · {{ __('dashboard.manager.analytics.memorized_pages') }}: {{ number_format($day['pages']) }}">
-                                <circle cx="{{ $trendX($index) }}" cy="{{ $trendY($day['pages']) }}" r="6" fill="#34d399" class="dashboard-chart-point origin-center" />
+                                <circle cx="{{ $trendX($index) }}" cy="{{ $trendY($day['pages']) }}" r="6" fill="#34d399" class="dashboard-chart-point" />
                                 <g class="dashboard-line-point__tooltip" transform="translate({{ $trendX($index) }}, {{ max(16, $trendY($day['pages']) - 12) }})" data-dashboard-line-tooltip-value-only>
                                     <rect x="-15" y="-15" width="30" height="15" rx="4" fill="rgba(10,10,10,.96)" stroke="rgba(255,255,255,.16)" stroke-width="0.5" />
                                     <text x="0" y="-4.5" text-anchor="middle" fill="white" font-size="8" font-weight="800" class="dashboard-line-point__tooltip-value">{{ number_format($day['pages']) }}</text>
                                 </g>
                             </g>
                             <g class="dashboard-line-point" tabindex="0" aria-label="{{ $day['label'] }} · {{ __('dashboard.manager.analytics.students_attended') }}: {{ number_format($day['attendance']) }}">
-                                <circle cx="{{ $trendX($index) }}" cy="{{ $trendY($day['attendance']) }}" r="6" fill="#38bdf8" class="dashboard-chart-point origin-center" />
+                                <circle cx="{{ $trendX($index) }}" cy="{{ $trendY($day['attendance']) }}" r="6" fill="#38bdf8" class="dashboard-chart-point" />
                                 <g class="dashboard-line-point__tooltip" transform="translate({{ $trendX($index) }}, {{ min(214, $trendY($day['attendance']) + 28) }})" data-dashboard-line-tooltip-value-only>
                                     <rect x="-15" y="-15" width="30" height="15" rx="4" fill="rgba(10,10,10,.96)" stroke="rgba(255,255,255,.16)" stroke-width="0.5" />
                                     <text x="0" y="-4.5" text-anchor="middle" fill="white" font-size="8" font-weight="800" class="dashboard-line-point__tooltip-value">{{ number_format($day['attendance']) }}</text>
@@ -1141,14 +1162,16 @@ new class extends Component {
                                         $isAbovePerformanceAverage = $entry['points'] > $performanceAveragePoints
                                             && $entry['pages'] > $performanceAveragePages;
                                         $performanceRankClass = $entry['rank'] ? ' dashboard-performance-map__point--rank-'.$entry['rank'] : '';
-                                        $performanceDotSize = $aboveAverageDotSizes->get($entry['student']->id, 0.78);
+                                        $performanceDotSize = $aboveAverageDotSizes->get($entry['student']->id, 12);
+                                        $performancePointX = $performanceX($entry['pages']);
+                                        $performancePointY = $performanceY($entry['points']);
                                     @endphp
                                     @if ($isAbovePerformanceAverage)
                                         <button
                                             type="button"
                                             wire:click="showManagerStudent({{ $entry['student']->id }})"
                                             class="dashboard-performance-map__point dashboard-performance-map__point--above-average{{ $performanceRankClass }}"
-                                            style="--point-x: {{ $performanceX($entry['pages']) }}%; --point-y: {{ $performanceY($entry['points']) }}%; --performance-dot-size: {{ $performanceDotSize }}rem"
+                                            style="--point-x: {{ $performancePointX }}%; --point-y: {{ $performancePointY }}%; --performance-dot-size: {{ $performanceDotSize }}px"
                                             data-performance-rank="{{ $entry['rank'] }}"
                                             data-performance-dot-size="{{ $performanceDotSize }}"
                                             data-points-before="{{ $entry['points_before'] }}"
@@ -1156,11 +1179,17 @@ new class extends Component {
                                             aria-label="{{ $entry['student']->full_name }} — {{ number_format($entry['points']) }} {{ __('dashboard.manager.analytics.points') }}, {{ trans_choice('dashboard.manager.analytics.pages_count', $entry['pages'], ['count' => number_format($entry['pages'])]) }}"
                                         >
                                             <span class="dashboard-performance-map__dot" aria-hidden="true"></span>
-                                            <span class="dashboard-performance-map__tooltip" dir="{{ app()->getLocale() === 'ar' ? 'rtl' : 'ltr' }}">
-                                                <strong>{{ $entry['student']->full_name }}</strong>
-                                                <small>{{ number_format($entry['points']) }} {{ __('dashboard.manager.analytics.points') }} · {{ trans_choice('dashboard.manager.analytics.pages_count', $entry['pages'], ['count' => number_format($entry['pages'])]) }}</small>
-                                            </span>
                                         </button>
+                                        <span
+                                            class="dashboard-performance-map__tooltip"
+                                            style="--point-x: {{ $performancePointX }}%; --point-y: {{ $performancePointY }}%"
+                                            dir="{{ app()->getLocale() === 'ar' ? 'rtl' : 'ltr' }}"
+                                            data-performance-tooltip
+                                            aria-hidden="true"
+                                        >
+                                            <strong>{{ $entry['student']->full_name }}</strong>
+                                            <small>{{ number_format($entry['points']) }} {{ __('dashboard.manager.analytics.points') }} · {{ trans_choice('dashboard.manager.analytics.pages_count', $entry['pages'], ['count' => number_format($entry['pages'])]) }}</small>
+                                        </span>
                                     @endif
                                 @endforeach
                                 <div class="dashboard-performance-map__dimmed-layer" data-performance-dimmed-layer data-performance-cluster-radius="{{ $performanceClusterRadius }}" aria-hidden="true">
@@ -1311,8 +1340,8 @@ new class extends Component {
                             <polyline points="{{ $teacherPagesLine }}" fill="none" stroke="#34d399" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
                             <polyline points="{{ $teacherAttendanceLine }}" fill="none" stroke="#38bdf8" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
                             @foreach ($teacherDailyTrend as $index => $day)
-                                <g class="dashboard-line-point" tabindex="0"><circle cx="{{ $teacherTrendX($index) }}" cy="{{ $teacherTrendY($day['pages']) }}" r="6" fill="#34d399" class="dashboard-chart-point origin-center" /><title>{{ $day['label'] }} · {{ __('dashboard.manager.analytics.memorized_pages') }}: {{ number_format($day['pages']) }}</title></g>
-                                <g class="dashboard-line-point" tabindex="0"><circle cx="{{ $teacherTrendX($index) }}" cy="{{ $teacherTrendY($day['attendance']) }}" r="6" fill="#38bdf8" class="dashboard-chart-point origin-center" /><title>{{ $day['label'] }} · {{ __('dashboard.manager.analytics.students_attended') }}: {{ number_format($day['attendance']) }}</title></g>
+                                <g class="dashboard-line-point" tabindex="0"><circle cx="{{ $teacherTrendX($index) }}" cy="{{ $teacherTrendY($day['pages']) }}" r="6" fill="#34d399" class="dashboard-chart-point" /><title>{{ $day['label'] }} · {{ __('dashboard.manager.analytics.memorized_pages') }}: {{ number_format($day['pages']) }}</title></g>
+                                <g class="dashboard-line-point" tabindex="0"><circle cx="{{ $teacherTrendX($index) }}" cy="{{ $teacherTrendY($day['attendance']) }}" r="6" fill="#38bdf8" class="dashboard-chart-point" /><title>{{ $day['label'] }} · {{ __('dashboard.manager.analytics.students_attended') }}: {{ number_format($day['attendance']) }}</title></g>
                                 <text x="{{ $teacherTrendX($index) }}" y="202" text-anchor="middle" fill="#a3a3a3" font-size="9">{{ $day['label'] }}</text>
                             @endforeach
                         </svg>
@@ -1345,29 +1374,25 @@ new class extends Component {
                 <article class="teacher-points-card surface-table">
                     <div class="teacher-points-card__header admin-grid-meta">
                         <div><div class="admin-grid-meta__title">{{ __('dashboard.teacher.group_dashboard.top_students_by_points') }}</div><div class="admin-grid-meta__summary">{{ __('dashboard.teacher.group_dashboard.top_five') }}</div></div>
-                        @if ($teacherRankedStudents->isNotEmpty())<button type="button" wire:click="openTeacherLeaderboard" class="pill-link pill-link--compact">{{ __('dashboard.teacher.group_dashboard.view_all') }}</button>@endif
+                        @if ($teacherRankedStudents->isNotEmpty())
+                            <button
+                                type="button"
+                                wire:click="openTeacherLeaderboard"
+                                class="admin-icon-button"
+                                title="{{ __('dashboard.teacher.group_dashboard.view_all') }}"
+                                aria-label="{{ __('dashboard.teacher.group_dashboard.view_all') }}"
+                                data-view-all-expand
+                            >
+                                <x-admin-action-icon name="expand" />
+                            </button>
+                        @endif
                     </div>
                     @if ($teacherTopStudents->isEmpty())
                         <div class="admin-empty-state">{{ __('dashboard.teacher.group_dashboard.empty_students') }}</div>
                     @else
-                        <div class="teacher-points-desktop overflow-x-auto"><table class="text-sm"><thead><tr>
+                        <div class="teacher-points-table overflow-x-auto"><table class="text-sm"><thead><tr>
                             <th class="px-4 py-3 text-start">#</th><th class="px-4 py-3 text-start">{{ __('dashboard.teacher.group_dashboard.columns.student') }}</th><th class="px-4 py-3 text-start">{{ __('dashboard.teacher.group_dashboard.columns.points') }}</th><th class="px-4 py-3 text-start">{{ __('dashboard.teacher.group_dashboard.columns.pages') }}</th><th class="px-4 py-3 text-start">{{ __('dashboard.teacher.group_dashboard.columns.final_tests') }}</th>
                         </tr></thead><tbody class="divide-y divide-white/6">@foreach ($teacherTopStudents as $row)<tr><td class="px-4 py-3">{{ $loop->iteration }}</td><td class="px-4 py-3 font-medium text-white">{{ $row['student']->full_name }}</td><td class="px-4 py-3">{{ number_format($row['points']) }}</td><td class="px-4 py-3">{{ number_format($row['pages']) }}</td><td class="px-4 py-3">{{ number_format($row['final_tests']) }}</td></tr>@endforeach</tbody></table></div>
-                        <div class="teacher-points-mobile">
-                            @foreach ($teacherTopStudents as $row)
-                                <article class="teacher-points-mobile__item">
-                                    <div class="flex min-w-0 items-center gap-3">
-                                        <span class="list-index shrink-0">{{ $loop->iteration }}</span>
-                                        <div class="min-w-0 truncate font-semibold text-white">{{ $row['student']->full_name }}</div>
-                                    </div>
-                                    <dl class="teacher-points-mobile__metrics">
-                                        <div><dt>{{ __('dashboard.teacher.group_dashboard.columns.points') }}</dt><dd>{{ number_format($row['points']) }}</dd></div>
-                                        <div><dt>{{ __('dashboard.teacher.group_dashboard.columns.pages') }}</dt><dd>{{ number_format($row['pages']) }}</dd></div>
-                                        <div><dt>{{ __('dashboard.teacher.group_dashboard.columns.final_tests') }}</dt><dd>{{ number_format($row['final_tests']) }}</dd></div>
-                                    </dl>
-                                </article>
-                            @endforeach
-                        </div>
                     @endif
                 </article>
 

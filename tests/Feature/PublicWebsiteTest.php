@@ -49,6 +49,21 @@ class PublicWebsiteTest extends TestCase
             ->assertSee('مسجد الخير');
     }
 
+    public function test_public_header_hides_language_selection_and_names_the_signed_in_course_app_action(): void
+    {
+        $this->seed(WebsiteSeeder::class);
+
+        $user = User::factory()->create();
+
+        $this->withSession(['locale' => 'ar', 'locale_user_selected' => true])
+            ->actingAs($user)
+            ->get('/')
+            ->assertOk()
+            ->assertDontSee('locale-compact-switch', false)
+            ->assertDontSee('الصفحة الرئيسية')
+            ->assertSee('تطبيق الدورة');
+    }
+
     public function test_public_homepage_uses_website_logo_for_social_preview(): void
     {
         $this->seed(WebsiteSeeder::class);
@@ -61,7 +76,14 @@ class PublicWebsiteTest extends TestCase
             ->assertOk()
             ->assertSee('property="og:image"', false)
             ->assertSee('content="'.$logoUrl.'"', false)
-            ->assertSee('name="twitter:image"', false);
+            ->assertSee('name="twitter:image"', false)
+            ->assertSee('public-brand__mark public-brand__mark--image', false);
+
+        $styles = file_get_contents(resource_path('css/app.css'));
+
+        $this->assertStringContainsString('.public-brand__mark--image {', $styles);
+        $this->assertStringContainsString('background: var(--site-primary);', $styles);
+        $this->assertStringContainsString('transform: scale(1.035);', $styles);
     }
 
     public function test_public_homepage_can_be_put_under_maintenance_without_blocking_dashboard_route(): void

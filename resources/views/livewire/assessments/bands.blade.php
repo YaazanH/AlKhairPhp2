@@ -267,7 +267,14 @@ new class extends Component {
                                     </div>
 
                                     <div class="admin-action-cluster admin-action-cluster--end">
-                                        <button type="submit" class="pill-link pill-link--accent">{{ $editingId ? __('workflow.assessments.bands.form.update_submit') : __('workflow.assessments.bands.form.create_submit') }}</button>
+                                        @if ($editingId)
+                                            <x-delete-action-button wire:click="delete({{ $editingId }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" :label="__('crud.common.actions.delete')" data-settings-assessment-band-delete-action />
+                                        @endif
+                                        @if ($editingId)
+                                            <x-admin.save-button :label="__('workflow.assessments.bands.form.update_submit')" data-settings-assessment-band-save-action />
+                                        @else
+                                            <x-admin.save-button :label="__('workflow.assessments.bands.form.create_submit')" data-settings-assessment-band-save-action />
+                                        @endif
                                     </div>
                                 </form>
                             @else
@@ -287,24 +294,22 @@ new class extends Component {
                 </div>
 
                 @can('assessment-score-bands.manage')
-                    <button type="button" wire:click="create" class="pill-link pill-link--accent">
-                        {{ __('workflow.assessments.bands.form.create_title') }}
-                    </button>
+                    <x-add-action-button wire:click="create" :label="__('workflow.assessments.bands.form.create_title')" />
                 @endcan
             </div>
 
             @if ($bands->isEmpty())
                 <div class="admin-empty-state">{{ __('workflow.assessments.bands.table.empty') }}</div>
             @else
-                <div class="overflow-x-auto">
-                    <table class="min-w-full divide-y divide-neutral-200 text-sm dark:divide-neutral-700">
+                <div class="assessment-score-bands-table-scroll overflow-x-auto">
+                    <table class="assessment-score-bands-table min-w-full divide-y divide-neutral-200 text-sm dark:divide-neutral-700">
                         <thead>
                             <tr>
                                 <th class="px-5 py-3 text-left font-medium">{{ __('workflow.assessments.bands.table.headers.band') }}</th>
                                 <th class="px-5 py-3 text-left font-medium">{{ __('workflow.assessments.bands.table.headers.range') }}</th>
                                 <th class="px-5 py-3 text-left font-medium">{{ __('workflow.assessments.bands.table.headers.points') }}</th>
                                 <th class="px-5 py-3 text-left font-medium">{{ __('workflow.assessments.bands.table.headers.flags') }}</th>
-                                <th class="px-5 py-3 text-right font-medium">{{ __('workflow.assessments.bands.table.headers.actions') }}</th>
+                                <th class="admin-actions-column px-5 py-3 text-center font-medium">{{ __('workflow.assessments.bands.table.headers.actions') }}</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-neutral-200 dark:divide-neutral-700">
@@ -337,8 +342,7 @@ new class extends Component {
                                     <td class="px-5 py-3">
                                         <div class="admin-action-cluster admin-action-cluster--end">
                                             @can('assessment-score-bands.manage')
-                                                <button type="button" wire:click="edit({{ $band->id }})" class="pill-link pill-link--compact">{{ __('crud.common.actions.edit') }}</button>
-                                                <button type="button" wire:click="delete({{ $band->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link pill-link--compact border-red-400/25 text-red-200 hover:border-red-300/35 hover:bg-red-500/12">{{ __('crud.common.actions.delete') }}</button>
+                                                <x-edit-action-button wire:click="edit({{ $band->id }})" :label="__('crud.common.actions.edit')" data-settings-assessment-band-edit-action />
                                             @endcan
                                         </div>
                                     </td>

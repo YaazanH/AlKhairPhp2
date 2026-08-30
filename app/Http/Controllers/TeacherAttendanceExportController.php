@@ -6,8 +6,10 @@ use App\Models\Course;
 use App\Models\Teacher;
 use App\Models\TeacherAttendanceDay;
 use App\Services\PdfBrandingService;
+use App\Support\ExportFilename;
 use App\Support\PdfOptions;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Mpdf\Mpdf;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -52,6 +54,15 @@ class TeacherAttendanceExportController extends Controller
         $mpdf->SetDirectionality(app()->isLocale('ar') ? 'rtl' : 'ltr');
         $mpdf->WriteHTML($html);
 
-        return response($mpdf->Output('', 'S'), 200, ['Content-Type' => 'application/pdf', 'Content-Disposition' => 'inline; filename="teacher-attendance.pdf"']);
+        return response($mpdf->Output('', 'S'), 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => ExportFilename::inlinePdf([
+                __('exports.pdf.teacher_attendance'),
+                __('exports.pdf.date_range', [
+                    'from' => Carbon::parse($validated['date_from'])->format('d-m-Y'),
+                    'to' => Carbon::parse($validated['date_to'])->format('d-m-Y'),
+                ]),
+            ], 'teacher-attendance.pdf'),
+        ]);
     }
 }

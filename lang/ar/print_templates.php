@@ -360,6 +360,7 @@ return [
                 'mark_printed_busy' => 'جارٍ التحديث...',
                 'mark_unprinted_busy' => 'جارٍ التحديث...',
                 'select_visible' => 'تحديد الظاهر',
+                'clear_selection' => 'مسح التحديد',
                 'clear' => 'مسح',
             ],
             'messages' => [

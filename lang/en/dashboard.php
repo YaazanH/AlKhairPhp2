@@ -25,6 +25,7 @@ return [
     ],
     'common' => [
         'no_course' => 'No course',
+        'no_active_courses' => 'Holiday - there are currently no active courses',
         'no_year' => 'No year',
         'no_teacher' => 'No teacher',
         'no_grade' => 'No grade',
@@ -49,11 +50,13 @@ return [
             'teachers' => ['label' => 'Teachers', 'hint' => 'Main and assistant teachers'],
             'parents' => ['label' => 'Parents', 'hint' => 'Family contact profiles'],
             'active_groups' => ['label' => 'Active Groups', 'hint' => 'Currently running groups in the default course'],
+            'average_daily_attendance' => ['label' => 'Average Attendance', 'hint' => 'Average number of present students per recorded day'],
             'active_enrollments' => ['label' => 'Active Enrollments', 'hint' => 'Students linked to active groups'],
             'current_year_groups' => ['label' => 'Current Year Groups', 'hint' => 'Groups in the current academic year'],
             'current_year_memorized_pages' => ['label' => 'Current Year Pages', 'hint' => 'Unique memorized pages first recorded in current-year groups'],
             'memorized_pages' => ['label' => 'Memorized Pages', 'hint' => 'Memorized pages in active default-course enrollments'],
             'total_points' => ['label' => 'Total Points', 'hint' => 'Net active points in the default course'],
+            'final_tested_juz' => ['label' => 'Final Tested Juz', 'hint' => 'Passed final juz tests in the default course'],
         ],
         'analytics' => [
             'groups_eyebrow' => 'Default course groups',

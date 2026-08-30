@@ -279,6 +279,7 @@ new class extends Component {
             FinanceReportTemplate::query()->orderBy('name')->first()?->update(['is_default' => true]);
         }
 
+        $this->resetForm();
         session()->flash('status', __('finance.report_templates.messages.deleted'));
     }
 
@@ -434,7 +435,7 @@ new class extends Component {
                 <div class="admin-grid-meta__title">{{ __('finance.report_templates.table_title') }}</div>
                 <div class="admin-grid-meta__summary">{{ __('crud.common.badges.in_view', ['count' => number_format($templates->total())]) }}</div>
             </div>
-            <button type="button" wire:click="openTemplateModal" class="pill-link pill-link--accent">{{ __('finance.report_templates.create') }}</button>
+            <x-add-action-button wire:click="openTemplateModal" :label="__('finance.report_templates.create')" />
         </div>
         <div class="overflow-x-auto">
             <table class="text-sm">
@@ -444,7 +445,7 @@ new class extends Component {
                         <th class="px-5 py-3 text-left">{{ __('finance.report_templates.language') }}</th>
                         <th class="px-5 py-3 text-left">{{ __('finance.report_templates.columns') }}</th>
                         <th class="px-5 py-3 text-left">{{ __('finance.fields.state') }}</th>
-                        <th class="px-5 py-3 text-right">{{ __('finance.actions.actions') }}</th>
+                        <th class="admin-actions-column px-5 py-3 text-center">{{ __('finance.actions.actions') }}</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-white/6">
@@ -465,8 +466,7 @@ new class extends Component {
                             </td>
                             <td class="px-5 py-3">
                                 <div class="admin-action-cluster admin-action-cluster--end">
-                                    <button type="button" wire:click="editTemplate({{ $template->id }})" class="pill-link pill-link--compact">{{ __('finance.actions.edit') }}</button>
-                                    <button type="button" wire:click="deleteTemplate({{ $template->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link pill-link--compact border-red-400/25 text-red-200">{{ __('finance.actions.delete') }}</button>
+                                    <x-edit-action-button wire:click="editTemplate({{ $template->id }})" :label="__('finance.actions.edit')" data-finance-report-template-edit-action />
                                 </div>
                             </td>
                         </tr>
@@ -480,6 +480,7 @@ new class extends Component {
     <x-admin.modal :show="$showTemplateModal" :title="$editing_id ? __('finance.report_templates.edit') : __('finance.report_templates.create')" :description="__('finance.report_templates.modal_subtitle')" close-method="closeTemplateModal" max-width="5xl">
         <form wire:submit="saveTemplate" class="space-y-6">
             @error('saveTemplate') <div class="rounded-2xl border border-red-500/25 bg-red-500/10 px-3 py-2 text-sm text-red-200">{{ $message }}</div> @enderror
+            @error('deleteTemplate') <div class="rounded-2xl border border-red-500/25 bg-red-500/10 px-3 py-2 text-sm text-red-200">{{ $message }}</div> @enderror
             <div class="grid gap-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
                 <div class="space-y-5">
                     <div class="grid gap-4 md:grid-cols-2">
@@ -635,7 +636,7 @@ new class extends Component {
                                 @forelse ($availableColumnOptions as $column)
                                     <div class="flex items-center justify-between gap-3 rounded-2xl border border-white/10 px-3 py-3 text-sm">
                                         <span>{{ $column['label'] }}</span>
-                                        <button type="button" wire:click="addColumn('{{ $column['key'] }}')" class="pill-link pill-link--compact pill-link--accent">{{ __('finance.report_templates.add_column') }}</button>
+                                        <x-add-action-button wire:click="addColumn('{{ $column['key'] }}')" :label="__('finance.report_templates.add_column')" />
                                     </div>
                                 @empty
                                     <div class="rounded-2xl border border-dashed border-white/10 px-4 py-5 text-sm text-neutral-400">{{ __('finance.report_templates.all_columns_selected') }}</div>
@@ -661,6 +662,9 @@ new class extends Component {
 
             <div class="flex justify-end gap-3">
                 <button type="button" wire:click="closeTemplateModal" class="pill-link">{{ __('finance.actions.cancel') }}</button>
+                @if ($editing_id)
+                    <x-delete-action-button wire:click="deleteTemplate({{ $editing_id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" :label="__('finance.actions.delete')" data-finance-report-template-delete-action />
+                @endif
                 <button type="submit" class="pill-link pill-link--accent">{{ __('settings.common.actions.save') }}</button>
             </div>
         </form>

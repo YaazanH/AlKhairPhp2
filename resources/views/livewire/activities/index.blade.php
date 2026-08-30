@@ -344,11 +344,11 @@ new class extends Component {
                     @enderror
 
                     <div class="flex items-center gap-3">
-                        <button type="submit" class="pill-link pill-link--accent">
-                            {{ $editingId ? __('activities.index.form.update_submit') : __('activities.index.form.create_submit') }}
-                        </button>
-                        <x-admin.create-and-new-button :show="! $editingId" click="saveAndNew('save', 'create')" />
-
+                        @if ($editingId)
+                            <button type="submit" class="pill-link pill-link--accent">{{ __('activities.index.form.update_submit') }}</button>
+                        @else
+                            <x-admin.create-and-new-button click="saveAndNew('save', 'create')" />
+                        @endif
                     </div>
                 </form>
             @else
@@ -370,9 +370,7 @@ new class extends Component {
                     <div class="admin-grid-meta__summary">{{ __('crud.common.badges.in_view', ['count' => number_format($filteredCount)]) }}</div>
                 </div>
                 @can('activities.create')
-                    <button type="button" wire:click="create" class="pill-link pill-link--accent">
-                        {{ __('activities.index.form.create_title') }}
-                    </button>
+                    <x-add-action-button wire:click="create" :label="__('activities.index.form.create_title')" />
                 @endcan
             </div>
 
@@ -390,7 +388,7 @@ new class extends Component {
                                 <th class="px-5 py-3 text-left font-medium">{{ __('activities.index.table.headers.financials') }}</th>
                                 <th class="px-5 py-3 text-left font-medium">{{ __('activities.index.table.headers.status') }}</th>
                                 @if (auth()->user()->can('activities.finance.view') || auth()->user()->can('activities.update') || auth()->user()->can('activities.delete'))
-                                    <th class="px-5 py-3 text-right font-medium">{{ __('activities.index.table.headers.actions') }}</th>
+                                    <th class="admin-actions-column px-5 py-3 text-center font-medium">{{ __('activities.index.table.headers.actions') }}</th>
                                 @endif
                             </tr>
                         </thead>

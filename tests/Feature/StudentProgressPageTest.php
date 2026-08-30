@@ -203,12 +203,20 @@ class StudentProgressPageTest extends TestCase
 
         $this->actingAs($parentUser);
 
-        Volt::test('students.progress', ['student' => $student])
+        $component = Volt::test('students.progress', ['student' => $student])
             ->assertViewHas('assessmentResults', fn ($results) => $results->doesntContain('id', $finalResult->id))
             ->assertViewHas('finalAssessmentResults', fn ($results) => $results->contains('id', $finalResult->id))
             ->call('showDetails', 'final-assessments')
             ->assertSee('data-student-progress-generic-table', false)
-            ->assertSeeText('Course Final Exam · Quran Track');
+            ->assertSee('w-[65%]', false)
+            ->assertSee('w-28 min-w-28', false)
+            ->assertSeeText('Course Final Exam')
+            ->assertDontSeeText('Course Final Exam · Quran Track');
+
+        $component
+            ->call('showDetails', 'assessments')
+            ->assertSeeText('Weekly Quiz')
+            ->assertDontSeeText('Weekly Quiz · Quran Track');
     }
 
     public function test_student_progress_limits_highlights_to_default_course_but_keeps_history_general(): void
@@ -376,13 +384,15 @@ class StudentProgressPageTest extends TestCase
         $this->assertStringContainsString('function createSearchableSelectChevron(inputMode = false)', $searchableSelectScript);
         $this->assertStringContainsString('stroke-linecap="round" stroke-linejoin="round"', $searchableSelectScript);
         $this->assertStringContainsString('function searchableSelectPlaceholderOption(select)', $searchableSelectScript);
-        $this->assertStringContainsString("const SEARCHABLE_SELECT_BINDING_VERSION = '6'", $searchableSelectScript);
+        $this->assertStringContainsString("const SEARCHABLE_SELECT_BINDING_VERSION = '8'", $searchableSelectScript);
         $this->assertStringContainsString("options.find((option) => option.value === 'all')", $searchableSelectScript);
         $this->assertStringContainsString("searchableSelectBinding(select).includes('filter')", $searchableSelectScript);
         $this->assertStringContainsString("hasSelectedValue || search.value.trim() !== ''", $searchableSelectScript);
         $this->assertStringContainsString('select.value = searchableSelectPlaceholderValue(select)', $searchableSelectScript);
         $this->assertStringContainsString("'searchable-select--placeholder'", $searchableSelectScript);
         $this->assertStringContainsString("clear.className = 'searchable-select__clear'", $searchableSelectScript);
+        $this->assertStringContainsString('function restoreSearchableSelectClear(clear)', $searchableSelectScript);
+        $this->assertStringContainsString("clear.dataset.modalActionIconIgnore = 'true'", $searchableSelectScript);
         $this->assertStringContainsString("clear.addEventListener('click'", $searchableSelectScript);
         $this->assertStringContainsString("clear.addEventListener('pointerdown'", $searchableSelectScript);
         $this->assertStringContainsString('suppressSearchableSelectOpen();', $searchableSelectScript);
@@ -486,10 +496,25 @@ class StudentProgressPageTest extends TestCase
         $component = Volt::test('students.progress', ['student' => $student])
             ->assertViewHas('quranJuzProgress', fn ($rows) => $rows->first()?->status === 'missing')
             ->assertSeeText(__('workflow.student_progress.juz_progress.show_missing'))
-            ->assertDontSeeText(__('workflow.student_progress.juz_progress.add_awqaf_test'));
+            ->assertDontSee('wire:click="openAwqafTest(', false);
 
         $finalTest->update(['status' => 'passed', 'passed_on' => '2026-09-16']);
         $finalTest->attempts()->firstOrFail()->update(['status' => 'passed']);
+        $enrollment->update(['status' => 'completed', 'left_at' => '2026-09-15']);
+
+        $component
+            ->call('$refresh')
+            ->assertSee('wire:click="openAwqafTest('.$juz->id.')" class="pill-link pill-link--compact"', false)
+            ->call('openAwqafTest', $juz->id)
+            ->assertHasNoErrors()
+            ->assertSet('showAwqafTestModal', false)
+            ->assertSet('showAwqafUnavailableModal', true)
+            ->assertSee('data-awqaf-unavailable-warning', false)
+            ->assertSeeText(__('workflow.student_progress.juz_progress.awqaf_unavailable'))
+            ->assertDontSee('admin-modal__header', false)
+            ->assertSee('wire:click="closeAwqafUnavailable"', false)
+            ->call('closeAwqafUnavailable')
+            ->assertSet('showAwqafUnavailableModal', false);
 
         $currentCourse = Course::create([
             'name' => 'Current Awqaf Course',
@@ -509,13 +534,12 @@ class StudentProgressPageTest extends TestCase
             'enrolled_at' => '2026-09-16',
             'status' => 'active',
         ]);
-        $enrollment->update(['status' => 'completed', 'left_at' => '2026-09-15']);
 
         $component
             ->call('$refresh')
             ->assertViewHas('quranJuzProgress', fn ($rows) => $rows->first()?->status === 'finished')
             ->assertDontSeeText(__('workflow.student_progress.juz_progress.show_missing'))
-            ->assertSeeText(__('workflow.student_progress.juz_progress.add_awqaf_test'))
+            ->assertSee('wire:click="openAwqafTest('.$juz->id.')" class="pill-link pill-link--compact"', false)
             ->call('openAwqafTest', $juz->id)
             ->assertSet('showAwqafTestModal', true)
             ->assertDontSee('wire:click="closeAwqafTest" class="pill-link"', false)
@@ -527,14 +551,14 @@ class StudentProgressPageTest extends TestCase
             ->call('saveAwqafTest')
             ->assertHasNoErrors()
             ->assertSet('showAwqafTestModal', false)
-            ->assertSeeText(__('workflow.student_progress.juz_progress.add_awqaf_test'))
+            ->assertSee('wire:click="openAwqafTest('.$juz->id.')" class="pill-link pill-link--compact"', false)
             ->call('openAwqafTest', $juz->id)
             ->set('awqafTestedOn', '2026-09-17')
             ->set('awqafScore', '88')
             ->set('awqafStatus', 'passed')
             ->call('saveAwqafTest')
             ->assertHasNoErrors()
-            ->assertDontSeeText(__('workflow.student_progress.juz_progress.add_awqaf_test'));
+            ->assertDontSee('wire:click="openAwqafTest(', false);
 
         $this->assertDatabaseHas('quran_tests', [
             'enrollment_id' => $currentEnrollment->id,

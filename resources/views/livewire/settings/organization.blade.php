@@ -67,6 +67,7 @@ new class extends Component {
     public int $academic_year_courses_count = 0;
     public int $academic_year_unfinished_courses_count = 0;
     public bool $showAcademicYearModal = false;
+    public bool $academic_year_creation_required = false;
 
     public ?int $grade_level_editing_id = null;
     public string $grade_level_name = '';
@@ -76,10 +77,12 @@ new class extends Component {
 
     public ?int $school_reference_editing_id = null;
     public string $school_reference_name = '';
+    public bool $school_reference_in_use = false;
     public bool $showSchoolReferenceModal = false;
 
     public ?int $father_job_editing_id = null;
     public string $father_job_name = '';
+    public bool $father_job_in_use = false;
     public bool $showFatherJobModal = false;
 
     public ?int $expense_category_editing_id = null;
@@ -129,6 +132,7 @@ new class extends Component {
                 ->orderByDesc('starts_on')
                 ->orderByDesc('id')
                 ->paginate(10, ['*'], 'academic_years_page'),
+            'canReactivateAcademicYear' => ! AcademicYear::query()->where('is_active', true)->exists(),
             'gradeLevels' => GradeLevel::query()
                 ->withCount(['groups', 'students', 'pointPolicies'])
                 ->orderBy('sort_order')
@@ -227,9 +231,7 @@ new class extends Component {
                 ->orderByDesc('starts_on')
                 ->first();
 
-            $replacement
-                ? $replacement->update(['is_current' => true])
-                : $this->createNextAcademicYear($academicYear);
+            $replacement?->update(['is_current' => true]);
         }
         $this->resetPage('academic_years_page');
 
@@ -258,7 +260,7 @@ new class extends Component {
             return;
         }
 
-        DB::transaction(function () use ($academicYear): void {
+        $nextAcademicYear = DB::transaction(function () use ($academicYear): ?AcademicYear {
             $wasCurrent = $academicYear->is_current;
 
             $academicYear->update([
@@ -266,13 +268,42 @@ new class extends Component {
                 'is_current' => false,
             ]);
 
-            if ($wasCurrent) {
-                $this->createNextAcademicYear($academicYear);
-            }
+            return $wasCurrent ? $this->createNextAcademicYear($academicYear) : null;
         });
 
         session()->flash('status', __('settings.organization.messages.academic_year_finished'));
+
+        if ($nextAcademicYear) {
+            $this->editAcademicYear($nextAcademicYear->id);
+            $this->academic_year_creation_required = true;
+
+            return;
+        }
+
         $this->cancelAcademicYear();
+    }
+
+    public function reactivateAcademicYear(int $academicYearId): void
+    {
+        $this->authorizePermission('settings.manage');
+
+        $academicYear = AcademicYear::query()->findOrFail($academicYearId);
+
+        if ($academicYear->is_active || AcademicYear::query()->where('is_active', true)->exists()) {
+            $this->addError('academicYearReactivation', __('settings.organization.errors.academic_year_reactivation_unavailable'));
+
+            return;
+        }
+
+        DB::transaction(function () use ($academicYear): void {
+            AcademicYear::query()->whereKeyNot($academicYear->id)->update(['is_current' => false]);
+            $academicYear->update([
+                'is_active' => true,
+                'is_current' => true,
+            ]);
+        });
+
+        session()->flash('status', __('settings.organization.messages.academic_year_reactivated'));
     }
 
     public function deleteGradeLevel(int $gradeLevelId): void
@@ -336,6 +367,9 @@ new class extends Component {
         $school = School::query()->findOrFail($schoolId);
         $this->school_reference_editing_id = $school->id;
         $this->school_reference_name = $school->name;
+        $this->school_reference_in_use = Student::query()
+            ->whereRaw('LOWER(TRIM(school_name)) = ?', [mb_strtolower(trim($school->name))])
+            ->exists();
         $this->showSchoolReferenceModal = true;
         $this->resetValidation();
     }
@@ -395,6 +429,7 @@ new class extends Component {
     {
         $this->school_reference_editing_id = null;
         $this->school_reference_name = '';
+        $this->school_reference_in_use = false;
         $this->showSchoolReferenceModal = false;
         $this->resetValidation();
     }
@@ -413,6 +448,9 @@ new class extends Component {
         $fatherJob = FatherJob::query()->findOrFail($fatherJobId);
         $this->father_job_editing_id = $fatherJob->id;
         $this->father_job_name = $fatherJob->name;
+        $this->father_job_in_use = ParentProfile::query()
+            ->whereRaw('LOWER(TRIM(father_work)) = ?', [mb_strtolower(trim($fatherJob->name))])
+            ->exists();
         $this->showFatherJobModal = true;
         $this->resetValidation();
     }
@@ -472,6 +510,7 @@ new class extends Component {
     {
         $this->father_job_editing_id = null;
         $this->father_job_name = '';
+        $this->father_job_in_use = false;
         $this->showFatherJobModal = false;
         $this->resetValidation();
     }
@@ -581,6 +620,10 @@ new class extends Component {
 
     public function closeAcademicYearModal(): void
     {
+        if ($this->academic_year_creation_required) {
+            return;
+        }
+
         $this->cancelAcademicYear();
     }
 
@@ -618,6 +661,12 @@ new class extends Component {
                 'courses as unfinished_courses_count' => fn ($query) => $query->whereNull('finished_at'),
             ])
             ->findOrFail($academicYearId);
+
+        if (! $academicYear->is_active) {
+            $this->addError('academicYear', __('settings.organization.errors.academic_year_finished_read_only'));
+
+            return;
+        }
 
         $this->academic_year_editing_id = $academicYear->id;
         $this->academic_year_name = $academicYear->name;
@@ -698,6 +747,7 @@ new class extends Component {
     public function saveAcademicYear(): void
     {
         $this->authorizePermission('settings.manage');
+        $wasRequiredCreation = $this->academic_year_creation_required;
 
         $existingAcademicYear = $this->academic_year_editing_id
             ? AcademicYear::query()->findOrFail($this->academic_year_editing_id)
@@ -740,7 +790,7 @@ new class extends Component {
 
         session()->flash(
             'status',
-            $this->academic_year_editing_id
+            $this->academic_year_editing_id && ! $wasRequiredCreation
                 ? __('settings.organization.messages.academic_year_updated')
                 : __('settings.organization.messages.academic_year_created'),
         );
@@ -751,12 +801,15 @@ new class extends Component {
     {
         $startsOn = ($academicYear->ends_on ?: $academicYear->starts_on ?: now())->copy()->addDay();
         $endsOn = $startsOn->copy()->addYear()->subDay();
-        $baseName = $startsOn->format('Y').'/'.$endsOn->format('Y');
+        $arabicIndicDigits = ['0' => '٠', '1' => '١', '2' => '٢', '3' => '٣', '4' => '٤', '5' => '٥', '6' => '٦', '7' => '٧', '8' => '٨', '9' => '٩'];
+        $startYear = strtr($startsOn->format('Y'), $arabicIndicDigits);
+        $endYear = strtr($endsOn->format('Y'), $arabicIndicDigits);
+        $baseName = 'العام الدراسي '.$startYear.' - '.$endYear.'م';
         $name = $baseName;
         $suffix = 2;
 
         while (AcademicYear::query()->where('name', $name)->exists()) {
-            $name = $baseName.' ('.$suffix.')';
+            $name = $baseName.' ('.strtr((string) $suffix, $arabicIndicDigits).')';
             $suffix++;
         }
 
@@ -1027,6 +1080,7 @@ new class extends Component {
         $this->academic_year_courses_count = 0;
         $this->academic_year_unfinished_courses_count = 0;
         $this->showAcademicYearModal = false;
+        $this->academic_year_creation_required = false;
         $this->resetValidation();
     }
 
@@ -1248,7 +1302,7 @@ new class extends Component {
                 <div class="admin-toolbar__title">{{ __('settings.organization.sections.profile.title') }}</div>
             </div>
             <div class="admin-toolbar__actions">
-                <button type="button" wire:click="openOrganizationModal" class="pill-link">{{ __('settings.organization.actions.save_settings') }}</button>
+                <x-edit-action-button wire:click="openOrganizationModal" :label="__('settings.organization.actions.save_settings')" data-organization-edit-action />
             </div>
         </div>
 
@@ -1434,12 +1488,12 @@ new class extends Component {
                     <div class="grid gap-4 md:grid-cols-2">
                         <div>
                             <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.starts_on') }}</label>
-                            <input wire:model="academic_year_starts_on" type="date" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                            <input wire:model="academic_year_starts_on" type="date" required class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
                             @error('academic_year_starts_on') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
                         </div>
                         <div>
                             <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.ends_on') }}</label>
-                            <input wire:model="academic_year_ends_on" type="date" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                            <input wire:model="academic_year_ends_on" type="date" required class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
                             @error('academic_year_ends_on') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
                         </div>
                     </div>
@@ -1500,14 +1554,14 @@ new class extends Component {
                         <div class="text-sm font-medium">{{ __('settings.organization.sections.academic_year.table') }}</div>
                         <p class="mt-1 text-xs text-neutral-500">{{ __('settings.organization.sections.academic_year.copy') }}</p>
                     </div>
-                    <button type="button" wire:click="openAcademicYearModal" class="pill-link pill-link--accent">{{ __('settings.organization.actions.create_year') }}</button>
+                    <x-add-action-button wire:click="openAcademicYearModal" :label="__('settings.organization.actions.create_year')" />
                 </div>
                 @if ($academicYears->isEmpty())
                     <div class="px-5 py-10 text-sm text-neutral-500">{{ __('settings.organization.sections.academic_year.empty') }}</div>
                 @else
                     <div class="overflow-x-auto">
-                        <table class="min-w-full divide-y divide-neutral-200 text-sm dark:divide-neutral-700">
-                            <thead class="bg-neutral-50 dark:bg-neutral-900/60"><tr><th class="px-5 py-3 text-left font-medium">{{ __('settings.organization.table.name') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.organization.table.dates') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.organization.fields.current_academic_year') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.organization.table.courses') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.organization.table.state') }}</th><th class="px-5 py-3 text-right font-medium">{{ __('settings.organization.table.actions') }}</th></tr></thead>
+                        <table class="settings-academic-year-table min-w-full divide-y divide-neutral-200 text-sm dark:divide-neutral-700">
+                            <thead class="bg-neutral-50 dark:bg-neutral-900/60"><tr><th class="px-5 py-3 text-left font-medium">{{ __('settings.organization.table.name') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.organization.table.dates') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.organization.fields.current_academic_year') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.organization.table.courses') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.organization.table.state') }}</th><th class="admin-actions-column px-5 py-3 text-center font-medium">{{ __('settings.organization.table.actions') }}</th></tr></thead>
                             <tbody class="divide-y divide-neutral-200 dark:divide-neutral-700">
                                 @foreach ($academicYears as $academicYear)
                                     <tr>
@@ -1517,8 +1571,14 @@ new class extends Component {
                                         <td class="px-5 py-3">{{ $academicYear->courses_count }}</td>
                                         <td class="px-5 py-3">{{ $academicYear->is_active ? __('settings.common.states.active') : __('settings.common.states.finished') }}</td>
                                         <td class="px-5 py-3">
-                                            <div class="flex justify-end gap-2">
-                                                <button type="button" wire:click="editAcademicYear({{ $academicYear->id }})" class="pill-link pill-link--compact">{{ __('crud.common.actions.open') }}</button>
+                                            <div class="flex min-h-11 flex-nowrap items-center justify-center gap-2">
+                                                @if ($academicYear->is_active)
+                                                    <x-edit-action-button wire:click="editAcademicYear({{ $academicYear->id }})" :label="__('crud.common.actions.edit')" data-settings-academic-year-edit-action />
+                                                @elseif ($canReactivateAcademicYear)
+                                                    <button type="button" wire:click="reactivateAcademicYear({{ $academicYear->id }})" class="admin-icon-button admin-icon-button--accent" title="{{ __('settings.organization.actions.reactivate_year') }}" aria-label="{{ __('settings.organization.actions.reactivate_year') }}" data-settings-academic-year-reactivate-action>
+                                                        <x-admin-action-icon name="reactivate" />
+                                                    </button>
+                                                @endif
                                             </div>
                                         </td>
                                     </tr>
@@ -1540,14 +1600,14 @@ new class extends Component {
                         <div class="text-sm font-medium">{{ __('settings.organization.sections.grade_level.table') }}</div>
                         <p class="mt-1 text-xs text-neutral-500">{{ __('settings.organization.sections.grade_level.copy') }}</p>
                     </div>
-                    <button type="button" wire:click="openGradeLevelModal" class="pill-link pill-link--accent">{{ __('settings.organization.actions.create_grade') }}</button>
+                    <x-add-action-button wire:click="openGradeLevelModal" :label="__('settings.organization.actions.create_grade')" />
                 </div>
                 @if ($gradeLevels->isEmpty())
                     <div class="px-5 py-10 text-sm text-neutral-500">{{ __('settings.organization.sections.grade_level.empty') }}</div>
                 @else
                     <div class="overflow-x-auto">
                         <table class="min-w-full divide-y divide-neutral-200 text-sm dark:divide-neutral-700">
-                            <thead class="bg-neutral-50 dark:bg-neutral-900/60"><tr><th class="px-5 py-3 text-left font-medium">{{ __('settings.organization.table.name') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.organization.table.sort') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.organization.table.usage') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.organization.table.state') }}</th><th class="px-5 py-3 text-right font-medium">{{ __('settings.organization.table.actions') }}</th></tr></thead>
+                            <thead class="bg-neutral-50 dark:bg-neutral-900/60"><tr><th class="px-5 py-3 text-left font-medium">{{ __('settings.organization.table.name') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.organization.table.sort') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.organization.table.usage') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.organization.table.state') }}</th><th class="admin-actions-column px-5 py-3 text-center font-medium">{{ __('settings.organization.table.actions') }}</th></tr></thead>
                             <tbody class="divide-y divide-neutral-200 dark:divide-neutral-700">
                                 @foreach ($gradeLevels as $gradeLevel)
                                     <tr>
@@ -1557,8 +1617,7 @@ new class extends Component {
                                         <td class="px-5 py-3">{{ $gradeLevel->is_active ? __('settings.common.states.active') : __('settings.common.states.inactive') }}</td>
                                         <td class="px-5 py-3">
                                             <div class="flex justify-end gap-2">
-                                                <button type="button" wire:click="editGradeLevel({{ $gradeLevel->id }})" class="rounded-lg border border-neutral-300 px-3 py-1.5 dark:border-neutral-700">{{ __('crud.common.actions.edit') }}</button>
-                                                <button type="button" wire:click="deleteGradeLevel({{ $gradeLevel->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="rounded-lg border border-red-300 px-3 py-1.5 text-red-700 dark:border-red-800 dark:text-red-300">{{ __('crud.common.actions.delete') }}</button>
+                                                <x-edit-action-button wire:click="editGradeLevel({{ $gradeLevel->id }})" :label="__('crud.common.actions.edit')" data-settings-grade-level-edit-action />
                                             </div>
                                         </td>
                                     </tr>
@@ -1581,7 +1640,7 @@ new class extends Component {
                             <div class="text-sm font-medium">{{ __('settings.organization.sections.school_reference.table') }}</div>
                             <p class="mt-1 text-xs text-neutral-500">{{ __('settings.organization.sections.school_reference.copy') }}</p>
                         </div>
-                        <button type="button" wire:click="openSchoolReferenceModal" class="pill-link pill-link--accent">{{ __('settings.organization.actions.create_school') }}</button>
+                        <x-add-action-button wire:click="openSchoolReferenceModal" :label="__('settings.organization.actions.create_school')" />
                     </div>
                     @error('schoolReferenceDelete') <div class="px-5 pt-4 text-sm text-red-600">{{ $message }}</div> @enderror
                     @if ($schoolReferences->isEmpty())
@@ -1589,7 +1648,7 @@ new class extends Component {
                     @else
                         <div class="overflow-x-auto">
                             <table class="min-w-full divide-y divide-neutral-200 text-sm dark:divide-neutral-700">
-                                <thead class="bg-neutral-50 dark:bg-neutral-900/60"><tr><th class="px-5 py-3 text-left font-medium">{{ __('settings.organization.table.name') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.organization.table.number') }}</th><th class="px-5 py-3 text-right font-medium">{{ __('settings.organization.table.actions') }}</th></tr></thead>
+                                <thead class="bg-neutral-50 dark:bg-neutral-900/60"><tr><th class="px-5 py-3 text-left font-medium">{{ __('settings.organization.table.name') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.organization.table.number') }}</th><th class="admin-actions-column px-5 py-3 text-center font-medium">{{ __('settings.organization.table.actions') }}</th></tr></thead>
                                 <tbody class="divide-y divide-neutral-200 dark:divide-neutral-700">
                                     @foreach ($schoolReferences as $schoolReference)
                                         <tr>
@@ -1597,7 +1656,7 @@ new class extends Component {
                                             <td class="px-5 py-3" data-school-usage-count="{{ $schoolReference->usage_count }}">{{ number_format($schoolReference->usage_count) }}</td>
                                             <td class="px-5 py-3">
                                                 <div class="flex justify-end gap-2">
-                                                    <button type="button" wire:click="editSchoolReference({{ $schoolReference->id }})" class="pill-link pill-link--compact text-lg" aria-label="{{ __('crud.common.actions.edit') }}" title="{{ __('crud.common.actions.edit') }}" data-school-reference-edit-icon><span aria-hidden="true">✎</span></button>
+                                                    <x-edit-action-button wire:click="editSchoolReference({{ $schoolReference->id }})" :label="__('crud.common.actions.edit')" data-school-reference-edit-icon />
                                                 </div>
                                             </td>
                                         </tr>
@@ -1619,7 +1678,7 @@ new class extends Component {
                             <div class="text-sm font-medium">{{ __('settings.organization.sections.father_job.table') }}</div>
                             <p class="mt-1 text-xs text-neutral-500">{{ __('settings.organization.sections.father_job.copy') }}</p>
                         </div>
-                        <button type="button" wire:click="openFatherJobModal" class="pill-link pill-link--accent">{{ __('settings.organization.actions.create_father_job') }}</button>
+                        <x-add-action-button wire:click="openFatherJobModal" :label="__('settings.organization.actions.create_father_job')" />
                     </div>
                     @error('fatherJobDelete') <div class="px-5 pt-4 text-sm text-red-600">{{ $message }}</div> @enderror
                     @if ($fatherJobs->isEmpty())
@@ -1627,7 +1686,7 @@ new class extends Component {
                     @else
                         <div class="overflow-x-auto">
                             <table class="min-w-full divide-y divide-neutral-200 text-sm dark:divide-neutral-700">
-                                <thead class="bg-neutral-50 dark:bg-neutral-900/60"><tr><th class="px-5 py-3 text-left font-medium">{{ __('settings.organization.table.name') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.organization.table.number') }}</th><th class="px-5 py-3 text-right font-medium">{{ __('settings.organization.table.actions') }}</th></tr></thead>
+                                <thead class="bg-neutral-50 dark:bg-neutral-900/60"><tr><th class="px-5 py-3 text-left font-medium">{{ __('settings.organization.table.name') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.organization.table.number') }}</th><th class="admin-actions-column px-5 py-3 text-center font-medium">{{ __('settings.organization.table.actions') }}</th></tr></thead>
                                 <tbody class="divide-y divide-neutral-200 dark:divide-neutral-700">
                                     @foreach ($fatherJobs as $fatherJob)
                                         <tr>
@@ -1635,7 +1694,7 @@ new class extends Component {
                                             <td class="px-5 py-3" data-father-job-usage-count="{{ $fatherJob->usage_count }}">{{ number_format($fatherJob->usage_count) }}</td>
                                             <td class="px-5 py-3">
                                                 <div class="flex justify-end gap-2">
-                                                    <button type="button" wire:click="editFatherJob({{ $fatherJob->id }})" class="pill-link pill-link--compact text-lg" aria-label="{{ __('crud.common.actions.edit') }}" title="{{ __('crud.common.actions.edit') }}" data-father-job-edit-icon><span aria-hidden="true">✎</span></button>
+                                                    <x-edit-action-button wire:click="editFatherJob({{ $fatherJob->id }})" :label="__('crud.common.actions.edit')" data-father-job-edit-icon />
                                                 </div>
                                             </td>
                                         </tr>
@@ -1669,14 +1728,14 @@ new class extends Component {
                         <div class="text-sm font-medium">{{ __('settings.organization.sections.student_gender.table') }}</div>
                         <p class="mt-1 text-xs text-neutral-500">{{ __('settings.organization.sections.student_gender.copy') }}</p>
                     </div>
-                    <button type="button" wire:click="openStudentGenderModal" class="pill-link pill-link--accent">{{ __('settings.organization.actions.create_student_gender') }}</button>
+                    <x-add-action-button wire:click="openStudentGenderModal" :label="__('settings.organization.actions.create_student_gender')" />
                 </div>
                 @if ($studentGenders->isEmpty())
                     <div class="px-5 py-10 text-sm text-neutral-500">{{ __('settings.organization.sections.student_gender.empty') }}</div>
                 @else
                     <div class="overflow-x-auto">
                         <table class="min-w-full divide-y divide-neutral-200 text-sm dark:divide-neutral-700">
-                            <thead class="bg-neutral-50 dark:bg-neutral-900/60"><tr><th class="px-5 py-3 text-left font-medium">{{ __('settings.organization.table.name') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.organization.table.code') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.organization.table.sort') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.organization.table.default') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.organization.table.state') }}</th><th class="px-5 py-3 text-right font-medium">{{ __('settings.organization.table.actions') }}</th></tr></thead>
+                            <thead class="bg-neutral-50 dark:bg-neutral-900/60"><tr><th class="px-5 py-3 text-left font-medium">{{ __('settings.organization.table.name') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.organization.table.code') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.organization.table.sort') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.organization.table.default') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.organization.table.state') }}</th><th class="admin-actions-column px-5 py-3 text-center font-medium">{{ __('settings.organization.table.actions') }}</th></tr></thead>
                             <tbody class="divide-y divide-neutral-200 dark:divide-neutral-700">
                                 @foreach ($studentGenders as $studentGender)
                                     <tr>
@@ -1693,8 +1752,7 @@ new class extends Component {
                                         <td class="px-5 py-3">{{ $studentGender->is_active ? __('settings.common.states.active') : __('settings.common.states.inactive') }}</td>
                                         <td class="px-5 py-3">
                                             <div class="flex justify-end gap-2">
-                                                <button type="button" wire:click="editStudentGender({{ $studentGender->id }})" class="rounded-lg border border-neutral-300 px-3 py-1.5 dark:border-neutral-700">{{ __('crud.common.actions.edit') }}</button>
-                                                <button type="button" wire:click="deleteStudentGender({{ $studentGender->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="rounded-lg border border-red-300 px-3 py-1.5 text-red-700 dark:border-red-800 dark:text-red-300">{{ __('crud.common.actions.delete') }}</button>
+                                                <x-edit-action-button wire:click="editStudentGender({{ $studentGender->id }})" :label="__('crud.common.actions.edit')" data-settings-student-gender-edit-action />
                                             </div>
                                         </td>
                                     </tr>
@@ -1871,7 +1929,7 @@ new class extends Component {
         </form>
     </x-admin.modal>
 
-    <x-admin.modal :show="$showAcademicYearModal" :title="$academic_year_editing_id ? __('settings.organization.sections.academic_year.edit') : __('settings.organization.sections.academic_year.create')" :description="__('settings.organization.sections.academic_year.copy')" close-method="closeAcademicYearModal" max-width="3xl">
+    <x-admin.modal :show="$showAcademicYearModal" :title="$academic_year_creation_required || ! $academic_year_editing_id ? __('settings.organization.sections.academic_year.create') : __('settings.organization.sections.academic_year.edit')" :description="__('settings.organization.sections.academic_year.copy')" close-method="closeAcademicYearModal" :dismissible="! $academic_year_creation_required" max-width="3xl">
         <form wire:submit="saveAcademicYear" class="space-y-4">
             @error('academicYear') <div class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{{ $message }}</div> @enderror
             <div>
@@ -1882,12 +1940,12 @@ new class extends Component {
             <div class="grid gap-4 md:grid-cols-2">
                 <div>
                     <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.starts_on') }}</label>
-                    <input wire:model="academic_year_starts_on" type="date" @disabled($academic_year_editing_id && ! $academic_year_is_active) class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60 dark:border-neutral-700 dark:bg-neutral-900">
+                    <input wire:model="academic_year_starts_on" type="date" required @disabled($academic_year_editing_id && ! $academic_year_is_active) class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60 dark:border-neutral-700 dark:bg-neutral-900">
                     @error('academic_year_starts_on') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
                 </div>
                 <div>
                     <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.ends_on') }}</label>
-                    <input wire:model="academic_year_ends_on" type="date" @disabled($academic_year_editing_id && ! $academic_year_is_active) class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60 dark:border-neutral-700 dark:bg-neutral-900">
+                    <input wire:model="academic_year_ends_on" type="date" required @disabled($academic_year_editing_id && ! $academic_year_is_active) class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60 dark:border-neutral-700 dark:bg-neutral-900">
                     @error('academic_year_ends_on') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
                 </div>
             </div>
@@ -1896,17 +1954,19 @@ new class extends Component {
             @endif
             @error('academicYearDelete') <div class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{{ $message }}</div> @enderror
             @error('academicYearFinish') <div class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{{ $message }}</div> @enderror
+            @error('academicYearReactivation') <div class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{{ $message }}</div> @enderror
             <div class="flex flex-wrap justify-end gap-3">
-                @if ($academic_year_editing_id)
-                    <button type="button" wire:click="deleteAcademicYear({{ $academic_year_editing_id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" @disabled($academic_year_courses_count > 0) class="pill-link pill-link--danger disabled:cursor-not-allowed disabled:opacity-40">{{ __('crud.common.actions.delete') }}</button>
-                    @if ($academic_year_is_active)
-                        <button type="button" wire:click="finishAcademicYear" @disabled($academic_year_unfinished_courses_count > 0) class="pill-link border-amber-400/30 text-amber-200 disabled:cursor-not-allowed disabled:opacity-40">{{ __('crud.courses.actions.finish') }}</button>
+                @if ($academic_year_editing_id && $academic_year_is_active)
+                    <x-admin.save-button :label="$academic_year_creation_required ? __('settings.organization.actions.create_year') : __('settings.organization.actions.update_year')" data-settings-academic-year-save-action />
+                @elseif (! $academic_year_editing_id)
+                    <x-admin.create-and-new-button click="saveAndNew('saveAcademicYear', 'openAcademicYearModal')" />
+                @endif
+                @if ($academic_year_editing_id && $academic_year_is_active && ! $academic_year_creation_required)
+                    <button type="button" wire:click="finishAcademicYear" wire:confirm="{{ __('settings.organization.actions.finish_academic_year_confirm') }}" @disabled($academic_year_unfinished_courses_count > 0) class="admin-icon-button admin-modal-action-button border-amber-400/30 text-amber-200 disabled:cursor-not-allowed disabled:opacity-40" title="{{ __('crud.courses.actions.finish') }}" aria-label="{{ __('crud.courses.actions.finish') }}" data-settings-academic-year-finish-action><x-admin-action-icon name="finish-line" class="admin-modal-action__icon" /></button>
+                    @if ($academic_year_courses_count === 0)
+                        <x-delete-action-button wire:click="deleteAcademicYear({{ $academic_year_editing_id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" :label="__('crud.common.actions.delete')" data-settings-academic-year-delete-action />
                     @endif
                 @endif
-                @if (! $academic_year_editing_id || $academic_year_is_active)
-                    <button type="submit" class="pill-link pill-link--accent">{{ $academic_year_editing_id ? __('settings.organization.actions.update_year') : __('settings.organization.actions.create_year') }}</button>
-                @endif
-                <x-admin.create-and-new-button :show="! $academic_year_editing_id" click="saveAndNew('saveAcademicYear', 'openAcademicYearModal')" />
             </div>
         </form>
     </x-admin.modal>
@@ -1927,8 +1987,14 @@ new class extends Component {
             @error('gradeLevelDelete') <div class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{{ $message }}</div> @enderror
             <div class="flex justify-end gap-3">
                 <button type="button" wire:click="closeGradeLevelModal" class="pill-link">{{ __('crud.common.actions.cancel') }}</button>
-                <button type="submit" class="pill-link pill-link--accent">{{ $grade_level_editing_id ? __('settings.organization.actions.update_grade') : __('settings.organization.actions.create_grade') }}</button>
-                <x-admin.create-and-new-button :show="! $grade_level_editing_id" click="saveAndNew('saveGradeLevel', 'openGradeLevelModal')" />
+                @if ($grade_level_editing_id)
+                    <x-delete-action-button wire:click="deleteGradeLevel({{ $grade_level_editing_id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" :label="__('crud.common.actions.delete')" data-settings-grade-level-delete-action />
+                @endif
+                @if ($grade_level_editing_id)
+                    <x-admin.save-button :label="__('settings.organization.actions.update_grade')" data-settings-grade-level-save-action />
+                @else
+                    <x-admin.create-and-new-button click="saveAndNew('saveGradeLevel', 'openGradeLevelModal')" />
+                @endif
             </div>
         </form>
     </x-admin.modal>
@@ -1942,11 +2008,14 @@ new class extends Component {
                 @error('schoolReferenceDelete') <div class="mt-2 text-sm text-red-600">{{ $message }}</div> @enderror
             </div>
             <div class="flex justify-end gap-3">
-                @if ($school_reference_editing_id)
-                    <button type="button" wire:click="deleteSchoolReference({{ $school_reference_editing_id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link pill-link--danger" data-school-reference-delete>{{ __('crud.common.actions.delete') }}</button>
+                @if ($school_reference_editing_id && ! $school_reference_in_use)
+                    <x-delete-action-button wire:click="deleteSchoolReference({{ $school_reference_editing_id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" :label="__('crud.common.actions.delete')" data-school-reference-delete />
                 @endif
-                <button type="submit" class="pill-link pill-link--accent">{{ $school_reference_editing_id ? __('settings.organization.actions.update_school') : __('settings.organization.actions.create_school') }}</button>
-                <x-admin.create-and-new-button :show="! $school_reference_editing_id" click="saveAndNew('saveSchoolReference', 'openSchoolReferenceModal')" />
+                @if ($school_reference_editing_id)
+                    <x-admin.save-button :label="__('settings.organization.actions.update_school')" data-school-reference-save-action />
+                @else
+                    <x-admin.create-and-new-button click="saveAndNew('saveSchoolReference', 'openSchoolReferenceModal')" />
+                @endif
             </div>
         </form>
     </x-admin.modal>
@@ -1960,11 +2029,14 @@ new class extends Component {
                 @error('fatherJobDelete') <div class="mt-2 text-sm text-red-600">{{ $message }}</div> @enderror
             </div>
             <div class="flex justify-end gap-3">
-                @if ($father_job_editing_id)
-                    <button type="button" wire:click="deleteFatherJob({{ $father_job_editing_id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link pill-link--danger" data-father-job-delete>{{ __('crud.common.actions.delete') }}</button>
+                @if ($father_job_editing_id && ! $father_job_in_use)
+                    <x-delete-action-button wire:click="deleteFatherJob({{ $father_job_editing_id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" :label="__('crud.common.actions.delete')" data-father-job-delete />
                 @endif
-                <button type="submit" class="pill-link pill-link--accent">{{ $father_job_editing_id ? __('settings.organization.actions.update_father_job') : __('settings.organization.actions.create_father_job') }}</button>
-                <x-admin.create-and-new-button :show="! $father_job_editing_id" click="saveAndNew('saveFatherJob', 'openFatherJobModal')" />
+                @if ($father_job_editing_id)
+                    <x-admin.save-button :label="__('settings.organization.actions.update_father_job')" data-father-job-save-action />
+                @else
+                    <x-admin.create-and-new-button click="saveAndNew('saveFatherJob', 'openFatherJobModal')" />
+                @endif
             </div>
         </form>
     </x-admin.modal>
@@ -1992,8 +2064,14 @@ new class extends Component {
             @error('studentGenderDelete') <div class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{{ $message }}</div> @enderror
             <div class="flex justify-end gap-3">
                 <button type="button" wire:click="closeStudentGenderModal" class="pill-link">{{ __('crud.common.actions.cancel') }}</button>
-                <button type="submit" class="pill-link pill-link--accent">{{ $student_gender_editing_id ? __('settings.organization.actions.update_student_gender') : __('settings.organization.actions.create_student_gender') }}</button>
-                <x-admin.create-and-new-button :show="! $student_gender_editing_id" click="saveAndNew('saveStudentGender', 'openStudentGenderModal')" />
+                @if ($student_gender_editing_id)
+                    <x-delete-action-button wire:click="deleteStudentGender({{ $student_gender_editing_id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" :label="__('crud.common.actions.delete')" data-settings-student-gender-delete-action />
+                @endif
+                @if ($student_gender_editing_id)
+                    <x-admin.save-button :label="__('settings.organization.actions.update_student_gender')" data-settings-student-gender-save-action />
+                @else
+                    <x-admin.create-and-new-button click="saveAndNew('saveStudentGender', 'openStudentGenderModal')" />
+                @endif
             </div>
         </form>
     </x-admin.modal>

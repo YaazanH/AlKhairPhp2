@@ -725,7 +725,7 @@ new class extends Component {
                 </div>
 
                 <div class="admin-toolbar__actions">
-                    <a href="{{ route('parents.export', ['search' => $search, 'status' => $statusFilter]) }}" class="pill-link">{{ __('crud.common.actions.export') }}</a>
+                    <x-export-action-button :href="route('parents.export', ['search' => $search, 'status' => $statusFilter])" :label="__('crud.common.actions.export')" />
                 </div>
             </div>
         </div>
@@ -770,12 +770,16 @@ new class extends Component {
                         </dl>
 
                         <div class="mobile-record-card__actions">
-                            <button type="button" wire:click="viewAccount({{ $parent->id }})" class="pill-link pill-link--compact">{{ __('crud.common.actions.account') }}</button>
+                            <button type="button" wire:click="viewAccount({{ $parent->id }})" class="admin-icon-button" title="{{ __('crud.common.actions.account') }}" aria-label="{{ __('crud.common.actions.account') }}" data-parent-account-action><x-admin-action-icon name="account" /></button>
                             @can('students.view')
-                                <button type="button" wire:click="openChildrenModal({{ $parent->id }})" class="pill-link pill-link--compact">{{ __('crud.parents.children.action') }}</button>
+                                @if ($parent->students_count > 0)
+                                    <button type="button" wire:click="openChildrenModal({{ $parent->id }})" class="admin-icon-button" title="{{ __('crud.parents.children.action') }}" aria-label="{{ __('crud.parents.children.action') }}" data-parent-children-action><flux:icon.parents-couple /></button>
+                                @endif
                             @endcan
-                            @can('parents.update')
-                                <button type="button" wire:click="edit({{ $parent->id }})" class="pill-link pill-link--compact">{{ __('crud.common.actions.edit') }}</button>
+                            @can('parents.delete')
+                                @if ($parent->students_count === 0)
+                                    <x-delete-action-button wire:click="delete({{ $parent->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" :label="__('crud.common.actions.delete')" data-parent-delete-action />
+                                @endif
                             @endcan
                         </div>
                     </article>
@@ -793,7 +797,7 @@ new class extends Component {
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.parents.table.headers.father_phone') }}</th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.parents.table.headers.mother_phone') }}</th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.parents.table.headers.status') }}</th>
-                            <th class="px-5 py-4 text-right lg:px-6">{{ __('crud.parents.table.headers.actions') }}</th>
+                            <th class="admin-actions-column px-5 py-4 text-center lg:px-6">{{ __('crud.parents.table.headers.actions') }}</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-white/6">
@@ -812,12 +816,16 @@ new class extends Component {
                                 </td>
                                 <td class="px-5 py-4 lg:px-6">
                                     <div class="flex flex-wrap justify-end gap-2">
-                                        <button type="button" wire:click="viewAccount({{ $parent->id }})" class="pill-link pill-link--compact">{{ __('crud.common.actions.account') }}</button>
+                                        <button type="button" wire:click="viewAccount({{ $parent->id }})" class="admin-icon-button" title="{{ __('crud.common.actions.account') }}" aria-label="{{ __('crud.common.actions.account') }}" data-parent-account-action><x-admin-action-icon name="account" /></button>
                                         @can('students.view')
-                                            <button type="button" wire:click="openChildrenModal({{ $parent->id }})" class="pill-link pill-link--compact">{{ __('crud.parents.children.action') }}</button>
+                                            @if ($parent->students_count > 0)
+                                                <button type="button" wire:click="openChildrenModal({{ $parent->id }})" class="admin-icon-button" title="{{ __('crud.parents.children.action') }}" aria-label="{{ __('crud.parents.children.action') }}" data-parent-children-action><flux:icon.parents-couple /></button>
+                                            @endif
                                         @endcan
-                                        @can('parents.update')
-                                            <button type="button" wire:click="edit({{ $parent->id }})" class="pill-link pill-link--compact">{{ __('crud.common.actions.edit') }}</button>
+                                        @can('parents.delete')
+                                            @if ($parent->students_count === 0)
+                                                <x-delete-action-button wire:click="delete({{ $parent->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" :label="__('crud.common.actions.delete')" data-parent-delete-action />
+                                            @endif
                                         @endcan
                                     </div>
                                 </td>
@@ -922,7 +930,7 @@ new class extends Component {
                     <div class="flex gap-2">
                         <input id="father-work" wire:model.live.debounce.300ms="father_work" list="father-work-options" class="min-w-0 flex-1 rounded-xl px-4 py-3 text-sm" placeholder="{{ __('crud.parents.form.placeholders.new_father_work') }}">
                         @if (filled($father_work) && ! $fatherJobs->contains(fn ($fatherJob) => strcasecmp($fatherJob->name, trim($father_work)) === 0))
-                            <button type="button" wire:click="createFatherJobShortcut" class="pill-link pill-link--compact" title="{{ __('crud.common.actions.create') }}" aria-label="{{ __('crud.common.actions.create') }}">+</button>
+                            <x-add-action-button wire:click="createFatherJobShortcut" :label="__('crud.common.actions.create')" :accent="false" />
                         @endif
                     </div>
                     <datalist id="father-work-options">
@@ -999,15 +1007,27 @@ new class extends Component {
                 <span>{{ __('crud.parents.form.active_profile') }}</span>
             </label>
 
-            <div class="flex flex-wrap items-center gap-3">
-                <button type="submit" class="pill-link pill-link--accent">
-                    {{ $editingId ? __('crud.parents.form.update_submit') : __('crud.parents.form.create_submit') }}
+            <div class="admin-action-cluster admin-action-cluster--end">
+                @if ($editingId)
+                    <button type="submit" class="admin-icon-button admin-icon-button--accent admin-modal-action-button" title="{{ __('crud.parents.form.update_submit') }}" aria-label="{{ __('crud.parents.form.update_submit') }}" data-parent-form-save-action>
+                        <x-admin-action-icon name="save" class="admin-modal-action__icon" />
+                    </button>
+                @else
+                    <x-admin.create-and-new-button />
+                @endif
+                <button type="button" wire:click="cancel" class="admin-icon-button admin-modal-action-button" title="{{ __('crud.common.actions.close') }}" aria-label="{{ __('crud.common.actions.close') }}" data-parent-form-close-action>
+                    <x-admin-action-icon name="clear-selection" class="admin-modal-action__icon" />
                 </button>
-                <x-admin.create-and-new-button :show="! $editingId" />
-                <button type="button" wire:click="cancel" class="pill-link">
-                    {{ __('crud.common.actions.close') }}
-                </button>
-                @if($editingId)@can('parents.update')<button type="button" wire:click="openAccountModal({{ $editingId }})" class="pill-link">{{ __('access.profile_accounts.title') }}</button>@endcan @can('parents.delete')<button type="button" wire:click="delete({{ $editingId }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link border-red-400/25 text-red-200">{{ __('crud.common.actions.delete') }}</button>@endcan @endif
+                @if($editingId)
+                    @can('parents.update')
+                        <button type="button" wire:click="openAccountModal({{ $editingId }})" class="admin-icon-button admin-modal-action-button" title="{{ __('access.profile_accounts.title') }}" aria-label="{{ __('access.profile_accounts.title') }}" data-parent-form-account-action>
+                            <x-admin-action-icon name="account" class="admin-modal-action__icon" />
+                        </button>
+                    @endcan
+                    @can('parents.delete')
+                        <x-delete-action-button wire:click="delete({{ $editingId }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" :label="__('crud.common.actions.delete')" class="admin-modal-action-button" data-parent-form-delete-action />
+                    @endcan
+                @endif
             </div>
         </form>
     </x-admin.modal>

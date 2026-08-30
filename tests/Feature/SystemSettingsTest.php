@@ -64,7 +64,7 @@ class SystemSettingsTest extends TestCase
 
         $component = Volt::test('settings.organization')
             ->assertSeeInOrder([$newerYear->name, $olderYear->name])
-            ->assertSee(__('crud.common.actions.open'))
+            ->assertSee(__('crud.common.actions.edit'))
             ->call('editAcademicYear', $newerYear->id)
             ->assertSet('academic_year_courses_count', 1)
             ->assertSet('academic_year_unfinished_courses_count', 1)
@@ -77,7 +77,10 @@ class SystemSettingsTest extends TestCase
             ->call('editAcademicYear', $newerYear->id)
             ->assertSet('academic_year_unfinished_courses_count', 0)
             ->call('finishAcademicYear')
-            ->assertHasNoErrors();
+            ->assertHasNoErrors()
+            ->assertSet('showAcademicYearModal', true)
+            ->assertSet('academic_year_creation_required', true)
+            ->assertSet('academic_year_name', 'العام الدراسي ٢٠٢٩ - ٢٠٣٠م');
 
         $this->assertDatabaseHas('academic_years', [
             'id' => $newerYear->id,
@@ -91,12 +94,138 @@ class SystemSettingsTest extends TestCase
             'is_current' => true,
         ]);
 
+        $nextAcademicYear = AcademicYear::query()->where('is_current', true)->firstOrFail();
+
+        $component
+            ->assertSet('academic_year_editing_id', $nextAcademicYear->id)
+            ->call('closeAcademicYearModal')
+            ->assertSet('showAcademicYearModal', true)
+            ->assertSet('academic_year_creation_required', true)
+            ->set('academic_year_name', 'Edited New Academic Year')
+            ->call('saveAcademicYear')
+            ->assertHasNoErrors()
+            ->assertSet('showAcademicYearModal', false)
+            ->assertSet('academic_year_creation_required', false);
+
+        $this->assertDatabaseHas('academic_years', [
+            'id' => $nextAcademicYear->id,
+            'name' => 'Edited New Academic Year',
+        ]);
+
         Volt::test('settings.organization')
             ->call('editAcademicYear', $newerYear->id)
-            ->assertSet('academic_year_is_active', false)
-            ->assertSee('disabled', false)
-            ->call('saveAcademicYear')
-            ->assertHasErrors('academicYear');
+            ->assertHasErrors('academicYear')
+            ->assertSet('academic_year_editing_id', null)
+            ->call('reactivateAcademicYear', $newerYear->id)
+            ->assertHasErrors('academicYearReactivation');
+    }
+
+    public function test_empty_active_academic_year_can_be_deleted_then_an_inactive_year_can_be_reactivated(): void
+    {
+        $this->signIn();
+
+        $inactiveYear = AcademicYear::query()->create([
+            'name' => 'Available for Reactivation',
+            'starts_on' => '2025-08-01',
+            'ends_on' => '2026-07-31',
+            'is_current' => false,
+            'is_active' => false,
+        ]);
+        $emptyActiveYear = AcademicYear::query()->create([
+            'name' => 'Empty Active Year',
+            'starts_on' => '2026-08-01',
+            'ends_on' => '2027-07-31',
+            'is_current' => true,
+            'is_active' => true,
+        ]);
+
+        $component = Volt::test('settings.organization')
+            ->assertDontSee('wire:click="deleteAcademicYear('.$emptyActiveYear->id.')"', false)
+            ->assertDontSee('wire:click="reactivateAcademicYear('.$inactiveYear->id.')"', false)
+            ->call('editAcademicYear', $emptyActiveYear->id)
+            ->assertSee('data-settings-academic-year-delete-action', false)
+            ->call('deleteAcademicYear', $emptyActiveYear->id)
+            ->assertHasNoErrors()
+            ->assertSee('wire:click="reactivateAcademicYear('.$inactiveYear->id.')"', false)
+            ->call('reactivateAcademicYear', $inactiveYear->id)
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseMissing('academic_years', ['id' => $emptyActiveYear->id]);
+        $this->assertDatabaseHas('academic_years', [
+            'id' => $inactiveYear->id,
+            'is_active' => true,
+            'is_current' => true,
+        ]);
+    }
+
+    public function test_finished_academic_year_can_be_reactivated_only_when_no_year_is_active_then_its_course_records_can_be_restored(): void
+    {
+        $this->signIn();
+
+        $academicYear = AcademicYear::query()->create([
+            'name' => 'Restorable Academic Year',
+            'starts_on' => '2026-08-01',
+            'ends_on' => '2027-07-31',
+            'is_current' => true,
+            'is_active' => true,
+        ]);
+        $course = Course::query()->create([
+            'academic_year_id' => $academicYear->id,
+            'name' => 'Restorable Course',
+            'is_active' => true,
+        ]);
+        $teacher = Teacher::query()->create([
+            'first_name' => 'Restorable',
+            'last_name' => 'Teacher',
+            'phone' => '0944007011',
+            'status' => 'active',
+            'is_helping' => true,
+        ]);
+        $group = Group::query()->create([
+            'academic_year_id' => $academicYear->id,
+            'course_id' => $course->id,
+            'teacher_id' => $teacher->id,
+            'name' => 'Restorable Group',
+            'capacity' => 20,
+            'is_active' => true,
+        ]);
+        $student = Student::query()->create([
+            'first_name' => 'Restorable',
+            'last_name' => 'Student',
+            'birth_date' => '2013-01-01',
+            'status' => 'active',
+        ]);
+        $enrollment = Enrollment::query()->create([
+            'student_id' => $student->id,
+            'group_id' => $group->id,
+            'enrolled_at' => '2026-08-10',
+            'status' => 'active',
+        ]);
+
+        app(\App\Services\CourseLifecycleService::class)->finish($course);
+        $academicYear->update(['is_active' => false, 'is_current' => false]);
+
+        Volt::test('settings.organization')
+            ->assertSee('data-settings-academic-year-reactivate-action', false)
+            ->assertDontSee('wire:click="editAcademicYear('.$academicYear->id.')"', false)
+            ->call('reactivateAcademicYear', $academicYear->id)
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('academic_years', [
+            'id' => $academicYear->id,
+            'is_active' => true,
+            'is_current' => true,
+        ]);
+
+        Volt::test('courses.index')
+            ->call('reactivate', $course->id)
+            ->assertHasNoErrors();
+
+        $this->assertTrue($course->fresh()->is_active);
+        $this->assertTrue($group->fresh()->is_active);
+        $this->assertSame('active', $enrollment->fresh()->status);
+        $this->assertNull($group->fresh()->course_finished_at);
+        $this->assertNull($enrollment->fresh()->course_finished_at);
     }
 
     public function test_linked_attendance_status_can_be_deleted_without_deleting_history(): void
@@ -272,6 +401,10 @@ class SystemSettingsTest extends TestCase
 
         Volt::test('settings.organization')
             ->assertSee('data-general-prefix-value', false)
+            ->assertSee('data-organization-edit-action', false)
+            ->assertSee('title="'.__('settings.organization.actions.save_settings').'"', false)
+            ->assertSee('aria-label="'.__('settings.organization.actions.save_settings').'"', false)
+            ->assertDontSee('wire:click="openOrganizationModal" class="pill-link"', false)
             ->call('openOrganizationModal')
             ->assertSee('data-organization-settings-save-icon', false)
             ->assertSee('form="organization-settings-form"', false)
@@ -362,6 +495,14 @@ class SystemSettingsTest extends TestCase
         ]);
 
         $this->assertSame('F'.str_pad((string) $secondParent->id, 5, '0', STR_PAD_LEFT), $secondParent->fresh()->parent_number);
+
+        Volt::test('settings.organization')
+            ->set('academic_year_name', 'Dates are required')
+            ->call('saveAcademicYear')
+            ->assertHasErrors([
+                'academic_year_starts_on' => 'required',
+                'academic_year_ends_on' => 'required',
+            ]);
 
         Volt::test('settings.organization')
             ->set('academic_year_name', '2026/2027')
@@ -742,7 +883,7 @@ class SystemSettingsTest extends TestCase
             ->assertSee(__('settings.course_completion.labels.no_assessment_types'))
             ->assertSee('class="admin-empty-state admin-empty-state--compact"', false)
             ->call('openAssessmentTypeModal')
-            ->assertSee('wire:click.prevent.stop="closeAssessmentTypeModal"', false)
+            ->assertSee('wire:click="closeAssessmentTypeModal"', false)
             ->assertSee($firstType->name)
             ->assertSee($secondType->name)
             ->assertSee('data-course-completion-assessment-choice', false)
@@ -750,7 +891,7 @@ class SystemSettingsTest extends TestCase
             ->call('toggleAssessmentTypeSelection', $firstType->id)
             ->assertSet('assessment_type_selections', [$firstType->id])
             ->assertSee('data-course-completion-assessment-add', false)
-            ->assertDontSee('wire:click.prevent.stop="closeAssessmentTypeModal"', false)
+            ->assertDontSee('wire:click="closeAssessmentTypeModal"', false)
             ->call('addSelectedAssessmentType')
             ->assertSet('enabled_assessment_type_ids', [$firstType->id])
             ->assertSet('assessment_rule_grade_ids.'.$firstType->id, [$firstGrade->id, $secondGrade->id])
@@ -782,6 +923,8 @@ class SystemSettingsTest extends TestCase
         $user = $this->signIn();
 
         Volt::test('settings.sidebar-navigation')
+            ->assertSee('data-sidebar-group-edit-action', false)
+            ->assertDontSee('✎', false)
             ->assertSee('nav-sort-group--dragging', false)
             ->assertSee('nav-sort-item--drop-target', false)
             ->assertSee('nav-sort-item--settled', false)
@@ -819,7 +962,8 @@ class SystemSettingsTest extends TestCase
         $user = $this->signIn();
 
         $component = Volt::test('settings.sidebar-navigation')
-            ->call('addGroup');
+            ->call('addGroup')
+            ->assertSee('data-sidebar-group-delete-action', false);
 
         $groupSettings = $component->get('group_settings');
         $customGroupKey = collect(array_keys($groupSettings))
@@ -1041,6 +1185,10 @@ class SystemSettingsTest extends TestCase
             ->assertSee('md:grid-cols-[3rem_1fr_1fr_auto]', false)
             ->assertSee('class="points-multiplier-field"', false)
             ->assertSee('class="points-multiplier-select h-12 w-12', false)
+            ->assertSee('data-points-multiplier-save-action', false)
+            ->assertSee('class="admin-icon-button admin-icon-button--accent points-multiplier-save-button"', false)
+            ->assertSee('title="'.__('crud.common.actions.save').'"', false)
+            ->assertSee('aria-label="'.__('crud.common.actions.save').'"', false)
             ->set('partial_test_fail_threshold', '4')
             ->set('final_test_passed_from', '75')
             ->call('saveSaberRules')
@@ -1087,6 +1235,10 @@ class SystemSettingsTest extends TestCase
 
         Volt::test('settings.finance')
             ->assertSee('data-finance-settings-summary', false)
+            ->assertSee('data-finance-settings-edit-action', false)
+            ->assertSee('title="'.__('finance.actions.edit').'"', false)
+            ->assertSee('aria-label="'.__('finance.actions.edit').'"', false)
+            ->assertDontSee('wire:click="openFinanceSettingsModal" class="pill-link"', false)
             ->assertSee('data-finance-settings-primary-row', false)
             ->assertSee('data-finance-settings-prefix-row', false)
             ->assertSee('grid min-w-[72rem] grid-cols-8', false)

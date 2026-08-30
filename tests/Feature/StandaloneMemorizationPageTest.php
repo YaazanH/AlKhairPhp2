@@ -20,6 +20,16 @@ class StandaloneMemorizationPageTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_quick_memorization_submit_uses_the_shared_save_symbol(): void
+    {
+        $source = file_get_contents(resource_path('views/livewire/memorization/quick-entry.blade.php'));
+
+        $this->assertStringContainsString('data-quick-memorization-save-action', $source);
+        $this->assertStringContainsString('class="admin-icon-button admin-icon-button--accent"', $source);
+        $this->assertStringContainsString('<x-admin-action-icon name="save" />', $source);
+        $this->assertStringNotContainsString("<button type=\"submit\" class=\"pill-link pill-link--accent\">{{ __('workflow.memorization.quick_entry.form.save') }}</button>", $source);
+    }
+
     public function test_quick_memorization_replaces_the_form_with_a_warning_when_entries_are_disabled(): void
     {
         $this->teacherMemorizationContext();
