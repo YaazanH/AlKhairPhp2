@@ -1419,6 +1419,7 @@ class ManagementCrudTest extends TestCase
         $group = Group::query()->firstOrFail();
 
         Volt::test('groups.index')
+            ->assertDontSee('data-group-index-copy-summary', false)
             ->call('openRosterModal', $group->id)
             ->set('roster_student_id', $student->id)
             ->set('roster_enrolled_at', '2026-09-01')
@@ -1426,6 +1427,15 @@ class ManagementCrudTest extends TestCase
             ->assertHasNoErrors();
 
         $enrollment = Enrollment::query()->firstOrFail();
+
+        $enrollmentEditor = Volt::test('enrollments.index')
+            ->call('edit', $enrollment->id)
+            ->assertSet('enrolled_at', '2026-09-01');
+
+        $this->assertStringContainsString(
+            'id="enrollment-date" wire:model="enrolled_at" value="2026-09-01" type="date"',
+            $enrollmentEditor->html(),
+        );
 
         Volt::test('groups.index')
             ->call('openRosterModal', $group->id)
@@ -1572,6 +1582,7 @@ class ManagementCrudTest extends TestCase
             ->set('notes', 'Should not be stored on create.')
             ->call('saveAndNew')
             ->assertHasNoErrors()
+            ->assertDispatched('focus-searchable-select')
             ->assertSet('showFormModal', true)
             ->assertSet('group_id', $group->id)
             ->assertSet('student_id', null)
@@ -1647,12 +1658,22 @@ class ManagementCrudTest extends TestCase
 
         $component = Volt::test('enrollments.index')
             ->call('openCreateModal')
+            ->assertSet('enrolled_at', now()->toDateString())
             ->assertViewHas('groups', fn ($groups) => $groups->pluck('id')->all() === [$alphaGroup->id, $zuluGroup->id]);
 
         $this->assertStringContainsString(
-            'id="enrollment-group" wire:model.live="group_id" data-search-input="true" data-open-on-focus="true"',
+            'id="enrollment-group" wire:model.live="group_id" data-search-input="true" data-open-on-focus="true" data-hide-placeholder-option="true" data-search-placeholder="'.__('crud.enrollments.form.placeholders.select_group').'" data-save-and-new-on-keydown="true"',
             $component->html(),
         );
+        $this->assertStringContainsString(
+            'id="enrollment-student" wire:model="student_id" data-search-input="true" data-open-on-focus="true" data-hide-placeholder-option="true" data-search-placeholder="'.__('workflow.common.student_name_placeholder').'" data-focus-next-searchable-on-tab="enrollment-group"',
+            $component->html(),
+        );
+
+        $script = file_get_contents(resource_path('js/app.js'));
+        $this->assertStringContainsString("['Enter', 'Tab'].includes(event.key)", $script);
+        $this->assertStringContainsString('focusSearchableSelectById(select.dataset.focusNextSearchableOnTab)', $script);
+        $this->assertStringContainsString("window.addEventListener('focus-searchable-select', focusSearchableSelect);", $script);
 
         $component
             ->set('group_id', $inactiveGroup->id)
@@ -1878,6 +1899,7 @@ class ManagementCrudTest extends TestCase
         ]);
 
         $teacher = Teacher::create([
+            'user_id' => auth()->id(),
             'first_name' => 'Roster',
             'last_name' => 'Teacher',
             'phone' => '0944003112',
@@ -1933,6 +1955,7 @@ class ManagementCrudTest extends TestCase
         $parent->refresh();
 
         Volt::test('groups.index')
+            ->assertDontSee('data-group-index-copy-summary', false)
             ->call('openRosterModal', $group->id)
             ->assertSee($student->student_number)
             ->assertSee('+963 999 000 003')
@@ -1951,6 +1974,7 @@ class ManagementCrudTest extends TestCase
             ->assertSee('+963 999 000 001')
             ->assertSee('group-show-details__grid', false)
             ->assertSee('data-group-copy-summary', false)
+            ->assertSee('wire:model="progressDate"', false)
             ->assertSee('data-group-roster-pdf-action', false)
             ->assertSee('data-group-hero-edit-action', false)
             ->assertSee('data-group-hero-schedule-action', false)
@@ -1966,6 +1990,7 @@ class ManagementCrudTest extends TestCase
             ->assertDontSee('min-w-[88rem]', false)
             ->set('showScheduleModal', true)
             ->assertSee('settings-record-table', false)
+            ->assertSee('data-searchable-select-table-surface', false)
             ->assertSee('schedule-add-row', false)
             ->call('openEdit')
             ->assertSee('data-group-form-row="identity"', false)
@@ -1978,7 +2003,23 @@ class ManagementCrudTest extends TestCase
             ->assertSee('data-icon-name="delete"', false)
             ->assertDontSee(__('crud.groups.form.fields.monthly_fee'))
             ->assertDontSee(__('crud.groups.form.fields.starts_on'))
-            ->assertDontSee(__('crud.groups.form.fields.ends_on'));
+            ->assertDontSee(__('crud.groups.form.fields.ends_on'))
+            ->call('closeEdit')
+            ->assertSet('showEditModal', false);
+
+        Volt::test('groups.show', ['group' => $group])
+            ->call('openEdit')
+            ->set('capacity', '21')
+            ->call('saveGroup')
+            ->assertHasNoErrors()
+            ->assertSet('showEditModal', false);
+
+        $this->assertDatabaseHas('groups', ['id' => $group->id, 'capacity' => 21]);
+
+        $groupShowSource = file_get_contents(resource_path('views/livewire/groups/show.blade.php'));
+        $this->assertStringContainsString('close-method="closeEdit"', $groupShowSource);
+        $this->assertStringContainsString('type="button" wire:click="saveGroup"', $groupShowSource);
+        $this->assertStringNotContainsString('public function showEditModal()', $groupShowSource);
 
         $groupCss = file_get_contents(resource_path('css/app.css'));
         $this->assertStringContainsString('.group-roster-table th:nth-child(2)', $groupCss);
@@ -1993,6 +2034,8 @@ class ManagementCrudTest extends TestCase
         $this->assertStringContainsString('width: 9rem !important;', $groupCss);
         $this->assertStringContainsString('.group-show-hero-layout > :first-child,', $groupCss);
         $this->assertStringContainsString('flex: 0 0 auto;', $groupCss);
+        $this->assertStringContainsString('width: min(17rem, 100%);', $groupCss);
+        $this->assertMatchesRegularExpression('/\.group-show-actions > \.admin-icon-button\s*\{[^}]*width:\s*3\.125rem;[^}]*min-width:\s*3\.125rem;[^}]*flex:\s*0 0 3\.125rem;/s', $groupCss);
 
         $rosterPdfHtml = view('exports.group-roster-pdf', [
             'enrollments' => Enrollment::query()->where('group_id', $group->id)->with(['student.parentProfile', 'student.user', 'student.gradeLevel', 'student.quranCurrentJuz'])->get(),
@@ -2002,9 +2045,11 @@ class ManagementCrudTest extends TestCase
 
         $this->assertStringContainsString('.title-row td', $rosterPdfHtml);
         $this->assertStringContainsString('border: 0;', $rosterPdfHtml);
-        $this->assertStringContainsString('@page { margin: 35mm 10mm 18mm;', $rosterPdfHtml);
-        $this->assertStringContainsString('height: 4mm;', $rosterPdfHtml);
-        $this->assertStringContainsString('<tr class="roster-page-gap"><th colspan="7">&nbsp;</th></tr>', $rosterPdfHtml);
+        $this->assertStringContainsString('@page { margin: 39mm 10mm 18mm; margin-header: 10mm;', $rosterPdfHtml);
+        $this->assertStringContainsString('padding: 1mm 3mm;', $rosterPdfHtml);
+        $this->assertStringContainsString('margin: 0.5mm;', $rosterPdfHtml);
+        $this->assertStringContainsString('padding: 3.5px 4px;', $rosterPdfHtml);
+        $this->assertStringNotContainsString('roster-page-gap', $rosterPdfHtml);
         $this->assertStringContainsString('<th style="width: 18%;">اسم الطالب</th>', $rosterPdfHtml);
         $this->assertStringContainsString('<th style="width: 16%;">جوال الأب</th>', $rosterPdfHtml);
         $this->assertStringContainsString('رقم الطالب', $rosterPdfHtml);
@@ -2111,16 +2156,20 @@ class ManagementCrudTest extends TestCase
             ['memorization_session_id' => $session->id, 'page_no' => 13],
         ]);
 
-        Volt::test('groups.index')
-            ->call('openQuickSummaryModal', $group->id)
-            ->assertSet('showQuickSummaryModal', true)
-            ->set('quickSummaryDate', '2026-09-10')
-            ->assertSee('Hasan Hamdan')
-            ->assertSee('Present')
-            ->assertSee(__('crud.groups.quick_summary.copy_group_action'))
-            ->assertSee(__('crud.groups.quick_summary.memorized_pages', ['pages' => '11-13']))
-            ->call('copyQuickSummary')
-            ->assertDispatched('admin-copy-text');
+        $copyText = app(\App\Services\GroupDailySummaryService::class)->currentCopyTextForUser(
+            $group,
+            '2026-09-10',
+            auth()->user(),
+        );
+
+        $this->assertStringContainsString('Hasan Hamdan', $copyText);
+        $this->assertStringContainsString('11-13', $copyText);
+
+        Volt::test('groups.show', ['group' => $group])
+            ->assertSee('data-group-copy-summary', false)
+            ->set('progressDate', '2026-09-10')
+            ->call('copyProgress')
+            ->assertDispatched('admin-copy-text', fn ($event, $params) => $params['text'] === $copyText);
     }
 
     public function test_teacher_role_options_include_basic_management_roles(): void

@@ -81,6 +81,9 @@ class LocalizationTest extends TestCase
         $this->assertStringContainsString('class="app-sidebar-account-menu', $sidebar);
         $this->assertStringContainsString('x-on:click="open = ! open"', $sidebar);
         $this->assertStringContainsString('icon="user-circle"', $sidebar);
+        $this->assertSame(1, substr_count($sidebar, "{{ __('ui.common.visit_site') }}"));
+        $mobileUserMenu = substr($sidebar, strpos($sidebar, '<flux:header class="app-mobile-header lg:hidden">'));
+        $this->assertStringNotContainsString("{{ __('ui.common.visit_site') }}", $mobileUserMenu);
         $this->assertStringNotContainsString('$desktopDropdownAlign', $sidebar);
 
         $preferences = file_get_contents(resource_path('views/components/account-menu-preferences.blade.php'));

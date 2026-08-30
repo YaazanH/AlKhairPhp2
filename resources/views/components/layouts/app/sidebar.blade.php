@@ -157,7 +157,6 @@
                                 @can('finance.reports.view')
                                     <flux:menu.item href="{{ route('finance.reports.index') }}" icon="document-chart-bar" wire:navigate>{{ __('finance.reports.title') }}</flux:menu.item>
                                 @endcan
-                                <flux:menu.item href="{{ route('home') }}" icon="globe-alt">{{ __('ui.common.visit_site') }}</flux:menu.item>
                             </flux:menu.radio.group>
 
                             <flux:menu.separator />

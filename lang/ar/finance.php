@@ -389,6 +389,7 @@ return [
         'choose_box_currency_first' => 'اختر صندوقاً واحداً على الأقل',
         'period_quarter' => 'السنة والربع',
         'period_custom' => 'فترة مخصصة',
+        'period_already_generated' => 'تم إنشاء تقرير مالي مسبقاً لهذه السنة وهذا الربع.',
     ],
     'report_templates' => [
         'title' => 'قوالب التقارير المالية',

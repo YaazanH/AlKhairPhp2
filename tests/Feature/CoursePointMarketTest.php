@@ -191,7 +191,7 @@ class CoursePointMarketTest extends TestCase
         $this->assertSame('1,200.5', NumberFormatter::trimmed('1200.50', 2));
         $this->assertSame('0', NumberFormatter::trimmed(0, 0));
         $this->assertSame('التصنيف', __('course_end.point_market.invoice_table.category', [], 'ar'));
-        $this->assertSame('سعر الوحدة', __('course_end.point_market.department.invoice_unit_price', [], 'ar'));
+        $this->assertSame('السعر الفردي', __('course_end.point_market.department.invoice_unit_price', [], 'ar'));
         $this->assertSame('قسم القرطاسية', __('course_end.point_market.department.title', ['name' => 'القرطاسية'], 'ar'));
         $this->assertSame('قسم', __('course_end.point_market.department_prefix', [], 'ar'));
         $this->assertSame('Department', __('course_end.point_market.department_prefix', [], 'en'));
@@ -209,6 +209,8 @@ class CoursePointMarketTest extends TestCase
         $this->assertStringContainsString('point-market-col--medium', $pointMarketView);
         $this->assertStringContainsString('point-market-col--amount', $pointMarketView);
         $this->assertStringContainsString('point-market-department-table', $pointMarketView);
+        $this->assertStringContainsString('data-point-market-receipt-header', $pointMarketView);
+        $this->assertStringContainsString('$departmentInvoiceCount > 1', $pointMarketView);
         $this->assertStringContainsString('point-market-col--equal', $pointMarketView);
         $this->assertStringContainsString("formattedAmount('unit_price')", $pointMarketView);
         $this->assertStringContainsString("formattedAmount('local_unit_price', true)", $pointMarketView);
@@ -245,6 +247,7 @@ class CoursePointMarketTest extends TestCase
         $this->assertStringContainsString("text-align:{{ app()->isLocale('ar') ? 'right' : 'left' }}", $pdfTemplate);
         $this->assertStringContainsString("app()->isLocale('ar') ? '36px' : '7px'", $pdfTemplate);
         $this->assertStringContainsString("__('course_end.point_market.department.title'", $pdfTemplate);
+        $this->assertStringNotContainsString('point-market-receipt-header', $pdfTemplate);
     }
 
     public function test_invoice_and_department_sections_only_expand_one_record_at_a_time(): void
@@ -319,6 +322,36 @@ class CoursePointMarketTest extends TestCase
 
         $this->assertSame(['First item', 'Second item', 'Third item'], $orderedItems->pluck('item_name')->all());
         $this->assertSame([1, 2, 3], $orderedItems->pluck('invoice_item_sort_order')->all());
+    }
+
+    public function test_department_shows_receipt_headers_only_when_items_come_from_multiple_receipts(): void
+    {
+        $course = Course::query()->create([
+            'name' => 'Receipt Header Course',
+            'starts_on' => '2026-06-01',
+            'ends_on' => '2026-08-31',
+            'is_active' => false,
+        ]);
+        $firstInvoice = $this->createExpenseInvoice('INV-HEADER-1', '2026-07-10', 'First receipt description');
+        $secondInvoice = $this->createExpenseInvoice('INV-HEADER-2', '2026-07-11', 'Second receipt description');
+        $service = app(CoursePointMarketService::class);
+        $service->addInvoices($course, [$firstInvoice->id, $secondInvoice->id], $this->manager);
+        $department = $service->createDepartment($course, 'Mixed receipts', $this->manager);
+        $service->allocateItems($course, $firstInvoice, $department, [$firstInvoice->items->first()->id], $this->manager);
+
+        Volt::test('courses.point-market', ['course' => $course])
+            ->set('expandedDepartmentIds', [$department->id])
+            ->assertDontSee('data-point-market-receipt-header', false);
+
+        $service->allocateItems($course, $secondInvoice, $department, [$secondInvoice->items->first()->id], $this->manager);
+
+        Volt::test('courses.point-market', ['course' => $course])
+            ->set('expandedDepartmentIds', [$department->id])
+            ->assertSee('data-point-market-receipt-header', false)
+            ->assertSee('First receipt description')
+            ->assertSee('ORIGINAL-INV-HEADER-1')
+            ->assertSee('Second receipt description')
+            ->assertSee('ORIGINAL-INV-HEADER-2');
     }
 
     private function createExpenseInvoice(string $invoiceNo, string $date, string $description, ?array $items = null): Invoice

@@ -125,8 +125,8 @@ class CurriculumModuleTest extends TestCase
 
         $script = file_get_contents(resource_path('js/app.js'));
         $this->assertStringContainsString('synchronizeCurriculumSubjectResourceColumns', $script);
-        $this->assertStringContainsString("name: { min: 212, max: 372 }", $script);
-        $this->assertStringContainsString("year: { min: 52, max: 110 }", $script);
+        $this->assertStringContainsString('name: { min: 212, max: 372 }', $script);
+        $this->assertStringContainsString('year: { min: 52, max: 110 }', $script);
         $this->assertStringContainsString('curriculumResourceColumnGrowWeights', $script);
     }
 
@@ -225,6 +225,24 @@ class CurriculumModuleTest extends TestCase
 
         $this->assertDatabaseHas('groups', ['name' => 'Curriculum Group', 'curriculum_id' => $curriculum->id]);
         $this->assertDatabaseHas('curriculum_lessons', ['name' => 'First lesson', 'page_count' => 0, 'importance' => 3]);
+
+        $group = Group::query()->where('name', 'Curriculum Group')->firstOrFail();
+        $teacher->update(['status' => 'inactive', 'is_helping' => false]);
+
+        Volt::test('groups.show', ['group' => $group])
+            ->call('openEdit')
+            ->assertSee('Grade curriculum')
+            ->assertSet('curriculum_id', (string) $curriculum->id)
+            ->set('capacity', '21')
+            ->call('saveGroup')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('groups', [
+            'id' => $group->id,
+            'teacher_id' => $teacher->id,
+            'curriculum_id' => $curriculum->id,
+            'capacity' => 21,
+        ]);
     }
 
     public function test_curriculum_detail_uses_shared_square_edit_add_and_delete_icons(): void
@@ -245,13 +263,18 @@ class CurriculumModuleTest extends TestCase
         $this->assertStringContainsString('data-curriculum-delete-action', $source);
         $this->assertStringContainsString('<x-delete-action-button wire:click="deleteCurriculum" wire:confirm=', $source);
         $this->assertStringContainsString('class="admin-modal-action-button" data-curriculum-delete-action', $source);
+        $this->assertStringContainsString('data-curriculum-subject-edit-action', $source);
+        $this->assertStringContainsString('<x-edit-action-button wire:click="openSubject(', $source);
         $this->assertStringContainsString('data-curriculum-subject-delete-action', $source);
-        $this->assertStringContainsString('class="admin-icon-button admin-icon-button--danger"', $source);
-        $this->assertStringContainsString('max-width="md"><form wire:submit="saveSubject"', $source);
+        $this->assertStringContainsString('wire:click="deleteSubject({{ $editingSubjectId }})"', $source);
+        $this->assertStringContainsString('max-width="fit" compact', $source);
+        $this->assertStringContainsString('data-compact-subject-modal', $source);
+        $this->assertStringContainsString('data-curriculum-subject-name-disabled', $source);
         $this->assertStringContainsString('data-curriculum-subject-save-action', $source);
-        $this->assertStringContainsString('<x-admin-action-icon name="add" class="admin-modal-action__icon" />', $source);
-        $this->assertStringContainsString("'md' => 'admin-modal__dialog--md'", file_get_contents(resource_path('views/components/admin/modal.blade.php')));
-        $this->assertStringContainsString('.admin-modal__dialog--md { max-width: 26rem; }', file_get_contents(resource_path('css/app.css')));
+        $this->assertStringContainsString('data-curriculum-subject-panel', $source);
+        $this->assertStringContainsString('data-curriculum-resource-panel', $source);
+        $this->assertStringContainsString('data-table-scroll-region', $source);
+        $this->assertStringContainsString('<x-admin-action-icon :name="$editingSubjectId ? \'save\' : \'add\'"', $source);
         $this->assertStringContainsString('data-edit-lesson-icon', $source);
         $this->assertStringContainsString('<x-edit-action-button wire:click="openLesson(', $source);
         $this->assertStringContainsString('data-add-lesson-icon', $source);
@@ -260,6 +283,63 @@ class CurriculumModuleTest extends TestCase
         $this->assertStringContainsString('data-delete-lesson-in-edit', $source);
         $this->assertStringNotContainsString('data-edit-lesson-icon><svg', $source);
         $this->assertStringNotContainsString('data-add-lesson-icon><svg', $source);
+    }
+
+    public function test_curriculum_subject_books_are_edited_in_the_compact_popup(): void
+    {
+        $this->seed(RoleSeeder::class);
+        $manager = User::factory()->create();
+        $manager->assignRole('manager');
+        $this->actingAs($manager);
+
+        [, , $grade] = $this->learningStructure(false);
+        $curriculum = Curriculum::create(['grade_level_id' => $grade->id, 'name' => 'Editable curriculum', 'is_active' => true]);
+        $definition = CurriculumSubjectDefinition::create(['name' => 'Editable subject', 'is_active' => true]);
+        $firstBook = CurriculumResource::create(['subject_definition_id' => $definition->id, 'book_name' => 'First book', 'is_active' => true]);
+        $secondBook = CurriculumResource::create(['subject_definition_id' => $definition->id, 'book_name' => 'Second book', 'is_active' => true]);
+        $subject = CurriculumSubject::create(['curriculum_id' => $curriculum->id, 'subject_definition_id' => $definition->id, 'sort_order' => 10]);
+        $subject->resources()->sync([$firstBook->id]);
+
+        Volt::test('curricula.show', ['curriculum' => $curriculum])
+            ->assertSee('data-curriculum-subject-edit-action', false)
+            ->assertDontSee('wire:click="deleteSubject('.$subject->id.')"', false)
+            ->call('openSubject', $subject->id)
+            ->assertSet('editingSubjectId', $subject->id)
+            ->assertSet('subjectDefinitionId', (string) $definition->id)
+            ->assertSet('resourceIds', [$firstBook->id])
+            ->assertSee('data-compact-subject-modal', false)
+            ->assertSee('data-curriculum-subject-name-disabled', false)
+            ->assertSee('wire:click="deleteSubject('.$subject->id.')"', false)
+            ->set('resourceIds', [$secondBook->id])
+            ->call('saveSubject')
+            ->assertHasNoErrors()
+            ->assertSet('showSubjectModal', false);
+
+        $this->assertDatabaseMissing('curriculum_subject_resources', ['curriculum_subject_id' => $subject->id, 'curriculum_resource_id' => $firstBook->id]);
+        $this->assertDatabaseHas('curriculum_subject_resources', ['curriculum_subject_id' => $subject->id, 'curriculum_resource_id' => $secondBook->id]);
+    }
+
+    public function test_curricula_table_is_numbered_and_sorted_by_grade(): void
+    {
+        $this->seed(RoleSeeder::class);
+        $manager = User::factory()->create();
+        $manager->assignRole('manager');
+        $this->actingAs($manager);
+
+        $laterGrade = GradeLevel::create(['name' => 'Later grade', 'sort_order' => 20, 'is_active' => true]);
+        $earlierGrade = GradeLevel::create(['name' => 'Earlier grade', 'sort_order' => 10, 'is_active' => true]);
+        $laterCurriculum = Curriculum::create(['grade_level_id' => $laterGrade->id, 'name' => 'A later curriculum', 'is_active' => true]);
+        $ungradedCurriculum = Curriculum::create(['grade_level_id' => null, 'name' => 'An ungraded curriculum', 'is_active' => true]);
+        $earlierCurriculum = Curriculum::create(['grade_level_id' => $earlierGrade->id, 'name' => 'Z earlier curriculum', 'is_active' => true]);
+
+        Volt::test('curricula.index')
+            ->assertViewHas('curricula', fn ($curricula) => $curricula->pluck('id')->all() === [
+                $earlierCurriculum->id,
+                $laterCurriculum->id,
+                $ungradedCurriculum->id,
+            ])
+            ->assertSee('data-curricula-index-number', false)
+            ->assertSeeInOrder(['>1</td>', '>2</td>', '>3</td>'], false);
     }
 
     public function test_standalone_books_are_managed_inline_inside_their_popup(): void

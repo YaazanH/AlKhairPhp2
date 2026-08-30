@@ -25,7 +25,7 @@
     @if ($empty)
         <div class="admin-empty-state">{{ $emptyText }}</div>
     @else
-        <div class="overflow-x-auto">
+        <div class="table-scroll-region overflow-x-auto" data-table-scroll-region>
             <table class="text-sm">
                 <thead><tr>{{ $head }}</tr></thead>
                 <tbody class="divide-y divide-white/6">{{ $slot }}</tbody>

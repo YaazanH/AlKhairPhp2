@@ -221,7 +221,7 @@ new class extends Component {
         <div class="flash-error px-4 py-3 text-sm">{{ $message }}</div>
     @enderror
 
-    <section class="surface-table settings-record-table overflow-visible">
+    <section class="surface-table settings-record-table overflow-visible" data-searchable-select-table-surface>
         <div class="admin-grid-meta"><div><div class="admin-grid-meta__title">{{ __('schedules.group.table.title') }}</div><div class="admin-grid-meta__summary">{{ __('crud.common.badges.in_view', ['count' => number_format($schedules->count())]) }}</div></div></div>
         <div class="overflow-visible">
             <table class="w-full table-fixed text-sm">

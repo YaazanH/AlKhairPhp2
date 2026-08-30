@@ -14,6 +14,7 @@ use App\Models\PrintTemplate;
 use App\Models\Student;
 use App\Models\Teacher;
 use App\Services\GroupDailySummaryService;
+use App\Support\RoleRegistry;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Livewire\Volt\Component;
@@ -383,7 +384,7 @@ new class extends Component {
 
     public function openQuickSummaryModal(int $groupId): void
     {
-        abort_unless($this->canPermission('attendance.student.view') || $this->canPermission('memorization.view'), 403);
+        abort_unless($this->canUseGroupQuickSummary(), 403);
 
         $group = Group::query()->findOrFail($groupId);
         $this->authorizeScopedGroupAccess($group);
@@ -480,7 +481,7 @@ new class extends Component {
 
     public function copyQuickSummary(): void
     {
-        abort_unless(collect($this->quickSummaryVisibility())->contains(true), 403);
+        abort_unless($this->canUseGroupQuickSummary(), 403);
 
         if (! $this->quickSummaryGroupId) {
             return;
@@ -685,6 +686,8 @@ new class extends Component {
 
     protected function buildQuickSummary(): array
     {
+        abort_unless($this->canUseGroupQuickSummary(), 403);
+
         if (! $this->quickSummaryGroupId) {
             return ['rows' => collect(), 'partial_tests' => collect(), 'final_tests' => collect()];
         }
@@ -703,6 +706,11 @@ new class extends Component {
     {
         return app(GroupDailySummaryService::class)->visibilityFor(Auth::user());
     }
+
+    protected function canUseGroupQuickSummary(): bool
+    {
+        return auth()->user()?->hasAnyRole(RoleRegistry::unrestrictedRoles()) ?? false;
+    }
 }; ?>
 
 <div class="page-stack">
@@ -719,7 +727,7 @@ new class extends Component {
     <section class="surface-table">
         <div class="admin-grid-meta admin-grid-meta--controls">
             <div class="admin-grid-meta__title">{{ __('crud.groups.table.title') }}</div>
-            <div class="admin-toolbar__controls">
+            <div class="admin-toolbar__controls mobile-table-header-controls">
                 <div class="admin-filter-field">
                     <label class="sr-only" for="group-search">{{ __('crud.common.filters.search') }}</label>
                     <input id="group-search" wire:model.live.debounce.300ms="search" type="text" placeholder="{{ __('crud.common.filters.search_placeholder') }}">
@@ -761,7 +769,7 @@ new class extends Component {
         @if ($groups->isEmpty())
             <div class="admin-empty-state">{{ __('crud.groups.table.empty') }}</div>
         @else
-            <div class="overflow-x-auto">
+            <div class="table-scroll-region overflow-x-auto" data-table-scroll-region>
                 <table class="groups-index-table w-full table-fixed text-sm">
                     <colgroup>
                         <col class="w-[17%]">

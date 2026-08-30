@@ -512,6 +512,22 @@ class FinanceAndActivitiesTest extends TestCase
         $localCurrency = FinanceCurrency::query()->where('is_local', true)->firstOrFail();
 
         Volt::test('settings.finance')
+            ->call('openCurrencyModal')
+            ->assertSee('data-finance-currency-checkbox-box', false)
+            ->assertSee('data-finance-currency-checkbox-grid', false)
+            ->assertSee('sm:grid-cols-2 lg:grid-cols-3', false)
+            ->assertSee('إظهار في القوائم');
+
+        $financeSettingsSource = file_get_contents(resource_path('views/livewire/settings/finance.blade.php'));
+        $this->assertStringContainsString("app()->isLocale('ar') ? 'إظهار في القوائم' : 'Show in lists'", $financeSettingsSource);
+        $this->assertStringNotContainsString('إظهار العملة في القوائم المنسدلة', $financeSettingsSource);
+        $this->assertLessThan(
+            strpos($financeSettingsSource, 'wire:model="currency_is_active"'),
+            strpos($financeSettingsSource, 'wire:model="currency_is_local"'),
+            'The Local Currency checkbox should occupy the former Active position.',
+        );
+
+        Volt::test('settings.finance')
             ->set('invoice_prefix', 'alk')
             ->set('transaction_prefix', 'mov')
             ->set('pull_request_prefix', 'wdr')
@@ -1601,6 +1617,63 @@ class FinanceAndActivitiesTest extends TestCase
             ->assertDontSee('PAGE-REPORT-11');
     }
 
+    public function test_generated_financial_report_quarters_are_hidden_and_cannot_be_generated_twice(): void
+    {
+        $this->signIn();
+
+        $service = app(FinanceService::class);
+        $cashBox = FinanceCashBox::query()->firstOrFail();
+        $currency = $service->localCurrency();
+
+        foreach (['2026-02-15', '2026-05-15'] as $transactionDate) {
+            $service->postTransaction([
+                'cash_box_id' => $cashBox->id,
+                'currency_id' => $currency->id,
+                'type' => 'manual_adjustment',
+                'direction' => 'in',
+                'amount' => 10,
+                'transaction_date' => $transactionDate,
+                'description' => 'Quarter availability fixture',
+            ], auth()->user());
+        }
+
+        FinanceGeneratedReport::query()->create([
+            'report_type' => 'ledger',
+            'filters' => [
+                'date_from' => '2026-01-01',
+                'date_to' => '2026-03-31',
+                'period_mode' => 'quarter',
+            ],
+            'report_data' => [],
+            'generated_by' => auth()->id(),
+        ]);
+
+        $this->assertSame([
+            ['year' => 2026, 'quarters' => [2]],
+        ], app(FinanceReportService::class)->availableUnreportedLedgerPeriods(auth()->user())->all());
+
+        Volt::test('finance.reports')
+            ->call('openCreateReport')
+            ->assertSet('ledger_year', 2026)
+            ->assertSet('ledger_quarter', '2')
+            ->assertSee('data-unreported-ledger-years', false)
+            ->assertSee('data-unreported-ledger-quarters', false)
+            ->assertSee('>Q2</option>', false)
+            ->assertDontSee('>Q1</option>', false);
+
+        $this->get(route('finance.reports.ledger.export', [
+            'cash_box_id' => $cashBox->id,
+            'date_from' => '2026-01-01',
+            'date_to' => '2026-03-31',
+            'period_mode' => 'quarter',
+            'format' => 'pdf',
+        ]))
+            ->assertStatus(422)
+            ->assertSee(__('finance.reports.period_already_generated'));
+
+        $this->assertSame(1, FinanceGeneratedReport::query()->count());
+    }
+
     public function test_financial_report_generation_requires_the_current_users_signature(): void
     {
         $this->signIn();
@@ -2436,7 +2509,16 @@ class FinanceAndActivitiesTest extends TestCase
             ->assertDontSee('class="pill-link pill-link--accent">'.__('finance.actions.create'), false);
 
         $financeTableCss = file_get_contents(resource_path('css/app.css'));
-        $this->assertSame(3, substr_count(file_get_contents(resource_path('views/livewire/finance/dashboard.blade.php')), 'data-finance-dashboard-inline-header'));
+        $financeDashboardSource = file_get_contents(resource_path('views/livewire/finance/dashboard.blade.php'));
+        $this->assertSame(3, substr_count($financeDashboardSource, 'data-finance-dashboard-inline-header'));
+        $this->assertStringContainsString('data-finance-dashboard-period-filters', $financeDashboardSource);
+        $this->assertStringContainsString('<label for="finance-dashboard-year" class="sr-only">', $financeDashboardSource);
+        $this->assertStringContainsString('<label for="finance-dashboard-quarter" class="sr-only">', $financeDashboardSource);
+        $financeReportsSource = file_get_contents(resource_path('views/livewire/finance/reports.blade.php'));
+        $this->assertStringContainsString('wire:model.live="ledger_period_mode" class="h-[3.125rem] min-h-[3.125rem] w-full rounded-xl px-4 py-3 text-sm" data-ledger-period-mode', $financeReportsSource);
+        $this->assertStringNotContainsString('wire:model.live="ledger_period_mode" data-searchable="false"', $financeReportsSource);
+        $this->assertStringContainsString(".finance-dashboard-period-filters {\n    width: fit-content;\n    grid-template-columns: repeat(2, minmax(0, 6rem));", $financeTableCss);
+        $this->assertStringContainsString(".finance-dashboard-period-filters > * {\n    width: 6rem;", $financeTableCss);
         $this->assertStringContainsString('.finance-dashboard .finance-dashboard-table-header {', $financeTableCss);
         $this->assertStringContainsString('flex-wrap: nowrap;', $financeTableCss);
         $this->assertStringContainsString('align-items: center;', $financeTableCss);

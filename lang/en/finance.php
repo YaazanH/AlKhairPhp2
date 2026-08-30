@@ -381,6 +381,7 @@ return [
         'choose_box_currency_first' => 'Choose at least one fund first',
         'period_quarter' => 'Year and quarter',
         'period_custom' => 'Custom timeframe',
+        'period_already_generated' => 'A financial report has already been generated for this year and quarter.',
     ],
     'report_templates' => [
         'title' => 'Finance Report Templates',

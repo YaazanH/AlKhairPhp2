@@ -6,6 +6,7 @@ use App\Models\Course;
 use App\Models\CoursePointMarketDepartment;
 use App\Models\CoursePointMarketInvoice;
 use App\Models\CoursePointMarketItem;
+use App\Models\FinanceCurrency;
 use App\Models\FinanceRequest;
 use App\Models\Invoice;
 use App\Models\InvoiceItem;
@@ -216,7 +217,9 @@ class CoursePointMarketService
     {
         return CoursePointMarketDepartment::query()
             ->where('course_id', $course->id)
-            ->with(['items' => fn ($query) => $query->inInvoiceOrder()])
+            ->with(['items' => fn ($query) => $query
+                ->with('invoice.financeRequest')
+                ->inInvoiceOrder()])
             ->orderBy('name')
             ->get();
     }
@@ -228,8 +231,8 @@ class CoursePointMarketService
      *     total_points_after_rules: int,
      *     departments_local_total: float,
      *     departments_base_total: float,
-     *     local_currency: \App\Models\FinanceCurrency,
-     *     base_currency: \App\Models\FinanceCurrency
+     *     local_currency: FinanceCurrency,
+     *     base_currency: FinanceCurrency
      * }
      */
     public function summary(Course $course, ?Collection $departments = null): array

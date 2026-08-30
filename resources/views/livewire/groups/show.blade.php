@@ -13,6 +13,7 @@ use App\Models\PrintTemplate;
 use App\Models\Student;
 use App\Models\Teacher;
 use App\Services\GroupDailySummaryService;
+use App\Support\RoleRegistry;
 use App\Support\ScheduleTimeSlots;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -65,7 +66,13 @@ new class extends Component {
             'courses' => Course::query()->where('is_active', true)->orderBy('name')->get(),
             'teachers' => $this->availableTeachersQuery()->orderBy('first_name')->orderBy('last_name')->get(),
             'gradeLevels' => GradeLevel::query()->where('is_active', true)->orderBy('name')->get(),
-            'curricula' => Curriculum::query()->where('is_active', true)->where('course_id', $this->course_id ?: $group->course_id)->orderBy('name')->get(),
+            'curricula' => Curriculum::query()
+                ->where('is_active', true)
+                ->where(fn ($query) => $query
+                    ->whereNull('course_id')
+                    ->orWhere('course_id', $this->course_id ?: $group->course_id))
+                ->orderBy('name')
+                ->get(),
             'dashboardCardTemplates' => PrintTemplate::query()->where('is_active', true)->orderBy('name')->get(),
             'days' => collect(range(0, 6))->mapWithKeys(fn ($day) => [$day => __('schedules.group.days.'.$day)]),
             'timeSlots' => ScheduleTimeSlots::options(),
@@ -91,9 +98,17 @@ new class extends Component {
 
     public function updatedCourseId(): void
     {
-        $this->academic_year_id = (string) (Course::query()->whereKey($this->course_id)->value('academic_year_id') ?? '');
+        $this->academic_year_id = (string) (Course::query()->whereKey($this->course_id)->value('academic_year_id')
+            ?? $this->currentGroup->academic_year_id
+            ?? '');
 
-        if ($this->curriculum_id && ! Curriculum::query()->whereKey($this->curriculum_id)->where('course_id', $this->course_id)->exists()) {
+        if ($this->curriculum_id && ! Curriculum::query()
+            ->whereKey($this->curriculum_id)
+            ->where('is_active', true)
+            ->where(fn ($query) => $query
+                ->whereNull('course_id')
+                ->orWhere('course_id', $this->course_id))
+            ->exists()) {
             $this->curriculum_id = '';
         }
     }
@@ -105,12 +120,18 @@ new class extends Component {
             return;
         }
 
-        $this->academic_year_id = (string) (Course::query()->whereKey($this->course_id)->value('academic_year_id') ?? '');
+        $this->academic_year_id = (string) (Course::query()->whereKey($this->course_id)->value('academic_year_id')
+            ?? $this->currentGroup->academic_year_id
+            ?? '');
         $data = $this->validate([
             'name' => ['required','string','max:255'], 'course_id' => ['required','integer','exists:courses,id'],
             'academic_year_id' => ['required','integer','exists:academic_years,id'], 'teacher_id' => ['nullable','integer','exists:teachers,id'],
             'assistant_teacher_id' => ['nullable','integer','different:teacher_id','exists:teachers,id'], 'grade_level_id' => ['nullable','integer','exists:grade_levels,id'],
-            'curriculum_id' => ['nullable','integer', Rule::exists('curricula', 'id')->where(fn ($query) => $query->where('course_id', $this->course_id)->where('is_active', true))],
+            'curriculum_id' => ['nullable','integer', Rule::exists('curricula', 'id')->where(fn ($query) => $query
+                ->where('is_active', true)
+                ->where(fn ($curriculumQuery) => $curriculumQuery
+                    ->whereNull('course_id')
+                    ->orWhere('course_id', $this->course_id)))],
             'capacity' => ['nullable','integer','min:0'],
             'dashboard_card_template_id' => ['nullable','integer', Rule::exists('print_templates', 'id')->where(fn ($query) => $query->where('is_active', true))],
         ]);
@@ -146,7 +167,6 @@ new class extends Component {
     public function closeEdit(): void { $this->showEditModal = false; $this->resetValidation(); }
     public function closeSchedules(): void { $this->showScheduleModal = false; $this->resetSchedule(); $this->resetValidation(); }
     public function closeAddStudent(): void { $this->showAddStudentModal = false; $this->roster_student_id = ''; $this->resetValidation(); }
-    public function showEditModal(): void { $this->closeEdit(); }
     public function showScheduleModal(): void { $this->closeSchedules(); }
     public function showAddStudentModal(): void { $this->closeAddStudent(); }
 
@@ -269,21 +289,41 @@ new class extends Component {
 
     public function copyProgress(): void
     {
-        $date = $this->validate(['progressDate' => ['required','date']])['progressDate'];
-        $this->dispatch('admin-copy-text', text: app(GroupDailySummaryService::class)->currentCopyTextForUser($this->currentGroup, $date, auth()->user()));
+        abort_unless(auth()->user()?->hasAnyRole(RoleRegistry::unrestrictedRoles()), 403);
+
+        if (! $this->ensureGroupIsEditable()) {
+            return;
+        }
+
+        $date = $this->validate(['progressDate' => ['required', 'date']])['progressDate'];
+
+        $this->dispatch('admin-copy-text', text: app(GroupDailySummaryService::class)->currentCopyTextForUser(
+            $this->currentGroup,
+            $date,
+            auth()->user(),
+        ));
     }
+
     protected function availableTeachersQuery()
     {
+        $assignedTeacherIds = collect([
+            $this->currentGroup->teacher_id,
+            $this->currentGroup->assistant_teacher_id,
+        ])->filter()->map(fn ($id) => (int) $id)->all();
+
         return $this->scopeTeachersQuery(
             Teacher::query()
-                ->where('status', 'active')
-                ->where('is_helping', true)
-                ->whereDoesntHave('assignedGroups', fn ($query) => $query
-                    ->whereNull('course_finished_at')
-                    ->whereKeyNot($this->currentGroup->id))
-                ->whereDoesntHave('assistedGroups', fn ($query) => $query
-                    ->whereNull('course_finished_at')
-                    ->whereKeyNot($this->currentGroup->id))
+                ->where(fn ($query) => $query
+                    ->whereIn('id', $assignedTeacherIds)
+                    ->orWhere(fn ($availableQuery) => $availableQuery
+                        ->where('status', 'active')
+                        ->where('is_helping', true)
+                        ->whereDoesntHave('assignedGroups', fn ($groupQuery) => $groupQuery
+                            ->whereNull('course_finished_at')
+                            ->whereKeyNot($this->currentGroup->id))
+                        ->whereDoesntHave('assistedGroups', fn ($groupQuery) => $groupQuery
+                            ->whereNull('course_finished_at')
+                            ->whereKeyNot($this->currentGroup->id))))
         );
     }
 
@@ -320,7 +360,8 @@ new class extends Component {
         && ($groupRecord->course?->is_active ?? true)
         && ($groupRecord->academicYear?->is_active ?? true);
     $canManageGroup = $groupIsEditable && (bool) auth()->user()?->can('groups.update');
-    $showGroupActionStack = $canManageGroup || ! $isAssignedTeacher;
+    $canCopyGroupSummary = $groupIsEditable && (auth()->user()?->hasAnyRole(RoleRegistry::unrestrictedRoles()) ?? false);
+    $showGroupActionStack = $canManageGroup || $canCopyGroupSummary;
 @endphp
 
 <div class="page-stack">
@@ -353,20 +394,28 @@ new class extends Component {
                     </dl>
                 </div>
 
-                @if($showGroupActionStack && $canManageGroup)
-                    <div class="group-show-action-stack flex w-fit max-w-full flex-col gap-3">
-                        <div class="group-show-actions surface-panel flex w-fit max-w-full flex-wrap items-center gap-2 p-3">
-                            <x-edit-action-button wire:click="openEdit" :label="__('crud.common.actions.edit')" data-group-hero-edit-action />
-                            <button type="button" wire:click="copyProgress" class="admin-icon-button" title="{{ __('crud.groups.quick_summary.copy_group_action') }}" aria-label="{{ __('crud.groups.quick_summary.copy_group_action') }}" data-group-copy-summary data-group-hero-copy-action>
-                                <x-admin-action-icon name="copy" />
-                            </button>
-                            <button type="button" wire:click="$set('showScheduleModal', true)" class="admin-icon-button" title="{{ __('crud.groups.actions.schedule') }}" aria-label="{{ __('crud.groups.actions.schedule') }}" data-group-hero-schedule-action>
-                                <x-admin-action-icon name="schedule" />
-                            </button>
-                            <button type="button" wire:click="deactivate" wire:confirm="{{ __('crud.common.confirm_deactivate.message') }}" class="admin-icon-button admin-icon-button--danger" title="{{ __('crud.common.actions.deactivate') }}" aria-label="{{ __('crud.common.actions.deactivate') }}" data-group-hero-deactivate-action>
-                                <x-admin-action-icon name="disable-group" />
-                            </button>
-                        </div>
+                @if($showGroupActionStack)
+                    <div class="group-show-action-stack flex max-w-full flex-col gap-3">
+                        @if($canManageGroup)
+                            <div class="group-show-actions surface-panel flex max-w-full flex-wrap items-center gap-2 p-3">
+                                <x-edit-action-button wire:click="openEdit" :label="__('crud.common.actions.edit')" data-group-hero-edit-action />
+                                <button type="button" wire:click="$set('showScheduleModal', true)" class="admin-icon-button" title="{{ __('crud.groups.actions.schedule') }}" aria-label="{{ __('crud.groups.actions.schedule') }}" data-group-hero-schedule-action>
+                                    <x-admin-action-icon name="schedule" />
+                                </button>
+                                <button type="button" wire:click="deactivate" wire:confirm="{{ __('crud.common.confirm_deactivate.message') }}" class="admin-icon-button admin-icon-button--danger" title="{{ __('crud.common.actions.deactivate') }}" aria-label="{{ __('crud.common.actions.deactivate') }}" data-group-hero-deactivate-action>
+                                    <x-admin-action-icon name="disable-group" />
+                                </button>
+                            </div>
+                        @endif
+
+                        @if($canCopyGroupSummary)
+                            <div class="group-show-summary surface-panel flex w-full flex-col gap-2 p-3" data-group-copy-summary>
+                                <input wire:model="progressDate" value="{{ $progressDate }}" type="date" aria-label="{{ __('crud.common.fields.date') }}" class="min-w-0 flex-1 rounded-xl px-3 py-2 text-sm">
+                                <button type="button" wire:click="copyProgress" class="admin-icon-button admin-icon-button--accent flex-none" title="{{ __('crud.groups.quick_summary.copy_group_action') }}" aria-label="{{ __('crud.groups.quick_summary.copy_group_action') }}" data-group-hero-copy-action>
+                                    <x-admin-action-icon name="copy" />
+                                </button>
+                            </div>
+                        @endif
                     </div>
                 @endif
             </div>
@@ -375,7 +424,7 @@ new class extends Component {
     @if(session('status'))<div class="flash-success px-4 py-3 text-sm">{{ session('status') }}</div>@endif
     @error('group')<div class="flash-error px-4 py-3 text-sm">{{ $message }}</div>@enderror
     <section class="surface-panel overflow-hidden">
-        <div class="admin-toolbar p-5">
+        <div class="admin-toolbar mobile-table-header-controls p-5">
             <div><div class="admin-toolbar__title">{{ __('crud.groups.roster.title') }}</div></div>
             <div class="admin-toolbar__actions">
                 @if ($groupIsEditable)
@@ -388,7 +437,7 @@ new class extends Component {
                 @endif
             </div>
         </div>
-        <div class="overflow-x-auto">
+        <div class="table-scroll-region overflow-x-auto" data-table-scroll-region>
             <table class="group-roster-table w-full table-fixed text-sm">
                 <thead>
                     <tr>
@@ -433,7 +482,7 @@ new class extends Component {
                 </svg>
             </button>
         </x-slot:header-actions>
-        <section class="surface-table settings-record-table overflow-visible">
+        <section class="surface-table settings-record-table overflow-visible" data-searchable-select-table-surface>
             <div class="overflow-visible">
                 <table class="w-full text-sm">
                     <thead><tr><th class="px-4 py-3">{{ __('schedules.group.form.fields.day') }}</th><th class="px-4 py-3">{{ __('schedules.group.form.fields.timing') }}</th><th class="admin-actions-column w-24 px-4 py-3 text-center">{{ __('schedules.group.table.headers.actions') }}</th></tr></thead>
@@ -460,7 +509,7 @@ new class extends Component {
         @error('scheduleRows')<div class="mt-3 text-sm text-red-400">{{ $message }}</div>@enderror
     </x-admin.modal>
 
-    <x-admin.modal :show="$showEditModal" :title="__('crud.groups.form.edit_title')" close-method="showEditModal" max-width="5xl">
+    <x-admin.modal :show="$showEditModal" :title="__('crud.groups.form.edit_title')" close-method="closeEdit" max-width="5xl">
         <form wire:submit="saveGroup" class="space-y-4">
             <div class="grid gap-4 md:grid-cols-2" data-group-form-row="identity">
                 <label class="block text-sm">{{ __('crud.groups.form.fields.name') }}<input wire:model="name" class="mt-1 w-full rounded-xl px-4 py-3"></label>
@@ -480,7 +529,7 @@ new class extends Component {
             </div>
             @error('delete')<div class="flash-error px-4 py-3 text-sm">{{ $message }}</div>@enderror
             <div class="admin-action-cluster admin-action-cluster--end">
-                <button type="submit" class="admin-icon-button admin-icon-button--accent admin-modal-action-button" title="{{ __('crud.common.actions.update') }}" aria-label="{{ __('crud.common.actions.update') }}" data-group-edit-save-action>
+                <button type="button" wire:click="saveGroup" wire:loading.attr="disabled" wire:target="saveGroup" class="admin-icon-button admin-icon-button--accent admin-modal-action-button" title="{{ __('crud.common.actions.update') }}" aria-label="{{ __('crud.common.actions.update') }}" data-group-edit-save-action>
                     <x-admin-action-icon name="save" class="admin-modal-action__icon" />
                 </button>
                 @can('groups.delete')

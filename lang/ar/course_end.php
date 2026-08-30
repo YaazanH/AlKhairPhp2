@@ -85,7 +85,7 @@ return [
             'title' => 'قسم :name',
             'item' => 'اسم الصنف',
             'quantity' => 'الكمية',
-            'invoice_unit_price' => 'سعر الوحدة',
+            'invoice_unit_price' => 'السعر الفردي',
             'local_unit_price' => 'سعر الوحدة بالعملة المحلية',
             'points' => 'النقاط',
             'point_price' => 'سعر النقطة',

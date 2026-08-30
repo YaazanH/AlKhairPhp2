@@ -41,7 +41,7 @@ new class extends Component {
 
         $this->ledger_year = (int) now()->year;
         $this->ledger_quarter = (string) now()->quarter;
-        $latestPeriod = app(FinanceService::class)->availableTransactionPeriods(auth()->user())->first();
+        $latestPeriod = app(FinanceReportService::class)->availableUnreportedLedgerPeriods(auth()->user())->first();
         if ($latestPeriod) {
             $this->ledger_year = (int) $latestPeriod['year'];
             $this->ledger_quarter = (string) ($latestPeriod['quarters'][0] ?? 1);
@@ -72,7 +72,7 @@ new class extends Component {
     public function updatedLedgerYear(): void
     {
         if ($this->ledger_period_mode === 'quarter') {
-            $period = app(FinanceService::class)->availableTransactionPeriods(auth()->user())->firstWhere('year', $this->ledger_year);
+            $period = app(FinanceReportService::class)->availableUnreportedLedgerPeriods(auth()->user())->firstWhere('year', $this->ledger_year);
             $this->ledger_quarter = (string) ($period['quarters'][0] ?? '');
             $this->syncLedgerQuarterDates();
         }
@@ -101,7 +101,7 @@ new class extends Component {
                 : collect(),
             'ledgerCashBoxes' => $financeService->accessibleCashBoxes(auth()->user())->get(),
             'ledgerCurrencies' => $this->ledgerCurrencies(),
-            'ledgerPeriods' => $financeService->availableTransactionPeriods(auth()->user()),
+            'ledgerPeriods' => app(FinanceReportService::class)->availableUnreportedLedgerPeriods(auth()->user()),
             'ledgerSettings' => app(FinanceReportService::class)->defaultLedgerTemplate()->fresh(),
             'reportStampPath' => AppSetting::groupValues('finance')->get('report_stamp_path'),
             'canGenerateReport' => auth()->user()?->financeSignaturePdfSource() !== null,
@@ -195,6 +195,21 @@ new class extends Component {
 
             return;
         }
+
+        if ($this->ledger_period_mode === 'quarter') {
+            $periods = app(FinanceReportService::class)->availableUnreportedLedgerPeriods(auth()->user());
+            $selectedPeriod = $periods->firstWhere('year', $this->ledger_year);
+
+            if (! $selectedPeriod || ! in_array((int) $this->ledger_quarter, $selectedPeriod['quarters'], true)) {
+                $selectedPeriod = $periods->first();
+                if ($selectedPeriod) {
+                    $this->ledger_year = (int) $selectedPeriod['year'];
+                    $this->ledger_quarter = (string) ($selectedPeriod['quarters'][0] ?? '');
+                    $this->syncLedgerQuarterDates();
+                }
+            }
+        }
+
         $this->showCreateReportModal = true;
     }
 
@@ -350,6 +365,7 @@ new class extends Component {
                 'date_from' => $ledger_date_from,
                 'date_to' => $ledger_date_to,
                 'ledger_notes' => $report_notes,
+                'period_mode' => $ledger_period_mode,
             ];
         @endphp
         <x-admin.modal :show="$showCreateReportModal" :title="__('finance.reports.generate_report')" close-method="closeCreateReport" max-width="4xl">
@@ -367,7 +383,7 @@ new class extends Component {
                 <div class="grid gap-4 md:grid-cols-3">
                     <div>
                         <label class="mb-1 block text-sm font-medium">{{ __('finance.fields.period') }}</label>
-                        <select wire:model.live="ledger_period_mode" data-searchable="false" class="h-[3.125rem] min-h-[3.125rem] w-full rounded-xl px-4 py-3 text-sm">
+                        <select wire:model.live="ledger_period_mode" class="h-[3.125rem] min-h-[3.125rem] w-full rounded-xl px-4 py-3 text-sm" data-ledger-period-mode>
                             <option value="quarter">{{ __('finance.reports.period_quarter') }}</option>
                             <option value="custom">{{ __('finance.reports.period_custom') }}</option>
                         </select>
@@ -375,11 +391,11 @@ new class extends Component {
                     @if ($ledger_period_mode === 'quarter')
                         <div>
                             <label class="mb-1 block text-sm font-medium">{{ __('finance.fields.year') }}</label>
-                            <select wire:model.live="ledger_year" class="h-[3.125rem] min-h-[3.125rem] w-full rounded-xl px-4 py-3 text-sm">@forelse($ledgerPeriods as $period)<option value="{{ $period['year'] }}">{{ $period['year'] }}</option>@empty<option value="{{ $ledger_year }}">-</option>@endforelse</select>
+                            <select wire:model.live="ledger_year" class="h-[3.125rem] min-h-[3.125rem] w-full rounded-xl px-4 py-3 text-sm" data-unreported-ledger-years>@forelse($ledgerPeriods as $period)<option value="{{ $period['year'] }}">{{ $period['year'] }}</option>@empty<option value="{{ $ledger_year }}">-</option>@endforelse</select>
                         </div>
                         <div>
                             <label class="mb-1 block text-sm font-medium">{{ __('finance.fields.quarter') }}</label>
-                            <select wire:model.live="ledger_quarter" class="h-[3.125rem] min-h-[3.125rem] w-full rounded-xl px-4 py-3 text-sm">@foreach((collect($ledgerPeriods)->firstWhere('year', $ledger_year)['quarters'] ?? []) as $reportQuarter)<option value="{{ $reportQuarter }}">Q{{ $reportQuarter }}</option>@endforeach</select>
+                            <select wire:model.live="ledger_quarter" class="h-[3.125rem] min-h-[3.125rem] w-full rounded-xl px-4 py-3 text-sm" data-unreported-ledger-quarters>@foreach((collect($ledgerPeriods)->firstWhere('year', $ledger_year)['quarters'] ?? []) as $reportQuarter)<option value="{{ $reportQuarter }}">Q{{ $reportQuarter }}</option>@endforeach</select>
                         </div>
                     @else
                         <div>

@@ -356,6 +356,12 @@ select:focus[data-flux-control] {
 
 .searchable-select--open {
     z-index: 120;
+    isolation: isolate;
+}
+
+:is(label, .admin-filter-field, .admin-form-grid > div):has(> .searchable-select--open) {
+    position: relative;
+    z-index: 125;
 }
 
 .searchable-select__native {
@@ -621,8 +627,14 @@ select:focus[data-flux-control] {
 }
 
 .searchable-select__option:hover,
+.searchable-select__option--highlighted,
 .searchable-select__option[aria-selected='true'] {
     background: rgba(11, 143, 67, 0.2);
+}
+
+.searchable-select__option--highlighted {
+    background: rgba(11, 143, 67, 0.34);
+    box-shadow: inset 0 0 0 1px rgba(151, 219, 174, 0.34);
 }
 
 .searchable-select__option--placeholder,
@@ -656,8 +668,14 @@ html:not(.dark) .searchable-select__empty {
 }
 
 html:not(.dark) .searchable-select__option:hover,
+html:not(.dark) .searchable-select__option--highlighted,
 html:not(.dark) .searchable-select__option[aria-selected='true'] {
     background: rgba(11, 143, 67, 0.1);
+}
+
+html:not(.dark) .searchable-select__option--highlighted {
+    background: rgba(11, 143, 67, 0.18);
+    box-shadow: inset 0 0 0 1px rgba(11, 143, 67, 0.3);
 }
 
 .font-display {
@@ -1550,8 +1568,18 @@ html[dir='rtl'] .group-show-details {
     box-sizing: border-box;
 }
 
+.group-show-action-stack {
+    width: min(17rem, 100%);
+}
+
 .group-show-actions {
     width: 100%;
+}
+
+.group-show-actions > .admin-icon-button {
+    width: 3.125rem;
+    min-width: 3.125rem;
+    flex: 0 0 3.125rem;
 }
 
 @media (min-width: 1280px) {
@@ -1583,8 +1611,9 @@ html[dir='rtl'] .group-show-details {
     }
 
     .group-show-actions > .admin-icon-button {
-        width: auto;
-        flex: 1 1 0;
+        width: 3.125rem;
+        min-width: 3.125rem;
+        flex: 0 0 3.125rem;
     }
 
     .group-show-summary {
@@ -1835,6 +1864,21 @@ html[dir='rtl'] .student-progress-profile__birth-year {
     overflow: hidden;
     border-radius: 1.5rem;
     background: var(--app-panel);
+}
+
+/* Wide records scroll inside their card instead of increasing the width of the
+   page. Keeping this behavior on one reusable region also avoids Safari
+   treating the table's min-content width as the width of a flex child. */
+.table-scroll-region {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    box-sizing: border-box;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
 }
 
 html:not(.dark) .surface-panel--soft {
@@ -3357,6 +3401,16 @@ html[dir='rtl'] :is(.surface-table, .surface-panel:has(table)) :is(.admin-toolba
     height: 2.25rem !important;
     min-height: 2.25rem !important;
     flex: 0 0 2.25rem !important;
+}
+
+.finance-dashboard-period-filters {
+    width: fit-content;
+    grid-template-columns: repeat(2, minmax(0, 6rem));
+}
+
+.finance-dashboard-period-filters > * {
+    width: 6rem;
+    min-width: 0;
 }
 
 .finance-dashboard .finance-dashboard-table-header {
@@ -4969,6 +5023,31 @@ html:not(.dark) .admin-modal__title {
 
 .admin-modal__body:has(.searchable-select--open) {
     overflow: visible;
+}
+
+/* WebKit captures fixed descendants inside backdrop-filter surfaces. Remove
+   that containing layer only while a select is open so its panel paints above
+   table cells and borders. */
+.admin-modal :is(.surface-panel, .surface-table, .settings-record-table):has(.searchable-select--open) {
+    z-index: 250;
+    overflow: visible !important;
+    isolation: auto !important;
+    transform: none !important;
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+}
+
+.admin-modal [data-searchable-select-table-surface]:has(.searchable-select--open) .schedule-add-row {
+    position: relative;
+    z-index: 255;
+}
+
+.admin-modal [data-searchable-select-table-surface]:has(.searchable-select--open) :is(tbody, tr, td) {
+    overflow: visible;
+}
+
+.admin-modal [data-searchable-select-table-surface] .searchable-select__panel {
+    z-index: 270;
 }
 
 .admin-modal .searchable-select__panel {
@@ -10204,12 +10283,91 @@ input[type='file'][data-pdf-upload-lock-state='complete'] {
         display: none !important;
     }
 
+    .page-stack,
+    .page-stack > *,
+    [data-curriculum-subject-panel],
+    [data-curriculum-resource-panel],
+    :is(.surface-table, .surface-panel:has(table)) {
+        min-width: 0;
+        max-width: 100%;
+        box-sizing: border-box;
+    }
+
+    /* The card owns the rounded clipping; only its table region scrolls. */
+    :is(.surface-table, .surface-panel):has(> [data-table-scroll-region]),
+    [data-curriculum-subject-panel] {
+        overflow: hidden !important;
+    }
+
+    [data-table-scroll-region] {
+        display: block !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+        overflow-x: auto !important;
+        overflow-y: hidden !important;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    /* Search panels are the one intentional exception to card clipping. */
+    :is(.surface-table, .surface-panel):has(.searchable-select--open) {
+        overflow: visible !important;
+    }
+
     .surface-table > .admin-grid-meta--controls {
         display: flex !important;
         flex-flow: row nowrap !important;
         align-items: center !important;
         justify-content: space-between;
         gap: 0.75rem;
+    }
+
+    :is(.surface-table, .surface-panel:has(table)) > .admin-toolbar.mobile-table-header-controls:not(.mobile-table-filters--open) {
+        display: flex !important;
+        width: 100% !important;
+        flex-flow: row nowrap !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+        gap: 0.75rem !important;
+    }
+
+    /* Render table titles and their symbol actions in one row even before the
+       progressive mobile-filter enhancement runs. */
+    :is(.surface-table, .surface-panel:has(table)) > .admin-toolbar:has(> .admin-toolbar__actions):not(.mobile-table-filters--open) {
+        display: flex !important;
+        width: 100% !important;
+        flex-flow: row nowrap !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+        gap: 0.75rem !important;
+    }
+
+    :is(.surface-table, .surface-panel:has(table)) > .admin-toolbar:has(> .admin-toolbar__actions):not(.mobile-table-filters--open) > :first-child {
+        min-width: 0;
+        flex: 1 1 auto;
+    }
+
+    :is(.surface-table, .surface-panel:has(table)) > .admin-toolbar:has(> .admin-toolbar__actions):not(.mobile-table-filters--open) > .admin-toolbar__actions {
+        display: flex !important;
+        width: auto !important;
+        flex: 0 0 auto !important;
+        flex-flow: row nowrap !important;
+        justify-content: flex-end !important;
+        gap: 0.45rem !important;
+    }
+
+    :is(.surface-table, .surface-panel:has(table)) > .admin-toolbar.mobile-table-header-controls:not(.mobile-table-filters--open) > :first-child {
+        min-width: 0;
+        flex: 1 1 auto;
+    }
+
+    :is(.surface-table, .surface-panel:has(table)) > .admin-toolbar.mobile-table-header-controls:not(.mobile-table-filters--open) > .admin-toolbar__actions {
+        display: flex !important;
+        width: auto !important;
+        flex: 0 0 auto !important;
+        flex-flow: row nowrap !important;
+        justify-content: flex-end !important;
+        gap: 0.45rem !important;
     }
 
     .surface-table > .admin-grid-meta--controls > .admin-grid-meta__title {
@@ -10339,5 +10497,19 @@ input[type='file'][data-pdf-upload-lock-state='complete'] {
 
     .standard-mobile-table .points-ledger-table {
         min-width: 68rem;
+    }
+}
+
+@media (max-width: 767px) {
+    /* These rules must follow the mobile dialog width rules above. Safari's
+       fixed select panel otherwise remains clipped by overflow-x: hidden. */
+    .admin-modal .admin-modal__dialog:has(.searchable-select--open),
+    .admin-modal .admin-modal__body:has(.searchable-select--open) {
+        overflow: visible !important;
+    }
+
+    .admin-modal [data-searchable-select-table-surface]:has(.searchable-select--open) {
+        -webkit-backdrop-filter: none !important;
+        backdrop-filter: none !important;
     }
 }

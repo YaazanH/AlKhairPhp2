@@ -232,7 +232,7 @@ window.AdminConfirm = {
 document.addEventListener('DOMContentLoaded', registerAdminConfirmListeners);
 document.addEventListener('livewire:navigated', registerAdminConfirmListeners);
 
-const SEARCHABLE_SELECT_BINDING_VERSION = '8';
+const SEARCHABLE_SELECT_BINDING_VERSION = '9';
 let searchableSelectOpenSuppressedUntil = 0;
 
 function suppressSearchableSelectOpen(duration = 400) {
@@ -329,7 +329,12 @@ function closeSearchableSelect(wrapper) {
     wrapper.classList.remove('searchable-select--open');
     wrapper.querySelector('.searchable-select__panel')?.setAttribute('hidden', 'hidden');
     wrapper.querySelector('.searchable-select__button')?.setAttribute('aria-expanded', 'false');
-    wrapper.querySelector('.searchable-select__search--trigger')?.setAttribute('aria-expanded', 'false');
+    const search = wrapper.querySelector('.searchable-select__search--trigger');
+    search?.setAttribute('aria-expanded', 'false');
+    search?.removeAttribute('aria-activedescendant');
+    wrapper.querySelectorAll('.searchable-select__option--highlighted').forEach((option) => {
+        option.classList.remove('searchable-select__option--highlighted');
+    });
 }
 
 function closeOtherSearchableSelects(currentWrapper) {
@@ -384,7 +389,9 @@ function buildSearchableSelectOptions(select, list, query = '') {
 
         const item = document.createElement('button');
         item.type = 'button';
+        item.tabIndex = -1;
         item.className = 'searchable-select__option';
+        item.id = `searchable-select-option-${Math.random().toString(36).slice(2)}`;
         if (option.dataset.optionName !== undefined || option.dataset.optionNumber !== undefined) {
             item.classList.add('searchable-select__option--columns');
 
@@ -421,7 +428,12 @@ function buildSearchableSelectOptions(select, list, query = '') {
             select.value = option.value;
             select.dispatchEvent(new Event('change', { bubbles: true }));
             select.searchableSelectSync?.(true);
-            closeSearchableSelect(item.closest('.searchable-select'));
+
+            const currentWrapper = select.nextElementSibling;
+
+            if (currentWrapper?.classList.contains('searchable-select')) {
+                closeSearchableSelect(currentWrapper);
+            }
         });
 
         list.appendChild(item);
@@ -434,6 +446,52 @@ function buildSearchableSelectOptions(select, list, query = '') {
         empty.textContent = select.dataset.emptyText || 'No results';
         list.appendChild(empty);
     }
+}
+
+function searchableSelectOptionButtons(list) {
+    return Array.from(list.querySelectorAll('.searchable-select__option'));
+}
+
+function highlightSearchableSelectOption(list, search, index) {
+    const options = searchableSelectOptionButtons(list);
+
+    if (options.length === 0) {
+        search.removeAttribute('aria-activedescendant');
+
+        return null;
+    }
+
+    const normalizedIndex = ((index % options.length) + options.length) % options.length;
+    const highlighted = options[normalizedIndex];
+
+    options.forEach((option) => {
+        option.classList.toggle('searchable-select__option--highlighted', option === highlighted);
+    });
+    search.setAttribute('aria-activedescendant', highlighted.id);
+    highlighted.scrollIntoView({ block: 'nearest' });
+
+    return highlighted;
+}
+
+function focusNextInteractiveControl(current) {
+    const root = current.closest('form') || document;
+    const controls = Array.from(root.querySelectorAll('input, textarea, button, select, [tabindex]'))
+        .filter((control) => control instanceof HTMLElement)
+        .filter((control) => !control.matches(':disabled, [hidden], [tabindex="-1"]'))
+        .filter((control) => !control.classList.contains('searchable-select__native'))
+        .filter((control) => !control.classList.contains('searchable-select__clear'))
+        .filter((control) => !control.closest('.searchable-select__panel'))
+        .filter((control) => control.getClientRects().length > 0);
+    const currentIndex = controls.indexOf(current);
+    const next = currentIndex >= 0 ? controls[currentIndex + 1] : null;
+
+    if (!(next instanceof HTMLElement)) {
+        return false;
+    }
+
+    next.focus({ preventScroll: true });
+
+    return true;
 }
 
 function enhanceSearchableSelect(select) {
@@ -773,6 +831,72 @@ function enhanceSearchableSelect(select) {
                 search.setAttribute('aria-expanded', 'false');
             }, 0);
         });
+
+        search.addEventListener('keydown', (event) => {
+            if (['ArrowDown', 'ArrowUp'].includes(event.key)) {
+                event.preventDefault();
+                event.stopPropagation();
+
+                if (!wrapper.classList.contains('searchable-select--open')) {
+                    closeOtherSearchableSelects(wrapper);
+                    wrapper.classList.add('searchable-select--open');
+                    panel.removeAttribute('hidden');
+                    search.setAttribute('aria-expanded', 'true');
+                    buildSearchableSelectOptions(select, list, search.value);
+                }
+
+                const options = searchableSelectOptionButtons(list);
+                const currentIndex = options.findIndex((option) => option.classList.contains('searchable-select__option--highlighted'));
+                const nextIndex = event.key === 'ArrowDown'
+                    ? (currentIndex < 0 ? 0 : currentIndex + 1)
+                    : (currentIndex < 0 ? options.length - 1 : currentIndex - 1);
+
+                highlightSearchableSelectOption(list, search, nextIndex);
+
+                return;
+            }
+
+            if (!['Enter', 'Tab'].includes(event.key) || event.shiftKey) {
+                return;
+            }
+
+            event.preventDefault();
+            event.stopPropagation();
+
+            const highlighted = list.querySelector('.searchable-select__option--highlighted');
+
+            if (highlighted instanceof HTMLButtonElement) {
+                highlighted.click();
+            } else {
+                closeSearchableSelect(wrapper);
+            }
+
+            window.requestAnimationFrame(() => {
+                if (select.dataset.saveAndNewOnKeydown === 'true' && searchableSelectHasValue(select)) {
+                    const action = select.closest('form')?.querySelector('[data-create-and-new-action]');
+
+                    if (action instanceof HTMLButtonElement && search.dataset.saveAndNewPending !== 'true') {
+                        search.dataset.saveAndNewPending = 'true';
+                        action.click();
+
+                        window.setTimeout(() => {
+                            delete search.dataset.saveAndNewPending;
+                        }, 1000);
+                    }
+
+                    return;
+                }
+
+                if (
+                    select.dataset.focusNextSearchableOnTab
+                    && focusSearchableSelectById(select.dataset.focusNextSearchableOnTab)
+                ) {
+                    return;
+                }
+
+                focusNextInteractiveControl(search);
+            });
+        });
     } else {
         button.addEventListener('click', () => {
             const willOpen = !wrapper.classList.contains('searchable-select--open');
@@ -825,6 +949,40 @@ function scheduleSearchableSelectInitialization() {
 }
 
 window.initializeSearchableSelects = initializeSearchableSelects;
+
+function focusSearchableSelectById(selectId) {
+    if (typeof selectId !== 'string' || selectId === '') {
+        return false;
+    }
+
+    const select = document.getElementById(selectId);
+
+    if (!(select instanceof HTMLSelectElement)) {
+        return false;
+    }
+
+    enhanceSearchableSelect(select);
+    select.searchableSelectSync?.(true);
+
+    const input = select.nextElementSibling?.querySelector('.searchable-select__search--trigger');
+
+    if (!(input instanceof HTMLInputElement)) {
+        return false;
+    }
+
+    input.focus({ preventScroll: true });
+
+    return true;
+}
+
+function focusSearchableSelect(event) {
+    const selectId = event?.detail?.id;
+
+    window.requestAnimationFrame(() => focusSearchableSelectById(selectId));
+    window.setTimeout(() => focusSearchableSelectById(selectId), 180);
+}
+
+window.addEventListener('focus-searchable-select', focusSearchableSelect);
 
 function assessmentQuickScoreStudentNameInput() {
     const select = document.getElementById('assessment-student-entry');
@@ -1537,7 +1695,7 @@ function initializeMobileTableHeaderActions(toolbar) {
         action.closest('.mobile-table-filter-criterion') === null
         && !action.hasAttribute('data-mobile-table-filter-open')
         && !action.hasAttribute('data-mobile-table-filter-close')
-        && action.closest('.admin-toolbar__controls, [data-mobile-table-filter-controls]') === toolbar
+        && action.closest('.admin-toolbar__controls, [data-mobile-table-filter-controls], .admin-toolbar') === toolbar
     ));
 
     actions.forEach((action) => {
@@ -1677,12 +1835,19 @@ function dismissMobileTableFilterTopLayer(toolbar) {
 
 function initializeMobileTableFilters(root = document) {
     const toolbars = [];
-    const selector = '.admin-grid-meta--controls .admin-toolbar__controls, [data-mobile-table-filter-controls]';
+    const selector = '.admin-grid-meta--controls .admin-toolbar__controls, [data-mobile-table-filter-controls], .surface-table > .admin-toolbar, .surface-panel > .admin-toolbar';
+    const belongsToTableSurface = (toolbar) => (
+        !toolbar.matches('.admin-toolbar')
+        || toolbar.parentElement?.matches('.surface-table')
+        || Boolean(toolbar.parentElement?.querySelector('table'))
+    );
 
-    if (root instanceof Element && root.matches(selector)) {
+    if (root instanceof Element && root.matches(selector) && belongsToTableSurface(root)) {
         toolbars.push(root);
     }
-    root.querySelectorAll?.(selector).forEach((toolbar) => toolbars.push(toolbar));
+    root.querySelectorAll?.(selector).forEach((toolbar) => {
+        if (belongsToTableSurface(toolbar)) toolbars.push(toolbar);
+    });
 
     [...new Set(toolbars)].forEach((toolbar) => {
         const criteria = Array.from(toolbar.children).filter((child) => (

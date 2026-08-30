@@ -1172,7 +1172,7 @@ new class extends Component {
         </div>
     </section>
 
-    <x-admin.modal :show="$showFinanceSettingsModal" :title="__('finance.settings.finance_defaults')" close-method="closeFinanceSettingsModal" max-width="5xl">
+    <x-admin.modal :show="$showFinanceSettingsModal" :title="__('finance.settings.finance_defaults')" close-method="closeFinanceSettingsModal" :dismissible="false" max-width="5xl">
         <x-slot:header-actions>
             <button type="submit" form="finance-settings-form" class="admin-modal__close" title="{{ __('settings.finance.actions.save_settings') }}" aria-label="{{ __('settings.finance.actions.save_settings') }}" data-finance-settings-save-icon>
                 <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
@@ -1534,11 +1534,13 @@ new class extends Component {
                 </div>
             </div>
             @endunless
-            <div class="grid gap-3 text-sm">
-                <label class="flex items-center gap-3"><input wire:model="currency_is_active" type="checkbox" class="rounded"> {{ __('finance.common.active') }}</label>
-                <label class="flex items-center gap-3"><input wire:model="currency_show_in_dropdowns" type="checkbox" class="rounded"> {{ app()->isLocale('ar') ? 'إظهار العملة في القوائم المنسدلة' : 'Show currency in dropdown menus' }}</label>
-                <label class="flex items-center gap-3"><input wire:model="currency_is_local" type="checkbox" class="rounded"> {{ __('finance.common.local_currency') }}</label>
-                <label class="flex items-center gap-3"><input wire:model.live="currency_is_base" type="checkbox" class="rounded"> {{ __('finance.common.base_currency') }}</label>
+            <div class="rounded-2xl border border-white/10 bg-white/[0.025] p-4" data-finance-currency-checkbox-box>
+                <div class="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-3" data-finance-currency-checkbox-grid>
+                    <label class="flex items-center gap-3"><input wire:model="currency_is_local" type="checkbox" class="rounded"> {{ __('finance.common.local_currency') }}</label>
+                    <label class="flex items-center gap-3"><input wire:model="currency_show_in_dropdowns" type="checkbox" class="rounded"> {{ app()->isLocale('ar') ? 'إظهار في القوائم' : 'Show in lists' }}</label>
+                    <label class="flex items-center gap-3"><input wire:model="currency_is_active" type="checkbox" class="rounded"> {{ __('finance.common.active') }}</label>
+                    <label class="flex items-center gap-3"><input wire:model.live="currency_is_base" type="checkbox" class="rounded"> {{ __('finance.common.base_currency') }}</label>
+                </div>
             </div>
             @error('currency_is_active') <div class="text-sm text-red-400">{{ $message }}</div> @enderror
             @error('currency_is_local') <div class="text-sm text-red-400">{{ $message }}</div> @enderror
@@ -1549,7 +1551,7 @@ new class extends Component {
                 @if ($currency_editing_id)
                     <x-delete-action-button wire:click="deleteCurrency({{ $currency_editing_id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" :label="__('finance.actions.delete')" data-finance-currency-delete-action />
                 @endif
-                <button type="submit" class="pill-link pill-link--accent">{{ $currency_editing_id ? __('finance.actions.update_currency') : __('finance.actions.create_currency') }}</button>
+                <x-admin.save-button :label="$currency_editing_id ? __('finance.actions.update_currency') : __('finance.actions.create_currency')" data-finance-currency-save-action />
             </div>
         </form>
     </x-admin.modal>
@@ -1578,7 +1580,7 @@ new class extends Component {
                 @if ($cash_box_editing_id)
                     <x-delete-action-button wire:click="deleteCashBox({{ $cash_box_editing_id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" :label="__('finance.actions.delete')" data-finance-cash-box-delete-action />
                 @endif
-                <button type="submit" class="pill-link pill-link--accent">{{ $cash_box_editing_id ? __('finance.actions.update_box') : __('finance.actions.create_box') }}</button>
+                <x-admin.save-button :label="$cash_box_editing_id ? __('finance.actions.update_box') : __('finance.actions.create_box')" data-finance-cash-box-save-action />
             </div>
         </form>
     </x-admin.modal>
@@ -1598,7 +1600,7 @@ new class extends Component {
                 @if ($finance_category_editing_id)
                     <x-delete-action-button wire:click="deleteFinanceCategory({{ $finance_category_editing_id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" :label="__('finance.actions.delete')" data-finance-category-delete-action />
                 @endif
-                <button type="submit" class="pill-link pill-link--accent">{{ $finance_category_editing_id ? __('finance.actions.update_category') : __('finance.actions.create_category') }}</button>
+                <x-admin.save-button :label="$finance_category_editing_id ? __('finance.actions.update_category') : __('finance.actions.create_category')" data-finance-category-save-action />
             </div>
         </form>
     </x-admin.modal>
@@ -1613,7 +1615,7 @@ new class extends Component {
             <label class="flex items-center gap-3 text-sm"><input wire:model="pull_kind_is_active" type="checkbox" class="rounded"> {{ __('finance.common.active') }}</label>
             <div class="flex justify-end gap-3">
                 <button type="button" wire:click="closePullKindModal" class="pill-link">{{ __('finance.actions.cancel') }}</button>
-                <button type="submit" class="pill-link pill-link--accent">{{ $pull_kind_editing_id ? __('finance.actions.update_pull_kind') : __('finance.actions.create_pull_kind') }}</button>
+                <x-admin.save-button :label="$pull_kind_editing_id ? __('finance.actions.update_pull_kind') : __('finance.actions.create_pull_kind')" data-finance-pull-kind-save-action />
             </div>
         </form>
     </x-admin.modal>

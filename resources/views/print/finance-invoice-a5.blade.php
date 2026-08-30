@@ -17,7 +17,7 @@
         .header { background: #dff1e2; border-bottom: 1px solid #9fc6a8; margin: 0 -10mm; padding: 4mm 4mm 4mm 10mm; }
         .header table, .footer table, .meta, .items, .totals { border-collapse: collapse; width: 100%; }
         .brand-logo { text-align: right; width: 22%; }
-        .brand-logo img { height: auto; max-height: 23mm; max-width: 35mm; width: auto; }
+        .brand-logo img { height: 18mm; max-width: 35mm; width: auto; }
         .invoice-title { color: #166534; font-size: 19pt; font-weight: bold; text-align: center; width: 56%; }
         .invoice-no { color: #50715a; direction:ltr; font-size: 9pt; text-align: left; width: 22%; }
         .continuation { color: #78907e; direction: {{ app()->isLocale('ar') ? 'rtl' : 'ltr' }}; font-size: 7pt; margin-top: .8mm; }
@@ -56,10 +56,10 @@
 </head>
 <body>
 <htmlpageheader name="invoiceFirstHeader">
-    <div class="header"><table dir="ltr"><tr><td class="invoice-no">{{ $invoice->invoice_no }}</td><td class="invoice-title" dir="{{ app()->isLocale('ar') ? 'rtl' : 'ltr' }}">{{ __('print.invoice.title') }}</td><td class="brand-logo">@if ($logoImage ?? null)<img src="{{ $logoImage }}" alt="">@endif</td></tr></table></div>
+    <div class="header"><table dir="ltr"><tr><td class="invoice-no">{{ $invoice->invoice_no }}</td><td class="invoice-title" dir="{{ app()->isLocale('ar') ? 'rtl' : 'ltr' }}">{{ __('print.invoice.title') }}</td><td class="brand-logo">@if ($logoImage ?? null)<img src="{{ $logoImage }}" alt="" height="18mm" max-height="18mm" max-width="35mm" style="height:18mm;max-height:18mm;max-width:35mm;width:auto">@endif</td></tr></table></div>
 </htmlpageheader>
 <htmlpageheader name="invoiceHeader">
-    <div class="header"><table dir="ltr"><tr><td class="invoice-no">{{ $invoice->invoice_no }}<div class="continuation">{{ __('print.invoice.continued') }}</div></td><td class="invoice-title" dir="{{ app()->isLocale('ar') ? 'rtl' : 'ltr' }}">{{ __('print.invoice.title') }}</td><td class="brand-logo">@if ($logoImage ?? null)<img src="{{ $logoImage }}" alt="">@endif</td></tr></table></div>
+    <div class="header"><table dir="ltr"><tr><td class="invoice-no">{{ $invoice->invoice_no }}<div class="continuation">{{ __('print.invoice.continued') }}</div></td><td class="invoice-title" dir="{{ app()->isLocale('ar') ? 'rtl' : 'ltr' }}">{{ __('print.invoice.title') }}</td><td class="brand-logo">@if ($logoImage ?? null)<img src="{{ $logoImage }}" alt="" height="18mm" max-height="18mm" max-width="35mm" style="height:18mm;max-height:18mm;max-width:35mm;width:auto">@endif</td></tr></table></div>
 </htmlpageheader>
 <htmlpagefooter name="invoiceFooter">
     <div class="footer"><table dir="ltr"><tr><td></td><td class="page">{PAGENO} / {nbpg}</td><td class="footer-matrix">@if($dataMatrixImage ?? null)<img src="{{ $dataMatrixImage }}" alt="">@endif</td></tr></table></div>

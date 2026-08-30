@@ -336,9 +336,9 @@ new class extends Component {
     <section class="page-hero relative z-20 overflow-visible p-6 lg:p-8" style="overflow: visible">
         <div class="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
             <div><div class="eyebrow">{{ __('ui.nav.finance') }}</div><h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('ui.nav.finance_dashboard') }}</h1><p class="mt-4 max-w-3xl text-neutral-200">{{ __('finance.dashboard.subtitle') }}</p></div>
-            <div class="relative z-30 grid gap-3 sm:grid-cols-2">
-                <div><label class="mb-1 block text-sm">{{ __('finance.fields.year') }}</label><select wire:model.live="year" class="w-full rounded-xl px-4 py-3 text-sm">@forelse($availableFinancePeriods as $period)<option value="{{ $period['year'] }}">{{ $period['year'] }}</option>@empty<option value="{{ $year }}">-</option>@endforelse</select></div>
-                <div class="relative z-40"><label class="mb-1 block text-sm">{{ __('finance.fields.quarter') }}</label><select wire:model.live="quarter" class="relative z-50 w-full rounded-xl px-4 py-3 text-sm">@foreach((collect($availableFinancePeriods)->firstWhere('year', $year)['quarters'] ?? []) as $availableQuarter)<option value="{{ $availableQuarter }}">Q{{ $availableQuarter }}</option>@endforeach</select></div>
+            <div class="finance-dashboard-period-filters relative z-30 grid gap-3" data-finance-dashboard-period-filters>
+                <div><label for="finance-dashboard-year" class="sr-only">{{ __('finance.fields.year') }}</label><select id="finance-dashboard-year" wire:model.live="year" class="w-full rounded-xl px-4 py-3 text-sm">@forelse($availableFinancePeriods as $period)<option value="{{ $period['year'] }}">{{ $period['year'] }}</option>@empty<option value="{{ $year }}">-</option>@endforelse</select></div>
+                <div class="relative z-40"><label for="finance-dashboard-quarter" class="sr-only">{{ __('finance.fields.quarter') }}</label><select id="finance-dashboard-quarter" wire:model.live="quarter" class="relative z-50 w-full rounded-xl px-4 py-3 text-sm">@foreach((collect($availableFinancePeriods)->firstWhere('year', $year)['quarters'] ?? []) as $availableQuarter)<option value="{{ $availableQuarter }}">Q{{ $availableQuarter }}</option>@endforeach</select></div>
             </div>
         </div>
     </section>

@@ -24,7 +24,7 @@
         .header-copy { text-align:center; width:56%; }
         .header-title { font-size:22px; font-weight:bold; }
         .header-subtitle { font-family:dubaimedium,sans-serif; font-size:13px; font-weight:normal; margin-top:1.75mm; }
-        .pdf-header img { height:auto; max-height:23mm; max-width:35mm; width:auto; }
+        .pdf-header img { height:18mm; max-width:35mm; width:auto; }
         .pdf-footer { color:#526158; font-size:9px; text-align:center; }
         .header-table-gap { height:4mm; line-height:4mm; }
     </style>
@@ -33,7 +33,7 @@
 <htmlpagefooter name="pdf-footer"><div class="pdf-footer" dir="ltr">{PAGENO} / {nbpg}</div></htmlpagefooter>
 @foreach($groupReports as $report)
 <section class="group-report">
-    <div class="pdf-header"><table class="header-table" dir="ltr"><tr><td class="header-side"><div class="date-box"><table class="date-table" dir="{{ app()->isLocale('ar') ? 'rtl' : 'ltr' }}"><tr><td class="date-label">{{ app()->isLocale('ar') ? 'من' : 'From' }}</td><td class="date-spacer">&nbsp;</td><td class="date-value" dir="ltr">{{ \Carbon\Carbon::parse($validated['date_from'])->format('d-m-Y') }}</td></tr><tr><td class="date-label">{{ app()->isLocale('ar') ? 'إلى' : 'To' }}</td><td class="date-spacer">&nbsp;</td><td class="date-value" dir="ltr">{{ \Carbon\Carbon::parse($validated['date_to'])->format('d-m-Y') }}</td></tr></table></div></td><td class="header-copy" dir="{{ app()->isLocale('ar') ? 'rtl' : 'ltr' }}"><div class="header-title">{{ __('workflow.student_attendance.export.report_title') }}</div><div class="header-subtitle">{{ $report['group']->name }}</div></td><td class="header-side" dir="rtl">@if($logo)<img src="{{ $logo }}" alt="">@endif</td></tr></table></div>
+    <div class="pdf-header"><table class="header-table" dir="ltr"><tr><td class="header-side"><div class="date-box"><table class="date-table" dir="{{ app()->isLocale('ar') ? 'rtl' : 'ltr' }}"><tr><td class="date-label">{{ app()->isLocale('ar') ? 'من' : 'From' }}</td><td class="date-spacer">&nbsp;</td><td class="date-value" dir="ltr">{{ \Carbon\Carbon::parse($validated['date_from'])->format('d-m-Y') }}</td></tr><tr><td class="date-label">{{ app()->isLocale('ar') ? 'إلى' : 'To' }}</td><td class="date-spacer">&nbsp;</td><td class="date-value" dir="ltr">{{ \Carbon\Carbon::parse($validated['date_to'])->format('d-m-Y') }}</td></tr></table></div></td><td class="header-copy" dir="{{ app()->isLocale('ar') ? 'rtl' : 'ltr' }}"><div class="header-title">{{ __('workflow.student_attendance.export.report_title') }}</div><div class="header-subtitle">{{ $report['group']->name }}</div></td><td class="header-side" dir="rtl">@if($logo)<img src="{{ $logo }}" alt="" height="18mm" max-height="18mm" max-width="35mm" style="height:18mm;max-height:18mm;max-width:35mm;width:auto">@endif</td></tr></table></div>
     <div class="header-table-gap">&nbsp;</div>
     <table class="report-table">
         <thead><tr><th>#</th><th>{{ __('course_end.table.name') }}</th><th>{{ __('workflow.student_attendance.export.student_number') }}</th><th>{{ __('workflow.student_attendance.export.percentage') }}</th></tr></thead>

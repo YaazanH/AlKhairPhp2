@@ -24,7 +24,7 @@
         .header-table, .meta-table, .ledger, .summary, .footer-table { border-collapse: collapse; width: 100%; }
         .header-table td { border: 0; padding: 0; vertical-align: middle; }
         .logo { vertical-align: middle !important; width: 22%; }
-        .logo img { display: block; height: auto; margin-left: auto; max-height: 23mm; max-width: 42mm; width: auto; }
+        .logo img { display: block; height: 18mm; margin-left: auto; max-width: 42mm; width: auto; }
         .title { color: #164d27; font-size: 20pt; font-weight: bold; text-align: center; vertical-align: middle !important; width: 56%; }
         .report-no { color: #355f3e; direction: ltr; text-align: left; width: 22%; }
         .continuation { color: #78907e; direction: rtl; font-size: 7pt; font-weight: normal; margin-top: .8mm; }
@@ -77,12 +77,12 @@
 <body>
 <htmlpageheader name="ledgerFirstHeader">
     <div class="header-wrap">
-        <div class="header-bar"><table class="header-table" dir="ltr"><tr><td class="report-no">{{ $reportNumber }}</td><td class="title" dir="rtl">تقرير مالي</td><td class="logo" dir="rtl">@if ($logoImage)<img src="{{ $logoImage }}" alt="">@endif</td></tr></table></div>
+        <div class="header-bar"><table class="header-table" dir="ltr"><tr><td class="report-no">{{ $reportNumber }}</td><td class="title" dir="rtl">تقرير مالي</td><td class="logo" dir="rtl">@if ($logoImage)<img src="{{ $logoImage }}" alt="" height="18mm" max-height="18mm" max-width="42mm" style="display:block;height:18mm;max-height:18mm;max-width:42mm;width:auto">@endif</td></tr></table></div>
     </div>
 </htmlpageheader>
 <htmlpageheader name="ledgerHeader">
     <div class="header-wrap">
-        <div class="header-bar"><table class="header-table" dir="ltr"><tr><td class="report-no">{{ $reportNumber }}<div class="continuation">متابعة</div></td><td class="title" dir="rtl">تقرير مالي</td><td class="logo" dir="rtl">@if ($logoImage)<img src="{{ $logoImage }}" alt="">@endif</td></tr></table></div>
+        <div class="header-bar"><table class="header-table" dir="ltr"><tr><td class="report-no">{{ $reportNumber }}<div class="continuation">متابعة</div></td><td class="title" dir="rtl">تقرير مالي</td><td class="logo" dir="rtl">@if ($logoImage)<img src="{{ $logoImage }}" alt="" height="18mm" max-height="18mm" max-width="42mm" style="display:block;height:18mm;max-height:18mm;max-width:42mm;width:auto">@endif</td></tr></table></div>
     </div>
 </htmlpageheader>
 <htmlpagefooter name="ledgerFooter">

@@ -16,6 +16,7 @@ new class extends Component {
     public bool $showLessonModal = false;
     public string $subjectDefinitionId = '';
     public array $resourceIds = [];
+    public ?int $editingSubjectId = null;
     public ?int $lessonSubjectId = null;
     public ?int $lessonResourceId = null;
     public ?int $editingLessonId = null;
@@ -49,9 +50,30 @@ new class extends Component {
         ];
     }
 
-    public function openSubject(): void { $this->subjectDefinitionId = ''; $this->resourceIds = []; $this->resetValidation(); $this->showSubjectModal = true; }
+    public function openSubject(?int $id = null): void
+    {
+        $subject = $id
+            ? CurriculumSubject::query()
+                ->where('curriculum_id', $this->curriculumRecord->id)
+                ->with('resources')
+                ->findOrFail($id)
+            : null;
 
-    public function updatedSubjectDefinitionId(): void { $this->resourceIds = []; $this->resetValidation('resourceIds'); }
+        $this->editingSubjectId = $subject?->id;
+        $this->subjectDefinitionId = (string) ($subject?->subject_definition_id ?? '');
+        $this->resourceIds = $subject?->resources->pluck('id')->all() ?? [];
+        $this->resetValidation();
+        $this->showSubjectModal = true;
+    }
+
+    public function updatedSubjectDefinitionId(): void
+    {
+        if (! $this->editingSubjectId) {
+            $this->resourceIds = [];
+        }
+
+        $this->resetValidation('resourceIds');
+    }
 
     public function saveSubject(): void
     {
@@ -62,15 +84,34 @@ new class extends Component {
             $this->addError('resourceIds', __('curricula.errors.resource_required'));
             return;
         }
-        $subject = CurriculumSubject::query()->create(['curriculum_id' => $this->curriculumRecord->id, 'subject_definition_id' => $data['subjectDefinitionId'], 'sort_order' => (int) CurriculumSubject::query()->where('curriculum_id', $this->curriculumRecord->id)->max('sort_order') + 10]);
+        $subject = $this->editingSubjectId
+            ? CurriculumSubject::query()->where('curriculum_id', $this->curriculumRecord->id)->findOrFail($this->editingSubjectId)
+            : CurriculumSubject::query()->create(['curriculum_id' => $this->curriculumRecord->id, 'subject_definition_id' => $data['subjectDefinitionId'], 'sort_order' => (int) CurriculumSubject::query()->where('curriculum_id', $this->curriculumRecord->id)->max('sort_order') + 10]);
+
+        abort_unless($subject->subject_definition_id === (int) $data['subjectDefinitionId'], 422);
+
+        $removedResourceIds = $subject->resources()->whereNotIn('curriculum_resources.id', $validResources)->pluck('curriculum_resources.id');
+
+        if ($removedResourceIds->isNotEmpty()) {
+            $subject->lessons()->whereIn('curriculum_resource_id', $removedResourceIds)->update(['curriculum_resource_id' => null]);
+        }
+
         $subject->resources()->sync($validResources);
+        $wasEditing = (bool) $this->editingSubjectId;
+        $this->editingSubjectId = null;
+        $this->subjectDefinitionId = '';
+        $this->resourceIds = [];
         $this->showSubjectModal = false;
-        session()->flash('status', __('curricula.messages.subject_added'));
+        session()->flash('status', __($wasEditing ? 'curricula.messages.subject_saved' : 'curricula.messages.subject_added'));
     }
 
     public function deleteSubject(int $id): void
     {
         CurriculumSubject::query()->where('curriculum_id', $this->curriculumRecord->id)->findOrFail($id)->delete();
+        $this->editingSubjectId = null;
+        $this->subjectDefinitionId = '';
+        $this->resourceIds = [];
+        $this->showSubjectModal = false;
     }
 
     public function openLesson(int $subjectId, ?int $lessonId = null, ?int $resourceId = null): void
@@ -200,20 +241,20 @@ new class extends Component {
     </x-admin.modal>
     <section class="grid gap-4">
         @forelse($curriculum->subjects as $subject)
-            <details class="surface-panel p-5" open>
+            <details class="surface-panel min-w-0 max-w-full p-5" open data-curriculum-subject-panel>
                 <summary class="flex cursor-pointer list-none items-center justify-between gap-4">
                     <div><span class="text-lg font-semibold text-white">{{ $subject->definition->name }}</span><span class="ms-3 text-xs text-neutral-400">{{ $subject->lessons->count() }} {{ __('curricula.fields.lessons') }}</span>@if($subject->resources->isNotEmpty())<div class="mt-1 text-xs text-neutral-400">{{ $subject->resources->pluck('book_name')->implode(' · ') }}</div>@endif</div>
-                    <div class="flex gap-2" onclick="event.preventDefault()"><button type="button" wire:click="deleteSubject({{ $subject->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="admin-icon-button admin-icon-button--danger" title="{{ __('curricula.actions.delete') }}" aria-label="{{ __('curricula.actions.delete') }}" data-curriculum-subject-delete-action><x-admin-action-icon name="delete" /></button></div>
+                    <div class="flex gap-2" onclick="event.preventDefault()"><x-edit-action-button wire:click="openSubject({{ $subject->id }})" :label="__('curricula.actions.edit')" data-curriculum-subject-edit-action /></div>
                 </summary>
                 @php($resourceGroups = $subject->resources->count() > 1 ? collect($subject->resources->all())->when($subject->lessons->whereNull('curriculum_resource_id')->isNotEmpty(), fn ($resources) => $resources->prepend(null)) : collect([null]))
-                <div class="mt-4 grid gap-4">
+                <div class="mt-4 grid min-w-0 max-w-full gap-4">
                     @foreach($resourceGroups as $resource)
                         @php($lessons = $resource ? $subject->lessons->where('curriculum_resource_id', $resource->id) : $subject->lessons)
-                        <div class="rounded-2xl border border-white/10 p-3">
+                        <div class="min-w-0 max-w-full rounded-2xl border border-white/10 p-3" data-curriculum-resource-panel>
                             @if($resource)<div class="mb-3 font-semibold text-emerald-100">{{ $resource->book_name }}</div>@elseif($subject->resources->count() > 1)<div class="mb-3 font-semibold text-neutral-300">{{ __('curricula.fields.general_lessons') }}</div>@endif
                             @php($draftResourceId = $resource?->id ?? 0)
                             @php($draftImportance = (int) data_get($newLessonDrafts, "{$subject->id}.{$draftResourceId}.importance", 1))
-                            <div class="overflow-x-auto rounded-xl border border-white/8">
+                            <div class="table-scroll-region overflow-x-auto rounded-xl border border-white/8" data-table-scroll-region>
                                 <table class="w-full min-w-[46rem] table-fixed text-sm" data-curriculum-lessons-table>
                                     <thead>
                                         <tr>
@@ -291,7 +332,33 @@ new class extends Component {
         @empty<div class="surface-panel admin-empty-state">{{ __('curricula.fields.subjects') }} — {{ __('crud.common.not_available') }}</div>@endforelse
     </section>
 
-    <x-admin.modal :show="$showSubjectModal" :title="__('curricula.form.subject_title')" close-method="$set('showSubjectModal', false)" max-width="md"><form wire:submit="saveSubject" class="space-y-4"><label class="block text-sm">{{ __('curricula.fields.subject') }}<select wire:model.live="subjectDefinitionId" class="mt-1 w-full rounded-xl px-4 py-3"><option value="">{{ __('crud.common.select') }}</option>@foreach($definitions as $definition)<option value="{{ $definition->id }}">{{ $definition->name }}</option>@endforeach</select></label>@if($selectedDefinition?->resources->isNotEmpty())<div><div class="mb-2 text-sm">{{ __('curricula.fields.resources') }}</div><div class="grid gap-2 sm:grid-cols-2">@foreach($selectedDefinition->resources as $resource)<label class="flex items-center gap-2 rounded-xl border border-white/10 p-3 text-sm"><input type="checkbox" wire:model="resourceIds" value="{{ $resource->id }}"><span>{{ $resource->book_name }}</span></label>@endforeach</div>@error('resourceIds')<div class="mt-2 text-sm text-red-400">{{ $message }}</div>@enderror</div>@endif<div class="admin-action-cluster admin-action-cluster--end"><button type="submit" class="admin-icon-button admin-icon-button--accent admin-modal-action-button" title="{{ __('curricula.actions.add_subject') }}" aria-label="{{ __('curricula.actions.add_subject') }}" data-curriculum-subject-save-action><x-admin-action-icon name="add" class="admin-modal-action__icon" /></button></div></form></x-admin.modal>
+    <x-admin.modal :show="$showSubjectModal" :title="$editingSubjectId ? __('curricula.form.edit_subject_title') : __('curricula.form.subject_title')" close-method="$set('showSubjectModal', false)" max-width="fit" compact>
+        <form wire:submit="saveSubject" class="w-[min(28rem,calc(100vw-3rem))] space-y-4" data-compact-subject-modal>
+            <label class="block text-sm">
+                {{ __('curricula.fields.subject') }}
+                @if($editingSubjectId)
+                    <input value="{{ $selectedDefinition?->name }}" disabled class="mt-1 w-full rounded-xl px-4 py-3 opacity-70" data-curriculum-subject-name-disabled>
+                @else
+                    <select wire:model.live="subjectDefinitionId" class="mt-1 w-full rounded-xl px-4 py-3"><option value="">{{ __('crud.common.select') }}</option>@foreach($definitions as $definition)<option value="{{ $definition->id }}">{{ $definition->name }}</option>@endforeach</select>
+                @endif
+            </label>
+            @if($selectedDefinition?->resources->isNotEmpty())
+                <div>
+                    <div class="mb-2 text-sm">{{ __('curricula.fields.resources') }}</div>
+                    <div class="grid gap-2 sm:grid-cols-2">@foreach($selectedDefinition->resources as $resource)<label class="flex items-center gap-2 rounded-xl border border-white/10 p-3 text-sm"><input type="checkbox" wire:model="resourceIds" value="{{ $resource->id }}"><span>{{ $resource->book_name }}</span></label>@endforeach</div>
+                    @error('resourceIds')<div class="mt-2 text-sm text-red-400">{{ $message }}</div>@enderror
+                </div>
+            @endif
+            <div class="admin-action-cluster admin-action-cluster--end">
+                <button type="submit" class="admin-icon-button admin-icon-button--accent admin-modal-action-button" title="{{ $editingSubjectId ? __('curricula.actions.save') : __('curricula.actions.add_subject') }}" aria-label="{{ $editingSubjectId ? __('curricula.actions.save') : __('curricula.actions.add_subject') }}" data-curriculum-subject-save-action>
+                    <x-admin-action-icon :name="$editingSubjectId ? 'save' : 'add'" class="admin-modal-action__icon" />
+                </button>
+                @if($editingSubjectId)
+                    <x-delete-action-button wire:click="deleteSubject({{ $editingSubjectId }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" :label="__('curricula.actions.delete')" data-curriculum-subject-delete-action />
+                @endif
+            </div>
+        </form>
+    </x-admin.modal>
     <x-admin.modal :show="$showLessonModal" :title="__('curricula.form.lesson_title')" close-method="$set('showLessonModal', false)" max-width="xl" compact>
         <form wire:submit="saveLesson" class="space-y-4" data-compact-lesson-modal>
             <div class="grid gap-4 sm:grid-cols-[7rem_minmax(0,1fr)]">

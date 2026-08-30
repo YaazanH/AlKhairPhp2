@@ -296,6 +296,38 @@ class ManagementPagesTest extends TestCase
         }
     }
 
+    public function test_pdf_logos_use_the_existing_header_height_as_a_fixed_resizing_boundary(): void
+    {
+        $pdfLogoSelectors = [
+            'reports/teacher-attendance.blade.php' => ['selector' => '.pdf-header img', 'count' => 1, 'height' => 18, 'max_width' => 35],
+            'reports/student-attendance.blade.php' => ['selector' => '.pdf-header img', 'count' => 1, 'height' => 18, 'max_width' => 35],
+            'reports/course-final-tests.blade.php' => ['selector' => '.pdf-header img', 'count' => 2, 'height' => 18, 'max_width' => 35],
+            'reports/course-point-market-department.blade.php' => ['selector' => '.pdf-header img', 'count' => 2, 'height' => 18, 'max_width' => 35],
+            'exports/group-roster-pdf.blade.php' => ['selector' => '.logo img', 'count' => 1, 'height' => 18, 'max_width' => 35],
+            'exports/assessment-results-pdf.blade.php' => ['selector' => '.heading-logo img', 'count' => 1, 'height' => 18, 'max_width' => 35],
+            'reports/finance-ledger-pdf-export.blade.php' => ['selector' => '.logo img', 'count' => 2, 'height' => 18, 'max_width' => 42],
+            'print/finance-invoice-a5.blade.php' => ['selector' => '.brand-logo img', 'count' => 2, 'height' => 18, 'max_width' => 35],
+        ];
+
+        foreach ($pdfLogoSelectors as $view => $logoRule) {
+            $source = file_get_contents(resource_path('views/'.$view));
+
+            $this->assertMatchesRegularExpression(
+                '/'.preg_quote($logoRule['selector'], '/').'\s*\{[^}]*height\s*:\s*'.$logoRule['height'].'mm;[^}]*max-width\s*:\s*'.$logoRule['max_width'].'mm;[^}]*width\s*:\s*auto;?/s',
+                $source,
+                $view,
+            );
+            $this->assertSame(
+                $logoRule['count'],
+                substr_count($source, 'height="'.$logoRule['height'].'mm" max-height="'.$logoRule['height'].'mm" max-width="'.$logoRule['max_width'].'mm"'),
+                $view.' must apply the mPDF-safe dimensions directly to every logo image.',
+            );
+        }
+
+        $financePreview = file_get_contents(resource_path('views/reports/partials/finance-ledger-document.blade.php'));
+        $this->assertMatchesRegularExpression('/\.ledger-report-doc__logo img\s*\{[^}]*height:\s*68px;[^}]*max-width:\s*120px;[^}]*width:\s*auto;/s', $financePreview);
+    }
+
     public function test_row_open_actions_use_the_shared_open_symbol_without_visible_text(): void
     {
         foreach ([
@@ -556,6 +588,7 @@ class ManagementPagesTest extends TestCase
 
         $this->assertStringContainsString('data-organization-edit-action', $organization);
         $this->assertStringContainsString('<x-edit-action-button wire:click="openOrganizationModal"', $organization);
+        $this->assertStringContainsString(':show="$showOrganizationModal" :title="__(\'settings.organization.sections.profile.title\')" close-method="closeOrganizationModal" :dismissible="false"', $organization);
         $this->assertStringNotContainsString("class=\"pill-link\">{{ __('settings.organization.actions.save_settings') }}", $organization);
     }
 
@@ -565,7 +598,12 @@ class ManagementPagesTest extends TestCase
 
         $this->assertStringContainsString('data-finance-settings-edit-action', $finance);
         $this->assertStringContainsString('<x-edit-action-button wire:click="openFinanceSettingsModal"', $finance);
+        $this->assertStringContainsString(':show="$showFinanceSettingsModal" :title="__(\'finance.settings.finance_defaults\')" close-method="closeFinanceSettingsModal" :dismissible="false"', $finance);
         $this->assertStringNotContainsString("class=\"pill-link\">{{ __('finance.actions.edit') }}", $finance);
+
+        foreach (['currency', 'cash-box', 'category', 'pull-kind'] as $setting) {
+            $this->assertStringContainsString("data-finance-{$setting}-save-action", $finance);
+        }
     }
 
     public function test_settings_tables_share_the_memorization_edit_icon_and_keep_delete_inside_edit_popups(): void
@@ -721,7 +759,7 @@ class ManagementPagesTest extends TestCase
         $this->assertStringNotContainsString('wire:click="deleteWithdrawalRequests"', $finance);
         $this->assertStringContainsString('public function deleteWithdrawalRequest(FinanceRequest $pullRequest', $service);
         $this->assertStringNotContainsString('public function deleteWithdrawalRequests(', $service);
-        $this->assertStringContainsString("->whereKey(\$pullRequest->getKey())", $service);
+        $this->assertStringContainsString('->whereKey($pullRequest->getKey())', $service);
         $this->assertStringContainsString("->where('metadata->parent_pull_request_id', \$pullRequestId)", $service);
     }
 
@@ -752,9 +790,9 @@ class ManagementPagesTest extends TestCase
         $this->assertStringContainsString("svg.setAttribute('stroke-linecap', 'round');", $script);
         $this->assertStringContainsString("svg.setAttribute('stroke-linejoin', 'round');", $script);
         $this->assertStringContainsString("addPath('M385.8,337.3l453.7-.2", $script);
-        $this->assertStringContainsString("observer.observe(document.body, { childList: true, subtree: true });", $script);
+        $this->assertStringContainsString('observer.observe(document.body, { childList: true, subtree: true });', $script);
         $this->assertStringContainsString(".admin-modal-action-button {\n    display: inline-flex !important;\n    width: 2.5rem !important;", $styles);
-        $this->assertStringContainsString("border-radius: 0.85rem !important;", $styles);
+        $this->assertStringContainsString('border-radius: 0.85rem !important;', $styles);
         $this->assertStringContainsString(".admin-modal-action__icon {\n    display: block;\n    width: 1.15rem;", $styles);
     }
 
@@ -1013,16 +1051,22 @@ class ManagementPagesTest extends TestCase
     {
         $script = file_get_contents(resource_path('js/app.js'));
         $styles = file_get_contents(resource_path('css/app.css'));
+        $groupsIndex = file_get_contents(resource_path('views/livewire/groups/index.blade.php'));
+        $groupShow = file_get_contents(resource_path('views/livewire/groups/show.blade.php'));
+        $studentProgress = file_get_contents(resource_path('views/livewire/students/progress.blade.php'));
 
         $this->assertStringContainsString('initializeMobileTableHeaderActions(toolbar)', $script);
+        $this->assertStringContainsString('.surface-table > .admin-toolbar, .surface-panel > .admin-toolbar', $script);
+        $this->assertStringContainsString("Boolean(toolbar.parentElement?.querySelector('table'))", $script);
         $this->assertStringContainsString("toolbar.classList.add('mobile-table-header-controls')", $script);
         $this->assertStringContainsString("action.classList.add('mobile-table-header-action')", $script);
         $this->assertStringContainsString("action.querySelectorAll(':scope > svg:not(.mobile-table-action__icon)')", $script);
         $this->assertStringContainsString("action.querySelectorAll(':scope > .mobile-table-action__icon').forEach((icon) => icon.remove())", $script);
-        $this->assertStringContainsString("nativeIcons.slice(1).forEach((icon) => icon.remove())", $script);
+        $this->assertStringContainsString('nativeIcons.slice(1).forEach((icon) => icon.remove())', $script);
         $this->assertStringContainsString("action.classList.add('mobile-table-header-action--native-icon')", $script);
         $this->assertStringContainsString("if (!action.querySelector('.mobile-table-action__icon'))", $script);
         $this->assertStringContainsString('.surface-table > .admin-grid-meta--controls', $styles);
+        $this->assertStringContainsString(':is(.surface-table, .surface-panel:has(table)) > .admin-toolbar.mobile-table-header-controls:not(.mobile-table-filters--open)', $styles);
         $this->assertStringContainsString('.mobile-table-filters--open::before', $styles);
         $this->assertStringContainsString('.mobile-table-filters--open > .mobile-table-filter-criterion', $styles);
         $this->assertStringContainsString('grid-column: 1 / -1 !important;', $styles);
@@ -1030,6 +1074,14 @@ class ManagementPagesTest extends TestCase
         $this->assertStringContainsString('flex: 0 0 3.125rem !important;', $styles);
         $this->assertStringContainsString('.mobile-table-header-action--native-icon > svg:not(.mobile-table-action__icon)', $styles);
         $this->assertStringContainsString('.mobile-table-header-action--native-icon > .mobile-table-action__icon', $styles);
+        $this->assertStringContainsString(':is(label, .admin-filter-field, .admin-form-grid > div):has(> .searchable-select--open)', $styles);
+        $this->assertStringContainsString(':is(.surface-table, .surface-panel):has(> [data-table-scroll-region])', $styles);
+        $this->assertStringContainsString(':is(.surface-table, .surface-panel:has(table)) > .admin-toolbar:has(> .admin-toolbar__actions)', $styles);
+        $this->assertStringContainsString('class="admin-toolbar__controls mobile-table-header-controls"', $groupsIndex);
+        $this->assertStringContainsString('class="admin-toolbar mobile-table-header-controls p-5"', $groupShow);
+        $this->assertStringContainsString('data-table-scroll-region', $groupsIndex);
+        $this->assertStringContainsString('data-table-scroll-region', $groupShow);
+        $this->assertStringContainsString('data-table-scroll-region', $studentProgress);
     }
 
     public function test_table_header_symbol_buttons_match_filter_height_and_keep_a_compact_gap(): void
@@ -1347,8 +1399,13 @@ class ManagementPagesTest extends TestCase
         $this->assertStringContainsString('data-settings-academic-year-delete-action', $organization);
         $this->assertStringContainsString("wire:confirm=\"{{ __('settings.organization.actions.finish_academic_year_confirm') }}\"", $organization);
         $this->assertStringNotContainsString('data-group-edit-action', $groupIndex);
+        $this->assertSame(['super_admin', 'admin', 'manager'], \App\Support\RoleRegistry::unrestrictedRoles());
+        $this->assertStringNotContainsString('data-group-index-copy-summary', $groupIndex);
+        $this->assertStringContainsString('RoleRegistry::unrestrictedRoles()', $groupShow);
         $this->assertStringContainsString('data-group-hero-edit-action', $groupShow);
-        $this->assertStringContainsString('data-group-copy-summary data-group-hero-copy-action', $groupShow);
+        $this->assertStringContainsString('data-group-copy-summary', $groupShow);
+        $this->assertStringContainsString('wire:model="progressDate" value="{{ $progressDate }}"', $groupShow);
+        $this->assertStringContainsString('data-group-hero-copy-action', $groupShow);
         $this->assertStringContainsString('M4.5 8.75h15v10.5', $icons);
         $this->assertStringContainsString('M20 8.5A8.25 8.25', $icons);
         $this->assertStringContainsString('M4.25 21 8.5 3', $icons);

@@ -1772,7 +1772,7 @@ new class extends Component {
         </section>
     </div>
 
-    <x-admin.modal :show="$showOrganizationModal" :title="__('settings.organization.sections.profile.title')" close-method="closeOrganizationModal" max-width="4xl">
+    <x-admin.modal :show="$showOrganizationModal" :title="__('settings.organization.sections.profile.title')" close-method="closeOrganizationModal" :dismissible="false" max-width="4xl">
         <x-slot:header-actions>
             <button
                 type="submit"

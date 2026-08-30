@@ -13,6 +13,7 @@ use App\Models\FinanceTransaction;
 use App\Models\User;
 use App\Support\ExportFilename;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -23,6 +24,50 @@ use Mpdf\Output\Destination;
 
 class FinanceReportService
 {
+    public function availableUnreportedLedgerPeriods(?User $user = null): Collection
+    {
+        $periods = app(FinanceService::class)->availableTransactionPeriods($user);
+
+        if (! FinanceGeneratedReport::storageIsReady()) {
+            return $periods;
+        }
+
+        return $periods
+            ->map(function (array $period): array {
+                $year = (int) $period['year'];
+                $quarters = collect($period['quarters'])
+                    ->reject(function ($quarter) use ($year): bool {
+                        $start = Carbon::create($year, (((int) $quarter - 1) * 3) + 1, 1)->startOfQuarter();
+
+                        return $this->generatedLedgerPeriodExists($start->toDateString(), $start->copy()->endOfQuarter()->toDateString());
+                    })
+                    ->values()
+                    ->all();
+
+                return ['year' => $year, 'quarters' => $quarters];
+            })
+            ->filter(fn (array $period): bool => $period['quarters'] !== [])
+            ->values();
+    }
+
+    public function generatedLedgerPeriodExists(string $dateFrom, string $dateTo): bool
+    {
+        if (! FinanceGeneratedReport::storageIsReady()) {
+            return false;
+        }
+
+        $normalizedFrom = Carbon::parse($dateFrom)->toDateString();
+        $normalizedTo = Carbon::parse($dateTo)->toDateString();
+
+        return FinanceGeneratedReport::query()
+            ->where('report_type', 'ledger')
+            ->get(['filters'])
+            ->contains(fn (FinanceGeneratedReport $report): bool => (
+                data_get($report->filters, 'date_from') === $normalizedFrom
+                && data_get($report->filters, 'date_to') === $normalizedTo
+            ));
+    }
+
     public function report(int $year, ?int $quarter = null): array
     {
         [$start, $end] = $this->period($year, $quarter);
@@ -438,6 +483,7 @@ class FinanceReportService
                 'currency_code' => data_get($report, 'currency.code'),
                 'date_from' => data_get($report, 'start'),
                 'date_to' => data_get($report, 'end'),
+                'period_mode' => $filters['period_mode'] ?? null,
             ],
             'report_data' => $report,
             'generated_by' => $user?->id,
