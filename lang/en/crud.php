@@ -618,12 +618,18 @@ return [
         ],
         'messages' => [
             'created' => 'Group created successfully.',
+            'copied' => 'Group copied successfully. Review and save the new group details.',
             'updated' => 'Group updated successfully.',
             'deleted' => 'Group deleted successfully.',
             'student_added' => 'Student added to the group successfully.',
             'student_removed' => 'Student removed from the group successfully.',
             'deactivated' => 'Group and enrollments were deactivated successfully.',
             'dashboard_card_template_saved' => 'Student dashboard card template saved successfully.',
+        ],
+        'copy' => [
+            'action' => 'Copy group',
+            'name' => 'Copy of :name',
+            'name_numbered' => 'Copy :number of :name',
         ],
         'confirm_deactivate' => 'Deactivate this group and its enrollments?',
         'errors' => [

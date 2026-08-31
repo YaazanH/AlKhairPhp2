@@ -192,6 +192,7 @@ class CoursePointMarketTest extends TestCase
         $this->assertSame('0', NumberFormatter::trimmed(0, 0));
         $this->assertSame('التصنيف', __('course_end.point_market.invoice_table.category', [], 'ar'));
         $this->assertSame('السعر الفردي', __('course_end.point_market.department.invoice_unit_price', [], 'ar'));
+        $this->assertSame('إجمالي نقاط الطلاب', __('course_end.point_market.summary.total_points_after_rules', [], 'ar'));
         $this->assertSame('قسم القرطاسية', __('course_end.point_market.department.title', ['name' => 'القرطاسية'], 'ar'));
         $this->assertSame('قسم', __('course_end.point_market.department_prefix', [], 'ar'));
         $this->assertSame('Department', __('course_end.point_market.department_prefix', [], 'en'));

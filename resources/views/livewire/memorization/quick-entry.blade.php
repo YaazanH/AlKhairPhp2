@@ -405,7 +405,7 @@ new class extends Component {
             @endif
 
             <div class="admin-action-cluster admin-action-cluster--end">
-                <button type="submit" class="admin-icon-button admin-icon-button--accent" title="{{ __('workflow.memorization.quick_entry.form.save') }}" aria-label="{{ __('workflow.memorization.quick_entry.form.save') }}" data-quick-memorization-save-action><x-admin-action-icon name="save" /></button>
+                <button type="submit" class="admin-icon-button admin-icon-button--accent quick-entry-save-action" title="{{ __('workflow.memorization.quick_entry.form.save') }}" aria-label="{{ __('workflow.memorization.quick_entry.form.save') }}" data-quick-memorization-save-action><x-admin-action-icon name="save" /></button>
             </div>
         </form>
         @endif

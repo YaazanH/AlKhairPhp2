@@ -329,7 +329,7 @@ new class extends Component {
             $this->editing_invoice_item_index = is_numeric($draft['editing_invoice_item_index'] ?? null) ? (int) $draft['editing_invoice_item_index'] : null;
             $this->confirm_invoice_overage = (bool) ($draft['confirm_invoice_overage'] ?? false);
         } else {
-            $this->original_invoice_no = '';
+            $this->original_invoice_no = '№';
             $this->invoice_issuer = '';
             $this->invoice_date = now()->toDateString();
             $this->invoice_deduction = '0';
@@ -775,7 +775,7 @@ new class extends Component {
                     </div>
 
                     <div class="grid gap-4 md:grid-cols-3">
-                        <div><label class="mb-1 block text-sm">{{ __('finance.fields.original_invoice_no') }}</label><input wire:model="original_invoice_no" dir="ltr" class="w-full rounded-xl px-4 py-3"></div>
+                        <div><label class="mb-1 block text-sm">{{ __('finance.fields.original_invoice_no') }}</label><input wire:model="original_invoice_no" dir="ltr" class="w-full rounded-xl px-4 py-3" data-original-invoice-no-input></div>
                         <div><label class="mb-1 block text-sm">{{ __('finance.fields.invoice_issuer') }}</label><input wire:model="invoice_issuer" class="w-full rounded-xl px-4 py-3"></div>
                         <div><label class="mb-1 block text-sm">{{ __('finance.common.date') }}</label><input wire:model="invoice_date" type="date" class="w-full rounded-xl px-4 py-3"></div>
                     </div>

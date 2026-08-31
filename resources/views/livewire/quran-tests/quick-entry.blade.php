@@ -464,7 +464,7 @@ new class extends Component
                 </div>
 
                 <div>
-                    <button type="submit" class="admin-icon-button admin-icon-button--accent quick-saber-save-action" title="{{ __('quick-tests.save') }}" aria-label="{{ __('quick-tests.save') }}" data-quick-saber-partial-save-action @disabled(! $partialJuzId || ! $partialQuarter || $availableQuarters->isEmpty())><x-admin-action-icon name="save" /></button>
+                    <button type="submit" class="admin-icon-button admin-icon-button--accent quick-saber-save-action quick-entry-save-action" title="{{ __('quick-tests.save') }}" aria-label="{{ __('quick-tests.save') }}" data-quick-saber-partial-save-action @disabled(! $partialJuzId || ! $partialQuarter || $availableQuarters->isEmpty())><x-admin-action-icon name="save" /></button>
                 </div>
             </form>
         @else
@@ -514,7 +514,7 @@ new class extends Component
                 </div>
 
                 <div>
-                    <button type="submit" class="admin-icon-button admin-icon-button--accent quick-saber-save-action" title="{{ __('quick-tests.save') }}" aria-label="{{ __('quick-tests.save') }}" data-quick-saber-final-save-action @disabled($finalJuzs->isEmpty())><x-admin-action-icon name="save" /></button>
+                    <button type="submit" class="admin-icon-button admin-icon-button--accent quick-saber-save-action quick-entry-save-action" title="{{ __('quick-tests.save') }}" aria-label="{{ __('quick-tests.save') }}" data-quick-saber-final-save-action @disabled($finalJuzs->isEmpty())><x-admin-action-icon name="save" /></button>
                 </div>
             </form>
         @endif

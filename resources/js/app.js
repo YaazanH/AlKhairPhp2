@@ -232,7 +232,7 @@ window.AdminConfirm = {
 document.addEventListener('DOMContentLoaded', registerAdminConfirmListeners);
 document.addEventListener('livewire:navigated', registerAdminConfirmListeners);
 
-const SEARCHABLE_SELECT_BINDING_VERSION = '9';
+const SEARCHABLE_SELECT_BINDING_VERSION = '10';
 let searchableSelectOpenSuppressedUntil = 0;
 
 function suppressSearchableSelectOpen(duration = 400) {
@@ -494,6 +494,54 @@ function focusNextInteractiveControl(current) {
     return true;
 }
 
+function transferMobileTableFilterCriterion(nativeControl, generatedControl) {
+    if (!(nativeControl instanceof Element) || !(generatedControl instanceof Element)) return;
+
+    if (nativeControl.classList.contains('mobile-table-filter-criterion')) {
+        nativeControl.classList.remove('mobile-table-filter-criterion');
+        generatedControl.classList.add('mobile-table-filter-criterion');
+    }
+}
+
+function filterControlModel(control) {
+    return Array.from(control.attributes || [])
+        .find((attribute) => attribute.name.startsWith('wire:model'))?.value || '';
+}
+
+function cleanupDuplicateMobileTableFilterControls() {
+    document.querySelectorAll('[data-mobile-table-filter-controls]').forEach((toolbar) => {
+        const seenControls = new Set();
+
+        Array.from(toolbar.children).forEach((control) => {
+            const isNativeFilter = control instanceof HTMLSelectElement
+                || (control instanceof HTMLInputElement && control.type === 'date');
+
+            if (!isNativeFilter) return;
+
+            const model = filterControlModel(control);
+            const identity = model
+                ? `${control.tagName}:${model}`
+                : (control.id ? `${control.tagName}:#${control.id}` : '');
+
+            if (!identity || !seenControls.has(identity)) {
+                if (identity) seenControls.add(identity);
+
+                return;
+            }
+
+            const generatedControl = control.nextElementSibling;
+            if (
+                generatedControl?.classList.contains('searchable-select')
+                || generatedControl?.classList.contains('formatted-date-input')
+            ) {
+                generatedControl.remove();
+            }
+
+            control.remove();
+        });
+    });
+}
+
 function enhanceSearchableSelect(select) {
     if (
         !(select instanceof HTMLSelectElement)
@@ -512,6 +560,7 @@ function enhanceSearchableSelect(select) {
         && select.dataset.searchableBindingVersion === SEARCHABLE_SELECT_BINDING_VERSION
         && existingWrapper
     ) {
+        transferMobileTableFilterCriterion(select, existingWrapper);
         restoreSearchableSelectClear(existingWrapper.querySelector('.searchable-select__clear'));
         select.searchableSelectSync?.();
 
@@ -618,6 +667,7 @@ function enhanceSearchableSelect(select) {
         wrapper.append(button, panel);
     }
     select.insertAdjacentElement('afterend', wrapper);
+    transferMobileTableFilterCriterion(select, wrapper);
 
     let optionsSignature = '';
 
@@ -713,6 +763,80 @@ function enhanceSearchableSelect(select) {
 
     select.searchableSelectSync = sync;
     sync();
+
+    const openSearchableOptions = () => {
+        const wasOpen = wrapper.classList.contains('searchable-select--open');
+        closeOtherSearchableSelects(wrapper);
+        wrapper.classList.add('searchable-select--open');
+        panel.removeAttribute('hidden');
+        button?.setAttribute('aria-expanded', 'true');
+        search.setAttribute('aria-expanded', 'true');
+
+        if (!wasOpen) {
+            buildSearchableSelectOptions(select, list, search.value);
+        }
+    };
+
+    const handleSearchableSelectKeydown = (event) => {
+        if (['ArrowDown', 'ArrowUp'].includes(event.key)) {
+            event.preventDefault();
+            event.stopPropagation();
+            openSearchableOptions();
+
+            const options = searchableSelectOptionButtons(list);
+            const currentIndex = options.findIndex((option) => option.classList.contains('searchable-select__option--highlighted'));
+            const nextIndex = event.key === 'ArrowDown'
+                ? (currentIndex < 0 ? 0 : currentIndex + 1)
+                : (currentIndex < 0 ? options.length - 1 : currentIndex - 1);
+
+            highlightSearchableSelectOption(list, search, nextIndex);
+
+            return;
+        }
+
+        if (!['Enter', 'Tab'].includes(event.key) || event.shiftKey) {
+            return;
+        }
+
+        event.preventDefault();
+        event.stopPropagation();
+
+        const highlighted = list.querySelector('.searchable-select__option--highlighted');
+
+        if (highlighted instanceof HTMLButtonElement) {
+            highlighted.click();
+        } else {
+            closeSearchableSelect(wrapper);
+        }
+
+        window.requestAnimationFrame(() => {
+            if (select.dataset.saveAndNewOnKeydown === 'true' && searchableSelectHasValue(select)) {
+                const action = select.closest('form')?.querySelector('[data-create-and-new-action]');
+
+                if (action instanceof HTMLButtonElement && search.dataset.saveAndNewPending !== 'true') {
+                    search.dataset.saveAndNewPending = 'true';
+                    action.click();
+
+                    window.setTimeout(() => {
+                        delete search.dataset.saveAndNewPending;
+                    }, 1000);
+                }
+
+                return;
+            }
+
+            if (
+                select.dataset.focusNextSearchableOnTab
+                && focusSearchableSelectById(select.dataset.focusNextSearchableOnTab)
+            ) {
+                return;
+            }
+
+            focusNextInteractiveControl(searchInputMode ? search : button);
+        });
+    };
+
+    search.addEventListener('keydown', handleSearchableSelectKeydown);
 
     if (searchInputMode) {
         if (clear) {
@@ -832,71 +956,6 @@ function enhanceSearchableSelect(select) {
             }, 0);
         });
 
-        search.addEventListener('keydown', (event) => {
-            if (['ArrowDown', 'ArrowUp'].includes(event.key)) {
-                event.preventDefault();
-                event.stopPropagation();
-
-                if (!wrapper.classList.contains('searchable-select--open')) {
-                    closeOtherSearchableSelects(wrapper);
-                    wrapper.classList.add('searchable-select--open');
-                    panel.removeAttribute('hidden');
-                    search.setAttribute('aria-expanded', 'true');
-                    buildSearchableSelectOptions(select, list, search.value);
-                }
-
-                const options = searchableSelectOptionButtons(list);
-                const currentIndex = options.findIndex((option) => option.classList.contains('searchable-select__option--highlighted'));
-                const nextIndex = event.key === 'ArrowDown'
-                    ? (currentIndex < 0 ? 0 : currentIndex + 1)
-                    : (currentIndex < 0 ? options.length - 1 : currentIndex - 1);
-
-                highlightSearchableSelectOption(list, search, nextIndex);
-
-                return;
-            }
-
-            if (!['Enter', 'Tab'].includes(event.key) || event.shiftKey) {
-                return;
-            }
-
-            event.preventDefault();
-            event.stopPropagation();
-
-            const highlighted = list.querySelector('.searchable-select__option--highlighted');
-
-            if (highlighted instanceof HTMLButtonElement) {
-                highlighted.click();
-            } else {
-                closeSearchableSelect(wrapper);
-            }
-
-            window.requestAnimationFrame(() => {
-                if (select.dataset.saveAndNewOnKeydown === 'true' && searchableSelectHasValue(select)) {
-                    const action = select.closest('form')?.querySelector('[data-create-and-new-action]');
-
-                    if (action instanceof HTMLButtonElement && search.dataset.saveAndNewPending !== 'true') {
-                        search.dataset.saveAndNewPending = 'true';
-                        action.click();
-
-                        window.setTimeout(() => {
-                            delete search.dataset.saveAndNewPending;
-                        }, 1000);
-                    }
-
-                    return;
-                }
-
-                if (
-                    select.dataset.focusNextSearchableOnTab
-                    && focusSearchableSelectById(select.dataset.focusNextSearchableOnTab)
-                ) {
-                    return;
-                }
-
-                focusNextInteractiveControl(search);
-            });
-        });
     } else {
         button.addEventListener('click', () => {
             const willOpen = !wrapper.classList.contains('searchable-select--open');
@@ -914,6 +973,18 @@ function enhanceSearchableSelect(select) {
         });
 
         search.addEventListener('input', () => buildSearchableSelectOptions(select, list, search.value));
+        button.addEventListener('keydown', (event) => {
+            if (!['ArrowDown', 'ArrowUp'].includes(event.key)) {
+                return;
+            }
+
+            if (!wrapper.classList.contains('searchable-select--open')) {
+                search.value = searchHintValue(select);
+            }
+
+            handleSearchableSelectKeydown(event);
+            window.requestAnimationFrame(() => search.focus());
+        });
     }
 
     select.addEventListener('change', () => {
@@ -927,7 +998,20 @@ function enhanceSearchableSelect(select) {
     });
 }
 
+function cleanupOrphanedSearchableSelects() {
+    cleanupDuplicateMobileTableFilterControls();
+
+    document.querySelectorAll('.searchable-select').forEach((wrapper) => {
+        const select = wrapper.previousElementSibling;
+
+        if (!(select instanceof HTMLSelectElement) || select.nextElementSibling !== wrapper) {
+            wrapper.remove();
+        }
+    });
+}
+
 function initializeSearchableSelects() {
+    cleanupOrphanedSearchableSelects();
     document.querySelectorAll('select').forEach(enhanceSearchableSelect);
 }
 
@@ -1133,7 +1217,12 @@ function syncFormattedDateInputAppearance(input, wrapper, display) {
     const layoutClasses = inputClasses.filter(isDateInputLayoutClass);
     const controlClasses = inputClasses.filter((className) => !isDateInputLayoutClass(className));
 
+    const isMobileTableFilterCriterion = wrapper.classList.contains('mobile-table-filter-criterion')
+        || input.classList.contains('mobile-table-filter-criterion');
+
     wrapper.className = ['formatted-date-input', ...layoutClasses].join(' ');
+    wrapper.classList.toggle('mobile-table-filter-criterion', isMobileTableFilterCriterion);
+    input.classList.remove('mobile-table-filter-criterion');
     display.className = [...controlClasses, 'formatted-date-input__display'].join(' ');
 
     if (input.hasAttribute('data-flux-control')) {
@@ -1270,6 +1359,7 @@ function enhanceDateInput(input) {
     wrapper.append(display, picker);
     input.insertAdjacentElement('afterend', wrapper);
     syncFormattedDateInputAppearance(input, wrapper, display);
+    transferMobileTableFilterCriterion(input, wrapper);
 
     const stopDateActionEvent = (event) => {
         event.preventDefault();
@@ -1345,6 +1435,7 @@ function cleanupOrphanedFormattedDateInputs() {
 }
 
 function initializeFormattedDateInputs(root = document) {
+    cleanupDuplicateMobileTableFilterControls();
     cleanupOrphanedFormattedDateInputs();
 
     if (root instanceof HTMLInputElement && root.type === 'date') enhanceDateInput(root);
@@ -1694,7 +1785,7 @@ function initializeMobileTableHeaderActions(toolbar) {
     const actions = Array.from(toolbar.querySelectorAll('a, button')).filter((action) => (
         action.closest('.mobile-table-filter-criterion') === null
         && !action.hasAttribute('data-mobile-table-filter-open')
-        && !action.hasAttribute('data-mobile-table-filter-close')
+        && !action.hasAttribute('data-mobile-table-filter-submit')
         && action.closest('.admin-toolbar__controls, [data-mobile-table-filter-controls], .admin-toolbar') === toolbar
     ));
 
@@ -1834,6 +1925,8 @@ function dismissMobileTableFilterTopLayer(toolbar) {
 }
 
 function initializeMobileTableFilters(root = document) {
+    cleanupDuplicateMobileTableFilterControls();
+
     const toolbars = [];
     const selector = '.admin-grid-meta--controls .admin-toolbar__controls, [data-mobile-table-filter-controls], .surface-table > .admin-toolbar, .surface-panel > .admin-toolbar';
     const belongsToTableSurface = (toolbar) => (
@@ -1850,22 +1943,40 @@ function initializeMobileTableFilters(root = document) {
     });
 
     [...new Set(toolbars)].forEach((toolbar) => {
-        const criteria = Array.from(toolbar.children).filter((child) => (
-            child.matches('.admin-filter-field, input:not([type="hidden"]), select')
-            || child.querySelector('input:not([type="hidden"]), select')
-        ));
+        const criteria = Array.from(toolbar.children).filter((child) => {
+            if (child.matches('[data-mobile-table-filter-open], [data-mobile-table-filter-submit], .admin-toolbar__actions')) {
+                return false;
+            }
+
+            if (child.matches('select.searchable-select__native')) {
+                return !child.nextElementSibling?.classList.contains('searchable-select');
+            }
+
+            if (child.matches('input.formatted-date-input__native')) {
+                return !child.nextElementSibling?.classList.contains('formatted-date-input');
+            }
+
+            return child.matches('.admin-filter-field, .searchable-select, .formatted-date-input, input:not([type="hidden"]), select')
+                || Boolean(child.querySelector(':scope > input:not([type="hidden"]), :scope > select'));
+        });
+
+        Array.from(toolbar.children).forEach((child) => {
+            child.classList.toggle('mobile-table-filter-criterion', criteria.includes(child));
+        });
 
         toolbar.classList.add('mobile-table-header-controls');
-        criteria.forEach((criterion) => criterion.classList.add('mobile-table-filter-criterion'));
         initializeMobileTableHeaderActions(toolbar);
 
         if (criteria.length === 0) return;
 
         const ownerId = toolbar.closest('[wire\\:id]')?.getAttribute('wire:id') || 'page';
         const criterionNames = criteria.map((criterion, index) => {
-            const control = criterion.matches('input, select')
-                ? criterion
-                : criterion.querySelector('input, select');
+            const generatedControl = criterion.matches('.searchable-select, .formatted-date-input')
+                ? criterion.previousElementSibling
+                : null;
+            const control = generatedControl instanceof HTMLInputElement || generatedControl instanceof HTMLSelectElement
+                ? generatedControl
+                : (criterion.matches('input, select') ? criterion : criterion.querySelector('input, select'));
             const model = Array.from(control?.attributes || [])
                 .find((attribute) => attribute.name.startsWith('wire:model'))?.value;
 
@@ -1897,15 +2008,16 @@ function initializeMobileTableFilters(root = document) {
             toolbar.prepend(trigger);
         }
 
-        let close = Array.from(toolbar.children).find((child) => child.hasAttribute('data-mobile-table-filter-close'));
-        if (!close) {
-            close = document.createElement('button');
-            close.type = 'button';
-            close.className = 'mobile-table-filter-close';
-            close.dataset.mobileTableFilterClose = '';
-            close.setAttribute('aria-label', isArabic ? 'إغلاق البحث' : 'Close search');
-            close.textContent = '×';
-            toolbar.append(close);
+        let submit = Array.from(toolbar.children).find((child) => child.hasAttribute('data-mobile-table-filter-submit'));
+        if (!submit) {
+            submit = document.createElement('button');
+            submit.type = 'button';
+            submit.className = 'mobile-table-filter-submit';
+            submit.dataset.mobileTableFilterSubmit = '';
+            submit.setAttribute('aria-label', isArabic ? 'بحث' : 'Search');
+            submit.setAttribute('title', isArabic ? 'بحث' : 'Search');
+            submit.append(createMobileFilterIcon());
+            toolbar.append(submit);
         }
 
         toolbar.classList.toggle('mobile-table-filters--open', shouldRemainOpen);
@@ -1966,6 +2078,16 @@ function closeMobileTableFilters(toolbar) {
     window.requestAnimationFrame(() => initializeMobileTableFilters());
 }
 
+function submitMobileTableFilters(toolbar) {
+    if (!(toolbar instanceof Element)) return;
+
+    const componentId = toolbar.closest('[wire\\:id]')?.getAttribute('wire:id');
+    const component = componentId ? window.Livewire?.find(componentId) : null;
+
+    component?.$refresh?.();
+    closeMobileTableFilters(toolbar);
+}
+
 document.addEventListener('click', (event) => {
     const openButton = event.target.closest?.('[data-mobile-table-filter-open]');
     if (openButton) {
@@ -1975,9 +2097,9 @@ document.addEventListener('click', (event) => {
         return;
     }
 
-    const closeButton = event.target.closest?.('[data-mobile-table-filter-close]');
-    if (closeButton) {
-        closeMobileTableFilters(closeButton.closest('.mobile-table-filters'));
+    const submitButton = event.target.closest?.('[data-mobile-table-filter-submit]');
+    if (submitButton) {
+        submitMobileTableFilters(submitButton.closest('.mobile-table-filters'));
 
         return;
     }
@@ -2811,6 +2933,104 @@ function initializePdfUploads() {
 document.addEventListener('DOMContentLoaded', initializePdfUploads);
 document.addEventListener('livewire:navigated', initializePdfUploads);
 document.addEventListener('livewire:commit', initializePdfUploads);
+
+let dashboardCurriculumHotbarFrame = null;
+
+function synchronizeDashboardCurriculumHotbarWidths() {
+    dashboardCurriculumHotbarFrame = null;
+
+    document.querySelectorAll('[data-dashboard-curriculum-hotbars]').forEach((hotbars) => {
+        const groupNames = Array.from(hotbars.querySelectorAll('.dashboard-curriculum-hotbar__group'));
+
+        if (!groupNames.length) {
+            hotbars.style.removeProperty('--dashboard-curriculum-identity-width');
+
+            return;
+        }
+
+        const widestGroupName = groupNames.reduce((widest, groupName) => {
+            const range = document.createRange();
+
+            range.selectNodeContents(groupName);
+
+            return Math.max(widest, range.getBoundingClientRect().width);
+        }, 0);
+
+        hotbars.style.setProperty('--dashboard-curriculum-identity-width', `${Math.ceil(widestGroupName)}px`);
+    });
+}
+
+function scheduleDashboardCurriculumHotbarWidthSync() {
+    if (dashboardCurriculumHotbarFrame !== null) {
+        window.cancelAnimationFrame(dashboardCurriculumHotbarFrame);
+    }
+
+    dashboardCurriculumHotbarFrame = window.requestAnimationFrame(synchronizeDashboardCurriculumHotbarWidths);
+}
+
+document.addEventListener('DOMContentLoaded', scheduleDashboardCurriculumHotbarWidthSync);
+document.addEventListener('livewire:navigated', scheduleDashboardCurriculumHotbarWidthSync);
+window.addEventListener('resize', scheduleDashboardCurriculumHotbarWidthSync, { passive: true });
+document.fonts?.ready.then(scheduleDashboardCurriculumHotbarWidthSync);
+document.addEventListener('livewire:initialized', () => {
+    window.Livewire?.hook('morph.updated', ({ el }) => {
+        if (el.matches?.('[data-dashboard-curriculum-hotbars]') || el.querySelector?.('[data-dashboard-curriculum-hotbars]')) {
+            scheduleDashboardCurriculumHotbarWidthSync();
+        }
+    });
+
+    window.Livewire?.hook('morph.added', ({ el }) => {
+        if (el.matches?.('[data-dashboard-curriculum-hotbars]') || el.querySelector?.('[data-dashboard-curriculum-hotbars]')) {
+            scheduleDashboardCurriculumHotbarWidthSync();
+        }
+    });
+});
+
+let dashboardLollipopNumberGapFrame = null;
+
+function synchronizeDashboardLollipopNumberGap() {
+    dashboardLollipopNumberGapFrame = null;
+
+    document.querySelectorAll('[data-dashboard-lollipop-number-gap]').forEach((chart) => {
+        const measure = chart.querySelector('.dashboard-lollipop-number-gap-measure');
+
+        if (!measure) {
+            chart.style.removeProperty('--dashboard-lollipop-number-gap');
+
+            return;
+        }
+
+        const numberGap = measure.getBoundingClientRect().width * 0.75;
+
+        chart.style.setProperty('--dashboard-lollipop-number-gap', `${numberGap}px`);
+    });
+}
+
+function scheduleDashboardLollipopNumberGapSync() {
+    if (dashboardLollipopNumberGapFrame !== null) {
+        window.cancelAnimationFrame(dashboardLollipopNumberGapFrame);
+    }
+
+    dashboardLollipopNumberGapFrame = window.requestAnimationFrame(synchronizeDashboardLollipopNumberGap);
+}
+
+document.addEventListener('DOMContentLoaded', scheduleDashboardLollipopNumberGapSync);
+document.addEventListener('livewire:navigated', scheduleDashboardLollipopNumberGapSync);
+window.addEventListener('resize', scheduleDashboardLollipopNumberGapSync, { passive: true });
+document.fonts?.ready.then(scheduleDashboardLollipopNumberGapSync);
+document.addEventListener('livewire:initialized', () => {
+    window.Livewire?.hook('morph.updated', ({ el }) => {
+        if (el.matches?.('[data-dashboard-lollipop-number-gap]') || el.querySelector?.('[data-dashboard-lollipop-number-gap]')) {
+            scheduleDashboardLollipopNumberGapSync();
+        }
+    });
+
+    window.Livewire?.hook('morph.added', ({ el }) => {
+        if (el.matches?.('[data-dashboard-lollipop-number-gap]') || el.querySelector?.('[data-dashboard-lollipop-number-gap]')) {
+            scheduleDashboardLollipopNumberGapSync();
+        }
+    });
+});
 
 const curriculumResourceColumnRules = {
     index: { min: 64, max: 72 },

@@ -12,7 +12,7 @@
 <head>
     <meta charset="utf-8">
     <style>
-        @page { margin: 39mm 10mm 18mm; margin-header: 10mm; header: roster-header; footer: roster-footer; }
+        @page { margin: 0 10mm 18mm; margin-header: 10mm; header: roster-header; footer: roster-footer; }
         body {
             color: #000;
             direction: rtl;
@@ -112,6 +112,7 @@
 
         .name {
             font-weight: bold;
+            padding-right: 12px;
             text-align: right;
         }
 

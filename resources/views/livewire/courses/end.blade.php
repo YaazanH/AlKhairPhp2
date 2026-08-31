@@ -156,9 +156,9 @@ new class extends Component {
         @if($finalTestsMobile->hasPages())<div class="course-end-final-tests-mobile-pagination border-t border-white/8 px-5 py-4">{{ $finalTestsMobile->links() }}</div>@endif
     </section>
     <div class="grid gap-4 lg:grid-cols-2">
-        <section class="surface-panel p-5 lg:p-6"><div class="admin-toolbar"><div class="admin-toolbar__title">{{ __('course_end.report_cards') }}</div><div class="admin-toolbar__actions"><a href="{{ route('courses.end.report-cards.create', $course) }}" class="admin-icon-button admin-icon-button--accent" title="{{ __('course_end.print_cards') }}" aria-label="{{ __('course_end.print_cards') }}" data-course-report-cards-print-action><x-admin-action-icon name="print" /></a></div></div></section>
+        <section class="surface-panel p-5 lg:p-6"><div class="admin-toolbar" data-mobile-title-action-row><div class="admin-toolbar__title">{{ __('course_end.report_cards') }}</div><div class="admin-toolbar__actions"><a href="{{ route('courses.end.report-cards.create', $course) }}" class="admin-icon-button admin-icon-button--accent" title="{{ __('course_end.print_cards') }}" aria-label="{{ __('course_end.print_cards') }}" data-course-report-cards-print-action><x-admin-action-icon name="print" /></a></div></div></section>
         @can('finance.expense-requests.view')
-            <section class="surface-panel p-5 lg:p-6" data-course-point-market-tab><div class="admin-toolbar"><div class="admin-toolbar__title">{{ __('course_end.point_market.title') }}</div><div class="admin-toolbar__actions"><x-open-action-button :href="route('courses.end.point-market', $course)" wire:navigate class="admin-icon-button--accent" :label="__('course_end.point_market.open')" data-course-point-market-open-action /></div></div></section>
+            <section class="surface-panel p-5 lg:p-6" data-course-point-market-tab><div class="admin-toolbar" data-mobile-title-action-row><div class="admin-toolbar__title">{{ __('course_end.point_market.title') }}</div><div class="admin-toolbar__actions"><x-open-action-button :href="route('courses.end.point-market', $course)" wire:navigate class="admin-icon-button--accent" :label="__('course_end.point_market.open')" data-course-point-market-open-action /></div></div></section>
         @endcan
     </div>
 </div>

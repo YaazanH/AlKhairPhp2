@@ -90,6 +90,7 @@ return [
             'developing' => 'Building momentum',
             'average_points' => 'Average points',
             'average_pages' => 'Average pages',
+            'curriculum_lessons_behind' => '{0} No lessons behind|{1} 1 lesson behind|[2,*] :count lessons behind',
         ],
         'cards' => [
             'people' => [

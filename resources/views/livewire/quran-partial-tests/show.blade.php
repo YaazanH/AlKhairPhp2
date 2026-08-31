@@ -285,7 +285,8 @@ new class extends Component {
 
     <div class="grid gap-6 lg:grid-cols-2">
         @foreach ($partialTestRecord->parts as $part)
-            <section class="surface-table">
+            @php($partHasEditableAttempts = ! $hasRelatedFinalTest && $part->attempts->contains(fn ($attempt) => $this->canEditAttemptForTeacher($attempt->teacher_id)))
+            <section class="surface-table" data-partial-quarter-card>
                 <div class="admin-grid-meta admin-grid-meta--controls">
                     <div class="admin-grid-meta__title">{{ __('workflow.quran_partial_tests.part.quarters.'.$part->part_number) }}</div>
                     @if ($part->status !== 'passed' && auth()->user()->can('quran-partial-tests.record'))
@@ -296,8 +297,8 @@ new class extends Component {
                 @if ($part->attempts->isEmpty())
                     <div class="admin-empty-state">{{ __('workflow.quran_partial_tests.part.no_attempts') }}</div>
                 @else
-                    <div class="overflow-x-auto">
-                        <table class="text-sm">
+                    <div class="overflow-x-auto" data-partial-quarter-table-region>
+                        <table class="text-sm" data-partial-quarter-table data-has-actions="{{ $partHasEditableAttempts ? 'true' : 'false' }}">
                             <thead>
                                 <tr>
                                     <th class="px-4 py-3 text-left">{{ __('workflow.quran_partial_tests.attempts.headers.attempt') }}</th>
@@ -305,7 +306,7 @@ new class extends Component {
                                     <th class="px-4 py-3 text-left">{{ __('workflow.quran_partial_tests.attempts.headers.teacher') }}</th>
                                     <th class="px-4 py-3 text-left">{{ __('workflow.quran_partial_tests.attempts.headers.mistake_count') }}</th>
                                     <th class="px-4 py-3 text-left">{{ __('workflow.quran_partial_tests.attempts.headers.status') }}</th>
-                                    @if (! $hasRelatedFinalTest && $part->attempts->contains(fn ($attempt) => $this->canEditAttemptForTeacher($attempt->teacher_id)))<th class="admin-actions-column px-4 py-3 text-center">{{ __('crud.common.actions.actions') }}</th>@endif
+                                    @if ($partHasEditableAttempts)<th class="admin-actions-column px-4 py-3 text-center">{{ __('crud.common.actions.actions') }}</th>@endif
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-white/6">
@@ -324,7 +325,7 @@ new class extends Component {
                                             @endif
                                         </td>
                                         <td class="px-4 py-3">{{ __('workflow.common.result_status.'.$attempt->status) }}</td>
-                                        @if (! $hasRelatedFinalTest && $part->attempts->contains(fn ($row) => $this->canEditAttemptForTeacher($row->teacher_id)))
+                                        @if ($partHasEditableAttempts)
                                             <td class="px-4 py-3 text-center">
                                                 @if ($this->canEditAttemptForTeacher($attempt->teacher_id))
                                                     <button type="button" wire:click="openEditAttempt({{ $attempt->id }})" class="admin-icon-button" title="{{ __('crud.common.actions.edit') }}" aria-label="{{ __('crud.common.actions.edit') }}" data-partial-saber-edit><x-admin-action-icon name="edit" /></button>
@@ -334,7 +335,7 @@ new class extends Component {
                                     </tr>
                                     @if ($attempt->notes)
                                         <tr>
-                                            <td class="px-4 pb-3 text-xs text-neutral-400" colspan="{{ ! $hasRelatedFinalTest && $part->attempts->contains(fn ($row) => $this->canEditAttemptForTeacher($row->teacher_id)) ? 6 : 5 }}">{{ $attempt->notes }}</td>
+                                            <td class="px-4 pb-3 text-xs text-neutral-400" colspan="{{ $partHasEditableAttempts ? 6 : 5 }}">{{ $attempt->notes }}</td>
                                         </tr>
                                     @endif
                                 @endforeach

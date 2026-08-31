@@ -396,7 +396,7 @@ class StudentProgressPageTest extends TestCase
         $this->assertStringContainsString('function createSearchableSelectChevron(inputMode = false)', $searchableSelectScript);
         $this->assertStringContainsString('stroke-linecap="round" stroke-linejoin="round"', $searchableSelectScript);
         $this->assertStringContainsString('function searchableSelectPlaceholderOption(select)', $searchableSelectScript);
-        $this->assertStringContainsString("const SEARCHABLE_SELECT_BINDING_VERSION = '9'", $searchableSelectScript);
+        $this->assertStringContainsString("const SEARCHABLE_SELECT_BINDING_VERSION = '10'", $searchableSelectScript);
         $this->assertStringContainsString("options.find((option) => option.value === 'all')", $searchableSelectScript);
         $this->assertStringContainsString("searchableSelectBinding(select).includes('filter')", $searchableSelectScript);
         $this->assertStringContainsString("hasSelectedValue || search.value.trim() !== ''", $searchableSelectScript);
@@ -415,7 +415,9 @@ class StudentProgressPageTest extends TestCase
         $this->assertStringContainsString("['ArrowDown', 'ArrowUp'].includes(event.key)", $searchableSelectScript);
         $this->assertStringContainsString('highlightSearchableSelectOption(list, search, nextIndex)', $searchableSelectScript);
         $this->assertStringContainsString("list.querySelector('.searchable-select__option--highlighted')", $searchableSelectScript);
-        $this->assertStringContainsString('focusNextInteractiveControl(search)', $searchableSelectScript);
+        $this->assertStringContainsString("search.addEventListener('keydown', handleSearchableSelectKeydown)", $searchableSelectScript);
+        $this->assertStringContainsString("button.addEventListener('keydown'", $searchableSelectScript);
+        $this->assertStringContainsString('focusNextInteractiveControl(searchInputMode ? search : button)', $searchableSelectScript);
 
         $searchableSelectCss = file_get_contents(resource_path('css/app.css'));
         $this->assertStringContainsString('.searchable-select--input.searchable-select--clearable.searchable-select--selected .searchable-select__chevron--input {', $searchableSelectCss);

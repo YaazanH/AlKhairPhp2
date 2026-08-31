@@ -14,7 +14,7 @@
         @page { margin: 0 10mm 16mm; margin-header: 0; margin-footer: 0; header: invoiceHeader; footer: invoiceFooter; }
         @page :first { header: invoiceFirstHeader; }
         body { color: #17321f; font-family: dubai, sans-serif; font-size: 9.5pt; margin: 0; }
-        .header { background: #dff1e2; border-bottom: 1px solid #9fc6a8; margin: 0 -10mm; padding: 4mm 4mm 4mm 10mm; }
+        .header { background: #dff1e2; border-bottom: 1px solid #9fc6a8; margin: 0 -10mm; padding: 4mm 10mm; }
         .header table, .footer table, .meta, .items, .totals { border-collapse: collapse; width: 100%; }
         .brand-logo { text-align: right; width: 22%; }
         .brand-logo img { height: 18mm; max-width: 35mm; width: auto; }

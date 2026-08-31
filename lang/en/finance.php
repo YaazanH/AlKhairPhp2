@@ -81,6 +81,7 @@ return [
     ],
     'common' => [
         'accepted' => 'Accepted',
+        'refused' => 'Refused',
         'active' => 'Active',
         'amounts' => 'Amounts',
         'attachments' => 'Attachments',

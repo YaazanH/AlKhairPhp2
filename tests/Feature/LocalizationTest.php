@@ -84,6 +84,11 @@ class LocalizationTest extends TestCase
         $this->assertSame(1, substr_count($sidebar, "{{ __('ui.common.visit_site') }}"));
         $mobileUserMenu = substr($sidebar, strpos($sidebar, '<flux:header class="app-mobile-header lg:hidden">'));
         $this->assertStringNotContainsString("{{ __('ui.common.visit_site') }}", $mobileUserMenu);
+        $this->assertStringNotContainsString("route('finance.reports.index')", $mobileUserMenu);
+        $this->assertStringNotContainsString('<flux:profile', $mobileUserMenu);
+        $this->assertStringContainsString('<x-mobile-header-mark class="mobile-header-mark" />', $mobileUserMenu);
+        $this->assertStringContainsString("\$item['key'] === 'print_templates' ? 'max-lg:hidden'", $sidebar);
+        $this->assertArrayHasKey('finance_reports', app(\App\Services\SidebarNavigationService::class)->defaultItems());
         $this->assertStringNotContainsString('$desktopDropdownAlign', $sidebar);
 
         $preferences = file_get_contents(resource_path('views/components/account-menu-preferences.blade.php'));
@@ -94,5 +99,11 @@ class LocalizationTest extends TestCase
         $styles = file_get_contents(resource_path('css/app.css'));
         $this->assertStringContainsString('.app-sidebar-scroll-region::-webkit-scrollbar', $styles);
         $this->assertStringContainsString('scrollbar-width: none;', $styles);
+        $this->assertStringContainsString('.mobile-header-mark {', $styles);
+        $this->assertStringContainsString('html:not(.dark) .mobile-header-mark {', $styles);
+
+        $mobileHeaderMark = file_get_contents(resource_path('views/components/mobile-header-mark.blade.php'));
+        $this->assertStringContainsString('viewBox="0 0 324.39 489.47"', $mobileHeaderMark);
+        $this->assertStringContainsString('fill="currentColor"', $mobileHeaderMark);
     }
 }

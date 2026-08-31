@@ -733,7 +733,7 @@ new class extends Component {
                 <label class="flex items-center gap-3 text-sm"><input wire:model="awards_points" type="checkbox" class="rounded border-neutral-300 text-neutral-900"><span>{{ __('crud.courses.form.awards_points') }}</span></label>
             </div>
 
-            <div class="admin-action-cluster admin-action-cluster--end">
+            <div class="admin-action-cluster admin-action-cluster--end course-form-actions" data-course-form-actions>
                 <button type="submit" class="admin-icon-button admin-icon-button--accent admin-modal-action-button" title="{{ $editingId ? __('crud.courses.form.update_submit') : __('crud.courses.form.create_submit') }}" aria-label="{{ $editingId ? __('crud.courses.form.update_submit') : __('crud.courses.form.create_submit') }}" data-course-form-save-action>
                     <x-admin-action-icon name="save" class="admin-modal-action__icon" />
                 </button>

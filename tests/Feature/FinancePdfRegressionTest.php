@@ -40,6 +40,7 @@ class FinancePdfRegressionTest extends TestCase
         $html = view('print.finance-invoice-a5', ['invoice' => $invoice, 'isPdf' => true])->render();
 
         $this->assertStringContainsString('@page { margin: 0 10mm 16mm; margin-header: 0; margin-footer: 0;', $html);
+        $this->assertStringContainsString('.header { background: #dff1e2; border-bottom: 1px solid #9fc6a8; margin: 0 -10mm; padding: 4mm 10mm; }', $html);
         $this->assertStringContainsString('.meta { margin: 0 0 5mm; }', $html);
         $this->assertStringContainsString('.original-invoice-no { direction: ltr; text-align: right; unicode-bidi: embed; }', $html);
         $this->assertStringContainsString('class="value original-invoice-no" dir="ltr">ORIGINAL-1</td>', $html);

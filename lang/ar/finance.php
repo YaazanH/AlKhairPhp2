@@ -81,6 +81,7 @@ return [
     ],
     'common' => [
         'accepted' => 'مقبول',
+        'refused' => 'مرفوض',
         'active' => 'نشط',
         'amounts' => 'المبالغ',
         'attachments' => 'المرفقات',

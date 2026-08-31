@@ -22,6 +22,7 @@ return [
         'general_lessons' => 'General subject lessons',
         'standalone_books' => 'Standalone books', 'pdf_file' => 'Book PDF (up to 50 MB)', 'pdf_file_short' => 'PDF', 'pdf_uploaded' => 'PDF uploaded', 'pdf_uploading' => 'Uploading PDF…', 'pdf_ready' => 'PDF ready', 'no_pdf' => 'No PDF', 'no_downloadable_books' => 'No downloadable books are available.',
     ],
+    'counts' => ['lessons' => '{0} 0 lessons|{1} 1 lesson|[2,*] :count lessons'],
     'options' => ['no_curriculum' => 'No curriculum', 'all_grades' => 'No specific grade'],
     'status' => ['untaught' => 'Untaught', 'partial' => 'Partially done', 'taught' => 'Taught'],
     'progress' => ['title' => 'Curriculum progress', 'completed' => ':percent% completed', 'empty' => 'No curriculum is assigned.', 'group_details' => ':group curriculum'],

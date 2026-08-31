@@ -23,10 +23,11 @@ class CoursePointMarketExportController extends Controller
         $mpdf = new Mpdf(PdfOptions::make([
             'format' => 'A4',
             'orientation' => 'P',
-            'margin_top' => 35,
             'margin_right' => 14,
             'margin_bottom' => 14,
             'margin_left' => 14,
+            'setAutoTopMargin' => 'stretch',
+            'autoMarginPadding' => 4,
         ]));
         $mpdf->SetDirectionality(app()->isLocale('ar') ? 'rtl' : 'ltr');
         $mpdf->WriteHTML(view('reports.course-point-market-department', compact(

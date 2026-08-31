@@ -56,6 +56,7 @@ class StudentAttendanceExportController extends Controller
 
         $logo = app(PdfBrandingService::class)->logoSource();
         $html = view('reports.student-attendance', compact('groupReports', 'course', 'validated', 'logo'))->render();
+        PdfOptions::ensureMemoryCapacity();
         $mpdf = new Mpdf(PdfOptions::make(['format' => 'A4', 'orientation' => 'P']));
         $mpdf->SetDirectionality(app()->isLocale('ar') ? 'rtl' : 'ltr');
         $mpdf->WriteHTML($html);

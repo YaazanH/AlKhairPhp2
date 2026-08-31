@@ -2458,6 +2458,17 @@ class FinanceAndActivitiesTest extends TestCase
             ]);
         }
 
+        foreach ([FinanceRequest::STATUS_ACCEPTED, FinanceRequest::STATUS_DECLINED] as $index => $status) {
+            FinanceRequest::query()->create([
+                'request_no' => sprintf('WDR-HISTORY-%03d', $index + 1),
+                'type' => FinanceRequest::TYPE_PULL,
+                'status' => $status,
+                'requested_currency_id' => $currency->id,
+                'requested_amount' => 20 + $index,
+                'requested_by' => auth()->id(),
+            ]);
+        }
+
         Volt::test('finance.dashboard')
             ->assertViewHas('pendingRequests', fn ($requests) => $requests->count() === 10)
             ->assertSee('finance-dashboard-header-action', false)
@@ -2488,10 +2499,18 @@ class FinanceAndActivitiesTest extends TestCase
             ->assertSee('data-withdrawal-history-table', false)
             ->assertSee('data-settings-record-table', false)
             ->assertSee('admin-modal__dialog--compact', false)
-            ->assertViewHas('requestHistory', fn ($requests) => $requests->perPage() === 8)
+            ->assertViewHas('requestHistory', fn ($requests) => $requests->perPage() === 8 && $requests->total() === 2)
+            ->assertSee(__('finance.common.accepted'))
+            ->assertSee(__('finance.common.refused'))
+            ->assertSee('withdrawal-history-status', false)
+            ->assertSee('data-withdrawal-history-datetime', false)
             ->set('showRequestHistoryModal', false)
             ->set('showTransactionsModal', true)
             ->assertSee('data-financial-transactions-table', false)
+            ->assertSee('financial-transactions-table', false)
+            ->assertSee('data-finance-transaction-datetime', false)
+            ->assertSee(__('reports.filters.date_from'))
+            ->assertSee(__('reports.filters.date_to'))
             ->assertViewHas('transactions', fn ($transactions) => $transactions->perPage() === 8)
             ->set('showTransactionsModal', false)
             ->set('showTransferModal', true)
@@ -2525,6 +2544,23 @@ class FinanceAndActivitiesTest extends TestCase
         $this->assertStringNotContainsString('[data-finance-generic-table] thead {', $financeTableCss);
         $this->assertStringContainsString('.admin-modal__dialog:has([data-withdrawal-history-table])', $financeTableCss);
         $this->assertStringContainsString('.admin-modal__dialog:has([data-financial-transactions-table])', $financeTableCss);
+        $this->assertStringContainsString(".financial-transactions-table {\n    width: 100%;\n    min-width: 0;", $financeTableCss);
+        $this->assertStringContainsString('.finance-transaction-datetime {', $financeTableCss);
+        $this->assertStringContainsString('width: calc(100vw - 1rem);', $financeTableCss);
+        $this->assertStringContainsString('<col style="width: 3%"><col style="width: 7.25%"><col style="width: 10.7%"><col style="width: 9.05%"><col style="width: 5.8%"><col style="width: 20.25%">', $financeDashboardSource);
+        $this->assertStringContainsString('<th class="px-2 py-3 text-center">#</th>', $financeDashboardSource);
+        $this->assertStringContainsString('{{ $transactions->firstItem() + $loop->index }}', $financeDashboardSource);
+        $this->assertStringContainsString('<div class="finance-transaction-reference"><div class="finance-transaction-primary" aria-label="{{ $specialTransactionNumber }}">', $financeDashboardSource);
+        $this->assertSame(6, substr_count($financeDashboardSource, 'wire:key="finance-transactions-filter-'));
+        $this->assertStringContainsString('justify-content: space-between;', $financeTableCss);
+        $this->assertStringContainsString('@foreach (mb_str_split($specialTransactionNumber) as $referenceCharacter)', $financeDashboardSource);
+        $this->assertStringContainsString('@foreach (mb_str_split($generalTransactionNumber) as $referenceCharacter)', $financeDashboardSource);
+        $this->assertSame(2, substr_count($financeDashboardSource, 'finance-transaction-secondary mt-1 text-xs text-neutral-500'));
+        $this->assertStringNotContainsString("transaction_date?->format('d-m-Y') }}</span><span>{{ \$transaction->created_at?->format('H:i')", $financeDashboardSource);
+        $this->assertStringContainsString(".withdrawal-history-status {\n    width: 5.5rem;", $financeTableCss);
+        $this->assertStringContainsString('data-date-placeholder="{{ __(\'reports.filters.date_from\') }}"', $financeDashboardSource);
+        $this->assertStringContainsString('data-date-placeholder="{{ __(\'reports.filters.date_to\') }}"', $financeDashboardSource);
+        $this->assertStringContainsString("->whereIn('status', [FinanceRequest::STATUS_ACCEPTED, FinanceRequest::STATUS_DECLINED, FinanceRequest::STATUS_SETTLED])", $financeDashboardSource);
         $this->assertStringContainsString('grid-template-columns: 5.5rem minmax(0, 1fr);', $financeTableCss);
         $this->assertStringContainsString("html[dir='rtl'] .finance-amount-input__currency + .searchable-select {", $financeTableCss);
         $this->assertStringContainsString("html[dir='rtl'] .finance-amount-input__currency + .searchable-select .searchable-select__search {", $financeTableCss);
@@ -2768,6 +2804,8 @@ class FinanceAndActivitiesTest extends TestCase
 
         $component = Volt::test('finance.expense-requests')
             ->call('openFinaliseModal', $request->id)
+            ->assertSet('original_invoice_no', '№')
+            ->assertSee('data-original-invoice-no-input', false)
             ->assertSeeInOrder([
                 'data-invoice-finalisation-metrics',
                 'data-invoice-scan-fields',

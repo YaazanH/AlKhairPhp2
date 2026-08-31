@@ -22,6 +22,7 @@ return [
         'general_lessons' => 'دروس عامة للمادة',
         'standalone_books' => 'الكتب المستقلة', 'pdf_file' => 'ملف PDF للكتاب (حتى 50 ميغابايت)', 'pdf_file_short' => 'PDF', 'pdf_uploaded' => 'تم رفع PDF', 'pdf_uploading' => 'جارٍ رفع ملف PDF…', 'pdf_ready' => 'ملف PDF جاهز', 'no_pdf' => 'لا يوجد PDF', 'no_downloadable_books' => 'لا توجد كتب متاحة للتحميل.',
     ],
+    'counts' => ['lessons' => '{0} 0 درس|{1} 1 درس|{2} درسين|[3,10] :count دروس|[11,*] :count درس'],
     'options' => ['no_curriculum' => 'بدون منهاج', 'all_grades' => 'بدون صف محدد'],
     'status' => ['untaught' => 'لم يُدرّس', 'partial' => 'منجز جزئياً', 'taught' => 'تم تدريسه'],
     'progress' => ['title' => 'تقدم المنهاج', 'completed' => 'مكتمل بنسبة :percent٪', 'empty' => 'لا يوجد منهاج معيّن.', 'group_details' => 'منهاج مجموعة :group'],

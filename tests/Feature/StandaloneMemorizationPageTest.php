@@ -25,7 +25,7 @@ class StandaloneMemorizationPageTest extends TestCase
         $source = file_get_contents(resource_path('views/livewire/memorization/quick-entry.blade.php'));
 
         $this->assertStringContainsString('data-quick-memorization-save-action', $source);
-        $this->assertStringContainsString('class="admin-icon-button admin-icon-button--accent"', $source);
+        $this->assertStringContainsString('class="admin-icon-button admin-icon-button--accent quick-entry-save-action"', $source);
         $this->assertStringContainsString('<x-admin-action-icon name="save" />', $source);
         $this->assertStringNotContainsString("<button type=\"submit\" class=\"pill-link pill-link--accent\">{{ __('workflow.memorization.quick_entry.form.save') }}</button>", $source);
     }

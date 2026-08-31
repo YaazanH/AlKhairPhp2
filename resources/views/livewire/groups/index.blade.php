@@ -17,6 +17,7 @@ use App\Services\GroupDailySummaryService;
 use App\Support\RoleRegistry;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Livewire\Attributes\Url;
 use Livewire\Volt\Component;
 use Livewire\WithPagination;
 
@@ -27,6 +28,8 @@ new class extends Component {
     use WithPagination;
 
     public ?int $editingId = null;
+    #[Url(as: 'edit')]
+    public ?int $editGroup = null;
     public ?int $course_id = null;
     public ?int $academic_year_id = null;
     public ?int $teacher_id = null;
@@ -58,6 +61,10 @@ new class extends Component {
         $this->courseFilter = 'all';
         $this->resetForm();
         $this->quickSummaryDate = now()->toDateString();
+
+        if ($this->editGroup) {
+            $this->edit($this->editGroup);
+        }
     }
 
     public function with(): array
@@ -305,6 +312,7 @@ new class extends Component {
         }
 
         $this->editingId = $group->id;
+        $this->editGroup = $group->id;
         $this->course_id = $group->course_id;
         $this->academic_year_id = $group->academic_year_id;
         $this->teacher_id = $group->teacher_id;
@@ -323,6 +331,7 @@ new class extends Component {
     public function cancel(): void
     {
         $this->resetForm();
+        $this->editGroup = null;
         $this->showFormModal = false;
     }
 
@@ -640,24 +649,37 @@ new class extends Component {
 
     protected function availableTeachersQuery()
     {
+        $assignedTeacherIds = $this->editingId
+            ? Group::query()
+                ->whereKey($this->editingId)
+                ->get(['teacher_id', 'assistant_teacher_id'])
+                ->flatMap(fn (Group $group) => [$group->teacher_id, $group->assistant_teacher_id])
+                ->filter()
+                ->map(fn ($id) => (int) $id)
+                ->all()
+            : [];
+
         return $this->scopeTeachersQuery(
             Teacher::query()
-                ->where('status', 'active')
-                ->where('is_helping', true)
-                ->whereDoesntHave('assignedGroups', function ($query) {
-                    $query->whereNull('course_finished_at');
+                ->where(fn ($query) => $query
+                    ->whereIn('id', $assignedTeacherIds)
+                    ->orWhere(fn ($availableQuery) => $availableQuery
+                        ->where('status', 'active')
+                        ->where('is_helping', true)
+                        ->whereDoesntHave('assignedGroups', function ($groupQuery) {
+                            $groupQuery->whereNull('course_finished_at');
 
-                    if ($this->editingId) {
-                        $query->whereKeyNot($this->editingId);
-                    }
-                })
-                ->whereDoesntHave('assistedGroups', function ($query) {
-                    $query->whereNull('course_finished_at');
+                            if ($this->editingId) {
+                                $groupQuery->whereKeyNot($this->editingId);
+                            }
+                        })
+                        ->whereDoesntHave('assistedGroups', function ($groupQuery) {
+                            $groupQuery->whereNull('course_finished_at');
 
-                    if ($this->editingId) {
-                        $query->whereKeyNot($this->editingId);
-                    }
-                })
+                            if ($this->editingId) {
+                                $groupQuery->whereKeyNot($this->editingId);
+                            }
+                        })))
         );
     }
 

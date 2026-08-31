@@ -4,6 +4,7 @@ use App\Models\AcademicYear;
 use App\Models\AppSetting;
 use App\Models\Course;
 use App\Models\Enrollment;
+use App\Models\GradeLevel;
 use App\Models\Group;
 use App\Models\GroupAttendanceDay;
 use App\Models\MemorizationSession;
@@ -250,10 +251,39 @@ new class extends Component {
             ->where('is_active', true)
             ->whereNotNull('curriculum_id')
             ->when($courseId, fn ($query) => $query->where('course_id', $courseId), fn ($query) => $query->whereRaw('1 = 0'))
-            ->with(['curriculum.subjects.lessons', 'curriculumProgresses', 'customCurriculumLessons'])
-            ->orderBy('name')
+            ->with([
+                'gradeLevel',
+                'teacher',
+                'curriculum.subjects.definition',
+                'curriculum.subjects.lessons.topics',
+                'curriculumProgresses',
+                'curriculumTopicProgresses',
+                'customCurriculumLessons',
+            ])
+            ->orderByRaw('CASE WHEN grade_level_id IS NULL THEN 1 ELSE 0 END')
+            ->orderBy(GradeLevel::query()->select('sort_order')->whereColumn('grade_levels.id', 'groups.grade_level_id')->limit(1))
+            ->orderBy(GradeLevel::query()->select('name')->whereColumn('grade_levels.id', 'groups.grade_level_id')->limit(1))
+            ->orderBy('groups.name')
             ->get()
             ->map(fn (Group $group) => ['group' => $group, ...app(CurriculumProgressService::class)->summary($group)]);
+        $curriculumProgress = $curriculumProgress->map(function (array $row) use ($curriculumProgress): array {
+            $peerPercentages = $curriculumProgress
+                ->reject(fn (array $peer) => $peer['group']->id === $row['group']->id)
+                ->pluck('percentage');
+            $peerAveragePercentage = $peerPercentages->isEmpty()
+                ? (float) $row['percentage']
+                : round((float) $peerPercentages->average(), 1);
+            $percentageGap = max(0.0, $peerAveragePercentage - (float) $row['percentage']);
+            $lessonsBehind = (int) ceil((($percentageGap / 100) * (int) $row['total']) - 0.00001);
+
+            return [
+                ...$row,
+                'peer_average_percentage' => $peerAveragePercentage,
+                'percentage_gap' => round($percentageGap, 1),
+                'lessons_behind' => max(0, $lessonsBehind),
+                'tone' => $percentageGap > 15 ? 'danger' : ($percentageGap > 5 ? 'warning' : 'success'),
+            ];
+        });
 
         return [
             'dashboardRole' => 'manager',
@@ -1084,18 +1114,19 @@ new class extends Component {
                 <article class="surface-panel p-5 lg:p-6">
                     <h2 class="font-display mt-2 text-2xl text-white">{{ __('dashboard.manager.analytics.group_distribution') }}</h2>
                     @if ($groupStudentTotal > 0)
-                        <div class="dashboard-treemap mt-5 space-y-2.5" role="img" aria-label="{{ __('dashboard.manager.analytics.group_distribution') }}">
+                        <div class="dashboard-treemap mt-5" role="img" aria-label="{{ __('dashboard.manager.analytics.group_distribution') }}" data-dashboard-lollipop-number-gap>
+                            <span class="dashboard-lollipop-number-gap-measure" aria-hidden="true">حلقة</span>
                             @foreach ($lollipopGroups as $index => $group)
-                                <div class="grid grid-cols-[minmax(5rem,9rem)_minmax(0,1fr)_auto] items-center gap-3">
-                                    <div class="truncate text-xs text-neutral-300">{{ $group['name'] }}</div>
-                                    <div class="relative h-5">
+                                <div class="dashboard-lollipop-row">
+                                    <div class="dashboard-lollipop-row__label text-xs text-neutral-300">{{ $group['name'] }}</div>
+                                    <div class="dashboard-lollipop-row__track relative h-5">
                                         <span class="absolute inset-y-1/2 start-0 h-px -translate-y-1/2 rounded-full opacity-70" style="width: {{ ($group['students'] / $lollipopMax) * 100 }}%; background: {{ $chartColor($index) }}"></span>
                                         <span class="absolute top-1/2 h-3.5 w-3.5 -translate-y-1/2 rounded-full border-2 border-neutral-950 shadow" style="inset-inline-start: calc({{ ($group['students'] / $lollipopMax) * 100 }}% - .4375rem); background: {{ $chartColor($index) }}"></span>
                                         <span class="dashboard-lollipop-attendance absolute top-1/2 h-2.5 w-2.5 -translate-y-1/2 rounded-full border-2 border-neutral-950 bg-sky-300 shadow" style="inset-inline-start: calc({{ ($group['average_attendance'] / $lollipopMax) * 100 }}% - .3125rem)" tabindex="0" aria-label="{{ number_format($group['average_attendance_percentage'], 1) }}%">
                                             <span class="dashboard-lollipop-attendance__tooltip" aria-hidden="true">{{ number_format($group['average_attendance_percentage'], 1) }}%</span>
                                         </span>
                                     </div>
-                                    <div class="min-w-8 text-end text-xs font-semibold text-white">{{ number_format($group['students']) }}</div>
+                                    <div class="dashboard-lollipop-row__value text-xs font-semibold text-white">{{ number_format($group['students']) }}</div>
                                 </div>
                             @endforeach
                         </div>
@@ -1265,14 +1296,34 @@ new class extends Component {
                 @if ($curriculumProgress->isEmpty())
                     <div class="admin-empty-state mt-5">{{ __('curricula.progress.empty') }}</div>
                 @else
-                    <div class="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6">
+                    <div class="dashboard-curriculum-hotbars mt-6 grid gap-x-10 gap-y-7 md:grid-cols-2" dir="{{ app()->isLocale('ar') ? 'rtl' : 'ltr' }}" data-dashboard-curriculum-hotbars>
                         @foreach ($curriculumProgress as $row)
-                            <a href="{{ route('curricula.index') }}" wire:navigate class="text-center">
-                                <div class="mx-auto grid size-28 place-items-center rounded-full" style="background: conic-gradient(#9fbea9 {{ $row['percentage'] }}%, #c99b9b 0)">
-                                    <div class="grid size-20 place-items-center rounded-full bg-neutral-950 text-lg font-semibold text-white">{{ number_format($row['percentage'], 0) }}%</div>
+                            @php
+                                $teacherName = $row['group']->teacher
+                                    ? trim($row['group']->teacher->first_name.' '.$row['group']->teacher->last_name)
+                                    : __('dashboard.common.no_teacher');
+                            @endphp
+                            <div class="dashboard-curriculum-hotbar" data-dashboard-curriculum-hotbar data-dashboard-curriculum-name-gap="حلقة" data-progress-tone="{{ $row['tone'] }}" data-lessons-behind="{{ $row['lessons_behind'] }}">
+                                <div class="dashboard-curriculum-hotbar__identity">
+                                    <a href="{{ route('curricula.index') }}" wire:navigate class="dashboard-curriculum-hotbar__group">{{ $row['group']->name }}</a>
+                                    <div class="dashboard-curriculum-hotbar__teacher">{{ $teacherName }}</div>
                                 </div>
-                                <div class="mt-3 truncate text-sm font-semibold text-white">{{ $row['group']->name }}</div>
-                            </a>
+                                <div class="dashboard-curriculum-hotbar__track">
+                                    <span class="dashboard-curriculum-hotbar__fill dashboard-curriculum-hotbar__fill--{{ $row['tone'] }}" style="width: {{ $row['percentage'] }}%" aria-hidden="true"></span>
+                                    <span
+                                        class="dashboard-curriculum-hotbar__marker dashboard-curriculum-hotbar__marker--{{ $row['tone'] }} dashboard-lollipop-attendance"
+                                        style="inset-inline-start: min(calc(100% - 1rem), max(0px, calc({{ $row['percentage'] }}% - .5rem)))"
+                                        tabindex="0"
+                                        role="img"
+                                        aria-label="{{ number_format($row['percentage'], 1) }}% · {{ trans_choice('dashboard.manager.analytics.curriculum_lessons_behind', $row['lessons_behind'], ['count' => number_format($row['lessons_behind'])]) }}"
+                                    >
+                                        <span class="dashboard-lollipop-attendance__tooltip dashboard-curriculum-hotbar__tooltip">
+                                            <strong>{{ number_format($row['percentage'], 1) }}%</strong>
+                                            <span>{{ trans_choice('dashboard.manager.analytics.curriculum_lessons_behind', $row['lessons_behind'], ['count' => number_format($row['lessons_behind'])]) }}</span>
+                                        </span>
+                                    </span>
+                                </div>
+                            </div>
                         @endforeach
                     </div>
                 @endif

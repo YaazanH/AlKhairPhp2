@@ -26,6 +26,17 @@ class CurriculumModuleTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_lesson_counts_use_the_requested_arabic_grammar(): void
+    {
+        $this->assertSame('0 درس', trans_choice('curricula.counts.lessons', 0, ['count' => 0], 'ar'));
+        $this->assertSame('1 درس', trans_choice('curricula.counts.lessons', 1, ['count' => 1], 'ar'));
+        $this->assertSame('درسين', trans_choice('curricula.counts.lessons', 2, ['count' => 2], 'ar'));
+        $this->assertSame('3 دروس', trans_choice('curricula.counts.lessons', 3, ['count' => 3], 'ar'));
+        $this->assertSame('10 دروس', trans_choice('curricula.counts.lessons', 10, ['count' => 10], 'ar'));
+        $this->assertSame('11 درس', trans_choice('curricula.counts.lessons', 11, ['count' => 11], 'ar'));
+        $this->assertSame('25 درس', trans_choice('curricula.counts.lessons', 25, ['count' => 25], 'ar'));
+    }
+
     public function test_curriculum_visibility_is_limited_to_management_and_group_supervisors(): void
     {
         $this->seed(RoleSeeder::class);
@@ -205,11 +216,40 @@ class CurriculumModuleTest extends TestCase
             ->assertSee('data-curriculum-topic-number', false)
             ->assertDontSee('wire:click="deleteLesson('.$lesson->id.')"', false)
             ->call('openLesson', $subject->id, $lesson->id)
-            ->assertSee('data-compact-lesson-modal', false)
+            ->assertSet('editingLessonId', $lesson->id)
+            ->assertSee('data-curriculum-lesson-editing', false)
+            ->assertSee('data-inline-lesson-chapter', false)
+            ->assertSee('data-inline-lesson-name', false)
+            ->assertDontSee('data-compact-lesson-modal', false)
             ->assertSee('data-curriculum-lesson-save-action', false)
             ->assertSee('data-icon-name="save"', false)
             ->assertSee('data-delete-lesson-in-edit', false)
-            ->assertSee('wire:click="deleteLesson('.$lesson->id.')"', false);
+            ->assertSee('wire:click="deleteLesson('.$lesson->id.')"', false)
+            ->set('chapterNumber', '2')
+            ->set('lessonName', 'Updated inline lesson')
+            ->set('importance', 2)
+            ->call('saveLesson')
+            ->assertHasNoErrors()
+            ->assertSet('editingLessonId', null);
+
+        $this->assertDatabaseHas('curriculum_lessons', [
+            'id' => $lesson->id,
+            'chapter_number' => '2',
+            'name' => 'Updated inline lesson',
+            'importance' => 2,
+        ]);
+
+        Volt::test('curricula.show', ['curriculum' => $curriculum])
+            ->set("newLessonDrafts.{$subject->id}.0.name", 'Auto-added lesson')
+            ->call('selectInlineLessonImportance', $subject->id, 0, 3)
+            ->assertHasNoErrors()
+            ->assertSet("newLessonDrafts.{$subject->id}.0", null);
+
+        $this->assertDatabaseHas('curriculum_lessons', [
+            'curriculum_subject_id' => $subject->id,
+            'name' => 'Auto-added lesson',
+            'importance' => 3,
+        ]);
 
         Volt::test('groups.index')
             ->call('openCreateModal')
@@ -224,7 +264,7 @@ class CurriculumModuleTest extends TestCase
             ->assertHasNoErrors();
 
         $this->assertDatabaseHas('groups', ['name' => 'Curriculum Group', 'curriculum_id' => $curriculum->id]);
-        $this->assertDatabaseHas('curriculum_lessons', ['name' => 'First lesson', 'page_count' => 0, 'importance' => 3]);
+        $this->assertDatabaseHas('curriculum_lessons', ['name' => 'Updated inline lesson', 'page_count' => 0, 'importance' => 2]);
 
         $group = Group::query()->where('name', 'Curriculum Group')->firstOrFail();
         $teacher->update(['status' => 'inactive', 'is_helping' => false]);
@@ -249,6 +289,12 @@ class CurriculumModuleTest extends TestCase
     {
         $indexSource = file_get_contents(resource_path('views/livewire/curricula/index.blade.php'));
         $source = file_get_contents(resource_path('views/livewire/curricula/show.blade.php'));
+
+        $this->assertStringContainsString('class="curricula-table-add-action" data-curricula-add-icon', $indexSource);
+        $this->assertMatchesRegularExpression(
+            '/\[data-curricula-index-table\].*?\.curricula-table-add-action\s*\{[^}]*width:\s*2\.5rem;[^}]*height:\s*2\.5rem;/s',
+            file_get_contents(resource_path('css/app.css')),
+        );
 
         foreach ([$indexSource, $source] as $curriculumModalSource) {
             $this->assertStringContainsString('wire:submit="saveCurriculum" class="w-[min(28rem,calc(100vw-3rem))] space-y-4"', $curriculumModalSource);
@@ -277,8 +323,12 @@ class CurriculumModuleTest extends TestCase
         $this->assertStringContainsString('<x-admin-action-icon :name="$editingSubjectId ? \'save\' : \'add\'"', $source);
         $this->assertStringContainsString('data-edit-lesson-icon', $source);
         $this->assertStringContainsString('<x-edit-action-button wire:click="openLesson(', $source);
+        $this->assertStringContainsString('data-curriculum-lesson-editing', $source);
+        $this->assertStringContainsString('data-inline-lesson-name', $source);
+        $this->assertStringNotContainsString('data-compact-lesson-modal', $source);
         $this->assertStringContainsString('data-add-lesson-icon', $source);
         $this->assertStringContainsString('<x-add-action-button wire:click="saveInlineLesson(', $source);
+        $this->assertStringContainsString('wire:click="selectInlineLessonImportance(', $source);
         $this->assertStringContainsString('data-curriculum-topic-delete-action', $source);
         $this->assertStringContainsString('data-delete-lesson-in-edit', $source);
         $this->assertStringNotContainsString('data-edit-lesson-icon><svg', $source);

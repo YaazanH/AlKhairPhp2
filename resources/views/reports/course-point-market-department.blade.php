@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <style>
-        @page{margin:35mm 14mm 18mm;header:pdf-header;footer:pdf-footer}
+        @page{margin:0 14mm 18mm;margin-header:10mm;header:pdf-header;footer:pdf-footer}
         @page :first{header:pdf-first-header}
         body{font-family:dubai,sans-serif;color:#17231b;font-size:11px;font-weight:400}
         table{width:100%;border-collapse:collapse}
