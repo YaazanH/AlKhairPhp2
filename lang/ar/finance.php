@@ -138,7 +138,7 @@ return [
         'credit' => 'دائن',
         'debit' => 'مدين',
         'fund_balance' => 'رصيد الصندوق',
-        'transaction_no' => 'أرقام الحركة',
+        'transaction_no' => 'رقم الحركة',
         'category' => 'التصنيف',
         'code' => 'الرمز',
         'direction' => 'الاتجاه',

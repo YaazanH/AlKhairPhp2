@@ -1200,11 +1200,6 @@ html:not(.dark) .app-sidebar-toggle-button span {
     width: auto;
     height: 2.5rem;
     flex: 0 0 auto;
-    color: #bfe8cf;
-}
-
-html:not(.dark) .mobile-header-mark {
-    color: #006b2d;
 }
 
 .dashboard-line-chart text {
@@ -1525,6 +1520,7 @@ html:not(.dark) .page-hero::after {
     align-items: flex-start;
     justify-content: flex-start;
     margin-inline-start: auto;
+    margin-inline-end: 0;
 }
 
 .group-show-details {
@@ -1705,6 +1701,147 @@ html[dir='rtl'] .group-show-details {
     color: #6ee7b7;
     font-size: 1.1rem;
     font-weight: 700;
+}
+
+.group-curriculum-status {
+    display: inline-flex;
+    min-width: 1.5rem;
+    min-height: 1.5rem;
+    align-items: center;
+    justify-content: center;
+    color: #6ee7b7;
+    font-size: 1.1rem;
+    font-weight: 700;
+    cursor: help;
+}
+
+.teacher-curriculum-book {
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 1rem;
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.teacher-curriculum-book__header {
+    display: flex;
+    min-height: 3.5rem;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.5rem 0.75rem 0.5rem 1rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(151, 219, 174, 0.055);
+}
+
+.teacher-curriculum-grid {
+    display: grid;
+    grid-template-columns: minmax(3.5rem, 0.55fr) minmax(0, 3fr) minmax(4.75rem, 0.8fr);
+    align-items: center;
+}
+
+.teacher-curriculum-grid--header {
+    min-height: 2.75rem;
+    color: var(--app-muted);
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+.teacher-curriculum-grid--header > *,
+.teacher-curriculum-lesson-row > * {
+    min-width: 0;
+    padding: 0.65rem 0.75rem;
+}
+
+.teacher-curriculum-grid--header > :first-child,
+.teacher-curriculum-grid--header > :last-child,
+.teacher-curriculum-chapter,
+.teacher-curriculum-importance {
+    text-align: center;
+}
+
+.teacher-curriculum-lesson-row {
+    min-height: 3.65rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.065);
+}
+
+.teacher-curriculum-lesson-row--taught {
+    background: rgba(16, 185, 129, 0.055);
+    color: var(--app-muted);
+}
+
+.teacher-curriculum-chapter {
+    color: var(--app-muted);
+    font-size: 0.82rem;
+}
+
+.teacher-curriculum-lesson-cell {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.65rem;
+}
+
+.teacher-curriculum-lesson-line {
+    display: flex;
+    min-width: 0;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+    white-space: nowrap;
+}
+
+.teacher-curriculum-lesson-title {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--app-text);
+    font-size: 0.875rem;
+    font-weight: 500;
+    text-overflow: ellipsis;
+}
+
+.teacher-curriculum-lesson-meta {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: baseline;
+    gap: 0.35rem;
+    color: var(--app-muted);
+    font-size: 0.72rem;
+}
+
+.teacher-curriculum-importance {
+    display: inline-flex;
+    height: 1.5rem;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 0.25rem;
+    direction: ltr;
+}
+
+.teacher-curriculum-importance > i {
+    width: 0.35rem;
+}
+
+.teacher-curriculum-book__empty {
+    padding: 1rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.065);
+    color: var(--app-muted);
+    font-size: 0.8rem;
+    text-align: center;
+}
+
+html:not(.dark) .teacher-curriculum-book {
+    border-color: rgba(32, 91, 55, 0.14);
+    background: rgba(255, 255, 255, 0.55);
+}
+
+html:not(.dark) .teacher-curriculum-book__header {
+    border-color: rgba(32, 91, 55, 0.1);
+    background: rgba(18, 109, 59, 0.055);
+}
+
+@media (min-width: 1024px) {
+    [data-curricula-progress-grid] {
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+    }
 }
 
 .student-progress-profile__grid {
@@ -4914,7 +5051,7 @@ html:not(.dark) .admin-modal__dialog {
 
 .financial-transactions-table {
     width: 100%;
-    min-width: 0;
+    min-width: 72rem;
     table-layout: fixed;
 }
 
@@ -4952,6 +5089,36 @@ html:not(.dark) .admin-modal__dialog {
 
 .finance-transaction-reference > * > span {
     flex: 0 0 auto;
+}
+
+.finance-transaction-kashida-label {
+    display: inline-block;
+    max-width: 100%;
+    overflow: hidden;
+    font-feature-settings: 'jalt' 1;
+    line-height: inherit;
+    text-align: justify;
+    text-align-last: justify;
+    text-overflow: clip;
+    vertical-align: baseline;
+    white-space: nowrap;
+}
+
+.finance-transaction-kashida-label[data-finance-kashida-applied] {
+    position: relative;
+    top: 0.16em;
+}
+
+.finance-transaction-kashida-label[data-finance-kashida-target] {
+    max-width: none;
+}
+
+.finance-transaction-amount--in {
+    color: #6ee7b7;
+}
+
+.finance-transaction-amount--out {
+    color: #fca5a5;
 }
 
 .finance-transactions-filters :is(.searchable-select__button, .searchable-select__search--trigger, .formatted-date-input__display) {
@@ -5283,11 +5450,20 @@ html:not(.dark) .admin-modal__title {
     }
 
     .financial-transactions-table {
+        min-width: 0;
         font-size: clamp(0.68rem, 0.72vw, 0.875rem);
     }
 
     .financial-transactions-table :is(th, td) {
         padding-inline: 0.45rem !important;
+    }
+
+    .financial-transactions-table :is(th, td):nth-child(n + 3):nth-child(-n + 6) {
+        padding-inline: 0.625rem !important;
+    }
+
+    [data-financial-transactions-table] > .overflow-x-auto {
+        overflow-x: hidden !important;
     }
 }
 
@@ -9132,6 +9308,11 @@ html[dir='rtl'] .id-card-layer-card__meta {
         padding-inline: 0.75rem !important;
     }
 
+    html[dir='rtl'] .mobile-header-mark {
+        /* 0.75rem header inset + 1.5rem margin = three times the original gap. */
+        margin-inline-end: 1.5rem;
+    }
+
     .app-sidebar-shell {
         width: min(88vw, 22rem) !important;
         flex-basis: min(88vw, 22rem) !important;
@@ -9177,8 +9358,8 @@ html[dir='rtl'] .id-card-layer-card__meta {
         min-height: 2.75rem;
     }
 
-    [data-curricula-progress-card] .admin-empty-state {
-        padding-block: 1.5rem;
+    [data-curricula-progress-card] {
+        display: none !important;
     }
 
     [data-curriculum-detail-hero] > div {
@@ -9483,6 +9664,18 @@ html[dir='rtl'] .id-card-layer-card__meta {
         flex: 1 1 5.5rem;
         justify-content: center;
         padding: 0.5rem 0.7rem;
+    }
+
+    .student-juz-progress-table .mobile-record-card [data-juz-progress-status] {
+        width: auto;
+        max-width: 55%;
+        padding-inline: 0.7rem;
+    }
+
+    .student-juz-progress-table .mobile-record-card__actions [data-juz-progress-action] {
+        width: auto;
+        max-width: none;
+        flex: 1 1 8rem;
     }
 
     .mobile-records-surface .admin-grid-meta--controls {

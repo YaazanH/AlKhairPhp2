@@ -1318,7 +1318,7 @@ new class extends Component {
     </x-admin.modal>
 
     <section id="finance-currencies" class="overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700" data-settings-table>
-        <div class="admin-grid-meta admin-grid-meta--controls">
+        <div class="admin-grid-meta admin-grid-meta--controls" data-mobile-title-action-row data-finance-settings-mobile-title-action-row>
             <div>
                 <div class="admin-grid-meta__title">{{ __('finance.settings.currencies') }}</div>
                 <div class="admin-grid-meta__summary">{{ __('finance.settings.currencies_subtitle') }}</div>
@@ -1352,7 +1352,7 @@ new class extends Component {
     </section>
 
     <section id="finance-cash-boxes" class="overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700" data-settings-table>
-        <div class="admin-grid-meta admin-grid-meta--controls">
+        <div class="admin-grid-meta admin-grid-meta--controls" data-mobile-title-action-row data-finance-settings-mobile-title-action-row>
             <div>
                 <div class="admin-grid-meta__title">{{ __('finance.settings.cash_boxes') }}</div>
                 <div class="admin-grid-meta__summary">{{ __('finance.settings.cash_boxes_subtitle') }}</div>
@@ -1371,7 +1371,7 @@ new class extends Component {
     </section>
 
     <section id="finance-categories" class="overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700" data-settings-table>
-        <div class="admin-grid-meta admin-grid-meta--controls">
+        <div class="admin-grid-meta admin-grid-meta--controls" data-mobile-title-action-row data-finance-settings-mobile-title-action-row>
             <div>
                 <div class="admin-grid-meta__title">{{ __('finance.settings.finance_categories') }}</div>
                 <div class="admin-grid-meta__summary">{{ __('finance.settings.finance_categories_subtitle') }}</div>

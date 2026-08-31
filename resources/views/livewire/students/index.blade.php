@@ -40,6 +40,7 @@ new class extends Component {
     public ?int $editingId = null;
     public bool $editingStudentHasEnrollments = false;
     public bool $editingStudentHasRelatedRecords = false;
+    public bool $editingStudentNeedsActiveCourseEnrollment = false;
     public ?int $parent_id = null;
     public string $first_name = '';
     public string $last_name = '';
@@ -144,6 +145,7 @@ new class extends Component {
                         'gradeLevel:id,name',
                     ])
                     ->where('is_active', true)
+                    ->whereHas('course', fn (Builder $query) => $query->where('is_active', true))
             )
                 ->when($currentAcademicYearId, fn (Builder $query) => $query->orderByRaw('case when academic_year_id = ? then 0 else 1 end', [$currentAcademicYearId]))
                 ->orderBy('name')
@@ -578,15 +580,39 @@ new class extends Component {
         $targetStudentId = $this->editingId ?? $duplicate?->id;
         $isUpdatingExisting = $targetStudentId !== null;
 
-        $selectedGroupId = ! $isUpdatingExisting && filled($validated['enrollment_group_id'] ?? null)
-            ? (int) $validated['enrollment_group_id']
-            : null;
+        $selectedGroupId = null;
+
+        if (! $isUpdatingExisting && filled($validated['enrollment_group_id'] ?? null)) {
+            $selectedGroupId = (int) $validated['enrollment_group_id'];
+        } elseif ($isEditing && filled($validated['enrollment_group_id'] ?? null)) {
+            $this->authorizePermission('enrollments.create');
+
+            if (Enrollment::query()->currentActiveForStudent($targetStudentId)->exists()) {
+                $this->addError('enrollment_group_id', __('crud.enrollments.errors.already_active'));
+
+                return;
+            }
+
+            $selectedGroupId = (int) $validated['enrollment_group_id'];
+        }
 
         $selectedGroup = null;
 
         if ($selectedGroupId) {
-            $selectedGroup = Group::query()->findOrFail($selectedGroupId);
+            $selectedGroup = Group::query()->with('course')->findOrFail($selectedGroupId);
             $this->authorizeScopedGroupAccess($selectedGroup);
+
+            if (! $selectedGroup->is_active || ! $selectedGroup->course?->is_active) {
+                $this->addError('enrollment_group_id', __('crud.enrollments.errors.inactive_group'));
+
+                return;
+            }
+
+            if ($validated['status'] !== 'active') {
+                $this->addError('enrollment_group_id', __('crud.enrollments.errors.inactive_student'));
+
+                return;
+            }
         }
 
         $studentPhone = filled($validated['student_phone'] ?? null) ? trim((string) $validated['student_phone']) : null;
@@ -604,7 +630,7 @@ new class extends Component {
         $validated['joined_at'] = $isUpdatingExisting
             ? ($validated['joined_at'] ?: null)
             : ($validated['joined_at'] ?: now()->toDateString());
-        $payload = DB::transaction(function () use ($externalMemorizedJuzIds, $isUpdatingExisting, $selectedGroup, $studentPhone, $targetStudentId, $validated): array {
+        $payload = DB::transaction(function () use ($externalMemorizedJuzIds, $isEditing, $selectedGroup, $studentPhone, $targetStudentId, $validated): array {
             $student = Student::query()->updateOrCreate(
                 ['id' => $targetStudentId],
                 $validated,
@@ -630,18 +656,22 @@ new class extends Component {
                 app(MemorizationService::class)->rebuildStudentAchievementsAndPoints($student);
             }
 
-            if (! $isUpdatingExisting && $selectedGroup && ! Enrollment::query()
-                ->where('student_id', $student->id)
-                ->where('group_id', $selectedGroup->id)
-                ->exists()) {
-                Enrollment::query()->create([
+            if ($selectedGroup) {
+                $enrollment = Enrollment::withTrashed()->firstOrNew([
                     'student_id' => $student->id,
                     'group_id' => $selectedGroup->id,
-                    'enrolled_at' => $validated['joined_at'],
+                ]);
+
+                if ($enrollment->trashed()) {
+                    $enrollment->restore();
+                }
+
+                $enrollment->fill([
+                    'enrolled_at' => $isEditing ? now()->toDateString() : $validated['joined_at'],
                     'status' => 'active',
                     'left_at' => null,
                     'notes' => null,
-                ]);
+                ])->save();
             }
 
             return [
@@ -837,6 +867,9 @@ new class extends Component {
         $this->editingStudentHasRelatedRecords = $this->editingStudentHasEnrollments
             || (bool) $student->memorization_sessions_exists
             || (bool) $student->page_achievements_exists;
+        $this->editingStudentNeedsActiveCourseEnrollment = ! Enrollment::query()
+            ->currentActiveForStudent($student->id)
+            ->exists();
         $this->parent_id = $student->parent_id;
         $this->first_name = $student->first_name;
         $this->last_name = $student->last_name;
@@ -958,6 +991,7 @@ new class extends Component {
         $this->editingId = null;
         $this->editingStudentHasEnrollments = false;
         $this->editingStudentHasRelatedRecords = false;
+        $this->editingStudentNeedsActiveCourseEnrollment = false;
         $this->parent_id = null;
         $this->first_name = '';
         $this->last_name = '';
@@ -1060,6 +1094,7 @@ new class extends Component {
         $baseQuery = $this->scopeGroupsQuery(
             Group::query()
                 ->where('is_active', true)
+                ->whereHas('course', fn (Builder $query) => $query->where('is_active', true))
                 ->where('grade_level_id', $gradeLevelId)
         );
 
@@ -2256,7 +2291,7 @@ new class extends Component {
             @if (! $editingId)
                 <div data-student-enrollment-group-field>
                     <label for="student-enrollment-group" class="mb-1 block text-sm font-medium">{{ __('crud.students.form.fields.group') }}</label>
-                    <select id="student-enrollment-group" wire:model="enrollment_group_id" class="w-full rounded-xl px-4 py-3 text-sm">
+                    <select id="student-enrollment-group" wire:model="enrollment_group_id" data-search-input="true" data-open-on-focus="true" data-hide-placeholder-option="true" data-search-placeholder="{{ __('crud.students.form.placeholders.select_group') }}" class="w-full rounded-xl px-4 py-3 text-sm">
                         <option value="">{{ __('crud.students.form.placeholders.select_group') }}</option>
                         @foreach ($enrollmentGroups as $group)
                             <option value="{{ $group->id }}">
@@ -2276,17 +2311,41 @@ new class extends Component {
                 </div>
             @endif
 
-            @if ($editingId)
-                <div>
-                    <label for="student-status" class="mb-1 block text-sm font-medium">{{ __('crud.students.form.fields.status') }}</label>
-                    <select id="student-status" wire:model="status" class="w-full rounded-xl px-4 py-3 text-sm">
-                        @foreach ($statuses as $studentStatus)
-                            <option value="{{ $studentStatus }}">{{ __('crud.common.status_options.'.$studentStatus) }}</option>
-                        @endforeach
-                    </select>
-                    @error('status')
-                        <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
-                    @enderror
+            @if ($editingId && $editingStudentNeedsActiveCourseEnrollment)
+                <div class="grid gap-4 {{ $editingStudentNeedsActiveCourseEnrollment && auth()->user()->can('enrollments.create') ? 'grid-cols-2' : '' }}" data-student-edit-status-row>
+                    @if ($editingStudentNeedsActiveCourseEnrollment && auth()->user()->can('enrollments.create'))
+                        <div data-student-edit-enrollment-group>
+                            <label for="student-edit-enrollment-group" class="mb-1 block text-sm font-medium">{{ __('crud.students.form.fields.group') }}</label>
+                            <select id="student-edit-enrollment-group" wire:model="enrollment_group_id" data-search-input="true" data-open-on-focus="true" data-hide-placeholder-option="true" data-search-placeholder="{{ __('crud.students.form.placeholders.select_group') }}" class="w-full rounded-xl px-4 py-3 text-sm">
+                                <option value="">{{ __('crud.students.form.placeholders.select_group') }}</option>
+                                @foreach ($enrollmentGroups as $group)
+                                    <option value="{{ $group->id }}">
+                                        {{ $group->name }}
+                                        @if ($group->course)
+                                            - {{ $group->course->name }}
+                                        @endif
+                                        @if ($group->gradeLevel)
+                                            - {{ $group->gradeLevel->name }}
+                                        @endif
+                                    </option>
+                                @endforeach
+                            </select>
+                            @error('enrollment_group_id')
+                                <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
+                            @enderror
+                        </div>
+                    @endif
+                    <div>
+                        <label for="student-status" class="mb-1 block text-sm font-medium">{{ __('crud.students.form.fields.status') }}</label>
+                        <select id="student-status" wire:model="status" class="w-full rounded-xl px-4 py-3 text-sm">
+                            @foreach ($statuses as $studentStatus)
+                                <option value="{{ $studentStatus }}">{{ __('crud.common.status_options.'.$studentStatus) }}</option>
+                            @endforeach
+                        </select>
+                        @error('status')
+                            <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
+                        @enderror
+                    </div>
                 </div>
             @endif
 

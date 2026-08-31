@@ -79,6 +79,7 @@ class CurriculumProgressService
 
                 return [
                     'id' => $lesson->id,
+                    'chapter_number' => $lesson->chapter_number,
                     'name' => $lesson->name,
                     'resource_id' => $lesson->curriculum_resource_id,
                     'resource_name' => $lesson->resource?->book_name,
@@ -107,7 +108,9 @@ class CurriculumProgressService
         foreach ($customBySubject as $subjectName => $lessons) {
             $rows = $lessons->map(fn ($lesson) => [
                 'id' => $lesson->id,
+                'chapter_number' => null,
                 'name' => $lesson->name,
+                'resource_id' => null,
                 'page_count' => $lesson->page_count,
                 'importance' => $lesson->importance,
                 'status' => $lesson->status,

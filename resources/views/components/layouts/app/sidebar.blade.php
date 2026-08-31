@@ -132,7 +132,7 @@
                     </div>
 
                     <flux:spacer />
-                    <x-mobile-header-mark class="mobile-header-mark" />
+                    <x-mobile-header-mark class="mobile-header-mark text-neutral-200" />
                 </flux:header>
 
                 <main class="app-main">

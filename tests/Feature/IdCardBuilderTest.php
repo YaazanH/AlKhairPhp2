@@ -581,6 +581,13 @@ class IdCardBuilderTest extends TestCase
             ->assertSee('data-id-card-print-status-icon="unprinted"', false)
             ->assertSee('data-supplied-id-card-print-status="mark-as-printed"', false)
             ->assertSee('data-supplied-id-card-print-status="mark-as-not-printed"', false)
+            ->assertSeeInOrder([
+                'data-supplied-id-card-print-status="mark-as-printed"',
+                'data-printer-outline-open-bottom',
+                'data-supplied-id-card-print-status="mark-as-not-printed"',
+                'data-printer-outline-open-bottom',
+            ], false)
+            ->assertDontSee('M93 158h326a46 46 0 0 1 46 46v128a46 46 0 0 1-46 46H93', false)
             ->assertSee('M147 48h178l60 60v50H147Z', false)
             ->assertSee('M355 326l78 78M433 326l-78 78', false)
             ->assertSee('data-mark-printed-icon', false)

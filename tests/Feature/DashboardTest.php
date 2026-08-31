@@ -560,6 +560,7 @@ class DashboardTest extends TestCase
                     && $byGroup[$groups[3]->id]['tone'] === 'danger';
             })
             ->assertSee('data-dashboard-curriculum-hotbars', false)
+            ->assertSee('gap-y-[0.875rem]', false)
             ->assertSee('data-dashboard-curriculum-name-gap="حلقة"', false)
             ->assertSee('dir="rtl"', false)
             ->assertSee('md:grid-cols-2', false)

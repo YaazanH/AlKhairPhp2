@@ -662,11 +662,16 @@ class ManagementPagesTest extends TestCase
     public function test_general_settings_editor_uses_the_shared_edit_symbol_without_visible_text(): void
     {
         $organization = file_get_contents(resource_path('views/livewire/settings/organization.blade.php'));
+        $styles = file_get_contents(resource_path('css/app.css'));
 
         $this->assertStringContainsString('data-organization-edit-action', $organization);
         $this->assertStringContainsString('<x-edit-action-button wire:click="openOrganizationModal"', $organization);
         $this->assertStringContainsString(':show="$showOrganizationModal" :title="__(\'settings.organization.sections.profile.title\')" close-method="closeOrganizationModal" :dismissible="false"', $organization);
         $this->assertStringNotContainsString("class=\"pill-link\">{{ __('settings.organization.actions.save_settings') }}", $organization);
+        $this->assertSame(4, substr_count($organization, 'data-settings-mobile-title-action-row'));
+        $this->assertStringContainsString('[data-mobile-title-action-row] {', $styles);
+        $this->assertStringContainsString('flex-flow: row nowrap !important;', $styles);
+        $this->assertStringContainsString('justify-content: space-between !important;', $styles);
     }
 
     public function test_general_finance_settings_editor_uses_the_shared_edit_symbol_without_visible_text(): void
@@ -677,6 +682,7 @@ class ManagementPagesTest extends TestCase
         $this->assertStringContainsString('<x-edit-action-button wire:click="openFinanceSettingsModal"', $finance);
         $this->assertStringContainsString(':show="$showFinanceSettingsModal" :title="__(\'finance.settings.finance_defaults\')" close-method="closeFinanceSettingsModal" :dismissible="false"', $finance);
         $this->assertStringNotContainsString("class=\"pill-link\">{{ __('finance.actions.edit') }}", $finance);
+        $this->assertSame(3, substr_count($finance, 'data-finance-settings-mobile-title-action-row'));
 
         foreach (['currency', 'cash-box', 'category', 'pull-kind'] as $setting) {
             $this->assertStringContainsString("data-finance-{$setting}-save-action", $finance);
@@ -1280,6 +1286,8 @@ class ManagementPagesTest extends TestCase
         $this->assertStringContainsString('<label for="student-card-course" class="sr-only">', $printTemplateSetup);
         $this->assertStringNotContainsString('stroke="#111111"', $printStatusIcon);
         $this->assertStringContainsString('stroke="currentColor"', $printStatusIcon);
+        $this->assertSame(2, substr_count($printStatusIcon, 'data-printer-outline-open-bottom'));
+        $this->assertStringNotContainsString('M93 158h326a46 46 0 0 1 46 46v128a46 46 0 0 1-46 46H93', $printStatusIcon);
         $this->assertStringContainsString(".print-template-source-toolbar .admin-toolbar__controls > .admin-filter-field {\n    min-width: 0;\n    flex: 1 1 0;", $styles);
         $this->assertStringContainsString(".selection-toolbar-icon-button {\n    width: 3.125rem;\n    min-width: 3.125rem;\n    height: 3.125rem;", $styles);
         $this->assertStringContainsString(".id-card-filter-row > .admin-toolbar__controls {\n    display: grid !important;\n    width: 100% !important;\n    inline-size: 100% !important;\n    grid-template-columns: repeat(3, minmax(0, 1fr)) max-content !important;", $styles);
@@ -1335,7 +1343,8 @@ class ManagementPagesTest extends TestCase
         $this->assertStringNotContainsString('standard-mobile-table', $assessmentView);
 
         $studentProgressView = file_get_contents(resource_path('views/livewire/students/progress.blade.php'));
-        $this->assertStringContainsString('surface-table standard-mobile-table student-juz-progress-table', $studentProgressView);
+        $this->assertStringContainsString('surface-table student-juz-progress-table', $studentProgressView);
+        $this->assertStringNotContainsString('surface-table standard-mobile-table student-juz-progress-table', $studentProgressView);
         $this->assertStringContainsString('data-juz-progress-status-heading', $studentProgressView);
         $this->assertStringContainsString('data-juz-progress-status-cell', $studentProgressView);
         $this->assertStringContainsString('data-juz-progress-actions-heading', $studentProgressView);
@@ -1344,6 +1353,8 @@ class ManagementPagesTest extends TestCase
         $this->assertStringContainsString('data-student-progress-awqaf-save-action', $studentProgressView);
         $this->assertStringContainsString('.student-juz-progress-table [data-juz-progress-action]', $styles);
         $this->assertStringContainsString('.student-juz-progress-table [data-juz-progress-status]', $styles);
+        $this->assertStringContainsString('.student-juz-progress-table .mobile-record-card [data-juz-progress-status]', $styles);
+        $this->assertStringContainsString('.student-juz-progress-table .mobile-record-card__actions [data-juz-progress-action]', $styles);
         $this->assertStringContainsString('grid-template-columns: 0.45rem minmax(0, 1fr) 0.45rem;', $styles);
         $this->assertStringContainsString('flex: 0 0 0.45rem;', $styles);
         $this->assertStringContainsString('data-student-progress-missing-pages', $studentProgressView);

@@ -69,6 +69,14 @@
                 <path stroke-linecap="round" d="M20.1 10.25v1.5m-1.35 4.2-1.05 1.1m-3.7 2.6h-1.5m-4.35-1-1.25-.75M4.45 15l-.55-1.3M4.8 9.2l-.7 1.2" />
             </g>
             @break
+        @case('eye')
+            <path stroke-linecap="round" stroke-linejoin="round" d="M2.75 12s3.25-6 9.25-6 9.25 6 9.25 6-3.25 6-9.25 6-9.25-6-9.25-6Z" />
+            <circle cx="12" cy="12" r="2.75" />
+            @break
+        @case('eye-off')
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4.2 7.4C3.25 8.5 2.75 9.5 2.75 9.5S6 15.5 12 15.5c1.35 0 2.55-.3 3.6-.75M8.4 4.75A10.2 10.2 0 0 1 12 4c6 0 9.25 6 9.25 6a13.2 13.2 0 0 1-2.1 2.75M4 4l16 16" />
+            <path stroke-linecap="round" d="M9.75 9.75a3.18 3.18 0 0 0 4.5 4.5" />
+            @break
         @case('lock')
             <rect x="5" y="10" width="14" height="10.5" rx="2.25" />
             <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 10V7.25a3.75 3.75 0 0 1 7.5 0V10M12 14.25v2.25" />
@@ -116,6 +124,10 @@
         @case('export')
             <path stroke-linecap="round" stroke-linejoin="round" d="M12 15.5V4m0 0L7.75 8.25M12 4l4.25 4.25" />
             <path stroke-linecap="round" stroke-linejoin="round" d="M5 11.75v5.75A2.5 2.5 0 0 0 7.5 20h9a2.5 2.5 0 0 0 2.5-2.5v-5.75" />
+            @break
+        @case('download')
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v11.5m0 0 4.25-4.25M12 15.5l-4.25-4.25" />
+            <path stroke-linecap="round" stroke-linejoin="round" d="M5 12.25v5.25A2.5 2.5 0 0 0 7.5 20h9a2.5 2.5 0 0 0 2.5-2.5v-5.25" />
             @break
         @case('transfer')
             <path stroke-linecap="round" stroke-linejoin="round" d="M4 8h14m0 0-3.5-3.5M18 8l-3.5 3.5M20 16H6m0 0 3.5-3.5M6 16l3.5 3.5" />

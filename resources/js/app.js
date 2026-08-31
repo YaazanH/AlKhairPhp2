@@ -325,6 +325,62 @@ function searchHintValue(select) {
         : '';
 }
 
+const searchableSelectOverflowHosts = new WeakMap();
+
+function releaseSearchableSelectOverflow(wrapper) {
+    if (searchableSelectOverflowHosts.has(wrapper)) {
+        return;
+    }
+
+    const hosts = [];
+    let ancestor = wrapper.parentElement;
+
+    while (ancestor && ancestor !== document.body && ancestor !== document.documentElement) {
+        const styles = window.getComputedStyle(ancestor);
+        const clipsDropdown = [styles.overflow, styles.overflowX, styles.overflowY]
+            .some((value) => ['auto', 'clip', 'hidden', 'scroll'].includes(value));
+
+        if (clipsDropdown) {
+            const previousOverflow = ['overflow', 'overflow-x', 'overflow-y'].map((property) => ({
+                property,
+                value: ancestor.style.getPropertyValue(property),
+                priority: ancestor.style.getPropertyPriority(property),
+            }));
+
+            hosts.push({ ancestor, previousOverflow });
+            ancestor.setAttribute('data-searchable-select-overflow-released', 'true');
+            ancestor.style.setProperty('overflow', 'visible', 'important');
+            ancestor.style.setProperty('overflow-x', 'visible', 'important');
+            ancestor.style.setProperty('overflow-y', 'visible', 'important');
+        }
+
+        ancestor = ancestor.parentElement;
+    }
+
+    searchableSelectOverflowHosts.set(wrapper, hosts);
+}
+
+function restoreSearchableSelectOverflow(wrapper) {
+    const hosts = searchableSelectOverflowHosts.get(wrapper) || [];
+
+    hosts.forEach(({ ancestor, previousOverflow }) => {
+        if (ancestor.querySelector('.searchable-select--open')) {
+            return;
+        }
+
+        previousOverflow.forEach(({ property, value, priority }) => {
+            if (value) {
+                ancestor.style.setProperty(property, value, priority);
+            } else {
+                ancestor.style.removeProperty(property);
+            }
+        });
+        ancestor.removeAttribute('data-searchable-select-overflow-released');
+    });
+
+    searchableSelectOverflowHosts.delete(wrapper);
+}
+
 function closeSearchableSelect(wrapper) {
     wrapper.classList.remove('searchable-select--open');
     wrapper.querySelector('.searchable-select__panel')?.setAttribute('hidden', 'hidden');
@@ -335,6 +391,7 @@ function closeSearchableSelect(wrapper) {
     wrapper.querySelectorAll('.searchable-select__option--highlighted').forEach((option) => {
         option.classList.remove('searchable-select__option--highlighted');
     });
+    restoreSearchableSelectOverflow(wrapper);
 }
 
 function closeOtherSearchableSelects(currentWrapper) {
@@ -534,6 +591,9 @@ function cleanupDuplicateMobileTableFilterControls() {
                 generatedControl?.classList.contains('searchable-select')
                 || generatedControl?.classList.contains('formatted-date-input')
             ) {
+                if (generatedControl.classList.contains('searchable-select')) {
+                    closeSearchableSelect(generatedControl);
+                }
                 generatedControl.remove();
             }
 
@@ -567,7 +627,10 @@ function enhanceSearchableSelect(select) {
         return;
     }
 
-    existingWrapper?.remove();
+    if (existingWrapper) {
+        closeSearchableSelect(existingWrapper);
+        existingWrapper.remove();
+    }
 
     if (select.dataset.searchableBound === 'true') {
         delete select.dataset.searchableBound;
@@ -768,6 +831,7 @@ function enhanceSearchableSelect(select) {
         const wasOpen = wrapper.classList.contains('searchable-select--open');
         closeOtherSearchableSelects(wrapper);
         wrapper.classList.add('searchable-select--open');
+        releaseSearchableSelectOverflow(wrapper);
         panel.removeAttribute('hidden');
         button?.setAttribute('aria-expanded', 'true');
         search.setAttribute('aria-expanded', 'true');
@@ -879,6 +943,7 @@ function enhanceSearchableSelect(select) {
 
             closeOtherSearchableSelects(wrapper);
             wrapper.classList.add('searchable-select--open');
+            releaseSearchableSelectOverflow(wrapper);
             panel.removeAttribute('hidden');
             search.setAttribute('aria-expanded', 'true');
             buildSearchableSelectOptions(select, list, '');
@@ -911,6 +976,7 @@ function enhanceSearchableSelect(select) {
                 if (openOnFocus && document.activeElement === search) {
                     closeOtherSearchableSelects(wrapper);
                     wrapper.classList.add('searchable-select--open');
+                    releaseSearchableSelectOverflow(wrapper);
                     panel.removeAttribute('hidden');
                     search.setAttribute('aria-expanded', 'true');
                     buildSearchableSelectOptions(select, list, '');
@@ -924,6 +990,7 @@ function enhanceSearchableSelect(select) {
 
             closeOtherSearchableSelects(wrapper);
             wrapper.classList.add('searchable-select--open');
+            releaseSearchableSelectOverflow(wrapper);
             panel.removeAttribute('hidden');
             search.setAttribute('aria-expanded', 'true');
             buildSearchableSelectOptions(select, list, search.value);
@@ -962,6 +1029,11 @@ function enhanceSearchableSelect(select) {
             closeOtherSearchableSelects(wrapper);
 
             wrapper.classList.toggle('searchable-select--open', willOpen);
+            if (willOpen) {
+                releaseSearchableSelectOverflow(wrapper);
+            } else {
+                restoreSearchableSelectOverflow(wrapper);
+            }
             button.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
             panel.toggleAttribute('hidden', !willOpen);
 
@@ -1005,6 +1077,7 @@ function cleanupOrphanedSearchableSelects() {
         const select = wrapper.previousElementSibling;
 
         if (!(select instanceof HTMLSelectElement) || select.nextElementSibling !== wrapper) {
+            closeSearchableSelect(wrapper);
             wrapper.remove();
         }
     });
@@ -1160,6 +1233,320 @@ document.addEventListener('livewire:initialized', () => {
     window.Livewire?.hook('morph.added', ({ el }) => {
         if (el instanceof HTMLSelectElement || el.querySelector?.('select')) {
             scheduleSearchableSelectInitialization();
+        }
+    });
+});
+
+const financeKashida = '\u0640';
+const financeNonConnectingLetters = new Set(['ء', 'ا', 'أ', 'إ', 'آ', 'ؤ', 'د', 'ذ', 'ر', 'ز', 'و', 'ة', 'ى']);
+const financeArabicLetterPattern = /[\u0621-\u063A\u0641-\u064A\u066E-\u06D3]/u;
+const financeTextMeasureCanvas = document.createElement('canvas');
+const financeTextMeasureContext = financeTextMeasureCanvas.getContext('2d');
+let financialTransactionTypographyFrame = null;
+
+function measureFinancialText(element, text = element.textContent?.trim() ?? '') {
+    if (!financeTextMeasureContext || !text) {
+        return 0;
+    }
+
+    const styles = window.getComputedStyle(element);
+    const letterSpacing = Number.parseFloat(styles.letterSpacing);
+
+    financeTextMeasureContext.font = styles.font;
+    financeTextMeasureContext.fontKerning = 'normal';
+
+    return financeTextMeasureContext.measureText(text).width
+        + (Number.isFinite(letterSpacing) ? Math.max(0, Array.from(text).length - 1) * letterSpacing : 0);
+}
+
+function financeKashidaPositions(text) {
+    const characters = Array.from(text);
+    const positions = [];
+
+    for (let index = 0; index < characters.length - 1; index += 1) {
+        const current = characters[index];
+        const next = characters[index + 1];
+
+        if (
+            financeArabicLetterPattern.test(current)
+            && financeArabicLetterPattern.test(next)
+            && !financeNonConnectingLetters.has(current)
+        ) {
+            positions.push(index);
+        }
+    }
+
+    return positions;
+}
+
+function financeTextWithKashidas(text, count) {
+    const characters = Array.from(text);
+    const positions = financeKashidaPositions(text);
+
+    if (!positions.length || count < 1) {
+        return text;
+    }
+
+    const additions = new Map();
+
+    for (let index = 0; index < count; index += 1) {
+        const position = positions[index % positions.length];
+
+        additions.set(position, (additions.get(position) ?? 0) + 1);
+    }
+
+    return characters.map((character, index) => (
+        character + financeKashida.repeat(additions.get(index) ?? 0)
+    )).join('');
+}
+
+function measureFinancialShapedLabel(element, text) {
+    element.textContent = text;
+
+    const range = document.createRange();
+
+    range.selectNodeContents(element);
+
+    return range.getBoundingClientRect().width;
+}
+
+function measureFinancialNaturalShapedLabel(element, text) {
+    const previousWidth = element.style.width;
+    const previousMaxWidth = element.style.maxWidth;
+    const previousOverflow = element.style.overflow;
+
+    element.style.width = 'max-content';
+    element.style.maxWidth = 'none';
+    element.style.overflow = 'visible';
+
+    const width = measureFinancialShapedLabel(element, text);
+
+    element.style.width = previousWidth;
+    element.style.maxWidth = previousMaxWidth;
+    element.style.overflow = previousOverflow;
+
+    return width;
+}
+
+function justifyFinanceLabelToWidth(element, targetWidth) {
+    const source = element.dataset.financeKashidaSource
+        ?? element.textContent?.replaceAll(financeKashida, '').trim()
+        ?? '';
+
+    element.dataset.financeKashidaSource = source;
+    element.textContent = source;
+    delete element.dataset.financeKashidaApplied;
+
+    if (!source || !financeKashidaPositions(source).length) {
+        return;
+    }
+
+    const sourceWidth = measureFinancialShapedLabel(element, source);
+
+    if (sourceWidth >= targetWidth - 0.5) {
+        element.style.width = `${targetWidth}px`;
+
+        return;
+    }
+
+    let justifiedText = financeTextWithKashidas(source, 1);
+    let bestDifference = Math.abs(targetWidth - measureFinancialShapedLabel(element, justifiedText));
+
+    for (let count = 2; count <= 48; count += 1) {
+        const candidate = financeTextWithKashidas(source, count);
+        const candidateWidth = measureFinancialShapedLabel(element, candidate);
+        const difference = Math.abs(targetWidth - candidateWidth);
+
+        if (difference <= bestDifference) {
+            justifiedText = candidate;
+            bestDifference = difference;
+        }
+
+        if (candidateWidth >= targetWidth) {
+            break;
+        }
+    }
+
+    element.textContent = justifiedText;
+    element.dataset.financeKashidaApplied = 'true';
+    element.style.width = `${targetWidth}px`;
+}
+
+function measureFinancialSpacingContent(element) {
+    const children = Array.from(element.querySelectorAll('.finance-transaction-primary, .finance-transaction-secondary'));
+
+    if (children.length) {
+        return Math.max(...children.map((child) => measureFinancialText(
+            child,
+            child.getAttribute('aria-label') ?? child.textContent?.trim() ?? '',
+        )));
+    }
+
+    return measureFinancialText(element);
+}
+
+function synchronizeFinancialTransactionTypography() {
+    financialTransactionTypographyFrame = null;
+
+    document.querySelectorAll('.financial-transactions-table').forEach((table) => {
+        if (table.getBoundingClientRect().width < 1) {
+            return;
+        }
+
+        ['fund', 'type', 'reference'].forEach((group) => {
+            const labels = Array.from(table.querySelectorAll(`[data-finance-kashida-label="${group}"]`));
+
+            labels.forEach((label) => {
+                const source = label.dataset.financeKashidaSource
+                    ?? label.textContent?.replaceAll(financeKashida, '').trim()
+                    ?? '';
+
+                label.dataset.financeKashidaSource = source;
+                label.textContent = source;
+                delete label.dataset.financeKashidaApplied;
+                label.style.removeProperty('width');
+            });
+
+            const targetWidth = group === 'reference'
+                ? Math.max(
+                    0,
+                    ...Array.from(table.querySelectorAll('[data-finance-spacing-content="reference"]'))
+                        .map((element) => measureFinancialSpacingContent(element)),
+                )
+                : Math.max(
+                    0,
+                    ...(group === 'fund'
+                        ? labels.filter((label) => !label.hasAttribute('data-finance-kashida-target'))
+                        : labels
+                    ).map((label) => measureFinancialNaturalShapedLabel(
+                        label,
+                        label.dataset.financeKashidaSource ?? '',
+                    )),
+                );
+
+            const targets = group === 'fund' || group === 'reference'
+                ? labels.filter((label) => label.hasAttribute('data-finance-kashida-target'))
+                : labels;
+
+            targets.forEach((label) => justifyFinanceLabelToWidth(label, targetWidth));
+        });
+
+        const spacingColumns = ['reference', 'fund', 'type', 'category'];
+        const tableWidth = table.parentElement?.clientWidth || table.getBoundingClientRect().width;
+        const contentWidths = spacingColumns.map((columnName) => Math.max(
+            0,
+            ...Array.from(table.querySelectorAll(`[data-finance-spacing-content="${columnName}"]`))
+                .map((element) => measureFinancialSpacingContent(element)),
+        ));
+        const dateToReferenceGaps = Array.from(table.tBodies[0]?.rows ?? []).map((row) => {
+            const date = row.querySelector('[data-finance-transaction-datetime]');
+            const reference = row.querySelector('[data-finance-spacing-content="reference"]');
+
+            if (!date || !reference) {
+                return 0;
+            }
+
+            const dateBounds = date.getBoundingClientRect();
+            const referenceBounds = reference.getBoundingClientRect();
+
+            return document.documentElement.dir === 'rtl'
+                ? dateBounds.left - referenceBounds.right
+                : referenceBounds.left - dateBounds.right;
+        }).filter((gap) => gap > 0).sort((left, right) => left - right);
+        const equalGap = dateToReferenceGaps.length
+            ? dateToReferenceGaps[Math.floor(dateToReferenceGaps.length / 2)]
+            : 0;
+        const naturalSpacingWidths = contentWidths.map((width) => width + equalGap);
+        const spacingWidths = naturalSpacingWidths.map((width, index) => (
+            spacingColumns[index] === 'category' ? width * 2 : width
+        ));
+        const fixedRightWidth = tableWidth * 0.1025;
+        const leftAvailableWidth = tableWidth
+            - fixedRightWidth
+            - spacingWidths.reduce((total, width) => total + width, 0);
+        const fixedColumns = Array.from(table.querySelectorAll('[data-finance-fixed-percent]'));
+        const leftColumns = Array.from(table.querySelectorAll('[data-finance-left-column]'));
+        const leftWeightTotal = leftColumns.reduce(
+            (total, column) => total + Number.parseFloat(column.dataset.financeLeftWeight),
+            0,
+        );
+
+        fixedColumns.forEach((column) => {
+            column.dataset.financeFallbackWidth ??= column.style.width;
+        });
+        leftColumns.forEach((column) => {
+            column.dataset.financeFallbackWidth ??= column.style.width;
+        });
+
+        spacingColumns.forEach((columnName, index) => {
+            const column = table.querySelector(`[data-finance-spacing-column="${columnName}"]`);
+
+            if (!column) {
+                return;
+            }
+
+            column.dataset.financeFallbackWidth ??= column.style.width;
+
+            if (
+                !window.matchMedia('(min-width: 1024px)').matches
+                || equalGap < 12
+                || leftAvailableWidth < tableWidth * 0.28
+            ) {
+                table.style.removeProperty('width');
+                table.style.removeProperty('min-width');
+                column.style.width = column.dataset.financeFallbackWidth;
+                fixedColumns.forEach((fixedColumn) => {
+                    fixedColumn.style.width = fixedColumn.dataset.financeFallbackWidth;
+                });
+                leftColumns.forEach((leftColumn) => {
+                    leftColumn.style.width = leftColumn.dataset.financeFallbackWidth;
+                });
+
+                return;
+            }
+
+            table.style.width = '100%';
+            table.style.minWidth = '0';
+            column.style.width = `${spacingWidths[index]}px`;
+        });
+
+        if (
+            window.matchMedia('(min-width: 1024px)').matches
+            && equalGap >= 12
+            && leftAvailableWidth >= tableWidth * 0.28
+        ) {
+            fixedColumns.forEach((column) => {
+                column.style.width = `${tableWidth * (Number.parseFloat(column.dataset.financeFixedPercent) / 100)}px`;
+            });
+            leftColumns.forEach((column) => {
+                column.style.width = `${leftAvailableWidth * (Number.parseFloat(column.dataset.financeLeftWeight) / leftWeightTotal)}px`;
+            });
+        }
+    });
+}
+
+function scheduleFinancialTransactionTypographySync() {
+    if (financialTransactionTypographyFrame !== null) {
+        window.cancelAnimationFrame(financialTransactionTypographyFrame);
+    }
+
+    financialTransactionTypographyFrame = window.requestAnimationFrame(synchronizeFinancialTransactionTypography);
+}
+
+document.addEventListener('DOMContentLoaded', scheduleFinancialTransactionTypographySync);
+document.addEventListener('livewire:navigated', scheduleFinancialTransactionTypographySync);
+window.addEventListener('resize', scheduleFinancialTransactionTypographySync, { passive: true });
+document.fonts?.ready.then(scheduleFinancialTransactionTypographySync);
+document.addEventListener('livewire:initialized', () => {
+    window.Livewire?.hook('morph.updated', ({ el }) => {
+        if (el.matches?.('[data-financial-transactions-table]') || el.querySelector?.('[data-financial-transactions-table]')) {
+            scheduleFinancialTransactionTypographySync();
+        }
+    });
+
+    window.Livewire?.hook('morph.added', ({ el }) => {
+        if (el.matches?.('[data-financial-transactions-table]') || el.querySelector?.('[data-financial-transactions-table]')) {
+            scheduleFinancialTransactionTypographySync();
         }
     });
 });

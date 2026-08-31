@@ -71,6 +71,14 @@ new class extends Component {
                 ->where(fn ($query) => $query
                     ->whereNull('course_id')
                     ->orWhere('course_id', $this->course_id ?: $group->course_id))
+                ->with('gradeLevel:id,name,sort_order')
+                ->orderByRaw('CASE WHEN grade_level_id IS NULL THEN 1 ELSE 0 END')
+                ->orderBy(
+                    GradeLevel::query()
+                        ->select('sort_order')
+                        ->whereColumn('grade_levels.id', 'curricula.grade_level_id')
+                        ->limit(1)
+                )
                 ->orderBy('name')
                 ->get(),
             'dashboardCardTemplates' => PrintTemplate::query()->where('is_active', true)->orderBy('name')->get(),
@@ -572,23 +580,29 @@ new class extends Component {
         <section class="surface-table settings-record-table overflow-visible" data-searchable-select-table-surface>
             <div class="overflow-visible">
                 <table class="w-full text-sm">
-                    <thead><tr><th class="px-4 py-3">{{ __('schedules.group.form.fields.day') }}</th><th class="px-4 py-3">{{ __('schedules.group.form.fields.timing') }}</th><th class="admin-actions-column w-24 px-4 py-3 text-center">{{ __('schedules.group.table.headers.actions') }}</th></tr></thead>
+                    <thead><tr><th class="px-4 py-3">{{ __('schedules.group.form.fields.day') }}</th><th class="px-4 py-3">{{ __('schedules.group.form.fields.timing') }}</th><th class="admin-actions-column w-32 px-4 py-3 text-center">{{ __('schedules.group.table.headers.actions') }}</th></tr></thead>
                     <tbody>
                         @foreach($schedules as $schedule)
-                            <tr>
-                                <td class="px-4 py-3">{{ $days[$schedule->day_of_week] }}</td>
-                                <td class="px-4 py-3">{{ $timeSlots[$schedule->time_slot ?: \App\Support\ScheduleTimeSlots::closest($schedule->starts_at?->format('H:i'))] }}</td>
-                                <td class="px-4 py-3"><div class="flex justify-end gap-2">
-                                    <button type="button" wire:click="editSchedule({{ $schedule->id }})" class="admin-icon-button" title="{{ __('crud.common.actions.edit') }}" aria-label="{{ __('crud.common.actions.edit') }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="m4 20 4.2-1 10.7-10.7a2.1 2.1 0 0 0-3-3L5.2 16 4 20Z"/></svg></button>
-                                    <button type="button" wire:click="deleteSchedule({{ $schedule->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="admin-icon-button admin-icon-button--danger" title="{{ __('crud.common.actions.delete') }}" aria-label="{{ __('crud.common.actions.delete') }}"><x-icons.trash class="size-5" /></button>
-                                </div></td>
+                            <tr wire:key="group-show-schedule-{{ $schedule->id }}-{{ $editingScheduleId === $schedule->id ? 'edit' : 'view' }}" data-group-schedule-row>
+                                @if($editingScheduleId === $schedule->id)
+                                    <td class="px-4 py-3"><select wire:model="day_of_week" data-search-input="true" data-open-on-focus="true" data-hide-placeholder-option="true" data-search-placeholder="{{ __('schedules.group.form.placeholders.day') }}" class="h-11 w-full rounded-xl px-3 text-sm"><option value="">{{ __('schedules.group.form.placeholders.day') }}</option>@foreach($days as $value=>$label)<option value="{{ $value }}">{{ $label }}</option>@endforeach</select>@error('day_of_week')<div class="mt-1 text-xs text-red-400">{{ $message }}</div>@enderror</td>
+                                    <td class="px-4 py-3"><select wire:model="time_slot" data-search-input="true" data-open-on-focus="true" data-hide-placeholder-option="true" data-search-placeholder="{{ __('schedules.group.form.placeholders.timing') }}" class="h-11 w-full rounded-xl px-3 text-sm"><option value="">{{ __('schedules.group.form.placeholders.timing') }}</option>@foreach($timeSlots as $value=>$label)<option value="{{ $value }}">{{ $label }}</option>@endforeach</select>@error('time_slot')<div class="mt-1 text-xs text-red-400">{{ $message }}</div>@enderror</td>
+                                    <td class="px-4 py-3"><div class="flex justify-end gap-2">
+                                        <button type="button" wire:click="saveSchedule" class="admin-icon-button admin-icon-button--accent" title="{{ __('crud.common.actions.update') }}" aria-label="{{ __('crud.common.actions.update') }}" data-group-schedule-update><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="m5 12 4 4L19 6"/></svg></button>
+                                        <button type="button" wire:click="deleteSchedule({{ $schedule->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="admin-icon-button admin-icon-button--danger" title="{{ __('crud.common.actions.delete') }}" aria-label="{{ __('crud.common.actions.delete') }}" data-group-schedule-delete><x-icons.trash class="size-5" /></button>
+                                    </div></td>
+                                @else
+                                    <td class="px-4 py-3">{{ $days[$schedule->day_of_week] }}</td>
+                                    <td class="px-4 py-3">{{ $timeSlots[$schedule->time_slot ?: \App\Support\ScheduleTimeSlots::closest($schedule->starts_at?->format('H:i'))] }}</td>
+                                    <td class="px-4 py-3"><div class="flex justify-end gap-2"><button type="button" wire:click="editSchedule({{ $schedule->id }})" class="admin-icon-button" title="{{ __('crud.common.actions.edit') }}" aria-label="{{ __('crud.common.actions.edit') }}" data-group-schedule-edit><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="m4 20 4.2-1 10.7-10.7a2.1 2.1 0 0 0-3-3L5.2 16 4 20Z"/></svg></button></div></td>
+                                @endif
                             </tr>
                         @endforeach
-                        <tr class="schedule-add-row">
+                        @if($editingScheduleId === null)<tr class="schedule-add-row">
                             <td class="px-4 py-3"><select wire:model.live="day_of_week" data-search-input="true" data-open-on-focus="true" data-hide-placeholder-option="true" data-search-placeholder="{{ __('schedules.group.form.placeholders.day') }}" class="h-11 w-full rounded-xl px-3 text-sm"><option value="">{{ __('schedules.group.form.placeholders.day') }}</option>@foreach($days as $value=>$label)<option value="{{ $value }}">{{ $label }}</option>@endforeach</select>@error('day_of_week')<div class="mt-1 text-xs text-red-400">{{ $message }}</div>@enderror</td>
                             <td class="px-4 py-3"><select wire:model.live="time_slot" data-search-input="true" data-open-on-focus="true" data-hide-placeholder-option="true" data-search-placeholder="{{ __('schedules.group.form.placeholders.timing') }}" class="h-11 w-full rounded-xl px-3 text-sm"><option value="">{{ __('schedules.group.form.placeholders.timing') }}</option>@foreach($timeSlots as $value=>$label)<option value="{{ $value }}">{{ $label }}</option>@endforeach</select>@error('time_slot')<div class="mt-1 text-xs text-red-400">{{ $message }}</div>@enderror</td>
-                            <td class="px-4 py-3 text-center">@if($editingScheduleId)<button type="button" wire:click="saveSchedule" class="admin-icon-button admin-icon-button--accent" title="{{ __('crud.common.actions.update') }}" aria-label="{{ __('crud.common.actions.update') }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="m5 12 4 4L19 6"/></svg></button>@endif</td>
-                        </tr>
+                            <td class="px-4 py-3"></td>
+                        </tr>@endif
                     </tbody>
                 </table>
             </div>

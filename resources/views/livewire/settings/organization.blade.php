@@ -1549,7 +1549,7 @@ new class extends Component {
 
         <section class="space-y-6">
             <div class="overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700">
-                <div class="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-200 px-5 py-4 dark:border-neutral-700">
+                <div class="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-200 px-5 py-4 dark:border-neutral-700" data-mobile-title-action-row data-settings-mobile-title-action-row>
                     <div>
                         <div class="text-sm font-medium">{{ __('settings.organization.sections.academic_year.table') }}</div>
                         <p class="mt-1 text-xs text-neutral-500">{{ __('settings.organization.sections.academic_year.copy') }}</p>
@@ -1595,7 +1595,7 @@ new class extends Component {
             </div>
 
             <div class="overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700">
-                <div class="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-200 px-5 py-4 dark:border-neutral-700">
+                <div class="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-200 px-5 py-4 dark:border-neutral-700" data-mobile-title-action-row data-settings-mobile-title-action-row>
                     <div>
                         <div class="text-sm font-medium">{{ __('settings.organization.sections.grade_level.table') }}</div>
                         <p class="mt-1 text-xs text-neutral-500">{{ __('settings.organization.sections.grade_level.copy') }}</p>
@@ -1635,7 +1635,7 @@ new class extends Component {
 
             <div class="grid gap-6 xl:grid-cols-2">
                 <div class="overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700">
-                    <div class="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-200 px-5 py-4 dark:border-neutral-700">
+                    <div class="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-200 px-5 py-4 dark:border-neutral-700" data-mobile-title-action-row data-settings-mobile-title-action-row>
                         <div>
                             <div class="text-sm font-medium">{{ __('settings.organization.sections.school_reference.table') }}</div>
                             <p class="mt-1 text-xs text-neutral-500">{{ __('settings.organization.sections.school_reference.copy') }}</p>
@@ -1673,7 +1673,7 @@ new class extends Component {
                 </div>
 
                 <div class="overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700">
-                    <div class="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-200 px-5 py-4 dark:border-neutral-700">
+                    <div class="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-200 px-5 py-4 dark:border-neutral-700" data-mobile-title-action-row data-settings-mobile-title-action-row>
                         <div>
                             <div class="text-sm font-medium">{{ __('settings.organization.sections.father_job.table') }}</div>
                             <p class="mt-1 text-xs text-neutral-500">{{ __('settings.organization.sections.father_job.copy') }}</p>

@@ -1296,7 +1296,7 @@ new class extends Component {
                 @if ($curriculumProgress->isEmpty())
                     <div class="admin-empty-state mt-5">{{ __('curricula.progress.empty') }}</div>
                 @else
-                    <div class="dashboard-curriculum-hotbars mt-6 grid gap-x-10 gap-y-7 md:grid-cols-2" dir="{{ app()->isLocale('ar') ? 'rtl' : 'ltr' }}" data-dashboard-curriculum-hotbars>
+                    <div class="dashboard-curriculum-hotbars mt-6 grid gap-x-10 gap-y-[0.875rem] md:grid-cols-2" dir="{{ app()->isLocale('ar') ? 'rtl' : 'ltr' }}" data-dashboard-curriculum-hotbars>
                         @foreach ($curriculumProgress as $row)
                             @php
                                 $teacherName = $row['group']->teacher

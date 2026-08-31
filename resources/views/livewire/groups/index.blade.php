@@ -71,7 +71,7 @@ new class extends Component {
     {
         $baseQuery = $this->scopeGroupsQuery(Group::query());
         $filteredQuery = $this->scopeGroupsQuery(Group::query())
-            ->with(['academicYear', 'course', 'teacher', 'assistantTeacher', 'gradeLevel'])
+            ->with(['academicYear', 'course', 'teacher', 'assistantTeacher', 'gradeLevel', 'curriculum:id,name'])
             ->withCount(['enrollments', 'schedules'])
             ->when(filled($this->search), function ($query) {
                 $query->where(function ($builder) {
@@ -90,8 +90,25 @@ new class extends Component {
             ->when($this->courseFilter !== 'all', fn ($query) => $query->where('course_id', (int) $this->courseFilter))
             ->when($this->statusFilter === 'active', fn ($query) => $query->where('is_active', true)->whereNull('course_finished_at'))
             ->when($this->statusFilter === 'inactive', fn ($query) => $query->where('is_active', false)->whereNull('course_finished_at'))
-            ->when($this->statusFilter === 'finished', fn ($query) => $query->whereNotNull('course_finished_at'))
-            ->orderByDesc('is_active')
+            ->when($this->statusFilter === 'finished', fn ($query) => $query->whereNotNull('course_finished_at'));
+
+        if ($this->courseFilter === 'all') {
+            $filteredQuery->orderBy(
+                Course::query()
+                    ->select('name')
+                    ->whereColumn('courses.id', 'groups.course_id')
+                    ->limit(1)
+            );
+        }
+
+        $filteredQuery
+            ->orderByRaw('CASE WHEN grade_level_id IS NULL THEN 1 ELSE 0 END')
+            ->orderBy(
+                GradeLevel::query()
+                    ->select('sort_order')
+                    ->whereColumn('grade_levels.id', 'groups.grade_level_id')
+                    ->limit(1)
+            )
             ->orderBy('name');
 
         $filteredCount = (clone $filteredQuery)->count();
@@ -102,7 +119,18 @@ new class extends Component {
             'academicYears' => AcademicYear::query()->where('is_active', true)->orderByDesc('starts_on')->get(['id', 'name']),
             'teachers' => $this->availableTeachersQuery()->orderBy('first_name')->orderBy('last_name')->get(['id', 'first_name', 'last_name']),
             'gradeLevels' => GradeLevel::query()->where('is_active', true)->orderBy('sort_order')->get(['id', 'name']),
-            'curricula' => Curriculum::query()->where('is_active', true)->orderBy('name')->get(['id', 'course_id', 'name']),
+            'curricula' => Curriculum::query()
+                ->where('is_active', true)
+                ->with('gradeLevel:id,name,sort_order')
+                ->orderByRaw('CASE WHEN grade_level_id IS NULL THEN 1 ELSE 0 END')
+                ->orderBy(
+                    GradeLevel::query()
+                        ->select('sort_order')
+                        ->whereColumn('grade_levels.id', 'curricula.grade_level_id')
+                        ->limit(1)
+                )
+                ->orderBy('name')
+                ->get(['id', 'course_id', 'grade_level_id', 'name']),
             'rosterGroup' => $this->rosterGroupId
                 ? $this->scopeGroupsQuery(Group::query()->with(['course', 'teacher']))->find($this->rosterGroupId)
                 : null,
@@ -794,11 +822,12 @@ new class extends Component {
             <div class="table-scroll-region overflow-x-auto" data-table-scroll-region>
                 <table class="groups-index-table w-full table-fixed text-sm">
                     <colgroup>
-                        <col class="w-[17%]">
+                        <col class="w-[15%]">
                         <col class="w-[20%]" data-groups-course-column="20">
-                        <col class="w-[18%]">
-                        <col class="w-[12%]">
+                        <col class="w-[16%]">
                         <col class="w-[10%]">
+                        <col class="w-[8%]">
+                        <col class="w-[8%]" data-groups-curriculum-column="8">
                         <col class="w-[8%]" data-groups-status-column="8">
                         <col class="w-[15%]">
                     </colgroup>
@@ -809,6 +838,7 @@ new class extends Component {
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.groups.table.headers.teacher') }}</th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.groups.table.headers.grade') }}</th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.groups.table.headers.students') }}</th>
+                            <th class="px-5 py-4 text-center lg:px-6">{{ __('curricula.fields.curriculum') }}</th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.groups.table.headers.status') }}</th>
                             <th class="admin-actions-column px-5 py-4 text-center lg:px-6">{{ __('crud.groups.table.headers.actions') }}</th>
                         </tr>
@@ -836,6 +866,13 @@ new class extends Component {
                                 </td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $group->gradeLevel?->name ?: __('crud.common.not_available') }}</td>
                                 <td class="px-5 py-4 text-white lg:px-6">{{ $group->enrollments_count }}</td>
+                                <td class="px-5 py-4 text-center lg:px-6">
+                                    @if ($group->curriculum)
+                                        <span class="group-curriculum-status" title="{{ $group->curriculum->name }}" aria-label="{{ __('curricula.fields.curriculum') }}: {{ $group->curriculum->name }}" data-group-curriculum-status>✓</span>
+                                    @else
+                                        <span class="text-neutral-500" aria-label="{{ __('curricula.options.no_curriculum') }}">—</span>
+                                    @endif
+                                </td>
                                 <td class="px-5 py-4 lg:px-6"><span class="{{ $groupStatusClass }}">{{ $groupStatusLabel }}</span></td>
                                 <td class="px-5 py-4 lg:px-6">
                                     <div class="flex flex-nowrap justify-end gap-2">

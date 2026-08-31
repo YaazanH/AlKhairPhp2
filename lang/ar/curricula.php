@@ -12,6 +12,7 @@ return [
         'add_topic' => 'إضافة موضوع',
         'add_resource' => 'إضافة مرجع', 'record' => 'تسجيل', 'update_progress' => 'تحديث التقدم', 'manage_subjects' => 'إعدادات المواد',
         'add_standalone_book' => 'إضافة كتاب مستقل', 'download_books' => 'تحميل الكتب', 'download' => 'تحميل',
+        'show_taught_lessons' => 'إظهار الدروس التي تم تدريسها', 'hide_taught_lessons' => 'إخفاء الدروس التي تم تدريسها',
     ],
     'fields' => [
         'curriculum' => 'المنهاج', 'name' => 'الاسم', 'chapter_number' => 'رقم الفصل', 'course' => 'الدورة', 'grade' => 'الصف', 'subject' => 'المادة',
@@ -26,7 +27,7 @@ return [
     'options' => ['no_curriculum' => 'بدون منهاج', 'all_grades' => 'بدون صف محدد'],
     'status' => ['untaught' => 'لم يُدرّس', 'partial' => 'منجز جزئياً', 'taught' => 'تم تدريسه'],
     'progress' => ['title' => 'تقدم المنهاج', 'completed' => 'مكتمل بنسبة :percent٪', 'empty' => 'لا يوجد منهاج معيّن.', 'group_details' => 'منهاج مجموعة :group'],
-    'table' => ['curricula' => 'المناهج', 'latest' => 'آخر 5 دروس تم تدريسها', 'empty' => 'لا توجد مناهج لهذه الدورة.', 'no_lessons' => 'لا توجد دروس بعد.'],
+    'table' => ['curricula' => 'المناهج', 'latest' => 'آخر 5 دروس تم تدريسها', 'empty' => 'لا توجد مناهج لهذه الدورة.', 'no_lessons' => 'لا توجد دروس بعد.', 'taught_lessons_hidden' => 'تم إخفاء الدروس التي تم تدريسها.'],
     'form' => ['curriculum_title' => 'بيانات المنهاج', 'subject_title' => 'إضافة مادة', 'edit_subject_title' => 'تعديل المادة', 'edit_resource_title' => 'تعديل المرجع', 'lesson_title' => 'بيانات الدرس', 'progress_title' => 'تسجيل تقدم الدرس', 'custom_title' => 'إضافة درس مخصص'],
     'messages' => ['curriculum_saved' => 'تم حفظ المنهاج.', 'subject_added' => 'تمت إضافة المادة.', 'lesson_saved' => 'تم حفظ الدرس.', 'progress_saved' => 'تم حفظ تقدم الدرس.', 'custom_saved' => 'تمت إضافة الدرس المخصص.', 'subject_saved' => 'تم حفظ المادة.', 'resource_saved' => 'تم حفظ المرجع.'],
     'errors' => ['course_mismatch' => 'المنهاج المحدد تابع لدورة أخرى.', 'no_group' => 'لا توجد مجموعة متاحة لها منهاج معيّن.', 'subject_used' => 'هذه المادة مستخدمة في منهاج ولا يمكن حذفها.', 'curriculum_used' => 'هذا المنهاج معيّن لمجموعة ولا يمكن حذفه.', 'resource_required' => 'اختر مرجعاً واحداً على الأقل لهذه المادة.', 'lesson_resource_required' => 'اختر المرجع الذي يتبع له الدرس.'],

@@ -22,6 +22,22 @@ class MobileModalLayoutTest extends TestCase
         $this->assertStringContainsString(".print-template-settings-dialog [class*='grid-cols-']", $styles);
     }
 
+    public function test_searchable_dropdowns_temporarily_release_every_clipping_popup_ancestor(): void
+    {
+        $script = file_get_contents(resource_path('js/app.js'));
+
+        $this->assertStringContainsString('function releaseSearchableSelectOverflow(wrapper)', $script);
+        $this->assertStringContainsString("['auto', 'clip', 'hidden', 'scroll'].includes(value)", $script);
+        $this->assertStringContainsString("ancestor.style.setProperty('overflow', 'visible', 'important')", $script);
+        $this->assertStringContainsString("ancestor.style.setProperty('overflow-x', 'visible', 'important')", $script);
+        $this->assertStringContainsString("ancestor.style.setProperty('overflow-y', 'visible', 'important')", $script);
+        $this->assertStringContainsString('function restoreSearchableSelectOverflow(wrapper)', $script);
+        $this->assertStringContainsString("ancestor.removeAttribute('data-searchable-select-overflow-released')", $script);
+        $this->assertStringContainsString('restoreSearchableSelectOverflow(wrapper);', $script);
+        $this->assertStringContainsString("closeSearchableSelect(existingWrapper);\n        existingWrapper.remove();", $script);
+        $this->assertStringContainsString("closeSearchableSelect(wrapper);\n            wrapper.remove();", $script);
+    }
+
     public function test_phone_input_marks_its_compound_control_as_a_single_field(): void
     {
         $html = Blade::render('<x-phone-input model="phone" value="+963933333333" />');
