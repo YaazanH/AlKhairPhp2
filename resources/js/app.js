@@ -3032,6 +3032,58 @@ document.addEventListener('livewire:initialized', () => {
     });
 });
 
+let curriculaIndexNameWidthFrame = null;
+
+function synchronizeCurriculaIndexNameWidths() {
+    curriculaIndexNameWidthFrame = null;
+
+    document.querySelectorAll('[data-curricula-index-name-table]').forEach((table) => {
+        const names = Array.from(table.querySelectorAll('[data-curricula-index-name]'));
+
+        if (!names.length) {
+            table.style.removeProperty('--curricula-index-name-width');
+
+            return;
+        }
+
+        const widestName = names.reduce((widest, name) => {
+            const range = document.createRange();
+
+            range.selectNodeContents(name);
+
+            return Math.max(widest, range.getBoundingClientRect().width);
+        }, 0);
+
+        table.style.setProperty('--curricula-index-name-width', `${Math.ceil(widestName)}px`);
+    });
+}
+
+function scheduleCurriculaIndexNameWidthSync() {
+    if (curriculaIndexNameWidthFrame !== null) {
+        window.cancelAnimationFrame(curriculaIndexNameWidthFrame);
+    }
+
+    curriculaIndexNameWidthFrame = window.requestAnimationFrame(synchronizeCurriculaIndexNameWidths);
+}
+
+document.addEventListener('DOMContentLoaded', scheduleCurriculaIndexNameWidthSync);
+document.addEventListener('livewire:navigated', scheduleCurriculaIndexNameWidthSync);
+window.addEventListener('resize', scheduleCurriculaIndexNameWidthSync, { passive: true });
+document.fonts?.ready.then(scheduleCurriculaIndexNameWidthSync);
+document.addEventListener('livewire:initialized', () => {
+    window.Livewire?.hook('morph.updated', ({ el }) => {
+        if (el.matches?.('[data-curricula-index-name-table]') || el.querySelector?.('[data-curricula-index-name-table]')) {
+            scheduleCurriculaIndexNameWidthSync();
+        }
+    });
+
+    window.Livewire?.hook('morph.added', ({ el }) => {
+        if (el.matches?.('[data-curricula-index-name-table]') || el.querySelector?.('[data-curricula-index-name-table]')) {
+            scheduleCurriculaIndexNameWidthSync();
+        }
+    });
+});
+
 const curriculumResourceColumnRules = {
     index: { min: 64, max: 72 },
     name: { min: 212, max: 372 },

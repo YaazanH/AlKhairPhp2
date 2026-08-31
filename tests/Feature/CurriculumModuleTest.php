@@ -389,7 +389,15 @@ class CurriculumModuleTest extends TestCase
                 $ungradedCurriculum->id,
             ])
             ->assertSee('data-curricula-index-number', false)
+            ->assertSee('data-curricula-index-name-table', false)
+            ->assertSee('data-curricula-index-name', false)
             ->assertSeeInOrder(['>1</td>', '>2</td>', '>3</td>'], false);
+
+        $css = file_get_contents(resource_path('css/app.css'));
+        $javascript = file_get_contents(resource_path('js/app.js'));
+
+        $this->assertStringContainsString('text-align-last: justify;', $css);
+        $this->assertStringContainsString('synchronizeCurriculaIndexNameWidths', $javascript);
     }
 
     public function test_standalone_books_are_managed_inline_inside_their_popup(): void

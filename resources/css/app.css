@@ -2997,6 +2997,20 @@ html:not(.dark) .admin-toolbar__title {
     flex-basis: 2.5rem;
 }
 
+.curricula-index-name-cell {
+    text-align: start;
+}
+
+.curricula-index-name {
+    display: inline-block;
+    width: var(--curricula-index-name-width, auto);
+    max-width: 100%;
+    text-align: justify;
+    text-align-last: justify;
+    text-justify: inter-word;
+    white-space: nowrap;
+}
+
 .surface-table .financial-report-symbol-button.financial-report-generate-button {
     width: 2.75rem;
     min-width: 2.75rem;

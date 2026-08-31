@@ -272,7 +272,7 @@ new class extends Component {
                 <div class="admin-empty-state">{{ __('curricula.table.empty') }}</div>
             @else
                 <div class="overflow-x-auto" data-table-scroll-region>
-                    <table class="text-sm">
+                    <table class="text-sm" data-curricula-index-name-table>
                         <thead>
                             <tr>
                                 <th class="px-5 py-4 text-center lg:px-6" data-curricula-index-number>#</th>
@@ -287,7 +287,7 @@ new class extends Component {
                             @foreach($curricula as $curriculum)
                                 <tr>
                                     <td class="px-5 py-4 text-center lg:px-6" data-curricula-index-number>{{ $loop->iteration }}</td>
-                                    <td class="px-5 py-4 font-semibold text-white lg:px-6">{{ $curriculum->name }}</td>
+                                    <td class="curricula-index-name-cell px-5 py-4 font-semibold text-white lg:px-6"><span class="curricula-index-name" data-curricula-index-name>{{ $curriculum->name }}</span></td>
                                     <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $curriculum->gradeLevel?->name ?: '—' }}</td>
                                     <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $curriculum->subjects->pluck('definition.name')->filter()->implode('، ') ?: '—' }}</td>
                                     <td class="px-5 py-4 text-center text-white lg:px-6">{{ $curriculum->subjects->sum(fn ($subject) => $subject->lessons->count()) }}</td>
