@@ -599,6 +599,9 @@ class ManagementPagesTest extends TestCase
         $this->assertStringContainsString('<x-admin-action-icon name="print" />', $income);
         $this->assertStringNotContainsString("data-income-direct-print>{{ __('finance.actions.print') }}", $income);
         $this->assertStringContainsString('class="exchange-notes-action"', $exchange);
+        $this->assertStringContainsString('class="exchange-entry-form mt-5 grid gap-4 lg:grid-cols-4"', $exchange);
+        $this->assertStringContainsString('data-exchange-to-amount-edit', $exchange);
+        $this->assertStringContainsString('filled($from_amount) && filled($to_amount) && ! $to_amount_is_manual', $exchange);
         $this->assertStringContainsString('data-exchange-save-action', $exchange);
         $this->assertStringContainsString('<x-admin-action-icon name="save" />', $exchange);
         $this->assertStringNotContainsString("pill-link pill-link--accent\">{{ __('finance.actions.post_exchange') }}", $exchange);
@@ -606,6 +609,8 @@ class ManagementPagesTest extends TestCase
         $this->assertStringContainsString("@case('save')", $icon);
         $this->assertStringContainsString("grid-template-columns: minmax(0, 1fr) 3.125rem;\n    align-items: end;\n    gap: 0.4rem;", $styles);
         $this->assertStringContainsString(".exchange-notes-action input {\n    height: 3.125rem;", $styles);
+        $this->assertStringContainsString(".exchange-entry-form .finance-amount-input {\n        grid-template-columns: repeat(2, minmax(0, 1fr));\n        gap: 1rem;", $styles);
+        $this->assertStringContainsString("html[dir='rtl'] .exchange-to-amount-value {", $styles);
     }
 
     public function test_eligible_awqaf_students_launcher_uses_the_students_check_symbol_without_visible_text(): void
@@ -779,6 +784,8 @@ class ManagementPagesTest extends TestCase
         $this->assertStringContainsString('<x-admin-action-icon name="save" />', $finance);
         $this->assertStringContainsString('data-transaction-maintenance-receipt-action', $finance);
         $this->assertStringContainsString('<x-admin-action-icon name="receipt" />', $finance);
+        $this->assertStringContainsString('class="transaction-maintenance-invoice-edit-icon__pen"', $finance);
+        $this->assertStringContainsString('<x-admin-action-icon name="edit" />', $finance);
         $this->assertStringContainsString('data-transaction-maintenance-delete-action', $finance);
         $this->assertStringContainsString('class="admin-icon-button admin-icon-button--danger transaction-maintenance-action-button self-center"', $finance);
         $this->assertStringContainsString('<x-admin-action-icon name="delete" />', $finance);
@@ -786,6 +793,7 @@ class ManagementPagesTest extends TestCase
         $this->assertStringContainsString("@case('search')", $icon);
         $this->assertStringContainsString("@case('delete')", $icon);
         $this->assertStringContainsString('.transaction-maintenance-lookup,', $styles);
+        $this->assertStringContainsString('.transaction-maintenance-invoice-edit-icon__pen {', $styles);
         $this->assertStringContainsString("width: 3.125rem;\n    min-width: 3.125rem;\n    height: 3.125rem;\n    min-height: 3.125rem;\n    flex: 0 0 3.125rem;\n    aspect-ratio: 1 / 1;", $styles);
     }
 

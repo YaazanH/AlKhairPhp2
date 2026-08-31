@@ -2671,6 +2671,37 @@ html:not(.dark) .role-permission-option:hover {
     box-sizing: border-box;
 }
 
+.exchange-to-amount-edit {
+    inset-inline-end: 0.25rem;
+}
+
+.exchange-to-amount-value {
+    text-align: end;
+}
+
+html[dir='rtl'] .exchange-to-amount-value {
+    padding-right: 1rem;
+    padding-left: 3rem;
+    text-align: right;
+}
+
+html:not([dir='rtl']) .exchange-to-amount-value {
+    padding-right: 3rem;
+    padding-left: 1rem;
+}
+
+@media (min-width: 1024px) {
+    .exchange-entry-form .finance-amount-input {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 1rem;
+    }
+
+    .exchange-entry-form .finance-amount-input__currency,
+    .exchange-entry-form .finance-amount-input__currency + .searchable-select {
+        justify-self: start;
+    }
+}
+
 .dashboard-bar-chart__label {
     min-width: 0;
     overflow: hidden;
@@ -5663,6 +5694,46 @@ html[dir='rtl'] .finance-amount-input__currency + .searchable-select .searchable
     flex: 0 0 3.125rem;
     aspect-ratio: 1 / 1;
     padding: 0;
+}
+
+.transaction-maintenance-invoice-edit-icon {
+    position: relative;
+    display: grid;
+    width: 1.25rem;
+    height: 1.25rem;
+    place-items: center;
+}
+
+.transaction-maintenance-invoice-edit-icon > svg {
+    width: 1.15rem;
+    height: 1.15rem;
+}
+
+.transaction-maintenance-invoice-edit-icon__pen {
+    position: absolute;
+    right: -0.38rem;
+    bottom: -0.32rem;
+    display: grid;
+    width: 0.82rem;
+    height: 0.82rem;
+    place-items: center;
+    border: 1px solid rgba(110, 231, 183, 0.58);
+    border-radius: 999px;
+    background: #082c1b;
+    color: #a7f3d0;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+}
+
+.transaction-maintenance-invoice-edit-icon__pen svg {
+    width: 0.52rem;
+    height: 0.52rem;
+    stroke-width: 2.2;
+}
+
+html:not(.dark) .transaction-maintenance-invoice-edit-icon__pen {
+    border-color: rgba(13, 148, 75, 0.4);
+    background: #edf8f0;
+    color: #08783c;
 }
 
 .points-multiplier-field > .searchable-select {

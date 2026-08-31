@@ -1327,8 +1327,16 @@ class FinanceAndActivitiesTest extends TestCase
             ->assertSee('EXC-000001')
             ->assertSee('Test exchange')
             ->assertSee('dir="ltr" data-exchange-total-amount', false)
+            ->assertSee('class="exchange-to-amount-control relative min-w-0" dir="rtl"', false)
             ->assertViewHas('toCurrencies', fn ($currencies) => $currencies->doesntContain('id', $usd->id) && $currencies->contains('id', $syp->id))
             ->assertDontSeeText(__('finance.exchange.rate_board_title'));
+
+        Volt::test('finance.exchange')
+            ->set('from_amount', '10')
+            ->assertSee('data-exchange-to-amount-edit', false)
+            ->call('enableManualToAmount')
+            ->assertSet('to_amount_is_manual', true)
+            ->assertDontSee('data-exchange-to-amount-edit', false);
     }
 
     public function test_quarter_comparison_converts_mixed_currencies_to_the_local_currency(): void
@@ -2932,6 +2940,8 @@ class FinanceAndActivitiesTest extends TestCase
             ->call('editInvoice', $invoice->id)
             ->assertSee('data-invoice-items-table', false)
             ->assertSee('>#<', false)
+            ->assertSee('data-invoice-expense-save-action', false)
+            ->assertSee('data-icon-name="save"', false)
             ->set('original_invoice_no', 'VENDOR-11')
             ->set('invoice_issuer', 'Updated Vendor')
             ->set('invoice_date', now()->subDay()->toDateString())

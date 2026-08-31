@@ -838,7 +838,13 @@ new class extends Component {
 
                     @error('invoice_items')<div class="text-sm text-red-400">{{ $message }}</div>@enderror
                     @error('confirm_invoice_overage')<div class="rounded-xl border border-amber-400/20 bg-amber-500/10 p-4 text-sm text-amber-100">{{ $message }}<label class="mt-3 flex gap-2"><input wire:model="confirm_invoice_overage" type="checkbox">{{ __('finance.messages.use_invoice_total') }}</label></div>@enderror
-                    <div class="flex justify-end"><button class="pill-link pill-link--accent">{{ $editingInvoiceId ? __('crud.common.actions.save') : __('finance.actions.finalise') }}</button></div>
+                    <div class="flex justify-end">
+                        @if ($editingInvoiceId)
+                            <button type="submit" class="admin-icon-button admin-icon-button--accent" title="{{ __('crud.common.actions.save') }}" aria-label="{{ __('crud.common.actions.save') }}" data-invoice-expense-save-action><x-admin-action-icon name="save" /></button>
+                        @else
+                            <button type="submit" class="pill-link pill-link--accent">{{ __('finance.actions.finalise') }}</button>
+                        @endif
+                    </div>
                 </form>
             @endif
         @endif

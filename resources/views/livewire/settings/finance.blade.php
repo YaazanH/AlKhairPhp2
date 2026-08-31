@@ -1405,7 +1405,12 @@ new class extends Component {
                 <input wire:model="transaction_lookup_no" readonly class="transaction-maintenance-lookup min-w-0 flex-1 rounded-xl px-4 py-3 opacity-75">
                 @unless ($maintaining_transaction_deleted)<button type="submit" form="transaction-maintenance-form" class="admin-icon-button admin-icon-button--accent transaction-maintenance-action-button" title="{{ __('crud.common.actions.save') }}" aria-label="{{ __('crud.common.actions.save') }}" data-transaction-maintenance-save-action><x-admin-action-icon name="save" /></button>@endunless
                 @if ($maintainingInvoice && auth()->user()?->can('finance.expense-requests.review'))
-                    <a href="{{ route('finance.expense-requests.index', ['edit_invoice' => $maintainingInvoice->id]) }}" wire:navigate class="admin-icon-button transaction-maintenance-action-button" title="{{ __('finance.actions.edit_invoice') }}" aria-label="{{ __('finance.actions.edit_invoice') }}" data-transaction-maintenance-receipt-action><x-admin-action-icon name="receipt" /></a>
+                    <a href="{{ route('finance.expense-requests.index', ['edit_invoice' => $maintainingInvoice->id]) }}" wire:navigate class="admin-icon-button transaction-maintenance-action-button" title="{{ __('finance.actions.edit_invoice') }}" aria-label="{{ __('finance.actions.edit_invoice') }}" data-transaction-maintenance-receipt-action>
+                        <span class="transaction-maintenance-invoice-edit-icon" aria-hidden="true">
+                            <x-admin-action-icon name="receipt" />
+                            <span class="transaction-maintenance-invoice-edit-icon__pen"><x-admin-action-icon name="edit" /></span>
+                        </span>
+                    </a>
                 @endif
             </div>
         @else

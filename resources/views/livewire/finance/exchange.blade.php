@@ -191,7 +191,7 @@ new class extends Component {
     @can('finance.exchange.create')
         <section class="surface-panel p-5 lg:p-6">
             <div class="admin-section-card__title">{{ __('finance.exchange.new') }}</div>
-            <form wire:submit="saveExchange" class="mt-5 grid gap-4 lg:grid-cols-4">
+            <form wire:submit="saveExchange" class="exchange-entry-form mt-5 grid gap-4 lg:grid-cols-4">
                 <div><label class="mb-1 block text-sm font-medium">{{ __('finance.exchange.from_box') }}</label><select wire:model.live="from_cash_box_id" class="w-full rounded-xl px-4 py-3 text-sm"><option value="">{{ __('finance.actions.choose_box') }}</option>@foreach ($fromCashBoxes as $box)<option value="{{ $box->id }}">{{ $box->name }}</option>@endforeach</select></div>
                 <div class="lg:col-span-2"><label class="mb-1 block text-sm font-medium">{{ __('finance.exchange.from_amount') }}</label><x-finance.amount-input amount-model="from_amount" currency-model="from_currency_id" :currencies="$fromCurrencies" amount-live /></div>
                 <div><label class="mb-1 block text-sm font-medium">{{ __('finance.common.date') }}</label><input wire:model="exchange_date" type="date" class="w-full rounded-xl px-4 py-3 text-sm"></div>
@@ -200,10 +200,10 @@ new class extends Component {
                     <label class="mb-1 block text-sm font-medium">{{ __('finance.exchange.to_amount') }}</label>
                     <div class="finance-amount-input" dir="ltr" data-exchange-total-amount>
                         <select wire:model.live="to_currency_id" class="finance-amount-input__currency rounded-xl px-3 py-3 text-sm" data-clearable="false" data-finance-currency-required="true" data-search-placeholder="" aria-label="{{ __('finance.exchange.to_currency') }}">@foreach ($toCurrencies as $currency)<option value="{{ $currency->id }}">{{ $currency->code }}</option>@endforeach</select>
-                        <div class="relative min-w-0">
-                        <input wire:model="to_amount" type="text" inputmode="decimal" data-thousand-separator @readonly(! $to_amount_is_manual) class="finance-amount-input__value w-full rounded-xl py-3 ps-4 pe-12 text-sm {{ $to_amount_is_manual ? '' : 'opacity-75' }}">
-                        @if (filled($from_amount) && filled($to_amount))
-                            <button type="button" wire:click="enableManualToAmount" class="absolute inset-y-1 end-1 grid w-9 place-items-center rounded-lg text-neutral-400 hover:bg-white/10 hover:text-white" title="{{ __('finance.exchange.edit_to_amount') }}" aria-label="{{ __('finance.exchange.edit_to_amount') }}">
+                        <div class="exchange-to-amount-control relative min-w-0" dir="{{ app()->isLocale('ar') ? 'rtl' : 'ltr' }}">
+                        <input wire:model="to_amount" type="text" inputmode="decimal" data-thousand-separator @readonly(! $to_amount_is_manual) class="finance-amount-input__value exchange-to-amount-value w-full rounded-xl px-4 py-3 text-sm {{ $to_amount_is_manual ? '' : 'opacity-75' }}">
+                        @if (filled($from_amount) && filled($to_amount) && ! $to_amount_is_manual)
+                            <button type="button" wire:click="enableManualToAmount" class="exchange-to-amount-edit absolute inset-y-1 grid w-9 place-items-center rounded-lg text-neutral-400 hover:bg-white/10 hover:text-white" title="{{ __('finance.exchange.edit_to_amount') }}" aria-label="{{ __('finance.exchange.edit_to_amount') }}" data-exchange-to-amount-edit>
                                 <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 3.487 3.651 3.651M5.25 18.75l4.224-.845a2.25 2.25 0 0 0 1.075-.59L19.72 8.143a2.582 2.582 0 0 0-3.652-3.652L6.897 13.663a2.25 2.25 0 0 0-.59 1.075L5.25 18.75Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 5.25 18.75 9"/></svg>
                             </button>
                         @endif
