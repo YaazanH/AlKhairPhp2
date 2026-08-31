@@ -42,6 +42,14 @@ class QuickQuranTestEntryTest extends TestCase
 
         $source = file_get_contents(resource_path('views/livewire/quran-tests/quick-entry.blade.php'));
         $this->assertStringContainsString('data-quick-saber-current-juz-save-action', $source);
+        $this->assertSame(2, substr_count($source, 'quick-saber-save-action quick-entry-save-action'));
+
+        $memorizationSource = file_get_contents(resource_path('views/livewire/memorization/quick-entry.blade.php'));
+        $this->assertStringContainsString('admin-icon-button admin-icon-button--accent quick-entry-save-action', $memorizationSource);
+
+        $styles = file_get_contents(resource_path('css/app.css'));
+        $this->assertStringContainsString('.quick-entry-save-action {', $styles);
+        $this->assertStringContainsString('flex: 1 1 100% !important;', $styles);
 
         AppSetting::storeValue('general', 'memorization_saber_entries_enabled', false, 'boolean');
 

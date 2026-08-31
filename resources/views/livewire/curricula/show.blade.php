@@ -13,9 +13,9 @@ use Livewire\Volt\Component;
 new class extends Component {
     public Curriculum $curriculumRecord;
     public bool $showSubjectModal = false;
-    public bool $showLessonModal = false;
     public string $subjectDefinitionId = '';
     public array $resourceIds = [];
+    public ?int $editingSubjectId = null;
     public ?int $lessonSubjectId = null;
     public ?int $lessonResourceId = null;
     public ?int $editingLessonId = null;
@@ -49,9 +49,30 @@ new class extends Component {
         ];
     }
 
-    public function openSubject(): void { $this->subjectDefinitionId = ''; $this->resourceIds = []; $this->resetValidation(); $this->showSubjectModal = true; }
+    public function openSubject(?int $id = null): void
+    {
+        $subject = $id
+            ? CurriculumSubject::query()
+                ->where('curriculum_id', $this->curriculumRecord->id)
+                ->with('resources')
+                ->findOrFail($id)
+            : null;
 
-    public function updatedSubjectDefinitionId(): void { $this->resourceIds = []; $this->resetValidation('resourceIds'); }
+        $this->editingSubjectId = $subject?->id;
+        $this->subjectDefinitionId = (string) ($subject?->subject_definition_id ?? '');
+        $this->resourceIds = $subject?->resources->pluck('id')->all() ?? [];
+        $this->resetValidation();
+        $this->showSubjectModal = true;
+    }
+
+    public function updatedSubjectDefinitionId(): void
+    {
+        if (! $this->editingSubjectId) {
+            $this->resourceIds = [];
+        }
+
+        $this->resetValidation('resourceIds');
+    }
 
     public function saveSubject(): void
     {
@@ -62,15 +83,34 @@ new class extends Component {
             $this->addError('resourceIds', __('curricula.errors.resource_required'));
             return;
         }
-        $subject = CurriculumSubject::query()->create(['curriculum_id' => $this->curriculumRecord->id, 'subject_definition_id' => $data['subjectDefinitionId'], 'sort_order' => (int) CurriculumSubject::query()->where('curriculum_id', $this->curriculumRecord->id)->max('sort_order') + 10]);
+        $subject = $this->editingSubjectId
+            ? CurriculumSubject::query()->where('curriculum_id', $this->curriculumRecord->id)->findOrFail($this->editingSubjectId)
+            : CurriculumSubject::query()->create(['curriculum_id' => $this->curriculumRecord->id, 'subject_definition_id' => $data['subjectDefinitionId'], 'sort_order' => (int) CurriculumSubject::query()->where('curriculum_id', $this->curriculumRecord->id)->max('sort_order') + 10]);
+
+        abort_unless($subject->subject_definition_id === (int) $data['subjectDefinitionId'], 422);
+
+        $removedResourceIds = $subject->resources()->whereNotIn('curriculum_resources.id', $validResources)->pluck('curriculum_resources.id');
+
+        if ($removedResourceIds->isNotEmpty()) {
+            $subject->lessons()->whereIn('curriculum_resource_id', $removedResourceIds)->update(['curriculum_resource_id' => null]);
+        }
+
         $subject->resources()->sync($validResources);
+        $wasEditing = (bool) $this->editingSubjectId;
+        $this->editingSubjectId = null;
+        $this->subjectDefinitionId = '';
+        $this->resourceIds = [];
         $this->showSubjectModal = false;
-        session()->flash('status', __('curricula.messages.subject_added'));
+        session()->flash('status', __($wasEditing ? 'curricula.messages.subject_saved' : 'curricula.messages.subject_added'));
     }
 
     public function deleteSubject(int $id): void
     {
         CurriculumSubject::query()->where('curriculum_id', $this->curriculumRecord->id)->findOrFail($id)->delete();
+        $this->editingSubjectId = null;
+        $this->subjectDefinitionId = '';
+        $this->resourceIds = [];
+        $this->showSubjectModal = false;
     }
 
     public function openLesson(int $subjectId, ?int $lessonId = null, ?int $resourceId = null): void
@@ -79,7 +119,7 @@ new class extends Component {
         $lesson = $lessonId ? CurriculumLesson::query()->where('curriculum_subject_id', $subjectId)->findOrFail($lessonId) : null;
         $this->lessonSubjectId = $subjectId; $this->editingLessonId = $lessonId; $this->lessonResourceId = $lesson?->curriculum_resource_id ?? $resourceId;
         $this->chapterNumber = (string) ($lesson?->chapter_number ?? ''); $this->lessonName = $lesson?->name ?? ''; $this->importance = $lesson?->importance ?? 1;
-        $this->resetValidation(); $this->showLessonModal = true;
+        $this->resetValidation();
     }
 
     public function saveLesson(): void
@@ -94,7 +134,12 @@ new class extends Component {
         $lessonValues = ['curriculum_subject_id' => $subject->id, 'curriculum_resource_id' => $resourceId, 'chapter_number' => filled($data['chapterNumber'] ?? null) ? $data['chapterNumber'] : null, 'name' => $data['lessonName'], 'importance' => $data['importance'], 'sort_order' => $this->editingLessonId ? CurriculumLesson::query()->findOrFail($this->editingLessonId)->sort_order : ((int) $subject->lessons()->max('sort_order') + 10)];
         if (! $this->editingLessonId) $lessonValues['page_count'] = 0;
         CurriculumLesson::query()->updateOrCreate(['id' => $this->editingLessonId], $lessonValues);
-        $this->showLessonModal = false;
+        $this->editingLessonId = null;
+        $this->lessonSubjectId = null;
+        $this->lessonResourceId = null;
+        $this->lessonName = '';
+        $this->chapterNumber = '';
+        $this->importance = 1;
         session()->flash('status', __('curricula.messages.lesson_saved'));
     }
 
@@ -103,7 +148,11 @@ new class extends Component {
         CurriculumLesson::query()->whereHas('subject', fn ($query) => $query->where('curriculum_id', $this->curriculumRecord->id))->findOrFail($id)->delete();
         if ($this->editingLessonId === $id) {
             $this->editingLessonId = null;
-            $this->showLessonModal = false;
+            $this->lessonSubjectId = null;
+            $this->lessonResourceId = null;
+            $this->lessonName = '';
+            $this->chapterNumber = '';
+            $this->importance = 1;
         }
     }
 
@@ -144,6 +193,17 @@ new class extends Component {
         ]);
         unset($this->newLessonDrafts[$subjectId][$resourceId]);
         $this->resetValidation($path);
+    }
+
+    public function selectInlineLessonImportance(int $subjectId, int $resourceId, int $importance): void
+    {
+        abort_unless(in_array($importance, [1, 2, 3], true), 422);
+
+        $this->newLessonDrafts[$subjectId][$resourceId]['importance'] = $importance;
+
+        if (filled($this->newLessonDrafts[$subjectId][$resourceId]['name'] ?? null)) {
+            $this->saveInlineLesson($subjectId, $resourceId);
+        }
     }
 
     public function deleteTopic(int $topicId): void
@@ -200,20 +260,20 @@ new class extends Component {
     </x-admin.modal>
     <section class="grid gap-4">
         @forelse($curriculum->subjects as $subject)
-            <details class="surface-panel p-5" open>
+            <details class="surface-panel min-w-0 max-w-full p-5" open data-curriculum-subject-panel>
                 <summary class="flex cursor-pointer list-none items-center justify-between gap-4">
-                    <div><span class="text-lg font-semibold text-white">{{ $subject->definition->name }}</span><span class="ms-3 text-xs text-neutral-400">{{ $subject->lessons->count() }} {{ __('curricula.fields.lessons') }}</span>@if($subject->resources->isNotEmpty())<div class="mt-1 text-xs text-neutral-400">{{ $subject->resources->pluck('book_name')->implode(' · ') }}</div>@endif</div>
-                    <div class="flex gap-2" onclick="event.preventDefault()"><button type="button" wire:click="deleteSubject({{ $subject->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="admin-icon-button admin-icon-button--danger" title="{{ __('curricula.actions.delete') }}" aria-label="{{ __('curricula.actions.delete') }}" data-curriculum-subject-delete-action><x-admin-action-icon name="delete" /></button></div>
+                    <div><span class="text-lg font-semibold text-white">{{ $subject->definition->name }}</span><span class="ms-3 text-xs text-neutral-400">{{ trans_choice('curricula.counts.lessons', $subject->lessons->count(), ['count' => $subject->lessons->count()]) }}</span>@if($subject->resources->isNotEmpty())<div class="mt-1 text-xs text-neutral-400">{{ $subject->resources->pluck('book_name')->implode(' · ') }}</div>@endif</div>
+                    <div class="flex gap-2" onclick="event.preventDefault()"><x-edit-action-button wire:click="openSubject({{ $subject->id }})" :label="__('curricula.actions.edit')" data-curriculum-subject-edit-action /></div>
                 </summary>
                 @php($resourceGroups = $subject->resources->count() > 1 ? collect($subject->resources->all())->when($subject->lessons->whereNull('curriculum_resource_id')->isNotEmpty(), fn ($resources) => $resources->prepend(null)) : collect([null]))
-                <div class="mt-4 grid gap-4">
+                <div class="mt-4 grid min-w-0 max-w-full gap-4">
                     @foreach($resourceGroups as $resource)
                         @php($lessons = $resource ? $subject->lessons->where('curriculum_resource_id', $resource->id) : $subject->lessons)
-                        <div class="rounded-2xl border border-white/10 p-3">
+                        <div class="min-w-0 max-w-full rounded-2xl border border-white/10 p-3" data-curriculum-resource-panel>
                             @if($resource)<div class="mb-3 font-semibold text-emerald-100">{{ $resource->book_name }}</div>@elseif($subject->resources->count() > 1)<div class="mb-3 font-semibold text-neutral-300">{{ __('curricula.fields.general_lessons') }}</div>@endif
                             @php($draftResourceId = $resource?->id ?? 0)
                             @php($draftImportance = (int) data_get($newLessonDrafts, "{$subject->id}.{$draftResourceId}.importance", 1))
-                            <div class="overflow-x-auto rounded-xl border border-white/8">
+                            <div class="table-scroll-region overflow-x-auto rounded-xl border border-white/8" data-table-scroll-region>
                                 <table class="w-full min-w-[46rem] table-fixed text-sm" data-curriculum-lessons-table>
                                     <thead>
                                         <tr>
@@ -226,14 +286,28 @@ new class extends Component {
                                     </thead>
                                     <tbody class="divide-y divide-white/6" x-data="{ openTopics: @js($lessons->mapWithKeys(fn ($lesson) => [$lesson->id => false])->all()) }" data-topics-default-collapsed>
                                         @forelse($lessons as $lesson)
-                                            <tr wire:key="curriculum-lesson-{{ $lesson->id }}" data-curriculum-lesson-row>
-                                                <td class="px-3 py-3 text-neutral-300">{{ $lesson->chapter_number ?: '—' }}</td>
-                                                <td class="px-3 py-3 font-medium text-white">{{ $lesson->name }}</td>
-                                                <td class="px-3 py-3 align-middle" data-importance-cell>
-                                                    <span class="inline-flex h-6 items-end gap-1 align-middle" dir="ltr" title="{{ $lesson->importance }} / 3" data-importance-bars>
-                                                        @foreach(range(1,3) as $bar)<i class="w-1.5 rounded-sm {{ $bar <= $lesson->importance ? 'bg-emerald-300' : 'bg-white/15' }}" style="height: {{ 5 + ($bar * 4) }}px"></i>@endforeach
-                                                    </span>
-                                                </td>
+                                            <tr wire:key="curriculum-lesson-{{ $lesson->id }}" data-curriculum-lesson-row @if($editingLessonId === $lesson->id) data-curriculum-lesson-editing @endif>
+                                                @if($editingLessonId === $lesson->id)
+                                                    <td class="px-3 py-3"><input wire:model="chapterNumber" class="h-11 w-full rounded-lg px-3 text-sm" aria-label="{{ __('curricula.fields.chapter_number') }}" data-inline-lesson-chapter></td>
+                                                    <td class="px-3 py-3"><input wire:model="lessonName" wire:keydown.enter.prevent="saveLesson" class="h-11 w-full rounded-lg px-3 text-sm" aria-label="{{ __('curricula.fields.name') }}" data-inline-lesson-name></td>
+                                                    <td class="px-3 py-3 align-middle" data-importance-cell>
+                                                        <div class="inline-flex h-11 overflow-hidden rounded-lg border border-white/10" dir="ltr" data-importance-bars>
+                                                            @foreach(range(1,3) as $level)
+                                                                <button type="button" wire:click="$set('importance', {{ $level }})" class="flex h-full items-end gap-1 px-3 pb-2 {{ $importance === $level ? 'bg-emerald-400/20 text-emerald-100' : 'bg-white/5' }}" title="{{ $level }} / 3">
+                                                                    @foreach(range(1,3) as $bar)<i class="w-1 rounded-sm {{ $bar <= $level ? 'bg-current' : 'bg-white/15' }}" style="height: {{ 4 + ($bar * 3) }}px"></i>@endforeach
+                                                                </button>
+                                                            @endforeach
+                                                        </div>
+                                                    </td>
+                                                @else
+                                                    <td class="px-3 py-3 text-neutral-300">{{ $lesson->chapter_number ?: '—' }}</td>
+                                                    <td class="px-3 py-3 font-medium text-white">{{ $lesson->name }}</td>
+                                                    <td class="px-3 py-3 align-middle" data-importance-cell>
+                                                        <span class="inline-flex h-6 items-end gap-1 align-middle" dir="ltr" title="{{ $lesson->importance }} / 3" data-importance-bars>
+                                                            @foreach(range(1,3) as $bar)<i class="w-1.5 rounded-sm {{ $bar <= $lesson->importance ? 'bg-emerald-300' : 'bg-white/15' }}" style="height: {{ 5 + ($bar * 4) }}px"></i>@endforeach
+                                                        </span>
+                                                    </td>
+                                                @endif
                                                 <td class="px-3 py-3 text-center" data-curriculum-topics-column>
                                                     <button type="button" x-on:click="openTopics[{{ $lesson->id }}] = !openTopics[{{ $lesson->id }}]" class="inline-flex min-h-9 items-center justify-center gap-2 rounded-full px-2 text-neutral-400 transition hover:bg-white/8 hover:text-white" :aria-expanded="openTopics[{{ $lesson->id }}] ? 'true' : 'false'" aria-label="{{ __('curricula.fields.topics') }}" data-curriculum-topics-toggle data-collapsed-direction="{{ app()->getLocale() === 'ar' ? 'left' : 'right' }}">
                                                         <span x-show="!openTopics[{{ $lesson->id }}]" x-cloak class="min-w-4 text-center text-xs font-semibold" data-collapsed-topic-count>{{ $lesson->topics->count() }}</span>
@@ -241,7 +315,14 @@ new class extends Component {
                                                     </button>
                                                 </td>
                                                 <td class="px-3 py-3">
-                                                    <div class="flex flex-wrap justify-end gap-2"><x-edit-action-button wire:click="openLesson({{ $subject->id }}, {{ $lesson->id }})" :label="__('curricula.actions.edit')" data-edit-lesson-icon /></div>
+                                                    <div class="flex flex-wrap justify-end gap-2">
+                                                        @if($editingLessonId === $lesson->id)
+                                                            <button type="button" wire:click="saveLesson" class="admin-icon-button admin-icon-button--accent" title="{{ __('curricula.actions.save') }}" aria-label="{{ __('curricula.actions.save') }}" data-curriculum-lesson-save-action><x-admin-action-icon name="save" /></button>
+                                                            <x-delete-action-button wire:click="deleteLesson({{ $lesson->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" :label="__('curricula.actions.delete')" data-delete-lesson-in-edit />
+                                                        @else
+                                                            <x-edit-action-button wire:click="openLesson({{ $subject->id }}, {{ $lesson->id }})" :label="__('curricula.actions.edit')" data-edit-lesson-icon />
+                                                        @endif
+                                                    </div>
                                                 </td>
                                             </tr>
                                             @foreach($lesson->topics as $topic)
@@ -271,7 +352,7 @@ new class extends Component {
                                             <td class="px-3 py-3">
                                                 <div class="inline-flex h-11 overflow-hidden rounded-lg border border-white/10" dir="ltr" data-importance-bars>
                                                     @foreach(range(1,3) as $level)
-                                                        <button type="button" wire:click="$set('newLessonDrafts.{{ $subject->id }}.{{ $draftResourceId }}.importance', {{ $level }})" class="flex h-full items-end gap-1 px-3 pb-2 {{ $draftImportance === $level ? 'bg-emerald-400/20 text-emerald-100' : 'bg-white/5' }}" title="{{ $level }} / 3">
+                                                        <button type="button" wire:click="selectInlineLessonImportance({{ $subject->id }}, {{ $draftResourceId }}, {{ $level }})" class="flex h-full items-end gap-1 px-3 pb-2 {{ $draftImportance === $level ? 'bg-emerald-400/20 text-emerald-100' : 'bg-white/5' }}" title="{{ $level }} / 3">
                                                             @foreach(range(1,3) as $bar)<i class="w-1 rounded-sm {{ $bar <= $level ? 'bg-current' : 'bg-white/15' }}" style="height: {{ 4 + ($bar * 3) }}px"></i>@endforeach
                                                         </button>
                                                     @endforeach
@@ -291,23 +372,29 @@ new class extends Component {
         @empty<div class="surface-panel admin-empty-state">{{ __('curricula.fields.subjects') }} — {{ __('crud.common.not_available') }}</div>@endforelse
     </section>
 
-    <x-admin.modal :show="$showSubjectModal" :title="__('curricula.form.subject_title')" close-method="$set('showSubjectModal', false)" max-width="md"><form wire:submit="saveSubject" class="space-y-4"><label class="block text-sm">{{ __('curricula.fields.subject') }}<select wire:model.live="subjectDefinitionId" class="mt-1 w-full rounded-xl px-4 py-3"><option value="">{{ __('crud.common.select') }}</option>@foreach($definitions as $definition)<option value="{{ $definition->id }}">{{ $definition->name }}</option>@endforeach</select></label>@if($selectedDefinition?->resources->isNotEmpty())<div><div class="mb-2 text-sm">{{ __('curricula.fields.resources') }}</div><div class="grid gap-2 sm:grid-cols-2">@foreach($selectedDefinition->resources as $resource)<label class="flex items-center gap-2 rounded-xl border border-white/10 p-3 text-sm"><input type="checkbox" wire:model="resourceIds" value="{{ $resource->id }}"><span>{{ $resource->book_name }}</span></label>@endforeach</div>@error('resourceIds')<div class="mt-2 text-sm text-red-400">{{ $message }}</div>@enderror</div>@endif<div class="admin-action-cluster admin-action-cluster--end"><button type="submit" class="admin-icon-button admin-icon-button--accent admin-modal-action-button" title="{{ __('curricula.actions.add_subject') }}" aria-label="{{ __('curricula.actions.add_subject') }}" data-curriculum-subject-save-action><x-admin-action-icon name="add" class="admin-modal-action__icon" /></button></div></form></x-admin.modal>
-    <x-admin.modal :show="$showLessonModal" :title="__('curricula.form.lesson_title')" close-method="$set('showLessonModal', false)" max-width="xl" compact>
-        <form wire:submit="saveLesson" class="space-y-4" data-compact-lesson-modal>
-            <div class="grid gap-4 sm:grid-cols-[7rem_minmax(0,1fr)]">
-                <label class="block text-sm">{{ __('curricula.fields.chapter_number') }}<input wire:model="chapterNumber" class="mt-1 h-11 w-full rounded-xl px-3"></label>
-                <label class="block text-sm">{{ __('curricula.fields.name') }}<input wire:model="lessonName" class="mt-1 h-11 w-full rounded-xl px-3"></label>
-            </div>
-            @if($lessonSubject?->resources->count() > 1)
-                <label class="block text-sm">{{ __('curricula.fields.resource') }}<select wire:model="lessonResourceId" class="mt-1 w-full rounded-xl px-3 py-2.5">@foreach($lessonSubject->resources as $resource)<option value="{{ $resource->id }}">{{ $resource->book_name }}</option>@endforeach</select>@error('lessonResourceId')<div class="mt-1 text-sm text-red-400">{{ $message }}</div>@enderror</label>
+    <x-admin.modal :show="$showSubjectModal" :title="$editingSubjectId ? __('curricula.form.edit_subject_title') : __('curricula.form.subject_title')" close-method="$set('showSubjectModal', false)" max-width="fit" compact>
+        <form wire:submit="saveSubject" class="w-[min(28rem,calc(100vw-3rem))] space-y-4" data-compact-subject-modal>
+            <label class="block text-sm">
+                {{ __('curricula.fields.subject') }}
+                @if($editingSubjectId)
+                    <input value="{{ $selectedDefinition?->name }}" disabled class="mt-1 w-full rounded-xl px-4 py-3 opacity-70" data-curriculum-subject-name-disabled>
+                @else
+                    <select wire:model.live="subjectDefinitionId" class="mt-1 w-full rounded-xl px-4 py-3"><option value="">{{ __('crud.common.select') }}</option>@foreach($definitions as $definition)<option value="{{ $definition->id }}">{{ $definition->name }}</option>@endforeach</select>
+                @endif
+            </label>
+            @if($selectedDefinition?->resources->isNotEmpty())
+                <div>
+                    <div class="mb-2 text-sm">{{ __('curricula.fields.resources') }}</div>
+                    <div class="grid gap-2 sm:grid-cols-2">@foreach($selectedDefinition->resources as $resource)<label class="flex items-center gap-2 rounded-xl border border-white/10 p-3 text-sm"><input type="checkbox" wire:model="resourceIds" value="{{ $resource->id }}"><span>{{ $resource->book_name }}</span></label>@endforeach</div>
+                    @error('resourceIds')<div class="mt-2 text-sm text-red-400">{{ $message }}</div>@enderror
+                </div>
             @endif
-            <div><div class="mb-2 text-sm">{{ __('curricula.fields.importance') }}</div><div class="flex h-11 w-full overflow-hidden rounded-xl border border-white/10" dir="ltr" data-importance-bars>@foreach(range(1,3) as $level)<button type="button" wire:click="$set('importance', {{ $level }})" class="flex h-full flex-1 items-end justify-center gap-1 px-4 pb-2 {{ $importance === $level ? 'bg-emerald-400/20 text-emerald-100' : 'bg-white/5' }}">@foreach(range(1,3) as $bar)<i class="w-1.5 rounded-sm {{ $bar <= $level ? 'bg-current' : 'bg-white/15' }}" style="height: {{ 5 + ($bar * 4) }}px"></i>@endforeach</button>@endforeach</div></div>
             <div class="admin-action-cluster admin-action-cluster--end">
-                <button type="submit" class="admin-icon-button admin-icon-button--accent admin-modal-action-button" title="{{ __('curricula.actions.save') }}" aria-label="{{ __('curricula.actions.save') }}" data-curriculum-lesson-save-action>
-                    <x-admin-action-icon name="save" class="admin-modal-action__icon" />
+                <button type="submit" class="admin-icon-button admin-icon-button--accent admin-modal-action-button" title="{{ $editingSubjectId ? __('curricula.actions.save') : __('curricula.actions.add_subject') }}" aria-label="{{ $editingSubjectId ? __('curricula.actions.save') : __('curricula.actions.add_subject') }}" data-curriculum-subject-save-action>
+                    <x-admin-action-icon :name="$editingSubjectId ? 'save' : 'add'" class="admin-modal-action__icon" />
                 </button>
-                @if($editingLessonId)
-                    <x-delete-action-button wire:click="deleteLesson({{ $editingLessonId }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" :label="__('curricula.actions.delete')" data-delete-lesson-in-edit />
+                @if($editingSubjectId)
+                    <x-delete-action-button wire:click="deleteSubject({{ $editingSubjectId }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" :label="__('curricula.actions.delete')" data-curriculum-subject-delete-action />
                 @endif
             </div>
         </form>

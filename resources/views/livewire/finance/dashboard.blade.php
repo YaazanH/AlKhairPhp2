@@ -112,7 +112,12 @@ new class extends Component {
                 ->get(),
             'pendingRequests' => FinanceRequest::query()->with(['category', 'pullRequestKind', 'requestedBy', 'requestedCurrency', 'teacher'])->where('type', FinanceRequest::TYPE_PULL)->where('status', FinanceRequest::STATUS_PENDING)->latest()->limit(10)->get(),
             'requestHistory' => $this->showRequestHistoryModal
-                ? FinanceRequest::query()->with(['category', 'pullRequestKind', 'requestedBy', 'requestedCurrency', 'acceptedCurrency', 'teacher'])->where('type', FinanceRequest::TYPE_PULL)->latest()->paginate(8, pageName: 'requestHistoryPage')
+                ? FinanceRequest::query()
+                    ->with(['category', 'pullRequestKind', 'requestedBy', 'requestedCurrency', 'acceptedCurrency', 'teacher'])
+                    ->where('type', FinanceRequest::TYPE_PULL)
+                    ->whereIn('status', [FinanceRequest::STATUS_ACCEPTED, FinanceRequest::STATUS_DECLINED, FinanceRequest::STATUS_SETTLED])
+                    ->latest()
+                    ->paginate(8, pageName: 'requestHistoryPage')
                 : collect(),
             'reviewRequest' => $this->reviewingRequestId ? FinanceRequest::query()->with(['category', 'pullRequestKind', 'requestedBy', 'requestedCurrency', 'teacher'])->where('type', FinanceRequest::TYPE_PULL)->find($this->reviewingRequestId) : null,
             'reviewCashBoxes' => $service->accessibleCashBoxesForCurrency(auth()->user(), $reviewCurrencyId)->get(),
@@ -286,6 +291,13 @@ new class extends Component {
         $this->resetPage('transactionsPage');
     }
 
+    public function updated(string $property): void
+    {
+        if (str_starts_with($property, 'filter_')) {
+            $this->resetPage('transactionsPage');
+        }
+    }
+
     public function runningBalance(FinanceTransaction $transaction): float
     {
         return (float) FinanceTransaction::query()
@@ -336,9 +348,9 @@ new class extends Component {
     <section class="page-hero relative z-20 overflow-visible p-6 lg:p-8" style="overflow: visible">
         <div class="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
             <div><div class="eyebrow">{{ __('ui.nav.finance') }}</div><h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('ui.nav.finance_dashboard') }}</h1><p class="mt-4 max-w-3xl text-neutral-200">{{ __('finance.dashboard.subtitle') }}</p></div>
-            <div class="relative z-30 grid gap-3 sm:grid-cols-2">
-                <div><label class="mb-1 block text-sm">{{ __('finance.fields.year') }}</label><select wire:model.live="year" class="w-full rounded-xl px-4 py-3 text-sm">@forelse($availableFinancePeriods as $period)<option value="{{ $period['year'] }}">{{ $period['year'] }}</option>@empty<option value="{{ $year }}">-</option>@endforelse</select></div>
-                <div class="relative z-40"><label class="mb-1 block text-sm">{{ __('finance.fields.quarter') }}</label><select wire:model.live="quarter" class="relative z-50 w-full rounded-xl px-4 py-3 text-sm">@foreach((collect($availableFinancePeriods)->firstWhere('year', $year)['quarters'] ?? []) as $availableQuarter)<option value="{{ $availableQuarter }}">Q{{ $availableQuarter }}</option>@endforeach</select></div>
+            <div class="finance-dashboard-period-filters relative z-30 grid gap-3" data-finance-dashboard-period-filters>
+                <div><label for="finance-dashboard-year" class="sr-only">{{ __('finance.fields.year') }}</label><select id="finance-dashboard-year" wire:model.live="year" class="w-full rounded-xl px-4 py-3 text-sm">@forelse($availableFinancePeriods as $period)<option value="{{ $period['year'] }}">{{ $period['year'] }}</option>@empty<option value="{{ $year }}">-</option>@endforelse</select></div>
+                <div class="relative z-40"><label for="finance-dashboard-quarter" class="sr-only">{{ __('finance.fields.quarter') }}</label><select id="finance-dashboard-quarter" wire:model.live="quarter" class="relative z-50 w-full rounded-xl px-4 py-3 text-sm">@foreach((collect($availableFinancePeriods)->firstWhere('year', $year)['quarters'] ?? []) as $availableQuarter)<option value="{{ $availableQuarter }}">Q{{ $availableQuarter }}</option>@endforeach</select></div>
             </div>
         </div>
     </section>
@@ -391,7 +403,33 @@ new class extends Component {
     <section class="grid gap-6 xl:grid-cols-2">
         <div class="surface-table"><div class="admin-grid-meta finance-dashboard-table-header" data-finance-dashboard-inline-header><div class="admin-grid-meta__title">{{ __('finance.dashboard.quarter_totals') }}</div><button type="button" wire:click="$set('showQuarterDetailsModal', true)" class="admin-icon-button finance-dashboard-header-action shrink-0" title="{{ __('finance.actions.details') }}" aria-label="{{ __('finance.actions.details') }}" data-finance-dashboard-details><x-admin-action-icon name="chart" /></button></div><div class="overflow-x-auto"><table class="text-sm"><thead><tr><th class="px-5 py-3 text-left">{{ __('finance.fields.quarter') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.income') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.expense') }}</th></tr></thead><tbody>@foreach ($report['quarter_totals'] as $row)<tr><td class="px-5 py-3">Q{{ $row['quarter'] }}</td><td class="px-5 py-3"><bdi dir="ltr">{{ app(FinanceService::class)->formatCurrencyAmount($row['income'], $report['summary']['local_currency']) }}</bdi></td><td class="px-5 py-3"><bdi dir="ltr">{{ app(FinanceService::class)->formatCurrencyAmount($row['expense'], $report['summary']['local_currency']) }}</bdi></td></tr>@endforeach</tbody></table></div></div>
         @include('livewire.finance.partials.quarter-expense-chart')
-        <div class="surface-table"><div class="admin-grid-meta finance-dashboard-table-header" data-finance-dashboard-inline-header><div class="admin-grid-meta__title">{{ __('finance.dashboard.latest_activity') }}</div><button type="button" wire:click="$set('showTransactionsModal', true)" class="admin-icon-button finance-dashboard-header-action shrink-0" title="{{ __('finance.actions.view_all') }}" aria-label="{{ __('finance.actions.view_all') }}" data-view-all-expand><x-admin-action-icon name="expand" /></button></div><div class="overflow-x-auto"><table class="text-sm"><thead><tr><th class="px-5 py-3 text-left">{{ __('finance.common.date') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.category') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.amount') }}</th></tr></thead><tbody>@forelse ($report['latest_transactions'] as $transaction)<tr><td class="px-5 py-3">{{ $transaction->transaction_date?->format('d-m-Y') }}</td><td class="px-5 py-3">{{ app(FinanceService::class)->transactionCategoryLabel($transaction) }}</td><td class="px-5 py-3"><bdi dir="ltr">{{ app(FinanceService::class)->formatCurrencyAmount($transaction->signed_amount, $transaction->currency) }}</bdi></td></tr>@empty<tr><td colspan="3" class="px-5 py-10 text-center text-neutral-500">{{ __('finance.empty.no_transactions') }}</td></tr>@endforelse</tbody></table></div></div>
+        <div class="surface-table">
+            <div class="admin-grid-meta finance-dashboard-table-header" data-finance-dashboard-inline-header>
+                <div class="admin-grid-meta__title">{{ __('finance.dashboard.latest_activity') }}</div>
+                <button type="button" wire:click="$set('showTransactionsModal', true)" class="admin-icon-button finance-dashboard-header-action shrink-0" title="{{ __('finance.actions.view_all') }}" aria-label="{{ __('finance.actions.view_all') }}" data-view-all-expand><x-admin-action-icon name="expand" /></button>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="text-sm">
+                    <thead><tr><th class="px-5 py-3 text-left">{{ __('finance.common.date') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.category') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.amount') }}</th></tr></thead>
+                    <tbody>
+                        @forelse ($report['latest_transactions'] as $transaction)
+                            <tr>
+                                <td class="px-5 py-3">
+                                    <span class="finance-transaction-datetime" data-finance-transaction-datetime>
+                                        <span>{{ $transaction->transaction_date?->format('d-m-Y') }}</span>
+                                        <span>{{ $transaction->created_at?->format('H:i') }}</span>
+                                    </span>
+                                </td>
+                                <td class="px-5 py-3">{{ app(FinanceService::class)->transactionCategoryLabel($transaction) }}</td>
+                                <td class="px-5 py-3"><bdi dir="ltr">{{ app(FinanceService::class)->formatCurrencyAmount($transaction->signed_amount, $transaction->currency) }}</bdi></td>
+                            </tr>
+                        @empty
+                            <tr><td colspan="3" class="px-5 py-10 text-center text-neutral-500">{{ __('finance.empty.no_transactions') }}</td></tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+        </div>
     </section>
 
     <x-admin.modal :show="$showTransferModal" :title="__('finance.dashboard.move_money')" close-method="$set('showTransferModal', false)" max-width="3xl">
@@ -446,7 +484,23 @@ new class extends Component {
             <div class="overflow-x-auto">
                 <table class="w-full text-sm">
                     <thead><tr><th class="px-4 py-3 text-left">{{ __('finance.common.request') }}</th><th class="px-4 py-3 text-left">{{ __('finance.fields.requester') }}</th><th class="px-4 py-3 text-left">{{ __('finance.fields.category') }}</th><th class="px-4 py-3 text-left">{{ __('finance.common.description') }}</th><th class="px-4 py-3 text-left">{{ __('finance.fields.amount') }}</th><th class="px-4 py-3 text-left">{{ __('finance.common.status') }}</th></tr></thead>
-                    <tbody class="divide-y divide-white/6">@foreach ($requestHistory as $request)<tr><td class="px-4 py-3"><div>{{ $request->request_no }}</div><div class="text-xs text-neutral-500">{{ $request->created_at?->format('d-m-Y H:i') }}</div></td><td class="px-4 py-3">{{ $request->teacher ? trim($request->teacher->first_name.' '.$request->teacher->last_name) : ($request->requestedBy?->name ?: '-') }}</td><td class="px-4 py-3">{{ $request->pullRequestKind?->name ?: '-' }}</td><td class="px-4 py-3">{{ $request->requested_reason ?: '-' }}</td><td class="px-4 py-3"><bdi dir="ltr">{{ app(FinanceService::class)->formatCurrencyAmount($request->accepted_amount ?? $request->requested_amount, $request->accepted_amount !== null ? $request->acceptedCurrency : $request->requestedCurrency) }}</bdi></td><td class="px-4 py-3"><span class="status-chip {{ $request->status === 'settled' ? 'status-chip--emerald' : ($request->status === 'declined' ? 'status-chip--rose' : 'status-chip--amber') }}">{{ __('finance.statuses.'.$request->status) }}</span></td></tr>@endforeach</tbody>
+                    <tbody class="divide-y divide-white/6">
+                        @foreach ($requestHistory as $request)
+                            @php($historyAccepted = in_array($request->status, [FinanceRequest::STATUS_ACCEPTED, FinanceRequest::STATUS_SETTLED], true))
+                            <tr>
+                                <td class="px-4 py-3"><div>{{ $request->request_no }}</div><div class="finance-transaction-datetime mt-1 text-xs text-neutral-500" data-withdrawal-history-datetime><span>{{ $request->created_at?->format('d-m-Y') }}</span><span>{{ $request->created_at?->format('H:i') }}</span></div></td>
+                                <td class="px-4 py-3">{{ $request->teacher ? trim($request->teacher->first_name.' '.$request->teacher->last_name) : ($request->requestedBy?->name ?: '-') }}</td>
+                                <td class="px-4 py-3">{{ $request->pullRequestKind?->name ?: '-' }}</td>
+                                <td class="px-4 py-3">{{ $request->requested_reason ?: '-' }}</td>
+                                <td class="px-4 py-3"><bdi dir="ltr">{{ app(FinanceService::class)->formatCurrencyAmount($request->accepted_amount ?? $request->requested_amount, $request->accepted_amount !== null ? $request->acceptedCurrency : $request->requestedCurrency) }}</bdi></td>
+                                <td class="px-4 py-3">
+                                    <span class="status-chip withdrawal-history-status {{ $historyAccepted ? 'status-chip--emerald' : 'status-chip--rose' }}">
+                                        {{ $historyAccepted ? __('finance.common.accepted') : __('finance.common.refused') }}
+                                    </span>
+                                </td>
+                            </tr>
+                        @endforeach
+                    </tbody>
                 </table>
             </div>
         </div>
@@ -455,5 +509,43 @@ new class extends Component {
         @endif
     </x-admin.modal>
 
-    <x-admin.modal :show="$showTransactionsModal" :title="__('finance.dashboard.financial_transactions')" close-method="$set('showTransactionsModal', false)" max-width="8xl"><div class="mb-5 grid gap-3 md:grid-cols-3 xl:grid-cols-6" data-mobile-table-filter-controls><input wire:model.live="filter_start_date" type="date" class="rounded-xl px-3 py-2"><input wire:model.live="filter_end_date" type="date" class="rounded-xl px-3 py-2"><select wire:model.live="filter_cash_box_id" class="rounded-xl px-3 py-2"><option value="">{{ __('finance.options.all_cash_boxes') }}</option>@foreach ($cashBoxes as $fund)<option value="{{ $fund->id }}">{{ $fund->name }}</option>@endforeach</select><select wire:model.live="filter_type" class="rounded-xl px-3 py-2"><option value="all">{{ __('finance.options.all_types') }}</option>@foreach ($transactionTypes as $type)<option value="{{ $type }}">{{ app(FinanceService::class)->transactionTypeLabel($type) }}</option>@endforeach</select><select wire:model.live="filter_currency_id" class="rounded-xl px-3 py-2"><option value="">{{ __('finance.options.all_currencies') }}</option>@foreach ($currencies as $currency)<option value="{{ $currency->id }}">{{ $currency->code }}</option>@endforeach</select><select wire:model.live="filter_visibility" class="rounded-xl px-3 py-2"><option value="active">{{ __('finance.filters.active_only') }}</option><option value="deleted">{{ __('finance.filters.deleted_only') }}</option><option value="all">{{ __('finance.filters.all_records') }}</option></select></div><div class="surface-table settings-record-table" data-settings-record-table data-finance-generic-table data-financial-transactions-table><div class="overflow-x-auto"><table class="w-full text-sm"><thead><tr><th class="px-3 py-3 text-left">{{ __('finance.common.date') }}</th><th class="px-3 py-3 text-left">{{ __('finance.fields.transaction_no') }}</th><th class="px-3 py-3 text-left">{{ __('finance.fields.cash_box') }}</th><th class="px-3 py-3 text-left">{{ __('finance.fields.transaction_type') }}</th><th class="px-3 py-3 text-left">{{ __('finance.fields.category') }}</th><th class="px-3 py-3 text-left">{{ __('finance.fields.credit') }}</th><th class="px-3 py-3 text-left">{{ __('finance.fields.debit') }}</th><th class="px-3 py-3 text-left">{{ __('finance.fields.fund_balance') }}</th><th class="px-3 py-3 text-left">{{ __('finance.fields.user') }}</th></tr></thead><tbody class="divide-y divide-white/6">@foreach ($transactions as $transaction)<tr class="{{ $transaction->trashed() ? 'opacity-50' : '' }}"><td class="px-3 py-3">{{ $transaction->transaction_date?->format('d-m-Y') }}</td><td class="px-3 py-3"><div>{{ $transaction->special_transaction_no ?: '-' }}</div><div class="text-xs text-neutral-500">{{ $transaction->transaction_no }}</div></td><td class="px-3 py-3">{{ $transaction->cashBox?->name }}</td><td class="px-3 py-3">{{ app(FinanceService::class)->transactionTypeLabel($transaction->type, $transaction) }}</td><td class="px-3 py-3"><div>{{ app(FinanceService::class)->transactionCategoryLabel($transaction) }}</div><div class="text-xs text-neutral-500">{{ $transaction->description }}</div></td><td class="px-3 py-3"><bdi dir="ltr">{{ $transaction->direction === 'in' ? app(FinanceService::class)->formatCurrencyAmount($transaction->amount, $transaction->currency) : '-' }}</bdi></td><td class="px-3 py-3"><bdi dir="ltr">{{ $transaction->direction === 'out' ? app(FinanceService::class)->formatCurrencyAmount($transaction->amount, $transaction->currency) : '-' }}</bdi></td><td class="px-3 py-3"><bdi dir="ltr">{{ app(FinanceService::class)->formatCurrencyAmount($this->runningBalance($transaction), $transaction->currency) }}</bdi></td><td class="px-3 py-3">{{ $transaction->enteredBy?->name ?: '-' }}</td></tr>@endforeach</tbody></table></div></div><div class="mt-4">{{ $transactions->links() }}</div></x-admin.modal>
+    <x-admin.modal :show="$showTransactionsModal" :title="__('finance.dashboard.financial_transactions')" close-method="$set('showTransactionsModal', false)" max-width="8xl">
+        <div class="finance-transactions-filters date-control-peer-group mb-5 grid gap-3 md:grid-cols-3 xl:grid-cols-6" data-mobile-table-filter-controls>
+            <input wire:key="finance-transactions-filter-start-date" wire:model.live="filter_start_date" type="date" placeholder="{{ __('reports.filters.date_from') }}" aria-label="{{ __('reports.filters.date_from') }}" data-date-placeholder="{{ __('reports.filters.date_from') }}" class="date-control--match-select h-[3.125rem] min-h-[3.125rem] rounded-xl px-3 py-2">
+            <input wire:key="finance-transactions-filter-end-date" wire:model.live="filter_end_date" type="date" placeholder="{{ __('reports.filters.date_to') }}" aria-label="{{ __('reports.filters.date_to') }}" data-date-placeholder="{{ __('reports.filters.date_to') }}" class="date-control--match-select h-[3.125rem] min-h-[3.125rem] rounded-xl px-3 py-2">
+            <select wire:key="finance-transactions-filter-cash-box" wire:model.live="filter_cash_box_id" class="h-[3.125rem] min-h-[3.125rem] rounded-xl px-3 py-2"><option value="">{{ __('finance.options.all_cash_boxes') }}</option>@foreach ($cashBoxes as $fund)<option value="{{ $fund->id }}">{{ $fund->name }}</option>@endforeach</select>
+            <select wire:key="finance-transactions-filter-type" wire:model.live="filter_type" class="h-[3.125rem] min-h-[3.125rem] rounded-xl px-3 py-2"><option value="all">{{ __('finance.options.all_types') }}</option>@foreach ($transactionTypes as $type)<option value="{{ $type }}">{{ app(FinanceService::class)->transactionTypeLabel($type) }}</option>@endforeach</select>
+            <select wire:key="finance-transactions-filter-currency" wire:model.live="filter_currency_id" class="h-[3.125rem] min-h-[3.125rem] rounded-xl px-3 py-2"><option value="">{{ __('finance.options.all_currencies') }}</option>@foreach ($currencies as $currency)<option value="{{ $currency->id }}">{{ $currency->code }}</option>@endforeach</select>
+            <select wire:key="finance-transactions-filter-visibility" wire:model.live="filter_visibility" class="h-[3.125rem] min-h-[3.125rem] rounded-xl px-3 py-2"><option value="active">{{ __('finance.filters.active_only') }}</option><option value="deleted">{{ __('finance.filters.deleted_only') }}</option><option value="all">{{ __('finance.filters.all_records') }}</option></select>
+        </div>
+        <div class="surface-table settings-record-table" data-settings-record-table data-finance-generic-table data-financial-transactions-table>
+            <div class="overflow-x-auto">
+                <table class="financial-transactions-table w-full text-sm">
+                    <colgroup>
+                        <col style="width: 3%"><col style="width: 7.25%"><col style="width: 10.7%"><col style="width: 9.05%"><col style="width: 5.8%"><col style="width: 20.25%"><col style="width: 10.25%"><col style="width: 10.25%"><col style="width: 13.4%"><col style="width: 10.05%">
+                    </colgroup>
+                    <thead><tr><th class="px-2 py-3 text-center">#</th><th class="px-3 py-3 text-left">{{ __('finance.common.date') }}</th><th class="px-3 py-3 text-left">{{ __('finance.fields.transaction_no') }}</th><th class="px-3 py-3 text-left">{{ __('finance.fields.cash_box') }}</th><th class="px-3 py-3 text-left">{{ __('finance.fields.transaction_type') }}</th><th class="px-3 py-3 text-left">{{ __('finance.fields.category') }}</th><th class="px-3 py-3 text-left">{{ __('finance.fields.credit') }}</th><th class="px-3 py-3 text-left">{{ __('finance.fields.debit') }}</th><th class="px-3 py-3 text-left">{{ __('finance.fields.fund_balance') }}</th><th class="px-3 py-3 text-left">{{ __('finance.fields.user') }}</th></tr></thead>
+                    <tbody class="divide-y divide-white/6">
+                        @foreach ($transactions as $transaction)
+                            @php($specialTransactionNumber = $transaction->special_transaction_no ?: '-')
+                            @php($generalTransactionNumber = $transaction->transaction_no)
+                            <tr class="{{ $transaction->trashed() ? 'opacity-50' : '' }}">
+                                <td class="px-2 py-3 text-center">{{ $transactions->firstItem() + $loop->index }}</td>
+                                <td class="px-3 py-3"><span class="finance-transaction-datetime" data-finance-transaction-datetime>{{ $transaction->transaction_date?->format('d-m-Y') }}</span></td>
+                                <td class="px-3 py-3"><div class="finance-transaction-reference"><div class="finance-transaction-primary" aria-label="{{ $specialTransactionNumber }}">@foreach (mb_str_split($specialTransactionNumber) as $referenceCharacter)<span aria-hidden="true">{{ $referenceCharacter }}</span>@endforeach</div><div class="finance-transaction-secondary mt-1 text-xs text-neutral-500" aria-label="{{ $generalTransactionNumber }}">@foreach (mb_str_split($generalTransactionNumber) as $referenceCharacter)<span aria-hidden="true">{{ $referenceCharacter }}</span>@endforeach</div></div></td>
+                                <td class="px-3 py-3">{{ $transaction->cashBox?->name }}</td>
+                                <td class="px-3 py-3">{{ app(FinanceService::class)->transactionTypeLabel($transaction->type, $transaction) }}</td>
+                                <td class="px-3 py-3"><div class="finance-transaction-primary">{{ app(FinanceService::class)->transactionCategoryLabel($transaction) }}</div>@if($transaction->description)<div class="finance-transaction-secondary mt-1 text-xs text-neutral-500">{{ $transaction->description }}</div>@endif</td>
+                                <td class="px-3 py-3"><bdi dir="ltr">{{ $transaction->direction === 'in' ? app(FinanceService::class)->formatCurrencyAmount($transaction->amount, $transaction->currency) : '-' }}</bdi></td>
+                                <td class="px-3 py-3"><bdi dir="ltr">{{ $transaction->direction === 'out' ? app(FinanceService::class)->formatCurrencyAmount($transaction->amount, $transaction->currency) : '-' }}</bdi></td>
+                                <td class="px-3 py-3"><bdi dir="ltr">{{ app(FinanceService::class)->formatCurrencyAmount($this->runningBalance($transaction), $transaction->currency) }}</bdi></td>
+                                <td class="px-3 py-3">{{ $transaction->enteredBy?->name ?: '-' }}</td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="mt-4">{{ $transactions->links() }}</div>
+    </x-admin.modal>
 </div>

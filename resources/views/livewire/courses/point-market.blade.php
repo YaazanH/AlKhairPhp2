@@ -316,6 +316,10 @@ new class extends Component {
         .point-market-department-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: .5rem; }
         .point-market-department-toggle { display: inline-flex; min-width: 0; flex: 1; align-items: center; justify-content: space-between; gap: .75rem; text-align: start; }
         .point-market-department-toggle__copy { min-width: 0; }
+        .point-market-receipt-header > th { padding: .38rem 1rem; border-block: 1px solid rgba(151, 219, 174, .16); background: rgba(11, 143, 67, .08); color: rgba(232, 244, 235, .76); font-size: .72rem; font-weight: 500; }
+        .point-market-receipt-header__content { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 1rem; }
+        .point-market-receipt-header__description { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .point-market-receipt-header__number { flex: 0 0 auto; color: rgba(255, 231, 191, .82); }
         .point-market-chevron { width: 1rem; height: 1rem; flex: 0 0 auto; transition: transform .18s ease; }
         .point-market-chevron--open { transform: rotate(90deg); }
         html[dir='rtl'] .point-market-chevron { transform: scaleX(-1); }
@@ -479,6 +483,7 @@ new class extends Component {
             @php($departmentExpanded = in_array($department->id, $expandedDepartmentIds, true))
             @php($invoiceCurrencyLabel = $department->items->pluck('currency_code')->filter()->unique()->values()->implode(' / ') ?: '—')
             @php($localCurrencyLabel = $department->items->pluck('local_currency_code')->filter()->unique()->values()->implode(' / ') ?: $localCurrency->code)
+            @php($departmentInvoiceCount = $department->items->pluck('invoice_id')->filter()->unique()->count())
             <article class="surface-table" data-point-market-generic-table wire:key="point-market-department-{{ $department->id }}">
                 <div class="admin-grid-meta gap-4 cursor-pointer" wire:click="toggleDepartment({{ $department->id }})">
                     <div class="point-market-department-toggle">
@@ -498,7 +503,16 @@ new class extends Component {
                             <colgroup><col class="point-market-col--utility"><col class="point-market-col--utility">@for($column = 0; $column < 5; $column++)<col class="point-market-col--equal">@endfor</colgroup>
                             <thead><tr><th class="point-market-table__remove"></th><th class="point-market-table__number">#</th><th class="px-4 py-3 text-start">{{ __('course_end.point_market.department.item') }}</th><th class="px-4 py-3">{{ __('course_end.point_market.department.quantity') }}</th><th class="px-4 py-3">{{ __('course_end.point_market.department.invoice_unit_price') }} (<bdi dir="ltr">{{ $invoiceCurrencyLabel }}</bdi>)</th><th class="px-4 py-3">{{ __('course_end.point_market.department.invoice_unit_price') }} (<bdi dir="ltr">{{ $localCurrencyLabel }}</bdi>)</th><th class="px-4 py-3">{{ __('course_end.point_market.department.points') }}</th></tr></thead>
                             <tbody class="divide-y divide-white/6">
+                                @php($previousDepartmentInvoiceId = null)
                                 @forelse($department->items as $item)
+                                    @if($departmentInvoiceCount > 1 && $previousDepartmentInvoiceId !== $item->invoice_id)
+                                        @php($receiptDescription = $item->invoice?->financeRequest?->requested_reason ?: $item->invoice?->notes ?: '—')
+                                        @php($receiptNumber = $item->invoice?->original_invoice_no ?: $item->invoice?->invoice_no ?: '—')
+                                        @php($previousDepartmentInvoiceId = $item->invoice_id)
+                                        <tr class="point-market-receipt-header" data-point-market-receipt-header wire:key="point-market-department-receipt-{{ $department->id }}-{{ $item->invoice_id }}">
+                                            <th colspan="7"><span class="point-market-receipt-header__content"><span class="point-market-receipt-header__description">{{ $receiptDescription }}</span><bdi dir="ltr" class="point-market-receipt-header__number">{{ $receiptNumber }}</bdi></span></th>
+                                        </tr>
+                                    @endif
                                     <tr wire:key="point-market-department-item-{{ $item->id }}"><td class="point-market-table__remove">@can('courses.update')<button type="button" wire:click="removeDepartmentItem({{ $item->id }})" class="admin-icon-button point-market-remove-item !h-8 !w-8 !basis-8" title="{{ __('course_end.point_market.remove_item') }}" aria-label="{{ __('course_end.point_market.remove_item') }}"><span aria-hidden="true">−</span></button>@endcan</td><td class="point-market-table__number">{{ $loop->iteration }}</td><td class="px-4 py-3 font-medium text-white">{{ $item->item_name }}</td><td class="point-market-numeric px-4 py-3"><bdi dir="ltr">{{ \App\Support\NumberFormatter::trimmed($item->quantity, 2) }}</bdi></td><td class="point-market-numeric px-4 py-3"><bdi dir="ltr">{{ $item->formattedAmount('unit_price') }}</bdi></td><td class="point-market-numeric px-4 py-3"><bdi dir="ltr">{{ $item->formattedAmount('local_unit_price', true) }}</bdi></td><td class="point-market-numeric px-4 py-3 font-semibold text-emerald-100">{{ number_format($item->points($department->point_price)) }}</td></tr>
                                 @empty
                                     <tr><td colspan="7" class="admin-empty-state">{{ __('course_end.point_market.department.empty') }}</td></tr>

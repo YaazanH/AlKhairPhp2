@@ -6,9 +6,15 @@ use App\Models\AcademicYear;
 use App\Models\AppSetting;
 use App\Models\AttendanceStatus;
 use App\Models\Course;
+use App\Models\Curriculum;
+use App\Models\CurriculumLesson;
+use App\Models\CurriculumSubject;
+use App\Models\CurriculumSubjectDefinition;
 use App\Models\Enrollment;
+use App\Models\GradeLevel;
 use App\Models\Group;
 use App\Models\GroupAttendanceDay;
+use App\Models\GroupCurriculumLessonProgress;
 use App\Models\MemorizationSession;
 use App\Models\ParentProfile;
 use App\Models\PointTransaction;
@@ -253,6 +259,9 @@ class DashboardTest extends TestCase
             ->assertSee('data-dashboard-expanded-line-chart', false)
             ->assertSee('max-w-none', false)
             ->assertSee('dashboard-treemap', false)
+            ->assertSee('data-dashboard-lollipop-number-gap', false)
+            ->assertSee('dashboard-lollipop-row__label', false)
+            ->assertSee('dashboard-lollipop-row__track', false)
             ->assertSee('inset-inline-start: calc(100% - .4375rem)', false)
             ->assertSee('data-dashboard-centered-bar-chart', false)
             ->assertSee('data-dashboard-vertically-centered-bar-card', false)
@@ -286,6 +295,12 @@ class DashboardTest extends TestCase
         $this->assertStringContainsString('background: #34d399;', $dashboardCss);
         $this->assertStringContainsString('padding-top: 1.25rem !important;', $dashboardCss);
         $this->assertStringContainsString('margin-top: 0 !important;', $dashboardCss);
+        $this->assertStringContainsString(".dashboard-treemap {\n    display: grid;\n    grid-template-columns: max-content minmax(0, 1fr) auto;\n    column-gap: 0;", $dashboardCss);
+        $this->assertStringContainsString(".dashboard-lollipop-row {\n    display: grid;\n    grid-column: 1 / -1;\n    grid-template-columns: subgrid;", $dashboardCss);
+        $this->assertStringContainsString(".dashboard-lollipop-row__label {\n    margin-inline-end: 2.25rem;\n    overflow: visible;\n    text-overflow: clip;\n    white-space: nowrap;", $dashboardCss);
+        $this->assertStringContainsString('margin-inline-start: var(--dashboard-lollipop-number-gap, 1.125rem);', $dashboardCss);
+        $this->assertStringContainsString('synchronizeDashboardLollipopNumberGap', file_get_contents(resource_path('js/app.js')));
+        $this->assertStringNotContainsString('grid-cols-[minmax(5rem,9rem)_minmax(0,1fr)_auto]', $dashboardSource);
 
         Volt::test('dashboard')
             ->call('showManagerStudent', $student->id)
@@ -439,6 +454,137 @@ class DashboardTest extends TestCase
         $this->assertStringContainsString('.dashboard-performance-map__point--rank-1:hover .dashboard-performance-map__dot,', $dashboardCss);
         $this->assertStringContainsString('.dashboard-performance-map__point--rank-2:hover .dashboard-performance-map__dot,', $dashboardCss);
         $this->assertStringContainsString('.dashboard-performance-map__point--rank-3:hover .dashboard-performance-map__dot,', $dashboardCss);
+    }
+
+    public function test_manager_curriculum_progress_uses_two_column_peer_relative_hotbars(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $manager = User::factory()->create([
+            'username' => 'manager-curriculum-hotbars',
+            'phone' => '7000016',
+        ]);
+        $manager->assignRole('manager');
+        $teacher = Teacher::create([
+            'first_name' => 'Hassan',
+            'last_name' => 'Teacher',
+            'phone' => '0944000016',
+            'status' => 'active',
+        ]);
+        $course = Course::create([
+            'name' => 'Curriculum Progress Course',
+            'is_active' => true,
+            'is_default' => true,
+        ]);
+        $academicYear = AcademicYear::create([
+            'name' => 'Curriculum Progress Year',
+            'starts_on' => '2026-08-01',
+            'ends_on' => '2027-07-31',
+            'is_current' => true,
+            'is_active' => true,
+        ]);
+        $curriculum = Curriculum::create([
+            'course_id' => $course->id,
+            'name' => 'Peer Progress Curriculum',
+            'is_active' => true,
+        ]);
+        $definition = CurriculumSubjectDefinition::create([
+            'name' => 'Peer Progress Subject',
+            'is_active' => true,
+        ]);
+        $subject = CurriculumSubject::create([
+            'curriculum_id' => $curriculum->id,
+            'subject_definition_id' => $definition->id,
+        ]);
+        $lessons = collect(range(1, 10))->map(fn (int $number) => CurriculumLesson::create([
+            'curriculum_subject_id' => $subject->id,
+            'name' => 'Lesson '.$number,
+            'sort_order' => $number * 10,
+        ]));
+
+        $gradeLevels = collect([
+            30 => GradeLevel::create(['name' => 'Grade C', 'sort_order' => 30, 'is_active' => true]),
+            10 => GradeLevel::create(['name' => 'Grade A', 'sort_order' => 10, 'is_active' => true]),
+            20 => GradeLevel::create(['name' => 'Grade B', 'sort_order' => 20, 'is_active' => true]),
+        ]);
+
+        $groups = collect([
+            ['name' => 'Group A', 'completed' => 10, 'grade_sort' => 30],
+            ['name' => 'Group B', 'completed' => 8, 'grade_sort' => 10],
+            ['name' => 'Group C', 'completed' => 6, 'grade_sort' => 20],
+            ['name' => 'Group D', 'completed' => 3, 'grade_sort' => null],
+        ])->map(function (array $entry) use ($course, $academicYear, $curriculum, $teacher, $lessons, $gradeLevels): Group {
+            $group = Group::create([
+                'course_id' => $course->id,
+                'academic_year_id' => $academicYear->id,
+                'teacher_id' => $teacher->id,
+                'grade_level_id' => $entry['grade_sort'] === null ? null : $gradeLevels[$entry['grade_sort']]->id,
+                'curriculum_id' => $curriculum->id,
+                'name' => $entry['name'],
+                'capacity' => 20,
+                'is_active' => true,
+            ]);
+
+            $lessons->take($entry['completed'])->each(fn (CurriculumLesson $lesson) => GroupCurriculumLessonProgress::create([
+                'group_id' => $group->id,
+                'curriculum_lesson_id' => $lesson->id,
+                'teacher_id' => $teacher->id,
+                'status' => 'taught',
+                'taught_on' => now()->toDateString(),
+            ]));
+
+            return $group;
+        });
+
+        $this->actingAs($manager);
+        app()->setLocale('ar');
+
+        Volt::test('dashboard')
+            ->assertViewHas('curriculumProgress', function ($rows) use ($groups): bool {
+                $byGroup = $rows->keyBy(fn (array $row) => $row['group']->id);
+
+                return $rows->pluck('group.id')->values()->all() === [
+                    $groups[1]->id,
+                    $groups[2]->id,
+                    $groups[0]->id,
+                    $groups[3]->id,
+                ]
+                    && $byGroup[$groups[0]->id]['percentage'] === 100.0
+                    && $byGroup[$groups[0]->id]['tone'] === 'success'
+                    && $byGroup[$groups[1]->id]['tone'] === 'success'
+                    && $byGroup[$groups[2]->id]['percentage_gap'] === 10.0
+                    && $byGroup[$groups[2]->id]['lessons_behind'] === 1
+                    && $byGroup[$groups[2]->id]['tone'] === 'warning'
+                    && $byGroup[$groups[3]->id]['percentage_gap'] === 50.0
+                    && $byGroup[$groups[3]->id]['lessons_behind'] === 5
+                    && $byGroup[$groups[3]->id]['tone'] === 'danger';
+            })
+            ->assertSee('data-dashboard-curriculum-hotbars', false)
+            ->assertSee('data-dashboard-curriculum-name-gap="حلقة"', false)
+            ->assertSee('dir="rtl"', false)
+            ->assertSee('md:grid-cols-2', false)
+            ->assertSee('data-progress-tone="success"', false)
+            ->assertSee('data-progress-tone="warning"', false)
+            ->assertSee('data-progress-tone="danger"', false)
+            ->assertSee('data-lessons-behind="1"', false)
+            ->assertSee('data-lessons-behind="5"', false)
+            ->assertSee('dashboard-lollipop-attendance__tooltip dashboard-curriculum-hotbar__tooltip', false)
+            ->assertSee('Hassan Teacher');
+
+        $dashboardSource = file_get_contents(resource_path('views/livewire/dashboard.blade.php'));
+        $dashboardCss = file_get_contents(resource_path('css/app.css'));
+        $dashboardJavascript = file_get_contents(resource_path('js/app.js'));
+        $this->assertStringContainsString("'tone' => \$percentageGap > 15 ? 'danger' : (\$percentageGap > 5 ? 'warning' : 'success')", $dashboardSource);
+        $this->assertStringContainsString('.dashboard-curriculum-hotbar__fill--warning,', $dashboardCss);
+        $this->assertStringContainsString('.dashboard-curriculum-hotbar__fill--danger,', $dashboardCss);
+        $this->assertStringContainsString('.dashboard-curriculum-hotbar__marker {', $dashboardCss);
+        $this->assertStringContainsString('grid-template-columns: var(--dashboard-curriculum-identity-width, max-content) max-content minmax(8rem, 1fr);', $dashboardCss);
+        $this->assertStringContainsString('content: attr(data-dashboard-curriculum-name-gap);', $dashboardCss);
+        $this->assertStringContainsString('width: 100%;', $dashboardCss);
+        $this->assertStringContainsString('max-width: none;', $dashboardCss);
+        $this->assertStringContainsString('synchronizeDashboardCurriculumHotbarWidths', $dashboardJavascript);
+        $this->assertStringContainsString('.dashboard-curriculum-hotbars::before {', $dashboardCss);
+        $this->assertStringContainsString("->orderByRaw('CASE WHEN grade_level_id IS NULL THEN 1 ELSE 0 END')", $dashboardSource);
     }
 
     public function test_super_admin_users_see_the_management_dashboard(): void

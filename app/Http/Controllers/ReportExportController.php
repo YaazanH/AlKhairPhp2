@@ -95,11 +95,18 @@ class ReportExportController extends Controller
             'date_from' => ['required', 'date'],
             'date_to' => ['required', 'date', 'after_or_equal:date_from'],
             'ledger_notes' => ['nullable', 'string', 'max:4000'],
+            'period_mode' => ['nullable', 'in:quarter,custom'],
             'format' => ['required', 'in:pdf'],
         ]);
 
         $financeService = app(FinanceService::class);
         $reportService = app(FinanceReportService::class);
+        abort_if(
+            ($validated['period_mode'] ?? null) === 'quarter'
+                && $reportService->generatedLedgerPeriodExists($validated['date_from'], $validated['date_to']),
+            422,
+            __('finance.reports.period_already_generated'),
+        );
         $template = $reportService->defaultLedgerTemplate();
         $cashBoxIds = collect($validated['cash_box_ids'] ?? [($validated['cash_box_id'] ?? null)])->filter()->map(fn ($id) => (int) $id)->unique()->values();
         abort_if($cashBoxIds->isEmpty(), 422);

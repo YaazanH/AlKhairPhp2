@@ -179,6 +179,7 @@ new class extends Component {
         $this->authorizePermission('enrollments.create');
 
         $this->cancel();
+        $this->enrolled_at = now()->toDateString();
         $this->showFormModal = true;
     }
 
@@ -275,6 +276,7 @@ new class extends Component {
         $this->showFormModal = true;
 
         $this->resetValidation();
+        $this->dispatch('focus-searchable-select', id: 'enrollment-student');
     }
 
     public function edit(int $enrollmentId): void
@@ -554,7 +556,7 @@ new class extends Component {
         <form wire:submit="save" class="w-[min(28rem,calc(100vw-3rem))] space-y-3">
             <div>
                 <label for="enrollment-student" class="mb-1 block text-sm font-medium">{{ __('crud.enrollments.form.fields.student') }}</label>
-                <select id="enrollment-student" wire:model="student_id" data-search-input="true" data-open-on-focus="true" data-hide-placeholder-option="true" data-search-placeholder="{{ __('workflow.common.student_name_placeholder') }}" class="w-full rounded-xl px-4 py-3 text-sm">
+                <select id="enrollment-student" wire:model="student_id" data-search-input="true" data-open-on-focus="true" data-hide-placeholder-option="true" data-search-placeholder="{{ __('workflow.common.student_name_placeholder') }}" data-focus-next-searchable-on-tab="enrollment-group" class="w-full rounded-xl px-4 py-3 text-sm">
                     <option value="">{{ __('crud.enrollments.form.placeholders.select_student') }}</option>
                     @foreach ($students as $student)
                         <option value="{{ $student->id }}">{{ $student->full_name }}</option>
@@ -570,7 +572,7 @@ new class extends Component {
 
             <div>
                 <label for="enrollment-group" class="mb-1 block text-sm font-medium">{{ __('crud.enrollments.form.fields.group') }}</label>
-                <select id="enrollment-group" wire:model.live="group_id" data-search-input="true" data-open-on-focus="true" data-hide-placeholder-option="true" data-search-placeholder="{{ __('crud.enrollments.form.placeholders.select_group') }}" class="w-full rounded-xl px-4 py-3 text-sm">
+                <select id="enrollment-group" wire:model.live="group_id" data-search-input="true" data-open-on-focus="true" data-hide-placeholder-option="true" data-search-placeholder="{{ __('crud.enrollments.form.placeholders.select_group') }}" data-save-and-new-on-keydown="true" class="w-full rounded-xl px-4 py-3 text-sm">
                     <option value="">{{ __('crud.enrollments.form.placeholders.select_group') }}</option>
                     @foreach ($groups as $group)
                         <option value="{{ $group->id }}">{{ $group->name }}</option>
@@ -585,7 +587,7 @@ new class extends Component {
             <div class="grid gap-4 md:grid-cols-2">
                 <div>
                     <label for="enrollment-date" class="mb-1 block text-sm font-medium">{{ __('crud.enrollments.form.fields.enrolled_at') }}</label>
-                    <input id="enrollment-date" wire:model="enrolled_at" type="date" class="w-full rounded-xl px-4 py-3 text-sm">
+                    <input id="enrollment-date" wire:model="enrolled_at" value="{{ $enrolled_at }}" type="date" class="w-full rounded-xl px-4 py-3 text-sm">
                     @error('enrolled_at')
                         <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                     @enderror

@@ -329,7 +329,7 @@ new class extends Component {
             $this->editing_invoice_item_index = is_numeric($draft['editing_invoice_item_index'] ?? null) ? (int) $draft['editing_invoice_item_index'] : null;
             $this->confirm_invoice_overage = (bool) ($draft['confirm_invoice_overage'] ?? false);
         } else {
-            $this->original_invoice_no = '';
+            $this->original_invoice_no = '№';
             $this->invoice_issuer = '';
             $this->invoice_date = now()->toDateString();
             $this->invoice_deduction = '0';
@@ -775,7 +775,7 @@ new class extends Component {
                     </div>
 
                     <div class="grid gap-4 md:grid-cols-3">
-                        <div><label class="mb-1 block text-sm">{{ __('finance.fields.original_invoice_no') }}</label><input wire:model="original_invoice_no" dir="ltr" class="w-full rounded-xl px-4 py-3"></div>
+                        <div><label class="mb-1 block text-sm">{{ __('finance.fields.original_invoice_no') }}</label><input wire:model="original_invoice_no" dir="ltr" class="w-full rounded-xl px-4 py-3" data-original-invoice-no-input></div>
                         <div><label class="mb-1 block text-sm">{{ __('finance.fields.invoice_issuer') }}</label><input wire:model="invoice_issuer" class="w-full rounded-xl px-4 py-3"></div>
                         <div><label class="mb-1 block text-sm">{{ __('finance.common.date') }}</label><input wire:model="invoice_date" type="date" class="w-full rounded-xl px-4 py-3"></div>
                     </div>
@@ -838,7 +838,13 @@ new class extends Component {
 
                     @error('invoice_items')<div class="text-sm text-red-400">{{ $message }}</div>@enderror
                     @error('confirm_invoice_overage')<div class="rounded-xl border border-amber-400/20 bg-amber-500/10 p-4 text-sm text-amber-100">{{ $message }}<label class="mt-3 flex gap-2"><input wire:model="confirm_invoice_overage" type="checkbox">{{ __('finance.messages.use_invoice_total') }}</label></div>@enderror
-                    <div class="flex justify-end"><button class="pill-link pill-link--accent">{{ $editingInvoiceId ? __('crud.common.actions.save') : __('finance.actions.finalise') }}</button></div>
+                    <div class="flex justify-end">
+                        @if ($editingInvoiceId)
+                            <button type="submit" class="admin-icon-button admin-icon-button--accent" title="{{ __('crud.common.actions.save') }}" aria-label="{{ __('crud.common.actions.save') }}" data-invoice-expense-save-action><x-admin-action-icon name="save" /></button>
+                        @else
+                            <button type="submit" class="pill-link pill-link--accent">{{ __('finance.actions.finalise') }}</button>
+                        @endif
+                    </div>
                 </form>
             @endif
         @endif

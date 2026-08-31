@@ -45,7 +45,15 @@
                         @foreach ($sidebarGroups as $group)
                             <flux:navlist.group :heading="$group['title']" class="grid">
                                 @foreach ($group['items'] as $item)
-                                    <flux:navlist.item :icon="$item['icon']" :href="$item['href']" :current="$item['current']" wire:navigate>{{ $item['label'] }}</flux:navlist.item>
+                                    <flux:navlist.item
+                                        :icon="$item['icon']"
+                                        :href="$item['href']"
+                                        :current="$item['current']"
+                                        class="{{ $item['key'] === 'print_templates' ? 'max-lg:hidden' : '' }}"
+                                        wire:navigate
+                                    >
+                                        {{ $item['label'] }}
+                                    </flux:navlist.item>
                                 @endforeach
                             </flux:navlist.group>
                         @endforeach
@@ -124,52 +132,7 @@
                     </div>
 
                     <flux:spacer />
-
-                    <flux:dropdown position="top" align="end">
-                        <flux:profile
-                            :avatar="auth()->user()->profilePhotoUrl()"
-                            :initials="auth()->user()->initials()"
-                            icon-trailing="chevron-down"
-                        />
-
-                        <flux:menu>
-                            <flux:menu.radio.group>
-                                <div class="p-0 text-sm font-normal">
-                                    <div class="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
-                                        <x-user-avatar :user="auth()->user()" size="sm" />
-
-                                        <div class="grid flex-1 text-left text-sm leading-tight">
-                                            <span class="truncate font-semibold">{{ auth()->user()->name }}</span>
-                                            <span class="truncate text-xs">{{ auth()->user()->email }}</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </flux:menu.radio.group>
-
-                            <flux:menu.separator />
-
-                            <x-account-menu-preferences />
-
-                            <flux:menu.separator />
-
-                            <flux:menu.radio.group>
-                                <flux:menu.item href="{{ route('settings.profile') }}" icon="user-circle" wire:navigate>{{ __('ui.common.my_account') }}</flux:menu.item>
-                                @can('finance.reports.view')
-                                    <flux:menu.item href="{{ route('finance.reports.index') }}" icon="document-chart-bar" wire:navigate>{{ __('finance.reports.title') }}</flux:menu.item>
-                                @endcan
-                                <flux:menu.item href="{{ route('home') }}" icon="globe-alt">{{ __('ui.common.visit_site') }}</flux:menu.item>
-                            </flux:menu.radio.group>
-
-                            <flux:menu.separator />
-
-                            <form method="POST" action="{{ route('logout') }}" class="w-full">
-                                @csrf
-                                <flux:menu.item as="button" type="submit" icon="arrow-right-start-on-rectangle" class="w-full">
-                                    {{ __('Log Out') }}
-                                </flux:menu.item>
-                            </form>
-                        </flux:menu>
-                    </flux:dropdown>
+                    <x-mobile-header-mark class="mobile-header-mark" />
                 </flux:header>
 
                 <main class="app-main">

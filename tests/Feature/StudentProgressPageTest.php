@@ -36,6 +36,18 @@ class StudentProgressPageTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_record_tables_have_number_columns_except_for_quran_juz_progress(): void
+    {
+        $source = file_get_contents(resource_path('views/livewire/students/progress.blade.php'));
+
+        $this->assertSame(12, substr_count($source, 'data-student-progress-number-column'));
+        $this->assertSame(12, substr_count($source, 'data-student-progress-row-number'));
+        $this->assertMatchesRegularExpression(
+            '/data-student-progress-juz-table><thead><tr>\s*<th[^>]*>\{\{ __\(\'workflow\.student_progress\.juz_progress\.headers\.juz\'\) \}\}<\/th>/',
+            $source,
+        );
+    }
+
     public function test_parent_can_view_only_their_child_progress(): void
     {
         $this->seed(RoleSeeder::class);
@@ -384,7 +396,7 @@ class StudentProgressPageTest extends TestCase
         $this->assertStringContainsString('function createSearchableSelectChevron(inputMode = false)', $searchableSelectScript);
         $this->assertStringContainsString('stroke-linecap="round" stroke-linejoin="round"', $searchableSelectScript);
         $this->assertStringContainsString('function searchableSelectPlaceholderOption(select)', $searchableSelectScript);
-        $this->assertStringContainsString("const SEARCHABLE_SELECT_BINDING_VERSION = '8'", $searchableSelectScript);
+        $this->assertStringContainsString("const SEARCHABLE_SELECT_BINDING_VERSION = '10'", $searchableSelectScript);
         $this->assertStringContainsString("options.find((option) => option.value === 'all')", $searchableSelectScript);
         $this->assertStringContainsString("searchableSelectBinding(select).includes('filter')", $searchableSelectScript);
         $this->assertStringContainsString("hasSelectedValue || search.value.trim() !== ''", $searchableSelectScript);
@@ -400,6 +412,12 @@ class StudentProgressPageTest extends TestCase
         $this->assertStringContainsString('clear.blur();', $searchableSelectScript);
         $this->assertStringContainsString("search.addEventListener('focus'", $searchableSelectScript);
         $this->assertStringContainsString("buildSearchableSelectOptions(select, list, '')", $searchableSelectScript);
+        $this->assertStringContainsString("['ArrowDown', 'ArrowUp'].includes(event.key)", $searchableSelectScript);
+        $this->assertStringContainsString('highlightSearchableSelectOption(list, search, nextIndex)', $searchableSelectScript);
+        $this->assertStringContainsString("list.querySelector('.searchable-select__option--highlighted')", $searchableSelectScript);
+        $this->assertStringContainsString("search.addEventListener('keydown', handleSearchableSelectKeydown)", $searchableSelectScript);
+        $this->assertStringContainsString("button.addEventListener('keydown'", $searchableSelectScript);
+        $this->assertStringContainsString('focusNextInteractiveControl(searchInputMode ? search : button)', $searchableSelectScript);
 
         $searchableSelectCss = file_get_contents(resource_path('css/app.css'));
         $this->assertStringContainsString('.searchable-select--input.searchable-select--clearable.searchable-select--selected .searchable-select__chevron--input {', $searchableSelectCss);
@@ -410,6 +428,7 @@ class StudentProgressPageTest extends TestCase
         $this->assertStringContainsString('.searchable-select__chevron svg {', $searchableSelectCss);
         $this->assertStringContainsString('align-items: center;', $searchableSelectCss);
         $this->assertStringContainsString('display: none;', $searchableSelectCss);
+        $this->assertStringContainsString('.searchable-select__option--highlighted,', $searchableSelectCss);
     }
 
     public function test_progress_enrollments_only_show_active_and_completed_rows(): void

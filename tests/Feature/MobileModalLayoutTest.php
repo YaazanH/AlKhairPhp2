@@ -134,6 +134,8 @@ class MobileModalLayoutTest extends TestCase
 
         $this->assertStringContainsString("toolbar.setAttribute('popover', 'manual')", $script);
         $this->assertStringContainsString('toolbar.showPopover()', $script);
+        $this->assertStringContainsString("submit.dataset.mobileTableFilterSubmit = ''", $script);
+        $this->assertStringContainsString('component?.$refresh?.()', $script);
         $this->assertStringContainsString("document.documentElement.classList.add('mobile-table-filters-active')", $script);
         $this->assertStringContainsString('data-mobile-table-filter-backdrop', $script);
         $this->assertStringContainsString('body.mobile-table-filters-active > .mobile-table-filter-backdrop', $styles);

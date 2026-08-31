@@ -13,6 +13,7 @@ use App\Models\PrintTemplate;
 use App\Models\Student;
 use App\Models\Teacher;
 use App\Services\GroupDailySummaryService;
+use App\Support\RoleRegistry;
 use App\Support\ScheduleTimeSlots;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -65,7 +66,13 @@ new class extends Component {
             'courses' => Course::query()->where('is_active', true)->orderBy('name')->get(),
             'teachers' => $this->availableTeachersQuery()->orderBy('first_name')->orderBy('last_name')->get(),
             'gradeLevels' => GradeLevel::query()->where('is_active', true)->orderBy('name')->get(),
-            'curricula' => Curriculum::query()->where('is_active', true)->where('course_id', $this->course_id ?: $group->course_id)->orderBy('name')->get(),
+            'curricula' => Curriculum::query()
+                ->where('is_active', true)
+                ->where(fn ($query) => $query
+                    ->whereNull('course_id')
+                    ->orWhere('course_id', $this->course_id ?: $group->course_id))
+                ->orderBy('name')
+                ->get(),
             'dashboardCardTemplates' => PrintTemplate::query()->where('is_active', true)->orderBy('name')->get(),
             'days' => collect(range(0, 6))->mapWithKeys(fn ($day) => [$day => __('schedules.group.days.'.$day)]),
             'timeSlots' => ScheduleTimeSlots::options(),
@@ -91,9 +98,17 @@ new class extends Component {
 
     public function updatedCourseId(): void
     {
-        $this->academic_year_id = (string) (Course::query()->whereKey($this->course_id)->value('academic_year_id') ?? '');
+        $this->academic_year_id = (string) (Course::query()->whereKey($this->course_id)->value('academic_year_id')
+            ?? $this->currentGroup->academic_year_id
+            ?? '');
 
-        if ($this->curriculum_id && ! Curriculum::query()->whereKey($this->curriculum_id)->where('course_id', $this->course_id)->exists()) {
+        if ($this->curriculum_id && ! Curriculum::query()
+            ->whereKey($this->curriculum_id)
+            ->where('is_active', true)
+            ->where(fn ($query) => $query
+                ->whereNull('course_id')
+                ->orWhere('course_id', $this->course_id))
+            ->exists()) {
             $this->curriculum_id = '';
         }
     }
@@ -105,12 +120,18 @@ new class extends Component {
             return;
         }
 
-        $this->academic_year_id = (string) (Course::query()->whereKey($this->course_id)->value('academic_year_id') ?? '');
+        $this->academic_year_id = (string) (Course::query()->whereKey($this->course_id)->value('academic_year_id')
+            ?? $this->currentGroup->academic_year_id
+            ?? '');
         $data = $this->validate([
             'name' => ['required','string','max:255'], 'course_id' => ['required','integer','exists:courses,id'],
             'academic_year_id' => ['required','integer','exists:academic_years,id'], 'teacher_id' => ['nullable','integer','exists:teachers,id'],
             'assistant_teacher_id' => ['nullable','integer','different:teacher_id','exists:teachers,id'], 'grade_level_id' => ['nullable','integer','exists:grade_levels,id'],
-            'curriculum_id' => ['nullable','integer', Rule::exists('curricula', 'id')->where(fn ($query) => $query->where('course_id', $this->course_id)->where('is_active', true))],
+            'curriculum_id' => ['nullable','integer', Rule::exists('curricula', 'id')->where(fn ($query) => $query
+                ->where('is_active', true)
+                ->where(fn ($curriculumQuery) => $curriculumQuery
+                    ->whereNull('course_id')
+                    ->orWhere('course_id', $this->course_id)))],
             'capacity' => ['nullable','integer','min:0'],
             'dashboard_card_template_id' => ['nullable','integer', Rule::exists('print_templates', 'id')->where(fn ($query) => $query->where('is_active', true))],
         ]);
@@ -146,9 +167,55 @@ new class extends Component {
     public function closeEdit(): void { $this->showEditModal = false; $this->resetValidation(); }
     public function closeSchedules(): void { $this->showScheduleModal = false; $this->resetSchedule(); $this->resetValidation(); }
     public function closeAddStudent(): void { $this->showAddStudentModal = false; $this->roster_student_id = ''; $this->resetValidation(); }
-    public function showEditModal(): void { $this->closeEdit(); }
     public function showScheduleModal(): void { $this->closeSchedules(); }
     public function showAddStudentModal(): void { $this->closeAddStudent(); }
+
+    public function duplicateGroup()
+    {
+        $this->authorizePermission('groups.create');
+        $this->authorizePermission('groups.update');
+
+        if (! $this->ensureGroupIsEditable()) {
+            return;
+        }
+
+        $source = $this->currentGroup->fresh(['schedules']);
+
+        $newGroupId = DB::transaction(function () use ($source): int {
+            $copy = $source->replicate(['name', 'course_finished_at', 'course_finished_was_active']);
+            $copy->name = $this->uniqueCopyName($source);
+            $copy->course_finished_at = null;
+            $copy->course_finished_was_active = null;
+            $copy->is_active = true;
+            $copy->save();
+
+            // A new group initially inherits the course schedule. Replace it with the
+            // source group's exact schedule so the copied setup remains faithful.
+            $copy->schedules()->delete();
+            foreach ($source->schedules as $schedule) {
+                $copy->schedules()->create([
+                    'day_of_week' => $schedule->day_of_week,
+                    'time_slot' => $schedule->time_slot,
+                    'starts_at' => $schedule->starts_at,
+                    'ends_at' => $schedule->ends_at,
+                    'room_name' => $schedule->room_name,
+                    'is_active' => $schedule->is_active,
+                ]);
+            }
+
+            $templateMap = (array) AppSetting::groupValues('general')->get('student_dashboard_card_templates', []);
+            if (isset($templateMap[(string) $source->id])) {
+                $templateMap[(string) $copy->id] = $templateMap[(string) $source->id];
+                AppSetting::storeValue('general', 'student_dashboard_card_templates', $templateMap, 'array');
+            }
+
+            return $copy->id;
+        });
+
+        session()->flash('status', __('crud.groups.messages.copied'));
+
+        return $this->redirectRoute('groups.index', ['edit' => $newGroupId], navigate: true);
+    }
 
     public function deleteGroup()
     {
@@ -269,21 +336,56 @@ new class extends Component {
 
     public function copyProgress(): void
     {
-        $date = $this->validate(['progressDate' => ['required','date']])['progressDate'];
-        $this->dispatch('admin-copy-text', text: app(GroupDailySummaryService::class)->currentCopyTextForUser($this->currentGroup, $date, auth()->user()));
+        abort_unless(auth()->user()?->hasAnyRole(RoleRegistry::unrestrictedRoles()), 403);
+
+        $date = $this->validate(['progressDate' => ['required', 'date']])['progressDate'];
+
+        $this->dispatch('admin-copy-text', text: app(GroupDailySummaryService::class)->currentCopyTextForUser(
+            $this->currentGroup,
+            $date,
+            auth()->user(),
+        ));
     }
+
+    protected function uniqueCopyName(Group $source): string
+    {
+        $candidate = __('crud.groups.copy.name', ['name' => $source->name]);
+        $counter = 2;
+
+        while (Group::withTrashed()
+            ->where('course_id', $source->course_id)
+            ->where('name', $candidate)
+            ->exists()) {
+            $candidate = __('crud.groups.copy.name_numbered', [
+                'name' => $source->name,
+                'number' => $counter,
+            ]);
+            $counter++;
+        }
+
+        return $candidate;
+    }
+
     protected function availableTeachersQuery()
     {
+        $assignedTeacherIds = collect([
+            $this->currentGroup->teacher_id,
+            $this->currentGroup->assistant_teacher_id,
+        ])->filter()->map(fn ($id) => (int) $id)->all();
+
         return $this->scopeTeachersQuery(
             Teacher::query()
-                ->where('status', 'active')
-                ->where('is_helping', true)
-                ->whereDoesntHave('assignedGroups', fn ($query) => $query
-                    ->whereNull('course_finished_at')
-                    ->whereKeyNot($this->currentGroup->id))
-                ->whereDoesntHave('assistedGroups', fn ($query) => $query
-                    ->whereNull('course_finished_at')
-                    ->whereKeyNot($this->currentGroup->id))
+                ->where(fn ($query) => $query
+                    ->whereIn('id', $assignedTeacherIds)
+                    ->orWhere(fn ($availableQuery) => $availableQuery
+                        ->where('status', 'active')
+                        ->where('is_helping', true)
+                        ->whereDoesntHave('assignedGroups', fn ($groupQuery) => $groupQuery
+                            ->whereNull('course_finished_at')
+                            ->whereKeyNot($this->currentGroup->id))
+                        ->whereDoesntHave('assistedGroups', fn ($groupQuery) => $groupQuery
+                            ->whereNull('course_finished_at')
+                            ->whereKeyNot($this->currentGroup->id))))
         );
     }
 
@@ -320,7 +422,11 @@ new class extends Component {
         && ($groupRecord->course?->is_active ?? true)
         && ($groupRecord->academicYear?->is_active ?? true);
     $canManageGroup = $groupIsEditable && (bool) auth()->user()?->can('groups.update');
-    $showGroupActionStack = $canManageGroup || ! $isAssignedTeacher;
+    $canCopyGroup = $groupIsEditable
+        && (bool) auth()->user()?->can('groups.create')
+        && (bool) auth()->user()?->can('groups.update');
+    $canCopyGroupSummary = auth()->user()?->hasAnyRole(RoleRegistry::unrestrictedRoles()) ?? false;
+    $showGroupActionStack = $canManageGroup || $canCopyGroup || $canCopyGroupSummary;
 @endphp
 
 <div class="page-stack">
@@ -353,20 +459,37 @@ new class extends Component {
                     </dl>
                 </div>
 
-                @if($showGroupActionStack && $canManageGroup)
-                    <div class="group-show-action-stack flex w-fit max-w-full flex-col gap-3">
-                        <div class="group-show-actions surface-panel flex w-fit max-w-full flex-wrap items-center gap-2 p-3">
-                            <x-edit-action-button wire:click="openEdit" :label="__('crud.common.actions.edit')" data-group-hero-edit-action />
-                            <button type="button" wire:click="copyProgress" class="admin-icon-button" title="{{ __('crud.groups.quick_summary.copy_group_action') }}" aria-label="{{ __('crud.groups.quick_summary.copy_group_action') }}" data-group-copy-summary data-group-hero-copy-action>
-                                <x-admin-action-icon name="copy" />
-                            </button>
-                            <button type="button" wire:click="$set('showScheduleModal', true)" class="admin-icon-button" title="{{ __('crud.groups.actions.schedule') }}" aria-label="{{ __('crud.groups.actions.schedule') }}" data-group-hero-schedule-action>
-                                <x-admin-action-icon name="schedule" />
-                            </button>
-                            <button type="button" wire:click="deactivate" wire:confirm="{{ __('crud.common.confirm_deactivate.message') }}" class="admin-icon-button admin-icon-button--danger" title="{{ __('crud.common.actions.deactivate') }}" aria-label="{{ __('crud.common.actions.deactivate') }}" data-group-hero-deactivate-action>
-                                <x-admin-action-icon name="disable-group" />
-                            </button>
-                        </div>
+                @if($showGroupActionStack)
+                    <div class="group-show-action-stack flex max-w-full flex-col gap-3">
+                        @if($canManageGroup || $canCopyGroup)
+                            <div class="group-show-actions surface-panel flex max-w-full items-center gap-2 p-3">
+                                @if($canManageGroup)
+                                    <x-edit-action-button wire:click="openEdit" :label="__('crud.common.actions.edit')" data-group-hero-edit-action />
+                                @endif
+                                @if($canManageGroup)
+                                    <button type="button" wire:click="$set('showScheduleModal', true)" class="admin-icon-button" title="{{ __('crud.groups.actions.schedule') }}" aria-label="{{ __('crud.groups.actions.schedule') }}" data-group-hero-schedule-action>
+                                        <x-admin-action-icon name="schedule" />
+                                    </button>
+                                @endif
+                                @if($canCopyGroup)
+                                    <button type="button" wire:click="duplicateGroup" class="admin-icon-button admin-icon-button--danger" title="{{ __('crud.groups.copy.action') }}" aria-label="{{ __('crud.groups.copy.action') }}" data-group-hero-copy-action>
+                                        <x-admin-action-icon name="copy" />
+                                    </button>
+                                @endif
+                            </div>
+                        @endif
+                        @if($canCopyGroupSummary)
+                            <div class="group-show-summary surface-panel flex max-w-full items-center gap-2 p-3" data-group-copy-summary>
+                                <label for="group-copy-summary-date" class="group-show-summary__date">
+                                    <span class="sr-only">{{ __('crud.groups.quick_summary.fields.date') }}</span>
+                                    <input id="group-copy-summary-date" wire:model="progressDate" type="date" class="w-full rounded-xl px-3 py-2 text-sm">
+                                </label>
+                                <button type="button" wire:click="copyProgress" class="admin-icon-button admin-icon-button--accent" title="{{ __('crud.groups.quick_summary.copy_group_action') }}" aria-label="{{ __('crud.groups.quick_summary.copy_group_action') }}" data-group-copy-summary-confirm-action>
+                                    <x-admin-action-icon name="copy" />
+                                </button>
+                            </div>
+                            @error('progressDate')<div class="text-sm text-red-400">{{ $message }}</div>@enderror
+                        @endif
                     </div>
                 @endif
             </div>
@@ -374,54 +497,67 @@ new class extends Component {
     </section>
     @if(session('status'))<div class="flash-success px-4 py-3 text-sm">{{ session('status') }}</div>@endif
     @error('group')<div class="flash-error px-4 py-3 text-sm">{{ $message }}</div>@enderror
-    <section class="surface-panel overflow-hidden">
-        <div class="admin-toolbar p-5">
-            <div><div class="admin-toolbar__title">{{ __('crud.groups.roster.title') }}</div></div>
-            <div class="admin-toolbar__actions">
-                @if ($groupIsEditable)
-                    <a target="_blank" rel="noopener" href="{{ route('groups.roster.pdf', $groupRecord) }}" class="admin-icon-button" title="{{ __('crud.groups.roster.download_pdf_action') }}" aria-label="{{ __('crud.groups.roster.download_pdf_action') }}" data-group-roster-pdf-action><x-pdf-export-icon /></a>
-                @endif
-                @if (! $groupRecord->course_finished_at && ($groupRecord->course?->is_active ?? true))
-                    @can('enrollments.create')
-                        <x-add-action-button wire:click="$set('showAddStudentModal', true)" :label="__('crud.groups.roster.add_student')" />
-                    @endcan
-                @endif
+    <section class="surface-table" data-group-roster-table>
+        <div class="admin-grid-meta admin-grid-meta--controls">
+            <div class="admin-grid-meta__title">{{ __('crud.groups.roster.title') }}</div>
+            <div class="admin-toolbar__controls">
+                <div class="admin-toolbar__actions">
+                    @if ($groupIsEditable)
+                        <a target="_blank" rel="noopener" href="{{ route('groups.roster.pdf', $groupRecord) }}" class="admin-icon-button" title="{{ __('crud.groups.roster.download_pdf_action') }}" aria-label="{{ __('crud.groups.roster.download_pdf_action') }}" data-group-roster-pdf-action><x-pdf-export-icon /></a>
+                    @endif
+                    @if (! $groupRecord->course_finished_at && ($groupRecord->course?->is_active ?? true))
+                        @can('enrollments.create')
+                            <x-add-action-button wire:click="$set('showAddStudentModal', true)" :label="__('crud.groups.roster.add_student')" />
+                        @endcan
+                    @endif
+                </div>
             </div>
         </div>
-        <div class="overflow-x-auto">
-            <table class="group-roster-table w-full table-fixed text-sm">
-                <thead>
-                    <tr>
-                        <th class="px-2 py-3 text-center">#</th>
-                        <th class="group-roster-table__name px-3 py-3">{{ __('crud.students.table.headers.name') }}</th>
-                        <th class="px-3 py-3 text-center">{{ __('crud.students.table.headers.student_number') }}</th>
-                        <th class="px-3 py-3 text-center">{{ __('crud.students.table.headers.grade') }}</th>
-                        <th class="px-2 py-3 text-center">{{ __('crud.groups.roster.table.headers.current_juz') }}</th>
-                        <th class="px-3 py-3 text-center">{{ __('crud.groups.roster.fields.enrolled_at') }}</th>
-                        <th class="group-roster-table__name px-3 py-3">{{ __('crud.groups.roster.table.headers.parent_name') }}</th>
-                        <th class="px-3 py-3 text-center">{{ __('crud.groups.roster.table.headers.father_mobile') }}</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-white/5">
-                    @forelse($roster as $enrollment)
+
+        @if($roster->isEmpty())
+            <div class="admin-empty-state">{{ __('crud.groups.roster.empty') }}</div>
+        @else
+            <div class="overflow-x-auto" data-table-scroll-region>
+                <table class="text-sm">
+                    <thead>
                         <tr>
-                            <td class="px-2 py-3 text-center">{{ $roster->firstItem()+$loop->index }}</td>
-                            <td class="group-roster-table__name break-words px-3 py-3 text-white"><span class="group-roster-table__name-value">{{ $enrollment->student?->full_name ?: '—' }}</span></td>
-                            <td class="break-all px-3 py-3 text-center">{{ $enrollment->student?->student_number ?: '—' }}</td>
-                            <td class="break-words px-3 py-3 text-center">{{ $enrollment->student?->gradeLevel?->name ?: '—' }}</td>
-                            <td class="px-2 py-3 text-center">{{ $enrollment->student?->quranCurrentJuz?->juz_number ?: '—' }}</td>
-                            <td class="px-3 py-3 text-center" dir="ltr">{{ $enrollment->enrolled_at?->format('d-m-Y') ?: '—' }}</td>
-                            <td class="group-roster-table__name break-words px-3 py-3"><span class="group-roster-table__name-value">{{ $enrollment->student?->parentProfile?->father_name ?: '—' }}</span></td>
-                            <td class="break-all px-3 py-3 text-center" dir="ltr">{{ $enrollment->student?->parentProfile?->father_phone ?: '—' }}</td>
+                            <th class="px-5 py-4 text-center lg:px-6">#</th>
+                            <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.students.table.headers.name') }}</th>
+                            <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.students.table.headers.student_number') }}</th>
+                            <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.students.table.headers.grade') }}</th>
+                            <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.groups.roster.table.headers.current_juz') }}</th>
+                            <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.groups.roster.fields.enrolled_at') }}</th>
+                            <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.groups.roster.table.headers.parent_name') }}</th>
+                            <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.groups.roster.table.headers.father_mobile') }}</th>
                         </tr>
-                    @empty
-                        <tr><td colspan="8" class="admin-empty-state">{{ __('crud.groups.roster.empty') }}</td></tr>
-                    @endforelse
-                </tbody>
-            </table>
-        </div>
+                    </thead>
+                    <tbody class="divide-y divide-white/6">
+                        @foreach($roster as $enrollment)
+                            <tr>
+                                <td class="px-5 py-4 text-center lg:px-6">{{ $roster->firstItem()+$loop->index }}</td>
+                                <td class="px-5 py-4 lg:px-6">
+                                    <div class="student-inline">
+                                        @if($enrollment->student)<x-student-avatar :student="$enrollment->student" size="sm" />@endif
+                                        <div class="student-inline__body">
+                                            <div class="student-inline__name">{{ $enrollment->student?->full_name ?: '—' }}</div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="px-5 py-4 font-mono text-white lg:px-6">{{ $enrollment->student?->student_number ?: '—' }}</td>
+                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $enrollment->student?->gradeLevel?->name ?: '—' }}</td>
+                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $enrollment->student?->quranCurrentJuz?->juz_number ?: '—' }}</td>
+                                <td class="px-5 py-4 text-neutral-300 lg:px-6" dir="ltr">{{ $enrollment->enrolled_at?->format('d-m-Y') ?: '—' }}</td>
+                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $enrollment->student?->parentProfile?->father_name ?: '—' }}</td>
+                                <td class="px-5 py-4 text-neutral-300 lg:px-6" dir="ltr">{{ $enrollment->student?->parentProfile?->father_phone ?: '—' }}</td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+        @endif
         @if($roster->hasPages())<div class="border-t border-white/10 p-4">{{ $roster->links() }}</div>@endif
     </section>
+
     <x-admin.modal :show="$showAddStudentModal" :title="__('crud.groups.roster.add_student')" close-method="showAddStudentModal" max-width="2xl"><div class="space-y-4"><div><label class="mb-1 block text-sm">{{ __('crud.students.table.headers.name') }}</label><select wire:model="roster_student_id" data-search-input="true" data-open-on-focus="true" data-hide-placeholder-option="true" data-search-placeholder="{{ __('workflow.common.student_name_placeholder') }}" class="w-full rounded-xl px-4 py-3"><option value="">{{ __('crud.common.select') }}</option>@foreach($availableStudents as $student)<option value="{{ $student->id }}">{{ $student->full_name }}</option>@endforeach</select>@error('roster_student_id')<div class="text-sm text-red-400">{{ $message }}</div>@enderror</div><div><label class="mb-1 block text-sm">{{ __('crud.groups.roster.fields.enrolled_at') }}</label><input wire:model="roster_enrolled_at" type="date" class="w-full rounded-xl px-4 py-3"></div><div class="flex gap-2"><button wire:click="addStudent(false)" class="pill-link pill-link--accent">{{ __('crud.groups.roster.add_student') }}</button><button wire:click="addStudent(true)" class="pill-link">{{ __('crud.common.actions.add_and_new') }}</button></div></div></x-admin.modal>
 
     <x-admin.modal :show="$showScheduleModal" :title="__('crud.groups.actions.schedule')" max-width="3xl">
@@ -433,7 +569,7 @@ new class extends Component {
                 </svg>
             </button>
         </x-slot:header-actions>
-        <section class="surface-table settings-record-table overflow-visible">
+        <section class="surface-table settings-record-table overflow-visible" data-searchable-select-table-surface>
             <div class="overflow-visible">
                 <table class="w-full text-sm">
                     <thead><tr><th class="px-4 py-3">{{ __('schedules.group.form.fields.day') }}</th><th class="px-4 py-3">{{ __('schedules.group.form.fields.timing') }}</th><th class="admin-actions-column w-24 px-4 py-3 text-center">{{ __('schedules.group.table.headers.actions') }}</th></tr></thead>
@@ -460,7 +596,7 @@ new class extends Component {
         @error('scheduleRows')<div class="mt-3 text-sm text-red-400">{{ $message }}</div>@enderror
     </x-admin.modal>
 
-    <x-admin.modal :show="$showEditModal" :title="__('crud.groups.form.edit_title')" close-method="showEditModal" max-width="5xl">
+    <x-admin.modal :show="$showEditModal" :title="__('crud.groups.form.edit_title')" close-method="closeEdit" max-width="5xl">
         <form wire:submit="saveGroup" class="space-y-4">
             <div class="grid gap-4 md:grid-cols-2" data-group-form-row="identity">
                 <label class="block text-sm">{{ __('crud.groups.form.fields.name') }}<input wire:model="name" class="mt-1 w-full rounded-xl px-4 py-3"></label>
@@ -480,7 +616,7 @@ new class extends Component {
             </div>
             @error('delete')<div class="flash-error px-4 py-3 text-sm">{{ $message }}</div>@enderror
             <div class="admin-action-cluster admin-action-cluster--end">
-                <button type="submit" class="admin-icon-button admin-icon-button--accent admin-modal-action-button" title="{{ __('crud.common.actions.update') }}" aria-label="{{ __('crud.common.actions.update') }}" data-group-edit-save-action>
+                <button type="button" wire:click="saveGroup" wire:loading.attr="disabled" wire:target="saveGroup" class="admin-icon-button admin-icon-button--accent admin-modal-action-button" title="{{ __('crud.common.actions.update') }}" aria-label="{{ __('crud.common.actions.update') }}" data-group-edit-save-action>
                     <x-admin-action-icon name="save" class="admin-modal-action__icon" />
                 </button>
                 @can('groups.delete')

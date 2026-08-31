@@ -111,14 +111,13 @@
         border: 0;
         display: inline-flex;
         justify-content: center;
-        max-height: 87px;
+        height: 68px;
         padding: 0;
         width: 120px;
     }
     .ledger-report-doc__logo img {
         display: block;
-        height: auto;
-        max-height: 87px;
+        height: 68px;
         max-width: 120px;
         width: auto;
         object-fit: contain;

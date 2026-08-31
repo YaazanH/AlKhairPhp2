@@ -45,6 +45,7 @@ class TeacherAttendanceExportController extends Controller
         $course = Course::query()->where('is_default', true)->first();
         $logo = app(PdfBrandingService::class)->logoSource();
         $html = view('reports.teacher-attendance', compact('teachers', 'course', 'validated', 'logo'))->render();
+        PdfOptions::ensureMemoryCapacity();
         $mpdf = new Mpdf(PdfOptions::make([
             'format' => 'A4',
             'orientation' => 'P',

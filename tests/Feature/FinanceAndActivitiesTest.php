@@ -512,6 +512,22 @@ class FinanceAndActivitiesTest extends TestCase
         $localCurrency = FinanceCurrency::query()->where('is_local', true)->firstOrFail();
 
         Volt::test('settings.finance')
+            ->call('openCurrencyModal')
+            ->assertSee('data-finance-currency-checkbox-box', false)
+            ->assertSee('data-finance-currency-checkbox-grid', false)
+            ->assertSee('sm:grid-cols-2 lg:grid-cols-3', false)
+            ->assertSee('إظهار في القوائم');
+
+        $financeSettingsSource = file_get_contents(resource_path('views/livewire/settings/finance.blade.php'));
+        $this->assertStringContainsString("app()->isLocale('ar') ? 'إظهار في القوائم' : 'Show in lists'", $financeSettingsSource);
+        $this->assertStringNotContainsString('إظهار العملة في القوائم المنسدلة', $financeSettingsSource);
+        $this->assertLessThan(
+            strpos($financeSettingsSource, 'wire:model="currency_is_active"'),
+            strpos($financeSettingsSource, 'wire:model="currency_is_local"'),
+            'The Local Currency checkbox should occupy the former Active position.',
+        );
+
+        Volt::test('settings.finance')
             ->set('invoice_prefix', 'alk')
             ->set('transaction_prefix', 'mov')
             ->set('pull_request_prefix', 'wdr')
@@ -1311,8 +1327,16 @@ class FinanceAndActivitiesTest extends TestCase
             ->assertSee('EXC-000001')
             ->assertSee('Test exchange')
             ->assertSee('dir="ltr" data-exchange-total-amount', false)
+            ->assertSee('class="exchange-to-amount-control relative min-w-0" dir="rtl"', false)
             ->assertViewHas('toCurrencies', fn ($currencies) => $currencies->doesntContain('id', $usd->id) && $currencies->contains('id', $syp->id))
             ->assertDontSeeText(__('finance.exchange.rate_board_title'));
+
+        Volt::test('finance.exchange')
+            ->set('from_amount', '10')
+            ->assertSee('data-exchange-to-amount-edit', false)
+            ->call('enableManualToAmount')
+            ->assertSet('to_amount_is_manual', true)
+            ->assertDontSee('data-exchange-to-amount-edit', false);
     }
 
     public function test_quarter_comparison_converts_mixed_currencies_to_the_local_currency(): void
@@ -1599,6 +1623,63 @@ class FinanceAndActivitiesTest extends TestCase
             ->call('setPage', 2, 'generatedReportsPage')
             ->assertSee('>PAGE-REPORT-1</div>', false)
             ->assertDontSee('PAGE-REPORT-11');
+    }
+
+    public function test_generated_financial_report_quarters_are_hidden_and_cannot_be_generated_twice(): void
+    {
+        $this->signIn();
+
+        $service = app(FinanceService::class);
+        $cashBox = FinanceCashBox::query()->firstOrFail();
+        $currency = $service->localCurrency();
+
+        foreach (['2026-02-15', '2026-05-15'] as $transactionDate) {
+            $service->postTransaction([
+                'cash_box_id' => $cashBox->id,
+                'currency_id' => $currency->id,
+                'type' => 'manual_adjustment',
+                'direction' => 'in',
+                'amount' => 10,
+                'transaction_date' => $transactionDate,
+                'description' => 'Quarter availability fixture',
+            ], auth()->user());
+        }
+
+        FinanceGeneratedReport::query()->create([
+            'report_type' => 'ledger',
+            'filters' => [
+                'date_from' => '2026-01-01',
+                'date_to' => '2026-03-31',
+                'period_mode' => 'quarter',
+            ],
+            'report_data' => [],
+            'generated_by' => auth()->id(),
+        ]);
+
+        $this->assertSame([
+            ['year' => 2026, 'quarters' => [2]],
+        ], app(FinanceReportService::class)->availableUnreportedLedgerPeriods(auth()->user())->all());
+
+        Volt::test('finance.reports')
+            ->call('openCreateReport')
+            ->assertSet('ledger_year', 2026)
+            ->assertSet('ledger_quarter', '2')
+            ->assertSee('data-unreported-ledger-years', false)
+            ->assertSee('data-unreported-ledger-quarters', false)
+            ->assertSee('>Q2</option>', false)
+            ->assertDontSee('>Q1</option>', false);
+
+        $this->get(route('finance.reports.ledger.export', [
+            'cash_box_id' => $cashBox->id,
+            'date_from' => '2026-01-01',
+            'date_to' => '2026-03-31',
+            'period_mode' => 'quarter',
+            'format' => 'pdf',
+        ]))
+            ->assertStatus(422)
+            ->assertSee(__('finance.reports.period_already_generated'));
+
+        $this->assertSame(1, FinanceGeneratedReport::query()->count());
     }
 
     public function test_financial_report_generation_requires_the_current_users_signature(): void
@@ -2385,6 +2466,17 @@ class FinanceAndActivitiesTest extends TestCase
             ]);
         }
 
+        foreach ([FinanceRequest::STATUS_ACCEPTED, FinanceRequest::STATUS_DECLINED] as $index => $status) {
+            FinanceRequest::query()->create([
+                'request_no' => sprintf('WDR-HISTORY-%03d', $index + 1),
+                'type' => FinanceRequest::TYPE_PULL,
+                'status' => $status,
+                'requested_currency_id' => $currency->id,
+                'requested_amount' => 20 + $index,
+                'requested_by' => auth()->id(),
+            ]);
+        }
+
         Volt::test('finance.dashboard')
             ->assertViewHas('pendingRequests', fn ($requests) => $requests->count() === 10)
             ->assertSee('finance-dashboard-header-action', false)
@@ -2415,10 +2507,18 @@ class FinanceAndActivitiesTest extends TestCase
             ->assertSee('data-withdrawal-history-table', false)
             ->assertSee('data-settings-record-table', false)
             ->assertSee('admin-modal__dialog--compact', false)
-            ->assertViewHas('requestHistory', fn ($requests) => $requests->perPage() === 8)
+            ->assertViewHas('requestHistory', fn ($requests) => $requests->perPage() === 8 && $requests->total() === 2)
+            ->assertSee(__('finance.common.accepted'))
+            ->assertSee(__('finance.common.refused'))
+            ->assertSee('withdrawal-history-status', false)
+            ->assertSee('data-withdrawal-history-datetime', false)
             ->set('showRequestHistoryModal', false)
             ->set('showTransactionsModal', true)
             ->assertSee('data-financial-transactions-table', false)
+            ->assertSee('financial-transactions-table', false)
+            ->assertSee('data-finance-transaction-datetime', false)
+            ->assertSee(__('reports.filters.date_from'))
+            ->assertSee(__('reports.filters.date_to'))
             ->assertViewHas('transactions', fn ($transactions) => $transactions->perPage() === 8)
             ->set('showTransactionsModal', false)
             ->set('showTransferModal', true)
@@ -2436,13 +2536,39 @@ class FinanceAndActivitiesTest extends TestCase
             ->assertDontSee('class="pill-link pill-link--accent">'.__('finance.actions.create'), false);
 
         $financeTableCss = file_get_contents(resource_path('css/app.css'));
-        $this->assertSame(3, substr_count(file_get_contents(resource_path('views/livewire/finance/dashboard.blade.php')), 'data-finance-dashboard-inline-header'));
+        $financeDashboardSource = file_get_contents(resource_path('views/livewire/finance/dashboard.blade.php'));
+        $this->assertSame(3, substr_count($financeDashboardSource, 'data-finance-dashboard-inline-header'));
+        $this->assertStringContainsString('data-finance-dashboard-period-filters', $financeDashboardSource);
+        $this->assertStringContainsString('<label for="finance-dashboard-year" class="sr-only">', $financeDashboardSource);
+        $this->assertStringContainsString('<label for="finance-dashboard-quarter" class="sr-only">', $financeDashboardSource);
+        $financeReportsSource = file_get_contents(resource_path('views/livewire/finance/reports.blade.php'));
+        $this->assertStringContainsString('wire:model.live="ledger_period_mode" class="h-[3.125rem] min-h-[3.125rem] w-full rounded-xl px-4 py-3 text-sm" data-ledger-period-mode', $financeReportsSource);
+        $this->assertStringNotContainsString('wire:model.live="ledger_period_mode" data-searchable="false"', $financeReportsSource);
+        $this->assertStringContainsString(".finance-dashboard-period-filters {\n    width: fit-content;\n    grid-template-columns: repeat(2, minmax(0, 6rem));", $financeTableCss);
+        $this->assertStringContainsString(".finance-dashboard-period-filters > * {\n    width: 6rem;", $financeTableCss);
         $this->assertStringContainsString('.finance-dashboard .finance-dashboard-table-header {', $financeTableCss);
         $this->assertStringContainsString('flex-wrap: nowrap;', $financeTableCss);
         $this->assertStringContainsString('align-items: center;', $financeTableCss);
         $this->assertStringNotContainsString('[data-finance-generic-table] thead {', $financeTableCss);
         $this->assertStringContainsString('.admin-modal__dialog:has([data-withdrawal-history-table])', $financeTableCss);
         $this->assertStringContainsString('.admin-modal__dialog:has([data-financial-transactions-table])', $financeTableCss);
+        $this->assertStringContainsString(".financial-transactions-table {\n    width: 100%;\n    min-width: 0;", $financeTableCss);
+        $this->assertStringContainsString('.finance-transaction-datetime {', $financeTableCss);
+        $this->assertStringContainsString('width: calc(100vw - 1rem);', $financeTableCss);
+        $this->assertStringContainsString('<col style="width: 3%"><col style="width: 7.25%"><col style="width: 10.7%"><col style="width: 9.05%"><col style="width: 5.8%"><col style="width: 20.25%">', $financeDashboardSource);
+        $this->assertStringContainsString('<th class="px-2 py-3 text-center">#</th>', $financeDashboardSource);
+        $this->assertStringContainsString('{{ $transactions->firstItem() + $loop->index }}', $financeDashboardSource);
+        $this->assertStringContainsString('<div class="finance-transaction-reference"><div class="finance-transaction-primary" aria-label="{{ $specialTransactionNumber }}">', $financeDashboardSource);
+        $this->assertSame(6, substr_count($financeDashboardSource, 'wire:key="finance-transactions-filter-'));
+        $this->assertStringContainsString('justify-content: space-between;', $financeTableCss);
+        $this->assertStringContainsString('@foreach (mb_str_split($specialTransactionNumber) as $referenceCharacter)', $financeDashboardSource);
+        $this->assertStringContainsString('@foreach (mb_str_split($generalTransactionNumber) as $referenceCharacter)', $financeDashboardSource);
+        $this->assertSame(2, substr_count($financeDashboardSource, 'finance-transaction-secondary mt-1 text-xs text-neutral-500'));
+        $this->assertStringNotContainsString("transaction_date?->format('d-m-Y') }}</span><span>{{ \$transaction->created_at?->format('H:i')", $financeDashboardSource);
+        $this->assertStringContainsString(".withdrawal-history-status {\n    width: 5.5rem;", $financeTableCss);
+        $this->assertStringContainsString('data-date-placeholder="{{ __(\'reports.filters.date_from\') }}"', $financeDashboardSource);
+        $this->assertStringContainsString('data-date-placeholder="{{ __(\'reports.filters.date_to\') }}"', $financeDashboardSource);
+        $this->assertStringContainsString("->whereIn('status', [FinanceRequest::STATUS_ACCEPTED, FinanceRequest::STATUS_DECLINED, FinanceRequest::STATUS_SETTLED])", $financeDashboardSource);
         $this->assertStringContainsString('grid-template-columns: 5.5rem minmax(0, 1fr);', $financeTableCss);
         $this->assertStringContainsString("html[dir='rtl'] .finance-amount-input__currency + .searchable-select {", $financeTableCss);
         $this->assertStringContainsString("html[dir='rtl'] .finance-amount-input__currency + .searchable-select .searchable-select__search {", $financeTableCss);
@@ -2686,6 +2812,8 @@ class FinanceAndActivitiesTest extends TestCase
 
         $component = Volt::test('finance.expense-requests')
             ->call('openFinaliseModal', $request->id)
+            ->assertSet('original_invoice_no', '№')
+            ->assertSee('data-original-invoice-no-input', false)
             ->assertSeeInOrder([
                 'data-invoice-finalisation-metrics',
                 'data-invoice-scan-fields',
@@ -2812,6 +2940,8 @@ class FinanceAndActivitiesTest extends TestCase
             ->call('editInvoice', $invoice->id)
             ->assertSee('data-invoice-items-table', false)
             ->assertSee('>#<', false)
+            ->assertSee('data-invoice-expense-save-action', false)
+            ->assertSee('data-icon-name="save"', false)
             ->set('original_invoice_no', 'VENDOR-11')
             ->set('invoice_issuer', 'Updated Vendor')
             ->set('invoice_date', now()->subDay()->toDateString())

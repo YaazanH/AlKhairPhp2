@@ -101,11 +101,18 @@ class ScopedAccessTest extends TestCase
         $this->get(route('groups.index', absolute: false))
             ->assertOk()
             ->assertSeeText('Assigned Group')
-            ->assertDontSeeText('Other Group');
+            ->assertDontSeeText('Other Group')
+            ->assertDontSee('data-group-index-copy-summary', false);
+
+        Volt::test('groups.index')
+            ->call('openQuickSummaryModal', $assignedGroup->id)
+            ->assertForbidden();
 
         Volt::test('groups.show', ['group' => $assignedGroup])
             ->assertDontSee('data-group-copy-summary', false)
-            ->assertDontSee('group-show-action-stack', false);
+            ->assertDontSee('group-show-action-stack', false)
+            ->call('copyProgress')
+            ->assertForbidden();
 
         $this->get(route('students.index', absolute: false))
             ->assertOk()

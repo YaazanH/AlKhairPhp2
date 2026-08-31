@@ -41,7 +41,7 @@ return [
         'subtitle' => 'إدارة فواتير وأصناف سوق النقاط الخاصة بدورة :course.',
         'summary' => [
             'exchange_rate' => 'سعر الصرف',
-            'total_points_after_rules' => 'إجمالي النقاط',
+            'total_points_after_rules' => 'إجمالي نقاط الطلاب',
             'departments_total' => 'إجمالي المصروف',
         ],
         'add_invoice' => 'إضافة فاتورة',
@@ -85,7 +85,7 @@ return [
             'title' => 'قسم :name',
             'item' => 'اسم الصنف',
             'quantity' => 'الكمية',
-            'invoice_unit_price' => 'سعر الوحدة',
+            'invoice_unit_price' => 'السعر الفردي',
             'local_unit_price' => 'سعر الوحدة بالعملة المحلية',
             'points' => 'النقاط',
             'point_price' => 'سعر النقطة',

@@ -90,6 +90,7 @@ return [
             'developing' => 'في طور التقدم',
             'average_points' => 'متوسط النقاط',
             'average_pages' => 'متوسط الصفحات',
+            'curriculum_lessons_behind' => '{0} لا يوجد تأخر|{1} متأخر درس واحد|{2} متأخر درسين|[3,10] متأخر :count دروس|[11,*] متأخر :count درس',
         ],
         'cards' => [
             'people' => [

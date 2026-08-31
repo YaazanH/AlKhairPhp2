@@ -59,7 +59,13 @@ new class extends Component {
         if ($isManager) {
             $groups = $groupsQuery->when($this->courseId, fn ($query) => $query->where('course_id', $this->courseId))->with(['curriculum.subjects.lessons.topics', 'curriculumProgresses', 'curriculumTopicProgresses', 'customCurriculumLessons'])->orderBy('name')->get();
             $groupProgress = $groups->map(fn (Group $group) => ['group' => $group, ...$progressService->summary($group)]);
-            $curricula = Curriculum::query()->with(['gradeLevel', 'subjects.definition', 'subjects.lessons'])->withCount('groups')->orderBy('name')->get();
+            $curricula = Curriculum::query()
+                ->with(['gradeLevel', 'subjects.definition', 'subjects.lessons'])
+                ->withCount('groups')
+                ->orderByRaw('CASE WHEN grade_level_id IS NULL THEN 1 ELSE 0 END')
+                ->orderBy(GradeLevel::query()->select('sort_order')->whereColumn('grade_levels.id', 'curricula.grade_level_id')->limit(1))
+                ->orderBy('name')
+                ->get();
             $selectedGroup = $this->detailsGroupId ? $groups->firstWhere('id', $this->detailsGroupId) : null;
         } else {
             $availableGroups = $groupsQuery->with('course')->orderBy('name')->get();
@@ -252,7 +258,51 @@ new class extends Component {
 
     @if($isManager)
         <section class="surface-panel p-5" data-curricula-progress-card><h2 class="font-display text-2xl text-white">{{ __('curricula.progress.title') }}</h2>@if($groupProgress->isEmpty())<div class="admin-empty-state mt-4">{{ __('curricula.progress.empty') }}</div>@else<div class="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6">@foreach($groupProgress as $row)<button wire:click="showGroupDetails({{ $row['group']->id }})" class="group text-center"><div class="mx-auto grid size-28 place-items-center rounded-full" style="background: conic-gradient(#9fbea9 {{ $row['percentage'] }}%, #c99b9b 0)"><div class="grid size-20 place-items-center rounded-full bg-neutral-950 text-lg font-semibold text-white">{{ number_format($row['percentage'], 0) }}%</div></div><div class="mt-3 truncate text-sm font-semibold text-white group-hover:text-emerald-200">{{ $row['group']->name }}</div></button>@endforeach</div>@endif</section>
-        <section class="surface-table" data-curricula-index-table><div class="admin-toolbar p-5" data-curricula-table-toolbar><div class="curricula-table-heading"><div class="admin-toolbar__title">{{ __('curricula.table.curricula') }}</div></div><x-add-action-button wire:click="openCurriculum" :label="__('curricula.actions.add_curriculum')" data-curricula-add-icon /></div><div class="overflow-x-auto"><table class="w-full table-fixed text-sm"><thead><tr><th class="p-4">{{ __('curricula.fields.name') }}</th><th class="p-4">{{ __('curricula.fields.grade') }}</th><th class="p-4">{{ __('curricula.fields.subjects') }}</th><th class="p-4">{{ __('curricula.fields.lessons') }}</th><th class="p-4"></th></tr></thead><tbody>@forelse($curricula as $curriculum)<tr><td class="p-4 font-semibold text-white">{{ $curriculum->name }}</td><td class="p-4">{{ $curriculum->gradeLevel?->name ?: '—' }}</td><td class="p-4">{{ $curriculum->subjects->pluck('definition.name')->filter()->implode('، ') ?: '—' }}</td><td class="p-4">{{ $curriculum->subjects->sum(fn ($subject) => $subject->lessons->count()) }}</td><td class="p-4 text-end"><x-open-action-button :href="route('curricula.show', $curriculum)" wire:navigate :label="__('curricula.actions.open')" /></td></tr>@empty<tr><td colspan="5" class="admin-empty-state">{{ __('curricula.table.empty') }}</td></tr>@endforelse</tbody></table></div></section>
+        <section class="surface-table" data-curricula-index-table>
+            <div class="admin-grid-meta admin-grid-meta--controls" data-curricula-table-toolbar>
+                <div class="admin-grid-meta__title">{{ __('curricula.table.curricula') }}</div>
+                <div class="admin-toolbar__controls">
+                    <div class="admin-toolbar__actions">
+                        <x-add-action-button wire:click="openCurriculum" :label="__('curricula.actions.add_curriculum')" class="curricula-table-add-action" data-curricula-add-icon />
+                    </div>
+                </div>
+            </div>
+
+            @if($curricula->isEmpty())
+                <div class="admin-empty-state">{{ __('curricula.table.empty') }}</div>
+            @else
+                <div class="overflow-x-auto" data-table-scroll-region>
+                    <table class="text-sm" data-curricula-index-name-table>
+                        <thead>
+                            <tr>
+                                <th class="px-5 py-4 text-center lg:px-6" data-curricula-index-number>#</th>
+                                <th class="px-5 py-4 text-left lg:px-6">{{ __('curricula.fields.name') }}</th>
+                                <th class="px-5 py-4 text-left lg:px-6">{{ __('curricula.fields.grade') }}</th>
+                                <th class="px-5 py-4 text-left lg:px-6">{{ __('curricula.fields.subjects') }}</th>
+                                <th class="px-5 py-4 text-center lg:px-6">{{ __('curricula.fields.lessons') }}</th>
+                                <th class="admin-actions-column px-5 py-4 text-center lg:px-6">{{ __('crud.common.actions.actions') }}</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-white/6">
+                            @foreach($curricula as $curriculum)
+                                <tr>
+                                    <td class="px-5 py-4 text-center lg:px-6" data-curricula-index-number>{{ $loop->iteration }}</td>
+                                    <td class="curricula-index-name-cell px-5 py-4 font-semibold text-white lg:px-6"><span class="curricula-index-name" data-curricula-index-name>{{ $curriculum->name }}</span></td>
+                                    <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $curriculum->gradeLevel?->name ?: '—' }}</td>
+                                    <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $curriculum->subjects->pluck('definition.name')->filter()->implode('، ') ?: '—' }}</td>
+                                    <td class="px-5 py-4 text-center text-white lg:px-6">{{ $curriculum->subjects->sum(fn ($subject) => $subject->lessons->count()) }}</td>
+                                    <td class="px-5 py-4 lg:px-6">
+                                        <div class="flex flex-nowrap justify-center gap-2 whitespace-nowrap">
+                                            <x-open-action-button :href="route('curricula.show', $curriculum)" wire:navigate :label="__('curricula.actions.open')" />
+                                        </div>
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            @endif
+        </section>
     @else
         @if($selectedGroup)
             <section class="grid gap-4">

@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <style>
-        @page{margin:35mm 14mm 18mm;header:pdf-header;footer:pdf-footer}
+        @page{margin:0 14mm 18mm;margin-header:10mm;header:pdf-header;footer:pdf-footer}
         @page :first{header:pdf-first-header}
         body{font-family:dubai,sans-serif;color:#17231b;font-size:11px;font-weight:400}
         table{width:100%;border-collapse:collapse}
@@ -12,7 +12,7 @@
         thead{display:table-header-group}
         tbody tr:nth-child(even) td{background:#f1f7f2}
         .pdf-header,.pdf-footer{background:#cfe7d6;padding:2mm 3mm}
-        .pdf-header img{height:auto;max-height:23mm;max-width:35mm;width:auto}
+        .pdf-header img{height:18mm;max-width:35mm;width:auto}
         .header-table{border-collapse:collapse;table-layout:fixed;width:100%}
         .header-table td{border:0;padding:0;vertical-align:middle}
         .header-side{width:22%}
@@ -51,10 +51,10 @@
         $departmentTitle = __('course_end.point_market.department.title', ['name' => $department->name]);
     @endphp
     <htmlpageheader name="pdf-first-header">
-        <div class="pdf-header"><table class="header-table" dir="ltr"><tr><td class="header-side header-meta" dir="{{ app()->isLocale('ar') ? 'rtl' : 'ltr' }}">{!! $headerMeta !!}</td><td class="header-copy" dir="{{ app()->isLocale('ar') ? 'rtl' : 'ltr' }}"><div class="header-title">{{ $departmentTitle }}</div><div class="header-subtitle">{{ $course->name }}</div></td><td class="header-side" dir="rtl">@if($logo)<img src="{{ $logo }}" alt="">@endif</td></tr></table></div>
+        <div class="pdf-header"><table class="header-table" dir="ltr"><tr><td class="header-side header-meta" dir="{{ app()->isLocale('ar') ? 'rtl' : 'ltr' }}">{!! $headerMeta !!}</td><td class="header-copy" dir="{{ app()->isLocale('ar') ? 'rtl' : 'ltr' }}"><div class="header-title">{{ $departmentTitle }}</div><div class="header-subtitle">{{ $course->name }}</div></td><td class="header-side" dir="rtl">@if($logo)<img src="{{ $logo }}" alt="" height="18mm" max-height="18mm" max-width="35mm" style="height:18mm;max-height:18mm;max-width:35mm;width:auto">@endif</td></tr></table></div>
     </htmlpageheader>
     <htmlpageheader name="pdf-header">
-        <div class="pdf-header"><table class="header-table" dir="ltr"><tr><td class="header-side header-meta" dir="{{ app()->isLocale('ar') ? 'rtl' : 'ltr' }}">{!! $headerMeta !!}</td><td class="header-copy" dir="{{ app()->isLocale('ar') ? 'rtl' : 'ltr' }}"><div class="header-title">{{ $departmentTitle }}</div><div class="header-subtitle">{{ $course->name }}</div></td><td class="header-side" dir="rtl">@if($logo)<img src="{{ $logo }}" alt="">@endif</td></tr></table></div>
+        <div class="pdf-header"><table class="header-table" dir="ltr"><tr><td class="header-side header-meta" dir="{{ app()->isLocale('ar') ? 'rtl' : 'ltr' }}">{!! $headerMeta !!}</td><td class="header-copy" dir="{{ app()->isLocale('ar') ? 'rtl' : 'ltr' }}"><div class="header-title">{{ $departmentTitle }}</div><div class="header-subtitle">{{ $course->name }}</div></td><td class="header-side" dir="rtl">@if($logo)<img src="{{ $logo }}" alt="" height="18mm" max-height="18mm" max-width="35mm" style="height:18mm;max-height:18mm;max-width:35mm;width:auto">@endif</td></tr></table></div>
     </htmlpageheader>
     <htmlpagefooter name="pdf-footer"><div class="pdf-footer" dir="ltr">{PAGENO} / {nbpg}</div></htmlpagefooter>
     <table class="department-items-table">

@@ -9,7 +9,7 @@
         .heading td { border:0; padding:2mm 3mm; vertical-align:middle; }
         .heading-side { width:38mm; }
         .heading-logo { text-align:right; }
-        .heading-logo img { height:auto; max-height:23mm; max-width:35mm; width:auto; }
+        .heading-logo img { height:18mm; max-width:35mm; width:auto; }
         .heading-copy { text-align:center; }
         .heading-title { font-size:20pt; font-weight:bold; }
         .heading-group { font-size:15pt; font-weight:500; margin-top:1mm; }
@@ -38,7 +38,7 @@
     <table class="heading" dir="ltr"><tr>
         <td class="heading-side heading-meta" dir="{{ app()->isLocale('ar') ? 'rtl' : 'ltr' }}"><table class="heading-meta-table"><tr><td class="heading-meta-label">{{ __('workflow.assessments.results.pdf.due_date') }}</td><td class="heading-meta-spacer"></td><td class="heading-meta-value" dir="ltr">{{ $assessment->due_at?->format('d-m-Y') ?? '—' }}</td></tr><tr><td class="heading-meta-label">{{ __('workflow.assessments.results.pdf.average_mark') }}</td><td class="heading-meta-spacer"></td><td class="heading-meta-value" dir="ltr">{{ $group->average_mark !== null ? number_format((float) $group->average_mark, 2) : '—' }}</td></tr></table></td>
         <td class="heading-copy" dir="{{ app()->isLocale('ar') ? 'rtl' : 'ltr' }}"><div class="heading-title">{{ $assessment->title }}</div><div class="heading-group">{{ $group->name }}</div></td>
-        <td class="heading-side heading-logo">@if($logo)<img src="{{ $logo }}" alt="">@endif</td>
+        <td class="heading-side heading-logo">@if($logo)<img src="{{ $logo }}" alt="" height="18mm" max-height="18mm" max-width="35mm" style="height:18mm;max-height:18mm;max-width:35mm;width:auto">@endif</td>
     </tr></table>
     <table>
         <thead><tr>
