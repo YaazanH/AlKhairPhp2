@@ -56,14 +56,13 @@ new class extends Component {
         $this->normalizeFilters();
 
         return [
-            'courses' => Course::query()->where('is_active', true)->orderByDesc('is_default')->orderBy('name')->get(['id', 'name']),
+            'courses' => Course::query()->orderByDesc('is_active')->orderByDesc('is_default')->orderByDesc('starts_on')->orderBy('name')->get(['id', 'name']),
             'assessmentTypes' => AssessmentType::query()->where('is_active', true)->orderBy('name')->get(['id', 'name']),
             'groups' => $this->scopeGroupsQuery(
                 Group::query()
                     ->with(['course', 'academicYear'])
-                    ->where('is_active', true)
-                    ->whereHas('course', fn ($query) => $query->where('is_active', true))
                     ->when($this->course_id, fn ($query) => $query->where('course_id', $this->course_id))
+                    ->orderByDesc('is_active')
                     ->orderBy('name')
             )->get(),
             'report' => app(ReportingService::class)->overview($this->filters()),

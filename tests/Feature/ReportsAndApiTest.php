@@ -163,6 +163,35 @@ class ReportsAndApiTest extends TestCase
             ->assertHasNoErrors();
     }
 
+    public function test_all_report_course_filters_include_finished_courses_and_their_groups(): void
+    {
+        [$manager, $activeGroup] = $this->reportingContext();
+
+        $finishedCourse = Course::create([
+            'name' => 'Finished Reporting Course',
+            'starts_on' => '2025-09-01',
+            'ends_on' => '2026-06-30',
+            'is_active' => false,
+        ]);
+        $finishedGroup = Group::create([
+            'course_id' => $finishedCourse->id,
+            'academic_year_id' => $activeGroup->academic_year_id,
+            'teacher_id' => $activeGroup->teacher_id,
+            'name' => 'Finished Report Group',
+            'capacity' => 12,
+            'is_active' => false,
+        ]);
+
+        $this->actingAs($manager);
+
+        foreach (['reports.index', 'reports.rankings', 'reports.student-activity-summary', 'reports.student-quran-tests'] as $component) {
+            Volt::test($component)
+                ->assertViewHas('courses', fn ($courses) => $courses->contains('id', $finishedCourse->id))
+                ->set('course_id', $finishedCourse->id)
+                ->assertViewHas('groups', fn ($groups) => $groups->contains('id', $finishedGroup->id));
+        }
+    }
+
     public function test_attendance_averages_use_distinct_attendance_dates_not_group_sessions(): void
     {
         [$manager, $group] = $this->reportingContext();
