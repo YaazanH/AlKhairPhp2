@@ -9,12 +9,16 @@ use App\Models\PrintTemplate;
 use App\Services\IdCards\IdCardPrintLayoutService;
 use App\Services\PrintTemplates\PrintTemplateDataSourceService;
 use App\Services\PrintTemplates\PrintTemplateRenderService;
+use App\Support\ExportFilename;
+use App\Support\PdfOptions;
 use Illuminate\Contracts\View\View;
+use Illuminate\Http\Response;
 use Illuminate\Support\Collection;
+use Mpdf\Mpdf;
 
 class FinanceRequestPrintController extends Controller
 {
-    public function __invoke(FinanceRequest $financeRequest): View
+    public function __invoke(FinanceRequest $financeRequest): View|Response
     {
         abort_unless(
             match ($financeRequest->type) {
@@ -41,6 +45,10 @@ class FinanceRequestPrintController extends Controller
         $defaultTemplate = $this->defaultTemplateFor($financeRequest, $templates);
 
         $isIncome = in_array($financeRequest->type, [FinanceRequest::TYPE_REVENUE, FinanceRequest::TYPE_RETURN], true);
+
+        if ($defaultTemplate && $isIncome && request()->boolean('pdf')) {
+            return $this->pdfWithTemplate($financeRequest, $defaultTemplate);
+        }
 
         if ($defaultTemplate && ($isIncome || ! request()->boolean('choose'))) {
             return $this->previewWithTemplate($financeRequest, $defaultTemplate);
@@ -90,6 +98,49 @@ class FinanceRequestPrintController extends Controller
 
     protected function previewWithTemplate(FinanceRequest $financeRequest, PrintTemplate $template): View
     {
+        $payload = $this->renderedTemplatePayload($financeRequest, $template);
+
+        return view('print-templates.print.preview', $payload + [
+            'autoPrint' => request()->boolean('auto_print'),
+            'backUrl' => route('finance.requests.print', ['financeRequest' => $financeRequest, 'choose' => 1]),
+        ]);
+    }
+
+    protected function pdfWithTemplate(FinanceRequest $financeRequest, PrintTemplate $template): Response
+    {
+        $payload = $this->renderedTemplatePayload($financeRequest, $template);
+        $config = $payload['layout']['config'];
+        $mpdf = new Mpdf(PdfOptions::make([
+            'autoLangToFont' => false,
+            'autoScriptToLang' => false,
+            'format' => [(float) $config['page_width_mm'], (float) $config['page_height_mm']],
+            'margin_top' => 0,
+            'margin_right' => 0,
+            'margin_bottom' => 0,
+            'margin_left' => 0,
+            'margin_header' => 0,
+            'margin_footer' => 0,
+        ]));
+        $mpdf->autoLangToFont = false;
+        $mpdf->autoScriptToLang = false;
+        $mpdf->autoArabic = true;
+        $mpdf->useSubstitutions = true;
+        $mpdf->SetDirectionality(app()->isLocale('ar') ? 'rtl' : 'ltr');
+        $mpdf->WriteHTML(view('print-templates.print.pdf', $payload + [
+            'pdfAssetResolver' => fn (?string $source): ?string => $this->pdfAssetSource($source),
+        ])->render());
+
+        return response($mpdf->Output('', 'S'), 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => ExportFilename::inlinePdf([
+                __('exports.pdf.income_record'),
+                $financeRequest->request_no ?: $financeRequest->id,
+            ], 'income-record-'.$financeRequest->id.'.pdf'),
+        ]);
+    }
+
+    protected function renderedTemplatePayload(FinanceRequest $financeRequest, PrintTemplate $template): array
+    {
         $defaults = $template->printLayoutConfig();
         $contextKey = in_array($financeRequest->type, [FinanceRequest::TYPE_REVENUE, FinanceRequest::TYPE_RETURN], true) ? 'revenue' : 'finance_request';
         $contexts = collect([[$contextKey => $financeRequest]]);
@@ -112,14 +163,33 @@ class FinanceRequestPrintController extends Controller
                 ->all())
             ->all();
 
-        return view('print-templates.print.preview', [
-            'autoPrint' => request()->boolean('auto_print'),
-            'backUrl' => route('finance.requests.print', ['financeRequest' => $financeRequest, 'choose' => 1]),
+        return [
             'layout' => $layout,
             'pages' => $pages,
             'template' => $template,
             'totalItems' => $contexts->count(),
-        ]);
+        ];
+    }
+
+    protected function pdfAssetSource(?string $source): ?string
+    {
+        if (blank($source) || str_starts_with($source, 'data:')) {
+            return $source;
+        }
+
+        if (str_starts_with($source, '/storage/')) {
+            $path = storage_path('app/public/'.ltrim(substr($source, strlen('/storage/')), '/'));
+
+            return is_file($path) ? $path : $source;
+        }
+
+        if (str_starts_with($source, '/')) {
+            $path = public_path(ltrim($source, '/'));
+
+            return is_file($path) ? $path : $source;
+        }
+
+        return $source;
     }
 
     protected function organizationProfile(): array

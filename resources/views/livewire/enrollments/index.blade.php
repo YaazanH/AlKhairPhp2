@@ -431,7 +431,7 @@ new class extends Component {
                     </select>
                 </div>
 
-                <div class="admin-filter-field">
+                <div class="admin-filter-field admin-filter-field--course">
                     <label class="sr-only" for="enrollment-course-filter">{{ __('crud.common.filters.course') }}</label>
                     <select id="enrollment-course-filter" wire:model.live="courseFilter">
                         <option value="all">{{ __('crud.common.filters.all_courses') }}</option>

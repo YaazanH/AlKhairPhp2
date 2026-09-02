@@ -281,7 +281,7 @@ return [
         'currency' => 'Currency',
         'out' => 'Out',
         'revenue' => 'Income',
-        'uncategorized' => 'Uncategorized',
+        'uncategorized' => 'Uncategorised',
     ],
     'print' => [
         'title' => 'Print finance record',
@@ -294,6 +294,8 @@ return [
         'invoice' => 'Invoice',
     ],
     'category_types' => [
+        'exchange' => 'Exchange',
+        'transfer' => 'Transfer',
         'income' => 'Income',
         'expense' => 'Expense',
         'management' => 'Management',
@@ -412,7 +414,7 @@ return [
         'remove_background_image' => 'Remove background image',
         'remove_logo_image' => 'Remove logo image',
         'shape_type' => 'Decorative shape',
-        'shape_color' => 'Shape color',
+        'shape_color' => 'Shape colour',
         'shape_opacity' => 'Shape opacity',
         'show_issuer_name' => 'Show issuer name',
         'show_page_numbers' => 'Show page number',

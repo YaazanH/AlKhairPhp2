@@ -288,8 +288,8 @@ new class extends Component {
                                         @forelse($lessons as $lesson)
                                             <tr wire:key="curriculum-lesson-{{ $lesson->id }}" data-curriculum-lesson-row @if($editingLessonId === $lesson->id) data-curriculum-lesson-editing @endif>
                                                 @if($editingLessonId === $lesson->id)
-                                                    <td class="px-3 py-3"><input wire:model="chapterNumber" class="h-11 w-full rounded-lg px-3 text-sm" aria-label="{{ __('curricula.fields.chapter_number') }}" data-inline-lesson-chapter></td>
-                                                    <td class="px-3 py-3"><input wire:model="lessonName" wire:keydown.enter.prevent="saveLesson" class="h-11 w-full rounded-lg px-3 text-sm" aria-label="{{ __('curricula.fields.name') }}" data-inline-lesson-name></td>
+                                                    <td class="px-3 py-3"><input wire:model="chapterNumber" class="h-11 w-full rounded-xl px-3 text-sm" aria-label="{{ __('curricula.fields.chapter_number') }}" data-inline-lesson-chapter></td>
+                                                    <td class="px-3 py-3"><input wire:model="lessonName" wire:keydown.enter.prevent="saveLesson" class="h-11 w-full rounded-xl px-3 text-sm" aria-label="{{ __('curricula.fields.name') }}" data-inline-lesson-name></td>
                                                     <td class="px-3 py-3 align-middle" data-importance-cell>
                                                         <div class="inline-flex h-11 overflow-hidden rounded-lg border border-white/10" dir="ltr" data-importance-bars>
                                                             @foreach(range(1,3) as $level)
@@ -347,8 +347,8 @@ new class extends Component {
                                             <tr><td colspan="5" class="admin-empty-state">{{ __('curricula.table.no_lessons') }}</td></tr>
                                         @endforelse
                                         <tr class="bg-emerald-500/5" data-curriculum-add-lesson-row>
-                                            <td class="px-3 py-3"><input wire:model="newLessonDrafts.{{ $subject->id }}.{{ $draftResourceId }}.chapter_number" class="h-11 w-full rounded-lg px-3 text-sm" aria-label="{{ __('curricula.fields.chapter_number') }}"></td>
-                                            <td class="px-3 py-3"><input wire:model="newLessonDrafts.{{ $subject->id }}.{{ $draftResourceId }}.name" class="h-11 w-full rounded-lg px-3 text-sm" placeholder="{{ __('curricula.actions.add_lesson') }}" aria-label="{{ __('curricula.fields.name') }}"></td>
+                                            <td class="px-3 py-3"><input wire:model="newLessonDrafts.{{ $subject->id }}.{{ $draftResourceId }}.chapter_number" class="h-11 w-full rounded-xl px-3 text-sm" aria-label="{{ __('curricula.fields.chapter_number') }}"></td>
+                                            <td class="px-3 py-3"><input wire:model="newLessonDrafts.{{ $subject->id }}.{{ $draftResourceId }}.name" class="h-11 w-full rounded-xl px-3 text-sm" placeholder="{{ __('curricula.actions.add_lesson') }}" aria-label="{{ __('curricula.fields.name') }}"></td>
                                             <td class="px-3 py-3">
                                                 <div class="inline-flex h-11 overflow-hidden rounded-lg border border-white/10" dir="ltr" data-importance-bars>
                                                     @foreach(range(1,3) as $level)

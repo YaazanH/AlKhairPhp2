@@ -17,6 +17,7 @@ new class extends Component {
     use WithPagination;
 
     public ?int $editingTransactionId = null;
+    public string $editingStudentName = '';
     public ?int $selectedStudentId = null;
     public ?int $selectedEnrollmentId = null;
     public ?int $manual_point_type_id = null;
@@ -66,7 +67,7 @@ new class extends Component {
                                 ->where('first_name', 'like', $search)
                                 ->orWhere('last_name', 'like', $search);
                         })
-                        ->orWhereHas('enrollment.group', fn (Builder $groupQuery) => $groupQuery->where('name', 'like', $search))
+                        ->orWhereHas('enrollment.group.course', fn (Builder $courseQuery) => $courseQuery->where('name', 'like', $search))
                         ->orWhereHas('pointType', fn (Builder $typeQuery) => $typeQuery->where('name', 'like', $search))
                         ->orWhere('notes', 'like', $search);
                 });
@@ -168,7 +169,7 @@ new class extends Component {
     {
         $this->authorizePermission('points.create-manual');
 
-        $transaction = $this->visiblePointTransactionsQuery(PointTransaction::query())
+        $transaction = $this->visiblePointTransactionsQuery(PointTransaction::query()->with('student'))
             ->findOrFail($transactionId);
 
         if ($transaction->source_type !== 'manual' || $transaction->voided_at) {
@@ -178,6 +179,7 @@ new class extends Component {
         }
 
         $this->editingTransactionId = $transaction->id;
+        $this->editingStudentName = $transaction->student?->full_name ?? '';
         $this->selectedStudentId = $transaction->student_id;
         $this->selectedEnrollmentId = $transaction->enrollment_id;
         $this->manual_point_type_id = $transaction->point_type_id;
@@ -290,6 +292,7 @@ new class extends Component {
         }
 
         $this->editingTransactionId = null;
+        $this->editingStudentName = '';
         $this->selectedStudentId = null;
         $this->selectedEnrollmentId = null;
         $this->manual_point_type_id = $preservedPointTypeId;
@@ -379,6 +382,7 @@ new class extends Component {
     public function resetManualForm(): void
     {
         $this->editingTransactionId = null;
+        $this->editingStudentName = '';
         $this->selectedStudentId = null;
         $this->selectedEnrollmentId = null;
         $this->manual_point_type_id = null;
@@ -496,7 +500,7 @@ new class extends Component {
                 <table class="points-ledger-table w-full table-fixed text-sm" data-has-void-reason="{{ $stateFilter !== 'active' ? 'true' : 'false' }}">
                     <colgroup>
                         <col class="points-ledger-col--student">
-                        <col class="points-ledger-col--group">
+                        <col class="points-ledger-col--course">
                         <col class="points-ledger-col--entered">
                         <col class="points-ledger-col--type">
                         <col class="points-ledger-col--source">
@@ -514,7 +518,7 @@ new class extends Component {
                                     {{ __('workflow.points.workbench.table.headers.student') }} <span>{{ $this->sortIndicator('student') }}</span>
                                 </button>
                             </th>
-                            <th class="px-3 py-4 text-left">{{ __('workflow.points.workbench.table.headers.group') }}</th>
+                            <th class="px-3 py-4 text-left">{{ __('workflow.points.workbench.table.headers.course') }}</th>
                             <th class="px-3 py-4 text-left">
                                 <button type="button" wire:click="sortBy('entered_at')" class="inline-flex items-center gap-2 font-medium text-inherit">
                                     {{ __('workflow.points.workbench.table.headers.entered_at') }} <span>{{ $this->sortIndicator('entered_at') }}</span>
@@ -565,8 +569,7 @@ new class extends Component {
                                     @endif
                                 </td>
                                 <td class="px-3 py-4 text-neutral-300">
-                                    <div class="truncate font-medium text-white" title="{{ $transaction->enrollment?->group?->name }}">{{ $transaction->enrollment?->group?->name ?: __('workflow.common.no_group') }}</div>
-                                    <div class="mt-1 truncate text-xs uppercase tracking-[0.12em] text-neutral-500" title="{{ $transaction->enrollment?->group?->course?->name }}">{{ $transaction->enrollment?->group?->course?->name ?: __('workflow.common.no_course') }}</div>
+                                    <div class="truncate font-medium text-white" title="{{ $transaction->enrollment?->group?->course?->name }}">{{ $transaction->enrollment?->group?->course?->name ?: __('workflow.common.no_course') }}</div>
                                 </td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">
                                     <span class="points-ledger-entered-at" dir="ltr">
@@ -635,9 +638,8 @@ new class extends Component {
                             </span>
                         </div>
 
-                        <div class="points-ledger-mobile__group">
-                            <div>{{ $transaction->enrollment?->group?->name ?: __('workflow.common.no_group') }}</div>
-                            <small>{{ $transaction->enrollment?->group?->course?->name ?: __('workflow.common.no_course') }}</small>
+                        <div class="points-ledger-mobile__course">
+                            {{ $transaction->enrollment?->group?->course?->name ?: __('workflow.common.no_course') }}
                         </div>
 
                         <dl class="points-ledger-mobile__metrics">
@@ -706,14 +708,18 @@ new class extends Component {
             <div class="space-y-3">
                 <div>
                     <label for="points-workbench-student" class="mb-1 block text-sm font-medium">{{ __('workflow.points.workbench.form.student') }}</label>
-                    <select id="points-workbench-student" wire:model.live="selectedStudentId" data-search-input="true" data-open-on-focus="true" data-hide-placeholder-option="true" data-search-placeholder="{{ __('workflow.common.student_name_placeholder') }}" class="w-full rounded-xl px-4 py-3 text-sm" @disabled($editingTransactionId !== null)>
-                        <option value="">{{ __('workflow.points.workbench.form.select_student') }}</option>
-                        @foreach ($studentOptions as $student)
-                            <option value="{{ $student->id }}">
-                                {{ trim($student->first_name.' '.$student->last_name) }}
-                            </option>
-                        @endforeach
-                    </select>
+                    @if ($editingTransactionId)
+                        <input id="points-workbench-student" type="text" value="{{ $editingStudentName }}" readonly aria-readonly="true" data-points-edit-student-name class="w-full rounded-xl px-4 py-3 text-sm">
+                    @else
+                        <select id="points-workbench-student" wire:model.live="selectedStudentId" data-search-input="true" data-open-on-focus="true" data-hide-placeholder-option="true" data-search-placeholder="{{ __('workflow.common.student_name_placeholder') }}" class="w-full rounded-xl px-4 py-3 text-sm">
+                            <option value="">{{ __('workflow.points.workbench.form.select_student') }}</option>
+                            @foreach ($studentOptions as $student)
+                                <option value="{{ $student->id }}">
+                                    {{ trim($student->first_name.' '.$student->last_name) }}
+                                </option>
+                            @endforeach
+                        </select>
+                    @endif
                     @error('selectedStudentId')
                         <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                     @enderror

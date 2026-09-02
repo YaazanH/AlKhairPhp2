@@ -48,8 +48,27 @@ class StudentNotesTest extends TestCase
             'visibility' => 'shared_internal',
         ]);
 
+        $otherParent = ParentProfile::create([
+            'father_name' => 'Other Notes Parent',
+            'father_phone' => '0944000302',
+        ]);
+        $otherStudent = Student::create([
+            'parent_id' => $otherParent->id,
+            'first_name' => 'Other',
+            'last_name' => 'Notes Student',
+            'birth_date' => '2015-05-12',
+            'status' => 'active',
+        ]);
+
         Volt::test('student-notes.index')
             ->call('edit', $note->id)
+            ->assertSet('editingStudentName', $student->full_name)
+            ->assertSet('noted_at', '2026-09-10')
+            ->assertSee('data-student-note-edit-student-name', false)
+            ->assertSee('wire:model="noted_at" value="2026-09-10" type="date"', false)
+            ->assertSee('readonly aria-readonly="true"', false)
+            ->assertDontSee('wire:model="student_id"', false)
+            ->set('student_id', $otherStudent->id)
             ->set('visibility', 'visible_to_parent')
             ->set('body', 'Parent should review memorization at home twice this week.')
             ->call('save')
@@ -57,6 +76,8 @@ class StudentNotesTest extends TestCase
 
         $this->assertDatabaseHas('student_notes', [
             'id' => $note->id,
+            'student_id' => $student->id,
+            'enrollment_id' => $enrollment->id,
             'visibility' => 'visible_to_parent',
             'body' => 'Parent should review memorization at home twice this week.',
         ]);
@@ -72,6 +93,10 @@ class StudentNotesTest extends TestCase
     public function test_student_notes_use_the_compact_date_form_and_generic_table_without_parent_names(): void
     {
         [$student] = $this->managerNotesContext();
+        $styles = file_get_contents(resource_path('css/app.css'));
+
+        $this->assertStringContainsString("input[readonly]:not([type='checkbox']):not([type='radio']):not(.formatted-date-input__display),", $styles);
+        $this->assertStringContainsString("background: rgba(115, 115, 115, 0.18) !important;", $styles);
 
         $otherParent = ParentProfile::create([
             'father_name' => 'Second Parent Name',
@@ -98,9 +123,12 @@ class StudentNotesTest extends TestCase
         Volt::test('student-notes.index')
             ->call('create')
             ->assertDontSee('admin-kpi-grid', false)
-            ->assertSee('wire:model="noted_at" type="date"', false)
+            ->assertSee('wire:model="noted_at" value="', false)
+            ->assertSee('type="date"', false)
             ->assertDontSee('type="datetime-local"', false)
             ->assertDontSee('wire:model="enrollment_id"', false)
+            ->assertSee('student-note-form__meta-grid grid gap-4 md:grid-cols-3', false)
+            ->assertSee('student-note-form__control', false)
             ->assertSee('data-student-notes-generic-table', false)
             ->assertSee(__('notes.log.table.student'))
             ->assertSee(__('notes.log.table.date'))

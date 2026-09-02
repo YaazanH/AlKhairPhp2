@@ -41,7 +41,7 @@ class WebsiteService
                             'ar' => 'واجهة عامة لمجتمع المسجد.',
                         ],
                         'subtitle' => [
-                            'en' => 'Seed the website module to replace this starter content with your own pages, photos, and programs.',
+                            'en' => 'Seed the website module to replace this starter content with your own pages, photos, and programmes.',
                             'ar' => 'قم بزرع بيانات الموقع لاستبدال هذا المحتوى الافتراضي بصفحاتكم وصوركم وبرامجكم.',
                         ],
                         'primary_cta_label' => [
@@ -70,7 +70,7 @@ class WebsiteService
                             'ar' => 'ابدأ من إعدادات الموقع.',
                         ],
                         'body' => [
-                            'en' => 'The website customization module controls this homepage, the header navigation, and the bilingual public pages.',
+                            'en' => 'The website customisation module controls this homepage, the header navigation, and the bilingual public pages.',
                             'ar' => 'وحدة تخصيص الموقع تتحكم في هذه الصفحة الرئيسية وفي ترويسة التنقل وفي الصفحات العامة ثنائية اللغة.',
                         ],
                         'quote' => [

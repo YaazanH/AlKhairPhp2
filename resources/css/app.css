@@ -67,6 +67,8 @@
         --app-border: rgba(32, 91, 55, 0.14);
         --app-text: #112b1c;
         --app-muted: #5f7564;
+        --app-placeholder: rgba(94, 118, 95, 0.78);
+        --app-control-background: rgba(255, 255, 251, 0.9);
         --app-accent: #126d3b;
         --app-accent-soft: rgba(18, 109, 59, 0.11);
         --app-support: rgba(32, 91, 55, 0.07);
@@ -84,6 +86,7 @@
         --app-border: rgba(151, 219, 174, 0.14);
         --app-text: #f3fff6;
         --app-muted: #accdb5;
+        --app-control-background: rgba(31, 24, 19, 0.88);
         --app-accent: #0b8f43;
         --app-accent-soft: rgba(11, 143, 67, 0.16);
         --app-support: rgba(255, 255, 255, 0.08);
@@ -132,7 +135,7 @@
     input:not([type='checkbox']):not([type='radio']),
     textarea,
     select {
-        background: rgba(255, 255, 255, 0.86);
+        background: var(--app-control-background);
         border: 1px solid rgba(17, 81, 43, 0.16);
         color: var(--app-text);
         box-shadow: 0 10px 26px rgba(43, 62, 47, 0.06);
@@ -141,7 +144,7 @@
 
     input::placeholder,
     textarea::placeholder {
-        color: rgba(94, 118, 95, 0.78);
+        color: var(--app-placeholder);
     }
 
     input[type='number'] {
@@ -195,7 +198,7 @@
     input[type='date'].date-input--empty::-webkit-datetime-edit-day-field,
     input[type='date'].date-input--empty::-webkit-datetime-edit-month-field,
     input[type='date'].date-input--empty::-webkit-datetime-edit-year-field {
-        color: rgba(94, 118, 95, 0.78);
+        color: var(--app-placeholder);
     }
 
     input[type='date'].date-input--filled,
@@ -220,13 +223,29 @@
     .dark input:not([type='checkbox']):not([type='radio']),
     .dark textarea,
     .dark select {
-        background: rgba(31, 24, 19, 0.88);
+        background: var(--app-control-background);
         border-color: rgba(216, 204, 185, 0.16);
         color: var(--app-text);
     }
 
     .dark select option {
         background: #082112;
+    }
+
+    input[readonly]:not([type='checkbox']):not([type='radio']):not(.formatted-date-input__display),
+    textarea[readonly] {
+        cursor: not-allowed;
+        border-color: rgba(82, 82, 82, 0.24) !important;
+        background: rgba(115, 115, 115, 0.12) !important;
+        color: rgba(64, 64, 64, 0.74) !important;
+        box-shadow: none;
+    }
+
+    .dark input[readonly]:not([type='checkbox']):not([type='radio']):not(.formatted-date-input__display),
+    .dark textarea[readonly] {
+        border-color: rgba(212, 212, 212, 0.18) !important;
+        background: rgba(115, 115, 115, 0.18) !important;
+        color: rgba(229, 229, 229, 0.72) !important;
     }
 
     button,
@@ -378,7 +397,7 @@ select:focus[data-flux-control] {
     width: 100%;
     border-radius: 0.75rem;
     border: 1px solid rgba(216, 204, 185, 0.16);
-    background: rgba(31, 24, 19, 0.88);
+    background: var(--app-control-background);
     color: var(--app-text);
 }
 
@@ -650,9 +669,25 @@ select:focus[data-flux-control] {
 html:not(.dark) .searchable-select__button,
 html:not(.dark) .searchable-select__search {
     border-color: rgba(32, 91, 55, 0.16);
-    background: rgba(255, 255, 251, 0.9);
+    background: var(--app-control-background);
     color: var(--app-text);
     box-shadow: 0 10px 26px rgba(43, 62, 47, 0.06);
+}
+
+/*
+ * Keep every editable textbox on the same surface as searchable selects.
+ * This intentionally overrides legacy per-view background utilities, while
+ * leaving embedded transparent controls and read-only/disabled fields alone.
+ */
+:is(
+    input:not([type='checkbox']):not([type='radio']):not([type='file']):not([type='color']):not([type='range']):not([type='hidden']):not([type='button']):not([type='submit']):not([type='reset']):not([type='image']):not([readonly]):not(:disabled):not(.bg-transparent):not([data-print-template-background-input]):not(.admin-filter-field input),
+    textarea:not([readonly]):not(:disabled):not(.bg-transparent):not(.admin-filter-field textarea),
+    select:not(:disabled):not(.admin-filter-field select),
+    .formatted-date-input__display:not(.admin-filter-field .formatted-date-input__display),
+    .searchable-select__button:not(:disabled):not(.admin-filter-field .searchable-select__button),
+    .searchable-select__search:not(:disabled):not(.admin-filter-field .searchable-select__search)
+) {
+    background: var(--app-control-background) !important;
 }
 
 html:not(.dark) .searchable-select__panel {
@@ -983,6 +1018,32 @@ html:not(.dark) .app-backdrop__orb--plum {
     height: 0;
 }
 
+.app-logo-period-lockup {
+    justify-items: start;
+    min-width: 0;
+}
+
+.app-logo-period-title {
+    width: max-content;
+    max-width: 100%;
+}
+
+.app-logo-period-subtitle {
+    display: inline-block;
+    max-width: none;
+    overflow: visible;
+    font-feature-settings: 'jalt' 1;
+    line-height: 1.15;
+    text-align: justify;
+    text-align-last: justify;
+    vertical-align: baseline;
+    white-space: nowrap;
+}
+
+html[dir='rtl'] .app-logo-period-lockup {
+    text-align: right;
+}
+
 .app-sidebar-account {
     position: relative;
     z-index: 20;
@@ -1200,11 +1261,6 @@ html:not(.dark) .app-sidebar-toggle-button span {
     width: auto;
     height: 2.5rem;
     flex: 0 0 auto;
-    color: #bfe8cf;
-}
-
-html:not(.dark) .mobile-header-mark {
-    color: #006b2d;
 }
 
 .dashboard-line-chart text {
@@ -1525,6 +1581,7 @@ html:not(.dark) .page-hero::after {
     align-items: flex-start;
     justify-content: flex-start;
     margin-inline-start: auto;
+    margin-inline-end: 0;
 }
 
 .group-show-details {
@@ -1705,6 +1762,172 @@ html[dir='rtl'] .group-show-details {
     color: #6ee7b7;
     font-size: 1.1rem;
     font-weight: 700;
+}
+
+.group-curriculum-status {
+    display: inline-flex;
+    min-width: 1.5rem;
+    min-height: 1.5rem;
+    align-items: center;
+    justify-content: center;
+    color: #6ee7b7;
+    font-size: 1.1rem;
+    font-weight: 700;
+    cursor: help;
+}
+
+.teacher-curriculum-book {
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 1rem;
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.teacher-curriculum-book__header {
+    display: flex;
+    min-height: 3.5rem;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.5rem 0.75rem 0.5rem 1rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(151, 219, 174, 0.055);
+}
+
+.teacher-curriculum-grid {
+    display: grid;
+    grid-template-columns: minmax(3.5rem, 0.55fr) minmax(0, 3fr) minmax(4.75rem, 0.8fr);
+    align-items: center;
+}
+
+.teacher-curriculum-grid--header {
+    min-height: 2.75rem;
+    color: var(--app-muted);
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+.teacher-curriculum-grid--header > *,
+.teacher-curriculum-lesson-row > * {
+    min-width: 0;
+    padding: 0.65rem 0.75rem;
+}
+
+.teacher-curriculum-grid--header > :first-child,
+.teacher-curriculum-grid--header > :last-child,
+.teacher-curriculum-chapter,
+.teacher-curriculum-importance {
+    text-align: center;
+}
+
+.teacher-curriculum-lesson-row {
+    min-height: 3.65rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.065);
+}
+
+.teacher-curriculum-lesson-row--taught {
+    background: rgba(16, 185, 129, 0.055);
+    color: var(--app-muted);
+}
+
+.teacher-curriculum-chapter {
+    color: var(--app-muted);
+    font-size: 0.82rem;
+}
+
+.teacher-curriculum-lesson-cell {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.65rem;
+}
+
+.teacher-curriculum-lesson-line {
+    display: flex;
+    min-width: 0;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+    white-space: nowrap;
+}
+
+.teacher-curriculum-lesson-title {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--app-text);
+    font-size: 0.875rem;
+    font-weight: 500;
+    text-overflow: ellipsis;
+}
+
+.teacher-curriculum-topic-toggle {
+    display: inline-flex;
+    min-width: 0;
+    flex: 1 1 auto;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 0.4rem;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    text-align: start;
+}
+
+.teacher-curriculum-topic-toggle__icon {
+    width: 1rem;
+    height: 1rem;
+    flex: 0 0 1rem;
+    color: var(--app-muted);
+    transition: transform 160ms ease;
+}
+
+.teacher-curriculum-topic-toggle__icon--expanded {
+    transform: rotate(90deg);
+}
+
+.teacher-curriculum-lesson-meta {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: baseline;
+    gap: 0.35rem;
+    color: var(--app-muted);
+    font-size: 0.72rem;
+}
+
+.teacher-curriculum-importance {
+    display: inline-flex;
+    height: 1.5rem;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 0.25rem;
+    direction: ltr;
+}
+
+.teacher-curriculum-importance > i {
+    width: 0.35rem;
+}
+
+.teacher-curriculum-book__empty {
+    padding: 1rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.065);
+    color: var(--app-muted);
+    font-size: 0.8rem;
+    text-align: center;
+}
+
+html:not(.dark) .teacher-curriculum-book {
+    border-color: rgba(32, 91, 55, 0.14);
+    background: rgba(255, 255, 255, 0.55);
+}
+
+html:not(.dark) .teacher-curriculum-book__header {
+    border-color: rgba(32, 91, 55, 0.1);
+    background: rgba(18, 109, 59, 0.055);
+}
+
+@media (min-width: 1024px) {
+    [data-curricula-progress-grid] {
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+    }
 }
 
 .student-progress-profile__grid {
@@ -2318,6 +2541,13 @@ html:not(.dark) .admin-collapsible__count {
     margin-top: 2.25rem !important;
 }
 
+.nav-sort-group--item-drop-target {
+    border-color: rgb(110 231 183 / 0.58);
+    box-shadow:
+        0 0 0 1px rgb(110 231 183 / 0.18),
+        0 0 1.1rem rgb(16 185 129 / 0.12);
+}
+
 .nav-sort-item--drop-target {
     position: relative;
     margin-top: 1.5rem !important;
@@ -2671,6 +2901,10 @@ html:not(.dark) .role-permission-option:hover {
     box-sizing: border-box;
 }
 
+.exchange-entry-form__action-spacer {
+    display: none;
+}
+
 .exchange-to-amount-edit {
     inset-inline-end: 0.25rem;
 }
@@ -2691,9 +2925,40 @@ html:not([dir='rtl']) .exchange-to-amount-value {
 }
 
 @media (min-width: 1024px) {
+    .exchange-entry-form {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 5.5rem minmax(0, 1fr) 3.125rem;
+        align-items: end;
+    }
+
+    .exchange-entry-form__amount,
+    .exchange-notes-action {
+        grid-column: span 2;
+    }
+
+    .exchange-entry-form__action-spacer {
+        display: block;
+    }
+
+    .exchange-entry-form__error {
+        grid-column: 1 / -1;
+    }
+
     .exchange-entry-form .finance-amount-input {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-columns: 5.5rem minmax(0, 1fr);
         gap: 1rem;
+    }
+
+    .exchange-entry-form .exchange-notes-action {
+        position: relative;
+        gap: 1rem;
+    }
+
+    .exchange-entry-form .exchange-notes-action > .admin-icon-button {
+        position: absolute;
+        inset-inline-end: 0;
+        bottom: 0;
+        height: 8.75rem;
+        min-height: 8.75rem;
     }
 
     .exchange-entry-form .finance-amount-input__currency,
@@ -2864,6 +3129,10 @@ html:not(.dark) .admin-toolbar__title {
     min-width: 12rem;
 }
 
+.report-filter-grid .admin-filter-field {
+    min-width: 0;
+}
+
 .student-activity-report-filters {
     grid-template-columns: repeat(2, minmax(9.5rem, 11.5rem)) repeat(2, minmax(8.5rem, 10rem)) auto;
     align-items: end;
@@ -2961,6 +3230,11 @@ html:not(.dark) .admin-toolbar__title {
     flex: 0 0 12rem;
 }
 
+.admin-grid-meta--controls .admin-toolbar__controls:not(.student-activity-report-filters) > .admin-filter-field--course {
+    width: 15rem;
+    flex-basis: 15rem;
+}
+
 /* ID-card printing intentionally keeps its flexible search field. */
 .id-card-selection-toolbar .admin-toolbar__controls:not(.student-activity-report-filters) > .admin-filter-field {
     width: auto;
@@ -3001,6 +3275,46 @@ html:not(.dark) .admin-toolbar__title {
     text-align: start;
 }
 
+.curricula-index-hero-copy {
+    min-width: 0;
+    flex: 1 1 0;
+}
+
+.curricula-index-hero-title-row {
+    display: flex;
+    width: 100%;
+    min-height: 3.125rem;
+    min-width: 0;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.curricula-index-course-filter {
+    position: relative;
+    z-index: 30;
+    width: min(100%, var(--curricula-course-filter-width, 16rem));
+    min-width: 0;
+    max-width: 100%;
+    flex: 0 1 var(--curricula-course-filter-width, 16rem);
+}
+
+.curricula-index-course-filter .searchable-select {
+    width: 100%;
+}
+
+/* Keep the open course menu above the following progress card. The hero clips
+   its decorative glow by default, so relax that clipping only while the menu
+   is open and raise the complete hero into the foreground. */
+[data-curricula-index-hero]:has(.curricula-index-course-filter .searchable-select--open) {
+    z-index: 80;
+    overflow: visible;
+}
+
+[data-curricula-index-hero]:has(.curricula-index-course-filter .searchable-select--open)::after {
+    visibility: hidden;
+}
+
 .curricula-index-name {
     display: inline-block;
     width: var(--curricula-index-name-width, auto);
@@ -3011,12 +3325,17 @@ html:not(.dark) .admin-toolbar__title {
     white-space: nowrap;
 }
 
-.surface-table .financial-report-symbol-button.financial-report-generate-button {
-    width: 2.75rem;
-    min-width: 2.75rem;
-    height: 2.75rem;
-    min-height: 2.75rem;
-    flex-basis: 2.75rem;
+.surface-table .admin-grid-meta .financial-report-symbol-button.financial-report-generate-button {
+    width: 2.5rem;
+    min-width: 2.5rem;
+    height: 2.5rem;
+    min-height: 2.5rem;
+    flex-basis: 2.5rem;
+}
+
+.surface-table .admin-grid-meta .financial-report-symbol-button.financial-report-generate-button svg {
+    width: 1.15rem;
+    height: 1.15rem;
 }
 
 :is(.surface-table, .surface-panel:has(table)) :is(.admin-grid-meta, .admin-toolbar, .soft-keyline) :is(.admin-toolbar__controls, .admin-toolbar__actions, [data-mobile-table-filter-controls]) {
@@ -3129,6 +3448,75 @@ html[dir='rtl'] .admin-grid-meta--controls .admin-toolbar__controls.admin-toolba
     flex: 1 1 auto;
 }
 
+.assessment-group-scope-control {
+    --assessment-group-control-size: 3.125rem;
+    align-items: stretch;
+}
+
+.assessment-form__course-height-control {
+    height: 3.125rem !important;
+    min-height: 3.125rem !important;
+    box-sizing: border-box;
+}
+
+.assessment-group-scope-control > .searchable-select {
+    min-width: 0;
+    height: var(--assessment-group-control-size);
+    min-height: var(--assessment-group-control-size);
+    flex: 1 1 auto;
+}
+
+.assessment-group-scope-control :is(
+    .searchable-select__button,
+    .searchable-select__search--trigger
+) {
+    height: var(--assessment-group-control-size);
+    min-height: var(--assessment-group-control-size);
+    box-sizing: border-box;
+}
+
+.assessment-group-scope-control [data-assessment-group-picker-open] {
+    width: var(--assessment-group-control-size) !important;
+    min-width: var(--assessment-group-control-size) !important;
+    height: var(--assessment-group-control-size) !important;
+    min-height: var(--assessment-group-control-size) !important;
+    flex: 0 0 var(--assessment-group-control-size) !important;
+    aspect-ratio: 1 / 1;
+}
+
+.assessment-group-picker-option {
+    display: flex;
+    width: 100%;
+    min-width: 0;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+}
+
+.assessment-group-picker-option__copy {
+    min-width: 0;
+    flex: 1 1 auto;
+}
+
+.assessment-group-picker-option__copy > span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.assessment-group-picker-option__check {
+    flex: 0 0 1.25rem;
+}
+
+.assessment-quick-score-identity-row :is(
+    .searchable-select__search--trigger,
+    .assessment-quick-score-group
+) {
+    height: 2.875rem;
+    min-height: 2.875rem;
+    box-sizing: border-box;
+}
+
 .assessment-index-table :is(th, td) {
     white-space: nowrap;
 }
@@ -3159,7 +3547,7 @@ html[dir='rtl'] .admin-grid-meta--controls .admin-toolbar__controls.admin-toolba
 }
 
 .points-ledger-table .points-ledger-col--student,
-.points-ledger-table .points-ledger-col--group {
+.points-ledger-table .points-ledger-col--course {
     width: 15%;
 }
 
@@ -3187,7 +3575,7 @@ html[dir='rtl'] .admin-grid-meta--controls .admin-toolbar__controls.admin-toolba
     width: 11%;
 }
 
-.points-ledger-table[data-has-void-reason='true'] :is(.points-ledger-col--student, .points-ledger-col--group, .points-ledger-col--entered, .points-ledger-col--type) {
+.points-ledger-table[data-has-void-reason='true'] :is(.points-ledger-col--student, .points-ledger-col--course, .points-ledger-col--entered, .points-ledger-col--type) {
     width: 14%;
 }
 
@@ -3398,13 +3786,128 @@ html[dir='rtl'] :is(.surface-table, .surface-panel:has(table)) :is(.admin-toolba
 }
 
 .finance-dashboard-period-filters {
-    width: fit-content;
-    grid-template-columns: repeat(2, minmax(0, 6rem));
+    width: 8rem;
+    min-width: 8rem;
+    height: 3.25rem;
+    min-height: 3.25rem;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: center;
+    gap: 0;
+    padding: 0.4rem;
+    overflow: visible;
+    border: 1px solid rgba(110, 231, 183, 0.2);
+    border-radius: 1rem;
+    background: rgba(52, 211, 153, 0.1);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), inset 0 8px 24px rgba(4, 22, 11, 0.1);
+    contain: layout;
+    direction: ltr;
 }
 
-.finance-dashboard-period-filters > * {
-    width: 6rem;
+.finance-dashboard-period-filter {
+    position: relative;
+    width: 100%;
     min-width: 0;
+    display: flex;
+    height: 100%;
+    min-height: 0;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    box-sizing: border-box;
+    direction: rtl;
+}
+
+[data-finance-dashboard-period='quarter'] {
+    grid-column: 2;
+    grid-row: 1;
+    border-left: 1px solid rgba(110, 231, 183, 0.16);
+}
+
+[data-finance-dashboard-period='year'] {
+    grid-column: 1;
+    grid-row: 1;
+}
+
+.finance-dashboard-period-filter .searchable-select {
+    display: flex;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    align-items: stretch;
+}
+
+.finance-dashboard-period-filter :is(
+    .searchable-select__button,
+    .searchable-select__search--trigger
+) {
+    display: flex;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    align-items: center;
+    justify-content: center;
+    border: 0 !important;
+    background: transparent !important;
+    padding: 0 !important;
+    color: #d1fae5;
+    box-shadow: none !important;
+    cursor: pointer;
+    font-size: 0.875rem;
+    font-weight: 500;
+    line-height: 1.25;
+    text-align: center;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+/* Override the global editable-control surface without relying on source order. */
+#finance-dashboard-year + .searchable-select :is(
+    .searchable-select__button,
+    .searchable-select__search--trigger
+),
+#finance-dashboard-quarter + .searchable-select :is(
+    .searchable-select__button,
+    .searchable-select__search--trigger
+) {
+    border: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+}
+
+.finance-dashboard-period-filter .searchable-select__value,
+.finance-dashboard-period-filter .searchable-select__option {
+    text-align: center;
+}
+
+.finance-dashboard-period-filter .searchable-select__value {
+    display: flex;
+    width: 100%;
+    height: 100%;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+}
+
+.finance-dashboard-period-filter .searchable-select__panel {
+    inset-inline: auto;
+    left: 50%;
+    top: calc(100% + 0.15rem);
+    width: 3.5rem;
+    min-width: 3.5rem;
+    border-radius: 0.65rem;
+    transform: translateX(-50%);
+}
+
+.finance-dashboard-period-filter .searchable-select__list {
+    max-height: 5.5rem;
+    padding: 0.15rem;
+}
+
+.finance-dashboard-period-filter .searchable-select__option {
+    border-radius: 0.45rem;
+    padding: 0.25rem 0.3rem;
+    font-size: 0.7rem;
+    line-height: 0.95rem;
 }
 
 .finance-dashboard .finance-dashboard-table-header {
@@ -4789,10 +5292,16 @@ html:not(.dark) .print-template-settings-dialog {
 .student-inline__meta {
     margin-top: 0.25rem;
     font-size: 0.72rem;
+    font-weight: 300;
     line-height: 1.4;
     text-transform: uppercase;
     letter-spacing: 0.18em;
     color: #7c7f86;
+}
+
+html[lang^='ar'] .student-inline__meta {
+    text-transform: none;
+    letter-spacing: 0;
 }
 
 .student-avatar {
@@ -4914,7 +5423,7 @@ html:not(.dark) .admin-modal__dialog {
 
 .financial-transactions-table {
     width: 100%;
-    min-width: 0;
+    min-width: 72rem;
     table-layout: fixed;
 }
 
@@ -4952,6 +5461,36 @@ html:not(.dark) .admin-modal__dialog {
 
 .finance-transaction-reference > * > span {
     flex: 0 0 auto;
+}
+
+.finance-transaction-kashida-label {
+    display: inline-block;
+    max-width: 100%;
+    overflow: visible;
+    font-feature-settings: 'jalt' 1;
+    line-height: inherit;
+    text-align: justify;
+    text-align-last: justify;
+    vertical-align: baseline;
+    white-space: nowrap;
+}
+
+.finance-transaction-kashida-label[data-finance-kashida-applied] {
+    position: static;
+    top: auto;
+    transform: none;
+}
+
+.finance-transaction-kashida-label[data-finance-kashida-target] {
+    max-width: none;
+}
+
+.finance-transaction-amount--in {
+    color: #6ee7b7;
+}
+
+.finance-transaction-amount--out {
+    color: #fca5a5;
 }
 
 .finance-transactions-filters :is(.searchable-select__button, .searchable-select__search--trigger, .formatted-date-input__display) {
@@ -5016,7 +5555,7 @@ html:not(.dark) .admin-modal__dialog {
 
 .formatted-date-input__display.date-input--empty,
 .formatted-date-input__display.date-input--empty::placeholder {
-    color: rgba(148, 163, 184, 0.78) !important;
+    color: var(--app-placeholder) !important;
     opacity: 1 !important;
 }
 
@@ -5107,7 +5646,7 @@ html[dir='ltr'] .formatted-date-input__display {
 
 html:not(.dark) .formatted-date-input__display.date-input--empty,
 html:not(.dark) .formatted-date-input__display.date-input--empty::placeholder {
-    color: rgba(94, 118, 95, 0.78) !important;
+    color: var(--app-placeholder) !important;
 }
 
 html:not(.dark) .formatted-date-input__picker {
@@ -5283,11 +5822,20 @@ html:not(.dark) .admin-modal__title {
     }
 
     .financial-transactions-table {
+        min-width: 0;
         font-size: clamp(0.68rem, 0.72vw, 0.875rem);
     }
 
     .financial-transactions-table :is(th, td) {
         padding-inline: 0.45rem !important;
+    }
+
+    .financial-transactions-table :is(th, td):nth-child(n + 3):nth-child(-n + 6) {
+        padding-inline: 0.625rem !important;
+    }
+
+    [data-financial-transactions-table] > .overflow-x-auto {
+        overflow-x: hidden !important;
     }
 }
 
@@ -5508,6 +6056,37 @@ html:not(.dark) .admin-modal [class*='border-emerald'] {
     text-align: center !important;
 }
 
+.student-note-form__control,
+.student-note-form__control + .searchable-select,
+.student-note-form__control + .searchable-select :is(
+    .searchable-select__button,
+    .searchable-select__search--trigger
+) {
+    height: 3.125rem;
+    min-height: 3.125rem;
+    box-sizing: border-box;
+}
+
+.awqaf-saber-form__control {
+    height: 3.125rem !important;
+    min-height: 3.125rem !important;
+    box-sizing: border-box !important;
+}
+
+.group-form__identity-control,
+.group-form__identity-control + .searchable-select :is(
+    .searchable-select__button,
+    .searchable-select__search--trigger
+) {
+    border-radius: 0.75rem;
+}
+
+.quick-memorization-page-input {
+    height: 3.125rem;
+    min-height: 3.125rem;
+    box-sizing: border-box;
+}
+
 .quick-saber-hero {
     text-align: center;
 }
@@ -5698,6 +6277,11 @@ html[dir='rtl'] .finance-amount-input__currency + .searchable-select .searchable
     box-sizing: border-box;
 }
 
+.generated-report-lookup[dir='rtl']::placeholder {
+    direction: rtl;
+    text-align: right;
+}
+
 .transaction-maintenance-action-button,
 .generated-report-import-action-button,
 .generated-report-maintenance-action-button {
@@ -5708,46 +6292,6 @@ html[dir='rtl'] .finance-amount-input__currency + .searchable-select .searchable
     flex: 0 0 3.125rem;
     aspect-ratio: 1 / 1;
     padding: 0;
-}
-
-.transaction-maintenance-invoice-edit-icon {
-    position: relative;
-    display: grid;
-    width: 1.25rem;
-    height: 1.25rem;
-    place-items: center;
-}
-
-.transaction-maintenance-invoice-edit-icon > svg {
-    width: 1.15rem;
-    height: 1.15rem;
-}
-
-.transaction-maintenance-invoice-edit-icon__pen {
-    position: absolute;
-    right: -0.38rem;
-    bottom: -0.32rem;
-    display: grid;
-    width: 0.82rem;
-    height: 0.82rem;
-    place-items: center;
-    border: 1px solid rgba(110, 231, 183, 0.58);
-    border-radius: 999px;
-    background: #082c1b;
-    color: #a7f3d0;
-    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
-}
-
-.transaction-maintenance-invoice-edit-icon__pen svg {
-    width: 0.52rem;
-    height: 0.52rem;
-    stroke-width: 2.2;
-}
-
-html:not(.dark) .transaction-maintenance-invoice-edit-icon__pen {
-    border-color: rgba(13, 148, 75, 0.4);
-    background: #edf8f0;
-    color: #08783c;
 }
 
 .points-multiplier-field > .searchable-select {
@@ -6129,7 +6673,7 @@ html:not(.dark) .transaction-maintenance-invoice-edit-icon__pen {
     letter-spacing: 0;
 }
 
-.dashboard-manager-highlights .kpi-label {
+:is(.stat-card, .report-kpi-card) > .kpi-label {
     font-weight: 300;
     letter-spacing: 0;
     text-transform: none;
@@ -6154,6 +6698,16 @@ html:not(.dark) .transaction-maintenance-invoice-edit-icon__pen {
     height: 7rem;
     border-radius: 9999px;
     background: radial-gradient(circle, rgba(11, 143, 67, 0.18), transparent 72%);
+}
+
+.data-quality-stat--high {
+    border-color: rgba(248, 113, 113, 0.42);
+    box-shadow: 0 0 0 1px rgba(248, 113, 113, 0.07), 0 0 1.15rem rgba(239, 68, 68, 0.13);
+}
+
+html:not(.dark) .data-quality-stat--high {
+    border-color: rgba(220, 38, 38, 0.32);
+    box-shadow: 0 0 0 1px rgba(220, 38, 38, 0.05), 0 0 0.9rem rgba(220, 38, 38, 0.09);
 }
 
 html:not(.dark) .stat-card {
@@ -6208,6 +6762,60 @@ html[dir='rtl'] .kpi-label {
     display: none;
 }
 
+/* Settings has many small maintenance dialogs. Keep their shell and field
+   rhythm compact while retaining the same control geometry used elsewhere. */
+.settings-admin-page .admin-modal__header {
+    align-items: center;
+    padding: 1rem 1.25rem 0.8rem;
+}
+
+.settings-admin-page .admin-modal__title {
+    font-size: 1.45rem;
+}
+
+.settings-admin-page .admin-modal__body {
+    padding: 1rem 1.25rem 1.25rem;
+}
+
+.settings-admin-page .admin-modal__body :is(.gap-4, .gap-5, .gap-6) {
+    gap: 0.75rem;
+}
+
+.settings-admin-page .admin-modal__body :is(.space-y-4, .space-y-5, .space-y-6) > :not(:last-child) {
+    margin-block-start: 0;
+    margin-block-end: 0.75rem;
+}
+
+.settings-admin-page .admin-modal__body :is(
+    input:not([type='hidden']):not([type='checkbox']):not([type='radio']):not([type='file']):not([type='color']),
+    select:not(.searchable-select__native),
+    textarea,
+    .searchable-select__button,
+    .searchable-select__search--trigger,
+    .formatted-date-input__display
+) {
+    border-radius: 0.75rem !important;
+}
+
+.settings-admin-page .admin-modal__body :is(
+    input:not([type='hidden']):not([type='checkbox']):not([type='radio']):not([type='file']):not([type='color']),
+    select:not(.searchable-select__native),
+    .searchable-select__button,
+    .searchable-select__search--trigger,
+    .formatted-date-input__display
+) {
+    height: 2.75rem !important;
+    min-height: 2.75rem !important;
+    padding-block: 0.65rem !important;
+    box-sizing: border-box;
+}
+
+.settings-admin-page .admin-modal__body textarea {
+    min-height: 4.75rem;
+    padding: 0.75rem 1rem !important;
+    box-sizing: border-box;
+}
+
 html[dir='rtl'] .settings-admin-page .admin-modal form > .flex.justify-end,
 html[dir='rtl'] .settings-admin-page .admin-modal form > .flex.flex-wrap,
 html[dir='rtl'] .settings-admin-page .admin-modal__body > .flex.justify-end {
@@ -6243,31 +6851,6 @@ html[dir='rtl'] .settings-admin-page .admin-modal__body > .flex.justify-end {
 .report-panel p,
 .report-kpi-hint {
     color: rgba(225, 215, 174, 0.74) !important;
-}
-
-.report-field-label {
-    color: rgba(205, 226, 196, 0.86);
-}
-
-.report-control {
-    height: 2.625rem;
-    box-sizing: border-box;
-    border-width: 1px !important;
-    border-style: solid !important;
-    border-color: rgba(151, 219, 174, 0.13) !important;
-    background: rgba(29, 25, 19, 0.96) !important;
-    color: #fff7e7 !important;
-    box-shadow: none !important;
-}
-
-.report-control:focus {
-    border-color: rgba(151, 219, 174, 0.52) !important;
-    box-shadow: 0 0 0 3px rgba(11, 143, 67, 0.22) !important;
-}
-
-.report-control option {
-    background: #17140f;
-    color: #fff7e7;
 }
 
 .report-kpi-card {
@@ -6443,17 +7026,6 @@ html:not(.dark) .report-kpi-hint {
     color: #5c705f !important;
 }
 
-html:not(.dark) .report-field-label {
-    color: #2f5a40 !important;
-}
-
-html:not(.dark) .report-control {
-    border-color: rgba(24, 92, 53, 0.16) !important;
-    background: rgba(255, 255, 250, 0.94) !important;
-    color: #143226 !important;
-    box-shadow: 0 10px 28px rgba(61, 83, 52, 0.08) !important;
-}
-
 html:not(.dark) .report-nav-card:hover {
     border-color: rgba(24, 92, 53, 0.24) !important;
     box-shadow: 0 18px 40px rgba(54, 74, 45, 0.14);
@@ -6487,16 +7059,6 @@ html:not(.dark) .ranking-movement-badge--dropped {
     background: rgba(149, 156, 163, 0.15);
     border-color: rgba(93, 102, 110, 0.16);
     color: #4c5b64;
-}
-
-html:not(.dark) .report-control:focus {
-    border-color: rgba(24, 128, 72, 0.4) !important;
-    box-shadow: 0 0 0 3px rgba(24, 128, 72, 0.14), 0 12px 30px rgba(61, 83, 52, 0.1) !important;
-}
-
-html:not(.dark) .report-control option {
-    background: #fffdf5;
-    color: #143226;
 }
 
 html:not(.dark) .report-kpi-index {
@@ -7165,7 +7727,7 @@ html:not(.dark) .settings-tab.is-active {
 }
 
 .public-brand__mark--image .public-brand__image {
-    transform: scale(1.035);
+    transform: scale(1.14);
     transform-origin: center;
 }
 
@@ -9132,6 +9694,11 @@ html[dir='rtl'] .id-card-layer-card__meta {
         padding-inline: 0.75rem !important;
     }
 
+    html[dir='rtl'] .mobile-header-mark {
+        /* 0.75rem header inset + 1.5rem margin = three times the original gap. */
+        margin-inline-end: 1.5rem;
+    }
+
     .app-sidebar-shell {
         width: min(88vw, 22rem) !important;
         flex-basis: min(88vw, 22rem) !important;
@@ -9172,13 +9739,20 @@ html[dir='rtl'] .id-card-layer-card__meta {
         gap: 0.75rem;
     }
 
-    [data-curricula-index-hero] select {
-        width: 100%;
+    .curricula-index-course-filter {
+        max-width: 50%;
+    }
+
+    .curricula-index-course-filter :is(
+        select,
+        .searchable-select__button,
+        .searchable-select__search--trigger
+    ) {
         min-height: 2.75rem;
     }
 
-    [data-curricula-progress-card] .admin-empty-state {
-        padding-block: 1.5rem;
+    [data-curricula-progress-card] {
+        display: none !important;
     }
 
     [data-curriculum-detail-hero] > div {
@@ -9485,6 +10059,18 @@ html[dir='rtl'] .id-card-layer-card__meta {
         padding: 0.5rem 0.7rem;
     }
 
+    .student-juz-progress-table .mobile-record-card [data-juz-progress-status] {
+        width: auto;
+        max-width: 55%;
+        padding-inline: 0.7rem;
+    }
+
+    .student-juz-progress-table .mobile-record-card__actions [data-juz-progress-action] {
+        width: auto;
+        max-width: none;
+        flex: 1 1 8rem;
+    }
+
     .mobile-records-surface .admin-grid-meta--controls {
         display: block;
         padding: 0.9rem;
@@ -9571,7 +10157,7 @@ html[dir='rtl'] .id-card-layer-card__meta {
     }
 
     .points-ledger-mobile__student-name,
-    .points-ledger-mobile__group,
+    .points-ledger-mobile__course,
     .points-ledger-mobile__metrics dd {
         overflow-wrap: anywhere;
     }
@@ -9582,7 +10168,7 @@ html[dir='rtl'] .id-card-layer-card__meta {
         line-height: 1.4;
     }
 
-    .points-ledger-mobile__group {
+    .points-ledger-mobile__course {
         margin-top: 0.8rem;
         border-top: 1px solid rgba(255, 255, 255, 0.07);
         padding-top: 0.7rem;
@@ -9590,14 +10176,6 @@ html[dir='rtl'] .id-card-layer-card__meta {
         font-size: 0.85rem;
         font-weight: 650;
         line-height: 1.4;
-    }
-
-    .points-ledger-mobile__group small {
-        display: block;
-        margin-top: 0.2rem;
-        color: var(--app-muted);
-        font-size: 0.69rem;
-        font-weight: 500;
     }
 
     .points-ledger-mobile__metrics {
@@ -10033,12 +10611,16 @@ html[dir='rtl'] .id-card-layer-card__meta {
     .admin-filter-field input,
     .admin-filter-field select,
 .admin-filter-field .searchable-select__button,
-.admin-filter-field .searchable-select__search--trigger {
+    .admin-filter-field .searchable-select__search--trigger {
         height: 2.85rem;
         min-height: 2.85rem;
         border-radius: 0.9rem;
         padding: 0.75rem 0.9rem;
         font-size: 0.86rem;
+    }
+
+    [data-student-progress-student-selector] .searchable-select__search--trigger {
+        font-size: 1rem;
     }
 
     .searchable-select--open {

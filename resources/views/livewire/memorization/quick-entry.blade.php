@@ -376,7 +376,7 @@ new class extends Component {
             <div class="grid gap-4 md:grid-cols-2">
                 <div class="admin-form-field">
                     <label for="quick-memorization-from">{{ __('workflow.memorization.form.from_page') }}</label>
-                    <input id="quick-memorization-from" wire:model.live="from_page" type="number" min="1" max="604" inputmode="numeric" class="w-full rounded-xl px-5 py-4 text-base">
+                    <input id="quick-memorization-from" wire:model.live="from_page" type="number" min="1" max="604" inputmode="numeric" class="quick-memorization-page-input w-full rounded-xl px-4 py-2 text-base" data-quick-memorization-page-input>
                     @error('from_page')
                         <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                     @enderror
@@ -384,7 +384,7 @@ new class extends Component {
 
                 <div class="admin-form-field">
                     <label for="quick-memorization-to">{{ __('workflow.memorization.form.to_page') }}</label>
-                    <input id="quick-memorization-to" wire:model.live="to_page" type="number" min="1" max="604" inputmode="numeric" class="w-full rounded-xl px-5 py-4 text-base">
+                    <input id="quick-memorization-to" wire:model.live="to_page" type="number" min="1" max="604" inputmode="numeric" class="quick-memorization-page-input w-full rounded-xl px-4 py-2 text-base" data-quick-memorization-page-input>
                     @error('to_page')
                         <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                     @enderror

@@ -25,7 +25,7 @@ new class extends Component {
     public function mount(): void
     {
         $this->authorizePermission('finance.exchange.view');
-        app(SpTodayExchangeRateService::class)->refreshUsdSypRate();
+        app(SpTodayExchangeRateService::class)->refreshUsdSypRateAfterResponse();
         $this->exchange_date = now()->toDateString();
         $baseCurrency = app(FinanceService::class)->baseCurrency();
         $localCurrency = app(FinanceService::class)->localCurrency();
@@ -191,12 +191,13 @@ new class extends Component {
     @can('finance.exchange.create')
         <section class="surface-panel p-5 lg:p-6">
             <div class="admin-section-card__title">{{ __('finance.exchange.new') }}</div>
-            <form wire:submit="saveExchange" class="exchange-entry-form mt-5 grid gap-4 lg:grid-cols-4">
+            <form wire:submit="saveExchange" class="exchange-entry-form mt-5 grid gap-4">
                 <div><label class="mb-1 block text-sm font-medium">{{ __('finance.exchange.from_box') }}</label><select wire:model.live="from_cash_box_id" class="w-full rounded-xl px-4 py-3 text-sm"><option value="">{{ __('finance.actions.choose_box') }}</option>@foreach ($fromCashBoxes as $box)<option value="{{ $box->id }}">{{ $box->name }}</option>@endforeach</select></div>
-                <div class="lg:col-span-2"><label class="mb-1 block text-sm font-medium">{{ __('finance.exchange.from_amount') }}</label><x-finance.amount-input amount-model="from_amount" currency-model="from_currency_id" :currencies="$fromCurrencies" amount-live /></div>
+                <div class="exchange-entry-form__amount"><label class="mb-1 block text-sm font-medium">{{ __('finance.exchange.from_amount') }}</label><x-finance.amount-input amount-model="from_amount" currency-model="from_currency_id" :currencies="$fromCurrencies" amount-live /></div>
                 <div><label class="mb-1 block text-sm font-medium">{{ __('finance.common.date') }}</label><input wire:model="exchange_date" type="date" class="w-full rounded-xl px-4 py-3 text-sm"></div>
+                <div class="exchange-entry-form__action-spacer" aria-hidden="true"></div>
                 <div><label class="mb-1 block text-sm font-medium">{{ __('finance.exchange.to_box') }}</label><select wire:model.live="to_cash_box_id" class="w-full rounded-xl px-4 py-3 text-sm"><option value="">{{ __('finance.actions.choose_box') }}</option>@foreach ($toCashBoxes as $box)<option value="{{ $box->id }}">{{ $box->name }}</option>@endforeach</select></div>
-                <div class="lg:col-span-2">
+                <div class="exchange-entry-form__amount">
                     <label class="mb-1 block text-sm font-medium">{{ __('finance.exchange.to_amount') }}</label>
                     <div class="finance-amount-input" dir="ltr" data-exchange-total-amount>
                         <select wire:model.live="to_currency_id" class="finance-amount-input__currency rounded-xl px-3 py-3 text-sm" data-clearable="false" data-finance-currency-required="true" data-search-placeholder="" aria-label="{{ __('finance.exchange.to_currency') }}">@foreach ($toCurrencies as $currency)<option value="{{ $currency->id }}">{{ $currency->code }}</option>@endforeach</select>
@@ -214,7 +215,7 @@ new class extends Component {
                     <div class="min-w-0"><label class="mb-1 block text-sm font-medium">{{ __('finance.common.notes') }}</label><input wire:model="notes" type="text" class="w-full rounded-xl px-4 py-3 text-sm"></div>
                     <button type="submit" class="admin-icon-button admin-icon-button--accent" title="{{ __('finance.actions.post_exchange') }}" aria-label="{{ __('finance.actions.post_exchange') }}" data-exchange-save-action><x-admin-action-icon name="save" /></button>
                 </div>
-                @error('from_currency_id') <div class="lg:col-span-4 text-sm text-red-400">{{ $message }}</div> @enderror
+                @error('from_currency_id') <div class="exchange-entry-form__error text-sm text-red-400">{{ $message }}</div> @enderror
             </form>
         </section>
     @endcan

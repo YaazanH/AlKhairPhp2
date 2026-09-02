@@ -14,6 +14,23 @@
     $metaImageAlt = $site['site_name'];
     $metaUrl = url()->current();
     $themeColor = $site['primary_color'] ?? '#006b2d';
+    $defaultHeaderLogoPath = 'website/branding/logo.jpeg';
+    $configuredHeaderLogoPath = data_get($site, 'logo_path');
+    $headerLogoUrl = null;
+
+    if (filled($configuredHeaderLogoPath) && \Illuminate\Support\Str::startsWith($configuredHeaderLogoPath, ['http://', 'https://'])) {
+        $headerLogoUrl = $configuredHeaderLogoPath;
+    } elseif (filled($configuredHeaderLogoPath)) {
+        $storedHeaderLogoPath = ltrim(\Illuminate\Support\Str::after($configuredHeaderLogoPath, '/storage/'), '/');
+
+        if (\Illuminate\Support\Facades\Storage::disk('public')->exists($storedHeaderLogoPath)) {
+            $headerLogoUrl = '/storage/'.$storedHeaderLogoPath;
+        }
+    }
+
+    if (! $headerLogoUrl && \Illuminate\Support\Facades\Storage::disk('public')->exists($defaultHeaderLogoPath)) {
+        $headerLogoUrl = '/storage/'.$defaultHeaderLogoPath;
+    }
 @endphp
 
 <!DOCTYPE html>
@@ -31,9 +48,9 @@
             <header class="public-header">
                 <div class="public-header__inner">
                     <a href="{{ route('home') }}" class="public-brand">
-                        <div @class(['public-brand__mark', 'public-brand__mark--image' => ! empty($site['logo_url'])])>
-                            @if (! empty($site['logo_url']))
-                                <img src="{{ $site['logo_url'] }}" alt="{{ $site['site_name'] }}" class="public-brand__image">
+                        <div @class(['public-brand__mark', 'public-brand__mark--image' => $headerLogoUrl])>
+                            @if ($headerLogoUrl)
+                                <img src="{{ $headerLogoUrl }}" alt="{{ $site['site_name'] }}" class="public-brand__image">
                             @else
                                 <x-app-logo-icon class="h-8 w-8 fill-current text-neutral-950" />
                             @endif

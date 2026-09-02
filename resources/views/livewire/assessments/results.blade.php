@@ -720,13 +720,13 @@ new class extends Component
                 data-searchable-refresh
                 data-assessment-quick-score-form
             >
-                <div class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_12rem] sm:items-end">
+                <div class="assessment-quick-score-identity-row grid gap-3 sm:grid-cols-[minmax(0,1fr)_12rem] sm:items-end">
                     <div>
                         <label for="assessment-student-entry" class="mb-1 block text-sm font-medium">{{ __('workflow.assessments.results.quick_entry.student') }}</label>
                         <select
                             id="assessment-student-entry"
                             wire:model.live="quick_enrollment_id"
-                            class="searchable-select h-11 w-full rounded-xl px-4 text-sm"
+                            class="h-11 w-full rounded-xl px-4 text-sm"
                             data-search-input="true"
                             data-open-on-focus="true"
                             data-hide-placeholder-option="true"
@@ -741,7 +741,7 @@ new class extends Component
                     </div>
                     <div>
                         <label class="mb-1 block text-sm font-medium">{{ __('workflow.assessments.index.form.group') }}</label>
-                        <div id="assessment-selected-group" class="flex h-11 items-center rounded-xl border border-white/10 px-4 text-sm text-neutral-200">{{ $quickSelectedEnrollment?->group?->name ?: '—' }}</div>
+                        <div id="assessment-selected-group" class="assessment-quick-score-group flex items-center rounded-xl border border-white/10 px-4 text-sm text-neutral-200">{{ $quickSelectedEnrollment?->group?->name ?: '—' }}</div>
                     </div>
                 </div>
 

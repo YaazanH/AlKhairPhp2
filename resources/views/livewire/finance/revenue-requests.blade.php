@@ -6,19 +6,16 @@ use App\Livewire\Concerns\HandlesFinanceRequestMaintenance;
 use App\Models\FinanceCategory;
 use App\Models\FinanceCurrency;
 use App\Models\FinanceRequest;
-use App\Models\FinanceRequestAttachment;
 use App\Services\FinanceService;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Livewire\Volt\Component;
-use Livewire\WithFileUploads;
 use Livewire\WithPagination;
 
 new class extends Component {
     use AuthorizesPermissions;
     use FormatsFinanceNumbers;
     use HandlesFinanceRequestMaintenance;
-    use WithFileUploads;
     use WithPagination;
 
     public string $request_type = 'revenue';
@@ -29,7 +26,6 @@ new class extends Component {
     public ?int $finance_category_id = null;
     public string $counterparty_name = '';
     public string $requested_reason = '';
-    public array $attachments = [];
     public array $review_amounts = [];
     public array $review_cash_boxes = [];
     public array $review_dates = [];
@@ -62,7 +58,7 @@ new class extends Component {
                 ->get(),
             'selectedRevenueCategory' => FinanceCategory::query()->find($this->finance_category_id),
             'requests' => FinanceRequest::query()
-                ->with(['activity', 'cashBox', 'category', 'postedTransaction', 'requestedBy', 'reviewedBy', 'teacher', 'requestedCurrency', 'acceptedCurrency', 'attachments'])
+                ->with(['activity', 'cashBox', 'category', 'postedTransaction', 'requestedBy', 'reviewedBy', 'teacher', 'requestedCurrency', 'acceptedCurrency'])
                 ->whereIn('type', [FinanceRequest::TYPE_REVENUE, FinanceRequest::TYPE_RETURN])
                 ->where('status', FinanceRequest::STATUS_ACCEPTED)
                 ->whereHas('postedTransaction')
@@ -84,8 +80,6 @@ new class extends Component {
 
         $validated = $this->validate([
             'amount' => ['required', 'numeric', 'gt:0'],
-            'attachments' => ['array'],
-            'attachments.*' => ['file', 'max:'.config('uploads.image_max_kb'), 'mimes:jpg,jpeg,png,webp,pdf'],
             'cash_box_id' => ['nullable', 'exists:finance_cash_boxes,id'],
             'currency_id' => ['required', 'exists:finance_currencies,id'],
             'finance_category_id' => [
@@ -115,8 +109,6 @@ new class extends Component {
             'requested_by' => auth()->id(),
             'requested_reason' => $validated['requested_reason'] ?: null,
         ]);
-
-        $this->storeAttachments($request);
 
         if ($canReview) {
             $postingCashBox = $validated['cash_box_id']
@@ -246,22 +238,6 @@ new class extends Component {
         session()->flash('status', __('finance.messages.revenue_declined'));
     }
 
-    protected function storeAttachments(FinanceRequest $request): void
-    {
-        foreach ($this->attachments as $upload) {
-            $path = $upload->store('finance/requests/'.$request->id, 'public');
-
-            FinanceRequestAttachment::query()->create([
-                'finance_request_id' => $request->id,
-                'path' => $path,
-                'original_name' => $upload->getClientOriginalName(),
-                'mime_type' => $upload->getMimeType(),
-                'size' => $upload->getSize(),
-                'uploaded_by' => auth()->id(),
-            ]);
-        }
-    }
-
     protected function resetCreateForm(): void
     {
         $this->request_type = 'revenue';
@@ -273,8 +249,6 @@ new class extends Component {
         $this->updatedFinanceCategoryId();
         $this->counterparty_name = '';
         $this->requested_reason = '';
-        $this->attachments = [];
-
         $this->resetValidation();
     }
 
@@ -329,7 +303,6 @@ new class extends Component {
             @can('finance.entries.update')<div class="lg:col-span-3" data-finance-entry-fund><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.cash_box') }}</label><select wire:model.live="cash_box_id" class="w-full rounded-xl px-4 py-3 text-sm"><option value="">{{ __('finance.actions.choose_box') }}</option>@foreach ($cashBoxes as $box)<option value="{{ $box->id }}">{{ $box->name }}</option>@endforeach</select></div>@endcan
             @can('finance.entries.update')<div class="lg:col-span-3" data-finance-entry-date><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.entry_date') }}</label><input wire:model="request_date" type="date" class="w-full rounded-xl px-4 py-3 text-sm">@error('request_date') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>@endcan
             <div class="lg:col-span-6" data-finance-entry-description><label class="mb-1 block text-sm font-medium">{{ __('finance.common.description') }}</label><textarea wire:model="requested_reason" rows="2" class="w-full rounded-xl px-4 py-3 text-sm"></textarea>@error('requested_reason') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
-            <div class="lg:col-span-6" data-finance-entry-attachments><label class="mb-1 block text-sm font-medium">{{ __('finance.common.attachments') }}</label><input wire:model="attachments" type="file" multiple accept="image/jpeg,image/png,image/webp,application/pdf" class="w-full rounded-xl px-4 py-3 text-sm">@error('attachments.*') <div data-pdf-upload-error-for="attachments" class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
             <div class="lg:col-span-6 flex flex-wrap justify-end gap-3">
                 <button type="button" wire:click="closeCreateModal" class="pill-link">{{ __('crud.common.actions.close') }}</button>
                 <button
@@ -345,5 +318,5 @@ new class extends Component {
         </form>
     </x-admin.modal>
 
-    <section class="surface-table"><div class="admin-grid-meta"><div><div class="admin-grid-meta__title">{{ __('finance.revenue_requests.title') }}</div><div class="admin-grid-meta__summary">{{ __('crud.common.badges.in_view', ['count' => number_format($requests->total())]) }}</div></div>@can('finance.revenue-requests.create')<x-add-action-button wire:click="openCreateModal" :label="__('finance.revenue_requests.new')" />@endcan</div><div class="overflow-x-auto"><table class="text-sm"><thead><tr><th class="px-5 py-3 text-left">{{ __('finance.fields.income_no') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.category') }}</th><th class="px-5 py-3 text-left">{{ __('finance.common.description') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.amount') }}</th><th class="admin-actions-column px-5 py-3 text-center">{{ __('finance.actions.actions') }}</th></tr></thead><tbody class="divide-y divide-white/6">@forelse ($requests as $request)<tr><td class="px-5 py-3"><div class="font-semibold text-white">{{ $request->request_no }}</div><div class="text-xs text-neutral-500">{{ $request->postedTransaction?->transaction_date?->format('d-m-Y') }} · {{ $request->reviewedBy?->name ?: '-' }}</div></td><td class="px-5 py-3">{{ $request->category?->name ?: '-' }}</td><td class="px-5 py-3"><div>{{ $request->requested_reason ?: '-' }}</div>@if ($request->category?->is_donation && $request->counterparty_name)<div class="text-xs text-neutral-500">{{ $request->maskedCounterpartyName() }}</div>@endif</td><td class="px-5 py-3"><bdi dir="ltr" class="font-semibold text-white">{{ app(FinanceService::class)->formatCurrencyAmount($request->accepted_amount, $request->acceptedCurrency) }}</bdi></td><td class="px-5 py-3"><div class="admin-action-cluster admin-action-cluster--end">@if ($request->category?->is_donation)<a href="{{ route('finance.requests.print', ['financeRequest' => $request, 'auto_print' => 1]) }}" target="_blank" rel="noopener" class="admin-icon-button" title="{{ __('finance.actions.print') }}" aria-label="{{ __('finance.actions.print') }}" data-income-direct-print><x-admin-action-icon name="print" /></a>@endif</div></td></tr>@empty<tr><td colspan="5" class="px-5 py-10 text-center text-neutral-500">{{ __('finance.empty.no_revenue') }}</td></tr>@endforelse</tbody></table></div>@if ($requests->hasPages())<div class="border-t border-white/8 px-5 py-4">{{ $requests->links() }}</div>@endif</section>
+    <section class="surface-table"><div class="admin-grid-meta"><div><div class="admin-grid-meta__title">{{ __('finance.revenue_requests.title') }}</div><div class="admin-grid-meta__summary">{{ __('crud.common.badges.in_view', ['count' => number_format($requests->total())]) }}</div></div>@can('finance.revenue-requests.create')<x-add-action-button wire:click="openCreateModal" :label="__('finance.revenue_requests.new')" />@endcan</div><div class="overflow-x-auto"><table class="text-sm"><thead><tr><th class="px-5 py-3 text-left">{{ __('finance.fields.income_no') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.category') }}</th><th class="px-5 py-3 text-left">{{ __('finance.common.description') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.amount') }}</th><th class="admin-actions-column px-5 py-3 text-center">{{ __('finance.actions.actions') }}</th></tr></thead><tbody class="divide-y divide-white/6">@forelse ($requests as $request)<tr><td class="px-5 py-3"><div class="font-semibold text-white">{{ $request->request_no }}</div><div class="text-xs text-neutral-500">{{ $request->postedTransaction?->transaction_date?->format('d-m-Y') }} · {{ $request->reviewedBy?->name ?: '-' }}</div></td><td class="px-5 py-3">{{ $request->category?->name ?: '-' }}</td><td class="px-5 py-3"><div>{{ $request->requested_reason ?: '-' }}</div>@if ($request->category?->is_donation && $request->counterparty_name)<div class="text-xs text-neutral-500">{{ $request->maskedCounterpartyName() }}</div>@endif</td><td class="px-5 py-3"><bdi dir="ltr" class="font-semibold text-white">{{ app(FinanceService::class)->formatCurrencyAmount($request->accepted_amount, $request->acceptedCurrency) }}</bdi></td><td class="px-5 py-3"><div class="admin-action-cluster admin-action-cluster--end">@if ($request->category?->is_donation)<a href="{{ route('finance.requests.print', ['financeRequest' => $request, 'pdf' => 1]) }}" target="_blank" rel="noopener" class="admin-icon-button" title="{{ __('finance.actions.print') }}" aria-label="{{ __('finance.actions.print') }}" data-income-direct-print><x-admin-action-icon name="print" /></a>@endif</div></td></tr>@empty<tr><td colspan="5" class="px-5 py-10 text-center text-neutral-500">{{ __('finance.empty.no_revenue') }}</td></tr>@endforelse</tbody></table></div>@if ($requests->hasPages())<div class="border-t border-white/8 px-5 py-4">{{ $requests->links() }}</div>@endif</section>
 </div>

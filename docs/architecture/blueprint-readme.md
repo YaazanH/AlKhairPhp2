@@ -1,31 +1,36 @@
-# Alkhair App Blueprint
+# AlKhair Architecture Notes
 
-This folder contains the first-pass product and database blueprint for the new Laravel application `alkhairapp`.
+This directory records the domain decisions that guided the implemented AlKhair application. The documents are architectural references; the generated [`../codebase-index.md`](../codebase-index.md) is the authoritative map of current routes, source files, and symbols.
 
-The goal is to lock the core architecture before scaffolding the Laravel codebase so migrations, permissions, APIs, and reports are built on a stable model.
+## Documents
 
-## Included
+- [`blueprint.md`](blueprint.md) — domain model, migrations, relationships, points, attendance, memorisation, finance, and delivery phases
+- [`permissions-matrix.md`](permissions-matrix.md) — baseline roles, permissions, and scope expectations
+- [`../codebase-index.md`](../codebase-index.md) — generated implementation index
 
-- `docs/blueprint.md`: domain model, migration list, relationships, points rules, attendance design, memorization design, finance, and build order.
-- `docs/permissions-matrix.md`: baseline roles and permissions for admin, manager, teacher, parent, and student.
+## Implemented Decisions
 
-## Locked Decisions
+- One `users` table provides authenticated identities, with separate student, teacher, and parent profiles.
+- Groups are running classes; courses and curricula provide reusable learning structure.
+- Enrolments connect students to groups and retain course-specific progress and lifecycle history.
+- Memorisation is recorded page-by-page, with lifetime-page protection against accidental duplicates.
+- Quran progress includes partial, final, and Awqaf saber workflows.
+- Attendance is day-based and supports student and teacher records.
+- Points use a ledger so automatic and manual adjustments remain auditable.
+- Finance covers funds, currencies, exchange, requests, invoices, transactions, reports, and PDF output.
+- The interface supports Arabic RTL and UK-English LTR catalogues with automated key-parity checks.
+- Web and versioned API access share the same roles, permissions, and scope rules.
 
-- One `users` table for all authenticated accounts.
-- Separate business profile tables for `students`, `teachers`, and `parents`.
-- `groups` represent actual running classes; `courses` remain catalog/master data.
-- Points are stored as ledger transactions and may be positive or negative.
-- Memorization is stored page-by-page for reporting and history.
-- Lifetime memorization is stored separately to prevent duplicate page entry across enrollments.
-- Attendance is recorded by day, then expanded into student and teacher records.
-- Finance supports both tuition invoices and activity-related charges/payments.
+## Keeping the References Current
 
-## Recommended Next Build Step
+After adding routes, commands, Livewire components, or public methods, regenerate the implementation index:
 
-After approving this blueprint, the next implementation step is:
+```bash
+php artisan codebase:index
+```
 
-1. scaffold the Laravel app in `alkhairapp`
-2. install auth, Livewire, permissions, API auth, and OpenAPI packages
-3. create migrations in the order listed in `docs/blueprint.md`
-4. seed lookup tables and initial roles/permissions
+Validate architectural changes with the complete suite:
 
+```bash
+php -d memory_limit=512M vendor/bin/phpunit --display-errors
+```

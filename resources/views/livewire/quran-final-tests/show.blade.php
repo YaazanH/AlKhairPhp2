@@ -171,7 +171,13 @@ new class extends Component {
         abort_if($this->hasRelatedAwqafTest(), 409);
 
         $attempt = $this->finalTest->attempts()->findOrFail($this->editingAttemptId);
-        app(QuranFinalTestService::class)->deleteAttempt($attempt);
+        try {
+            app(QuranFinalTestService::class)->deleteAttempt($attempt);
+        } catch (\LogicException $exception) {
+            $this->addError('attempt', $exception->getMessage());
+
+            return;
+        }
         session()->flash('status', __('workflow.quran_final_tests.messages.attempt_deleted'));
         $this->finalTest = $this->finalTest->fresh();
         $this->closeAttemptModal();
@@ -182,7 +188,13 @@ new class extends Component {
         $this->authorizePermission('quran-final-tests.delete');
         abort_if($this->hasRelatedAwqafTest(), 409);
 
-        app(QuranFinalTestService::class)->deleteTest($this->finalTest);
+        try {
+            app(QuranFinalTestService::class)->deleteTest($this->finalTest);
+        } catch (\LogicException $exception) {
+            $this->addError('deleteTest', $exception->getMessage());
+
+            return;
+        }
         session()->flash('status', __('workflow.quran_final_tests.messages.deleted'));
         $this->redirect(route('quran-final-tests.index'), navigate: true);
     }
@@ -267,7 +279,7 @@ new class extends Component {
                 <div class="rounded-3xl border border-white/12 bg-black/15 px-5 py-4">
                     <div class="flex items-start justify-between gap-4">
                         <div class="text-lg font-semibold text-white">{{ $finalTestRecord->student?->full_name }}</div>
-                        @if (! $hasRelatedAwqafTest)
+                        @if (! $hasRelatedAwqafTest && ! $finalTestRecord->enrollment?->belongsToFinishedCourse())
                             @can('quran-final-tests.delete')
                                 <button type="button" wire:click="deleteTest" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="admin-icon-button admin-icon-button--danger" title="{{ __('crud.common.actions.delete') }}" aria-label="{{ __('crud.common.actions.delete') }}" data-final-saber-delete>
                                     <x-admin-action-icon name="delete" />
@@ -282,6 +294,7 @@ new class extends Component {
                         @endif
                     </p>
                 </div>
+                @error('deleteTest') <div class="mt-2 text-sm text-red-300">{{ $message }}</div> @enderror
             </div>
 
             <div class="flex flex-wrap gap-3 lg:col-start-2">
@@ -353,6 +366,13 @@ new class extends Component {
 
     <x-admin.modal :show="$showAttemptModal" :title="__($editingAttemptId ? 'workflow.quran_final_tests.attempts.edit_title' : 'workflow.quran_final_tests.attempts.title')" :description="__('workflow.quran_final_tests.attempts.copy')" close-method="closeAttemptModal" max-width="xl" compact>
         <form wire:submit="saveAttempt" class="space-y-4">
+            @if ($editingAttemptId)
+                <div>
+                    <label for="final-attempt-student-readonly" class="mb-1 block text-sm font-medium">{{ __('workflow.quran_tests.workbench.form.student') }}</label>
+                    <input id="final-attempt-student-readonly" type="text" value="{{ $finalTestRecord->student?->full_name ?: __('crud.common.not_available') }}" readonly class="w-full rounded-xl px-4 py-3 text-sm" data-final-saber-student-readonly>
+                </div>
+            @endif
+
             @if ($currentTeacher)
                 <div>
                     <label for="final-attempt-teacher-readonly" class="mb-1 block text-sm font-medium">{{ __('workflow.quran_tests.form.teacher') }}</label>
@@ -399,7 +419,7 @@ new class extends Component {
                     <x-admin-action-icon name="save" class="admin-modal-action__icon" />
                 </button>
                 <button type="button" wire:click="closeAttemptModal" class="pill-link">{{ __('crud.common.actions.cancel') }}</button>
-                @if (! $hasRelatedAwqafTest && $editingAttemptId && auth()->user()?->hasRole('super_admin'))
+                @if (! $hasRelatedAwqafTest && ! $finalTestRecord->enrollment?->belongsToFinishedCourse() && $editingAttemptId && auth()->user()?->hasRole('super_admin'))
                     <x-delete-action-button wire:click="deleteAttempt" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" :label="__('crud.common.actions.delete')" data-final-saber-attempt-delete />
                 @endif
             </div>

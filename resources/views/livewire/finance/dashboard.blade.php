@@ -58,7 +58,7 @@ new class extends Component {
     public function mount(): void
     {
         $this->authorizePermission('finance.reports.view');
-        app(SpTodayExchangeRateService::class)->refreshUsdSypRate();
+        app(SpTodayExchangeRateService::class)->refreshUsdSypRateAfterResponse();
         $this->year = (int) now()->year;
         $this->quarter = (string) now()->quarter;
         $this->transfer_date = now()->toDateString();
@@ -78,8 +78,28 @@ new class extends Component {
 
     public function updatedYear(): void
     {
+        $periods = app(FinanceService::class)->availableTransactionPeriods(auth()->user());
+        $period = $periods->firstWhere('year', $this->year) ?: $periods->first();
+
+        if (! $period) {
+            $this->year = (int) now()->year;
+            $this->quarter = (string) now()->quarter;
+
+            return;
+        }
+
+        $this->year = (int) $period['year'];
+        $this->quarter = (string) ($period['quarters'][0] ?? now()->quarter);
+    }
+
+    public function updatedQuarter(): void
+    {
         $period = app(FinanceService::class)->availableTransactionPeriods(auth()->user())->firstWhere('year', $this->year);
-        $this->quarter = (string) ($period['quarters'][0] ?? '');
+        $quarters = collect($period['quarters'] ?? [])->map(fn ($availableQuarter): int => (int) $availableQuarter);
+
+        if (! $quarters->contains((int) $this->quarter)) {
+            $this->quarter = (string) ($quarters->first() ?? now()->quarter);
+        }
     }
 
     public function with(): array
@@ -348,9 +368,27 @@ new class extends Component {
     <section class="page-hero relative z-20 overflow-visible p-6 lg:p-8" style="overflow: visible">
         <div class="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
             <div><div class="eyebrow">{{ __('ui.nav.finance') }}</div><h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('ui.nav.finance_dashboard') }}</h1><p class="mt-4 max-w-3xl text-neutral-200">{{ __('finance.dashboard.subtitle') }}</p></div>
-            <div class="finance-dashboard-period-filters relative z-30 grid gap-3" data-finance-dashboard-period-filters>
-                <div><label for="finance-dashboard-year" class="sr-only">{{ __('finance.fields.year') }}</label><select id="finance-dashboard-year" wire:model.live="year" class="w-full rounded-xl px-4 py-3 text-sm">@forelse($availableFinancePeriods as $period)<option value="{{ $period['year'] }}">{{ $period['year'] }}</option>@empty<option value="{{ $year }}">-</option>@endforelse</select></div>
-                <div class="relative z-40"><label for="finance-dashboard-quarter" class="sr-only">{{ __('finance.fields.quarter') }}</label><select id="finance-dashboard-quarter" wire:model.live="quarter" class="relative z-50 w-full rounded-xl px-4 py-3 text-sm">@foreach((collect($availableFinancePeriods)->firstWhere('year', $year)['quarters'] ?? []) as $availableQuarter)<option value="{{ $availableQuarter }}">Q{{ $availableQuarter }}</option>@endforeach</select></div>
+            <div class="finance-dashboard-period-filters relative z-30 grid shrink-0 rounded-2xl border border-emerald-300/20 bg-emerald-400/10 text-center shadow-inner" data-finance-dashboard-period-filters>
+                <div class="finance-dashboard-period-filter" data-finance-dashboard-period="year">
+                    <label for="finance-dashboard-year" class="sr-only">{{ __('finance.fields.year') }}</label>
+                    <select id="finance-dashboard-year" wire:model.live="year" required aria-required="true" data-search-input="false" data-dropdown-search="false" data-clearable="false" data-search-selection-required="true" data-hide-placeholder-option="true" data-show-chevron="false" class="finance-dashboard-period-select w-full text-sm" data-finance-dashboard-period-select>
+                        @forelse($availableFinancePeriods as $period)
+                            <option value="{{ $period['year'] }}">{{ $period['year'] }}</option>
+                        @empty
+                            <option value="{{ $year }}">{{ $year }}</option>
+                        @endforelse
+                    </select>
+                </div>
+                <div class="finance-dashboard-period-filter relative z-40" data-finance-dashboard-period="quarter">
+                    <label for="finance-dashboard-quarter" class="sr-only">{{ __('finance.fields.quarter') }}</label>
+                    <select id="finance-dashboard-quarter" wire:model.live="quarter" required aria-required="true" data-search-input="false" data-dropdown-search="false" data-clearable="false" data-search-selection-required="true" data-hide-placeholder-option="true" data-show-chevron="false" class="finance-dashboard-period-select relative z-50 w-full text-sm" data-finance-dashboard-period-select>
+                        @forelse((collect($availableFinancePeriods)->firstWhere('year', $year)['quarters'] ?? []) as $availableQuarter)
+                            <option value="{{ $availableQuarter }}">Q{{ $availableQuarter }}</option>
+                        @empty
+                            <option value="{{ $quarter }}">Q{{ $quarter }}</option>
+                        @endforelse
+                    </select>
+                </div>
             </div>
         </div>
     </section>
@@ -358,7 +396,7 @@ new class extends Component {
     @if (session('status')) <div class="flash-success px-4 py-3 text-sm">{{ session('status') }}</div> @endif
 
     <section class="surface-panel p-5 lg:p-6">
-        <div class="mb-5 flex items-center justify-between gap-3"><h2 class="font-display text-2xl text-white">{{ __('finance.dashboard.fund_balances') }}</h2>@can('finance.cash-box.transfer')<button wire:click="openTransferModal" class="pill-link pill-link--accent" title="{{ __('finance.dashboard.move_money') }}" aria-label="{{ __('finance.dashboard.move_money') }}"><svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M7.5 7.5h11.25m0 0L15 3.75m3.75 3.75L15 11.25M16.5 16.5H5.25m0 0L9 20.25M5.25 16.5L9 12.75"/></svg></button>@endcan</div>
+        <div class="mb-5 flex items-center justify-between gap-3"><h2 class="font-display text-2xl text-white">{{ __('finance.dashboard.fund_balances') }}</h2>@can('finance.cash-box.transfer')<button type="button" wire:click="openTransferModal" class="admin-icon-button admin-icon-button--accent finance-dashboard-header-action" title="{{ __('finance.dashboard.move_money') }}" aria-label="{{ __('finance.dashboard.move_money') }}" data-finance-dashboard-move-money><x-admin-action-icon name="transfer" /></button>@endcan</div>
         <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">@foreach ($report['balances'] as $fund)<article class="stat-card"><div class="kpi-label">{{ $fund['cash_box']->name }}</div><div class="metric-value mt-3"><bdi dir="ltr">{{ app(FinanceService::class)->formatCurrencyAmount($fund['local_total'], $report['summary']['local_currency']) }}</bdi></div><div class="mt-3 space-y-1 text-sm text-neutral-300">@foreach ($fund['currencies'] as $row)<div class="flex justify-between gap-3"><span>{{ $row['currency']->code }}</span><bdi dir="ltr">{{ app(FinanceService::class)->formatCurrencyAmount($row['balance'], $row['currency']) }}</bdi></div>@endforeach</div></article>@endforeach</div>
     </section>
 
@@ -397,7 +435,7 @@ new class extends Component {
             @endif
         </div>
 
-        <div class="surface-table"><div class="admin-grid-meta finance-dashboard-table-header" data-finance-dashboard-inline-header><div class="admin-grid-meta__title">{{ __('finance.dashboard.pending_withdrawals') }}</div><div class="flex shrink-0 gap-2"><button type="button" wire:click="$set('showRequestHistoryModal', true)" class="admin-icon-button finance-dashboard-header-action" title="{{ __('finance.dashboard.previous_requests') }}" aria-label="{{ __('finance.dashboard.previous_requests') }}" data-finance-dashboard-request-history><x-admin-action-icon name="history" /></button><button type="button" wire:click="$set('showCreateRequestModal', true)" class="admin-icon-button admin-icon-button--accent finance-dashboard-header-action" title="{{ __('finance.pull_requests.new') }}" aria-label="{{ __('finance.pull_requests.new') }}" data-finance-dashboard-new-request><x-admin-action-icon name="add" /></button></div></div><div class="overflow-x-auto"><table class="text-sm"><thead><tr><th class="px-4 py-3 text-left">{{ __('finance.common.request') }}</th><th class="px-4 py-3 text-left">{{ __('finance.fields.requester') }}</th><th class="px-4 py-3 text-left">{{ __('finance.fields.category') }}</th><th class="px-4 py-3 text-left">{{ __('finance.fields.amount') }}</th><th></th></tr></thead><tbody>@forelse ($pendingRequests as $request)<tr><td class="px-4 py-3">{{ $request->request_no }}</td><td class="px-4 py-3">{{ $request->teacher ? trim($request->teacher->first_name.' '.$request->teacher->last_name) : ($request->requestedBy?->name ?: '-') }}</td><td class="px-4 py-3">{{ $request->pullRequestKind?->name ?: '-' }}</td><td class="px-4 py-3"><bdi dir="ltr">{{ app(FinanceService::class)->formatCurrencyAmount($request->requested_amount, $request->requestedCurrency) }}</bdi></td><td class="px-4 py-3 text-right"><button wire:click="openReviewModal({{ $request->id }})" class="pill-link pill-link--compact">{{ __('finance.actions.review') }}</button></td></tr>@empty<tr><td colspan="5" class="px-5 py-10 text-center text-neutral-500">{{ __('finance.empty.no_pending_pull_requests') }}</td></tr>@endforelse</tbody></table></div></div>
+        <div class="surface-table"><div class="admin-grid-meta finance-dashboard-table-header" data-finance-dashboard-inline-header><div class="admin-grid-meta__title">{{ __('finance.dashboard.pending_withdrawals') }}</div><div class="flex shrink-0 gap-2"><button type="button" wire:click="$set('showRequestHistoryModal', true)" class="admin-icon-button finance-dashboard-header-action" title="{{ __('finance.dashboard.previous_requests') }}" aria-label="{{ __('finance.dashboard.previous_requests') }}" data-finance-dashboard-request-history><x-admin-action-icon name="past" /></button><button type="button" wire:click="$set('showCreateRequestModal', true)" class="admin-icon-button admin-icon-button--accent finance-dashboard-header-action" title="{{ __('finance.pull_requests.new') }}" aria-label="{{ __('finance.pull_requests.new') }}" data-finance-dashboard-new-request><x-admin-action-icon name="add" /></button></div></div><div class="overflow-x-auto"><table class="text-sm"><thead><tr><th class="px-4 py-3 text-left">{{ __('finance.common.request') }}</th><th class="px-4 py-3 text-left">{{ __('finance.fields.requester') }}</th><th class="px-4 py-3 text-left">{{ __('finance.fields.category') }}</th><th class="px-4 py-3 text-left">{{ __('finance.fields.amount') }}</th><th></th></tr></thead><tbody>@forelse ($pendingRequests as $request)<tr><td class="px-4 py-3">{{ $request->request_no }}</td><td class="px-4 py-3">{{ $request->teacher ? trim($request->teacher->first_name.' '.$request->teacher->last_name) : ($request->requestedBy?->name ?: '-') }}</td><td class="px-4 py-3">{{ $request->pullRequestKind?->name ?: '-' }}</td><td class="px-4 py-3"><bdi dir="ltr">{{ app(FinanceService::class)->formatCurrencyAmount($request->requested_amount, $request->requestedCurrency) }}</bdi></td><td class="px-4 py-3 text-right"><button wire:click="openReviewModal({{ $request->id }})" class="pill-link pill-link--compact">{{ __('finance.actions.review') }}</button></td></tr>@empty<tr><td colspan="5" class="px-5 py-10 text-center text-neutral-500">{{ __('finance.empty.no_pending_pull_requests') }}</td></tr>@endforelse</tbody></table></div></div>
     </section>
 
     <section class="grid gap-6 xl:grid-cols-2">
@@ -522,9 +560,18 @@ new class extends Component {
             <div class="overflow-x-auto">
                 <table class="financial-transactions-table w-full text-sm">
                     <colgroup>
-                        <col style="width: 3%"><col style="width: 7.25%"><col style="width: 10.7%"><col style="width: 9.05%"><col style="width: 5.8%"><col style="width: 20.25%"><col style="width: 10.25%"><col style="width: 10.25%"><col style="width: 13.4%"><col style="width: 10.05%">
+                        <col style="width: 3%" data-finance-fixed-percent="3">
+                        <col style="width: 7.25%" data-finance-fixed-percent="7.25">
+                        <col style="width: 11.5%" data-finance-spacing-column="reference">
+                        <col style="width: 12%" data-finance-spacing-column="fund">
+                        <col style="width: 8%" data-finance-spacing-column="type">
+                        <col style="width: 25.382%" data-finance-fixed-percent="20.725" data-finance-width-transfer-target="category" data-finance-category-column>
+                        <col style="width: 7.84125%" data-finance-reduced-column="debit" data-finance-left-column data-finance-left-weight="8.7125" data-finance-width-transfer-to="category" data-finance-width-transfer-percent="10">
+                        <col style="width: 7.84125%" data-finance-reduced-column="credit" data-finance-left-column data-finance-left-weight="8.7125" data-finance-width-transfer-to="category" data-finance-width-transfer-percent="10">
+                        <col style="width: 9.045%" data-finance-reduced-column="balance" data-finance-left-column data-finance-left-weight="10.05" data-finance-width-transfer-to="category" data-finance-width-transfer-percent="10">
+                        <col style="width: 8.1405%" data-finance-left-column data-finance-left-weight="10.05" data-finance-width-transfer-to="category" data-finance-width-transfer-percent="10">
                     </colgroup>
-                    <thead><tr><th class="px-2 py-3 text-center">#</th><th class="px-3 py-3 text-left">{{ __('finance.common.date') }}</th><th class="px-3 py-3 text-left">{{ __('finance.fields.transaction_no') }}</th><th class="px-3 py-3 text-left">{{ __('finance.fields.cash_box') }}</th><th class="px-3 py-3 text-left">{{ __('finance.fields.transaction_type') }}</th><th class="px-3 py-3 text-left">{{ __('finance.fields.category') }}</th><th class="px-3 py-3 text-left">{{ __('finance.fields.credit') }}</th><th class="px-3 py-3 text-left">{{ __('finance.fields.debit') }}</th><th class="px-3 py-3 text-left">{{ __('finance.fields.fund_balance') }}</th><th class="px-3 py-3 text-left">{{ __('finance.fields.user') }}</th></tr></thead>
+                    <thead><tr><th class="px-2 py-3 text-center">#</th><th class="px-3 py-3 text-left">{{ __('finance.common.date') }}</th><th class="px-3 py-3 text-left"><span class="finance-transaction-kashida-label" data-finance-kashida-label="reference" data-finance-kashida-target data-finance-spacing-content="reference">{{ __('finance.fields.transaction_no') }}</span></th><th class="px-3 py-3 text-left"><span class="finance-transaction-kashida-label" data-finance-kashida-label="fund" data-finance-kashida-target data-finance-spacing-content="fund">{{ __('finance.fields.cash_box') }}</span></th><th class="px-3 py-3 text-left"><span class="finance-transaction-kashida-label" data-finance-kashida-label="type" data-finance-spacing-content="type">{{ __('finance.fields.transaction_type') }}</span></th><th class="px-3 py-3 text-left">{{ __('finance.fields.category') }}</th><th class="px-3 py-3 text-left">{{ __('finance.fields.debit') }}</th><th class="px-3 py-3 text-left">{{ __('finance.fields.credit') }}</th><th class="px-3 py-3 text-left">{{ __('finance.fields.fund_balance') }}</th><th class="px-3 py-3 text-left">{{ __('finance.fields.user') }}</th></tr></thead>
                     <tbody class="divide-y divide-white/6">
                         @foreach ($transactions as $transaction)
                             @php($specialTransactionNumber = $transaction->special_transaction_no ?: '-')
@@ -532,12 +579,12 @@ new class extends Component {
                             <tr class="{{ $transaction->trashed() ? 'opacity-50' : '' }}">
                                 <td class="px-2 py-3 text-center">{{ $transactions->firstItem() + $loop->index }}</td>
                                 <td class="px-3 py-3"><span class="finance-transaction-datetime" data-finance-transaction-datetime>{{ $transaction->transaction_date?->format('d-m-Y') }}</span></td>
-                                <td class="px-3 py-3"><div class="finance-transaction-reference"><div class="finance-transaction-primary" aria-label="{{ $specialTransactionNumber }}">@foreach (mb_str_split($specialTransactionNumber) as $referenceCharacter)<span aria-hidden="true">{{ $referenceCharacter }}</span>@endforeach</div><div class="finance-transaction-secondary mt-1 text-xs text-neutral-500" aria-label="{{ $generalTransactionNumber }}">@foreach (mb_str_split($generalTransactionNumber) as $referenceCharacter)<span aria-hidden="true">{{ $referenceCharacter }}</span>@endforeach</div></div></td>
-                                <td class="px-3 py-3">{{ $transaction->cashBox?->name }}</td>
-                                <td class="px-3 py-3">{{ app(FinanceService::class)->transactionTypeLabel($transaction->type, $transaction) }}</td>
-                                <td class="px-3 py-3"><div class="finance-transaction-primary">{{ app(FinanceService::class)->transactionCategoryLabel($transaction) }}</div>@if($transaction->description)<div class="finance-transaction-secondary mt-1 text-xs text-neutral-500">{{ $transaction->description }}</div>@endif</td>
-                                <td class="px-3 py-3"><bdi dir="ltr">{{ $transaction->direction === 'in' ? app(FinanceService::class)->formatCurrencyAmount($transaction->amount, $transaction->currency) : '-' }}</bdi></td>
-                                <td class="px-3 py-3"><bdi dir="ltr">{{ $transaction->direction === 'out' ? app(FinanceService::class)->formatCurrencyAmount($transaction->amount, $transaction->currency) : '-' }}</bdi></td>
+                                <td class="px-3 py-3"><div class="finance-transaction-reference" data-finance-spacing-content="reference"><div class="finance-transaction-primary" aria-label="{{ $specialTransactionNumber }}">@foreach (mb_str_split($specialTransactionNumber) as $referenceCharacter)<span aria-hidden="true">{{ $referenceCharacter }}</span>@endforeach</div><div class="finance-transaction-secondary mt-1 text-xs text-neutral-500" aria-label="{{ $generalTransactionNumber }}">@foreach (mb_str_split($generalTransactionNumber) as $referenceCharacter)<span aria-hidden="true">{{ $referenceCharacter }}</span>@endforeach</div></div></td>
+                                <td class="px-3 py-3"><span class="finance-transaction-kashida-label" data-finance-kashida-label="fund" data-finance-spacing-content="fund" aria-label="{{ $transaction->cashBox?->name }}">{{ $transaction->cashBox?->name }}</span></td>
+                                <td class="px-3 py-3"><span class="finance-transaction-kashida-label" data-finance-kashida-label="type" data-finance-spacing-content="type" aria-label="{{ app(FinanceService::class)->transactionTypeLabel($transaction->type, $transaction) }}">{{ app(FinanceService::class)->transactionTypeLabel($transaction->type, $transaction) }}</span></td>
+                                <td class="px-3 py-3"><div><div class="finance-transaction-primary">{{ app(FinanceService::class)->transactionCategoryLabel($transaction) }}</div>@if($transaction->description)<div class="finance-transaction-secondary mt-1 text-xs text-neutral-500">{{ $transaction->description }}</div>@endif</div></td>
+                                <td class="px-3 py-3"><bdi dir="ltr" @class(['finance-transaction-amount--out' => $transaction->direction === 'out'])>{{ $transaction->direction === 'out' ? app(FinanceService::class)->formatCurrencyAmount($transaction->amount, $transaction->currency) : '-' }}</bdi></td>
+                                <td class="px-3 py-3"><bdi dir="ltr" @class(['finance-transaction-amount--in' => $transaction->direction === 'in'])>{{ $transaction->direction === 'in' ? app(FinanceService::class)->formatCurrencyAmount($transaction->amount, $transaction->currency) : '-' }}</bdi></td>
                                 <td class="px-3 py-3"><bdi dir="ltr">{{ app(FinanceService::class)->formatCurrencyAmount($this->runningBalance($transaction), $transaction->currency) }}</bdi></td>
                                 <td class="px-3 py-3">{{ $transaction->enteredBy?->name ?: '-' }}</td>
                             </tr>

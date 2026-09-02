@@ -918,7 +918,7 @@ class SystemSettingsTest extends TestCase
         );
     }
 
-    public function test_authorized_user_can_save_sidebar_navigation_settings(): void
+    public function test_sidebar_navigation_changes_are_saved_automatically_without_a_save_button(): void
     {
         $user = $this->signIn();
 
@@ -928,11 +928,17 @@ class SystemSettingsTest extends TestCase
             ->assertSee('nav-sort-group--dragging', false)
             ->assertSee('nav-sort-item--drop-target', false)
             ->assertSee('nav-sort-item--settled', false)
+            ->assertSee('data-sidebar-navigation-item-drop-zone', false)
+            ->assertSee('nav-sort-group--item-drop-target', false)
+            ->assertSee('$wire.moveItem(movingItem,', false)
+            ->assertDontSee('wire:submit="save"', false)
+            ->assertDontSee('type="submit"', false)
+            ->assertSee('wire:model.live.debounce.500ms="group_settings.', false)
             ->set('group_settings.platform.title', 'Home Area')
             ->set('group_settings.platform.sort_order', '5')
             ->set('item_settings.reports.group_key', 'finance')
             ->set('item_settings.reports.sort_order', '99')
-            ->call('save')
+            ->assertDispatched('sidebar-navigation-updated')
             ->assertHasNoErrors();
 
         $this->assertDatabaseHas('app_settings', [
@@ -951,6 +957,7 @@ class SystemSettingsTest extends TestCase
         $css = file_get_contents(resource_path('css/app.css'));
         $this->assertStringContainsString('.nav-sort-group--dragging', $css);
         $this->assertStringContainsString('.nav-sort-item--drop-target', $css);
+        $this->assertStringContainsString('.nav-sort-group--item-drop-target', $css);
         $this->assertStringContainsString('.nav-sort-group--drop-target::before', $css);
         $this->assertStringContainsString('margin-top: 1.5rem !important;', $css);
         $this->assertStringContainsString('@keyframes sort-drop-gap-highlight', $css);
@@ -963,6 +970,9 @@ class SystemSettingsTest extends TestCase
 
         $component = Volt::test('settings.sidebar-navigation')
             ->call('addGroup')
+            ->assertDispatched('sidebar-navigation-group-added')
+            ->assertSee('data-sidebar-navigation-group=', false)
+            ->assertSee('data-sidebar-navigation-group-title', false)
             ->assertSee('data-sidebar-group-delete-action', false);
 
         $groupSettings = $component->get('group_settings');
@@ -976,7 +986,6 @@ class SystemSettingsTest extends TestCase
             ->set("group_settings.$customGroupKey.sort_order", '55')
             ->set('item_settings.quran_partial_tests.group_key', $customGroupKey)
             ->set('item_settings.quran_partial_tests.sort_order', '1')
-            ->call('save')
             ->assertHasNoErrors();
 
         $groups = AppSetting::groupValues('sidebar_navigation')->get('groups');
@@ -992,6 +1001,56 @@ class SystemSettingsTest extends TestCase
         $this->assertNotNull($customGroup);
         $this->assertSame('Quran Shortcuts', $customGroup['title']);
         $this->assertContains('quran_partial_tests', array_column($customGroup['items'], 'key'));
+    }
+
+    public function test_sidebar_tab_can_be_moved_into_a_new_group_with_the_drag_action(): void
+    {
+        $user = $this->signIn();
+
+        $component = Volt::test('settings.sidebar-navigation')->call('addGroup');
+        $customGroupKey = collect(array_keys($component->get('group_settings')))
+            ->first(fn (string $key): bool => str_starts_with($key, 'custom_'));
+
+        $component
+            ->set("group_settings.$customGroupKey.title", 'إدارة البيانات')
+            ->call('moveItem', 'reports', $customGroupKey)
+            ->assertSet("item_settings.reports.group_key", $customGroupKey)
+            ->assertSee('wire:key="sidebar-navigation-group-'.$customGroupKey.'"', false)
+            ->assertSee('wire:key="sidebar-navigation-item-reports"', false)
+            ->assertHasNoErrors();
+
+        $items = AppSetting::groupValues('sidebar_navigation')->get('items');
+        $this->assertSame($customGroupKey, $items['reports']['group_key']);
+
+        $customGroup = collect(app(SidebarNavigationService::class)->sidebarFor($user->fresh()))
+            ->firstWhere('key', $customGroupKey);
+
+        $this->assertNotNull($customGroup);
+        $this->assertContains('reports', array_column($customGroup['items'], 'key'));
+    }
+
+    public function test_sidebar_navigation_menu_refreshes_when_navigation_settings_are_updated(): void
+    {
+        $this->signIn();
+
+        $menu = Volt::test('sidebar-navigation-menu')
+            ->assertSee('data-app-sidebar-navigation', false)
+            ->assertSee('data-app-sidebar-navigation-item="reports"', false);
+
+        $settings = Volt::test('settings.sidebar-navigation')->call('addGroup');
+        $customGroupKey = collect(array_keys($settings->get('group_settings')))
+            ->first(fn (string $key): bool => str_starts_with($key, 'custom_'));
+
+        $settings
+            ->set("group_settings.$customGroupKey.title", 'إدارة البيانات')
+            ->call('moveItem', 'reports', $customGroupKey)
+            ->assertDispatched('sidebar-navigation-updated');
+
+        $menu
+            ->dispatch('sidebar-navigation-updated')
+            ->assertSee('data-app-sidebar-navigation-group="'.$customGroupKey.'"', false)
+            ->assertSee('data-app-sidebar-navigation-item="reports"', false)
+            ->assertSee('إدارة البيانات');
     }
 
     public function test_sidebar_includes_student_progress_item_for_users_with_student_access(): void

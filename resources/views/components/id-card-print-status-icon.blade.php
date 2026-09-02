@@ -15,7 +15,7 @@
     @if ($isPrinted)
         <g fill="none" stroke="currentColor" stroke-width="18" stroke-linecap="round" stroke-linejoin="round">
             <path d="M158 52h196a14 14 0 0 1 14 14v92H144V66a14 14 0 0 1 14-14Z" />
-            <path d="M93 158h326a46 46 0 0 1 46 46v128a46 46 0 0 1-46 46H93a46 46 0 0 1-46-46V204a46 46 0 0 1 46-46Z" />
+            <path d="M137 378H93a46 46 0 0 1-46-46V204a46 46 0 0 1 46-46h326a46 46 0 0 1 46 46v128a46 46 0 0 1-46 46h-46" data-printer-outline-open-bottom />
             <circle cx="102" cy="220" r="13" />
             <path d="M137 274h236v135H137Z" fill="currentColor" fill-opacity="0.1" />
             <path d="M178 322h121M178 360h83" />
@@ -27,7 +27,7 @@
         <g fill="none" stroke="currentColor" stroke-width="18" stroke-linecap="round" stroke-linejoin="round">
             <path d="M147 48h178l60 60v50H147Z" />
             <path d="M325 48v60h60" />
-            <path d="M93 158h326a46 46 0 0 1 46 46v128a46 46 0 0 1-46 46H93a46 46 0 0 1-46-46V204a46 46 0 0 1 46-46Z" />
+            <path d="M137 378H93a46 46 0 0 1-46-46V204a46 46 0 0 1 46-46h326a46 46 0 0 1 46 46v128a46 46 0 0 1-46 46h-46" data-printer-outline-open-bottom />
             <circle cx="410" cy="220" r="13" />
             <path d="M137 274h236v135H137Z" fill="currentColor" fill-opacity="0.1" />
             <path d="M178 322h121" />

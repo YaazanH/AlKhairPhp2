@@ -5,7 +5,7 @@ return [
         'hero' => [
             'eyebrow' => 'Finance workspace',
             'title' => 'Invoices',
-            'subtitle' => 'Create invoice headers here, then open an invoice to manage its itemized details.',
+            'subtitle' => 'Create invoice headers here, then open an invoice to manage its itemised details.',
             'badges' => [
                 'parents' => ':count parent accounts',
                 'invoices' => ':count invoice records',
@@ -15,7 +15,7 @@ return [
             'eyebrow' => 'Billing focus',
             'edit_title' => 'Editing invoice',
             'create_title' => 'New invoice header',
-            'subtitle' => 'Use this screen to manage invoice identity and billing state, then move into the detail screen for itemized charges.',
+            'subtitle' => 'Use this screen to manage invoice identity and billing state, then move into the detail screen for itemised charges.',
         ],
         'stats' => [
             'all' => [
@@ -28,7 +28,7 @@ return [
             ],
             'draft' => [
                 'label' => 'Draft',
-                'hint' => 'Headers prepared but not yet finalized for collection.',
+                'hint' => 'Headers prepared but not yet finalised for collection.',
             ],
             'outstanding' => [
                 'label' => 'Outstanding',
@@ -89,7 +89,7 @@ return [
     'detail' => [
         'back' => 'Back to invoices',
         'heading' => 'Invoice Detail',
-        'subheading' => 'Manage the itemized charges for one invoice.',
+        'subheading' => 'Manage the itemised charges for one invoice.',
         'print' => 'Print Invoice',
         'summary' => [
             'status' => 'Status: :status',
@@ -105,14 +105,14 @@ return [
             'fields' => [
                 'description' => 'Description',
                 'student' => 'Student',
-                'enrollment' => 'Enrollment',
+                'enrollment' => 'Enrolment',
                 'activity' => 'Activity',
                 'quantity' => 'Quantity',
                 'unit_price' => 'Unit price',
             ],
             'placeholders' => [
                 'student' => 'No student link',
-                'enrollment' => 'No enrollment link',
+                'enrollment' => 'No enrolment link',
                 'activity' => 'No activity link',
             ],
             'save' => 'Save',
@@ -125,7 +125,7 @@ return [
                 'deleted' => 'Invoice item deleted successfully.',
             ],
             'errors' => [
-                'wrong_student' => 'The selected enrollment does not belong to the selected student.',
+                'wrong_student' => 'The selected enrolment does not belong to the selected student.',
             ],
         ],
         'payment_form' => [

@@ -394,13 +394,13 @@ class FinanceWriteController extends Controller
 
             if ($enrollment->student_id !== (int) $validated['student_id']) {
                 abort(response()->json([
-                    'message' => 'The selected enrollment does not belong to the selected student.',
+                    'message' => 'The selected enrolment does not belong to the selected student.',
                 ], 422));
             }
 
             if (! $audience->enrollmentMatches($activity, $enrollment)) {
                 abort(response()->json([
-                    'message' => 'The selected enrollment must belong to this activity target audience.',
+                    'message' => 'The selected enrolment must belong to this activity target audience.',
                 ], 422));
             }
         }
@@ -438,13 +438,13 @@ class FinanceWriteController extends Controller
 
             if ($validated['student_id'] && $enrollment->student_id !== (int) $validated['student_id']) {
                 abort(response()->json([
-                    'message' => 'The selected enrollment does not belong to the selected student.',
+                    'message' => 'The selected enrolment does not belong to the selected student.',
                 ], 422));
             }
 
             if ($enrollment->student?->parent_id !== $invoice->parent_id) {
                 abort(response()->json([
-                    'message' => 'The selected enrollment does not belong to this invoice parent.',
+                    'message' => 'The selected enrolment does not belong to this invoice parent.',
                 ], 422));
             }
 

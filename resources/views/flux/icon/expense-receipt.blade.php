@@ -1,11 +1,9 @@
 @props(['variant' => 'outline'])
 
 <x-sidebar-outline-icon :$variant {{ $attributes }}>
-    <g data-expense-icon="traced-rolled-receipt">
-        <path d="M5.5 2.75h11A4.5 4.5 0 0 1 21 7.25V21l-2-1.7-2 1.7-2-1.7-2 1.7-2-1.7L9 21l-1.75-1.5V5.75a3 3 0 0 0-3-3Z" />
-        <path d="M7.25 7.25H2.5v-1.5a3 3 0 0 1 3-3" />
-        <path d="M10 6.5h4M10 8.4h4" />
-        <path d="M16.25 6.5h2M16.25 8.4h2M16.25 10.3h2" />
-        <path d="M10 13.25h8.25M10 15.5h8.25" />
+    <g data-expense-icon="receipt-outflow" fill="none">
+        <path d="M6.75 3.75h10.5a1.5 1.5 0 0 1 1.5 1.5v15l-2.25-1.5-2.25 1.5L12 18.75l-2.25 1.5-2.25-1.5-2.25 1.5v-15a1.5 1.5 0 0 1 1.5-1.5Z" />
+        <path d="M8.75 7.25h6.5M8.75 10.25h4.5" />
+        <path d="M12 12.75v4M10.25 15l1.75 1.75L13.75 15" />
     </g>
 </x-sidebar-outline-icon>

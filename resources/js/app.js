@@ -325,6 +325,71 @@ function searchHintValue(select) {
         : '';
 }
 
+const searchableSelectOverflowHosts = new WeakMap();
+
+function releaseSearchableSelectOverflow(wrapper) {
+    if (searchableSelectOverflowHosts.has(wrapper)) {
+        return;
+    }
+
+    /* These compact menus already live in an overflow-visible hero. Releasing
+       the application scroll host here removes its scrollbar and shifts the
+       entire title panel while the menu opens. */
+    if (wrapper.closest('[data-finance-dashboard-period-filters]')) {
+        searchableSelectOverflowHosts.set(wrapper, []);
+
+        return;
+    }
+
+    const hosts = [];
+    let ancestor = wrapper.parentElement;
+
+    while (ancestor && ancestor !== document.body && ancestor !== document.documentElement) {
+        const styles = window.getComputedStyle(ancestor);
+        const clipsDropdown = [styles.overflow, styles.overflowX, styles.overflowY]
+            .some((value) => ['auto', 'clip', 'hidden', 'scroll'].includes(value));
+
+        if (clipsDropdown) {
+            const previousOverflow = ['overflow', 'overflow-x', 'overflow-y'].map((property) => ({
+                property,
+                value: ancestor.style.getPropertyValue(property),
+                priority: ancestor.style.getPropertyPriority(property),
+            }));
+
+            hosts.push({ ancestor, previousOverflow });
+            ancestor.setAttribute('data-searchable-select-overflow-released', 'true');
+            ancestor.style.setProperty('overflow', 'visible', 'important');
+            ancestor.style.setProperty('overflow-x', 'visible', 'important');
+            ancestor.style.setProperty('overflow-y', 'visible', 'important');
+        }
+
+        ancestor = ancestor.parentElement;
+    }
+
+    searchableSelectOverflowHosts.set(wrapper, hosts);
+}
+
+function restoreSearchableSelectOverflow(wrapper) {
+    const hosts = searchableSelectOverflowHosts.get(wrapper) || [];
+
+    hosts.forEach(({ ancestor, previousOverflow }) => {
+        if (ancestor.querySelector('.searchable-select--open')) {
+            return;
+        }
+
+        previousOverflow.forEach(({ property, value, priority }) => {
+            if (value) {
+                ancestor.style.setProperty(property, value, priority);
+            } else {
+                ancestor.style.removeProperty(property);
+            }
+        });
+        ancestor.removeAttribute('data-searchable-select-overflow-released');
+    });
+
+    searchableSelectOverflowHosts.delete(wrapper);
+}
+
 function closeSearchableSelect(wrapper) {
     wrapper.classList.remove('searchable-select--open');
     wrapper.querySelector('.searchable-select__panel')?.setAttribute('hidden', 'hidden');
@@ -335,6 +400,7 @@ function closeSearchableSelect(wrapper) {
     wrapper.querySelectorAll('.searchable-select__option--highlighted').forEach((option) => {
         option.classList.remove('searchable-select__option--highlighted');
     });
+    restoreSearchableSelectOverflow(wrapper);
 }
 
 function closeOtherSearchableSelects(currentWrapper) {
@@ -534,6 +600,9 @@ function cleanupDuplicateMobileTableFilterControls() {
                 generatedControl?.classList.contains('searchable-select')
                 || generatedControl?.classList.contains('formatted-date-input')
             ) {
+                if (generatedControl.classList.contains('searchable-select')) {
+                    closeSearchableSelect(generatedControl);
+                }
                 generatedControl.remove();
             }
 
@@ -567,7 +636,10 @@ function enhanceSearchableSelect(select) {
         return;
     }
 
-    existingWrapper?.remove();
+    if (existingWrapper) {
+        closeSearchableSelect(existingWrapper);
+        existingWrapper.remove();
+    }
 
     if (select.dataset.searchableBound === 'true') {
         delete select.dataset.searchableBound;
@@ -585,6 +657,7 @@ function enhanceSearchableSelect(select) {
     wrapper.setAttribute('wire:ignore', '');
 
     const searchInputMode = select.dataset.searchInput !== 'false';
+    const dropdownSearchEnabled = searchInputMode || select.dataset.dropdownSearch !== 'false';
     const openOnFocus = searchInputMode && select.dataset.openOnFocus !== 'false';
     const clearable = searchInputMode && select.dataset.clearable !== 'false';
     const financeCurrencyRequired = select.dataset.financeCurrencyRequired === 'true';
@@ -663,7 +736,12 @@ function enhanceSearchableSelect(select) {
 
         wrapper.append(panel);
     } else {
-        panel.append(search, list);
+        if (dropdownSearchEnabled) {
+            panel.append(search, list);
+        } else {
+            panel.append(list);
+        }
+
         wrapper.append(button, panel);
     }
     select.insertAdjacentElement('afterend', wrapper);
@@ -768,6 +846,7 @@ function enhanceSearchableSelect(select) {
         const wasOpen = wrapper.classList.contains('searchable-select--open');
         closeOtherSearchableSelects(wrapper);
         wrapper.classList.add('searchable-select--open');
+        releaseSearchableSelectOverflow(wrapper);
         panel.removeAttribute('hidden');
         button?.setAttribute('aria-expanded', 'true');
         search.setAttribute('aria-expanded', 'true');
@@ -879,6 +958,7 @@ function enhanceSearchableSelect(select) {
 
             closeOtherSearchableSelects(wrapper);
             wrapper.classList.add('searchable-select--open');
+            releaseSearchableSelectOverflow(wrapper);
             panel.removeAttribute('hidden');
             search.setAttribute('aria-expanded', 'true');
             buildSearchableSelectOptions(select, list, '');
@@ -911,6 +991,7 @@ function enhanceSearchableSelect(select) {
                 if (openOnFocus && document.activeElement === search) {
                     closeOtherSearchableSelects(wrapper);
                     wrapper.classList.add('searchable-select--open');
+                    releaseSearchableSelectOverflow(wrapper);
                     panel.removeAttribute('hidden');
                     search.setAttribute('aria-expanded', 'true');
                     buildSearchableSelectOptions(select, list, '');
@@ -924,6 +1005,7 @@ function enhanceSearchableSelect(select) {
 
             closeOtherSearchableSelects(wrapper);
             wrapper.classList.add('searchable-select--open');
+            releaseSearchableSelectOverflow(wrapper);
             panel.removeAttribute('hidden');
             search.setAttribute('aria-expanded', 'true');
             buildSearchableSelectOptions(select, list, search.value);
@@ -962,13 +1044,21 @@ function enhanceSearchableSelect(select) {
             closeOtherSearchableSelects(wrapper);
 
             wrapper.classList.toggle('searchable-select--open', willOpen);
+            if (willOpen) {
+                releaseSearchableSelectOverflow(wrapper);
+            } else {
+                restoreSearchableSelectOverflow(wrapper);
+            }
             button.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
             panel.toggleAttribute('hidden', !willOpen);
 
             if (willOpen) {
                 search.value = searchHintValue(select);
                 buildSearchableSelectOptions(select, list, search.value);
-                requestAnimationFrame(() => search.focus());
+
+                if (dropdownSearchEnabled) {
+                    requestAnimationFrame(() => search.focus());
+                }
             }
         });
 
@@ -980,6 +1070,18 @@ function enhanceSearchableSelect(select) {
 
             if (!wrapper.classList.contains('searchable-select--open')) {
                 search.value = searchHintValue(select);
+            }
+
+            if (!dropdownSearchEnabled) {
+                event.preventDefault();
+                event.stopPropagation();
+                openSearchableOptions();
+
+                const options = searchableSelectOptionButtons(list);
+                const nextOption = event.key === 'ArrowDown' ? options[0] : options[options.length - 1];
+                nextOption?.focus();
+
+                return;
             }
 
             handleSearchableSelectKeydown(event);
@@ -1005,6 +1107,7 @@ function cleanupOrphanedSearchableSelects() {
         const select = wrapper.previousElementSibling;
 
         if (!(select instanceof HTMLSelectElement) || select.nextElementSibling !== wrapper) {
+            closeSearchableSelect(wrapper);
             wrapper.remove();
         }
     });
@@ -1067,6 +1170,40 @@ function focusSearchableSelect(event) {
 }
 
 window.addEventListener('focus-searchable-select', focusSearchableSelect);
+
+function revealSidebarNavigationGroup(event) {
+    const groupKey = String(event?.detail?.key ?? '');
+
+    if (groupKey === '') {
+        return;
+    }
+
+    const reveal = () => {
+        const group = Array.from(document.querySelectorAll('[data-sidebar-navigation-group]'))
+            .find((candidate) => candidate.dataset.sidebarNavigationGroup === groupKey);
+
+        if (!(group instanceof HTMLDetailsElement)) {
+            return false;
+        }
+
+        group.open = true;
+        group.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+        const titleInput = group.querySelector('[data-sidebar-navigation-group-title]');
+
+        if (titleInput instanceof HTMLInputElement) {
+            titleInput.focus({ preventScroll: true });
+            titleInput.select();
+        }
+
+        return true;
+    };
+
+    window.requestAnimationFrame(reveal);
+    window.setTimeout(reveal, 180);
+}
+
+window.addEventListener('sidebar-navigation-group-added', revealSidebarNavigationGroup);
 
 function assessmentQuickScoreStudentNameInput() {
     const select = document.getElementById('assessment-student-entry');
@@ -1160,6 +1297,435 @@ document.addEventListener('livewire:initialized', () => {
     window.Livewire?.hook('morph.added', ({ el }) => {
         if (el instanceof HTMLSelectElement || el.querySelector?.('select')) {
             scheduleSearchableSelectInitialization();
+        }
+    });
+});
+
+const financeKashida = '\u0640';
+const financeNonConnectingLetters = new Set(['ء', 'ا', 'أ', 'إ', 'آ', 'ؤ', 'د', 'ذ', 'ر', 'ز', 'و', 'ة', 'ى']);
+const financeArabicLetterPattern = /[\u0621-\u063A\u0641-\u064A\u066E-\u06D3]/u;
+const financeTextMeasureCanvas = document.createElement('canvas');
+const financeTextMeasureContext = financeTextMeasureCanvas.getContext('2d');
+let financialTransactionTypographyFrame = null;
+
+function measureFinancialText(element, text = element.textContent?.trim() ?? '') {
+    if (!financeTextMeasureContext || !text) {
+        return 0;
+    }
+
+    const styles = window.getComputedStyle(element);
+    const letterSpacing = Number.parseFloat(styles.letterSpacing);
+
+    financeTextMeasureContext.font = styles.font;
+    financeTextMeasureContext.fontKerning = 'normal';
+
+    return financeTextMeasureContext.measureText(text).width
+        + (Number.isFinite(letterSpacing) ? Math.max(0, Array.from(text).length - 1) * letterSpacing : 0);
+}
+
+function financeKashidaPositions(text) {
+    const characters = Array.from(text);
+    const positions = [];
+
+    for (let index = 0; index < characters.length - 1; index += 1) {
+        const current = characters[index];
+        const next = characters[index + 1];
+
+        if (
+            financeArabicLetterPattern.test(current)
+            && financeArabicLetterPattern.test(next)
+            && !financeNonConnectingLetters.has(current)
+        ) {
+            positions.push(index);
+        }
+    }
+
+    return positions;
+}
+
+function financeTextWithKashidas(text, count) {
+    const characters = Array.from(text);
+    const positions = financeKashidaPositions(text);
+
+    if (!positions.length || count < 1) {
+        return text;
+    }
+
+    const additions = new Map();
+
+    for (let index = 0; index < count; index += 1) {
+        const position = positions[index % positions.length];
+
+        additions.set(position, (additions.get(position) ?? 0) + 1);
+    }
+
+    return characters.map((character, index) => (
+        character + financeKashida.repeat(additions.get(index) ?? 0)
+    )).join('');
+}
+
+function measureFinancialShapedLabel(element, text) {
+    element.textContent = text;
+
+    const range = document.createRange();
+
+    range.selectNodeContents(element);
+
+    return range.getBoundingClientRect().width;
+}
+
+function measureFinancialNaturalShapedLabel(element, text) {
+    const previousWidth = element.style.width;
+    const previousMaxWidth = element.style.maxWidth;
+    const previousOverflow = element.style.overflow;
+
+    element.style.width = 'max-content';
+    element.style.maxWidth = 'none';
+    element.style.overflow = 'visible';
+
+    const width = measureFinancialShapedLabel(element, text);
+
+    element.style.width = previousWidth;
+    element.style.maxWidth = previousMaxWidth;
+    element.style.overflow = previousOverflow;
+
+    return width;
+}
+
+function justifyFinanceLabelToWidth(element, targetWidth) {
+    const source = element.dataset.financeKashidaSource
+        ?? element.textContent?.replaceAll(financeKashida, '').trim()
+        ?? '';
+
+    element.dataset.financeKashidaSource = source;
+    element.textContent = source;
+    delete element.dataset.financeKashidaApplied;
+
+    if (!source || !financeKashidaPositions(source).length) {
+        return;
+    }
+
+    const sourceWidth = measureFinancialShapedLabel(element, source);
+
+    if (sourceWidth >= targetWidth - 0.5) {
+        element.style.width = `${targetWidth}px`;
+
+        return;
+    }
+
+    let justifiedText = financeTextWithKashidas(source, 1);
+    let bestDifference = Math.abs(targetWidth - measureFinancialShapedLabel(element, justifiedText));
+
+    for (let count = 2; count <= 48; count += 1) {
+        const candidate = financeTextWithKashidas(source, count);
+        const candidateWidth = measureFinancialShapedLabel(element, candidate);
+        const difference = Math.abs(targetWidth - candidateWidth);
+
+        if (difference <= bestDifference) {
+            justifiedText = candidate;
+            bestDifference = difference;
+        }
+
+        if (candidateWidth >= targetWidth) {
+            break;
+        }
+    }
+
+    element.textContent = justifiedText;
+    element.dataset.financeKashidaApplied = 'true';
+    element.style.width = `${targetWidth}px`;
+}
+
+function measureFinancialSpacingContent(element) {
+    const children = Array.from(element.querySelectorAll('.finance-transaction-primary, .finance-transaction-secondary'));
+
+    if (children.length) {
+        return Math.max(...children.map((child) => measureFinancialText(
+            child,
+            child.getAttribute('aria-label') ?? child.textContent?.trim() ?? '',
+        )));
+    }
+
+    return measureFinancialText(element);
+}
+
+function synchronizeFinancialTransactionTypography() {
+    financialTransactionTypographyFrame = null;
+
+    document.querySelectorAll('.financial-transactions-table').forEach((table) => {
+        if (table.getBoundingClientRect().width < 1) {
+            return;
+        }
+
+        ['fund', 'type', 'reference'].forEach((group) => {
+            const labels = Array.from(table.querySelectorAll(`[data-finance-kashida-label="${group}"]`));
+
+            labels.forEach((label) => {
+                const source = label.dataset.financeKashidaSource
+                    ?? label.textContent?.replaceAll(financeKashida, '').trim()
+                    ?? '';
+
+                label.dataset.financeKashidaSource = source;
+                label.textContent = source;
+                delete label.dataset.financeKashidaApplied;
+                label.style.removeProperty('width');
+            });
+
+            const targetWidth = group === 'reference'
+                ? Math.max(
+                    0,
+                    ...Array.from(table.querySelectorAll('[data-finance-spacing-content="reference"]'))
+                        .map((element) => measureFinancialSpacingContent(element)),
+                )
+                : Math.max(
+                    0,
+                    ...(group === 'fund'
+                        ? labels.filter((label) => !label.hasAttribute('data-finance-kashida-target'))
+                        : labels
+                    ).map((label) => measureFinancialNaturalShapedLabel(
+                        label,
+                        label.dataset.financeKashidaSource ?? '',
+                    )),
+                );
+
+            const targets = group === 'fund' || group === 'reference'
+                ? labels.filter((label) => label.hasAttribute('data-finance-kashida-target'))
+                : labels;
+
+            targets.forEach((label) => justifyFinanceLabelToWidth(label, targetWidth));
+        });
+
+        const spacingColumns = ['reference', 'fund', 'type'];
+        const tableWidth = table.parentElement?.clientWidth || table.getBoundingClientRect().width;
+        const contentWidths = spacingColumns.map((columnName) => Math.max(
+            0,
+            ...Array.from(table.querySelectorAll(`[data-finance-spacing-content="${columnName}"]`))
+                .map((element) => measureFinancialSpacingContent(element)),
+        ));
+        const dateToReferenceGaps = Array.from(table.tBodies[0]?.rows ?? []).map((row) => {
+            const date = row.querySelector('[data-finance-transaction-datetime]');
+            const reference = row.querySelector('[data-finance-spacing-content="reference"]');
+
+            if (!date || !reference) {
+                return 0;
+            }
+
+            const dateBounds = date.getBoundingClientRect();
+            const referenceBounds = reference.getBoundingClientRect();
+
+            return document.documentElement.dir === 'rtl'
+                ? dateBounds.left - referenceBounds.right
+                : referenceBounds.left - dateBounds.right;
+        }).filter((gap) => gap > 0).sort((left, right) => left - right);
+        const equalGap = dateToReferenceGaps.length
+            ? dateToReferenceGaps[Math.floor(dateToReferenceGaps.length / 2)]
+            : 0;
+        const spacingWidths = contentWidths.map((width) => width + equalGap);
+        const fixedColumns = Array.from(table.querySelectorAll('[data-finance-fixed-percent]'));
+        const fixedColumnsWidth = fixedColumns.reduce(
+            (total, column) => total + tableWidth * (Number.parseFloat(column.dataset.financeFixedPercent) / 100),
+            0,
+        );
+        const leftAvailableWidth = tableWidth
+            - fixedColumnsWidth
+            - spacingWidths.reduce((total, width) => total + width, 0);
+        const leftColumns = Array.from(table.querySelectorAll('[data-finance-left-column]'));
+        const leftWeightTotal = leftColumns.reduce(
+            (total, column) => total + Number.parseFloat(column.dataset.financeLeftWeight),
+            0,
+        );
+
+        fixedColumns.forEach((column) => {
+            column.dataset.financeFallbackWidth ??= column.style.width;
+        });
+        leftColumns.forEach((column) => {
+            column.dataset.financeFallbackWidth ??= column.style.width;
+        });
+
+        spacingColumns.forEach((columnName, index) => {
+            const column = table.querySelector(`[data-finance-spacing-column="${columnName}"]`);
+
+            if (!column) {
+                return;
+            }
+
+            column.dataset.financeFallbackWidth ??= column.style.width;
+
+            if (
+                !window.matchMedia('(min-width: 1024px)').matches
+                || equalGap < 12
+                || leftAvailableWidth < tableWidth * 0.28
+            ) {
+                table.style.removeProperty('width');
+                table.style.removeProperty('min-width');
+                column.style.width = column.dataset.financeFallbackWidth;
+                fixedColumns.forEach((fixedColumn) => {
+                    fixedColumn.style.width = fixedColumn.dataset.financeFallbackWidth;
+                });
+                leftColumns.forEach((leftColumn) => {
+                    leftColumn.style.width = leftColumn.dataset.financeFallbackWidth;
+                });
+
+                return;
+            }
+
+            table.style.width = '100%';
+            table.style.minWidth = '0';
+            column.style.width = `${spacingWidths[index]}px`;
+        });
+
+        if (
+            window.matchMedia('(min-width: 1024px)').matches
+            && equalGap >= 12
+            && leftAvailableWidth >= tableWidth * 0.28
+        ) {
+            fixedColumns.forEach((column) => {
+                column.style.width = `${tableWidth * (Number.parseFloat(column.dataset.financeFixedPercent) / 100)}px`;
+            });
+            leftColumns.forEach((column) => {
+                column.style.width = `${leftAvailableWidth * (Number.parseFloat(column.dataset.financeLeftWeight) / leftWeightTotal)}px`;
+            });
+            table.querySelectorAll('[data-finance-width-transfer-to]').forEach((sourceColumn) => {
+                const targetColumn = table.querySelector(
+                    `[data-finance-width-transfer-target="${sourceColumn.dataset.financeWidthTransferTo}"]`,
+                );
+                const sourceWidth = Number.parseFloat(sourceColumn.style.width);
+                const targetWidth = Number.parseFloat(targetColumn?.style.width ?? '');
+                const transferPercent = Number.parseFloat(sourceColumn.dataset.financeWidthTransferPercent);
+
+                if (! targetColumn || ! Number.isFinite(sourceWidth) || ! Number.isFinite(targetWidth) || ! Number.isFinite(transferPercent)) {
+                    return;
+                }
+
+                const transferredWidth = sourceWidth * (transferPercent / 100);
+
+                sourceColumn.style.width = `${sourceWidth - transferredWidth}px`;
+                targetColumn.style.width = `${targetWidth + transferredWidth}px`;
+            });
+        }
+    });
+}
+
+function scheduleFinancialTransactionTypographySync() {
+    if (financialTransactionTypographyFrame !== null) {
+        window.cancelAnimationFrame(financialTransactionTypographyFrame);
+    }
+
+    financialTransactionTypographyFrame = window.requestAnimationFrame(synchronizeFinancialTransactionTypography);
+}
+
+document.addEventListener('DOMContentLoaded', scheduleFinancialTransactionTypographySync);
+document.addEventListener('livewire:navigated', scheduleFinancialTransactionTypographySync);
+window.addEventListener('resize', scheduleFinancialTransactionTypographySync, { passive: true });
+document.fonts?.ready.then(scheduleFinancialTransactionTypographySync);
+document.addEventListener('livewire:initialized', () => {
+    window.Livewire?.hook('morph.updated', ({ el }) => {
+        if (el.matches?.('[data-financial-transactions-table]') || el.querySelector?.('[data-financial-transactions-table]')) {
+            scheduleFinancialTransactionTypographySync();
+        }
+    });
+
+    window.Livewire?.hook('morph.added', ({ el }) => {
+        if (el.matches?.('[data-financial-transactions-table]') || el.querySelector?.('[data-financial-transactions-table]')) {
+            scheduleFinancialTransactionTypographySync();
+        }
+    });
+});
+
+let appLogoPeriodTypographyFrame = null;
+
+function measureAppLogoText(element) {
+    const range = document.createRange();
+
+    range.selectNodeContents(element);
+
+    return range.getBoundingClientRect().width;
+}
+
+function synchronizeAppLogoPeriodTypography() {
+    appLogoPeriodTypographyFrame = null;
+
+    document.querySelectorAll('[data-app-logo-period-lockup]').forEach((lockup) => {
+        const title = lockup.querySelector('[data-app-logo-period-title]');
+        const subtitle = lockup.querySelector('[data-app-logo-period-subtitle]');
+
+        if (! title || ! subtitle || lockup.getBoundingClientRect().width < 1) {
+            return;
+        }
+
+        const source = subtitle.dataset.appLogoPeriodSource
+            ?? subtitle.getAttribute('aria-label')
+            ?? subtitle.textContent?.replaceAll(financeKashida, '').trim()
+            ?? '';
+
+        subtitle.dataset.appLogoPeriodSource = source;
+        subtitle.textContent = source;
+        subtitle.style.removeProperty('font-size');
+        subtitle.style.removeProperty('width');
+
+        const targetWidth = measureAppLogoText(title);
+        let sourceWidth = measureAppLogoText(subtitle);
+
+        if (! source || targetWidth < 1 || sourceWidth < 1) {
+            return;
+        }
+
+        if (sourceWidth > targetWidth) {
+            const naturalFontSize = Number.parseFloat(window.getComputedStyle(subtitle).fontSize);
+            const fittedFontSize = naturalFontSize * (targetWidth / sourceWidth) * 0.965;
+
+            subtitle.style.fontSize = `${fittedFontSize}px`;
+            sourceWidth = measureAppLogoText(subtitle);
+        }
+
+        let justifiedText = source;
+        let bestDifference = Math.abs(targetWidth - sourceWidth);
+
+        for (let count = 1; count <= 96 && financeKashidaPositions(source).length; count += 1) {
+            const candidate = financeTextWithKashidas(source, count);
+
+            subtitle.textContent = candidate;
+
+            const candidateWidth = measureAppLogoText(subtitle);
+            const difference = Math.abs(targetWidth - candidateWidth);
+
+            if (difference <= bestDifference) {
+                justifiedText = candidate;
+                bestDifference = difference;
+            }
+
+            if (candidateWidth >= targetWidth) {
+                break;
+            }
+        }
+
+        subtitle.textContent = justifiedText;
+        subtitle.style.width = `${targetWidth}px`;
+    });
+}
+
+function scheduleAppLogoPeriodTypographySync() {
+    if (appLogoPeriodTypographyFrame !== null) {
+        window.cancelAnimationFrame(appLogoPeriodTypographyFrame);
+    }
+
+    appLogoPeriodTypographyFrame = window.requestAnimationFrame(synchronizeAppLogoPeriodTypography);
+}
+
+document.addEventListener('DOMContentLoaded', scheduleAppLogoPeriodTypographySync);
+document.addEventListener('livewire:navigated', scheduleAppLogoPeriodTypographySync);
+window.addEventListener('resize', scheduleAppLogoPeriodTypographySync, { passive: true });
+document.fonts?.ready.then(scheduleAppLogoPeriodTypographySync);
+document.addEventListener('livewire:initialized', () => {
+    window.Livewire?.hook('morph.updated', ({ el }) => {
+        if (el.matches?.('[data-app-logo-period-lockup]') || el.querySelector?.('[data-app-logo-period-lockup]')) {
+            scheduleAppLogoPeriodTypographySync();
+        }
+    });
+
+    window.Livewire?.hook('morph.added', ({ el }) => {
+        if (el.matches?.('[data-app-logo-period-lockup]') || el.querySelector?.('[data-app-logo-period-lockup]')) {
+            scheduleAppLogoPeriodTypographySync();
         }
     });
 });
@@ -1275,6 +1841,27 @@ function createDateClearIcon() {
     return clear;
 }
 
+function restoreFormattedDatePicker(picker) {
+    if (!(picker instanceof HTMLButtonElement) || !picker.classList.contains('formatted-date-input__picker')) return;
+
+    const hasDateIcons = picker.childElementCount === 2
+        && picker.firstElementChild?.classList.contains('formatted-date-input__calendar-icon')
+        && picker.lastElementChild?.classList.contains('formatted-date-input__clear-icon');
+
+    if (!hasDateIcons) picker.replaceChildren(createDatePickerIcon(), createDateClearIcon());
+    picker.dataset.modalActionIconIgnore = 'true';
+    picker.classList.remove(
+        'admin-icon-button',
+        'admin-modal-action-button',
+        'admin-icon-button--accent',
+        'admin-icon-button--danger',
+        'mobile-table-header-action',
+        'mobile-table-header-action--native-icon',
+    );
+    picker.removeAttribute('data-modal-action-icon');
+    picker.removeAttribute('data-mobile-table-header-action');
+}
+
 let activeNativeDateInput = null;
 
 function closeActiveNativeDatePicker() {
@@ -1312,16 +1899,20 @@ function openNativeDatePicker(input) {
 function enhanceDateInput(input) {
     if (!(input instanceof HTMLInputElement) || input.type !== 'date' || input.dataset.dateFormatNative === 'true') return;
 
+    const clearable = input.dataset.clearable !== 'false';
     const existingWrapper = input.nextElementSibling?.classList.contains('formatted-date-input')
         ? input.nextElementSibling
         : null;
 
     if (input.dataset.dateFormatBound === 'true' && existingWrapper) {
         const existingDisplay = existingWrapper.querySelector('.formatted-date-input__display');
+        const existingPicker = existingWrapper.querySelector('.formatted-date-input__picker');
 
         if (existingDisplay instanceof HTMLInputElement) {
             syncFormattedDateInputAppearance(input, existingWrapper, existingDisplay);
         }
+
+        restoreFormattedDatePicker(existingPicker);
 
         input.formattedDateSync?.();
 
@@ -1353,6 +1944,7 @@ function enhanceDateInput(input) {
     picker.type = 'button';
     picker.tabIndex = -1;
     picker.className = 'formatted-date-input__picker';
+    picker.dataset.modalActionIconIgnore = 'true';
     picker.setAttribute('aria-label', document.documentElement.lang.toLowerCase().startsWith('ar') ? 'اختيار التاريخ' : 'Choose date');
     picker.append(createDatePickerIcon(), createDateClearIcon());
 
@@ -1372,7 +1964,7 @@ function enhanceDateInput(input) {
     const runPickerAction = (event) => {
         stopDateActionEvent(event);
 
-        if (input.value === '') {
+        if (input.value === '' || !clearable) {
             openNativeDatePicker(input);
 
             return;
@@ -1393,11 +1985,11 @@ function enhanceDateInput(input) {
         display.classList.toggle('date-input--empty', isEmpty);
         display.classList.toggle('date-input--filled', !isEmpty);
         picker.disabled = input.disabled || input.readOnly;
-        picker.setAttribute('aria-label', isEmpty
+        picker.setAttribute('aria-label', isEmpty || !clearable
             ? (document.documentElement.lang.toLowerCase().startsWith('ar') ? 'اختيار التاريخ' : 'Choose date')
             : (document.documentElement.lang.toLowerCase().startsWith('ar') ? 'مسح التاريخ' : 'Clear date'));
         picker.title = picker.getAttribute('aria-label');
-        wrapper.classList.toggle('formatted-date-input--has-value', !isEmpty);
+        wrapper.classList.toggle('formatted-date-input--has-value', clearable && !isEmpty);
         wrapper.hidden = input.hidden;
     };
 
@@ -1688,6 +2280,13 @@ function initializeAdminModalActionIcons(root = document) {
     root.querySelectorAll?.(selector).forEach((action) => actions.push(action));
 
     actions.forEach((action) => {
+        if (action.closest('.formatted-date-input')) {
+            // Date fields use their own calendar / compact × state. The popup
+            // action enhancer must never turn "Clear date" into Clear filters.
+            restoreFormattedDatePicker(action);
+
+            return;
+        }
         if (action.closest('.searchable-select')) {
             // Dropdown clear controls must remain the compact native ×. An
             // earlier modal pass may already have replaced one, so restore it
@@ -3034,8 +3633,50 @@ document.addEventListener('livewire:initialized', () => {
 
 let curriculaIndexNameWidthFrame = null;
 
+function synchronizeCurriculaCourseFilterWidths() {
+    const measurer = document.createElement('span');
+
+    measurer.style.position = 'fixed';
+    measurer.style.insetInlineStart = '-10000px';
+    measurer.style.visibility = 'hidden';
+    measurer.style.pointerEvents = 'none';
+    measurer.style.whiteSpace = 'nowrap';
+    document.body.append(measurer);
+
+    document.querySelectorAll('[data-curricula-index-course-filter]').forEach((filter) => {
+        const select = filter.querySelector('select');
+        const control = filter.querySelector('.searchable-select__search--trigger, .searchable-select__button');
+
+        if (!(select instanceof HTMLSelectElement) || !(control instanceof HTMLElement)) {
+            return;
+        }
+
+        const styles = window.getComputedStyle(control);
+
+        measurer.style.fontFamily = styles.fontFamily;
+        measurer.style.fontSize = styles.fontSize;
+        measurer.style.fontStyle = styles.fontStyle;
+        measurer.style.fontWeight = styles.fontWeight;
+        measurer.style.letterSpacing = styles.letterSpacing;
+
+        const widestOption = Array.from(select.options).reduce((widest, option) => {
+            measurer.textContent = option.textContent?.trim() ?? '';
+
+            return Math.max(widest, measurer.getBoundingClientRect().width);
+        }, 0);
+
+        // Allow for the trigger's two-sided padding, chevron, and a small
+        // visual buffer beyond the widest course name.
+        filter.style.setProperty('--curricula-course-filter-width', `${Math.ceil(widestOption + 68)}px`);
+    });
+
+    measurer.remove();
+}
+
 function synchronizeCurriculaIndexNameWidths() {
     curriculaIndexNameWidthFrame = null;
+
+    synchronizeCurriculaCourseFilterWidths();
 
     document.querySelectorAll('[data-curricula-index-name-table]').forEach((table) => {
         const names = Array.from(table.querySelectorAll('[data-curricula-index-name]'));
@@ -3072,13 +3713,19 @@ window.addEventListener('resize', scheduleCurriculaIndexNameWidthSync, { passive
 document.fonts?.ready.then(scheduleCurriculaIndexNameWidthSync);
 document.addEventListener('livewire:initialized', () => {
     window.Livewire?.hook('morph.updated', ({ el }) => {
-        if (el.matches?.('[data-curricula-index-name-table]') || el.querySelector?.('[data-curricula-index-name-table]')) {
+        if (
+            el.matches?.('[data-curricula-index-name-table], [data-curricula-index-course-filter]')
+            || el.querySelector?.('[data-curricula-index-name-table], [data-curricula-index-course-filter]')
+        ) {
             scheduleCurriculaIndexNameWidthSync();
         }
     });
 
     window.Livewire?.hook('morph.added', ({ el }) => {
-        if (el.matches?.('[data-curricula-index-name-table]') || el.querySelector?.('[data-curricula-index-name-table]')) {
+        if (
+            el.matches?.('[data-curricula-index-name-table], [data-curricula-index-course-filter]')
+            || el.querySelector?.('[data-curricula-index-name-table], [data-curricula-index-course-filter]')
+        ) {
             scheduleCurriculaIndexNameWidthSync();
         }
     });

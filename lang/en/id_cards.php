@@ -100,7 +100,7 @@ return [
                 'font_size' => 'Font size',
                 'font_weight' => 'Font weight',
                 'text_align' => 'Text align',
-                'color' => 'Color',
+                'color' => 'Colour',
                 'border_radius' => 'Border radius',
                 'object_fit' => 'Image fit',
                 'show_text' => 'Show barcode text',
@@ -123,7 +123,7 @@ return [
             ],
             'text_alignments' => [
                 'left' => 'Left',
-                'center' => 'Center',
+                'center' => 'Centre',
                 'right' => 'Right',
             ],
             'image_fit' => [

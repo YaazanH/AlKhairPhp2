@@ -12,6 +12,7 @@ use App\Models\CurriculumSubject;
 use App\Models\CurriculumSubjectDefinition;
 use App\Models\GradeLevel;
 use App\Models\Group;
+use App\Models\GroupCurriculumLessonProgress;
 use App\Models\Teacher;
 use App\Models\User;
 use App\Services\CurriculumProgressService;
@@ -86,6 +87,68 @@ class CurriculumModuleTest extends TestCase
 
         $this->assertSame(['dashboard', 'reports', 'curricula'], array_column($platform['items'], 'key'));
         $this->assertSame(__('ui.nav.my_curriculum'), $platform['items'][2]['label']);
+    }
+
+    public function test_downloadable_books_use_the_standard_icon_button(): void
+    {
+        $source = File::get(resource_path('views/livewire/curricula/index.blade.php'));
+        $button = File::get(resource_path('views/components/download-action-button.blade.php'));
+        $icon = File::get(resource_path('views/components/admin-action-icon.blade.php'));
+
+        $this->assertStringContainsString('<x-download-action-button :href="route(\'curriculum-resources.download\', $resource)" class="admin-icon-button--accent"', $source);
+        $this->assertStringContainsString('data-curriculum-resource-download', $source);
+        $this->assertStringContainsString("\$attributes->class('admin-icon-button')", $button);
+        $this->assertStringContainsString('data-download-action', $button);
+        $this->assertStringContainsString('<x-admin-action-icon name="download" />', $button);
+        $this->assertStringNotContainsString('>⬇</a>', $source);
+        $this->assertStringContainsString("@case('download')", $icon);
+    }
+
+    public function test_curriculum_progress_pies_are_hidden_on_mobile_and_use_five_desktop_columns(): void
+    {
+        $source = File::get(resource_path('views/livewire/curricula/index.blade.php'));
+        $styles = File::get(resource_path('css/app.css'));
+
+        $this->assertStringContainsString('data-curricula-progress-card', $source);
+        $this->assertStringContainsString('data-curricula-progress-grid', $source);
+        $this->assertStringNotContainsString("<h2 class=\"font-display text-2xl text-white\">{{ __('curricula.progress.title') }}</h2>", $source);
+        $this->assertStringContainsString('wire:model.live="courseId" required aria-required="true" data-clearable="false" data-search-selection-required="true" data-hide-placeholder-option="true"', $source);
+        $this->assertStringContainsString('synchronizeCurriculaCourseFilterWidths', File::get(resource_path('js/app.js')));
+        $this->assertStringContainsString(
+            '[data-curricula-index-hero]:has(.curricula-index-course-filter .searchable-select--open)',
+            $styles,
+        );
+        $this->assertMatchesRegularExpression(
+            '/\[data-curricula-index-hero\]:has\(\.curricula-index-course-filter \.searchable-select--open\)\s*\{[^}]*z-index:\s*80;[^}]*overflow:\s*visible;/s',
+            $styles,
+        );
+        $this->assertMatchesRegularExpression(
+            '/@media \(min-width: 1024px\)\s*\{\s*\[data-curricula-progress-grid\]\s*\{\s*grid-template-columns: repeat\(5, minmax\(0, 1fr\)\);/s',
+            $styles,
+        );
+        $this->assertMatchesRegularExpression(
+            '/@media \(max-width: 767px\).*?\[data-curricula-progress-card\]\s*\{\s*display: none !important;/s',
+            $styles,
+        );
+        $this->assertStringNotContainsString('lg:grid-cols-4 xl:grid-cols-6', $source);
+    }
+
+    public function test_manager_curricula_course_filter_cannot_be_cleared(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $manager = User::factory()->create();
+        $manager->assignRole('manager');
+        $this->actingAs($manager);
+
+        $defaultCourse = Course::create(['name' => 'Default course', 'is_default' => true, 'is_active' => true]);
+        Course::create(['name' => 'Another active course', 'is_default' => false, 'is_active' => true]);
+
+        Volt::test('curricula.index')
+            ->assertSet('courseId', (string) $defaultCourse->id)
+            ->set('courseId', '')
+            ->assertSet('courseId', (string) $defaultCourse->id)
+            ->assertSee('required aria-required="true" data-clearable="false" data-search-selection-required="true" data-hide-placeholder-option="true"', false);
     }
 
     public function test_subject_resource_tables_share_column_widths_and_show_book_upload_status(): void
@@ -400,6 +463,73 @@ class CurriculumModuleTest extends TestCase
         $this->assertStringContainsString('synchronizeCurriculaIndexNameWidths', $javascript);
     }
 
+    public function test_groups_and_their_curriculum_picker_are_sorted_by_course_and_grade(): void
+    {
+        $this->seed(RoleSeeder::class);
+        $manager = User::factory()->create();
+        $manager->assignRole('manager');
+        $this->actingAs($manager);
+
+        $year = AcademicYear::create(['name' => '2027/2028', 'starts_on' => '2027-08-01', 'ends_on' => '2028-07-31', 'is_current' => true, 'is_active' => true]);
+        $teacher = Teacher::create(['first_name' => 'Groups', 'last_name' => 'Teacher', 'phone' => '0944007010', 'status' => 'active', 'is_helping' => true]);
+        $laterGrade = GradeLevel::create(['name' => 'Later grade', 'sort_order' => 20, 'is_active' => true]);
+        $earlierGrade = GradeLevel::create(['name' => 'Earlier grade', 'sort_order' => 10, 'is_active' => true]);
+        $alphaCourse = Course::create(['name' => 'Alpha course', 'is_active' => true]);
+        $zuluCourse = Course::create(['name' => 'Zulu course', 'is_active' => true]);
+
+        $laterCurriculum = Curriculum::create(['course_id' => $alphaCourse->id, 'grade_level_id' => $laterGrade->id, 'name' => 'A later curriculum', 'is_active' => true]);
+        $ungradedCurriculum = Curriculum::create(['course_id' => null, 'grade_level_id' => null, 'name' => 'An ungraded curriculum', 'is_active' => true]);
+        $earlierCurriculum = Curriculum::create(['course_id' => $alphaCourse->id, 'grade_level_id' => $earlierGrade->id, 'name' => 'Z earlier curriculum', 'is_active' => true]);
+
+        $alphaLaterGroup = Group::create(['course_id' => $alphaCourse->id, 'academic_year_id' => $year->id, 'teacher_id' => $teacher->id, 'grade_level_id' => $laterGrade->id, 'name' => 'A alpha later', 'capacity' => 20, 'is_active' => true]);
+        $zuluEarlierGroup = Group::create(['course_id' => $zuluCourse->id, 'academic_year_id' => $year->id, 'teacher_id' => $teacher->id, 'grade_level_id' => $earlierGrade->id, 'name' => 'A zulu earlier', 'capacity' => 20, 'is_active' => true]);
+        $alphaEarlierGroup = Group::create(['course_id' => $alphaCourse->id, 'academic_year_id' => $year->id, 'teacher_id' => $teacher->id, 'grade_level_id' => $earlierGrade->id, 'curriculum_id' => $earlierCurriculum->id, 'name' => 'Z alpha earlier', 'capacity' => 20, 'is_active' => true]);
+
+        $component = Volt::test('groups.index')
+            ->assertViewHas('groups', fn ($groups) => $groups->pluck('id')->all() === [
+                $alphaEarlierGroup->id,
+                $alphaLaterGroup->id,
+                $zuluEarlierGroup->id,
+            ])
+            ->assertViewHas('curricula', fn ($curricula) => $curricula->pluck('id')->all() === [
+                $earlierCurriculum->id,
+                $laterCurriculum->id,
+                $ungradedCurriculum->id,
+            ])
+            ->assertSee('data-groups-curriculum-column="8"', false)
+            ->assertSee('data-group-curriculum-status', false)
+            ->assertSee('title="'.$earlierCurriculum->name.'"', false)
+            ->assertSee(__('curricula.fields.curriculum'));
+
+        $component
+            ->set('courseFilter', (string) $alphaCourse->id)
+            ->assertViewHas('groups', fn ($groups) => $groups->pluck('id')->all() === [
+                $alphaEarlierGroup->id,
+                $alphaLaterGroup->id,
+            ]);
+
+        Volt::test('groups.show', ['group' => $alphaEarlierGroup])
+            ->call('openEdit')
+            ->assertViewHas('curricula', fn ($curricula) => $curricula->pluck('id')->all() === [
+                $earlierCurriculum->id,
+                $laterCurriculum->id,
+                $ungradedCurriculum->id,
+            ]);
+
+        $styles = file_get_contents(resource_path('css/app.css'));
+        $groupsView = file_get_contents(resource_path('views/livewire/groups/index.blade.php'));
+        $this->assertLessThan(
+            strpos($groupsView, "{{ __('curricula.fields.curriculum') }}"),
+            strpos($groupsView, "{{ __('crud.groups.table.headers.students') }}"),
+        );
+        $this->assertLessThan(
+            strpos($groupsView, '<td class="px-5 py-4 text-center lg:px-6">'),
+            strpos($groupsView, '<td class="px-5 py-4 text-white lg:px-6">{{ $group->enrollments_count }}</td>'),
+        );
+        $this->assertStringContainsString('margin-inline-end: 0;', $styles);
+        $this->assertStringContainsString('.group-curriculum-status {', $styles);
+    }
+
     public function test_standalone_books_are_managed_inline_inside_their_popup(): void
     {
         $this->seed(RoleSeeder::class);
@@ -480,7 +610,58 @@ class CurriculumModuleTest extends TestCase
         $this->assertDatabaseHas('group_custom_curriculum_lessons', ['group_id' => $group->id, 'subject_name' => 'Community', 'name' => 'Helping neighbours', 'status' => 'taught']);
     }
 
-    public function test_lesson_topics_roll_up_completion_and_remove_the_parent_checkbox(): void
+    public function test_teacher_book_rows_hide_and_restore_taught_lessons_in_their_original_places(): void
+    {
+        $this->seed(RoleSeeder::class);
+        $user = User::factory()->create();
+        $user->assignRole('teacher');
+        [$course, $year, $grade] = $this->learningStructure(false);
+        $teacher = Teacher::create(['user_id' => $user->id, 'first_name' => 'Ahmad', 'last_name' => 'Teacher', 'phone' => '0944007015', 'job_title' => 'مشرف حلقة', 'status' => 'active', 'is_helping' => true]);
+        $curriculum = Curriculum::create(['course_id' => $course->id, 'grade_level_id' => $grade->id, 'name' => 'Teacher curriculum', 'is_active' => true]);
+        $definition = CurriculumSubjectDefinition::create(['name' => 'Arabic', 'is_active' => true]);
+        $resource = CurriculumResource::create(['subject_definition_id' => $definition->id, 'book_name' => 'Arabic book', 'is_active' => true]);
+        $subject = CurriculumSubject::create(['curriculum_id' => $curriculum->id, 'subject_definition_id' => $definition->id]);
+        $subject->resources()->attach($resource);
+        $first = CurriculumLesson::create(['curriculum_subject_id' => $subject->id, 'curriculum_resource_id' => null, 'chapter_number' => '1', 'name' => 'First lesson', 'importance' => 1, 'sort_order' => 10]);
+        $taught = CurriculumLesson::create(['curriculum_subject_id' => $subject->id, 'curriculum_resource_id' => $resource->id, 'chapter_number' => '2', 'name' => 'Middle taught lesson', 'importance' => 2, 'sort_order' => 20]);
+        $third = CurriculumLesson::create(['curriculum_subject_id' => $subject->id, 'curriculum_resource_id' => $resource->id, 'chapter_number' => '3', 'name' => 'Third lesson', 'importance' => 3, 'sort_order' => 30]);
+        $group = Group::create(['course_id' => $course->id, 'academic_year_id' => $year->id, 'teacher_id' => $teacher->id, 'grade_level_id' => $grade->id, 'curriculum_id' => $curriculum->id, 'name' => 'Arabic Group', 'capacity' => 20, 'is_active' => true]);
+        GroupCurriculumLessonProgress::create(['group_id' => $group->id, 'curriculum_lesson_id' => $taught->id, 'teacher_id' => $teacher->id, 'status' => 'taught', 'taught_on' => '2026-08-14']);
+
+        $this->actingAs($user);
+        $lessonGroupKey = md5($subject->id.'|'.$resource->id);
+        $component = Volt::test('curricula.index')
+            ->set('selectedGroupId', (string) $group->id)
+            ->assertSee('data-teacher-curriculum-hero-actions', false)
+            ->assertSee('wire:click="openCustom"', false)
+            ->assertSee('Arabic book')
+            ->assertSee(__('curricula.fields.chapter_number'))
+            ->assertSee(__('curricula.fields.lesson'))
+            ->assertSee(__('curricula.fields.importance'))
+            ->assertSee('First lesson')
+            ->assertSee('Third lesson')
+            ->assertDontSee('Middle taught lesson')
+            ->assertSee('data-teacher-taught-toggle', false)
+            ->assertSee('data-icon-name="eye"', false);
+
+        $component->call('toggleTaughtLessons', $lessonGroupKey)
+            ->assertSet("showTaughtLessons.{$lessonGroupKey}", true)
+            ->assertSeeInOrder(['First lesson', 'Middle taught lesson', 'Third lesson'])
+            ->assertSee('14-08-2026')
+            ->assertSee('Ahmad Teacher')
+            ->assertSee('teacher-curriculum-lesson-title line-through', false)
+            ->assertSee('data-icon-name="eye-off"', false);
+
+        $component->call('toggleTaughtLessons', $lessonGroupKey)
+            ->assertSet("showTaughtLessons.{$lessonGroupKey}", false)
+            ->assertDontSee('Middle taught lesson')
+            ->assertSee('data-icon-name="eye"', false);
+
+        $this->assertSame('1', app(CurriculumProgressService::class)->subjects($group->fresh())->first()['lessons']->firstWhere('id', $first->id)['chapter_number']);
+        $this->assertSame('3', app(CurriculumProgressService::class)->subjects($group->fresh())->first()['lessons']->firstWhere('id', $third->id)['chapter_number']);
+    }
+
+    public function test_lesson_topics_are_collapsible_and_support_parent_or_individual_completion(): void
     {
         $this->seed(RoleSeeder::class);
         $user = User::factory()->create();
@@ -496,7 +677,33 @@ class CurriculumModuleTest extends TestCase
         $group = Group::create(['course_id' => $course->id, 'academic_year_id' => $year->id, 'teacher_id' => $teacher->id, 'grade_level_id' => $grade->id, 'curriculum_id' => $curriculum->id, 'name' => 'Topic Group', 'capacity' => 20, 'is_active' => true]);
 
         $this->actingAs($user);
-        Volt::test('curricula.index')->set('selectedGroupId', (string) $group->id)->assertSee('First topic')->call('toggleTopic', $firstTopic->id)->assertHasNoErrors();
+        $component = Volt::test('curricula.index')
+            ->set('selectedGroupId', (string) $group->id)
+            ->assertSee('Parent lesson')
+            ->assertSee('data-teacher-lesson-topics-checkbox', false)
+            ->assertSee('data-teacher-topic-toggle', false)
+            ->assertSee('aria-expanded="false"', false)
+            ->assertDontSee('data-teacher-topic-list', false)
+            ->assertDontSee('First topic')
+            ->call('toggleTopicLesson', $lesson->id)
+            ->assertSet("expandedTopicLessons.{$lesson->id}", true)
+            ->assertSee('aria-expanded="true"', false)
+            ->assertSee('data-teacher-topic-list', false)
+            ->assertSee('First topic')
+            ->assertSee('Second topic');
+
+        $component->call('toggleLessonTopics', $lesson->id)->assertHasNoErrors();
+        $this->assertDatabaseHas('group_curriculum_topic_progresses', ['group_id' => $group->id, 'curriculum_lesson_topic_id' => $firstTopic->id]);
+        $this->assertDatabaseHas('group_curriculum_topic_progresses', ['group_id' => $group->id, 'curriculum_lesson_topic_id' => $secondTopic->id]);
+        $this->assertDatabaseHas('group_curriculum_lesson_progresses', ['group_id' => $group->id, 'curriculum_lesson_id' => $lesson->id, 'status' => 'taught']);
+        $this->assertSame(100.0, app(CurriculumProgressService::class)->summary($group->fresh())['percentage']);
+
+        $component->call('toggleLessonTopics', $lesson->id)->assertHasNoErrors();
+        $this->assertDatabaseMissing('group_curriculum_topic_progresses', ['group_id' => $group->id, 'curriculum_lesson_topic_id' => $firstTopic->id]);
+        $this->assertDatabaseMissing('group_curriculum_topic_progresses', ['group_id' => $group->id, 'curriculum_lesson_topic_id' => $secondTopic->id]);
+        $this->assertDatabaseMissing('group_curriculum_lesson_progresses', ['group_id' => $group->id, 'curriculum_lesson_id' => $lesson->id]);
+
+        Volt::test('curricula.index')->set('selectedGroupId', (string) $group->id)->call('toggleTopic', $firstTopic->id)->assertHasNoErrors();
         $this->assertSame(0.0, app(CurriculumProgressService::class)->summary($group->fresh())['percentage']);
 
         Volt::test('curricula.index')->set('selectedGroupId', (string) $group->id)->call('toggleTopic', $secondTopic->id)->assertHasNoErrors();

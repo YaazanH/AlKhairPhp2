@@ -44,7 +44,7 @@ class WriteRecordsController extends Controller
 
         if ($student->enrollments()->count() > 0) {
             return response()->json([
-                'message' => 'This student cannot be deleted while enrollments still exist.',
+                'message' => 'This student cannot be deleted while enrolments still exist.',
             ], 422);
         }
 
@@ -86,7 +86,7 @@ class WriteRecordsController extends Controller
 
         if ($group->enrollments()->count() > 0 || $group->schedules()->count() > 0) {
             return response()->json([
-                'message' => 'This group cannot be deleted while enrollments or schedules still exist.',
+                'message' => 'This group cannot be deleted while enrolments or schedules still exist.',
             ], 422);
         }
 

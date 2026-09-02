@@ -9,7 +9,7 @@ return [
         ],
         'actions' => [
             'save' => 'Save',
-            'save_settings' => 'Edit organization details',
+            'save_settings' => 'Edit organisation details',
             'create' => 'Create',
             'update' => 'Update',
         ],
@@ -466,7 +466,7 @@ return [
             'code' => 'Code',
             'scope' => 'Scope',
             'default_points' => 'Default points',
-            'color' => 'Color',
+            'color' => 'Colour',
             'counts_as_present' => 'Counts as present',
             'default_attendance_status' => 'Default attendance value',
             'is_active' => 'Active',
@@ -551,13 +551,13 @@ return [
             'final_points' => ['title' => 'Final points'],
             'apply' => [
                 'title' => 'Apply rule impact',
-                'copy' => 'Choose the course scope, then calculate the point effect for the enrollments in that scope.',
-                'note' => 'Applying the rule again recalculates the previous completion adjustment for the same enrollment and writes the new effect to the point ledger.',
+                'copy' => 'Choose the course scope, then calculate the point effect for the enrolments in that scope.',
+                'note' => 'Applying the rule again recalculates the previous completion adjustment for the same enrolment and writes the new effect to the point ledger.',
             ],
         ],
         'fields' => [
             'required_passed_final_tests' => 'Required passed final sabers',
-            'required_memorized_pages' => 'Memorized pages',
+            'required_memorized_pages' => 'Memorised pages',
             'final_rule_operator' => 'Condition',
             'required_passed_quizzes' => 'Required passed quizzes',
             'assessment_type_requirements' => 'Assessment type requirements',
@@ -567,7 +567,7 @@ return [
             'academic_year' => 'Academic year',
             'course' => 'Course',
             'group' => 'Group',
-            'enrollment_status' => 'Enrollment status',
+            'enrollment_status' => 'Enrolment status',
         ],
         'options' => [
             'and' => 'And',
@@ -584,7 +584,7 @@ return [
             'cancelled' => 'Cancelled only',
         ],
         'criteria' => [
-            'final_saber_pages_progress' => 'Final saber :tests_actual/:tests_required :operator memorized pages :pages_actual/:pages_required',
+            'final_saber_pages_progress' => 'Final saber :tests_actual/:tests_required :operator memorised pages :pages_actual/:pages_required',
             'final_tests_progress' => 'Passed final sabers :actual/:required',
             'quizzes_progress' => 'Passed quizzes :actual/:required',
             'assessment_type_progress' => ':type passed assessments :actual/:required',
@@ -608,7 +608,7 @@ return [
         ],
         'messages' => [
             'rules_saved' => 'Course completion rules saved successfully.',
-            'rules_applied' => 'Completion rules applied to :evaluated enrollments. :met met all rules, :adjusted were adjusted, :no_positive_points had no positive points to reduce. Total removed points: :points_removed.',
+            'rules_applied' => 'Completion rules applied to :evaluated enrolments. :met met all rules, :adjusted were adjusted, :no_positive_points had no positive points to reduce. Total removed points: :points_removed.',
             'adjustment_recalculated' => 'Recalculated by the course completion rules page.',
             'adjustment_note' => 'Course completion adjustment applied for :student. Base points :base reduced to :target (:percentage%). Unmet rules: :unmet.',
         ],
@@ -618,7 +618,7 @@ return [
     ],
     'points' => [
         'title' => 'Points',
-        'subtitle' => 'Manage point types and the automatic policies that translate attendance, memorization, and scores into ledger entries.',
+        'subtitle' => 'Manage point types and the automatic policies that translate attendance, memorisation, and scores into ledger entries.',
         'stats' => [
             'point_types' => 'Point types',
             'point_policies' => 'Point policies',
@@ -640,7 +640,7 @@ return [
             'point_policy' => [
                 'create' => 'New point policy',
                 'edit' => 'Edit point policy',
-                'copy' => 'Policies translate a trigger like attendance or memorization into signed point values.',
+                'copy' => 'Policies translate a trigger like attendance or memorisation into signed point values.',
                 'table' => 'Point policies',
             ],
         ],
@@ -697,7 +697,7 @@ return [
             'date_window' => 'Between dates',
         ],
         'rule_options' => [
-            'memorization_pages' => 'Memorization pages',
+            'memorization_pages' => 'Memorisation pages',
             'partial_part_passed' => 'Passed partial saber part',
             'partial_passed' => 'Passed full partial saber',
             'final_passed' => 'Passed final Quran saber',

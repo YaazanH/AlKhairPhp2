@@ -36,6 +36,8 @@ new class extends Component {
     public string $customDate = '';
     public string $customStatus = 'taught';
     public bool $showBooksModal = false;
+    public array $showTaughtLessons = [];
+    public array $expandedTopicLessons = [];
 
     public function mount(): void
     {
@@ -88,6 +90,21 @@ new class extends Component {
             'downloadResources' => $selectedGroup ? $selectedGroup->curriculum->subjects->flatMap->resources
                 ->merge($selectedGroup->curriculum->standaloneResources)->whereNotNull('pdf_path')->unique('id')->sortBy('book_name')->values() : collect(),
         ];
+    }
+
+    public function updatedCourseId(string $courseId): void
+    {
+        if ($courseId !== '' && Course::query()->whereKey($courseId)->where('is_active', true)->exists()) {
+            $this->detailsGroupId = null;
+
+            return;
+        }
+
+        $fallbackCourse = Course::query()->where('is_default', true)->where('is_active', true)->first()
+            ?: Course::query()->where('is_active', true)->first();
+
+        $this->courseId = (string) ($fallbackCourse?->id ?? '');
+        $this->detailsGroupId = null;
     }
 
     public function openCurriculum(?int $id = null): void
@@ -205,6 +222,61 @@ new class extends Component {
         });
     }
 
+    public function toggleLessonTopics(int $lessonId): void
+    {
+        $group = $this->teacherGroup();
+        $lesson = CurriculumLesson::query()
+            ->with('topics')
+            ->whereHas('topics')
+            ->whereHas('subject', fn ($query) => $query->where('curriculum_id', $group->curriculum_id))
+            ->findOrFail($lessonId);
+
+        DB::transaction(function () use ($group, $lesson): void {
+            $topicIds = $lesson->topics->pluck('id');
+            $completedCount = GroupCurriculumTopicProgress::query()
+                ->where('group_id', $group->id)
+                ->whereIn('curriculum_lesson_topic_id', $topicIds)
+                ->count();
+            $allTopicsComplete = $completedCount === $topicIds->count();
+
+            if ($allTopicsComplete) {
+                GroupCurriculumTopicProgress::query()
+                    ->where('group_id', $group->id)
+                    ->whereIn('curriculum_lesson_topic_id', $topicIds)
+                    ->delete();
+                GroupCurriculumLessonProgress::query()
+                    ->where('group_id', $group->id)
+                    ->where('curriculum_lesson_id', $lesson->id)
+                    ->delete();
+
+                return;
+            }
+
+            foreach ($topicIds as $topicId) {
+                GroupCurriculumTopicProgress::query()->updateOrCreate(
+                    ['group_id' => $group->id, 'curriculum_lesson_topic_id' => $topicId],
+                    ['teacher_id' => Auth::user()->teacherProfile?->id, 'taught_on' => now()->toDateString()],
+                );
+            }
+
+            GroupCurriculumLessonProgress::query()->updateOrCreate(
+                ['group_id' => $group->id, 'curriculum_lesson_id' => $lesson->id],
+                ['teacher_id' => Auth::user()->teacherProfile?->id, 'status' => 'taught', 'taught_on' => now()->toDateString()],
+            );
+        });
+    }
+
+    public function toggleTopicLesson(int $lessonId): void
+    {
+        $group = $this->teacherGroup();
+        CurriculumLesson::query()
+            ->whereHas('topics')
+            ->whereHas('subject', fn ($query) => $query->where('curriculum_id', $group->curriculum_id))
+            ->findOrFail($lessonId);
+
+        $this->expandedTopicLessons[$lessonId] = ! ($this->expandedTopicLessons[$lessonId] ?? false);
+    }
+
     public function toggleCustomLesson(int $lessonId): void
     {
         $group = $this->teacherGroup();
@@ -214,6 +286,12 @@ new class extends Component {
             'status' => $lesson->status === 'taught' ? 'untaught' : 'taught',
             'taught_on' => $lesson->status === 'taught' ? null : now()->toDateString(),
         ]);
+    }
+
+    public function toggleTaughtLessons(string $lessonGroupKey): void
+    {
+        abort_unless((bool) preg_match('/\A[a-f0-9]{32}\z/', $lessonGroupKey), 404);
+        $this->showTaughtLessons[$lessonGroupKey] = ! ($this->showTaughtLessons[$lessonGroupKey] ?? false);
     }
 
     public function openCustom(?int $id = null): void
@@ -253,11 +331,29 @@ new class extends Component {
 }; ?>
 
 <div class="page-stack">
-    <section class="page-hero p-6 lg:p-8" data-curricula-index-hero><div class="flex flex-wrap items-start justify-between gap-5"><div>@if($isManager)<div class="eyebrow">{{ __('curricula.title') }}</div>@endif<h1 class="font-display {{ $isManager ? 'mt-3' : '' }} text-4xl text-white">{{ $isManager ? __('curricula.title') : __('curricula.my_title') }}</h1><p class="mt-3 max-w-3xl text-neutral-300">{{ $isManager ? __('curricula.subtitle') : ($selectedGroup?->curriculum?->name ?: __('curricula.progress.empty')) }}</p></div>@if($isManager)<select wire:model.live="courseId" class="rounded-xl px-4 py-2.5">@foreach($courses as $course)<option value="{{ $course->id }}">{{ $course->name }}</option>@endforeach</select>@elseif($selectedGroup)<button wire:click="$set('showBooksModal', true)" class="pill-link pill-link--accent">{{ __('curricula.actions.download_books') }}</button>@endif</div></section>
+    <section class="page-hero p-6 lg:p-8" data-curricula-index-hero>
+        <div class="flex flex-wrap {{ $isManager ? 'items-center' : 'items-start' }} justify-between gap-5">
+            <div class="curricula-index-hero-copy">
+                @if($isManager)<div class="eyebrow">{{ __('curricula.title') }}</div>@endif
+                <div class="curricula-index-hero-title-row">
+                    <h1 class="font-display text-4xl leading-none text-white md:text-5xl">{{ $isManager ? __('curricula.title') : __('curricula.my_title') }}</h1>
+                    @if($isManager)
+                        <div class="curricula-index-course-filter" data-curricula-index-course-filter>
+                            <select wire:model.live="courseId" required aria-required="true" data-clearable="false" data-search-selection-required="true" data-hide-placeholder-option="true" class="w-full rounded-xl px-4 py-2.5">@foreach($courses as $course)<option value="{{ $course->id }}">{{ $course->name }}</option>@endforeach</select>
+                        </div>
+                    @endif
+                </div>
+                @if(! $isManager)
+                    <p class="mt-3 max-w-3xl text-neutral-300">{{ $selectedGroup?->curriculum?->name ?: __('curricula.progress.empty') }}</p>
+                @endif
+            </div>
+            @if(! $isManager && $selectedGroup)<div class="flex items-center gap-2" data-teacher-curriculum-hero-actions><button wire:click="$set('showBooksModal', true)" class="pill-link pill-link--accent">{{ __('curricula.actions.download_books') }}</button><x-add-action-button wire:click="openCustom" :label="__('curricula.actions.add_custom_lesson')" /></div>@endif
+        </div>
+    </section>
     @if(session('status'))<div class="flash-success px-4 py-3 text-sm">{{ session('status') }}</div>@endif @error('delete')<div class="flash-error px-4 py-3 text-sm">{{ $message }}</div>@enderror
 
     @if($isManager)
-        <section class="surface-panel p-5" data-curricula-progress-card><h2 class="font-display text-2xl text-white">{{ __('curricula.progress.title') }}</h2>@if($groupProgress->isEmpty())<div class="admin-empty-state mt-4">{{ __('curricula.progress.empty') }}</div>@else<div class="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6">@foreach($groupProgress as $row)<button wire:click="showGroupDetails({{ $row['group']->id }})" class="group text-center"><div class="mx-auto grid size-28 place-items-center rounded-full" style="background: conic-gradient(#9fbea9 {{ $row['percentage'] }}%, #c99b9b 0)"><div class="grid size-20 place-items-center rounded-full bg-neutral-950 text-lg font-semibold text-white">{{ number_format($row['percentage'], 0) }}%</div></div><div class="mt-3 truncate text-sm font-semibold text-white group-hover:text-emerald-200">{{ $row['group']->name }}</div></button>@endforeach</div>@endif</section>
+        <section class="surface-panel p-5" data-curricula-progress-card>@if($groupProgress->isEmpty())<div class="admin-empty-state">{{ __('curricula.progress.empty') }}</div>@else<div class="grid gap-5 md:grid-cols-2" data-curricula-progress-grid>@foreach($groupProgress as $row)<button wire:click="showGroupDetails({{ $row['group']->id }})" class="group text-center"><div class="mx-auto grid size-28 place-items-center rounded-full" style="background: conic-gradient(#9fbea9 {{ $row['percentage'] }}%, #c99b9b 0)"><div class="grid size-20 place-items-center rounded-full bg-neutral-950 text-lg font-semibold text-white">{{ number_format($row['percentage'], 0) }}%</div></div><div class="mt-3 truncate text-sm font-semibold text-white group-hover:text-emerald-200">{{ $row['group']->name }}</div></button>@endforeach</div>@endif</section>
         <section class="surface-table" data-curricula-index-table>
             <div class="admin-grid-meta admin-grid-meta--controls" data-curricula-table-toolbar>
                 <div class="admin-grid-meta__title">{{ __('curricula.table.curricula') }}</div>
@@ -309,31 +405,73 @@ new class extends Component {
                 @foreach($subjectRows as $subject)
                     <details class="surface-panel p-4" open>
                         <summary class="cursor-pointer list-none font-semibold text-white">{{ $subject['name'] }}</summary>
-                        @php($teacherResourceGroups = $subject['resources']->count() > 1 ? collect($subject['resources']->all())->when($subject['lessons']->whereNull('resource_id')->isNotEmpty(), fn ($resources) => $resources->prepend(null)) : collect([null]))
+                        @php($teacherResourceGroups = $subject['resources']->count() === 1 ? collect([$subject['resources']->first()]) : collect($subject['resources']->all())->when($subject['resources']->isEmpty() || $subject['lessons']->whereNull('resource_id')->isNotEmpty(), fn ($resources) => $resources->prepend(null)))
                         <div class="mt-3 grid gap-3">
                             @foreach($teacherResourceGroups as $resource)
-                                @php($visibleLessons = $resource ? $subject['lessons']->where('resource_id', $resource->id) : $subject['lessons'])
-                                <div class="grid gap-2">@if($resource)<div class="px-1 text-xs font-semibold text-emerald-200">{{ $resource->book_name }}</div>@elseif($subject['resources']->count() > 1)<div class="px-1 text-xs font-semibold text-neutral-400">{{ __('curricula.fields.general_lessons') }}</div>@endif
-                                @foreach($visibleLessons as $lesson)
-                                    <article class="rounded-xl border border-white/8 p-3 {{ $lesson['status'] === 'taught' ? 'bg-emerald-500/8 opacity-60' : 'bg-white/4' }}">
-                                        <div class="flex items-start gap-3">
-                                            @if(! $lesson['has_topics'])<input type="checkbox" @checked($lesson['status'] === 'taught') wire:click="{{ $lesson['custom'] ? 'toggleCustomLesson('.$lesson['id'].')' : 'toggleLesson('.$lesson['id'].')' }}" class="mt-1 rounded">@endif
-                                            <div class="min-w-0 flex-1"><div class="text-sm font-medium text-white {{ $lesson['status'] === 'taught' ? 'line-through' : '' }}">{{ $lesson['name'] }}</div>@if($lesson['taught_on'])<div class="mt-1 text-xs text-neutral-400" dir="ltr">{{ $lesson['taught_on']->format('d-m-Y') }} · {{ $lesson['teacher'] ? trim($lesson['teacher']->first_name.' '.$lesson['teacher']->last_name) : '—' }}</div>@endif</div>
-                                        </div>
-                                        @if($lesson['has_topics'])<div class="mt-2 ms-4 grid gap-1.5 border-s border-white/10 ps-3">@foreach($lesson['topics'] as $topic)<label class="flex cursor-pointer items-start gap-2 rounded-lg px-2 py-1.5 {{ $topic['status'] === 'taught' ? 'opacity-60' : '' }}"><input type="checkbox" wire:click="toggleTopic({{ $topic['id'] }})" @checked($topic['status'] === 'taught') class="mt-0.5 rounded"><span class="min-w-0 text-sm {{ $topic['status'] === 'taught' ? 'line-through' : '' }}">{{ $topic['name'] }}@if($topic['taught_on'])<small class="ms-2 text-neutral-500" dir="ltr">{{ $topic['taught_on']->format('d-m-Y') }} · {{ $topic['teacher'] ? trim($topic['teacher']->first_name.' '.$topic['teacher']->last_name) : '—' }}</small>@endif</span></label>@endforeach</div>@endif
-                                    </article>
-                                @endforeach
+                                @php($groupLessons = $subject['resources']->count() === 1 ? $subject['lessons'] : ($resource ? $subject['lessons']->where('resource_id', $resource->id) : $subject['lessons']->whereNull('resource_id')))
+                                @continue($groupLessons->isEmpty())
+                                @php($lessonGroupKey = md5((string) $subject['id'].'|'.($resource?->id ?? 'general')))
+                                @php($showTaught = $showTaughtLessons[$lessonGroupKey] ?? false)
+                                @php($hasTaught = $groupLessons->contains(fn ($lesson) => $lesson['status'] === 'taught'))
+                                @php($visibleLessons = $showTaught ? $groupLessons : $groupLessons->reject(fn ($lesson) => $lesson['status'] === 'taught'))
+                                <div class="teacher-curriculum-book" data-teacher-curriculum-book>
+                                    <div class="teacher-curriculum-book__header">
+                                        <div class="min-w-0 truncate font-semibold text-white" data-teacher-curriculum-book-name>{{ $resource?->book_name ?: __('curricula.fields.general_lessons') }}</div>
+                                        @if($hasTaught)
+                                            <button type="button" wire:click="toggleTaughtLessons('{{ $lessonGroupKey }}')" class="admin-icon-button" title="{{ __($showTaught ? 'curricula.actions.hide_taught_lessons' : 'curricula.actions.show_taught_lessons') }}" aria-label="{{ __($showTaught ? 'curricula.actions.hide_taught_lessons' : 'curricula.actions.show_taught_lessons') }}" aria-pressed="{{ $showTaught ? 'true' : 'false' }}" data-teacher-taught-toggle>
+                                                <x-admin-action-icon :name="$showTaught ? 'eye-off' : 'eye'" />
+                                            </button>
+                                        @endif
+                                    </div>
+                                    <div class="teacher-curriculum-grid teacher-curriculum-grid--header" aria-hidden="true">
+                                        <div>{{ __('curricula.fields.chapter_number') }}</div>
+                                        <div>{{ __('curricula.fields.lesson') }}</div>
+                                        <div>{{ __('curricula.fields.importance') }}</div>
+                                    </div>
+                                    <div data-teacher-curriculum-lessons>
+                                        @forelse($visibleLessons as $lesson)
+                                            @php($topicsExpanded = $lesson['has_topics'] && ($expandedTopicLessons[$lesson['id']] ?? false))
+                                            <article class="teacher-curriculum-grid teacher-curriculum-lesson-row {{ $lesson['status'] === 'taught' ? 'teacher-curriculum-lesson-row--taught' : '' }}" wire:key="teacher-curriculum-lesson-{{ $lesson['custom'] ? 'custom-' : '' }}{{ $lesson['id'] }}" data-teacher-curriculum-lesson-row>
+                                                <div class="teacher-curriculum-chapter">{{ $lesson['chapter_number'] ?: '—' }}</div>
+                                                <div class="teacher-curriculum-lesson-cell">
+                                                    @if($lesson['has_topics'])
+                                                        <input type="checkbox" @checked($lesson['status'] === 'taught') wire:click.stop="toggleLessonTopics({{ $lesson['id'] }})" class="rounded" title="{{ __($lesson['status'] === 'taught' ? 'curricula.actions.clear_all_topics' : 'curricula.actions.mark_all_topics') }}" aria-label="{{ __($lesson['status'] === 'taught' ? 'curricula.actions.clear_all_topics' : 'curricula.actions.mark_all_topics') }}" data-teacher-lesson-topics-checkbox>
+                                                    @else
+                                                        <input type="checkbox" @checked($lesson['status'] === 'taught') wire:click="{{ $lesson['custom'] ? 'toggleCustomLesson('.$lesson['id'].')' : 'toggleLesson('.$lesson['id'].')' }}" class="rounded">
+                                                    @endif
+                                                    <div class="min-w-0 flex-1">
+                                                        <div class="teacher-curriculum-lesson-line">
+                                                            @if($lesson['has_topics'])
+                                                                <button type="button" wire:click="toggleTopicLesson({{ $lesson['id'] }})" class="teacher-curriculum-topic-toggle" aria-expanded="{{ $topicsExpanded ? 'true' : 'false' }}" aria-controls="teacher-lesson-topics-{{ $lesson['id'] }}" title="{{ __($topicsExpanded ? 'curricula.actions.collapse_topics' : 'curricula.actions.expand_topics') }}" data-teacher-topic-toggle>
+                                                                    <svg class="teacher-curriculum-topic-toggle__icon {{ $topicsExpanded ? 'teacher-curriculum-topic-toggle__icon--expanded' : '' }}" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m7 4 6 6-6 6" /></svg>
+                                                                    <span class="teacher-curriculum-lesson-title {{ $lesson['status'] === 'taught' ? 'line-through' : '' }}">{{ $lesson['name'] }}</span>
+                                                                </button>
+                                                            @else
+                                                                <span class="teacher-curriculum-lesson-title {{ $lesson['status'] === 'taught' ? 'line-through' : '' }}">{{ $lesson['name'] }}</span>
+                                                            @endif
+                                                            @if($lesson['taught_on'])<span class="teacher-curriculum-lesson-meta"><bdi dir="ltr">{{ $lesson['taught_on']->format('d-m-Y') }}</bdi><span aria-hidden="true">·</span><span>{{ $lesson['teacher'] ? trim($lesson['teacher']->first_name.' '.$lesson['teacher']->last_name) : '—' }}</span></span>@endif
+                                                        </div>
+                                                        @if($topicsExpanded)<div id="teacher-lesson-topics-{{ $lesson['id'] }}" class="mt-2 grid gap-1.5 border-s border-white/10 ps-3" data-teacher-topic-list>@foreach($lesson['topics'] as $topic)<label class="flex cursor-pointer items-start gap-2 rounded-lg px-2 py-1.5 {{ $topic['status'] === 'taught' ? 'opacity-60' : '' }}"><input type="checkbox" wire:click="toggleTopic({{ $topic['id'] }})" @checked($topic['status'] === 'taught') class="mt-0.5 rounded"><span class="min-w-0 text-sm {{ $topic['status'] === 'taught' ? 'line-through' : '' }}">{{ $topic['name'] }}@if($topic['taught_on'])<small class="ms-2 text-neutral-500"><bdi dir="ltr">{{ $topic['taught_on']->format('d-m-Y') }}</bdi> · {{ $topic['teacher'] ? trim($topic['teacher']->first_name.' '.$topic['teacher']->last_name) : '—' }}</small>@endif</span></label>@endforeach</div>@endif
+                                                    </div>
+                                                </div>
+                                                <div class="teacher-curriculum-importance" title="{{ $lesson['importance'] }} / 3" data-importance-bars>
+                                                    @foreach(range(1, 3) as $bar)<i class="rounded-sm {{ $bar <= $lesson['importance'] ? 'bg-emerald-300' : 'bg-white/15' }}" style="height: {{ 5 + ($bar * 4) }}px"></i>@endforeach
+                                                </div>
+                                            </article>
+                                        @empty
+                                            <div class="teacher-curriculum-book__empty">{{ __('curricula.table.taught_lessons_hidden') }}</div>
+                                        @endforelse
+                                    </div>
                                 </div>
                             @endforeach
                         </div>
                     </details>
                 @endforeach
-                <div class="flex justify-end"><x-add-action-button wire:click="openCustom" :label="__('curricula.actions.add_custom_lesson')" /></div>
             </section>
         @else<div class="surface-panel admin-empty-state">{{ __('curricula.errors.no_group') }}</div>@endif
     @endif
 
-    <x-admin.modal :show="$showBooksModal" :title="__('curricula.actions.download_books')" close-method="$set('showBooksModal', false)" max-width="2xl"><div class="grid gap-2">@forelse($downloadResources as $resource)<div class="flex items-center justify-between gap-3 rounded-xl border border-white/10 p-3"><span>{{ $resource->book_name }}</span><a href="{{ route('curriculum-resources.download', $resource) }}" class="pill-link pill-link--compact" aria-label="{{ __('curricula.actions.download') }}">⬇</a></div>@empty<div class="admin-empty-state">{{ __('curricula.fields.no_downloadable_books') }}</div>@endforelse</div></x-admin.modal>
+    <x-admin.modal :show="$showBooksModal" :title="__('curricula.actions.download_books')" close-method="$set('showBooksModal', false)" max-width="2xl"><div class="grid gap-2">@forelse($downloadResources as $resource)<div class="flex items-center justify-between gap-3 rounded-xl border border-white/10 p-3"><span>{{ $resource->book_name }}</span><x-download-action-button :href="route('curriculum-resources.download', $resource)" class="admin-icon-button--accent" :label="__('curricula.actions.download')" data-curriculum-resource-download /></div>@empty<div class="admin-empty-state">{{ __('curricula.fields.no_downloadable_books') }}</div>@endforelse</div></x-admin.modal>
     <x-admin.modal :show="$showCurriculumModal" :title="__('curricula.form.curriculum_title')" close-method="$set('showCurriculumModal', false)" max-width="fit" compact>
         <form wire:submit="saveCurriculum" class="w-[min(28rem,calc(100vw-3rem))] space-y-4">
             <label class="block text-sm">{{ __('curricula.fields.name') }}<input wire:model="curriculumName" class="mt-1 w-full rounded-xl px-4 py-3"></label>

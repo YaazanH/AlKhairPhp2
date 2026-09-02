@@ -184,7 +184,13 @@ new class extends Component {
             ->whereHas('attempts', fn ($query) => $query->whereKey($this->editingAttemptId))
             ->firstOrFail()
             ->attempts()->findOrFail($this->editingAttemptId);
-        app(QuranPartialTestService::class)->deleteAttempt($attempt);
+        try {
+            app(QuranPartialTestService::class)->deleteAttempt($attempt);
+        } catch (\LogicException $exception) {
+            $this->addError('attempt', $exception->getMessage());
+
+            return;
+        }
         session()->flash('status', __('workflow.quran_partial_tests.messages.attempt_deleted'));
         $this->partialTest = $this->partialTest->fresh();
         $this->closeAttemptModal();
@@ -259,7 +265,7 @@ new class extends Component {
                 <div class="rounded-3xl border border-white/12 bg-black/15 px-5 py-4">
                     <div class="flex items-start justify-between gap-4">
                         <div class="text-lg font-semibold text-white">{{ $partialTestRecord->student?->full_name }}</div>
-                        @if (! $hasRelatedFinalTest)
+                        @if (! $hasRelatedFinalTest && ! $partialTestRecord->enrollment?->belongsToFinishedCourse())
                             @can('quran-partial-tests.delete')
                                 <button type="button" wire:click="deleteTest" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="admin-icon-button admin-icon-button--danger" title="{{ __('crud.common.actions.delete') }}" aria-label="{{ __('crud.common.actions.delete') }}" data-partial-saber-delete>
                                     <x-admin-action-icon name="delete" />
@@ -349,6 +355,13 @@ new class extends Component {
 
     <x-admin.modal :show="$showAttemptModal" :title="__($editingAttemptId ? 'workflow.quran_partial_tests.attempts.edit_title' : 'workflow.quran_partial_tests.attempts.title')" :description="__('workflow.quran_partial_tests.attempts.copy')" close-method="closeAttemptModal" max-width="xl" compact>
         <form wire:submit="saveAttempt" class="space-y-4">
+            @if ($editingAttemptId)
+                <div>
+                    <label for="partial-attempt-student-readonly" class="mb-1 block text-sm font-medium">{{ __('workflow.quran_tests.workbench.form.student') }}</label>
+                    <input id="partial-attempt-student-readonly" type="text" value="{{ $partialTestRecord->student?->full_name ?: __('crud.common.not_available') }}" readonly class="w-full rounded-xl px-4 py-3 text-sm" data-partial-saber-student-readonly>
+                </div>
+            @endif
+
             @if ($currentTeacher)
                 <div>
                     <label for="partial-attempt-teacher-readonly" class="mb-1 block text-sm font-medium">{{ __('workflow.quran_tests.form.teacher') }}</label>
@@ -395,7 +408,7 @@ new class extends Component {
                     <x-admin-action-icon name="save" class="admin-modal-action__icon" />
                 </button>
                 <button type="button" wire:click="closeAttemptModal" class="pill-link">{{ __('crud.common.actions.cancel') }}</button>
-                @if (! $hasRelatedFinalTest && $editingAttemptId && auth()->user()?->hasRole('super_admin'))
+                @if (! $hasRelatedFinalTest && ! $partialTestRecord->enrollment?->belongsToFinishedCourse() && $editingAttemptId && auth()->user()?->hasRole('super_admin'))
                     <x-delete-action-button wire:click="deleteAttempt" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" :label="__('crud.common.actions.delete')" data-partial-saber-attempt-delete />
                 @endif
             </div>

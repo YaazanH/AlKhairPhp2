@@ -109,7 +109,7 @@ class MasterDataSeeder extends Seeder
         ], ['code'], ['name', 'sort_order', 'is_active', 'updated_at']);
 
         DB::table('point_types')->upsert([
-            ['name' => 'Memorization Page', 'code' => 'memorization-page', 'category' => 'Automatic', 'default_points' => 0, 'allow_manual_entry' => false, 'allow_negative' => true, 'is_active' => true, 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Memorisation Page', 'code' => 'memorization-page', 'category' => 'Automatic', 'default_points' => 0, 'allow_manual_entry' => false, 'allow_negative' => true, 'is_active' => true, 'created_at' => $now, 'updated_at' => $now],
             ['name' => 'Quiz Score', 'code' => 'quiz-score', 'category' => 'Assessment', 'default_points' => 0, 'allow_manual_entry' => false, 'allow_negative' => true, 'is_active' => true, 'created_at' => $now, 'updated_at' => $now],
             ['name' => 'Worksheet Score', 'code' => 'worksheet-score', 'category' => 'Assessment', 'default_points' => 0, 'allow_manual_entry' => false, 'allow_negative' => true, 'is_active' => true, 'created_at' => $now, 'updated_at' => $now],
             ['name' => 'Exam Score', 'code' => 'exam-score', 'category' => 'Assessment', 'default_points' => 0, 'allow_manual_entry' => false, 'allow_negative' => true, 'is_active' => true, 'created_at' => $now, 'updated_at' => $now],
@@ -122,7 +122,7 @@ class MasterDataSeeder extends Seeder
         foreach ([
             [
                 'point_type_id' => $pointTypeIds['memorization-page'] ?? null,
-                'name' => 'Memorization 1 Page Tier',
+                'name' => 'Memorisation 1 Page Tier',
                 'source_type' => 'memorization',
                 'trigger_key' => 'page',
                 'grade_level_id' => null,
@@ -136,7 +136,7 @@ class MasterDataSeeder extends Seeder
             ],
             [
                 'point_type_id' => $pointTypeIds['memorization-page'] ?? null,
-                'name' => 'Memorization 2 Pages Tier',
+                'name' => 'Memorisation 2 Pages Tier',
                 'source_type' => 'memorization',
                 'trigger_key' => 'page',
                 'grade_level_id' => null,
@@ -150,7 +150,7 @@ class MasterDataSeeder extends Seeder
             ],
             [
                 'point_type_id' => $pointTypeIds['memorization-page'] ?? null,
-                'name' => 'Memorization 3 Pages Tier',
+                'name' => 'Memorisation 3 Pages Tier',
                 'source_type' => 'memorization',
                 'trigger_key' => 'page',
                 'grade_level_id' => null,
@@ -164,7 +164,7 @@ class MasterDataSeeder extends Seeder
             ],
             [
                 'point_type_id' => $pointTypeIds['memorization-page'] ?? null,
-                'name' => 'Memorization Page Reward',
+                'name' => 'Memorisation Page Reward',
                 'source_type' => 'memorization',
                 'trigger_key' => 'page',
                 'grade_level_id' => null,

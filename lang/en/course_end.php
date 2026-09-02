@@ -11,7 +11,7 @@ return [
         'students' => 'Enrolled students',
         'points_before' => 'Points before rules',
         'points_after' => 'Points after rules',
-        'memorized_pages' => 'Pages memorized',
+        'memorized_pages' => 'Pages memorised',
         'final_tests' => 'Final-saber juz',
     ],
     'students_title' => 'Student course results',
@@ -25,7 +25,7 @@ return [
     'empty' => 'No enrolled students were found for this course.',
     'table' => [
         'name' => 'Name', 'group' => 'Group', 'points_after' => 'Total points',
-        'days_attended' => 'Days attended', 'pages' => 'Pages memorized', 'final_tests' => 'Juz final sabered', 'grade' => 'Grade',
+        'days_attended' => 'Days attended', 'pages' => 'Pages memorised', 'final_tests' => 'Juz final sabered', 'grade' => 'Grade',
         'final_score' => 'Final-saber score', 'juz' => 'Juz no.', 'mark' => 'Mark',
     ],
     'grades' => ['excellent' => 'Excellent', 'very_good' => 'Very good', 'good' => 'Good', 'acceptable' => 'Acceptable', 'below_acceptable' => 'Below acceptable'],

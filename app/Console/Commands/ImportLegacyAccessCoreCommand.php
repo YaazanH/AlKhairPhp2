@@ -24,7 +24,7 @@ class ImportLegacyAccessCoreCommand extends Command
         {--dry-run : Roll back the import after validation}
         {--people-only : Import only parents and students}';
 
-    protected $description = 'Import core legacy Access data (teachers, students, parents, courses, groups, enrollments) from exported CSV files.';
+    protected $description = 'Import core legacy Access data (teachers, students, parents, courses, groups, enrolments) from exported CSV files.';
 
     /**
      * @var array<string, int>
@@ -157,7 +157,7 @@ class ImportLegacyAccessCoreCommand extends Command
                 ['Students', $this->summary['students']],
                 ['Inactive students', $this->summary['inactive_students']],
                 ['Groups', $this->summary['groups']],
-                ['Enrollments', $this->summary['enrollments']],
+                ['Enrolments', $this->summary['enrollments']],
             ],
         );
 

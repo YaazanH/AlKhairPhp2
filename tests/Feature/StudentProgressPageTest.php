@@ -378,6 +378,7 @@ class StudentProgressPageTest extends TestCase
             ->assertDontSeeText(__('workflow.student_progress.selection.title'))
             ->assertDontSeeText(__('workflow.student_progress.selection.select_student'))
             ->assertSeeText(__('workflow.student_progress.selection.search_placeholder'))
+            ->assertSee('data-student-progress-student-selector', false)
             ->assertSee('data-search-input="true"', false)
             ->assertSee('data-open-on-focus="true"', false)
             ->assertSee('data-hide-placeholder-option="true"', false)
@@ -420,6 +421,7 @@ class StudentProgressPageTest extends TestCase
         $this->assertStringContainsString('focusNextInteractiveControl(searchInputMode ? search : button)', $searchableSelectScript);
 
         $searchableSelectCss = file_get_contents(resource_path('css/app.css'));
+        $this->assertStringContainsString("[data-student-progress-student-selector] .searchable-select__search--trigger {\n        font-size: 1rem;", $searchableSelectCss);
         $this->assertStringContainsString('.searchable-select--input.searchable-select--clearable.searchable-select--selected .searchable-select__chevron--input {', $searchableSelectCss);
         $this->assertStringContainsString('.searchable-select--input.searchable-select--clearable.searchable-select--selected .searchable-select__clear {', $searchableSelectCss);
         $this->assertStringContainsString('.searchable-select--input.searchable-select--placeholder .searchable-select__clear {', $searchableSelectCss);

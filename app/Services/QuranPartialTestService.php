@@ -234,7 +234,8 @@ class QuranPartialTestService
 
     public function deleteAttempt(QuranPartialTestAttempt $attempt): void
     {
-        $partialTest = $attempt->part()->with('partialTest')->firstOrFail()->partialTest;
+        $partialTest = $attempt->part()->with('partialTest.enrollment.group.course')->firstOrFail()->partialTest;
+        $this->ensureCourseAllowsDeletion($partialTest->enrollment);
         $this->ensureNoRelatedFinalTest($partialTest);
 
         DB::transaction(function () use ($attempt): void {
@@ -279,6 +280,8 @@ class QuranPartialTestService
 
     public function deleteTest(QuranPartialTest $partialTest): void
     {
+        $partialTest->loadMissing('enrollment.group.course');
+        $this->ensureCourseAllowsDeletion($partialTest->enrollment);
         $this->ensureNoRelatedFinalTest($partialTest);
 
         DB::transaction(function () use ($partialTest): void {
@@ -304,6 +307,13 @@ class QuranPartialTestService
             ->where('juz_id', $partialTest->juz_id)
             ->exists()) {
             throw new LogicException(__('workflow.quran_partial_tests.errors.final_saber_exists'));
+        }
+    }
+
+    protected function ensureCourseAllowsDeletion(?Enrollment $enrollment): void
+    {
+        if ($enrollment?->belongsToFinishedCourse()) {
+            throw new LogicException(__('workflow.common.finished_course_delete_locked'));
         }
     }
 }

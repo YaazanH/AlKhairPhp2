@@ -1318,7 +1318,7 @@ new class extends Component {
     </x-admin.modal>
 
     <section id="finance-currencies" class="overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700" data-settings-table>
-        <div class="admin-grid-meta admin-grid-meta--controls">
+        <div class="admin-grid-meta admin-grid-meta--controls" data-mobile-title-action-row data-finance-settings-mobile-title-action-row>
             <div>
                 <div class="admin-grid-meta__title">{{ __('finance.settings.currencies') }}</div>
                 <div class="admin-grid-meta__summary">{{ __('finance.settings.currencies_subtitle') }}</div>
@@ -1352,7 +1352,7 @@ new class extends Component {
     </section>
 
     <section id="finance-cash-boxes" class="overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700" data-settings-table>
-        <div class="admin-grid-meta admin-grid-meta--controls">
+        <div class="admin-grid-meta admin-grid-meta--controls" data-mobile-title-action-row data-finance-settings-mobile-title-action-row>
             <div>
                 <div class="admin-grid-meta__title">{{ __('finance.settings.cash_boxes') }}</div>
                 <div class="admin-grid-meta__summary">{{ __('finance.settings.cash_boxes_subtitle') }}</div>
@@ -1371,7 +1371,7 @@ new class extends Component {
     </section>
 
     <section id="finance-categories" class="overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700" data-settings-table>
-        <div class="admin-grid-meta admin-grid-meta--controls">
+        <div class="admin-grid-meta admin-grid-meta--controls" data-mobile-title-action-row data-finance-settings-mobile-title-action-row>
             <div>
                 <div class="admin-grid-meta__title">{{ __('finance.settings.finance_categories') }}</div>
                 <div class="admin-grid-meta__summary">{{ __('finance.settings.finance_categories_subtitle') }}</div>
@@ -1406,10 +1406,7 @@ new class extends Component {
                 @unless ($maintaining_transaction_deleted)<button type="submit" form="transaction-maintenance-form" class="admin-icon-button admin-icon-button--accent transaction-maintenance-action-button" title="{{ __('crud.common.actions.save') }}" aria-label="{{ __('crud.common.actions.save') }}" data-transaction-maintenance-save-action><x-admin-action-icon name="save" /></button>@endunless
                 @if ($maintainingInvoice && auth()->user()?->can('finance.expense-requests.review'))
                     <a href="{{ route('finance.expense-requests.index', ['edit_invoice' => $maintainingInvoice->id]) }}" wire:navigate class="admin-icon-button transaction-maintenance-action-button" title="{{ __('finance.actions.edit_invoice') }}" aria-label="{{ __('finance.actions.edit_invoice') }}" data-transaction-maintenance-receipt-action>
-                        <span class="transaction-maintenance-invoice-edit-icon" aria-hidden="true">
-                            <x-admin-action-icon name="receipt" />
-                            <span class="transaction-maintenance-invoice-edit-icon__pen"><x-admin-action-icon name="edit" /></span>
-                        </span>
+                        <x-admin-action-icon name="transaction-invoice-edit" />
                     </a>
                 @endif
             </div>

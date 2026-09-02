@@ -15,6 +15,8 @@ new class extends Component
 
     public ?int $editingId = null;
 
+    public string $editingStudentName = '';
+
     public ?int $student_id = null;
 
     public ?int $enrollment_id = null;
@@ -107,19 +109,21 @@ new class extends Component
     {
         $this->authorizePermission($this->editingId ? 'student-notes.update' : 'student-notes.create');
 
-        $validated = $this->validate();
-        $student = $this->findAvailableStudent((int) $validated['student_id']);
-        $enrollment = $validated['enrollment_id']
-            ? $this->findAvailableEnrollment((int) $validated['enrollment_id'], $student->id)
-            : null;
-
         $note = $this->editingId
             ? $this->findAvailableNote($this->editingId)
             : null;
 
         if ($note) {
             $this->authorizeExistingNoteChange($note);
+            $this->student_id = $note->student_id;
+            $this->enrollment_id = $note->enrollment_id;
         }
+
+        $validated = $this->validate();
+        $student = $this->findAvailableStudent((int) $validated['student_id']);
+        $enrollment = $validated['enrollment_id']
+            ? $this->findAvailableEnrollment((int) $validated['enrollment_id'], $student->id)
+            : null;
 
         StudentNote::query()->updateOrCreate(
             ['id' => $this->editingId],
@@ -150,6 +154,7 @@ new class extends Component
         $this->authorizeExistingNoteChange($note);
 
         $this->editingId = $note->id;
+        $this->editingStudentName = $note->student?->full_name ?? '';
         $this->student_id = $note->student_id;
         $this->enrollment_id = $note->enrollment_id;
         $this->source = $note->source;
@@ -164,6 +169,7 @@ new class extends Component
     public function cancel(bool $closeForm = true): void
     {
         $this->editingId = null;
+        $this->editingStudentName = '';
         $this->student_id = $this->context_student_id;
         $this->enrollment_id = $this->context_enrollment_id;
         $this->source = $this->defaultSource();
@@ -369,22 +375,26 @@ new class extends Component
                     </div>
                     <div class="admin-modal__body">
             @if (auth()->user()->can('student-notes.create') || auth()->user()->can('student-notes.update'))
-                <form wire:submit="save" class="date-control-peer-group space-y-4">
+                <form wire:submit="save" class="student-note-form date-control-peer-group space-y-4">
                     <div>
                         <label class="mb-1 block text-sm font-medium">{{ __('notes.form.fields.student') }}</label>
-                        <select wire:model="student_id" data-search-input="true" data-open-on-focus="true" data-hide-placeholder-option="true" data-search-placeholder="{{ __('workflow.common.student_name_placeholder') }}" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
-                            <option value="">{{ __('notes.form.placeholders.student') }}</option>
-                            @foreach ($students as $student)
-                                <option value="{{ $student->id }}">{{ trim($student->first_name.' '.$student->last_name) }}</option>
-                            @endforeach
-                        </select>
+                        @if ($editingId)
+                            <input type="text" value="{{ $editingStudentName }}" readonly aria-readonly="true" data-student-note-edit-student-name class="student-note-form__control w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                        @else
+                            <select wire:model="student_id" data-search-input="true" data-open-on-focus="true" data-hide-placeholder-option="true" data-search-placeholder="{{ __('workflow.common.student_name_placeholder') }}" class="student-note-form__control w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                                <option value="">{{ __('notes.form.placeholders.student') }}</option>
+                                @foreach ($students as $student)
+                                    <option value="{{ $student->id }}">{{ trim($student->first_name.' '.$student->last_name) }}</option>
+                                @endforeach
+                            </select>
+                        @endif
                         @error('student_id') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
                     </div>
 
-                    <div class="grid gap-4 md:grid-cols-2">
+                    <div class="student-note-form__meta-grid grid gap-4 md:grid-cols-3">
                         <div>
                             <label class="mb-1 block text-sm font-medium">{{ __('notes.form.fields.source') }}</label>
-                            <select wire:model="source" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                            <select wire:model="source" class="student-note-form__control w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
                                 @foreach ($formSourceOptions as $value => $label)
                                     <option value="{{ $value }}">{{ $label }}</option>
                                 @endforeach
@@ -394,24 +404,24 @@ new class extends Component
 
                         <div>
                             <label class="mb-1 block text-sm font-medium">{{ __('notes.form.fields.visibility') }}</label>
-                            <select wire:model="visibility" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                            <select wire:model="visibility" class="student-note-form__control w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
                                 @foreach ($visibilityOptions as $value => $label)
                                     <option value="{{ $value }}">{{ $label }}</option>
                                 @endforeach
                             </select>
                             @error('visibility') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
                         </div>
-                    </div>
 
-                    <div>
-                        <label class="mb-1 block text-sm font-medium">{{ __('notes.form.fields.noted_at') }}</label>
-                        <input wire:model="noted_at" type="date" class="date-control--match-select w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
-                        @error('noted_at') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+                        <div>
+                            <label class="mb-1 block text-sm font-medium">{{ __('notes.form.fields.noted_at') }}</label>
+                            <input wire:model="noted_at" value="{{ $noted_at }}" type="date" class="student-note-form__control date-control--match-select w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                            @error('noted_at') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+                        </div>
                     </div>
 
                     <div>
                         <label class="mb-1 block text-sm font-medium">{{ __('notes.form.fields.body') }}</label>
-                        <textarea wire:model="body" rows="6" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900"></textarea>
+                        <textarea wire:model="body" rows="6" class="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900"></textarea>
                         @error('body') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
                     </div>
 

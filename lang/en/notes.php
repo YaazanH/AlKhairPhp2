@@ -2,7 +2,7 @@
 
 return [
     'heading' => 'Student Notes',
-    'subheading' => 'Track parent feedback, teacher observations, and management-only notes with enrollment context when needed.',
+    'subheading' => 'Track parent feedback, teacher observations, and management-only notes with enrolment context when needed.',
     'stats' => [
         'all' => 'Accessible notes',
         'parent_visible' => 'Visible to parents',
@@ -15,7 +15,7 @@ return [
         'manager_help' => 'Managers can log notes from teachers, parents, or management and choose who can view them.',
         'fields' => [
             'student' => 'Student',
-            'enrollment' => 'Enrollment',
+            'enrollment' => 'Enrolment',
             'source' => 'Source',
             'visibility' => 'Visibility',
             'noted_at' => 'Noted at',

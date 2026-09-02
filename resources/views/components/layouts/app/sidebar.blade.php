@@ -6,8 +6,7 @@
     $sidebarBorderClass = $isRtl ? 'border-l' : 'border-r';
     $sidebarToggleInset = $isRtl ? 'right' : 'left';
     $mobileIdentitySpacingClass = $isRtl ? 'mr-3' : 'ml-3';
-    $sidebarGroups = app(\App\Services\SidebarNavigationService::class)->sidebarFor(auth()->user());
-    $monthLabel = \App\Support\ArabicMonthFormatter::monthYear(now());
+    $monthLabel = \App\Support\ArabicMonthFormatter::monthYearWithHijri(now());
 @endphp
 
 <!DOCTYPE html>
@@ -37,27 +36,11 @@
                 <div class="app-sidebar-scroll-region">
                     <div class="px-1 pt-2">
                         <a href="{{ route('dashboard') }}" class="flex items-center gap-3" wire:navigate>
-                            <x-app-logo :title="__('ui.app.quran_course')" :subtitle="$monthLabel" />
+                            <x-app-logo :title="__('ui.app.quran_course')" :subtitle="$monthLabel" :justify-subtitle-to-title="true" />
                         </a>
                     </div>
 
-                    <flux:navlist variant="outline" class="mt-5">
-                        @foreach ($sidebarGroups as $group)
-                            <flux:navlist.group :heading="$group['title']" class="grid">
-                                @foreach ($group['items'] as $item)
-                                    <flux:navlist.item
-                                        :icon="$item['icon']"
-                                        :href="$item['href']"
-                                        :current="$item['current']"
-                                        class="{{ $item['key'] === 'print_templates' ? 'max-lg:hidden' : '' }}"
-                                        wire:navigate
-                                    >
-                                        {{ $item['label'] }}
-                                    </flux:navlist.item>
-                                @endforeach
-                            </flux:navlist.group>
-                        @endforeach
-                    </flux:navlist>
+                    <livewire:sidebar-navigation-menu />
                 </div>
 
                 <div
@@ -132,7 +115,7 @@
                     </div>
 
                     <flux:spacer />
-                    <x-mobile-header-mark class="mobile-header-mark" />
+                    <x-mobile-header-mark class="mobile-header-mark text-neutral-200" />
                 </flux:header>
 
                 <main class="app-main">

@@ -63,7 +63,7 @@ return [
         'birth_date' => 'birth date',
         'birth_year' => 'birth year',
         'joined_at' => 'joined date',
-        'enrolled_at' => 'enrollment date',
+        'enrolled_at' => 'enrolment date',
         'left_at' => 'leaving date',
         'starts_on' => 'start date',
         'ends_on' => 'end date',

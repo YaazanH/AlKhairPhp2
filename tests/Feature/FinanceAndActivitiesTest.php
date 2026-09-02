@@ -499,6 +499,12 @@ class FinanceAndActivitiesTest extends TestCase
             ->assertSee("window.addEventListener('load', () => window.print()", false)
             ->assertDontSee('<div class="print-template-toolbar">', false);
 
+        $incomePdf = $this->get(route('finance.requests.print', ['financeRequest' => $revenueRequest, 'pdf' => 1]))
+            ->assertOk()
+            ->assertHeader('content-type', 'application/pdf');
+        $this->assertStringStartsWith('%PDF-', $incomePdf->getContent());
+        $this->assertStringStartsWith('inline;', (string) $incomePdf->headers->get('content-disposition'));
+
         $this->get(route('finance.requests.print', ['financeRequest' => $revenueRequest, 'choose' => 1]))
             ->assertOk()
             ->assertDontSee('Revenue Receipt')
@@ -780,6 +786,7 @@ class FinanceAndActivitiesTest extends TestCase
             ->call('openCreateModal')
             ->assertSee('admin-modal__dialog--3xl', false)
             ->assertSee('data-finance-entry-create-form', false)
+            ->assertDontSee('data-finance-entry-attachments', false)
             ->assertSee('data-income-request-save', false)
             ->assertSee('data-icon-name="save"', false)
             ->assertDontSee('data-create-and-new-action', false)
@@ -791,6 +798,26 @@ class FinanceAndActivitiesTest extends TestCase
             ->set('currency_id', $baseCurrency->id)
             ->assertSee($baseOnlyBox->name)
             ->assertDontSee($localOnlyBox->name);
+    }
+
+    public function test_request_attachments_are_removed_from_income_and_expenses_but_remain_on_invoices(): void
+    {
+        $incomeSource = file_get_contents(resource_path('views/livewire/finance/revenue-requests.blade.php'));
+        $expenseSource = file_get_contents(resource_path('views/livewire/finance/expense-requests.blade.php'));
+        $requestTableSource = file_get_contents(resource_path('views/livewire/finance/partials/requests-table.blade.php'));
+        $invoiceSource = file_get_contents(resource_path('views/livewire/invoices/index.blade.php'));
+
+        foreach ([$incomeSource, $expenseSource, $requestTableSource] as $source) {
+            $this->assertStringNotContainsString('FinanceRequestAttachment', $source);
+            $this->assertStringNotContainsString('wire:model="attachments"', $source);
+            $this->assertStringNotContainsString('data-finance-entry-attachments', $source);
+            $this->assertStringNotContainsString('storeAttachments', $source);
+        }
+
+        $this->assertStringContainsString('wire:model="invoice_image"', $expenseSource);
+        $this->assertStringContainsString("->store('finance/invoices', 'public')", $expenseSource);
+        $this->assertStringContainsString('wire:model="invoice_scan"', $invoiceSource);
+        $this->assertStringContainsString("->store('finance/invoices/scans', 'public')", $invoiceSource);
     }
 
     public function test_expense_requests_allow_empty_reason_and_edit_posted_amount_details(): void
@@ -818,7 +845,7 @@ class FinanceAndActivitiesTest extends TestCase
             ->assertSee('data-finance-entry-date', false)
             ->assertSee('data-finance-entry-fund', false)
             ->assertSee('data-finance-entry-description', false)
-            ->assertSee('data-finance-entry-attachments', false)
+            ->assertDontSee('data-finance-entry-attachments', false)
             ->assertSee('data-expense-request-save', false)
             ->assertSee('data-icon-name="save"', false)
             ->assertDontSee('data-create-and-new-action', false)
@@ -970,7 +997,8 @@ class FinanceAndActivitiesTest extends TestCase
         Volt::test('finance.revenue-requests')
             ->assertSee('Y**** A* H****')
             ->assertSee('data-income-direct-print', false)
-            ->assertSee('auto_print=1', false)
+            ->assertSee('pdf=1', false)
+            ->assertDontSee('auto_print=1', false)
             ->call('openFinanceRequestEditModal', $request->id)
             ->set('edit_counterparty_name', 'Updated Donor')
             ->set('edit_request_date', '2026-02-05')
@@ -1437,6 +1465,21 @@ class FinanceAndActivitiesTest extends TestCase
         $this->assertStringContainsString('.signature-block { text-align:center; vertical-align:bottom; width:50%; }', $rtlExportHtml);
         $this->assertStringContainsString('إجمالي المصاريف', $rtlExportHtml);
         $this->assertStringContainsString('إجمالي الإيرادات', $rtlExportHtml);
+        $this->assertStringContainsString('data-finance-report-kashida-label="start-date"', $rtlExportHtml);
+        $this->assertStringContainsString('data-finance-report-kashida-label="fund"', $rtlExportHtml);
+        $this->assertStringContainsString('data-finance-report-kashida-label="currency"', $rtlExportHtml);
+        $this->assertStringContainsString('data-finance-report-kashida-label="total-expense"', $rtlExportHtml);
+        $this->assertStringContainsString('data-finance-report-kashida-label="closing-balance"', $rtlExportHtml);
+        $this->assertStringContainsString('data-finance-report-kashida-label="total-income"', $rtlExportHtml);
+        $this->assertStringContainsString('data-finance-report-kashida-label="export-date"', $rtlExportHtml);
+        $this->assertStringContainsString("\u{0640}", $rtlExportHtml);
+        $this->assertStringContainsString('.finance-report-kashida-label { direction: rtl; display: inline-block; line-height: inherit; unicode-bidi: isolate; vertical-align: baseline;', $rtlExportHtml);
+        $this->assertStringContainsString('.summary-label .finance-report-kashida-label { display: block; height: 4mm; line-height: 4mm; vertical-align: middle; }', $rtlExportHtml);
+        $this->assertStringContainsString('.summary-baseline-spacer { display: block; font-size: 1pt; height: 3.6mm; line-height: 3.6mm; }', $rtlExportHtml);
+        $this->assertStringContainsString('.summary-label--right-pair { width: 15.6%; }', $rtlExportHtml);
+        $this->assertStringContainsString('.summary-value--right-pair { width: 14.4%; }', $rtlExportHtml);
+        $this->assertSame(2, substr_count($rtlExportHtml, 'class="summary-label summary-label--right-pair"'));
+        $this->assertSame(2, substr_count($rtlExportHtml, 'class="summary-value summary-value--right-pair"'));
         $this->assertStringContainsString('class="debit-value"', $rtlExportHtml);
         $this->assertStringContainsString('class="credit-value"', $rtlExportHtml);
         $this->assertStringContainsString('@page { margin: 0 12mm 18mm; margin-header: 0;', $rtlExportHtml);
@@ -1540,7 +1583,7 @@ class FinanceAndActivitiesTest extends TestCase
         $this->assertStringStartsWith('%PDF', (string) $savedPdfResponse->getContent());
         $this->assertGreaterThan(1000, strlen((string) $savedPdfResponse->getContent()));
         $this->assertNotSame('legacy-pdf', Storage::disk('local')->get($generatedReport->pdf_path));
-        $this->assertSame('mpdf-fixed-ledger-v27', FinanceGeneratedReport::query()->findOrFail($generatedReport->id)->report_data['pdf_renderer']);
+        $this->assertSame('mpdf-fixed-ledger-v31', FinanceGeneratedReport::query()->findOrFail($generatedReport->id)->report_data['pdf_renderer']);
 
         $this->get(route('finance.reports.generated.show', ['generatedReport' => $generatedReport, 'format' => 'xlsx']))
             ->assertOk()
@@ -1703,6 +1746,28 @@ class FinanceAndActivitiesTest extends TestCase
         ]))->assertStatus(422);
     }
 
+    public function test_creating_a_financial_report_closes_the_modal_and_refreshes_the_generated_reports_table(): void
+    {
+        $this->signIn();
+
+        $cashBox = FinanceCashBox::query()->firstOrFail();
+        $component = Volt::test('finance.reports')
+            ->set('showCreateReportModal', true)
+            ->set('ledger_period_mode', 'custom')
+            ->set('ledger_cash_box_ids', [(string) $cashBox->id])
+            ->set('ledger_date_from', '2026-02-01')
+            ->set('ledger_date_to', '2026-02-28')
+            ->set('report_notes', 'Immediately refreshed report')
+            ->call('createReport')
+            ->assertHasNoErrors()
+            ->assertSet('showCreateReportModal', false)
+            ->assertDispatched('financial-report-created');
+
+        $generatedReport = FinanceGeneratedReport::query()->latest('id')->firstOrFail();
+
+        $component->assertSee(app(FinanceReportService::class)->reportNumber($generatedReport, $generatedReport->report_data));
+    }
+
     public function test_finance_settings_can_import_old_reports_until_uploading_is_finished(): void
     {
         $this->signIn();
@@ -1832,9 +1897,15 @@ class FinanceAndActivitiesTest extends TestCase
 
         Volt::test('settings.finance')
             ->assertSee(__('finance.settings.generated_report_maintenance'))
+            ->assertSee('dir="rtl"', false)
             ->set('report_lookup_no', 'FINR-'.str_pad((string) $generatedReport->id, 6, '0', STR_PAD_LEFT))
             ->call('deleteGeneratedReport')
             ->assertHasNoErrors();
+
+        $this->assertStringContainsString(
+            ".generated-report-lookup[dir='rtl']::placeholder {\n    direction: rtl;\n    text-align: right;",
+            file_get_contents(resource_path('css/app.css')),
+        );
 
         $this->assertDatabaseMissing('finance_generated_reports', [
             'id' => $generatedReport->id,
@@ -2535,30 +2606,126 @@ class FinanceAndActivitiesTest extends TestCase
             ->assertSee('data-icon-name="save"', false)
             ->assertDontSee('class="pill-link pill-link--accent">'.__('finance.actions.create'), false);
 
+        Volt::test('finance.dashboard')
+            ->set('quarter', '')
+            ->assertSet('quarter', (string) now()->quarter)
+            ->set('year', 0)
+            ->assertSet('year', (int) now()->year)
+            ->assertSet('quarter', (string) now()->quarter);
+
         $financeTableCss = file_get_contents(resource_path('css/app.css'));
+        $financeTableJs = file_get_contents(resource_path('js/app.js'));
         $financeDashboardSource = file_get_contents(resource_path('views/livewire/finance/dashboard.blade.php'));
         $this->assertSame(3, substr_count($financeDashboardSource, 'data-finance-dashboard-inline-header'));
         $this->assertStringContainsString('data-finance-dashboard-period-filters', $financeDashboardSource);
         $this->assertStringContainsString('<label for="finance-dashboard-year" class="sr-only">', $financeDashboardSource);
         $this->assertStringContainsString('<label for="finance-dashboard-quarter" class="sr-only">', $financeDashboardSource);
+        $this->assertStringContainsString('grid shrink-0 rounded-2xl border border-emerald-300/20 bg-emerald-400/10 text-center shadow-inner', $financeDashboardSource);
+        $this->assertSame(2, substr_count($financeDashboardSource, 'required aria-required="true" data-search-input="false" data-dropdown-search="false" data-clearable="false" data-search-selection-required="true" data-hide-placeholder-option="true" data-show-chevron="false"'));
+        $this->assertSame(2, substr_count($financeDashboardSource, 'data-finance-dashboard-period-select'));
+        $this->assertStringContainsString('data-finance-dashboard-period="quarter"', $financeDashboardSource);
+        $this->assertStringContainsString('data-finance-dashboard-period="year"', $financeDashboardSource);
+        $this->assertLessThan(
+            strpos($financeDashboardSource, 'data-finance-dashboard-period="quarter"'),
+            strpos($financeDashboardSource, 'data-finance-dashboard-period="year"'),
+        );
         $financeReportsSource = file_get_contents(resource_path('views/livewire/finance/reports.blade.php'));
         $this->assertStringContainsString('wire:model.live="ledger_period_mode" class="h-[3.125rem] min-h-[3.125rem] w-full rounded-xl px-4 py-3 text-sm" data-ledger-period-mode', $financeReportsSource);
         $this->assertStringNotContainsString('wire:model.live="ledger_period_mode" data-searchable="false"', $financeReportsSource);
-        $this->assertStringContainsString(".finance-dashboard-period-filters {\n    width: fit-content;\n    grid-template-columns: repeat(2, minmax(0, 6rem));", $financeTableCss);
-        $this->assertStringContainsString(".finance-dashboard-period-filters > * {\n    width: 6rem;", $financeTableCss);
+        $this->assertStringContainsString(".finance-dashboard-period-filters {\n    width: 8rem;\n    min-width: 8rem;\n    height: 3.25rem;\n    min-height: 3.25rem;", $financeTableCss);
+        $this->assertStringContainsString('grid-template-columns: repeat(2, minmax(0, 1fr));', $financeTableCss);
+        $this->assertStringContainsString("border: 1px solid rgba(110, 231, 183, 0.2);\n    border-radius: 1rem;\n    background: rgba(52, 211, 153, 0.1);", $financeTableCss);
+        $this->assertStringContainsString("[data-finance-dashboard-period='quarter'] {\n    grid-column: 2;", $financeTableCss);
+        $this->assertStringContainsString("[data-finance-dashboard-period='year'] {\n    grid-column: 1;", $financeTableCss);
+        $this->assertStringContainsString(".finance-dashboard-period-filter {\n    position: relative;\n    width: 100%;", $financeTableCss);
+        $this->assertMatchesRegularExpression(
+            '/\.finance-dashboard-period-filter\s*\{[^}]*display:\s*flex;[^}]*height:\s*100%;[^}]*align-items:\s*center;[^}]*justify-content:\s*center;[^}]*padding:\s*0;/s',
+            $financeTableCss,
+        );
+        $this->assertStringContainsString(".finance-dashboard-period-filter :is(\n    .searchable-select__button,\n    .searchable-select__search--trigger\n) {", $financeTableCss);
+        $this->assertMatchesRegularExpression(
+            '/\.finance-dashboard-period-filter \.searchable-select__value\s*\{[^}]*display:\s*flex;[^}]*align-items:\s*center;[^}]*justify-content:\s*center;[^}]*line-height:\s*1;/s',
+            $financeTableCss,
+        );
+        $this->assertStringContainsString('background: transparent !important;', $financeTableCss);
+        $this->assertStringContainsString('text-align: center;', $financeTableCss);
+        $this->assertStringContainsString("-webkit-user-select: none;\n    user-select: none;", $financeTableCss);
+        $this->assertStringContainsString('#finance-dashboard-year + .searchable-select :is(', $financeTableCss);
+        $this->assertStringContainsString('#finance-dashboard-quarter + .searchable-select :is(', $financeTableCss);
+        $this->assertStringContainsString(".finance-dashboard-period-filter .searchable-select__panel {\n    inset-inline: auto;\n    left: 50%;", $financeTableCss);
+        $this->assertStringContainsString("width: 3.5rem;\n    min-width: 3.5rem;", $financeTableCss);
+        $this->assertStringContainsString(".finance-dashboard-period-filter .searchable-select__list {\n    max-height: 5.5rem;", $financeTableCss);
+        $this->assertStringContainsString("if (wrapper.closest('[data-finance-dashboard-period-filters]')) {\n        searchableSelectOverflowHosts.set(wrapper, []);", $financeTableJs);
+        $this->assertStringContainsString("const dropdownSearchEnabled = searchInputMode || select.dataset.dropdownSearch !== 'false';", $financeTableJs);
+        $this->assertStringContainsString("if (dropdownSearchEnabled) {\n            panel.append(search, list);", $financeTableJs);
         $this->assertStringContainsString('.finance-dashboard .finance-dashboard-table-header {', $financeTableCss);
         $this->assertStringContainsString('flex-wrap: nowrap;', $financeTableCss);
         $this->assertStringContainsString('align-items: center;', $financeTableCss);
         $this->assertStringNotContainsString('[data-finance-generic-table] thead {', $financeTableCss);
         $this->assertStringContainsString('.admin-modal__dialog:has([data-withdrawal-history-table])', $financeTableCss);
+        $this->assertStringContainsString('data-finance-dashboard-request-history><x-admin-action-icon name="past" />', $financeDashboardSource);
         $this->assertStringContainsString('.admin-modal__dialog:has([data-financial-transactions-table])', $financeTableCss);
-        $this->assertStringContainsString(".financial-transactions-table {\n    width: 100%;\n    min-width: 0;", $financeTableCss);
+        $this->assertStringContainsString(".financial-transactions-table {\n    width: 100%;\n    min-width: 72rem;", $financeTableCss);
+        $this->assertStringContainsString("@media (min-width: 1024px) {", $financeTableCss);
+        $this->assertStringContainsString(".financial-transactions-table {\n        min-width: 0;\n        font-size:", $financeTableCss);
         $this->assertStringContainsString('.finance-transaction-datetime {', $financeTableCss);
         $this->assertStringContainsString('width: calc(100vw - 1rem);', $financeTableCss);
-        $this->assertStringContainsString('<col style="width: 3%"><col style="width: 7.25%"><col style="width: 10.7%"><col style="width: 9.05%"><col style="width: 5.8%"><col style="width: 20.25%">', $financeDashboardSource);
+        $this->assertStringContainsString('<col style="width: 7.84125%" data-finance-reduced-column="credit" data-finance-left-column data-finance-left-weight="8.7125" data-finance-width-transfer-to="category" data-finance-width-transfer-percent="10">', $financeDashboardSource);
+        $this->assertStringContainsString('<col style="width: 7.84125%" data-finance-reduced-column="debit" data-finance-left-column data-finance-left-weight="8.7125" data-finance-width-transfer-to="category" data-finance-width-transfer-percent="10">', $financeDashboardSource);
+        $this->assertStringContainsString('<col style="width: 9.045%" data-finance-reduced-column="balance" data-finance-left-column data-finance-left-weight="10.05" data-finance-width-transfer-to="category" data-finance-width-transfer-percent="10">', $financeDashboardSource);
+        $this->assertStringContainsString('<col style="width: 25.382%" data-finance-fixed-percent="20.725" data-finance-width-transfer-target="category" data-finance-category-column>', $financeDashboardSource);
+        $this->assertStringContainsString('<col style="width: 8.1405%" data-finance-left-column data-finance-left-weight="10.05" data-finance-width-transfer-to="category" data-finance-width-transfer-percent="10">', $financeDashboardSource);
+        $this->assertSame(4, substr_count($financeDashboardSource, 'data-finance-width-transfer-to="category"'));
+        $this->assertSame(6, substr_count($financeDashboardSource, 'data-finance-spacing-content='));
+        $this->assertSame(5, substr_count($financeDashboardSource, 'data-finance-kashida-label='));
+        $this->assertStringContainsString('.finance-transaction-kashida-label {', $financeTableCss);
+        $this->assertStringContainsString("overflow: visible;\n    font-feature-settings: 'jalt' 1;", $financeTableCss);
+        $this->assertStringContainsString(".finance-transaction-kashida-label[data-finance-kashida-applied] {\n    position: static;\n    top: auto;\n    transform: none;", $financeTableCss);
+        $this->assertStringNotContainsString('top: 0.16em;', $financeTableCss);
+        $this->assertStringContainsString(':nth-child(n + 3):nth-child(-n + 6)', $financeTableCss);
+        $this->assertStringContainsString("const financeKashida = '\\u0640';", $financeTableJs);
+        $this->assertStringContainsString('synchronizeFinancialTransactionTypography', $financeTableJs);
+        $this->assertStringContainsString("table.querySelectorAll('[data-finance-width-transfer-to]')", $financeTableJs);
+        $this->assertStringContainsString('const transferredWidth = sourceWidth * (transferPercent / 100);', $financeTableJs);
+        $this->assertStringContainsString('function measureFinancialShapedLabel(element, text)', $financeTableJs);
+        $this->assertStringContainsString('function measureFinancialNaturalShapedLabel(element, text)', $financeTableJs);
+        $this->assertStringContainsString("element.dataset.financeKashidaApplied = 'true';", $financeTableJs);
+        $this->assertStringContainsString('delete element.dataset.financeKashidaApplied;', $financeTableJs);
+        $this->assertStringContainsString("element.style.width = 'max-content';", $financeTableJs);
+        $this->assertStringContainsString("element.style.maxWidth = 'none';", $financeTableJs);
+        $this->assertStringContainsString('range.selectNodeContents(element);', $financeTableJs);
+        $this->assertStringContainsString('const candidateWidth = measureFinancialShapedLabel(element, candidate);', $financeTableJs);
+        $this->assertStringContainsString("element.style.width = `\${targetWidth}px`;", $financeTableJs);
+        $this->assertStringContainsString("['fund', 'type', 'reference'].forEach((group)", $financeTableJs);
+        $this->assertStringContainsString("const targetWidth = group === 'reference'", $financeTableJs);
+        $this->assertStringContainsString("? labels.filter((label) => !label.hasAttribute('data-finance-kashida-target'))", $financeTableJs);
+        $this->assertStringContainsString(").map((label) => measureFinancialNaturalShapedLabel(", $financeTableJs);
+        $this->assertSame('رقم الحركة', __('finance.fields.transaction_no', locale: 'ar'));
+        $this->assertStringContainsString(
+            "{{ __('finance.fields.debit') }}</th><th class=\"px-3 py-3 text-left\">{{ __('finance.fields.credit') }}",
+            $financeDashboardSource,
+        );
+        $this->assertStringContainsString('data-finance-kashida-label="reference" data-finance-kashida-target', $financeDashboardSource);
+        $this->assertStringContainsString('const dateToReferenceGaps = Array.from(table.tBodies[0]?.rows ?? [])', $financeTableJs);
+        $this->assertStringContainsString("? dateBounds.left - referenceBounds.right", $financeTableJs);
+        $this->assertStringContainsString('const equalGap = dateToReferenceGaps.length', $financeTableJs);
+        $this->assertStringContainsString("? labels.filter((label) => label.hasAttribute('data-finance-kashida-target'))", $financeTableJs);
+        $this->assertStringContainsString("const spacingColumns = ['reference', 'fund', 'type'];", $financeTableJs);
+        $this->assertStringContainsString('const fixedColumnsWidth = fixedColumns.reduce(', $financeTableJs);
+        $this->assertStringNotContainsString("spacingColumns[index] === 'category' ? width * 2 : width", $financeTableJs);
+        $this->assertStringContainsString('const leftAvailableWidth = tableWidth', $financeTableJs);
+        $this->assertStringContainsString("table.style.width = '100%';", $financeTableJs);
+        $this->assertStringContainsString("table.style.minWidth = '0';", $financeTableJs);
+        $this->assertStringContainsString('data-finance-left-column', $financeDashboardSource);
+        $this->assertStringContainsString('[data-financial-transactions-table] > .overflow-x-auto', $financeTableCss);
+        $this->assertStringNotContainsString('data-finance-double-width', $financeDashboardSource);
+        $this->assertStringContainsString("finance-transaction-amount--in' => \$transaction->direction === 'in'", $financeDashboardSource);
+        $this->assertStringContainsString("finance-transaction-amount--out' => \$transaction->direction === 'out'", $financeDashboardSource);
+        $this->assertStringContainsString('.finance-transaction-amount--in {', $financeTableCss);
+        $this->assertStringContainsString('.finance-transaction-amount--out {', $financeTableCss);
         $this->assertStringContainsString('<th class="px-2 py-3 text-center">#</th>', $financeDashboardSource);
         $this->assertStringContainsString('{{ $transactions->firstItem() + $loop->index }}', $financeDashboardSource);
-        $this->assertStringContainsString('<div class="finance-transaction-reference"><div class="finance-transaction-primary" aria-label="{{ $specialTransactionNumber }}">', $financeDashboardSource);
+        $this->assertStringContainsString('<div class="finance-transaction-reference" data-finance-spacing-content="reference"><div class="finance-transaction-primary" aria-label="{{ $specialTransactionNumber }}">', $financeDashboardSource);
         $this->assertSame(6, substr_count($financeDashboardSource, 'wire:key="finance-transactions-filter-'));
         $this->assertStringContainsString('justify-content: space-between;', $financeTableCss);
         $this->assertStringContainsString('@foreach (mb_str_split($specialTransactionNumber) as $referenceCharacter)', $financeDashboardSource);

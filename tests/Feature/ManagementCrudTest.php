@@ -1068,6 +1068,88 @@ class ManagementCrudTest extends TestCase
         ]);
     }
 
+    public function test_editing_a_student_without_a_current_course_enrollment_can_enroll_him_beside_status(): void
+    {
+        $this->signIn();
+
+        $academicYear = AcademicYear::create([
+            'name' => '2026 / 2027',
+            'starts_on' => '2026-09-01',
+            'ends_on' => '2027-06-30',
+            'is_current' => true,
+            'is_active' => true,
+        ]);
+        $teacher = Teacher::create([
+            'first_name' => 'Enrollment',
+            'last_name' => 'Teacher',
+            'phone' => '0944003312',
+            'status' => 'active',
+            'is_helping' => true,
+        ]);
+        $inactiveCourse = Course::create(['name' => 'Finished course', 'is_active' => false]);
+        $activeCourse = Course::create(['name' => 'Current course', 'is_active' => true]);
+        $oldGroup = Group::create([
+            'course_id' => $inactiveCourse->id,
+            'academic_year_id' => $academicYear->id,
+            'teacher_id' => $teacher->id,
+            'name' => 'Old group',
+            'capacity' => 20,
+            'is_active' => true,
+        ]);
+        $currentGroup = Group::create([
+            'course_id' => $activeCourse->id,
+            'academic_year_id' => $academicYear->id,
+            'teacher_id' => $teacher->id,
+            'name' => 'Current group',
+            'capacity' => 20,
+            'is_active' => true,
+        ]);
+        $student = Student::create([
+            'first_name' => 'Needs',
+            'last_name' => 'Enrollment',
+            'birth_date' => '2014-01-01',
+            'status' => 'active',
+        ]);
+        Enrollment::create([
+            'student_id' => $student->id,
+            'group_id' => $oldGroup->id,
+            'enrolled_at' => '2025-09-01',
+            'status' => 'active',
+        ]);
+
+        $component = Volt::test('students.index')
+            ->call('edit', $student->id)
+            ->assertSet('editingStudentNeedsActiveCourseEnrollment', true)
+            ->assertViewHas('enrollmentGroups', fn ($groups) => $groups->pluck('id')->all() === [$currentGroup->id])
+            ->assertSee('data-student-edit-status-row', false)
+            ->assertSee('data-search-input="true"', false)
+            ->assertSee('data-open-on-focus="true"', false)
+            ->assertSee('data-hide-placeholder-option="true"', false)
+            ->set('enrollment_group_id', $currentGroup->id)
+            ->call('save')
+            ->assertHasNoErrors();
+
+        $studentSource = file_get_contents(resource_path('views/livewire/students/index.blade.php'));
+        $this->assertTrue(
+            strpos($studentSource, 'data-student-edit-enrollment-group') < strpos($studentSource, 'id="student-status"'),
+            'The Arabic group chooser should precede the status field so it renders on its right.',
+        );
+
+        $this->assertDatabaseHas('enrollments', [
+            'student_id' => $student->id,
+            'group_id' => $currentGroup->id,
+            'enrolled_at' => now()->toDateString().' 00:00:00',
+            'status' => 'active',
+            'left_at' => null,
+        ]);
+
+        $component->call('edit', $student->id)
+            ->assertSet('editingStudentNeedsActiveCourseEnrollment', false)
+            ->assertDontSee('data-student-edit-enrollment-group', false)
+            ->assertDontSee('data-student-edit-status-row', false)
+            ->assertDontSee('id="student-status"', false);
+    }
+
     public function test_student_form_calculates_the_grade_and_manages_previously_memorized_juz_chips(): void
     {
         $this->signIn();
@@ -1654,10 +1736,17 @@ class ManagementCrudTest extends TestCase
             'birth_date' => '2014-01-01',
             'status' => 'active',
         ]);
+        $inactiveStudent = Student::create([
+            'first_name' => 'Inactive',
+            'last_name' => 'Picker Student',
+            'birth_date' => '2014-01-02',
+            'status' => 'inactive',
+        ]);
 
         $component = Volt::test('enrollments.index')
             ->call('openCreateModal')
             ->assertSet('enrolled_at', now()->toDateString())
+            ->assertViewHas('students', fn ($students) => $students->pluck('id')->all() === [$student->id])
             ->assertViewHas('groups', fn ($groups) => $groups->pluck('id')->all() === [$alphaGroup->id, $zuluGroup->id]);
 
         $this->assertStringContainsString(
@@ -1673,6 +1762,13 @@ class ManagementCrudTest extends TestCase
         $this->assertStringContainsString("['Enter', 'Tab'].includes(event.key)", $script);
         $this->assertStringContainsString('focusSearchableSelectById(select.dataset.focusNextSearchableOnTab)', $script);
         $this->assertStringContainsString("window.addEventListener('focus-searchable-select', focusSearchableSelect);", $script);
+
+        Volt::test('groups.index')
+            ->call('openRosterModal', $alphaGroup->id)
+            ->assertViewHas('availableRosterStudents', fn ($students) => $students->pluck('id')->all() === [$student->id])
+            ->set('roster_student_id', $inactiveStudent->id)
+            ->call('addStudentToRoster')
+            ->assertHasErrors(['roster_student_id']);
 
         $component
             ->set('group_id', $inactiveGroup->id)
@@ -2834,9 +2930,15 @@ class ManagementCrudTest extends TestCase
         $schedule = GroupSchedule::query()->firstOrFail();
 
         Volt::test('groups.schedules', ['group' => $group])
+            ->assertSee('data-group-schedule-edit', false)
+            ->assertDontSee('data-group-schedule-delete', false)
             ->call('edit', $schedule->id)
+            ->assertSee('data-group-schedule-update', false)
+            ->assertSee('data-group-schedule-delete', false)
+            ->assertDontSee('schedule-add-row', false)
             ->set('time_slot', 'after_night')
             ->call('save')
+            ->assertDontSee('data-group-schedule-delete', false)
             ->assertHasNoErrors();
 
         $this->assertDatabaseHas('group_schedules', [
@@ -2901,6 +3003,12 @@ class ManagementCrudTest extends TestCase
         $schedule = GroupSchedule::query()->where('group_id', $group->id)->firstOrFail();
 
         $component
+            ->assertSee('data-group-schedule-edit', false)
+            ->assertDontSee('data-group-schedule-delete', false)
+            ->call('editSchedule', $schedule->id)
+            ->assertSee('data-group-schedule-update', false)
+            ->assertSee('data-group-schedule-delete', false)
+            ->assertDontSee('schedule-add-row', false)
             ->call('deleteSchedule', $schedule->id)
             ->assertHasErrors('scheduleRows')
             ->call('saveAndCloseSchedules')

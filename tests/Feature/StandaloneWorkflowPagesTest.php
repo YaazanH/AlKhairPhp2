@@ -22,6 +22,7 @@ use App\Models\Student;
 use App\Models\StudentPageAchievement;
 use App\Models\Teacher;
 use App\Models\User;
+use App\Services\CourseLifecycleService;
 use App\Services\QuranFinalTestService;
 use App\Services\QuranPartialTestService;
 use App\Services\QuranProgressionService;
@@ -352,6 +353,7 @@ class StandaloneWorkflowPagesTest extends TestCase
             'teacher_id' => $teacher->id,
             'tested_on' => '2026-09-10',
         ]);
+        $enrollment->update(['status' => 'inactive']);
 
         Volt::test('quran-partial-tests.show', ['partialTest' => $partialTest])
             ->call('openEditAttempt', $partialAttempt->id)
@@ -360,6 +362,9 @@ class StandaloneWorkflowPagesTest extends TestCase
             ->assertSet('showAttemptModal', true)
             ->assertSee('admin-modal__dialog--compact', false)
             ->assertSee('admin-action-cluster admin-action-cluster--end', false)
+            ->assertSee('Workbench Teacher Group Student')
+            ->assertSee('data-partial-saber-student-readonly', false)
+            ->assertSee('readonly', false)
             ->set('mistake_count', '2')
             ->assertSet('mistake_count', '2')
             ->call('saveAttempt')
@@ -388,6 +393,9 @@ class StandaloneWorkflowPagesTest extends TestCase
             ->call('openEditAttempt', $finalAttempt->id)
             ->assertSee('admin-modal__dialog--compact', false)
             ->assertSee('admin-action-cluster admin-action-cluster--end', false)
+            ->assertSee('Workbench Teacher Group Student')
+            ->assertSee('data-final-saber-student-readonly', false)
+            ->assertSee('readonly', false)
             ->set('score', '95.5')
             ->call('saveAttempt')
             ->assertHasNoErrors();
@@ -396,7 +404,7 @@ class StandaloneWorkflowPagesTest extends TestCase
         $this->assertDatabaseHas('quran_final_tests', ['id' => $finalTest->id, 'status' => 'passed']);
 
         $awqafType = QuranTestType::query()->where('code', 'awqaf')->firstOrFail();
-        QuranTest::query()->create([
+        $awqafTest = QuranTest::query()->create([
             'enrollment_id' => $enrollment->id,
             'student_id' => $enrollment->student_id,
             'teacher_id' => $teacher->id,
@@ -406,6 +414,24 @@ class StandaloneWorkflowPagesTest extends TestCase
             'score' => 96,
             'status' => 'passed',
             'attempt_no' => 1,
+        ]);
+
+        Volt::test('quran-tests.index')
+            ->call('openEdit', $awqafTest->id)
+            ->assertSet('editingTestId', $awqafTest->id)
+            ->assertSet('selectedStudentId', $enrollment->student_id)
+            ->assertSee('Workbench Teacher Group Student')
+            ->assertSee('data-awqaf-saber-student-readonly', false)
+            ->assertSee('readonly', false)
+            ->set('score', '97.5')
+            ->call('save')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('quran_tests', [
+            'id' => $awqafTest->id,
+            'student_id' => $enrollment->student_id,
+            'enrollment_id' => $enrollment->id,
+            'score' => 97.5,
         ]);
 
         Volt::test('quran-final-tests.show', ['finalTest' => $finalTest])
@@ -499,6 +525,93 @@ class StandaloneWorkflowPagesTest extends TestCase
 
         $this->assertDatabaseHas('quran_partial_tests', ['id' => $partialTest->id]);
         $this->assertDatabaseHas('quran_partial_test_attempts', ['id' => $attempt->id]);
+    }
+
+    public function test_sabers_from_a_finished_course_cannot_be_deleted(): void
+    {
+        [$teacher, $enrollment] = $this->teacherContext();
+        auth()->user()->syncRoles(['super_admin']);
+        $juzs = QuranJuz::query()->whereIn('juz_number', [1, 2, 3])->orderBy('juz_number')->get();
+
+        $partialTest = QuranPartialTest::query()->create([
+            'created_by' => auth()->id(),
+            'enrollment_id' => $enrollment->id,
+            'juz_id' => $juzs[0]->id,
+            'status' => 'in_progress',
+            'student_id' => $enrollment->student_id,
+        ]);
+        $partialPart = $partialTest->parts()->create(['part_number' => 1, 'status' => 'pending']);
+        foreach (range(2, 4) as $partNumber) {
+            $partialTest->parts()->create(['part_number' => $partNumber, 'status' => 'pending']);
+        }
+        $partialAttempt = $partialPart->attempts()->create([
+            'attempt_no' => 1,
+            'mistake_count' => 5,
+            'status' => 'failed',
+            'teacher_id' => $teacher->id,
+            'tested_on' => '2026-09-10',
+        ]);
+
+        $finalTest = QuranFinalTest::query()->create([
+            'created_by' => auth()->id(),
+            'enrollment_id' => $enrollment->id,
+            'juz_id' => $juzs[1]->id,
+            'status' => 'in_progress',
+            'student_id' => $enrollment->student_id,
+        ]);
+        $finalAttempt = $finalTest->attempts()->create([
+            'attempt_no' => 1,
+            'score' => 60,
+            'status' => 'failed',
+            'teacher_id' => $teacher->id,
+            'tested_on' => '2026-09-11',
+        ]);
+
+        $awqafType = QuranTestType::query()->where('code', 'awqaf')->firstOrFail();
+        $awqafTest = QuranTest::query()->create([
+            'enrollment_id' => $enrollment->id,
+            'student_id' => $enrollment->student_id,
+            'teacher_id' => $teacher->id,
+            'juz_id' => $juzs[2]->id,
+            'quran_test_type_id' => $awqafType->id,
+            'tested_on' => '2026-09-12',
+            'score' => 96,
+            'status' => 'passed',
+            'attempt_no' => 1,
+        ]);
+
+        app(CourseLifecycleService::class)->finish($enrollment->group->course);
+
+        Volt::test('quran-partial-tests.show', ['partialTest' => $partialTest])
+            ->assertViewHas('hasRelatedFinalTest', false)
+            ->assertDontSee('data-partial-saber-delete', false)
+            ->call('openEditAttempt', $partialAttempt->id)
+            ->assertDontSee('data-partial-saber-attempt-delete', false)
+            ->call('deleteAttempt')
+            ->assertHasErrors(['attempt'])
+            ->call('deleteTest')
+            ->assertHasErrors(['deleteTest']);
+
+        Volt::test('quran-final-tests.show', ['finalTest' => $finalTest])
+            ->assertViewHas('hasRelatedAwqafTest', false)
+            ->assertDontSee('data-final-saber-delete', false)
+            ->call('openEditAttempt', $finalAttempt->id)
+            ->assertDontSee('data-final-saber-attempt-delete', false)
+            ->call('deleteAttempt')
+            ->assertHasErrors(['attempt'])
+            ->call('deleteTest')
+            ->assertHasErrors(['deleteTest']);
+
+        Volt::test('quran-tests.index')
+            ->assertDontSee('data-awqaf-saber-delete', false)
+            ->call('delete', $awqafTest->id)
+            ->assertHasErrors(['delete']);
+
+        $this->assertDatabaseHas('quran_partial_tests', ['id' => $partialTest->id]);
+        $this->assertDatabaseHas('quran_partial_test_attempts', ['id' => $partialAttempt->id]);
+        $this->assertDatabaseHas('quran_final_tests', ['id' => $finalTest->id]);
+        $this->assertDatabaseHas('quran_final_test_attempts', ['id' => $finalAttempt->id]);
+        $this->assertDatabaseHas('quran_tests', ['id' => $awqafTest->id]);
     }
 
     public function test_final_test_workbench_warns_when_same_juz_already_has_an_open_cycle(): void
@@ -696,6 +809,15 @@ class StandaloneWorkflowPagesTest extends TestCase
 
     public function test_manager_point_ledger_workbench_creates_and_updates_manual_entries(): void
     {
+        $pointsSource = file_get_contents(resource_path('views/livewire/points/index.blade.php'));
+        $pointsStyles = file_get_contents(resource_path('css/app.css'));
+
+        $this->assertStringContainsString('points-ledger-col--course', $pointsSource);
+        $this->assertStringNotContainsString('points-ledger-col--group', $pointsSource);
+        $this->assertStringContainsString("__('workflow.points.workbench.table.headers.course')", $pointsSource);
+        $this->assertStringContainsString("orWhereHas('enrollment.group.course'", $pointsSource);
+        $this->assertStringContainsString('.points-ledger-table .points-ledger-col--course', $pointsStyles);
+
         $enrollment = $this->managerContext();
         $bonus = PointType::query()->create([
             'name' => 'Workbench Reward',
@@ -740,6 +862,10 @@ class StandaloneWorkflowPagesTest extends TestCase
             ->assertSee('wire:click="editManual('.$transaction->id.')"', false)
             ->assertDontSee('wire:click="openVoidModal('.$transaction->id.')"', false)
             ->call('editManual', $transaction->id)
+            ->assertSet('editingStudentName', $enrollment->student->full_name)
+            ->assertSee('data-points-edit-student-name', false)
+            ->assertSee('readonly aria-readonly="true"', false)
+            ->assertDontSee('wire:model.live="selectedStudentId"', false)
             ->assertSee('wire:click="openVoidModal('.$transaction->id.')"', false)
             ->assertSee('data-points-manual-update-action', false)
             ->assertSee('data-points-manual-delete-action', false)

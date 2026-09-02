@@ -120,6 +120,7 @@ class UserManagementTest extends TestCase
             ->assertSee(__('ui.roles.teacher'))
             ->assertDontSee(__('access.roles.editor.title'))
             ->assertSee('data-permissions-save-icon', false)
+            ->assertSee('data-permissions-edit-action', false)
             ->assertSee('wire:click="save" class="admin-modal__close"', false)
             ->assertDontSee('wire:click="save" class="pill-link pill-link--accent"', false)
             ->assertSee('role-permission-group', false)
@@ -150,6 +151,13 @@ class UserManagementTest extends TestCase
         $teacherRole = Role::findByName('teacher', 'web');
 
         $this->assertTrue($teacherRole->hasPermissionTo('points.create-manual'));
+
+        Volt::test('settings.access-control')
+            ->call('openPermissionsModal', 'teacher')
+            ->assertSet('showPermissionsModal', true)
+            ->call('openEditRoleModal', 'teacher')
+            ->assertSet('showPermissionsModal', false)
+            ->assertSet('showRoleModal', true);
 
         $accessControlCss = file_get_contents(resource_path('css/app.css'));
         $this->assertStringContainsString('grid-template-rows: repeat(3, auto)', $accessControlCss);
@@ -341,8 +349,10 @@ class UserManagementTest extends TestCase
             ->assertSee('role-sort-row--dragging', false)
             ->assertSee('role-sort-row--drop-target', false)
             ->assertSee('role-sort-handle--locked', false)
-            ->assertSee('wire:click="openEditRoleModal', false)
+            ->assertDontSee('data-role-edit-action', false)
             ->assertDontSee('data-role-level', false)
+            ->call('openPermissionsModal', RoleRegistry::TEACHER)
+            ->assertSee('data-role-edit-action', false)
             ->call('openEditRoleModal', RoleRegistry::TEACHER)
             ->assertDontSee('id="role-level"', false)
             ->call('closeRoleModal')

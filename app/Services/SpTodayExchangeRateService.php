@@ -3,13 +3,31 @@
 namespace App\Services;
 
 use App\Models\FinanceCurrency;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
+use function Illuminate\Support\defer;
+
 class SpTodayExchangeRateService
 {
     public const SOURCE_URL = 'https://sp-today.com/en/currency/us-dollar';
+
+    private const REFRESH_THROTTLE_KEY = 'finance:sp-today-usd-syp-refresh';
+
+    public function refreshUsdSypRateAfterResponse(): void
+    {
+        if (app()->environment('testing')) {
+            return;
+        }
+
+        if (! Cache::add(self::REFRESH_THROTTLE_KEY, true, now()->addHours(6))) {
+            return;
+        }
+
+        defer(fn () => $this->refreshUsdSypRate(), self::REFRESH_THROTTLE_KEY);
+    }
 
     public function refreshUsdSypRate(): ?int
     {

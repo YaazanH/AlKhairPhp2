@@ -154,11 +154,11 @@ new class extends Component
                 <h2 class="font-display mt-3 text-2xl text-white">{{ __('reports.quran_tests.filters_title') }}</h2>
                 <p class="mt-3 text-sm leading-7 text-neutral-300">{{ __('reports.quran_tests.filters_subtitle') }}</p>
             </div>
-            <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                <div><label class="report-field-label mb-2 block text-sm font-medium">{{ __('reports.filters.course') }}</label><select wire:model.live="course_id" class="report-control w-full rounded-xl px-3 py-2.5 text-sm"><option value="">{{ __('reports.filters.all_courses') }}</option>@foreach ($courses as $course)<option value="{{ $course->id }}">{{ $course->name }}</option>@endforeach</select></div>
-                <div><label class="report-field-label mb-2 block text-sm font-medium">{{ __('reports.filters.group') }}</label><select wire:model.live="group_id" class="report-control w-full rounded-xl px-3 py-2.5 text-sm"><option value="">{{ __('reports.filters.all_groups') }}</option>@foreach ($groups as $group)<option value="{{ $group->id }}">{{ $group->name }}</option>@endforeach</select></div>
-                <div><label class="report-field-label mb-2 block text-sm font-medium">{{ __('reports.filters.date_from') }}</label><input wire:model.live="date_from" type="date" class="report-control w-full rounded-xl px-3 py-2.5 text-sm"></div>
-                <div><label class="report-field-label mb-2 block text-sm font-medium">{{ __('reports.filters.date_to') }}</label><input wire:model.live="date_to" type="date" class="report-control w-full rounded-xl px-3 py-2.5 text-sm"></div>
+            <div class="report-filter-grid grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                <div class="admin-filter-field min-w-0"><label>{{ __('reports.filters.course') }}</label><select wire:model.live="course_id"><option value="">{{ __('reports.filters.all_courses') }}</option>@foreach ($courses as $course)<option value="{{ $course->id }}">{{ $course->name }}</option>@endforeach</select></div>
+                <div class="admin-filter-field min-w-0"><label>{{ __('reports.filters.group') }}</label><select wire:model.live="group_id"><option value="">{{ __('reports.filters.all_groups') }}</option>@foreach ($groups as $group)<option value="{{ $group->id }}">{{ $group->name }}</option>@endforeach</select></div>
+                <div class="admin-filter-field min-w-0"><label>{{ __('reports.filters.date_from') }}</label><input wire:model.live="date_from" type="date"></div>
+                <div class="admin-filter-field min-w-0"><label>{{ __('reports.filters.date_to') }}</label><input wire:model.live="date_to" type="date"></div>
             </div>
             <div class="mt-5 flex flex-wrap justify-end gap-3">
                 <x-export-action-button :href="route('reports.exports.student-quran-tests', ['course_id' => $course_id, 'group_id' => $group_id, 'date_from' => $date_from, 'date_to' => $date_to])" class="admin-icon-button--accent" :label="__('reports.quran_tests.export')" />

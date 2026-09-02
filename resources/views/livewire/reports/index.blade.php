@@ -134,17 +134,17 @@ new class extends Component {
     <div class="reports-overview-grid grid items-stretch gap-6 xl:grid-cols-3">
         <section class="surface-panel report-panel report-panel--filters min-w-0 p-5 lg:p-6 xl:col-span-3">
             <div class="date-control-peer-group report-filter-grid grid gap-4 md:grid-cols-2 xl:grid-cols-[repeat(4,minmax(0,1fr))_auto] xl:items-end">
-                <div>
-                    <select wire:model.live="course_id" aria-label="{{ __('reports.filters.course') }}" class="report-control w-full rounded-xl px-3 py-2.5 text-sm"><option value="">{{ __('reports.filters.all_courses') }}</option>@foreach ($courses as $course)<option value="{{ $course->id }}">{{ $course->name }}</option>@endforeach</select>
+                <div class="admin-filter-field min-w-0">
+                    <select wire:model.live="course_id" aria-label="{{ __('reports.filters.course') }}"><option value="">{{ __('reports.filters.all_courses') }}</option>@foreach ($courses as $course)<option value="{{ $course->id }}">{{ $course->name }}</option>@endforeach</select>
                 </div>
-                <div>
-                    <select wire:model.live="group_id" aria-label="{{ __('reports.filters.group') }}" class="report-control w-full rounded-xl px-3 py-2.5 text-sm"><option value="">{{ __('reports.filters.all_groups') }}</option>@foreach ($groups as $group)<option value="{{ $group->id }}">{{ $group->name }}</option>@endforeach</select>
+                <div class="admin-filter-field min-w-0">
+                    <select wire:model.live="group_id" aria-label="{{ __('reports.filters.group') }}"><option value="">{{ __('reports.filters.all_groups') }}</option>@foreach ($groups as $group)<option value="{{ $group->id }}">{{ $group->name }}</option>@endforeach</select>
                 </div>
-                <div>
-                    <input wire:model.live="date_from" type="date" aria-label="{{ __('reports.filters.date_from') }}" data-date-placeholder="{{ __('reports.filters.date_from') }}" class="date-control--match-select report-control w-full rounded-xl px-3 py-2.5 text-sm">
+                <div class="admin-filter-field min-w-0">
+                    <input wire:model.live="date_from" type="date" aria-label="{{ __('reports.filters.date_from') }}" data-date-placeholder="{{ __('reports.filters.date_from') }}" class="date-control--match-select">
                 </div>
-                <div>
-                    <input wire:model.live="date_to" type="date" aria-label="{{ __('reports.filters.date_to') }}" data-date-placeholder="{{ __('reports.filters.date_to') }}" class="date-control--match-select report-control w-full rounded-xl px-3 py-2.5 text-sm">
+                <div class="admin-filter-field min-w-0">
+                    <input wire:model.live="date_to" type="date" aria-label="{{ __('reports.filters.date_to') }}" data-date-placeholder="{{ __('reports.filters.date_to') }}" class="date-control--match-select">
                 </div>
                 <x-clear-filter-button wire:click="clearFilters" :label="__('reports.filters.clear')" />
             </div>
@@ -302,7 +302,7 @@ new class extends Component {
         <h2 class="font-display text-2xl text-white">{{ __('reports.exports.title') }}</h2>
 
         <div class="report-export-list mt-4">
-            <a href="{{ route('reports.exports.attendance', ['course_id' => $course_id, 'group_id' => $group_id, 'assessment_type_id' => $assessment_type_id, 'date_from' => $date_from, 'date_to' => $date_to]) }}" class="pill-link pill-link--accent report-export-link">{{ __('reports.exports.attendance') }}</a>
+            <a href="{{ route('reports.exports.attendance', ['course_id' => $course_id, 'group_id' => $group_id, 'assessment_type_id' => $assessment_type_id, 'date_from' => $date_from, 'date_to' => $date_to]) }}" class="pill-link report-export-link">{{ __('reports.exports.attendance') }}</a>
             <a href="{{ route('reports.exports.memorization', ['course_id' => $course_id, 'group_id' => $group_id, 'assessment_type_id' => $assessment_type_id, 'date_from' => $date_from, 'date_to' => $date_to]) }}" class="pill-link report-export-link">{{ __('reports.exports.memorization') }}</a>
             <a href="{{ route('reports.exports.points', ['course_id' => $course_id, 'group_id' => $group_id, 'assessment_type_id' => $assessment_type_id, 'date_from' => $date_from, 'date_to' => $date_to]) }}" class="pill-link report-export-link">{{ __('reports.exports.points') }}</a>
             <a href="{{ route('reports.exports.student-activity-summary', ['course_id' => $course_id, 'group_id' => $group_id, 'date_from' => $date_from, 'date_to' => $date_to]) }}" class="pill-link report-export-link">{{ __('reports.student_activity.export') }}</a>

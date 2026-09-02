@@ -1,6 +1,6 @@
 # AlKhair API Reference
 
-This document reflects the API routes currently defined in the codebase as of 2026-06-23.
+This document reflects the API routes currently defined in the codebase as of 2026-09-01.
 
 ## Base URL
 
@@ -85,7 +85,7 @@ API login returns the authenticated user's complete effective application permis
 
 Current API controllers authorize requests against the user's current application permissions, such as `students.view`, `memorization.record`, and `attendance.student.take`. The token abilities are a login-time snapshot for clients; data-scope checks and endpoint-specific business rules are enforced separately.
 
-## Common Behavior
+## Common Behaviour
 
 - Most list endpoints return Laravel paginator JSON.
 - Common errors:

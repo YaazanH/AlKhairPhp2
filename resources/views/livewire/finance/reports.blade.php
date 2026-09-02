@@ -219,6 +219,90 @@ new class extends Component {
         $this->resetValidation('createReport');
     }
 
+    public function createReport(): void
+    {
+        $this->authorizePermission('finance.reports.export');
+
+        if (! auth()->user()?->financeSignaturePdfSource()) {
+            $this->addError('createReport', __('finance.reports.signature_required'));
+            $this->dispatch('financial-report-create-failed');
+
+            return;
+        }
+
+        $validated = $this->validate([
+            'ledger_cash_box_ids' => ['required', 'array', 'min:1'],
+            'ledger_cash_box_ids.*' => ['integer', 'distinct', 'exists:finance_cash_boxes,id'],
+            'ledger_date_from' => ['required', 'date'],
+            'ledger_date_to' => ['required', 'date', 'after_or_equal:ledger_date_from'],
+            'ledger_period_mode' => ['required', 'in:quarter,custom'],
+            'report_notes' => ['nullable', 'string', 'max:4000'],
+        ]);
+
+        $reportService = app(FinanceReportService::class);
+        if (
+            $validated['ledger_period_mode'] === 'quarter'
+            && $reportService->generatedLedgerPeriodExists($validated['ledger_date_from'], $validated['ledger_date_to'])
+        ) {
+            $this->addError('createReport', __('finance.reports.period_already_generated'));
+            $this->dispatch('financial-report-create-failed');
+
+            return;
+        }
+
+        $financeService = app(FinanceService::class);
+        $cashBoxIds = collect($validated['ledger_cash_box_ids'])
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values();
+        $template = $reportService->defaultLedgerTemplate();
+        $reports = $cashBoxIds->flatMap(function (int $cashBoxId) use ($financeService, $reportService, $template, $validated) {
+            $box = $financeService->cashBoxForUser($cashBoxId, auth()->user());
+            $currencies = $financeService->currenciesForCashBox($box->id)->get();
+            if ($currencies->isEmpty()) {
+                $currencies = collect([$financeService->localCurrency()]);
+            }
+
+            return $currencies->map(fn ($currency) => $reportService->ledgerReport(
+                $template,
+                $box,
+                $currency,
+                $validated['ledger_date_from'],
+                $validated['ledger_date_to'],
+                auth()->user(),
+                $validated['report_notes'] ?? null,
+            ));
+        })->values();
+
+        $report = $reports->first();
+        if ($reports->count() > 1) {
+            $report['cash_box']['name'] = $reports->pluck('cash_box.name')->unique()->implode('، ');
+            $report['fund_reports'] = $reports->all();
+            $report['rows'] = [];
+        }
+
+        $filters = [
+            'cash_box_id' => (int) $cashBoxIds->first(),
+            'cash_box_ids' => $cashBoxIds->all(),
+            'date_from' => $validated['ledger_date_from'],
+            'date_to' => $validated['ledger_date_to'],
+            'ledger_notes' => $validated['report_notes'] ?? null,
+            'period_mode' => $validated['ledger_period_mode'],
+        ];
+        $generatedReport = $reportService->storeGeneratedLedgerReport($report, $filters, auth()->user());
+
+        if (! $generatedReport) {
+            $this->addError('createReport', __('finance.reports.generated_reports_unavailable'));
+            $this->dispatch('financial-report-create-failed');
+
+            return;
+        }
+
+        $this->closeCreateReport();
+        $this->resetPage('generatedReportsPage');
+        $this->dispatch('financial-report-created', url: route('finance.reports.generated.show', $generatedReport));
+    }
+
     protected function selectDefaultLedgerCashBox(): void
     {
         $cashBox = app(FinanceService::class)->defaultCashBoxForUser(auth()->user());
@@ -269,7 +353,30 @@ new class extends Component {
     }
 }; ?>
 
-<div class="page-stack">
+<div
+    class="page-stack"
+    x-data="{
+        generatedReportWindow: null,
+        beginGeneratedReport() {
+            this.generatedReportWindow = window.open('about:blank', '_blank');
+            if (this.generatedReportWindow) this.generatedReportWindow.opener = null;
+        },
+        showGeneratedReport(url) {
+            if (this.generatedReportWindow && ! this.generatedReportWindow.closed) {
+                this.generatedReportWindow.location.href = url;
+            } else {
+                window.open(url, '_blank', 'noopener');
+            }
+            this.generatedReportWindow = null;
+        },
+        closeGeneratedReportPlaceholder() {
+            if (this.generatedReportWindow && ! this.generatedReportWindow.closed) this.generatedReportWindow.close();
+            this.generatedReportWindow = null;
+        },
+    }"
+    x-on:financial-report-created.window="showGeneratedReport($event.detail.url)"
+    x-on:financial-report-create-failed.window="closeGeneratedReportPlaceholder()"
+>
     <section class="page-hero p-6 lg:p-8" style="order: 1">
         <div class="flex flex-col gap-6 xl:flex-row xl:items-center xl:justify-between">
             <div>
@@ -329,7 +436,7 @@ new class extends Component {
                                     <td class="px-5 py-3">{{ $generatedReport->created_at?->format('d-m-Y') }}</td>
                                     <td class="px-5 py-3">
                                         <div class="admin-action-cluster admin-action-cluster--end">
-                                            <a href="{{ route('finance.reports.generated.show', $generatedReport) }}" target="_blank" rel="noopener" class="admin-icon-button" title="{{ __('finance.reports.review_saved_report') }}" aria-label="{{ __('finance.reports.review_saved_report') }}" data-financial-record-view-action><x-admin-action-icon name="view-file" /></a>
+                                            <a href="{{ route('finance.reports.generated.show', $generatedReport) }}" target="_blank" rel="noopener" class="admin-icon-button" title="{{ __('finance.reports.review_saved_report') }}" aria-label="{{ __('finance.reports.review_saved_report') }}" data-financial-record-view-action><x-admin-action-icon name="financial-report-open" /></a>
                                         </div>
                                     </td>
                                 </tr>
@@ -359,14 +466,6 @@ new class extends Component {
     @can('finance.reports.export')
         @php
             $ledgerReady = $ledger_cash_box_id !== '' && $ledger_date_from !== '' && $ledger_date_to !== '';
-            $ledgerQuery = [
-                'cash_box_id' => $ledger_cash_box_id,
-                'cash_box_ids' => $ledger_cash_box_ids,
-                'date_from' => $ledger_date_from,
-                'date_to' => $ledger_date_to,
-                'ledger_notes' => $report_notes,
-                'period_mode' => $ledger_period_mode,
-            ];
         @endphp
         <x-admin.modal :show="$showCreateReportModal" :title="__('finance.reports.generate_report')" close-method="closeCreateReport" max-width="4xl">
         <div class="grid gap-4">
@@ -415,7 +514,7 @@ new class extends Component {
 
             <div class="mt-5 flex flex-wrap gap-3">
                 @if ($ledgerReady)
-                    <a href="{{ route('finance.reports.ledger.export', array_merge($ledgerQuery, ['format' => 'pdf'])) }}" target="_blank" rel="noopener" class="admin-icon-button admin-icon-button--accent admin-modal-action-button" title="{{ __('finance.reports.generate_report') }}" aria-label="{{ __('finance.reports.generate_report') }}" data-finance-report-create-save-action><x-admin-action-icon name="save" class="admin-modal-action__icon" /></a>
+                    <button type="button" wire:click="createReport" wire:loading.attr="disabled" wire:target="createReport" x-on:click="beginGeneratedReport()" class="admin-icon-button admin-icon-button--accent admin-modal-action-button" title="{{ __('finance.reports.generate_report') }}" aria-label="{{ __('finance.reports.generate_report') }}" data-finance-report-create-save-action><x-admin-action-icon name="financial-report-create" class="admin-modal-action__icon" /></button>
                 @else
                     <span class="pill-link opacity-60">{{ __('finance.reports.choose_box_currency_first') }}</span>
                 @endif

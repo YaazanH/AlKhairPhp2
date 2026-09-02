@@ -2,7 +2,7 @@
 
 return [
     'title' => 'Community Contacts',
-    'subtitle' => 'Store trusted people and vendors the organization can call when help is needed.',
+    'subtitle' => 'Store trusted people and vendors the organisation can call when help is needed.',
     'stats' => [
         'all' => 'Contacts',
         'active' => 'Active',
@@ -32,7 +32,7 @@ return [
     'fields' => [
         'name' => 'Full name',
         'category' => 'Category or service',
-        'organization' => 'Organization',
+        'organization' => 'Organisation',
         'phone' => 'Phone',
         'secondary_phone' => 'Secondary phone',
         'email' => 'Email',
@@ -57,7 +57,7 @@ return [
         'empty' => 'No community contacts found.',
     ],
     'empty' => [
-        'category' => 'Uncategorized',
+        'category' => 'Uncategorised',
     ],
     'messages' => [
         'created' => 'Community contact created successfully.',

@@ -565,7 +565,7 @@ new class extends Component
         @if ($studentOptions->isEmpty())
             <div class="admin-empty-state">{{ __('workflow.student_progress.selection.no_students') }}</div>
         @else
-            <div class="admin-filter-field">
+            <div class="admin-filter-field" data-student-progress-student-selector>
                 <label for="student-progress-student" class="sr-only">{{ __('workflow.student_progress.selection.search') }}</label>
                 <select id="student-progress-student" wire:model.live="selectedStudentId" data-search-input="true" data-open-on-focus="true" data-hide-placeholder-option="true" data-search-placeholder="{{ __('workflow.student_progress.selection.search_placeholder') }}" class="w-full rounded-xl px-4 py-3 text-sm">
                     <option value="">{{ __('workflow.student_progress.selection.search_placeholder') }}</option>
@@ -619,7 +619,7 @@ new class extends Component
             @endforeach
         </section>
 
-        <section class="surface-table standard-mobile-table student-juz-progress-table">
+        <section class="surface-table student-juz-progress-table">
             <div class="admin-grid-meta"><div><div class="admin-grid-meta__title">{{ __('workflow.student_progress.juz_progress.title') }}</div><div class="admin-grid-meta__summary">{{ __('workflow.student_progress.juz_progress.summary', ['count' => number_format($quranJuzProgress->where('status', 'finished')->count())]) }}</div></div></div>
             @error('awqaf')<div class="flash-error mx-5 mb-4 px-4 py-3 text-sm">{{ $message }}</div>@enderror
             @if ($quranJuzProgress->isEmpty())<div class="admin-empty-state">{{ __('workflow.student_progress.juz_progress.empty') }}</div>@else
