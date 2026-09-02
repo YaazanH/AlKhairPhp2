@@ -68,7 +68,14 @@ class MobileModalLayoutTest extends TestCase
         $this->assertStringContainsString("svg.classList.add('formatted-date-input__calendar-icon')", $script);
         $this->assertStringContainsString("clear.classList.add('formatted-date-input__clear-icon')", $script);
         $this->assertStringContainsString("clear.textContent = '×'", $script);
-        $this->assertStringContainsString("wrapper.classList.toggle('formatted-date-input--has-value', !isEmpty)", $script);
+        $this->assertStringContainsString('function restoreFormattedDatePicker(picker)', $script);
+        $this->assertStringContainsString("if (!hasDateIcons) picker.replaceChildren(createDatePickerIcon(), createDateClearIcon())", $script);
+        $this->assertStringContainsString("picker.dataset.modalActionIconIgnore = 'true'", $script);
+        $this->assertStringContainsString("if (action.closest('.formatted-date-input')) {", $script);
+        $this->assertStringContainsString('restoreFormattedDatePicker(action);', $script);
+        $this->assertStringContainsString("const clearable = input.dataset.clearable !== 'false';", $script);
+        $this->assertStringContainsString("if (input.value === '' || !clearable)", $script);
+        $this->assertStringContainsString("wrapper.classList.toggle('formatted-date-input--has-value', clearable && !isEmpty)", $script);
         $this->assertStringContainsString("input.dispatchEvent(new Event('change', { bubbles: true }))", $script);
         $this->assertStringContainsString("display.classList.toggle('date-input--empty', isEmpty)", $script);
         $this->assertStringContainsString("display.classList.toggle('date-input--filled', !isEmpty)", $script);
@@ -79,6 +86,10 @@ class MobileModalLayoutTest extends TestCase
         $this->assertStringContainsString('height: 3.125rem !important;', $styles);
         $this->assertStringContainsString('.formatted-date-input--has-value .formatted-date-input__clear-icon {', $styles);
         $this->assertStringContainsString('.formatted-date-input__display.date-input--empty::placeholder', $styles);
+        $this->assertStringContainsString('--app-placeholder: rgba(94, 118, 95, 0.78);', $styles);
+        $this->assertStringContainsString("input::placeholder,\n    textarea::placeholder {\n        color: var(--app-placeholder);", $styles);
+        $this->assertStringContainsString(".formatted-date-input__display.date-input--empty::placeholder {\n    color: var(--app-placeholder) !important;", $styles);
+        $this->assertStringNotContainsString('color: rgba(148, 163, 184, 0.78) !important;', $styles);
         $this->assertStringContainsString('.formatted-date-input__display.date-input--filled {', $styles);
     }
 

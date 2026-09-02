@@ -193,10 +193,10 @@ new class extends Component {
                 <p class="mt-3 text-sm leading-7 text-neutral-300">{{ __('reports.rankings.filters.subtitle') }}</p>
             </div>
 
-            <div class="grid gap-4">
-                <div>
-                    <label class="report-field-label mb-2 block text-sm font-medium">{{ __('reports.filters.academic_year') }}</label>
-                    <select wire:model.live="academic_year_id" class="report-control w-full rounded-xl px-3 py-2.5 text-sm">
+            <div class="report-filter-grid grid gap-4">
+                <div class="admin-filter-field min-w-0">
+                    <label>{{ __('reports.filters.academic_year') }}</label>
+                    <select wire:model.live="academic_year_id">
                         <option value="">{{ __('reports.filters.all_academic_years') }}</option>
                         @foreach ($academicYears as $academicYear)
                             <option value="{{ $academicYear->id }}">{{ $academicYear->name }}</option>
@@ -207,13 +207,13 @@ new class extends Component {
                 <div class="rounded-2xl border border-white/8 bg-white/4 p-4">
                     <div class="kpi-label">{{ __('reports.rankings.filters.first_range') }}</div>
                     <div class="mt-3 grid gap-3">
-                        <div>
-                            <label class="report-field-label mb-2 block text-sm font-medium">{{ __('reports.filters.date_from') }}</label>
-                            <input wire:model.live="first_date_from" type="date" placeholder="{{ __('reports.filters.date_from') }}" aria-label="{{ __('reports.filters.date_from') }}" data-date-placeholder="{{ __('reports.filters.date_from') }}" class="report-control w-full rounded-xl px-3 py-2.5 text-sm">
+                        <div class="admin-filter-field min-w-0">
+                            <label>{{ __('reports.filters.date_from') }}</label>
+                            <input wire:model.live="first_date_from" type="date" placeholder="{{ __('reports.filters.date_from') }}" aria-label="{{ __('reports.filters.date_from') }}" data-date-placeholder="{{ __('reports.filters.date_from') }}">
                         </div>
-                        <div>
-                            <label class="report-field-label mb-2 block text-sm font-medium">{{ __('reports.filters.date_to') }}</label>
-                            <input wire:model.live="first_date_to" type="date" placeholder="{{ __('reports.filters.date_to') }}" aria-label="{{ __('reports.filters.date_to') }}" data-date-placeholder="{{ __('reports.filters.date_to') }}" class="report-control w-full rounded-xl px-3 py-2.5 text-sm">
+                        <div class="admin-filter-field min-w-0">
+                            <label>{{ __('reports.filters.date_to') }}</label>
+                            <input wire:model.live="first_date_to" type="date" placeholder="{{ __('reports.filters.date_to') }}" aria-label="{{ __('reports.filters.date_to') }}" data-date-placeholder="{{ __('reports.filters.date_to') }}">
                         </div>
                     </div>
                 </div>
@@ -221,13 +221,13 @@ new class extends Component {
                 <div class="rounded-2xl border border-white/8 bg-white/4 p-4">
                     <div class="kpi-label">{{ __('reports.rankings.filters.second_range') }}</div>
                     <div class="mt-3 grid gap-3">
-                        <div>
-                            <label class="report-field-label mb-2 block text-sm font-medium">{{ __('reports.filters.date_from') }}</label>
-                            <input wire:model.live="second_date_from" type="date" placeholder="{{ __('reports.filters.date_from') }}" aria-label="{{ __('reports.filters.date_from') }}" data-date-placeholder="{{ __('reports.filters.date_from') }}" class="report-control w-full rounded-xl px-3 py-2.5 text-sm">
+                        <div class="admin-filter-field min-w-0">
+                            <label>{{ __('reports.filters.date_from') }}</label>
+                            <input wire:model.live="second_date_from" type="date" placeholder="{{ __('reports.filters.date_from') }}" aria-label="{{ __('reports.filters.date_from') }}" data-date-placeholder="{{ __('reports.filters.date_from') }}">
                         </div>
-                        <div>
-                            <label class="report-field-label mb-2 block text-sm font-medium">{{ __('reports.filters.date_to') }}</label>
-                            <input wire:model.live="second_date_to" type="date" placeholder="{{ __('reports.filters.date_to') }}" aria-label="{{ __('reports.filters.date_to') }}" data-date-placeholder="{{ __('reports.filters.date_to') }}" class="report-control w-full rounded-xl px-3 py-2.5 text-sm">
+                        <div class="admin-filter-field min-w-0">
+                            <label>{{ __('reports.filters.date_to') }}</label>
+                            <input wire:model.live="second_date_to" type="date" placeholder="{{ __('reports.filters.date_to') }}" aria-label="{{ __('reports.filters.date_to') }}" data-date-placeholder="{{ __('reports.filters.date_to') }}">
                         </div>
                     </div>
                 </div>

@@ -25,6 +25,8 @@ new class extends Component {
 
     public ?int $selectedStudentId = null;
     public ?int $selectedEnrollmentId = null;
+    public ?int $editingTestId = null;
+    public string $editingStudentName = '';
     public ?int $juz_id = null;
     public string $tested_on = '';
     public string $score = '';
@@ -107,6 +109,19 @@ new class extends Component {
             ->orderBy('last_name')
             ->get();
 
+        $eligibleJuzs = $this->eligibleJuzsForStudentId($this->selectedStudentId);
+
+        if ($this->editingTestId && $this->juz_id && ! $eligibleJuzs->contains('id', $this->juz_id)) {
+            $historicJuz = QuranJuz::query()->find($this->juz_id);
+
+            if ($historicJuz) {
+                $eligibleJuzs = $eligibleJuzs
+                    ->push($historicJuz)
+                    ->sortBy('juz_number')
+                    ->values();
+            }
+        }
+
         return [
             'tests' => $testsQuery->paginate($this->perPage),
             'filteredCount' => (clone $testsQuery)->count(),
@@ -117,7 +132,7 @@ new class extends Component {
                 ->orderByDesc('id')
                 ->get(),
             'juzOptions' => QuranJuz::query()->orderBy('juz_number')->get(),
-            'eligibleJuzs' => $this->eligibleJuzsForStudentId($this->selectedStudentId),
+            'eligibleJuzs' => $eligibleJuzs,
             'eligibleAwqafStudents' => $this->showEligibleAwqafModal ? $this->eligibleAwqafStudents() : collect(),
         ];
     }
@@ -194,6 +209,33 @@ new class extends Component {
         $this->showEligibleAwqafModal = true;
     }
 
+    public function openEdit(int $testId): void
+    {
+        $this->authorizeAnyPermission(['quran-awqaf-tests.record', 'quran-tests.record']);
+
+        $test = $this->quranTestsQuery(
+            QuranTest::query()->with(['student.parentProfile', 'enrollment.group.teacher', 'juz', 'type'])
+        )
+            ->whereHas('type', fn (Builder $query) => $query->where('code', 'awqaf'))
+            ->findOrFail($testId);
+
+        $currentTeacher = $this->currentTeacher();
+        abort_unless(! $currentTeacher || (int) $currentTeacher->id === (int) $test->teacher_id, 403);
+
+        $this->editingTestId = $test->id;
+        $this->editingStudentName = $test->student?->full_name ?: __('crud.common.not_available');
+        $this->selectedStudentId = $test->student_id;
+        $this->selectedEnrollmentId = $test->enrollment_id;
+        $this->juz_id = $test->juz_id;
+        $this->tested_on = $test->tested_on?->toDateString() ?: now()->toDateString();
+        $this->score = $test->score === null
+            ? ''
+            : rtrim(rtrim(number_format((float) $test->score, 2, '.', ''), '0'), '.');
+        $this->status = $test->status;
+        $this->showFormModal = true;
+        $this->resetValidation();
+    }
+
     public function closeEligibleAwqafModal(): void
     {
         $this->showEligibleAwqafModal = false;
@@ -208,7 +250,10 @@ new class extends Component {
     public function save(): void
     {
         $this->authorizeAnyPermission(['quran-awqaf-tests.record', 'quran-tests.record']);
-        \App\Support\OperationalFeatureSettings::ensureMemorizationAndSabersEnabled();
+
+        if (! $this->editingTestId) {
+            \App\Support\OperationalFeatureSettings::ensureMemorizationAndSabersEnabled();
+        }
 
         $validated = $this->validate([
             'selectedStudentId' => ['required', 'exists:students,id'],
@@ -223,27 +268,40 @@ new class extends Component {
             'score' => __('workflow.quran_tests.form.score'),
         ]);
 
-        $student = $this->quranStudentsQuery(Student::query())->findOrFail($validated['selectedStudentId']);
+        $editingTest = $this->editingTestId
+            ? $this->quranTestsQuery(
+                QuranTest::query()->with(['student', 'enrollment.student', 'enrollment.group.teacher', 'type'])
+            )
+                ->whereHas('type', fn (Builder $query) => $query->where('code', 'awqaf'))
+                ->findOrFail($this->editingTestId)
+            : null;
 
-        $availableEnrollmentIds = $this->availableEnrollmentsQuery()
-            ->pluck('id')
-            ->map(fn ($id) => (int) $id)
-            ->all();
+        if ($editingTest) {
+            abort_unless((int) $validated['selectedStudentId'] === (int) $editingTest->student_id, 403);
+            $enrollment = $editingTest->enrollment;
+            abort_unless($enrollment, 404);
+            $teacherId = $editingTest->teacher_id;
+        } else {
+            $this->quranStudentsQuery(Student::query())->findOrFail($validated['selectedStudentId']);
+            $availableEnrollmentIds = $this->availableEnrollmentsQuery()
+                ->pluck('id')
+                ->map(fn ($id) => (int) $id)
+                ->all();
 
-        if ($availableEnrollmentIds === []) {
-            $this->addError('selectedStudentId', __('workflow.quran_tests.errors.no_active_enrollment'));
+            if ($availableEnrollmentIds === []) {
+                $this->addError('selectedStudentId', __('workflow.quran_tests.errors.no_active_enrollment'));
 
-            return;
+                return;
+            }
+
+            $validated['selectedEnrollmentId'] = $availableEnrollmentIds[0];
+            $this->selectedEnrollmentId = $validated['selectedEnrollmentId'];
+
+            $enrollment = $this->quranEnrollmentsQuery(
+                Enrollment::query()->with(['student', 'group.teacher'])
+            )->findOrFail((int) $validated['selectedEnrollmentId']);
+            $teacherId = $this->resolvedTeacherId($enrollment);
         }
-
-        $validated['selectedEnrollmentId'] = $availableEnrollmentIds[0];
-        $this->selectedEnrollmentId = $validated['selectedEnrollmentId'];
-
-        $enrollment = $this->quranEnrollmentsQuery(
-            Enrollment::query()->with(['student', 'group.teacher'])
-        )->findOrFail((int) $validated['selectedEnrollmentId']);
-
-        $teacherId = $this->resolvedTeacherId($enrollment);
 
         if (! $teacherId) {
             $this->addError('selectedEnrollmentId', __('workflow.quran_tests.errors.no_teacher_available'));
@@ -251,8 +309,11 @@ new class extends Component {
             return;
         }
 
-        $testType = QuranTestType::query()->where('code', 'awqaf')->where('is_active', true)->firstOrFail();
-        $progression = app(QuranProgressionService::class)->validate($enrollment, (int) $validated['juz_id'], $testType);
+        $testType = $editingTest?->type
+            ?: QuranTestType::query()->where('code', 'awqaf')->where('is_active', true)->firstOrFail();
+        $progression = ! $editingTest || (int) $editingTest->juz_id !== (int) $validated['juz_id']
+            ? app(QuranProgressionService::class)->validate($enrollment, (int) $validated['juz_id'], $testType)
+            : null;
 
         if ($progression && ! $this->canAnyPermission(['quran-awqaf-tests.override-progression', 'quran-tests.override-progression'])) {
             $this->addError('juz_id', $progression);
@@ -260,26 +321,44 @@ new class extends Component {
             return;
         }
 
-        $test = QuranTest::query()->create([
-            'enrollment_id' => $enrollment->id,
-            'student_id' => $enrollment->student_id,
-            'teacher_id' => $teacherId,
-            'juz_id' => (int) $validated['juz_id'],
-            'quran_test_type_id' => $testType->id,
-            'tested_on' => $validated['tested_on'],
-            'score' => $validated['score'] !== '' ? $validated['score'] : null,
-            'status' => $validated['status'],
-            'attempt_no' => app(QuranProgressionService::class)->nextAttemptNumber(
-                $enrollment,
-                (int) $validated['juz_id'],
-                $testType->id,
-            ),
-            'notes' => null,
-        ]);
+        $test = DB::transaction(function () use ($editingTest, $enrollment, $teacherId, $testType, $validated): QuranTest {
+            $ledger = app(PointLedgerService::class);
 
-        app(PointLedgerService::class)->recordQuranTestPoints($test->fresh(['enrollment.student', 'student.gradeLevel', 'type']));
+            if ($editingTest) {
+                $ledger->voidSourceTransactions('quran_test', $editingTest->id, __('workflow.quran_tests.messages.updated_void_reason'));
+                $editingTest->update([
+                    'juz_id' => (int) $validated['juz_id'],
+                    'tested_on' => $validated['tested_on'],
+                    'score' => $validated['score'] !== '' ? $validated['score'] : null,
+                    'status' => $validated['status'],
+                ]);
+                $test = $editingTest->fresh(['enrollment.student', 'student.gradeLevel', 'type']);
+            } else {
+                $test = QuranTest::query()->create([
+                    'enrollment_id' => $enrollment->id,
+                    'student_id' => $enrollment->student_id,
+                    'teacher_id' => $teacherId,
+                    'juz_id' => (int) $validated['juz_id'],
+                    'quran_test_type_id' => $testType->id,
+                    'tested_on' => $validated['tested_on'],
+                    'score' => $validated['score'] !== '' ? $validated['score'] : null,
+                    'status' => $validated['status'],
+                    'attempt_no' => app(QuranProgressionService::class)->nextAttemptNumber(
+                        $enrollment,
+                        (int) $validated['juz_id'],
+                        $testType->id,
+                    ),
+                    'notes' => null,
+                ])->fresh(['enrollment.student', 'student.gradeLevel', 'type']);
+            }
 
-        session()->flash('status', __('workflow.quran_tests.messages.saved'));
+            $ledger->recordQuranTestPoints($test);
+            $ledger->syncEnrollmentCaches($enrollment->fresh(['student']));
+
+            return $test;
+        });
+
+        session()->flash('status', __($editingTest ? 'workflow.quran_tests.messages.updated' : 'workflow.quran_tests.messages.saved'));
         $this->closeFormModal();
     }
 
@@ -288,10 +367,16 @@ new class extends Component {
         $this->authorizePermission('quran-awqaf-tests.delete');
 
         $test = $this->quranTestsQuery(
-            QuranTest::query()->with(['enrollment.student', 'type'])
+            QuranTest::query()->with(['enrollment.student', 'enrollment.group.course', 'type'])
         )
             ->whereHas('type', fn (Builder $query) => $query->where('code', 'awqaf'))
             ->findOrFail($testId);
+
+        if ($test->enrollment?->belongsToFinishedCourse()) {
+            $this->addError('delete', __('workflow.common.finished_course_delete_locked'));
+
+            return;
+        }
 
         DB::transaction(function () use ($test): void {
             $ledger = app(PointLedgerService::class);
@@ -310,6 +395,8 @@ new class extends Component {
 
     public function resetForm(): void
     {
+        $this->editingTestId = null;
+        $this->editingStudentName = '';
         $this->selectedStudentId = null;
         $this->selectedEnrollmentId = null;
         $this->juz_id = null;
@@ -603,9 +690,9 @@ new class extends Component {
                                     {{ __('workflow.quran_tests.workbench.table.headers.teacher') }} <span>{{ $this->sortIndicator('teacher') }}</span>
                                 </button>
                             </th>
-                            @can('quran-awqaf-tests.delete')
+                            @canany(['quran-awqaf-tests.record', 'quran-tests.record', 'quran-awqaf-tests.delete'])
                                 <th class="admin-actions-column px-5 py-4 text-center lg:px-6">{{ __('crud.common.actions.actions') }}</th>
-                            @endcan
+                            @endcanany
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-white/6">
@@ -631,11 +718,20 @@ new class extends Component {
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $test->score !== null ? $test->score : __('workflow.common.not_available') }}</td>
                                 <td class="px-5 py-4 lg:px-6"><span class="status-chip {{ $test->status === 'passed' ? 'status-chip--emerald' : 'status-chip--slate' }}">{{ __('workflow.common.result_status.'.$test->status) }}</span></td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $test->teacher?->first_name }} {{ $test->teacher?->last_name }}</td>
-                                @can('quran-awqaf-tests.delete')
+                                @canany(['quran-awqaf-tests.record', 'quran-tests.record', 'quran-awqaf-tests.delete'])
                                     <td class="px-5 py-4 text-center lg:px-6">
-                                        <button type="button" wire:click="delete({{ $test->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="admin-icon-button admin-icon-button--danger" title="{{ __('crud.common.actions.delete') }}" aria-label="{{ __('crud.common.actions.delete') }}"><x-admin-action-icon name="delete" /></button>
+                                        <div class="flex flex-wrap justify-center gap-2">
+                                            @canany(['quran-awqaf-tests.record', 'quran-tests.record'])
+                                                <button type="button" wire:click="openEdit({{ $test->id }})" class="admin-icon-button" title="{{ __('crud.common.actions.edit') }}" aria-label="{{ __('crud.common.actions.edit') }}" data-awqaf-saber-edit><x-admin-action-icon name="edit" /></button>
+                                            @endcanany
+                                            @if (! $test->enrollment?->belongsToFinishedCourse())
+                                                @can('quran-awqaf-tests.delete')
+                                                    <button type="button" wire:click="delete({{ $test->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="admin-icon-button admin-icon-button--danger" title="{{ __('crud.common.actions.delete') }}" aria-label="{{ __('crud.common.actions.delete') }}" data-awqaf-saber-delete><x-admin-action-icon name="delete" /></button>
+                                                @endcan
+                                            @endif
+                                        </div>
                                     </td>
-                                @endcan
+                                @endcanany
                             </tr>
                         @endforeach
                     </tbody>
@@ -695,7 +791,7 @@ new class extends Component {
 
     <x-admin.modal
         :show="$showFormModal"
-        :title="__('workflow.quran_tests.workbench.form.title')"
+        :title="__($editingTestId ? 'workflow.quran_tests.workbench.form.edit_title' : 'workflow.quran_tests.workbench.form.title')"
         close-method="closeFormModal"
         max-width="3xl"
         compact
@@ -704,29 +800,33 @@ new class extends Component {
             <div class="grid gap-4 md:grid-cols-2">
                 <div>
                     <label for="quran-workbench-student" class="mb-1 block text-sm font-medium">{{ __('workflow.quran_tests.workbench.form.student') }}</label>
-                    <select
-                        id="quran-workbench-student"
-                        wire:key="quran-workbench-student-select"
-                        wire:model.live="selectedStudentId"
-                        data-search-input="true"
-                        data-open-on-focus="true"
-                        data-hide-placeholder-option="true"
-                        data-search-placeholder="{{ __('workflow.common.student_name_placeholder') }}"
-                        class="w-full rounded-xl px-4 py-3 text-sm"
-                    >
-                        <option value="">{{ __('workflow.quran_tests.workbench.form.select_student') }}</option>
-                        @foreach ($studentOptions as $student)
-                            <option value="{{ $student->id }}">
-                                {{ trim($student->first_name.' '.$student->last_name) }}
-                            </option>
-                        @endforeach
-                    </select>
+                    @if ($editingTestId)
+                        <input id="quran-workbench-student" type="text" value="{{ $editingStudentName }}" readonly class="w-full rounded-xl px-4 py-3 text-sm" data-awqaf-saber-student-readonly>
+                    @else
+                        <select
+                            id="quran-workbench-student"
+                            wire:key="quran-workbench-student-select"
+                            wire:model.live="selectedStudentId"
+                            data-search-input="true"
+                            data-open-on-focus="true"
+                            data-hide-placeholder-option="true"
+                            data-search-placeholder="{{ __('workflow.common.student_name_placeholder') }}"
+                            class="w-full rounded-xl px-4 py-3 text-sm"
+                        >
+                            <option value="">{{ __('workflow.quran_tests.workbench.form.select_student') }}</option>
+                            @foreach ($studentOptions as $student)
+                                <option value="{{ $student->id }}">
+                                    {{ trim($student->first_name.' '.$student->last_name) }}
+                                </option>
+                            @endforeach
+                        </select>
+                    @endif
                     @error('selectedStudentId') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
                 </div>
 
                 <div>
                     <label for="quran-workbench-juz" class="mb-1 block text-sm font-medium">{{ __('workflow.quran_tests.form.juz') }}</label>
-                    <select id="quran-workbench-juz" wire:model="juz_id" class="w-full rounded-xl px-4 py-3 text-sm">
+                    <select id="quran-workbench-juz" wire:model="juz_id" class="awqaf-saber-form__control w-full rounded-xl px-4 py-3 text-sm">
                         <option value="">{{ __('workflow.quran_tests.form.select_juz') }}</option>
                         @foreach ($eligibleJuzs as $juz)
                             <option value="{{ $juz->id }}">{{ __('workflow.common.labels.juz_number', ['number' => $juz->juz_number]) }}</option>
@@ -742,7 +842,7 @@ new class extends Component {
             <div class="grid gap-4 md:grid-cols-3">
                 <div>
                     <label for="quran-workbench-date" class="mb-1 block text-sm font-medium">{{ __('workflow.quran_tests.form.tested_on') }}</label>
-                    <input id="quran-workbench-date" wire:model="tested_on" type="date" class="w-full rounded-xl px-4 py-3 text-sm">
+                    <input id="quran-workbench-date" wire:model="tested_on" type="date" class="awqaf-saber-form__control w-full rounded-xl px-4 py-3 text-sm">
                     @error('tested_on') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
                 </div>
 
@@ -763,7 +863,13 @@ new class extends Component {
             </div>
 
             <div class="flex flex-wrap items-center gap-3">
-                <x-admin.create-and-new-button />
+                @if ($editingTestId)
+                    <button type="submit" class="admin-icon-button admin-icon-button--accent admin-modal-action-button" title="{{ __('crud.common.actions.save') }}" aria-label="{{ __('crud.common.actions.save') }}" data-awqaf-saber-update>
+                        <x-admin-action-icon name="save" class="admin-modal-action__icon" />
+                    </button>
+                @else
+                    <x-admin.create-and-new-button />
+                @endif
                 <button type="button" wire:click="closeFormModal" class="pill-link">{{ __('crud.common.actions.close') }}</button>
             </div>
         </form>

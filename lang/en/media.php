@@ -33,7 +33,7 @@ return [
         'files' => [
             'stored' => 'Stored files',
             'title' => 'Student files',
-            'description' => 'Upload supporting documents such as enrollment papers, IDs, or school files.',
+            'description' => 'Upload supporting documents such as enrolment papers, IDs, or school files.',
             'fields' => [
                 'type' => 'File type',
                 'file' => 'File',

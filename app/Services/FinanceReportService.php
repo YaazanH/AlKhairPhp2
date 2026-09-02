@@ -755,6 +755,44 @@ class FinanceReportService
         );
     }
 
+    public function balanceArabicPdfKashidas(string $value, int $count): string
+    {
+        if ($count < 1 || preg_match('/\p{Arabic}/u', $value) !== 1) {
+            return $value;
+        }
+
+        $characters = preg_split('//u', $value, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        $nonConnectingLetters = ['ء', 'ا', 'أ', 'إ', 'آ', 'ؤ', 'د', 'ذ', 'ر', 'ز', 'و', 'ة', 'ى'];
+        $joinPositions = [];
+
+        foreach ($characters as $index => $character) {
+            $next = $characters[$index + 1] ?? null;
+
+            if ($next !== null
+                && preg_match('/[\x{0621}-\x{063A}\x{0641}-\x{064A}\x{066E}-\x{06D3}]/u', $character) === 1
+                && preg_match('/[\x{0621}-\x{063A}\x{0641}-\x{064A}\x{066E}-\x{06D3}]/u', $next) === 1
+                && ! in_array($character, $nonConnectingLetters, true)) {
+                $joinPositions[] = $index;
+            }
+        }
+
+        if ($joinPositions === []) {
+            return $value;
+        }
+
+        $insertions = [];
+        for ($index = 0; $index < $count; $index++) {
+            $position = $joinPositions[$index % count($joinPositions)];
+            $insertions[$position] = ($insertions[$position] ?? 0) + 1;
+        }
+
+        return implode('', array_map(
+            fn (string $character, int $index): string => $character.str_repeat("\u{0640}", $insertions[$index] ?? 0),
+            $characters,
+            array_keys($characters),
+        ));
+    }
+
     protected function buildLedgerReportArray(
         FinanceReportTemplate $template,
         string $cashBoxName,
@@ -979,7 +1017,7 @@ class FinanceReportService
 
     protected function ledgerPdfRendererVersion(): string
     {
-        return 'mpdf-fixed-ledger-v27';
+        return 'mpdf-fixed-ledger-v31';
     }
 
     public function reportStampPdfSource(): ?string

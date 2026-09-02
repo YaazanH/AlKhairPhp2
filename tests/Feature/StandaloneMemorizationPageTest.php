@@ -11,6 +11,7 @@ use App\Models\ParentProfile;
 use App\Models\Student;
 use App\Models\Teacher;
 use App\Models\User;
+use App\Services\CourseLifecycleService;
 use App\Services\MemorizationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Volt\Volt;
@@ -23,8 +24,11 @@ class StandaloneMemorizationPageTest extends TestCase
     public function test_quick_memorization_submit_uses_the_shared_save_symbol(): void
     {
         $source = file_get_contents(resource_path('views/livewire/memorization/quick-entry.blade.php'));
+        $styles = file_get_contents(resource_path('css/app.css'));
 
         $this->assertStringContainsString('data-quick-memorization-save-action', $source);
+        $this->assertSame(2, substr_count($source, 'class="quick-memorization-page-input w-full rounded-xl px-4 py-2 text-base" data-quick-memorization-page-input'));
+        $this->assertStringContainsString(".quick-memorization-page-input {\n    height: 3.125rem;\n    min-height: 3.125rem;", $styles);
         $this->assertStringContainsString('class="admin-icon-button admin-icon-button--accent quick-entry-save-action"', $source);
         $this->assertStringContainsString('<x-admin-action-icon name="save" />', $source);
         $this->assertStringNotContainsString("<button type=\"submit\" class=\"pill-link pill-link--accent\">{{ __('workflow.memorization.quick_entry.form.save') }}</button>", $source);
@@ -395,10 +399,14 @@ class StandaloneMemorizationPageTest extends TestCase
             'to_page' => 13,
             'notes' => 'Historic memorization note',
         ]);
+        $enrollment->update(['status' => 'inactive']);
 
         Volt::test('memorization.index')
             ->call('editSession', $session->id)
             ->assertDontSee('memorization-notes', false)
+            ->assertSee('Memorization Student')
+            ->assertSee('data-memorization-student-readonly', false)
+            ->assertSee('readonly', false)
             ->set('recorded_on', '2026-09-04')
             ->call('save')
             ->assertHasNoErrors();
@@ -408,6 +416,30 @@ class StandaloneMemorizationPageTest extends TestCase
             'notes' => 'Historic memorization note',
             'recorded_on' => '2026-09-04 00:00:00',
         ]);
+    }
+
+    public function test_memorization_from_a_finished_course_cannot_be_deleted(): void
+    {
+        [, $teacher, $enrollment] = $this->teacherMemorizationContext();
+
+        $session = app(MemorizationService::class)->saveSession($enrollment, [
+            'teacher_id' => $teacher->id,
+            'recorded_on' => '2026-09-03',
+            'entry_type' => 'new',
+            'from_page' => 11,
+            'to_page' => 13,
+        ]);
+
+        app(CourseLifecycleService::class)->finish($enrollment->group->course);
+
+        Volt::test('memorization.index')
+            ->call('editSession', $session->id)
+            ->assertSet('editingCourseFinished', true)
+            ->assertDontSee('data-memorization-session-delete-action', false)
+            ->call('deleteSession', $session->id)
+            ->assertHasErrors(['deleteSession']);
+
+        $this->assertDatabaseHas('memorization_sessions', ['id' => $session->id]);
     }
 
     private function teacherMemorizationContext(): array

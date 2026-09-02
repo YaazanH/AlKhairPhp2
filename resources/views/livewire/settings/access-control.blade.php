@@ -127,6 +127,7 @@ new class extends Component {
 
         $role = Role::findByName($roleName, 'web');
 
+        $this->showPermissionsModal = false;
         $this->editing_role = $role->name;
         $this->role_name = Str::of($role->name)->replace('_', ' ')->headline()->toString();
         $this->clone_role = '';
@@ -477,7 +478,6 @@ new class extends Component {
                                         >
                                             <x-admin-action-icon name="permissions" />
                                         </button>
-                                        <x-edit-action-button wire:click="openEditRoleModal('{{ $role->name }}')" :label="__('access.roles.actions.edit')" data-role-edit-action />
                                     </div>
                                 </td>
                             </tr>
@@ -560,6 +560,13 @@ new class extends Component {
                         <path stroke-linecap="round" stroke-linejoin="round" d="M8 3.75v5.5h8v-5.5M8.25 20.25v-6.5h8v6.5" />
                     </svg>
                 </button>
+                <x-edit-action-button
+                    wire:click="openEditRoleModal('{{ $selectedRoleRecord->name }}')"
+                    :label="__('access.roles.actions.edit')"
+                    class="admin-modal__close"
+                    data-role-edit-action
+                    data-permissions-edit-action
+                />
             @endif
         </x-slot:header-actions>
         @if ($selectedRoleRecord)

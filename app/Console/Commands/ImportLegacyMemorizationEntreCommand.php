@@ -30,7 +30,7 @@ class ImportLegacyMemorizationEntreCommand extends Command
         {--group-name=Import Group : Placeholder group name for imported legacy pages}
         {--academic-year-name=Legacy Import : Placeholder academic year name if one must be created}';
 
-    protected $description = 'Import legacy memorization pages from entre.csv into one placeholder import course/group without creating legacy memorization points.';
+    protected $description = 'Import legacy memorisation pages from entre.csv into one placeholder import course/group without creating legacy memorisation points.';
 
     /**
      * @var array<string, list<array{id:int, student_number:?string, full_name:string}>>
@@ -498,7 +498,7 @@ class ImportLegacyMemorizationEntreCommand extends Command
         $course = Course::withTrashed()->firstOrNew([
             'name' => (string) $this->option('course-name'),
         ]);
-        $course->description = 'Placeholder course for legacy memorization import.';
+        $course->description = 'Placeholder course for legacy memorisation import.';
         $course->is_active = false;
         $course->deleted_at = null;
         $course->save();

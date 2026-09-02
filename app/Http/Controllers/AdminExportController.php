@@ -132,7 +132,7 @@ class AdminExportController extends Controller
             $query->where('status', $request->string('status')->value());
         }
 
-        return $this->streamXlsx('students', ['Student', 'Student Number', 'Username', 'Password', 'Parent', 'School', 'Grade', 'Current Juz', 'Enrollments', 'Status'], $query->get()->map(fn (Student $student) => [
+        return $this->streamXlsx('students', ['Student', 'Student Number', 'Username', 'Password', 'Parent', 'School', 'Grade', 'Current Juz', 'Enrolments', 'Status'], $query->get()->map(fn (Student $student) => [
             $student->full_name,
             $student->student_number,
             $student->user?->username,

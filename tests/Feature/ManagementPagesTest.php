@@ -97,7 +97,9 @@ class ManagementPagesTest extends TestCase
         $this->assertStringContainsString('.assessment-results-filter-pdf-button {', $styles);
         $this->assertStringContainsString('flex-basis: 3.125rem;', $styles);
         $this->assertStringContainsString('data-finance-report-create-save-action', $financeReports);
-        $this->assertStringContainsString('<x-admin-action-icon name="save" class="admin-modal-action__icon" />', $financeReports);
+        $this->assertStringContainsString('wire:click="createReport"', $financeReports);
+        $this->assertStringContainsString('x-on:financial-report-created.window="showGeneratedReport($event.detail.url)"', $financeReports);
+        $this->assertStringContainsString('<x-admin-action-icon name="financial-report-create" class="admin-modal-action__icon" />', $financeReports);
     }
 
     public function test_non_pdf_export_actions_use_the_shared_export_symbol_without_visible_text(): void
@@ -140,15 +142,29 @@ class ManagementPagesTest extends TestCase
         $this->assertStringNotContainsString('name="export"', $pdfIcon);
     }
 
-    public function test_saved_financial_reports_use_the_view_file_icon(): void
+    public function test_saved_financial_reports_use_the_supplied_document_search_icon(): void
     {
         $reports = file_get_contents(resource_path('views/livewire/finance/reports.blade.php'));
         $icons = file_get_contents(resource_path('views/components/admin-action-icon.blade.php'));
 
         $this->assertStringContainsString('data-financial-record-view-action', $reports);
         $this->assertStringContainsString('class="admin-icon-button"', $reports);
-        $this->assertStringContainsString('<x-admin-action-icon name="view-file" />', $reports);
-        $this->assertStringContainsString("@case('view-file')", $icons);
+        $this->assertStringContainsString('<x-admin-action-icon name="financial-report-open" />', $reports);
+        $this->assertStringNotContainsString('<x-admin-action-icon name="open" />', $reports);
+        $this->assertStringNotContainsString('<x-admin-action-icon name="view-file" />', $reports);
+        $this->assertStringContainsString("'financial-report-open' => '0 0 950.04 1050.41'", $icons);
+        $this->assertStringContainsString("@case('financial-report-open')", $icons);
+        $this->assertStringContainsString('data-supplied-financial-report-open-icon', $icons);
+    }
+
+    public function test_new_financial_report_uses_the_supplied_optically_centred_document_icon(): void
+    {
+        $icons = file_get_contents(resource_path('views/components/admin-action-icon.blade.php'));
+
+        $this->assertStringContainsString("'financial-report-create' => '0 0 458 531.2'", $icons);
+        $this->assertStringContainsString("@case('financial-report-create')", $icons);
+        $this->assertStringContainsString('data-supplied-financial-report-create-icon', $icons);
+        $this->assertStringContainsString('transform="translate(42.33 25.91)"', $icons);
     }
 
     public function test_report_hub_excel_exports_keep_their_visible_names(): void
@@ -158,6 +174,7 @@ class ManagementPagesTest extends TestCase
 
         $this->assertSame(5, substr_count($reports, 'class="pill-link'));
         $this->assertSame(5, substr_count($reports, 'report-export-link'));
+        $this->assertStringNotContainsString('pill-link--accent report-export-link', $reports);
         $this->assertStringContainsString('class="report-export-list mt-4"', $reports);
         $this->assertStringContainsString("{{ __('reports.exports.attendance') }}</a>", $reports);
         $this->assertStringContainsString("{{ __('reports.exports.memorization') }}</a>", $reports);
@@ -511,6 +528,7 @@ class ManagementPagesTest extends TestCase
         $icon = file_get_contents(resource_path('views/components/admin-action-icon.blade.php'));
 
         foreach ([
+            'data-finance-dashboard-move-money' => ['transfer', 'finance.dashboard.move_money'],
             'data-finance-dashboard-details' => ['chart', 'finance.actions.details'],
             'data-finance-dashboard-request-history' => ['history', 'finance.dashboard.previous_requests'],
             'data-finance-dashboard-new-request' => ['add', 'finance.pull_requests.new'],
@@ -520,6 +538,9 @@ class ManagementPagesTest extends TestCase
             $this->assertStringContainsString("aria-label=\"{{ __('{$translation}') }}\"", $dashboard);
             $this->assertStringContainsString("<x-admin-action-icon name=\"{$iconName}\" />", $dashboard);
         }
+
+        $this->assertStringContainsString('data-finance-dashboard-move-money><x-admin-action-icon name="transfer" />', $dashboard);
+        $this->assertSame(2, substr_count($dashboard, 'class="admin-icon-button admin-icon-button--accent finance-dashboard-header-action"'));
 
         $this->assertStringContainsString("@case('chart')", $icon);
         $this->assertStringContainsString('M4 3.5v15.25A1.75 1.75 0 0 0 5.75 20.5H21', $icon);
@@ -555,7 +576,7 @@ class ManagementPagesTest extends TestCase
         $this->assertStringNotContainsString('<circle cx="12" cy="12" r="6.25" />', $icon);
     }
 
-    public function test_expense_invoice_row_action_uses_the_receipt_symbol_without_visible_text(): void
+    public function test_expense_invoice_row_action_uses_the_supplied_invoice_symbol_without_visible_text(): void
     {
         $expenses = file_get_contents(resource_path('views/livewire/finance/expense-requests.blade.php'));
         $icon = file_get_contents(resource_path('views/components/admin-action-icon.blade.php'));
@@ -564,12 +585,14 @@ class ManagementPagesTest extends TestCase
         $this->assertStringContainsString('data-expense-receipt-action', $expenses);
         $this->assertStringContainsString("title=\"{{ __('finance.actions.view_invoice') }}\"", $expenses);
         $this->assertStringContainsString("aria-label=\"{{ __('finance.actions.view_invoice') }}\"", $expenses);
-        $this->assertStringContainsString('<x-admin-action-icon name="receipt" />', $expenses);
+        $this->assertStringContainsString('<x-admin-action-icon name="expense-invoice-view" />', $expenses);
         $this->assertStringNotContainsString("pill-link pill-link--compact\">{{ __('finance.actions.view_invoice') }}", $expenses);
-        $this->assertStringContainsString("@case('receipt')", $icon);
-        $this->assertStringContainsString('data-receipt-icon="supplied-invoice-sheet"', $icon);
-        $this->assertStringContainsString('M65.928 90H20.04', $icon);
-        $this->assertStringContainsString('M74.635 55.709', $icon);
+        $this->assertStringContainsString("'expense-invoice-view' => '0 0 513.97 658.21'", $icon);
+        $this->assertStringContainsString("in_array(\$name, ['financial-report-create', 'expense-invoice-view', 'transaction-invoice-edit'], true)", $icon);
+        $this->assertStringContainsString("@case('expense-invoice-view')", $icon);
+        $this->assertStringContainsString('data-supplied-expense-invoice-view-icon', $icon);
+        $this->assertStringContainsString('M133.15,658.06', $icon);
+        $this->assertStringContainsString('M418.89,485.32', $icon);
         $this->assertStringContainsString('.admin-modal:has([data-invoice-view-items-box]) {', $styles);
         $this->assertStringContainsString('inset-block-start: 4rem;', $styles);
         $this->assertStringContainsString('.admin-modal:has([data-invoice-view-items-box]) .admin-modal__body {', $styles);
@@ -579,12 +602,17 @@ class ManagementPagesTest extends TestCase
     public function test_invoice_details_action_uses_the_supplied_receipt_symbol_without_visible_text(): void
     {
         $invoices = file_get_contents(resource_path('views/livewire/invoices/index.blade.php'));
+        $icon = file_get_contents(resource_path('views/components/admin-action-icon.blade.php'));
 
         $this->assertStringContainsString('data-invoice-receipt-action', $invoices);
         $this->assertStringContainsString("title=\"{{ __('invoices.index.table.actions.detail') }}\"", $invoices);
         $this->assertStringContainsString("aria-label=\"{{ __('invoices.index.table.actions.detail') }}\"", $invoices);
         $this->assertStringContainsString('<x-admin-action-icon name="receipt" />', $invoices);
         $this->assertStringNotContainsString("pill-link pill-link--compact\">{{ __('invoices.index.table.actions.detail') }}", $invoices);
+        $this->assertStringContainsString("@case('receipt')", $icon);
+        $this->assertStringContainsString('data-receipt-icon="supplied-invoice-sheet"', $icon);
+        $this->assertStringContainsString('M65.928 90H20.04', $icon);
+        $this->assertStringContainsString('M74.635 55.709', $icon);
     }
 
     public function test_income_print_and_exchange_save_actions_use_symbols_without_visible_text(): void
@@ -596,10 +624,14 @@ class ManagementPagesTest extends TestCase
 
         $this->assertStringContainsString('class="admin-icon-button"', $income);
         $this->assertStringContainsString('data-income-direct-print', $income);
+        $this->assertStringContainsString("'pdf' => 1", $income);
+        $this->assertStringNotContainsString("'auto_print' => 1", $income);
         $this->assertStringContainsString('<x-admin-action-icon name="print" />', $income);
         $this->assertStringNotContainsString("data-income-direct-print>{{ __('finance.actions.print') }}", $income);
         $this->assertStringContainsString('class="exchange-notes-action"', $exchange);
-        $this->assertStringContainsString('class="exchange-entry-form mt-5 grid gap-4 lg:grid-cols-4"', $exchange);
+        $this->assertStringContainsString('class="exchange-entry-form mt-5 grid gap-4"', $exchange);
+        $this->assertSame(2, substr_count($exchange, 'class="exchange-entry-form__amount"'));
+        $this->assertStringContainsString('class="exchange-entry-form__action-spacer"', $exchange);
         $this->assertStringContainsString('data-exchange-to-amount-edit', $exchange);
         $this->assertStringContainsString('filled($from_amount) && filled($to_amount) && ! $to_amount_is_manual', $exchange);
         $this->assertStringContainsString('data-exchange-save-action', $exchange);
@@ -609,7 +641,10 @@ class ManagementPagesTest extends TestCase
         $this->assertStringContainsString("@case('save')", $icon);
         $this->assertStringContainsString("grid-template-columns: minmax(0, 1fr) 3.125rem;\n    align-items: end;\n    gap: 0.4rem;", $styles);
         $this->assertStringContainsString(".exchange-notes-action input {\n    height: 3.125rem;", $styles);
-        $this->assertStringContainsString(".exchange-entry-form .finance-amount-input {\n        grid-template-columns: repeat(2, minmax(0, 1fr));\n        gap: 1rem;", $styles);
+        $this->assertStringContainsString(".exchange-entry-form {\n        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 5.5rem minmax(0, 1fr) 3.125rem;\n        align-items: end;", $styles);
+        $this->assertStringContainsString(".exchange-entry-form .finance-amount-input {\n        grid-template-columns: 5.5rem minmax(0, 1fr);\n        gap: 1rem;", $styles);
+        $this->assertStringContainsString(".exchange-entry-form .exchange-notes-action {\n        position: relative;\n        gap: 1rem;", $styles);
+        $this->assertStringContainsString(".exchange-entry-form .exchange-notes-action > .admin-icon-button {\n        position: absolute;\n        inset-inline-end: 0;\n        bottom: 0;\n        height: 8.75rem;", $styles);
         $this->assertStringContainsString("html[dir='rtl'] .exchange-to-amount-value {", $styles);
     }
 
@@ -630,6 +665,81 @@ class ManagementPagesTest extends TestCase
         $this->assertStringContainsString('data-eligible-awqaf-icon="students-check"', $icon);
         $this->assertStringContainsString('m9.75 17.3 1.55 1.6 3.15-3.45', $icon);
         $this->assertStringContainsString(".eligible-awqaf-action > svg {\n    width: 1.35rem;\n    height: 1.35rem;\n    flex-basis: 1.35rem;", $styles);
+    }
+
+    public function test_awqaf_create_modal_uses_the_requested_title_and_equal_juz_and_date_heights(): void
+    {
+        $quranTests = file_get_contents(resource_path('views/livewire/quran-tests/index.blade.php'));
+        $styles = file_get_contents(resource_path('css/app.css'));
+
+        $this->assertSame('إضافة سبر أوقاف', __('workflow.quran_tests.workbench.form.title', [], 'ar'));
+        $this->assertStringContainsString('id="quran-workbench-juz" wire:model="juz_id" class="awqaf-saber-form__control', $quranTests);
+        $this->assertStringContainsString('id="quran-workbench-date" wire:model="tested_on" type="date" class="awqaf-saber-form__control', $quranTests);
+        $this->assertStringContainsString(".awqaf-saber-form__control {\n    height: 3.125rem !important;\n    min-height: 3.125rem !important;", $styles);
+    }
+
+    public function test_requested_create_and_edit_fields_use_the_standard_rounded_control_shape(): void
+    {
+        $curriculum = file_get_contents(resource_path('views/livewire/curricula/show.blade.php'));
+        $assessments = file_get_contents(resource_path('views/livewire/assessments/index.blade.php'));
+        $notes = file_get_contents(resource_path('views/livewire/student-notes/index.blade.php'));
+        $groups = file_get_contents(resource_path('views/livewire/groups/index.blade.php'));
+        $organization = file_get_contents(resource_path('views/livewire/settings/organization.blade.php'));
+        $styles = file_get_contents(resource_path('css/app.css'));
+
+        $this->assertSame(4, substr_count($curriculum, 'h-11 w-full rounded-xl px-3 text-sm'));
+        $this->assertSame(4, substr_count($assessments, 'assessment-form__course-height-control'));
+        $this->assertStringNotContainsString('assessment-form__course-height-control w-full rounded-lg', $assessments);
+        $this->assertStringNotContainsString('assessment-form__course-height-control flex items-center rounded-lg', $assessments);
+        $this->assertStringContainsString('student-note-form__control date-control--match-select w-full rounded-xl', $notes);
+        $this->assertStringContainsString('wire:model="body" rows="6" class="w-full rounded-xl', $notes);
+        $this->assertStringContainsString('id="group-name" wire:model="name" type="text" class="group-form__identity-control', $groups);
+        $this->assertStringContainsString('id="group-course" wire:model.live="course_id" class="group-form__identity-control', $groups);
+        $this->assertStringContainsString(".group-form__identity-control,\n.group-form__identity-control + .searchable-select :is(", $styles);
+
+        $organizationForm = str($organization)->after('id="organization-settings-form"')->before('</form>')->toString();
+        $this->assertSame(10, substr_count($organizationForm, 'rounded-xl border border-neutral-300'));
+        $this->assertDoesNotMatchRegularExpression('/<input[^>]+rounded-lg/', $organizationForm);
+    }
+
+    public function test_editable_textboxes_share_the_searchable_select_background_throughout_the_program(): void
+    {
+        $styles = file_get_contents(resource_path('css/app.css'));
+
+        $this->assertStringContainsString('--app-control-background: rgba(255, 255, 251, 0.9);', $styles);
+        $this->assertStringContainsString('--app-control-background: rgba(31, 24, 19, 0.88);', $styles);
+        $this->assertStringContainsString("input:not([type='checkbox']):not([type='radio']):not([type='file']):not([type='color']):not([type='range']):not([type='hidden']):not([type='button']):not([type='submit']):not([type='reset']):not([type='image']):not([readonly]):not(:disabled):not(.bg-transparent):not([data-print-template-background-input]):not(.admin-filter-field input)", $styles);
+        $this->assertStringContainsString('textarea:not([readonly]):not(:disabled):not(.bg-transparent):not(.admin-filter-field textarea)', $styles);
+        $this->assertStringContainsString('.formatted-date-input__display:not(.admin-filter-field .formatted-date-input__display)', $styles);
+        $this->assertStringContainsString('.searchable-select__button:not(:disabled):not(.admin-filter-field .searchable-select__button)', $styles);
+        $this->assertStringContainsString('background: var(--app-control-background) !important;', $styles);
+    }
+
+    public function test_curricula_report_filters_and_zero_group_capacity_use_the_requested_compact_presentation(): void
+    {
+        $curricula = file_get_contents(resource_path('views/livewire/curricula/index.blade.php'));
+        $groups = file_get_contents(resource_path('views/livewire/groups/index.blade.php'));
+        $styles = file_get_contents(resource_path('css/app.css'));
+
+        $this->assertStringContainsString("{{ \$isManager ? 'items-center' : 'items-start' }}", $curricula);
+        $this->assertStringContainsString('class="curricula-index-hero-title-row"', $curricula);
+        $this->assertStringContainsString('class="font-display text-4xl leading-none text-white md:text-5xl"', $curricula);
+        $this->assertStringContainsString('class="curricula-index-course-filter" data-curricula-index-course-filter', $curricula);
+        $this->assertStringNotContainsString("__('curricula.subtitle')", $curricula);
+        $this->assertStringContainsString(".curricula-index-hero-title-row {\n    display: flex;\n    width: 100%;\n    min-height: 3.125rem;\n    min-width: 0;\n    align-items: center;", $styles);
+        $this->assertStringContainsString(".curricula-index-course-filter {\n    position: relative;\n    z-index: 30;\n    width: min(100%, var(--curricula-course-filter-width, 16rem));", $styles);
+        $reportViews = collect([
+            'index',
+            'rankings',
+            'groups-ranking',
+            'students-ranking',
+            'student-quran-tests',
+        ])->map(fn (string $view): string => file_get_contents(resource_path("views/livewire/reports/{$view}.blade.php")));
+        $this->assertTrue($reportViews->every(fn (string $view): bool => str_contains($view, 'admin-filter-field')));
+        $this->assertTrue($reportViews->every(fn (string $view): bool => ! str_contains($view, 'report-control')));
+        $this->assertStringNotContainsString('.report-control', $styles);
+        $this->assertStringContainsString('@if ((int) $group->capacity > 0)', $groups);
+        $this->assertStringContainsString('data-group-capacity', $groups);
     }
 
     public function test_standalone_books_launcher_uses_the_book_symbol_without_visible_text(): void
@@ -789,9 +899,8 @@ class ManagementPagesTest extends TestCase
         $this->assertStringContainsString('data-transaction-maintenance-save-action', $finance);
         $this->assertStringContainsString('<x-admin-action-icon name="save" />', $finance);
         $this->assertStringContainsString('data-transaction-maintenance-receipt-action', $finance);
-        $this->assertStringContainsString('<x-admin-action-icon name="receipt" />', $finance);
-        $this->assertStringContainsString('class="transaction-maintenance-invoice-edit-icon__pen"', $finance);
-        $this->assertStringContainsString('<x-admin-action-icon name="edit" />', $finance);
+        $this->assertStringContainsString('<x-admin-action-icon name="transaction-invoice-edit" />', $finance);
+        $this->assertStringNotContainsString('transaction-maintenance-invoice-edit-icon__pen', $finance);
         $this->assertStringContainsString('data-transaction-maintenance-delete-action', $finance);
         $this->assertStringContainsString('class="admin-icon-button admin-icon-button--danger transaction-maintenance-action-button self-center"', $finance);
         $this->assertStringContainsString('<x-admin-action-icon name="delete" />', $finance);
@@ -799,7 +908,12 @@ class ManagementPagesTest extends TestCase
         $this->assertStringContainsString("@case('search')", $icon);
         $this->assertStringContainsString("@case('delete')", $icon);
         $this->assertStringContainsString('.transaction-maintenance-lookup,', $styles);
-        $this->assertStringContainsString('.transaction-maintenance-invoice-edit-icon__pen {', $styles);
+        $this->assertStringContainsString("'transaction-invoice-edit' => '0 0 543.55 785.48'", $icon);
+        $this->assertStringContainsString("@case('transaction-invoice-edit')", $icon);
+        $this->assertStringContainsString('data-supplied-transaction-invoice-edit-icon', $icon);
+        $this->assertStringContainsString('M27.04,27.2v731', $icon);
+        $this->assertStringContainsString('M432.69,636.85', $icon);
+        $this->assertStringNotContainsString('.transaction-maintenance-invoice-edit-icon__pen {', $styles);
         $this->assertStringContainsString("width: 3.125rem;\n    min-width: 3.125rem;\n    height: 3.125rem;\n    min-height: 3.125rem;\n    flex: 0 0 3.125rem;\n    aspect-ratio: 1 / 1;", $styles);
     }
 
@@ -937,10 +1051,12 @@ class ManagementPagesTest extends TestCase
         $this->assertStringNotContainsString('transform="translate(-0.5 0.75) scale(0.92)"', $icon);
 
         $assessments = file_get_contents(resource_path('views/livewire/assessments/index.blade.php'));
+        $saveButton = file_get_contents(resource_path('views/components/admin/save-button.blade.php'));
         $this->assertStringNotContainsString('<x-admin.create-and-new-button', $assessments);
         $this->assertStringNotContainsString('SupportsCreateAndNew', $assessments);
         $this->assertStringContainsString('data-assessment-save-action', $assessments);
-        $this->assertStringContainsString('<x-admin-action-icon name="save" class="admin-modal-action__icon" />', $assessments);
+        $this->assertStringContainsString('<x-admin.save-button', $assessments);
+        $this->assertStringContainsString('<x-admin-action-icon name="save" class="admin-modal-action__icon" />', $saveButton);
 
         foreach ([
             'livewire/finance/expense-requests.blade.php' => 'data-expense-request-save',
@@ -1226,6 +1342,16 @@ class ManagementPagesTest extends TestCase
             $styles,
         );
         $this->assertStringContainsString(
+            ".admin-grid-meta--controls .admin-toolbar__controls:not(.student-activity-report-filters) > .admin-filter-field--course {\n    width: 15rem;\n    flex-basis: 15rem;",
+            $styles,
+        );
+        foreach (['groups/index.blade.php', 'enrollments/index.blade.php', 'assessments/index.blade.php'] as $view) {
+            $this->assertStringContainsString(
+                'admin-filter-field admin-filter-field--course',
+                file_get_contents(resource_path('views/livewire/'.$view)),
+            );
+        }
+        $this->assertStringContainsString(
             ".id-card-selection-toolbar .admin-toolbar__controls:not(.student-activity-report-filters) > .admin-filter-field {\n    width: auto;\n    flex: 1 1 12rem;",
             $styles,
         );
@@ -1318,7 +1444,12 @@ class ManagementPagesTest extends TestCase
         $this->assertStringContainsString('data-role-permissions-action', $accessControl);
         $this->assertStringContainsString('<x-admin-action-icon name="permissions" />', $accessControl);
         $this->assertStringContainsString('data-role-edit-action', $accessControl);
-        $this->assertStringContainsString('<x-edit-action-button wire:click="openEditRoleModal', $accessControl);
+        $this->assertStringContainsString('wire:click="openEditRoleModal', $accessControl);
+        $this->assertStringContainsString('data-permissions-edit-action', $accessControl);
+        $this->assertGreaterThan(
+            strpos($accessControl, '<x-slot:header-actions>'),
+            strpos($accessControl, 'data-permissions-edit-action'),
+        );
         $this->assertStringNotContainsString("{{ __('access.roles.actions.permissions') }}\n                                        </button>", $accessControl);
         $this->assertStringNotContainsString("{{ __('access.roles.actions.edit') }}\n                                        </button>", $accessControl);
         $this->assertStringContainsString("@case('permissions')", $icon);
@@ -1467,7 +1598,11 @@ class ManagementPagesTest extends TestCase
 
         $expenseIcon = file_get_contents(resource_path('views/flux/icon/expense-receipt.blade.php'));
         $this->assertStringContainsString('<x-sidebar-outline-icon', $expenseIcon);
-        $this->assertStringContainsString('data-expense-icon="traced-rolled-receipt"', $expenseIcon);
+        $this->assertStringContainsString('data-expense-icon="supplied-expenses-receipt"', $expenseIcon);
+        $this->assertStringContainsString('transform="translate(0.487 0.362) scale(0.036632)"', $expenseIcon);
+        $this->assertStringContainsString('M523.8,71.2c17.9,3.6', $expenseIcon);
+        $this->assertStringContainsString('M315,299.7c-.2,0-.4,0-.6,0', $expenseIcon);
+        $this->assertStringContainsString('M194,442.1c-4.4,0-8.8-.2-11.5-.4', $expenseIcon);
         $this->assertStringNotContainsString("asset('images/sidebar/expenses.svg')", $expenseIcon);
         $this->assertFileDoesNotExist(public_path('images/sidebar/expenses.svg'));
     }
@@ -1942,6 +2077,16 @@ class ManagementPagesTest extends TestCase
         ] as $path) {
             $this->get($path)->assertForbidden();
         }
+    }
+
+    public function test_arabic_student_school_meta_uses_natural_spacing_and_thin_weight(): void
+    {
+        $students = file_get_contents(resource_path('views/livewire/students/index.blade.php'));
+        $styles = file_get_contents(resource_path('css/app.css'));
+
+        $this->assertStringContainsString('class="student-inline__meta"', $students);
+        $this->assertStringContainsString(".student-inline__meta {\n    margin-top: 0.25rem;\n    font-size: 0.72rem;\n    font-weight: 300;", $styles);
+        $this->assertStringContainsString("html[lang^='ar'] .student-inline__meta {\n    text-transform: none;\n    letter-spacing: 0;", $styles);
     }
 
     private function makeRouteModels(): array

@@ -1736,10 +1736,17 @@ class ManagementCrudTest extends TestCase
             'birth_date' => '2014-01-01',
             'status' => 'active',
         ]);
+        $inactiveStudent = Student::create([
+            'first_name' => 'Inactive',
+            'last_name' => 'Picker Student',
+            'birth_date' => '2014-01-02',
+            'status' => 'inactive',
+        ]);
 
         $component = Volt::test('enrollments.index')
             ->call('openCreateModal')
             ->assertSet('enrolled_at', now()->toDateString())
+            ->assertViewHas('students', fn ($students) => $students->pluck('id')->all() === [$student->id])
             ->assertViewHas('groups', fn ($groups) => $groups->pluck('id')->all() === [$alphaGroup->id, $zuluGroup->id]);
 
         $this->assertStringContainsString(
@@ -1755,6 +1762,13 @@ class ManagementCrudTest extends TestCase
         $this->assertStringContainsString("['Enter', 'Tab'].includes(event.key)", $script);
         $this->assertStringContainsString('focusSearchableSelectById(select.dataset.focusNextSearchableOnTab)', $script);
         $this->assertStringContainsString("window.addEventListener('focus-searchable-select', focusSearchableSelect);", $script);
+
+        Volt::test('groups.index')
+            ->call('openRosterModal', $alphaGroup->id)
+            ->assertViewHas('availableRosterStudents', fn ($students) => $students->pluck('id')->all() === [$student->id])
+            ->set('roster_student_id', $inactiveStudent->id)
+            ->call('addStudentToRoster')
+            ->assertHasErrors(['roster_student_id']);
 
         $component
             ->set('group_id', $inactiveGroup->id)

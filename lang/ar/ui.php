@@ -55,6 +55,7 @@ return [
         'quran_partial_tests' => 'السبر التجريبي',
         'quran_final_tests' => 'السبر النهائي',
         'quran_tests' => 'سبر الأوقاف',
+        'awqaf_subject_tests' => 'اختبارات مواد الأوقاف',
         'point_ledger' => 'النقاط',
         'student_attendance' => 'حضور الطلاب',
         'teacher_attendance' => 'حضور المشرفين',

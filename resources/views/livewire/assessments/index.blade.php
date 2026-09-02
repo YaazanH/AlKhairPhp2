@@ -58,7 +58,7 @@ new class extends Component
         $this->authorizePermission('assessments.view');
         $defaultCourseId = Course::query()->where('is_default', true)->where('is_active', true)->value('id');
         $this->courseFilter = (string) ($defaultCourseId ?? 'all');
-        $this->groupCourseFilter = (string) ($defaultCourseId ?? 'all');
+        $this->groupCourseFilter = (string) ($this->defaultGroupCourseId() ?? '');
         if (request()->filled('edit')) {
             $this->returnToResults = request('return_to') === 'results';
             $this->edit((int) request('edit'));
@@ -143,8 +143,28 @@ new class extends Component
     public function openGroupPicker(): void
     {
         if ($this->group_scope !== 'all') {
+            $this->showForm = false;
             $this->showGroupPicker = true;
         }
+    }
+
+    public function saveGroupPicker(): void
+    {
+        if ($this->group_scope === 'single' && ! $this->group_id) {
+            $this->addError('group_id', __('workflow.assessments.index.errors.no_groups_selected'));
+
+            return;
+        }
+
+        if ($this->group_scope === 'multiple' && $this->group_ids === []) {
+            $this->addError('group_ids', __('workflow.assessments.index.errors.no_groups_selected'));
+
+            return;
+        }
+
+        $this->showGroupPicker = false;
+        $this->showForm = true;
+        $this->resetValidation(['group_id', 'group_ids']);
     }
 
     public function updatedAssessmentTypeId(): void
@@ -166,7 +186,6 @@ new class extends Component
         if ($this->group_scope === 'single') {
             $this->group_id = $groupId;
             $this->group_ids = [(string) $groupId];
-            $this->showGroupPicker = false;
             $this->resetValidation(['group_id', 'group_ids']);
 
             return;
@@ -217,8 +236,7 @@ new class extends Component
 
         $this->cancel(closeForm: false);
         $this->returnToResults = false;
-        $defaultCourseId = Course::query()->where('is_default', true)->where('is_active', true)->value('id');
-        $this->groupCourseFilter = (string) ($defaultCourseId ?? '');
+        $this->groupCourseFilter = (string) ($this->defaultGroupCourseId() ?? '');
         $this->group_scope = 'all';
         $this->due_at = '';
         $this->showForm = true;
@@ -331,7 +349,7 @@ new class extends Component
         $this->total_mark = '';
         $this->pass_mark = '';
         $this->showGroupPicker = false;
-        $this->groupCourseFilter = (string) (Course::query()->where('is_default', true)->where('is_active', true)->value('id') ?? 'all');
+        $this->groupCourseFilter = (string) ($this->defaultGroupCourseId() ?? '');
 
         if ($closeForm) {
             $this->showForm = false;
@@ -398,6 +416,23 @@ new class extends Component
     protected function formatDerivedMark(?float $mark): string
     {
         return $mark === null ? '' : rtrim(rtrim(number_format($mark, 2, '.', ''), '0'), '.');
+    }
+
+    protected function defaultGroupCourseId(): ?int
+    {
+        $courseIds = $this->scopeGroupsQuery(Group::query())
+            ->where('is_active', true)
+            ->whereHas('course', fn ($query) => $query->where('is_active', true))
+            ->pluck('course_id')
+            ->filter()
+            ->unique();
+
+        return Course::query()
+            ->where('is_active', true)
+            ->whereIn('id', $courseIds)
+            ->orderByDesc('is_default')
+            ->orderBy('name')
+            ->value('id');
     }
 
     protected function selectedGroupIds(): array
@@ -469,34 +504,36 @@ new class extends Component
                     </div>
                     <div class="admin-modal__body">
             @if (auth()->user()->can('assessments.create') || auth()->user()->can('assessments.update'))
-                <form wire:submit.prevent="save" class="space-y-4">
+                <form wire:submit.prevent="save" class="assessment-form space-y-4">
                     <div class="grid gap-4 md:grid-cols-2">
                         <div>
                             <label class="mb-1 block text-sm font-medium">{{ __('workflow.assessments.index.form.title') }}</label>
-                            <input wire:model="title" type="text" class="h-11 w-full rounded-lg border border-neutral-300 px-3 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                            <input wire:model="title" type="text" class="assessment-form__course-height-control w-full rounded-xl border border-neutral-300 px-3 text-sm dark:border-neutral-700 dark:bg-neutral-900">
                             @error('title') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
                         </div>
                         <div>
                             <label class="mb-1 block text-sm font-medium">{{ __('workflow.assessments.index.form.due_at') }}</label>
-                            <input wire:model="due_at" type="date" class="h-11 w-full rounded-lg px-3 text-sm">
+                            <input wire:model="due_at" type="date" class="assessment-form__course-height-control w-full rounded-xl px-3 text-sm">
                             @error('due_at')<div class="mt-1 text-sm text-red-600">{{ $message }}</div>@enderror
                         </div>
                     </div>
 
                     <div class="grid gap-4 md:grid-cols-[minmax(0,1fr)_9rem_9rem] md:items-end">
                         <div><label class="mb-1 block text-sm font-medium">{{ __('workflow.assessments.index.form.assessment_type') }}</label><select wire:model.live="assessment_type_id" class="h-11 w-full rounded-lg px-3 text-sm"><option value="">{{ __('workflow.assessments.index.form.select_type') }}</option>@foreach ($types as $type)<option value="{{ $type->id }}">{{ $type->name }}</option>@endforeach</select>@error('assessment_type_id')<div class="mt-1 text-sm text-red-600">{{ $message }}</div>@enderror</div>
-                        <div><label class="mb-1 block text-sm font-medium">{{ __('workflow.assessments.index.form.pass_mark') }}</label><div class="flex h-11 items-center rounded-lg border border-white/10 px-3 text-sm font-semibold text-white">{{ $pass_mark !== '' ? $pass_mark : '—' }}</div></div>
-                        <div><label class="mb-1 block text-sm font-medium">{{ __('workflow.assessments.index.form.total_mark') }}</label><div class="flex h-11 items-center rounded-lg border border-white/10 px-3 text-sm font-semibold text-white">{{ $total_mark !== '' ? $total_mark : '—' }}</div></div>
+                        <div><label class="mb-1 block text-sm font-medium">{{ __('workflow.assessments.index.form.pass_mark') }}</label><div class="assessment-form__course-height-control flex items-center rounded-xl border border-white/10 px-3 text-sm font-semibold text-white">{{ $pass_mark !== '' ? $pass_mark : '—' }}</div></div>
+                        <div><label class="mb-1 block text-sm font-medium">{{ __('workflow.assessments.index.form.total_mark') }}</label><div class="assessment-form__course-height-control flex items-center rounded-xl border border-white/10 px-3 text-sm font-semibold text-white">{{ $total_mark !== '' ? $total_mark : '—' }}</div></div>
                     </div>
 
                     <div class="grid gap-4 md:grid-cols-2">
-                        <div><label for="assessment-group-course" class="mb-1 block text-sm font-medium">{{ __('workflow.assessments.index.form.course') }}</label><select id="assessment-group-course" wire:model.live="groupCourseFilter" class="w-full rounded-lg px-3 py-2 text-sm"><option value="">{{ __('crud.common.select') }}</option>@foreach ($courses as $course)<option value="{{ $course->id }}">{{ $course->name }}</option>@endforeach</select>@error('groupCourseFilter')<div class="mt-1 text-sm text-red-600">{{ $message }}</div>@enderror</div>
+                        <div><label for="assessment-group-course" class="mb-1 block text-sm font-medium">{{ __('workflow.assessments.index.form.course') }}</label><select id="assessment-group-course" wire:model.live="groupCourseFilter" required data-clearable="false" data-search-selection-required="true" data-hide-placeholder-option="true" class="w-full rounded-lg px-3 py-2 text-sm"><option value="" disabled hidden>{{ __('crud.common.select') }}</option>@foreach ($courses as $course)<option value="{{ $course->id }}">{{ $course->name }}</option>@endforeach</select>@error('groupCourseFilter')<div class="mt-1 text-sm text-red-600">{{ $message }}</div>@enderror</div>
                         <div>
                             <label class="mb-1 block text-sm font-medium">{{ __('workflow.assessments.index.form.groups') }}</label>
-                            <div class="flex gap-2">
-                                <select wire:model.live="group_scope" class="min-w-0 flex-1 rounded-lg px-3 py-2 text-sm"><option value="single">{{ __('workflow.assessments.index.form.group_scope_options.single') }}</option><option value="multiple">{{ __('workflow.assessments.index.form.group_scope_options.multiple') }}</option><option value="all">{{ __('workflow.assessments.index.form.group_scope_options.all') }}</option></select>
+                            <div class="assessment-group-scope-control flex gap-2">
+                                <select wire:model.live="group_scope" required data-clearable="false" data-search-selection-required="true" class="min-w-0 flex-1 rounded-lg px-3 py-2 text-sm"><option value="single">{{ __('workflow.assessments.index.form.group_scope_options.single') }}</option><option value="multiple">{{ __('workflow.assessments.index.form.group_scope_options.multiple') }}</option><option value="all">{{ __('workflow.assessments.index.form.group_scope_options.all') }}</option></select>
                                 @if ($group_scope !== 'all')
-                                    <button type="button" wire:click="openGroupPicker" class="pill-link px-4" aria-label="{{ __('workflow.assessments.index.form.groups') }}">…</button>
+                                    <button type="button" wire:click="openGroupPicker" class="admin-icon-button admin-modal-action-button" title="{{ __('workflow.assessments.index.form.groups') }}" aria-label="{{ __('workflow.assessments.index.form.groups') }}" data-assessment-group-picker-open>
+                                        <x-admin-action-icon name="more" class="admin-modal-action__icon" />
+                                    </button>
                                 @endif
                             </div>
                             @error('group_id')<div class="mt-1 text-sm text-red-600">{{ $message }}</div>@enderror
@@ -507,45 +544,14 @@ new class extends Component
                     @error('delete') <div class="rounded-2xl border border-red-500/25 bg-red-500/10 px-3 py-2 text-sm text-red-200">{{ $message }}</div> @enderror
 
                     <div class="flex gap-3">
+                        <x-admin.save-button :label="$editingId ? __('workflow.assessments.index.form.update_submit') : __('crud.common.actions.save')" data-assessment-save-action />
                         @if ($editingId)
-                            <button type="submit" class="pill-link pill-link--accent">{{ __('workflow.assessments.index.form.update_submit') }}</button>
                             @can('assessments.delete')
-                                <button type="button" wire:click="delete({{ $editingId }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" @disabled($editingHasResults) class="pill-link border-red-400/25 text-red-200 disabled:cursor-not-allowed disabled:opacity-40">{{ __('crud.common.actions.delete') }}</button>
+                                <x-delete-action-button wire:click="delete({{ $editingId }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" @disabled($editingHasResults) class="disabled:cursor-not-allowed disabled:opacity-40" :label="__('crud.common.actions.delete')" data-assessment-delete-action />
                             @endcan
-                        @else
-                            <button
-                                type="submit"
-                                class="admin-icon-button admin-icon-button--accent admin-modal-action-button"
-                                title="{{ __('crud.common.actions.save') }}"
-                                aria-label="{{ __('crud.common.actions.save') }}"
-                                data-assessment-save-action
-                            >
-                                <x-admin-action-icon name="save" class="admin-modal-action__icon" />
-                            </button>
                         @endif
                     </div>
                 </form>
-                @if ($showGroupPicker)
-                    <div class="fixed inset-0 z-[80] flex items-center justify-center p-4">
-                        <button type="button" wire:click="$set('showGroupPicker', false)" class="absolute inset-0 bg-black/70" aria-label="{{ __('crud.common.actions.close') }}"></button>
-                        <div class="relative max-h-[75vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-white/10 bg-neutral-950 p-5 shadow-2xl">
-                            <div class="mb-4 flex items-center justify-between gap-3"><h3 class="text-lg font-semibold text-white">{{ __('workflow.assessments.index.form.groups') }}</h3><button type="button" wire:click="$set('showGroupPicker', false)" class="admin-modal__close">×</button></div>
-                            <div class="grid gap-2 sm:grid-cols-2">
-                                @foreach ($groups as $group)
-                                    @php
-                                        $isSelected = $group_scope === 'single'
-                                            ? (int) $group_id === $group->id
-                                            : in_array((string) $group->id, array_map('strval', $group_ids), true);
-                                    @endphp
-                                    <button type="button" wire:click="toggleGroup({{ $group->id }})" class="flex items-center gap-3 rounded-xl border px-3 py-3 text-start {{ $isSelected ? 'border-emerald-400/40 bg-emerald-500/10 text-white' : 'border-white/10 text-neutral-300' }}">
-                                        <span class="flex h-5 w-5 shrink-0 items-center justify-center rounded border {{ $isSelected ? 'border-emerald-400 bg-emerald-500' : 'border-white/20' }}">{{ $isSelected ? '✓' : '' }}</span>
-                                        <span><span class="block font-medium">{{ $group->name }}</span><span class="text-xs text-neutral-500">{{ $group->course?->name }}</span></span>
-                                    </button>
-                                @endforeach
-                            </div>
-                        </div>
-                    </div>
-                @endif
             @else
                 <div class="admin-empty-state">{{ __('workflow.assessments.index.read_only') }}</div>
             @endif
@@ -555,6 +561,32 @@ new class extends Component
         </section>
         @endif
 
+        <x-admin.modal :show="$showGroupPicker" :title="__('workflow.assessments.index.form.groups')" :dismissible="false" max-width="2xl">
+            <x-slot:header-actions>
+                <button type="button" wire:click="saveGroupPicker" class="admin-modal__close" title="{{ __('crud.common.actions.save') }}" aria-label="{{ __('crud.common.actions.save') }}" data-assessment-group-picker-save>
+                    <x-admin-action-icon name="save" class="size-5" />
+                </button>
+            </x-slot:header-actions>
+
+            <div data-assessment-group-picker>
+                <div class="grid gap-2 sm:grid-cols-2">
+                    @foreach ($groups as $group)
+                        @php
+                            $isSelected = $group_scope === 'single'
+                                ? (int) $group_id === $group->id
+                                : in_array((string) $group->id, array_map('strval', $group_ids), true);
+                        @endphp
+                        <button type="button" wire:click="toggleGroup({{ $group->id }})" class="assessment-group-picker-option rounded-xl border px-3 py-3 text-start {{ $isSelected ? 'border-emerald-400/40 bg-emerald-500/10 text-white' : 'border-white/10 text-neutral-300' }}" data-assessment-group-picker-option>
+                            <span class="assessment-group-picker-option__copy"><span class="block font-medium">{{ $group->name }}</span><span class="block text-xs text-neutral-500">{{ $group->course?->name }}</span></span>
+                            <span class="assessment-group-picker-option__check flex h-5 w-5 shrink-0 items-center justify-center rounded border {{ $isSelected ? 'border-emerald-400 bg-emerald-500' : 'border-white/20' }}" data-assessment-group-picker-check>{{ $isSelected ? '✓' : '' }}</span>
+                        </button>
+                    @endforeach
+                </div>
+                @error('group_id')<div class="mt-3 text-sm text-red-400">{{ $message }}</div>@enderror
+                @error('group_ids')<div class="mt-3 text-sm text-red-400">{{ $message }}</div>@enderror
+            </div>
+        </x-admin.modal>
+
         <section class="surface-table mobile-records-surface">
             <div class="admin-grid-meta admin-grid-meta--controls">
                 <div>
@@ -562,7 +594,7 @@ new class extends Component
                     <div class="admin-grid-meta__summary">{{ __('crud.common.badges.in_view', ['count' => number_format($filteredCount)]) }}</div>
                 </div>
                 <div class="admin-toolbar__controls">
-                    <div class="admin-filter-field">
+                    <div class="admin-filter-field admin-filter-field--course">
                         <label class="sr-only" for="assessment-course-filter">{{ __('workflow.assessments.index.filters.course') }}</label>
                         <select id="assessment-course-filter" wire:model.live="courseFilter">
                             <option value="all">{{ __('workflow.assessments.index.filters.all_courses') }}</option>

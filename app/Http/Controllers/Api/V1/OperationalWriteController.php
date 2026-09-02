@@ -63,7 +63,7 @@ class OperationalWriteController extends Controller
 
         if ($enrollments->count() !== $enrollmentIds->count()) {
             return response()->json([
-                'message' => 'One or more enrollment records do not belong to this active group.',
+                'message' => 'One or more enrolment records do not belong to this active group.',
             ], 422);
         }
 
@@ -645,7 +645,7 @@ class OperationalWriteController extends Controller
 
         if ($enrollments->count() !== $enrollmentIds->count()) {
             return response()->json([
-                'message' => 'One or more enrollment records do not belong to this active assessment group.',
+                'message' => 'One or more enrolment records do not belong to this active assessment group.',
             ], 422);
         }
 

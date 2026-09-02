@@ -111,18 +111,18 @@ return [
             'empty' => 'No registrations yet.',
             'fields' => [
                 'student' => 'Student',
-                'enrollment' => 'Enrollment',
+                'enrollment' => 'Enrolment',
                 'fee' => 'Fee',
                 'status' => 'Status',
                 'notes' => 'Notes',
             ],
             'placeholders' => [
                 'student' => 'Select student',
-                'enrollment' => 'No enrollment link',
+                'enrollment' => 'No enrolment link',
             ],
             'headers' => [
                 'student' => 'Student',
-                'enrollment' => 'Enrollment',
+                'enrollment' => 'Enrolment',
                 'fee' => 'Fee',
                 'paid' => 'Paid',
                 'status' => 'Status',
@@ -134,8 +134,8 @@ return [
                 'deleted' => 'Registration deleted successfully.',
             ],
             'errors' => [
-                'wrong_student' => 'The selected enrollment does not belong to the selected student.',
-                'wrong_group' => 'The selected enrollment must belong to one of this activity target groups.',
+                'wrong_student' => 'The selected enrolment does not belong to the selected student.',
+                'wrong_group' => 'The selected enrolment must belong to one of this activity target groups.',
                 'delete_linked' => 'This registration cannot be deleted while active payments exist.',
             ],
         ],

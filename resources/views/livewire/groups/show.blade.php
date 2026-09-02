@@ -245,7 +245,14 @@ new class extends Component {
             return;
         }
 
-        $data = $this->validate(['roster_student_id' => ['required','integer','exists:students,id'], 'roster_enrolled_at' => ['required','date']]);
+        $data = $this->validate([
+            'roster_student_id' => [
+                'required',
+                'integer',
+                Rule::exists('students', 'id')->where(fn ($query) => $query->where('status', 'active')),
+            ],
+            'roster_enrolled_at' => ['required', 'date'],
+        ]);
         $student = Student::query()->findOrFail($data['roster_student_id']);
         $this->authorizeScopedStudentAccess($student);
         $enrollment = Enrollment::withTrashed()->firstOrNew(['group_id' => $this->currentGroup->id, 'student_id' => $data['roster_student_id']]);

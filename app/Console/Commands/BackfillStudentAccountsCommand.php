@@ -17,8 +17,8 @@ class BackfillStudentAccountsCommand extends Command
         {--all : Target all students}
         {--student-number-from= : Start of the student number range}
         {--student-number-to= : End of the student number range}
-        {--course-id= : Target students with an active enrollment in this course}
-        {--group-id= : Target students with an active enrollment in this group}
+        {--course-id= : Target students with an active enrolment in this course}
+        {--group-id= : Target students with an active enrolment in this group}
         {--include-inactive : Also create accounts for inactive, blocked, or graduated students}
         {--dry-run : Preview the missing student accounts without creating users}';
 

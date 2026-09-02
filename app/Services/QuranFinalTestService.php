@@ -200,6 +200,9 @@ class QuranFinalTestService
 
     public function deleteAttempt(QuranFinalTestAttempt $attempt): void
     {
+        $finalTest = $attempt->finalTest()->with('enrollment.group.course')->firstOrFail();
+        $this->ensureCourseAllowsDeletion($finalTest->enrollment);
+
         DB::transaction(function () use ($attempt): void {
             $finalTest = $attempt->finalTest()->with(['enrollment.student.gradeLevel', 'student'])->firstOrFail();
             $attempt->delete();
@@ -230,6 +233,9 @@ class QuranFinalTestService
 
     public function deleteTest(QuranFinalTest $finalTest): void
     {
+        $finalTest->loadMissing('enrollment.group.course');
+        $this->ensureCourseAllowsDeletion($finalTest->enrollment);
+
         DB::transaction(function () use ($finalTest): void {
             $finalTest->loadMissing('enrollment.student');
             $ledger = app(PointLedgerService::class);
@@ -240,5 +246,12 @@ class QuranFinalTestService
                 $ledger->syncEnrollmentCaches($enrollment->fresh(['student']));
             }
         });
+    }
+
+    protected function ensureCourseAllowsDeletion(?Enrollment $enrollment): void
+    {
+        if ($enrollment?->belongsToFinishedCourse()) {
+            throw new LogicException(__('workflow.common.finished_course_delete_locked'));
+        }
     }
 }

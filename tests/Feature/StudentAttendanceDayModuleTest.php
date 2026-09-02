@@ -117,6 +117,86 @@ class StudentAttendanceDayModuleTest extends TestCase
         $this->assertSame(4, PointTransaction::query()->where('source_type', 'student_attendance_record')->whereNull('voided_at')->sum('points'));
     }
 
+    public function test_student_and_teacher_attendance_days_require_a_default_status(): void
+    {
+        $this->seed();
+
+        $manager = User::factory()->create([
+            'username' => 'attendance-required-status-manager',
+            'phone' => '0998111888',
+        ]);
+        $manager->assignRole('manager');
+
+        $course = Course::create([
+            'name' => 'Required Status Course',
+            'is_active' => true,
+        ]);
+
+        $this->actingAs($manager);
+
+        Volt::test('student-attendance.index')
+            ->call('openCreateModal')
+            ->assertSee('id="attendance-day-default-status" wire:model="default_attendance_status_id" required aria-required="true" data-clearable="false" data-search-selection-required="true" data-hide-placeholder-option="true"', false)
+            ->assertSee('<option value="" disabled hidden>', false)
+            ->set('course_id', (string) $course->id)
+            ->set('default_attendance_status_id', '')
+            ->call('saveDay')
+            ->assertHasErrors(['default_attendance_status_id' => 'required']);
+
+        Volt::test('teachers.attendance')
+            ->call('openCreateModal')
+            ->assertSee('id="teacher-attendance-day-default-status" wire:model="default_attendance_status_id" required aria-required="true" data-clearable="false" data-search-selection-required="true" data-hide-placeholder-option="true"', false)
+            ->assertSee('<option value="" disabled hidden>', false)
+            ->set('course_id', (string) $course->id)
+            ->set('default_attendance_status_id', '')
+            ->call('saveDay')
+            ->assertHasErrors(['default_attendance_status_id' => 'required']);
+    }
+
+    public function test_student_and_teacher_attendance_days_require_non_clearable_dates_and_courses(): void
+    {
+        $this->seed();
+
+        $manager = User::factory()->create([
+            'username' => 'attendance-required-context-manager',
+            'phone' => '0998111887',
+        ]);
+        $manager->assignRole('manager');
+
+        Course::create([
+            'name' => 'Required Attendance Context Course',
+            'is_active' => true,
+        ]);
+
+        $this->actingAs($manager);
+
+        Volt::test('student-attendance.index')
+            ->call('openCreateModal')
+            ->assertSee('id="attendance-day-course" wire:model.live="course_id" required aria-required="true" data-clearable="false" data-search-selection-required="true" data-hide-placeholder-option="true"', false)
+            ->assertSee('id="attendance-day-date" wire:model.live="attendance_date" value="', false)
+            ->assertSee('type="date" required aria-required="true" data-clearable="false"', false)
+            ->set('course_id', '')
+            ->set('attendance_date', '')
+            ->call('saveDay')
+            ->assertHasErrors([
+                'course_id' => 'required',
+                'attendance_date' => 'required',
+            ]);
+
+        Volt::test('teachers.attendance')
+            ->call('openCreateModal')
+            ->assertSee('id="teacher-attendance-day-course" wire:model.live="course_id" required aria-required="true" data-clearable="false" data-search-selection-required="true" data-hide-placeholder-option="true"', false)
+            ->assertSee('id="teacher-attendance-day-date" wire:model.live="attendance_date" value="', false)
+            ->assertSee('type="date" required aria-required="true" data-clearable="false"', false)
+            ->set('course_id', '')
+            ->set('attendance_date', '')
+            ->call('saveDay')
+            ->assertHasErrors([
+                'course_id' => 'required',
+                'attendance_date' => 'required',
+            ]);
+    }
+
     public function test_manager_can_add_extra_group_to_attendance_day_manually(): void
     {
         $this->seed();

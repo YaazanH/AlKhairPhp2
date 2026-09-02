@@ -548,7 +548,10 @@ new class extends Component {
         $this->authorizeScopedGroupAccess($group);
 
         $validated = $this->validate([
-            'roster_student_id' => ['required', 'exists:students,id'],
+            'roster_student_id' => [
+                'required',
+                Rule::exists('students', 'id')->where(fn ($query) => $query->where('status', 'active')),
+            ],
             'roster_enrolled_at' => ['required', 'date'],
         ]);
 
@@ -596,6 +599,7 @@ new class extends Component {
     protected function availableRosterStudentsQuery()
     {
         return $this->scopeStudentsQuery(Student::query())
+            ->where('status', 'active')
             ->whereDoesntHave('enrollments', function ($enrollmentQuery) {
                 $enrollmentQuery->where('group_id', $this->rosterGroupId);
             });
@@ -793,7 +797,7 @@ new class extends Component {
                     </select>
                 </div>
 
-                <div class="admin-filter-field">
+                <div class="admin-filter-field admin-filter-field--course">
                     <label class="sr-only" for="group-course-filter">{{ __('crud.common.filters.course') }}</label>
                     <select id="group-course-filter" wire:model.live="courseFilter">
                         <option value="all">{{ __('crud.common.filters.all_courses') }}</option>
@@ -855,9 +859,11 @@ new class extends Component {
                             <tr>
                                 <td class="px-5 py-4 lg:px-6">
                                     <div class="font-semibold text-white">{{ $group->name }}</div>
-                                    <div class="mt-1 text-xs uppercase tracking-[0.18em] text-neutral-500">
-                                        {{ __('crud.groups.table.capacity', ['capacity' => $group->capacity]) }}
-                                    </div>
+                                    @if ((int) $group->capacity > 0)
+                                        <div class="mt-1 text-xs uppercase tracking-[0.18em] text-neutral-500" data-group-capacity>
+                                            {{ __('crud.groups.table.capacity', ['capacity' => $group->capacity]) }}
+                                        </div>
+                                    @endif
                                 </td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $group->course?->name ?: __('crud.common.not_available') }}</td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">
@@ -903,7 +909,7 @@ new class extends Component {
             <div class="grid gap-4 md:grid-cols-2" data-group-form-row="identity">
                 <div>
                     <label for="group-name" class="mb-1 block text-sm font-medium">{{ __('crud.groups.form.fields.group_name') }}</label>
-                    <input id="group-name" wire:model="name" type="text" class="w-full rounded-xl px-4 py-3 text-sm">
+                    <input id="group-name" wire:model="name" type="text" class="group-form__identity-control w-full rounded-xl px-4 py-3 text-sm">
                     @error('name')
                         <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                     @enderror
@@ -911,7 +917,7 @@ new class extends Component {
 
                 <div>
                     <label for="group-course" class="mb-1 block text-sm font-medium">{{ __('crud.groups.form.fields.course') }}</label>
-                    <select id="group-course" wire:model.live="course_id" class="w-full rounded-xl px-4 py-3 text-sm">
+                    <select id="group-course" wire:model.live="course_id" class="group-form__identity-control w-full rounded-xl px-4 py-3 text-sm">
                         <option value="">{{ __('crud.groups.form.placeholders.select_course') }}</option>
                         @foreach ($courses as $course)
                             <option value="{{ $course->id }}">{{ $course->name }}</option>

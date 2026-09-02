@@ -9,6 +9,7 @@ return [
         'finance_invoice' => 'فاتورة',
         'finance_ledger' => 'تقرير مالي',
         'group_roster' => 'قائمة الطلاب',
+        'income_record' => 'سجل دخل',
         'student_attendance' => 'حضور الطلاب',
         'teacher_attendance' => 'حضور المشرفين',
     ],

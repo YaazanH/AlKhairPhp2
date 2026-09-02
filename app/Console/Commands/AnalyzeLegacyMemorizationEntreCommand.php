@@ -19,7 +19,7 @@ class AnalyzeLegacyMemorizationEntreCommand extends Command
         {path=storage/app/legacy-access-export : Folder containing exported CSV files}
         {--report-dir= : Directory for CSV analysis reports}';
 
-    protected $description = 'Analyze legacy Access memorization page rows from entre.csv against live students, teachers, and enrollments without writing any data.';
+    protected $description = 'Analyse legacy Access memorisation page rows from entre.csv against live students, teachers, and enrolments without writing any data.';
 
     /**
      * @var array<string, list<array{id:int, student_number:?string, full_name:string}>>
@@ -514,7 +514,7 @@ class AnalyzeLegacyMemorizationEntreCommand extends Command
                 ['Ambiguous students', $this->summary['ambiguous_students']],
                 ['Unmatched teachers', $this->summary['unmatched_teachers']],
                 ['Ambiguous teachers', $this->summary['ambiguous_teachers']],
-                ['Unresolved enrollments', $this->summary['unresolved_enrollments']],
+                ['Unresolved enrolments', $this->summary['unresolved_enrollments']],
                 ['Already in live pages', $this->summary['overlapping_live_pages']],
                 ['Importable page rows', $this->summary['importable_rows']],
                 ['Proposed sessions', $this->summary['proposed_sessions']],

@@ -150,6 +150,8 @@ return [
         'from' => 'من',
         'income' => 'الإيرادات',
         'expense' => 'المصاريف',
+        'exchange' => 'الصرافة',
+        'transfer' => 'التحويل',
         'net' => 'الصافي',
         'reason' => 'السبب',
         'revenue_kind' => 'نوع الإيراد',

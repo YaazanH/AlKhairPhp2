@@ -7,7 +7,7 @@
     $sidebarToggleInset = $isRtl ? 'right' : 'left';
     $mobileIdentitySpacingClass = $isRtl ? 'mr-3' : 'ml-3';
     $sidebarGroups = app(\App\Services\SidebarNavigationService::class)->sidebarFor(auth()->user());
-    $monthLabel = \App\Support\ArabicMonthFormatter::monthYear(now());
+    $monthLabel = \App\Support\ArabicMonthFormatter::monthYearWithHijri(now());
 @endphp
 
 <!DOCTYPE html>
@@ -37,7 +37,7 @@
                 <div class="app-sidebar-scroll-region">
                     <div class="px-1 pt-2">
                         <a href="{{ route('dashboard') }}" class="flex items-center gap-3" wire:navigate>
-                            <x-app-logo :title="__('ui.app.quran_course')" :subtitle="$monthLabel" />
+                            <x-app-logo :title="__('ui.app.quran_course')" :subtitle="$monthLabel" :justify-subtitle-to-title="true" />
                         </a>
                     </div>
 
@@ -49,7 +49,7 @@
                                         :icon="$item['icon']"
                                         :href="$item['href']"
                                         :current="$item['current']"
-                                        class="{{ $item['key'] === 'print_templates' ? 'max-lg:hidden' : '' }}"
+                                        class="{{ in_array($item['key'], ['print_templates', 'id_card_print', 'public_website_settings'], true) ? 'max-lg:hidden' : '' }}"
                                         wire:navigate
                                     >
                                         {{ $item['label'] }}

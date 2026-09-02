@@ -8,10 +8,8 @@ use App\Models\QuranJuz;
 use App\Models\QuranPartialTest;
 use App\Models\QuranPartialTestAttempt;
 use App\Models\Student;
-use App\Services\PointLedgerService;
 use App\Services\QuranPartialTestService;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Support\Facades\DB;
 use Livewire\Volt\Component;
 use Livewire\WithPagination;
 
@@ -305,26 +303,16 @@ new class extends Component
         $this->authorizePermission('quran-partial-tests.delete');
 
         $partialTest = $this->quranPartialTestsQuery(
-            QuranPartialTest::query()->with(['enrollment.student', 'parts'])
+            QuranPartialTest::query()->with(['enrollment.student', 'enrollment.group.course', 'parts'])
         )->findOrFail($partialTestId);
 
-        DB::transaction(function () use ($partialTest): void {
-            $ledger = app(PointLedgerService::class);
-            $reason = __('workflow.quran_partial_tests.messages.deleted_void_reason');
+        try {
+            app(QuranPartialTestService::class)->deleteTest($partialTest);
+        } catch (\LogicException $exception) {
+            $this->addError('delete', $exception->getMessage());
 
-            foreach ($partialTest->parts as $part) {
-                $ledger->voidSourceTransactions('quran_partial_test_part', $part->id, $reason);
-            }
-
-            $ledger->voidSourceTransactions('quran_partial_test', $partialTest->id, $reason);
-
-            $enrollment = $partialTest->enrollment;
-            $partialTest->delete();
-
-            if ($enrollment) {
-                $ledger->syncEnrollmentCaches($enrollment->fresh(['student']));
-            }
-        });
+            return;
+        }
 
         session()->flash('status', __('workflow.quran_partial_tests.messages.deleted'));
     }

@@ -189,7 +189,7 @@ class CodebaseIndexCommand extends Command
             'tests/Feature/' => 'Tests / Feature',
             'tests/Unit/' => 'Tests / Unit',
             'tests/' => 'Tests / Support',
-            'lang/' => 'Localization',
+            'lang/' => 'Localisation',
             'config/' => 'Configuration',
             'bootstrap/' => 'Bootstrap',
             'docker/' => 'Deployment / Docker',

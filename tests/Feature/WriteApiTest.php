@@ -166,11 +166,11 @@ class WriteApiTest extends TestCase
 
         $this->withToken($token)->deleteJson('/api/v1/groups/'.$groupId)
             ->assertStatus(422)
-            ->assertJsonPath('message', 'This group cannot be deleted while enrollments or schedules still exist.');
+            ->assertJsonPath('message', 'This group cannot be deleted while enrolments or schedules still exist.');
 
         $this->withToken($token)->deleteJson('/api/v1/students/'.$studentId)
             ->assertStatus(422)
-            ->assertJsonPath('message', 'This student cannot be deleted while enrollments still exist.');
+            ->assertJsonPath('message', 'This student cannot be deleted while enrolments still exist.');
 
         $this->withToken($token)->patchJson('/api/v1/enrollments/'.$enrollmentId, [
             'enrolled_at' => '2026-09-01',

@@ -10,8 +10,9 @@ return [
         'no_teacher_assigned' => 'No teacher assigned',
         'no_school_recorded' => 'No school recorded',
         'back_to_groups' => 'Back to groups',
-        'back_to_enrollments' => 'Back to enrollments',
+        'back_to_enrollments' => 'Back to enrolments',
         'back_to_assessments' => 'Back to assessments',
+        'finished_course_delete_locked' => 'Records from a finished course cannot be deleted.',
         'day_status' => [
             'open' => 'Open',
             'closed' => 'Closed',
@@ -42,7 +43,7 @@ return [
         'source_type' => [
             'manual' => 'Manual',
             'student_attendance_record' => 'Student attendance',
-            'memorization_session' => 'Memorization',
+            'memorization_session' => 'Memorisation',
             'quran_partial_test' => 'Partial saber completion',
             'quran_partial_test_part' => 'Partial saber part',
             'quran_final_test' => 'Final saber',
@@ -66,8 +67,8 @@ return [
             'cancel_edit' => 'Cancel edit',
             'save_student_attendance' => 'Save student attendance',
             'save_teacher_attendance' => 'Save teacher attendance',
-            'save_memorization' => 'Save memorization',
-            'update_memorization' => 'Update memorization',
+            'save_memorization' => 'Save memorisation',
+            'update_memorization' => 'Update memorisation',
             'save_quran_test' => 'Save awqaf saber',
             'save_point_entry' => 'Save point entry',
             'update_point_entry' => 'Update point entry',
@@ -80,7 +81,7 @@ return [
     ],
     'student_attendance' => [
         'title' => 'Student Attendance',
-        'subtitle' => 'Create one attendance day for this group and mark each enrollment under that date.',
+        'subtitle' => 'Create one attendance day for this group and mark each enrolment under that date.',
         'export' => [
             'title' => 'Export student attendance',
             'report_title' => 'Student Attendance',
@@ -118,7 +119,7 @@ return [
                 'attendance_date' => 'Attendance date',
                 'status' => 'Day status',
                 'default_status' => 'Default student status',
-                'default_status_help' => 'Applied to every active enrollment when the attendance day is created. Existing marks are not overwritten.',
+                'default_status_help' => 'Applied to every active enrolment when the attendance day is created. Existing marks are not overwritten.',
                 'scheduled_groups_help' => ':count groups',
                 'scheduled_groups_unit' => 'groups',
                 'no_default_status' => 'Create an active student attendance status before creating attendance days.',
@@ -195,7 +196,7 @@ return [
             'back' => 'Back to attendance day',
         ],
         'stats' => [
-            'active_enrollments' => 'Active enrollments',
+            'active_enrollments' => 'Active enrolments',
             'marked_today' => 'Marked for selected day',
             'attendance_days' => 'Attendance days',
         ],
@@ -203,7 +204,7 @@ return [
             'saved' => 'Student attendance saved successfully.',
             'closed_day_locked' => 'This attendance day is closed. Reopen the day before changing student attendance.',
             'archived_day_locked' => 'This attendance day belongs to an archived course and cannot be changed.',
-            'enrollment_not_in_day' => 'This student enrollment is not part of this attendance day.',
+            'enrollment_not_in_day' => 'This student enrolment is not part of this attendance day.',
             'void_reason' => 'Attendance status updated.',
             'deleted_void_reason' => 'Attendance day deleted.',
             'automatic_points' => 'Automatic attendance points for :status',
@@ -211,7 +212,7 @@ return [
         ],
         'form' => [
             'title' => 'Attendance workbench',
-            'help' => 'Choose a date, load an existing day if needed, then mark each active enrollment from one screen.',
+            'help' => 'Choose a date, load an existing day if needed, then mark each active enrolment from one screen.',
             'auto_save_help' => 'Attendance is saved immediately when you change a student status. Day status is controlled from the attendance day action button.',
             'attendance_date' => 'Attendance date',
             'day_status' => 'Day status',
@@ -246,7 +247,7 @@ return [
                 'empty_scan' => 'Scan or enter a student card code first.',
                 'unknown_scan' => 'This barcode is not a student card code.',
                 'student_not_in_day' => 'No active student in this attendance day matches that card.',
-                'multiple_enrollments' => 'This student has more than one active enrollment in this attendance day. Choose the student from the list.',
+                'multiple_enrollments' => 'This student has more than one active enrolment in this attendance day. Choose the student from the list.',
             ],
         ],
         'context' => [
@@ -263,7 +264,7 @@ return [
             'records' => ':count marked records',
         ],
         'table' => [
-            'title' => 'Attendance records for active enrollments',
+            'title' => 'Attendance records for active enrolments',
             'headers' => [
                 'student' => 'Student',
                 'enrolled' => 'Enrolled',
@@ -271,7 +272,7 @@ return [
                 'attendance' => 'Attendance',
             ],
             'not_marked' => 'Not marked',
-            'empty' => 'No active enrollments exist for this group yet.',
+            'empty' => 'No active enrolments exist for this group yet.',
         ],
     ],
     'teacher_attendance' => [
@@ -388,13 +389,13 @@ return [
         ],
     ],
     'memorization' => [
-        'title' => 'Memorization',
-        'subtitle' => 'Record memorized pages for one enrollment and protect lifetime page achievements.',
+        'title' => 'Memorisation',
+        'subtitle' => 'Record memorised pages for one enrolment and protect lifetime page achievements.',
         'workbench' => [
-            'title' => 'Memorization Workbench',
-            'subtitle' => 'Review memorization history across accessible students and add new page ranges from one standalone page.',
-            'create' => 'New memorization',
-            'edit' => 'Edit memorization',
+            'title' => 'Memorisation Workbench',
+            'subtitle' => 'Review memorisation history across accessible students and add new page ranges from one standalone page.',
+            'create' => 'New memorisation',
+            'edit' => 'Edit memorisation',
             'teacher_badge' => 'Recorded teacher: :name',
             'stats' => [
                 'students' => 'Accessible students',
@@ -406,9 +407,9 @@ return [
                 'all_types' => 'All entry types',
             ],
             'form' => [
-                'title' => 'Memorization entry',
-                'edit_title' => 'Edit memorization entry',
-                'help' => 'Choose the student first, then select the active group only if the student has more than one active enrollment.',
+                'title' => 'Memorisation entry',
+                'edit_title' => 'Edit memorisation entry',
+                'help' => 'Choose the student first, then select the active group only if the student has more than one active enrolment.',
                 'student' => 'Student',
                 'group' => 'Group',
                 'select_student' => 'Select student',
@@ -417,8 +418,8 @@ return [
                 'teacher_locked' => 'Your linked teacher account will be saved automatically for this entry.',
             ],
             'table' => [
-                'title' => 'Memorization entries',
-                'empty' => 'No memorization entries match the current scope yet.',
+                'title' => 'Memorisation entries',
+                'empty' => 'No memorisation entries match the current scope yet.',
                 'headers' => [
                     'student' => 'Student',
                     'group' => 'Course',
@@ -432,7 +433,7 @@ return [
         ],
         'quick_entry' => [
             'title' => 'Enter Memorisation',
-            'subtitle' => 'A fast entry screen for today\'s new memorized pages.',
+            'subtitle' => 'A fast entry screen for today\'s new memorised pages.',
             'card_eyebrow' => 'Fast entry',
             'card_title' => 'Record today\'s pages',
             'teacher_context' => 'Saved automatically under teacher: :name.',
@@ -443,45 +444,45 @@ return [
                 'search' => 'Search student',
                 'search_placeholder' => 'Search by student name, number, or father name',
                 'student' => 'Student',
-                'save' => 'Save memorization',
+                'save' => 'Save memorisation',
             ],
             'messages' => [
-                'saved' => 'Memorization entry saved successfully.',
-                'saved_partial' => 'Memorization entry saved. Duplicate pages were skipped: :pages.',
+                'saved' => 'Memorisation entry saved successfully.',
+                'saved_partial' => 'Memorisation entry saved. Duplicate pages were skipped: :pages.',
             ],
             'errors' => [
-                'no_assigned_teacher' => 'The selected active group does not have an assigned teacher to attach to this memorization entry.',
+                'no_assigned_teacher' => 'The selected active group does not have an assigned teacher to attach to this memorisation entry.',
             ],
         ],
         'stats' => [
-            'enrollment_pages' => 'Enrollment page coverage',
+            'enrollment_pages' => 'Enrolment page coverage',
             'sessions' => 'Recorded sessions',
         ],
         'messages' => [
-            'saved' => 'Memorization session saved successfully.',
-            'updated' => 'Memorization session updated successfully.',
-            'saved_partial' => 'Memorization session saved. Duplicate pages were skipped: :pages.',
-            'updated_partial' => 'Memorization session updated. Duplicate pages were skipped: :pages.',
-            'deleted' => 'Memorization session deleted and student progress recalculated.',
-            'automatic_reward' => 'Automatic memorization reward for :count new pages.',
-            'void_reason' => 'Memorization session recalculated.',
+            'saved' => 'Memorisation session saved successfully.',
+            'updated' => 'Memorisation session updated successfully.',
+            'saved_partial' => 'Memorisation session saved. Duplicate pages were skipped: :pages.',
+            'updated_partial' => 'Memorisation session updated. Duplicate pages were skipped: :pages.',
+            'deleted' => 'Memorisation session deleted and student progress recalculated.',
+            'automatic_reward' => 'Automatic memorisation reward for :count new pages.',
+            'void_reason' => 'Memorisation session recalculated.',
         ],
         'errors' => [
-            'duplicate_pages' => 'These pages were already memorized earlier: :pages',
-            'all_duplicate_pages' => 'All selected pages were already memorized earlier.',
-            'no_active_enrollment' => 'This student does not have an active enrollment in your current scope.',
-            'select_group' => 'Select the active group you want to record this memorization under.',
+            'duplicate_pages' => 'These pages were already memorised earlier: :pages',
+            'all_duplicate_pages' => 'All selected pages were already memorised earlier.',
+            'no_active_enrollment' => 'This student does not have an active enrolment in your current scope.',
+            'select_group' => 'Select the active group you want to record this memorisation under.',
         ],
         'duplicates' => [
             'title' => 'Duplicate pages detected',
-            'description' => 'Some pages in this range were already memorized. You can save only the pages that are still new, or cancel and adjust the entry.',
+            'description' => 'Some pages in this range were already memorised. You can save only the pages that are still new, or cancel and adjust the entry.',
             'unique_pages' => 'New pages that will be saved: :pages',
             'no_unique_pages' => 'No new pages remain to save from this range.',
             'save_unique' => 'Save non-duplicated pages',
         ],
         'form' => [
-            'title' => 'New memorization session',
-            'edit_title' => 'Edit memorization session',
+            'title' => 'New memorisation session',
+            'edit_title' => 'Edit memorisation session',
             'help' => 'Use `review` for repeated pages and `new` or `correction` for lifetime page achievements.',
             'teacher' => 'Teacher',
             'recorded_on' => 'Recorded on',
@@ -492,7 +493,7 @@ return [
             'select_teacher' => 'Select teacher',
         ],
         'context' => [
-            'title' => 'Enrollment context',
+            'title' => 'Enrolment context',
             'student' => 'Student',
             'group' => 'Group',
             'course' => 'Course',
@@ -505,11 +506,11 @@ return [
         ],
         'read_only' => [
             'title' => 'Read-only access',
-            'description' => 'You can review memorization history, but you do not have permission to record new entries.',
+            'description' => 'You can review memorisation history, but you do not have permission to record new entries.',
         ],
         'table' => [
-            'title' => 'Memorization history',
-            'empty' => 'No memorization sessions have been recorded for this enrollment yet.',
+            'title' => 'Memorisation history',
+            'empty' => 'No memorisation sessions have been recorded for this enrolment yet.',
             'headers' => [
                 'date' => 'Date',
                 'type' => 'Type',
@@ -544,8 +545,9 @@ return [
                 'all_types' => 'All test types',
             ],
             'form' => [
-                'title' => 'Record Awqaf saber',
-                'help' => 'Choose the student first, then select the active group only if the student has more than one active enrollment. Only juzs with a passed final saber and no awqaf record are shown.',
+                'title' => 'Add Awqaf saber',
+                'edit_title' => 'Edit Awqaf saber',
+                'help' => 'Choose the student first, then select the active group only if the student has more than one active enrolment. Only juzs with a passed final saber and no awqaf record are shown.',
                 'student' => 'Student',
                 'group' => 'Group',
                 'select_student' => 'Select student',
@@ -583,6 +585,8 @@ return [
         ],
         'messages' => [
             'saved' => 'Awqaf saber saved successfully.',
+            'updated' => 'Awqaf saber updated successfully.',
+            'updated_void_reason' => 'Awqaf saber updated.',
             'deleted' => 'Awqaf saber deleted successfully.',
             'deleted_void_reason' => 'Awqaf saber deleted.',
         ],
@@ -590,8 +594,8 @@ return [
             'final_requires_partials' => 'Final sabers require a passed partial cycle for the same juz.',
             'awqaf_requires_final' => 'Awqaf sabers require a passed final saber for the same juz.',
             'awqaf_already_recorded' => 'An awqaf saber has already been recorded for this juz.',
-            'no_active_enrollment' => 'This student does not have an active enrollment in your current scope.',
-            'no_teacher_available' => 'This enrollment does not have an assigned teacher to attach to the awqaf saber.',
+            'no_active_enrollment' => 'This student does not have an active enrolment in your current scope.',
+            'no_teacher_available' => 'This enrolment does not have an assigned teacher to attach to the awqaf saber.',
             'partial_moved' => 'Partial sabers now use the standalone partial saber workflow.',
             'final_moved' => 'Final sabers now use the standalone final saber workflow.',
             'awqaf_only' => 'This endpoint only records awqaf saber results.',
@@ -618,7 +622,7 @@ return [
         ],
         'table' => [
             'title' => 'Awqaf saber history',
-            'empty' => 'No awqaf sabers have been recorded for this enrollment yet.',
+            'empty' => 'No awqaf sabers have been recorded for this enrolment yet.',
             'headers' => [
                 'date' => 'Date',
                 'juz' => 'Juz',
@@ -657,7 +661,7 @@ return [
         ],
         'form' => [
             'title' => 'New trial saber',
-            'help' => 'Choose the student first. Only juz that the student fully memorized and has not started as a partial cycle yet will appear.',
+            'help' => 'Choose the student first. Only juz that the student fully memorised and has not started as a partial cycle yet will appear.',
             'student' => 'Student',
             'group' => 'Group',
             'juz' => 'Juz',
@@ -665,7 +669,7 @@ return [
             'select_group' => 'Select active group',
             'select_juz' => 'Select juz',
             'group_auto' => 'The active group was selected automatically.',
-            'no_eligible_juzs' => 'This student has no fully memorized juz available for a new partial cycle.',
+            'no_eligible_juzs' => 'This student has no fully memorised juz available for a new partial cycle.',
         ],
         'messages' => [
             'created' => 'Partial saber created successfully.',
@@ -678,7 +682,7 @@ return [
         ],
         'errors' => [
             'final_saber_exists' => 'This trial saber and its attempts cannot be deleted because a final saber exists for the same student and juz.',
-            'no_active_enrollment' => 'This student does not have an active enrollment in your current scope.',
+            'no_active_enrollment' => 'This student does not have an active enrolment in your current scope.',
             'select_group' => 'Select the active group you want to create this partial saber under.',
             'juz_not_eligible' => 'This juz is not available for a new partial cycle for the selected student.',
             'open_cycle_exists' => 'This student already has an open partial saber.',
@@ -795,7 +799,7 @@ return [
         ],
         'errors' => [
             'already_passed' => 'This final saber is already passed and cannot be attempted again.',
-            'no_active_enrollment' => 'This student does not have an active enrollment in your current scope.',
+            'no_active_enrollment' => 'This student does not have an active enrolment in your current scope.',
             'select_group' => 'Select the active group you want to create this final saber under.',
             'juz_not_eligible' => 'This juz is not available for a new final saber for the selected student.',
             'open_cycle_exists' => 'This student already has an open final saber.',
@@ -890,7 +894,7 @@ return [
             'deleted' => 'Awqaf subject test deleted successfully.',
         ],
         'errors' => [
-            'no_active_enrollment' => 'This student does not have an active enrollment in your current scope.',
+            'no_active_enrollment' => 'This student does not have an active enrolment in your current scope.',
             'select_group' => 'Select the active group you want to record this test under.',
         ],
         'table' => [
@@ -910,7 +914,7 @@ return [
     ],
     'points' => [
         'title' => 'Point Ledger',
-        'subtitle' => 'Review automatic and manual point entries for one enrollment, and void mistakes without deleting history.',
+        'subtitle' => 'Review automatic and manual point entries for one enrolment, and void mistakes without deleting history.',
         'workbench' => [
             'title' => "Points' Records",
             'subtitle' => 'Review point history across accessible students and add manual entries from one standalone page.',
@@ -928,7 +932,7 @@ return [
             'form' => [
                 'title' => 'Manual point entry',
                 'edit_title' => 'Edit manual point entry',
-                'help' => 'Choose the student first, then select the active group only if the student has more than one active enrollment.',
+                'help' => 'Choose the student first, then select the active group only if the student has more than one active enrolment.',
                 'student' => 'Student',
                 'group' => 'Group',
                 'select_student' => 'Select student',
@@ -940,7 +944,7 @@ return [
                 'empty' => 'No point entries match the current scope yet.',
                 'headers' => [
                     'student' => 'Student',
-                    'group' => 'Group',
+                    'course' => 'Course',
                     'entered_at' => 'Entered at',
                     'type' => 'Type',
                     'source' => 'Source',
@@ -959,7 +963,7 @@ return [
             'created' => 'Point transaction created successfully.',
             'updated' => 'Point transaction updated successfully.',
             'voided' => 'Point transaction voided successfully.',
-            'void_reason' => 'Voided from the enrollment point ledger page.',
+            'void_reason' => 'Voided from the enrolment point ledger page.',
         ],
         'void' => [
             'title' => 'Void point entry',
@@ -972,7 +976,7 @@ return [
             'negative_not_allowed' => 'This point type does not allow negative values.',
             'edit_manual_only' => 'Only active manual point entries can be edited.',
             'invalid_manual_point_type' => 'Choose an active manual point type with a configured non-zero amount.',
-            'no_active_enrollment' => 'This student does not have an active enrollment in your current scope.',
+            'no_active_enrollment' => 'This student does not have an active enrolment in your current scope.',
             'course_points_disabled' => 'The selected course does not award student points.',
             'select_group' => 'Select the active group you want to record this point entry under.',
             'void_transaction_missing' => 'This point entry is no longer available. Reopen the delete dialog and try again.',
@@ -987,7 +991,7 @@ return [
             'select_point_type' => 'Select point type',
         ],
         'context' => [
-            'title' => 'Enrollment context',
+            'title' => 'Enrolment context',
             'student' => 'Student',
             'group' => 'Group',
             'course' => 'Course',
@@ -1004,7 +1008,7 @@ return [
         ],
         'table' => [
             'title' => 'Point transactions',
-            'empty' => 'No point transactions exist for this enrollment yet.',
+            'empty' => 'No point transactions exist for this enrolment yet.',
             'headers' => [
                 'entered_at' => 'Entered at',
                 'type' => 'Type',
@@ -1190,7 +1194,7 @@ return [
             ],
             'table' => [
                 'title' => 'Group results',
-                'empty' => 'No active enrollments exist for this assessment group.',
+                'empty' => 'No active enrolments exist for this assessment group.',
                 'headers' => [
                     'student' => 'Student',
                     'score' => 'Score',
@@ -1211,7 +1215,7 @@ return [
     ],
     'student_progress' => [
         'title' => 'Student Progress',
-        'subtitle' => 'Review the student profile, memorization history, Quran tests, assessment marks, and point history in one place.',
+        'subtitle' => 'Review the student profile, memorisation history, Quran tests, assessment marks, and point history in one place.',
         'selection' => [
             'title' => 'Student selector',
             'copy' => 'Search by student name or number, then open one student progress record at a time from the list.',
@@ -1235,13 +1239,13 @@ return [
         ],
         'filters' => [
             'title' => 'Course filter',
-            'copy' => 'Limit the progress view to one course when the student has multiple enrollments.',
+            'copy' => 'Limit the progress view to one course when the student has multiple enrolments.',
             'course' => 'Course',
             'all_courses' => 'All courses',
         ],
         'stats' => [
             'attendance_days' => 'Attendance days',
-            'memorized_pages' => 'Memorized pages',
+            'memorized_pages' => 'Memorised pages',
             'quran_partial_tests' => 'Partial sabers',
             'quran_final_tests' => 'Final sabers',
             'points' => 'Cached points',
@@ -1271,7 +1275,7 @@ return [
             'address' => 'Address',
         ],
         'juz_progress' => [
-            'title' => 'Quran juz memorization',
+            'title' => 'Quran juz memorisation',
             'summary' => ':count completed juz',
             'empty' => 'No juz has been started yet.',
             'complete' => 'Complete',
@@ -1280,7 +1284,7 @@ return [
             'add_awqaf_test' => 'Awqaf Saber',
             'awqaf_unavailable' => 'The saber cannot be recorded because the student is not currently enrolled in a course.',
             'missing_title' => 'Missing pages for Juz :juz',
-            'missing_subtitle' => 'These pages are not recorded as memorized for the selected course filter.',
+            'missing_subtitle' => 'These pages are not recorded as memorised for the selected course filter.',
             'missing_count' => 'Missing-page count',
             'no_missing_pages' => 'No missing pages in this juz.',
             'headers' => [
@@ -1333,8 +1337,8 @@ return [
             ],
         ],
         'enrollments' => [
-            'title' => 'Enrollment overview',
-            'empty' => 'No enrollments are available for this student yet.',
+            'title' => 'Enrolment overview',
+            'empty' => 'No enrolments are available for this student yet.',
             'headers' => [
                 'group' => 'Group',
                 'course' => 'Course',
@@ -1362,9 +1366,9 @@ return [
             'empty' => 'No final exam assessment results have been recorded yet.',
         ],
         'memorization' => [
-            'title' => 'Memorization history',
-            'latest_title' => 'Latest memorized pages',
-            'empty' => 'No memorization sessions have been recorded yet.',
+            'title' => 'Memorisation history',
+            'latest_title' => 'Latest memorised pages',
+            'empty' => 'No memorisation sessions have been recorded yet.',
             'headers' => [
                 'date' => 'Date',
                 'group' => 'Group',

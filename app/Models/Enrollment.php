@@ -53,6 +53,15 @@ class Enrollment extends Model
             ->orderByDesc('id');
     }
 
+    public function belongsToFinishedCourse(): bool
+    {
+        $this->loadMissing('group.course');
+
+        return $this->course_finished_at !== null
+            || $this->group?->course_finished_at !== null
+            || $this->group?->course?->finished_at !== null;
+    }
+
     public function group(): BelongsTo
     {
         return $this->belongsTo(Group::class);

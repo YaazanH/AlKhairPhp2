@@ -1,7 +1,7 @@
 <?php
 
 return [
-    'title' => 'مناهج',
+    'title' => 'المناهج',
     'my_title' => 'منهاجي',
     'subtitle' => 'تخطيط مواد ودروس الدورة ومتابعة تقدم تدريس كل مجموعة.',
     'teacher_subtitle' => 'تابع المنهاج المعيّن لمجموعتك وسجّل الدروس التي تم تدريسها.',
@@ -13,6 +13,8 @@ return [
         'add_resource' => 'إضافة مرجع', 'record' => 'تسجيل', 'update_progress' => 'تحديث التقدم', 'manage_subjects' => 'إعدادات المواد',
         'add_standalone_book' => 'إضافة كتاب مستقل', 'download_books' => 'تحميل الكتب', 'download' => 'تحميل',
         'show_taught_lessons' => 'إظهار الدروس التي تم تدريسها', 'hide_taught_lessons' => 'إخفاء الدروس التي تم تدريسها',
+        'expand_topics' => 'إظهار مواضيع الدرس', 'collapse_topics' => 'إخفاء مواضيع الدرس',
+        'mark_all_topics' => 'تحديد جميع مواضيع الدرس', 'clear_all_topics' => 'إلغاء تحديد جميع مواضيع الدرس',
     ],
     'fields' => [
         'curriculum' => 'المنهاج', 'name' => 'الاسم', 'chapter_number' => 'رقم الفصل', 'course' => 'الدورة', 'grade' => 'الصف', 'subject' => 'المادة',

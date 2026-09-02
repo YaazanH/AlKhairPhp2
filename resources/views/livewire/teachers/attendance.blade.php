@@ -373,8 +373,8 @@ new class extends Component {
             <div class="grid gap-4 md:grid-cols-2">
                 <div>
                     <label for="teacher-attendance-day-course" class="mb-1 block text-sm font-medium">{{ __('workflow.teacher_attendance.days.form.course') }}</label>
-                    <select id="teacher-attendance-day-course" wire:model.live="course_id" class="h-12 min-h-12 w-full rounded-xl px-4 py-0 text-sm">
-                        <option value="">{{ __('workflow.teacher_attendance.days.form.select_course') }}</option>
+                    <select id="teacher-attendance-day-course" wire:model.live="course_id" required aria-required="true" data-clearable="false" data-search-selection-required="true" data-hide-placeholder-option="true" class="h-12 min-h-12 w-full rounded-xl px-4 py-0 text-sm">
+                        <option value="" disabled hidden>{{ __('workflow.teacher_attendance.days.form.select_course') }}</option>
                         @foreach ($courseOptions as $course)
                             <option value="{{ $course->id }}">{{ $course->name }}</option>
                         @endforeach
@@ -392,15 +392,15 @@ new class extends Component {
             <div class="grid gap-4 md:grid-cols-2">
                 <div>
                     <label for="teacher-attendance-day-date" class="mb-1 block text-sm font-medium">{{ __('workflow.teacher_attendance.days.form.attendance_date') }}</label>
-                    <input id="teacher-attendance-day-date" wire:model.live="attendance_date" value="{{ $attendance_date }}" type="date" class="date-control--match-select h-12 min-h-12 w-full rounded-xl px-4 py-0 text-sm">
+                    <input id="teacher-attendance-day-date" wire:model.live="attendance_date" value="{{ $attendance_date }}" type="date" required aria-required="true" data-clearable="false" class="date-control--match-select h-12 min-h-12 w-full rounded-xl px-4 py-0 text-sm">
                     @error('attendance_date')
                         <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                     @enderror
                 </div>
                 <div>
                     <label for="teacher-attendance-day-default-status" class="mb-1 block text-sm font-medium">{{ __('workflow.teacher_attendance.days.form.default_status') }}</label>
-                    <select id="teacher-attendance-day-default-status" wire:model="default_attendance_status_id" class="h-12 min-h-12 w-full rounded-xl px-4 py-0 text-sm">
-                        <option value="">{{ __('workflow.teacher_attendance.days.form.no_default_status') }}</option>
+                    <select id="teacher-attendance-day-default-status" wire:model="default_attendance_status_id" required aria-required="true" data-clearable="false" data-search-selection-required="true" data-hide-placeholder-option="true" class="h-12 min-h-12 w-full rounded-xl px-4 py-0 text-sm">
+                        <option value="" disabled hidden>{{ __('workflow.teacher_attendance.days.form.no_default_status') }}</option>
                         @foreach ($defaultStatusOptions as $status)
                             <option value="{{ $status->id }}">{{ $status->name }}</option>
                         @endforeach

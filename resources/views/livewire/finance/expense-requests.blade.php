@@ -7,7 +7,6 @@ use App\Models\FinanceCashBox;
 use App\Models\FinanceCurrency;
 use App\Models\FinancePullRequestKind;
 use App\Models\FinanceRequest;
-use App\Models\FinanceRequestAttachment;
 use App\Models\FinanceTransaction;
 use App\Models\Invoice;
 use App\Models\InvoiceItem;
@@ -33,7 +32,6 @@ new class extends Component {
     public ?int $cash_box_id = null;
     public ?int $finance_pull_request_kind_id = null;
     public string $requested_reason = '';
-    public array $attachments = [];
     public array $review_amounts = [];
     public array $review_cash_boxes = [];
     public array $review_dates = [];
@@ -126,8 +124,6 @@ new class extends Component {
 
         $validated = $this->validate([
             'amount' => ['required', 'numeric', 'gt:0'],
-            'attachments' => ['array'],
-            'attachments.*' => ['file', 'max:'.config('uploads.image_max_kb'), 'mimes:jpg,jpeg,png,webp,pdf'],
             'cash_box_id' => [
                 $canReview ? 'required' : 'nullable',
                 Rule::exists('finance_cash_boxes', 'id')->where('is_active', true),
@@ -154,8 +150,6 @@ new class extends Component {
             'requested_by' => auth()->id(),
             'requested_reason' => $validated['requested_reason'] ?: null,
         ]);
-
-        $this->storeAttachments($request);
 
         if ($canReview) {
             $cashBox = app(FinanceService::class)->cashBoxForUser((int) $validated['cash_box_id'], auth()->user());
@@ -252,22 +246,6 @@ new class extends Component {
         session()->flash('status', __('finance.messages.expense_declined'));
     }
 
-    protected function storeAttachments(FinanceRequest $request): void
-    {
-        foreach ($this->attachments as $upload) {
-            $path = $upload->store('finance/requests/'.$request->id, 'public');
-
-            FinanceRequestAttachment::query()->create([
-                'finance_request_id' => $request->id,
-                'path' => $path,
-                'original_name' => $upload->getClientOriginalName(),
-                'mime_type' => $upload->getMimeType(),
-                'size' => $upload->getSize(),
-                'uploaded_by' => auth()->id(),
-            ]);
-        }
-    }
-
     protected function resetCreateForm(): void
     {
         $this->amount = '';
@@ -276,8 +254,6 @@ new class extends Component {
         $this->cash_box_id = app(FinanceService::class)->defaultCashBoxForUser(auth()->user())?->id;
         $this->finance_pull_request_kind_id = app(FinanceService::class)->defaultPullRequestKindId();
         $this->requested_reason = '';
-        $this->attachments = [];
-
         $this->resetValidation();
     }
 
@@ -713,7 +689,6 @@ new class extends Component {
             @can('finance.entries.update')<div class="lg:col-span-3" data-finance-entry-date><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.entry_date') }}</label><input wire:model="request_date" type="date" class="w-full rounded-xl px-4 py-3 text-sm">@error('request_date') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>@endcan
             @can('finance.expense-requests.review')<div class="lg:col-span-3" data-finance-entry-fund><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.cash_box') }}</label><select wire:model="cash_box_id" class="w-full rounded-xl px-4 py-3 text-sm"><option value="">{{ __('finance.actions.choose_box') }}</option>@foreach ($cashBoxes as $box)<option value="{{ $box->id }}">{{ $box->name }}</option>@endforeach</select>@error('cash_box_id') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>@endcan
             <div class="lg:col-span-6" data-finance-entry-description><label class="mb-1 block text-sm font-medium">{{ __('finance.common.description') }}</label><textarea wire:model="requested_reason" rows="2" class="w-full rounded-xl px-4 py-3 text-sm"></textarea>@error('requested_reason') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
-            <div class="lg:col-span-6" data-finance-entry-attachments><label class="mb-1 block text-sm font-medium">{{ __('finance.common.attachments') }}</label><input wire:model="attachments" type="file" multiple accept="image/jpeg,image/png,image/webp,application/pdf" class="w-full rounded-xl px-4 py-3 text-sm">@error('attachments.*') <div data-pdf-upload-error-for="attachments" class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
             <div class="lg:col-span-6 flex flex-wrap justify-end gap-3">
                 <button type="button" wire:click="closeCreateModal" class="pill-link">{{ __('crud.common.actions.close') }}</button>
                 <button
@@ -745,7 +720,7 @@ new class extends Component {
                     <td class="px-4 py-3"><div class="admin-action-cluster admin-action-cluster--end">
                         @if ($request?->status === 'accepted')<button wire:click="openFinaliseModal({{ $request->id }})" class="admin-icon-button admin-icon-button--accent" title="{{ __('finance.actions.finalise') }}" aria-label="{{ __('finance.actions.finalise') }}" data-expense-finalise-action><x-admin-action-icon name="finalise" /></button>@endif
                         @if ($request?->invoice)
-                            <button wire:click="$set('viewingInvoiceId', {{ $request->invoice->id }})" class="admin-icon-button" title="{{ __('finance.actions.view_invoice') }}" aria-label="{{ __('finance.actions.view_invoice') }}" data-expense-receipt-action><x-admin-action-icon name="receipt" /></button>
+                            <button wire:click="$set('viewingInvoiceId', {{ $request->invoice->id }})" class="admin-icon-button" title="{{ __('finance.actions.view_invoice') }}" aria-label="{{ __('finance.actions.view_invoice') }}" data-expense-receipt-action><x-admin-action-icon name="expense-invoice-view" /></button>
                         @endif
                     </div></td>
                 </tr>

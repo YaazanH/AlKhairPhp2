@@ -9,6 +9,7 @@ return [
         'finance_invoice' => 'Invoice',
         'finance_ledger' => 'Financial report',
         'group_roster' => 'Student roster',
+        'income_record' => 'Income record',
         'student_attendance' => 'Student attendance',
         'teacher_attendance' => 'Teacher attendance',
     ],

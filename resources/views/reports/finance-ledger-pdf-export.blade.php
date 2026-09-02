@@ -9,6 +9,15 @@
     $qrCode->disableBorder();
     $qrSvg = (new \Mpdf\QrCode\Output\Svg())->output($qrCode, 56, 'transparent', 'black');
     $qrImage = 'data:image/svg+xml;base64,'.base64_encode($qrSvg);
+    $kashidaLabels = [
+        'start_date' => $service->balanceArabicPdfKashidas('تاريخ البداية', 14),
+        'fund' => $service->balanceArabicPdfKashidas('الصندوق', 14),
+        'currency' => $service->balanceArabicPdfKashidas('العملة', 49),
+        'total_expense' => $service->balanceArabicPdfKashidas('إجمالي', 14)."\u{00A0}".'المصاريف',
+        'closing_balance' => $service->balanceArabicPdfKashidas('الرصيد', 16)."\u{00A0}".$service->balanceArabicPdfKashidas('الختامي', 9),
+        'total_income' => $service->balanceArabicPdfKashidas('إجمالي', 4)."\u{00A0}".$service->balanceArabicPdfKashidas('الإيرادات', 4),
+        'export_date' => $service->balanceArabicPdfKashidas('تاريخ', 14)."\u{00A0}".$service->balanceArabicPdfKashidas('التصدير', 8),
+    ];
 @endphp
 <!doctype html>
 <html lang="ar" dir="rtl">
@@ -32,6 +41,7 @@
         .meta-table { table-layout: fixed; }
         .meta-table td { border: 0; padding: .7mm 1.2mm; text-align: right; vertical-align: middle; }
         .meta-label { color: #58715e; font-size: 7.8pt; font-weight: bold; white-space: nowrap; }
+        .finance-report-kashida-label { direction: rtl; display: inline-block; line-height: inherit; unicode-bidi: isolate; vertical-align: baseline; white-space: nowrap; }
         .meta-value { color: #173b20; font-size: 8.4pt; font-weight: bold; overflow: hidden; padding-right: 2.5mm !important; text-overflow: ellipsis; white-space: nowrap; }
         .meta-qr { direction: ltr !important; padding-left: 0 !important; text-align: left !important; width: 15mm; }
         .meta-qr img { display: block; height: 6.3mm; margin: 0; width: 6.3mm; }
@@ -58,10 +68,14 @@
         .empty { color: #68756b; padding: 10mm !important; text-align: center; }
         .summary { border-collapse: collapse; margin-top: 4mm; page-break-inside: avoid; table-layout: fixed; width: 100%; }
         .summary td { border: 0; padding: 2.1mm 1.2mm; text-align: right; vertical-align: middle; }
-        .summary-label { color: #58715e; font-size: 8pt; font-weight: bold; width: 10%; }
-        .summary-value { direction: ltr; font-weight: bold; text-align: right; width: 20%; }
-        .summary-label-wide { width: 12%; }
-        .summary-value-wide { direction: rtl; width: 28%; }
+        .summary-label { color: #58715e; font-size: 8pt; font-weight: bold; white-space: nowrap; width: 14%; }
+        .summary-label--right-pair { width: 15.6%; }
+        .summary-label .finance-report-kashida-label { display: block; height: 4mm; line-height: 4mm; vertical-align: middle; }
+        .summary-baseline-spacer { display: block; font-size: 1pt; height: 3.6mm; line-height: 3.6mm; }
+        .summary-value { direction: ltr; font-weight: bold; text-align: right; width: 16%; }
+        .summary-value--right-pair { width: 14.4%; }
+        .summary-label-wide { width: 10%; }
+        .summary-value-wide { direction: rtl; width: 30%; }
         .summary-notes { text-align: right; }
         .signature { border:0 !important; height: 44mm; padding-top:4mm !important; }
         .signature-layout { border-collapse:collapse; table-layout:fixed; width:100%; }
@@ -91,8 +105,8 @@
 
 <div class="meta-wrap"><table class="meta-table">
     <colgroup><col style="width:9%"><col style="width:22%"><col style="width:9%"><col style="width:20%"><col style="width:9%"><col style="width:23%"><col style="width:8%"></colgroup>
-    <tr><td class="meta-label">العام الأكاديمي</td><td class="meta-value">{{ $report['academic_year'] ?? '-' }}</td><td class="meta-label">الصندوق</td><td class="meta-value">{{ data_get($report, 'cash_box.name') }}</td><td class="meta-label">العملة</td><td class="meta-value">{{ data_get($report, 'currency.code') }} - {{ data_get($report, 'currency.name') }}</td><td class="meta-qr" rowspan="2" dir="ltr"><img src="{{ $qrImage }}" alt=""></td></tr>
-    <tr><td class="meta-label">تاريخ البداية</td><td class="meta-value">{{ \Illuminate\Support\Carbon::parse($report['start'])->format('d-m-Y') }}</td><td class="meta-label">تاريخ النهاية</td><td class="meta-value">{{ \Illuminate\Support\Carbon::parse($report['end'])->format('d-m-Y') }}</td><td class="meta-label">الرصيد الافتتاحي</td><td class="meta-value" dir="ltr">{{ data_get($report, 'formatted.opening_balance') }}</td></tr>
+    <tr><td class="meta-label"><span class="finance-report-kashida-label" aria-label="العام الأكاديمي">العام الأكاديمي</span></td><td class="meta-value">{{ $report['academic_year'] ?? '-' }}</td><td class="meta-label"><span class="finance-report-kashida-label" data-finance-report-kashida-label="fund" aria-label="الصندوق">{{ $kashidaLabels['fund'] }}</span></td><td class="meta-value">{{ data_get($report, 'cash_box.name') }}</td><td class="meta-label"><span class="finance-report-kashida-label" data-finance-report-kashida-label="currency" aria-label="العملة">{{ $kashidaLabels['currency'] }}</span></td><td class="meta-value">{{ data_get($report, 'currency.code') }} - {{ data_get($report, 'currency.name') }}</td><td class="meta-qr" rowspan="2" dir="ltr"><img src="{{ $qrImage }}" alt=""></td></tr>
+    <tr><td class="meta-label"><span class="finance-report-kashida-label" data-finance-report-kashida-label="start-date" aria-label="تاريخ البداية">{{ $kashidaLabels['start_date'] }}</span></td><td class="meta-value">{{ \Illuminate\Support\Carbon::parse($report['start'])->format('d-m-Y') }}</td><td class="meta-label"><span class="finance-report-kashida-label" aria-label="تاريخ النهاية">تاريخ النهاية</span></td><td class="meta-value">{{ \Illuminate\Support\Carbon::parse($report['end'])->format('d-m-Y') }}</td><td class="meta-label"><span class="finance-report-kashida-label" aria-label="الرصيد الافتتاحي">الرصيد الافتتاحي</span></td><td class="meta-value" dir="ltr">{{ data_get($report, 'formatted.opening_balance') }}</td></tr>
 </table></div>
 <table class="ledger">
     <thead><tr class="ledger-page-gap"><th colspan="5"></th></tr><tr><th>التاريخ</th><th>الوصف</th><th>مدين</th><th>دائن</th><th>الرصيد</th></tr></thead>
@@ -106,8 +120,8 @@
 </table>
 
 <table class="summary">
-    <tr><td class="summary-label">إجمالي المصاريف</td><td class="summary-value">{{ data_get($report, 'formatted.expense') }}</td><td class="summary-label">إجمالي الإيرادات</td><td class="summary-value">{{ data_get($report, 'formatted.income') }}</td><td class="summary-label summary-label-wide">{{ __('finance.common.notes') }}</td><td class="summary-value summary-value-wide">{{ $report['notes'] ?? '' }}</td></tr>
-    <tr><td class="summary-label">الرصيد الختامي</td><td class="summary-value">{{ data_get($report, 'formatted.closing_balance') }}</td><td class="summary-label">تاريخ التصدير</td><td class="summary-value">{{ $exportedAt }}</td><td class="summary-label summary-label-wide"></td><td class="summary-value summary-value-wide"></td></tr>
+    <tr><td class="summary-label summary-label--right-pair"><div class="summary-baseline-spacer">&nbsp;</div><div class="finance-report-kashida-label" data-finance-report-kashida-label="total-expense" aria-label="إجمالي المصاريف">{{ $kashidaLabels['total_expense'] }}</div></td><td class="summary-value summary-value--right-pair">{{ data_get($report, 'formatted.expense') }}</td><td class="summary-label"><div class="finance-report-kashida-label" data-finance-report-kashida-label="total-income" aria-label="إجمالي الإيرادات">{{ $kashidaLabels['total_income'] }}</div></td><td class="summary-value">{{ data_get($report, 'formatted.income') }}</td><td class="summary-label summary-label-wide">{{ __('finance.common.notes') }}</td><td class="summary-value summary-value-wide">{{ $report['notes'] ?? '' }}</td></tr>
+    <tr><td class="summary-label summary-label--right-pair"><div class="finance-report-kashida-label" data-finance-report-kashida-label="closing-balance" aria-label="الرصيد الختامي">{{ $kashidaLabels['closing_balance'] }}</div></td><td class="summary-value summary-value--right-pair">{{ data_get($report, 'formatted.closing_balance') }}</td><td class="summary-label"><div class="finance-report-kashida-label" data-finance-report-kashida-label="export-date" aria-label="تاريخ التصدير">{{ $kashidaLabels['export_date'] }}</div><div class="summary-baseline-spacer">&nbsp;</div></td><td class="summary-value">{{ $exportedAt }}</td><td class="summary-label summary-label-wide"></td><td class="summary-value summary-value-wide"></td></tr>
     <tr><td colspan="6" class="signature"><table class="signature-layout" dir="ltr"><tr><td class="stamp-block">@if($stampImage)<img src="{{ $stampImage }}" alt="">@endif</td><td class="signature-block"><div class="signature-mark"><div class="signature-image-space">@if($signatureImage)<img class="signature-image" src="{{ $signatureImage }}" alt="">@endif</div></div></td></tr></table></td></tr>
 </table>
 </body>

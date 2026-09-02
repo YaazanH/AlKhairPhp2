@@ -34,6 +34,14 @@ class DashboardTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_highlighted_metric_titles_share_the_manager_dashboard_style(): void
+    {
+        $styles = file_get_contents(resource_path('css/app.css'));
+
+        $this->assertStringContainsString(":is(.stat-card, .report-kpi-card) > .kpi-label {\n    font-weight: 300;\n    letter-spacing: 0;\n    text-transform: none;", $styles);
+        $this->assertStringNotContainsString('.dashboard-manager-highlights .kpi-label {', $styles);
+    }
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -217,7 +225,7 @@ class DashboardTest extends TestCase
             ->assertSee('Quran Foundations')
             ->assertSee('Average Attendance')
             ->assertSee('Final Tested Juz')
-            ->assertSeeInOrder(['Active Groups', 'Average Attendance', 'Memorized Pages', 'Final Tested Juz', 'Total Points'])
+            ->assertSeeInOrder(['Active Groups', 'Average Attendance', 'Memorised Pages', 'Final Tested Juz', 'Total Points'])
             ->assertSee('dashboard-manager-highlights', false)
             ->assertSee('dashboard-course-context__course', false)
             ->assertSee('Number of Students per Group')
@@ -244,7 +252,7 @@ class DashboardTest extends TestCase
             ->assertDontSee('Count')
             ->assertSee('Groups')
             ->assertSee('Boys A')
-            ->assertSee('Memorized pages: 5')
+            ->assertSee('Memorised pages: 5')
             ->assertSee('Students attended: 1')
             ->assertSee('dashboard-line-point__tooltip', false)
             ->assertSee('data-dashboard-line-tooltip-value-only', false)
@@ -764,11 +772,11 @@ class DashboardTest extends TestCase
             ->assertSee("Copy today's summary")
             ->assertSee('Average attendance percentage')
             ->assertSee('100.0%')
-            ->assertSee('Top 5 Students by Memorization')
+            ->assertSee('Top 5 Students by Memorisation')
             ->assertSee('Top Students by Points')
             ->assertSee('Curriculum progress')
             ->assertDontSee('<div class="eyebrow">Curricula</div>', false)
-            ->assertDontSee('Latest Memorization Entries')
+            ->assertDontSee('Latest Memorisation Entries')
             ->assertSee('Ranked Student')
             ->assertSee('dashboard-line-chart', false)
             ->assertSee('teacher-memorization-ranking-row', false)
@@ -789,7 +797,7 @@ class DashboardTest extends TestCase
             ->call('copyTeacherTodaySummary', $group->id)
             ->assertDispatched('admin-copy-text', fn ($event, $params) => str_contains($params['text'], 'Supervisor Group')
                 && str_contains($params['text'], 'Attendance:')
-                && ! str_contains($params['text'], 'Memorization:')
+                && ! str_contains($params['text'], 'Memorisation:')
                 && str_contains($params['text'], 'Assigned Special Course')
                 && str_contains($params['text'], 'May Allah accept from us and from you 🌺'))
             ->call('openTeacherLeaderboard')
@@ -899,7 +907,7 @@ class DashboardTest extends TestCase
         $this->get('/dashboard')
             ->assertOk()
             ->assertSee('Student Dashboard')
-            ->assertSee('Your Enrollments')
+            ->assertSee('Your Enrolments')
             ->assertSee('Student Group');
     }
 

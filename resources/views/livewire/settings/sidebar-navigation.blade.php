@@ -90,6 +90,8 @@ new class extends Component {
             'sort_order' => (string) $this->nextGroupSortOrder(),
             'is_custom' => true,
         ];
+
+        $this->dispatch('sidebar-navigation-group-added', key: $key);
     }
 
     public function removeGroup(string $groupKey): void
@@ -252,6 +254,7 @@ new class extends Component {
                 @foreach ($availableGroups as $group)
                     <details
                         class="nav-sort-group rounded-2xl border border-white/10 bg-white/4 p-4"
+                        data-sidebar-navigation-group="{{ $group['key'] }}"
                         :class="{
                             'nav-sort-group--dragging': draggedGroup === @js($group['key']),
                             'nav-sort-group--drop-target': groupDropTarget === @js($group['key']),
@@ -279,7 +282,7 @@ new class extends Component {
                                 />
                             @endif
                         </summary>
-                        <div x-show="editing" x-cloak class="mt-4"><input wire:model="group_settings.{{ $group['key'] }}.title" type="text" class="w-full rounded-xl px-4 py-3 text-sm" placeholder="{{ __('settings.sidebar_navigation.fields.use_default_title') }}"></div>
+                        <div x-show="editing" x-cloak class="mt-4"><input wire:model="group_settings.{{ $group['key'] }}.title" type="text" class="w-full rounded-xl px-4 py-3 text-sm" placeholder="{{ __('settings.sidebar_navigation.fields.use_default_title') }}" data-sidebar-navigation-group-title></div>
                         <div class="mt-4 space-y-2 rounded-xl border border-dashed border-white/10 p-2" @dragover.prevent @drop.prevent.stop="if(draggedItem){ const movingItem = draggedItem; $wire.moveItem(movingItem, @js($group['key'])).then(() => { draggedItem = null; itemDropTarget = null; settledItem = movingItem; setTimeout(() => settledItem = null, 320) }) }">
                             @foreach (collect($availableItems)->where('group_key', $group['key']) as $item)
                                 <div

@@ -7,10 +7,8 @@ use App\Models\Enrollment;
 use App\Models\QuranFinalTest;
 use App\Models\QuranJuz;
 use App\Models\Student;
-use App\Services\PointLedgerService;
 use App\Services\QuranFinalTestService;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Support\Facades\DB;
 use Livewire\Volt\Component;
 use Livewire\WithPagination;
 
@@ -319,20 +317,16 @@ new class extends Component
         $this->authorizePermission('quran-final-tests.delete');
 
         $finalTest = $this->quranFinalTestsQuery(
-            QuranFinalTest::query()->with(['enrollment.student'])
+            QuranFinalTest::query()->with(['enrollment.student', 'enrollment.group.course'])
         )->findOrFail($finalTestId);
 
-        DB::transaction(function () use ($finalTest): void {
-            $ledger = app(PointLedgerService::class);
-            $ledger->voidSourceTransactions('quran_final_test', $finalTest->id, __('workflow.quran_final_tests.messages.deleted_void_reason'));
+        try {
+            app(QuranFinalTestService::class)->deleteTest($finalTest);
+        } catch (\LogicException $exception) {
+            $this->addError('delete', $exception->getMessage());
 
-            $enrollment = $finalTest->enrollment;
-            $finalTest->delete();
-
-            if ($enrollment) {
-                $ledger->syncEnrollmentCaches($enrollment->fresh(['student']));
-            }
-        });
+            return;
+        }
 
         session()->flash('status', __('workflow.quran_final_tests.messages.deleted'));
     }

@@ -13,6 +13,8 @@ return [
         'add_resource' => 'Add resource', 'record' => 'Record', 'update_progress' => 'Update progress', 'manage_subjects' => 'Subject settings',
         'add_standalone_book' => 'Add standalone book', 'download_books' => 'Download books', 'download' => 'Download',
         'show_taught_lessons' => 'Show taught lessons', 'hide_taught_lessons' => 'Hide taught lessons',
+        'expand_topics' => 'Show lesson topics', 'collapse_topics' => 'Hide lesson topics',
+        'mark_all_topics' => 'Mark all lesson topics', 'clear_all_topics' => 'Clear all lesson topics',
     ],
     'fields' => [
         'curriculum' => 'Curriculum', 'name' => 'Name', 'chapter_number' => 'Chapter number', 'course' => 'Course', 'grade' => 'Grade', 'subject' => 'Subject',

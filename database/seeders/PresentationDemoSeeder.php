@@ -123,7 +123,7 @@ class PresentationDemoSeeder extends Seeder
                     'job_title' => 'Tajweed Teacher',
                     'status' => 'active',
                     'hired_at' => '2024-09-01',
-                    'notes' => 'Supports girls memorization and tajweed circles.',
+                    'notes' => 'Supports girls memorisation and tajweed circles.',
                 ],
             ),
             'Yusuf Kareem' => Teacher::query()->updateOrCreate(
@@ -134,7 +134,7 @@ class PresentationDemoSeeder extends Seeder
                     'job_title' => 'Youth Mentor',
                     'status' => 'active',
                     'hired_at' => '2025-01-10',
-                    'notes' => 'Handles youth revision and engagement programs.',
+                    'notes' => 'Handles youth revision and engagement programmes.',
                 ],
             ),
         ];
@@ -142,7 +142,7 @@ class PresentationDemoSeeder extends Seeder
         $courses = [
             'Hifz Foundations' => Course::query()->updateOrCreate(
                 ['name' => 'Hifz Foundations'],
-                ['description' => 'Core memorization track for younger students.', 'is_active' => true],
+                ['description' => 'Core memorisation track for younger students.', 'is_active' => true],
             ),
             'Tajweed Essentials' => Course::query()->updateOrCreate(
                 ['name' => 'Tajweed Essentials'],
@@ -263,7 +263,7 @@ class PresentationDemoSeeder extends Seeder
         $students = [
             'Hasan Hamdan' => $this->upsertStudent(['first_name' => 'Hasan', 'last_name' => 'Hamdan', 'parent_id' => $parents['Hamdan Family']->id], ['user_id' => $studentUser->id, 'birth_date' => '2014-03-18', 'gender' => 'male', 'school_name' => 'Al Amal School', 'grade_level_id' => $grades['Grade 4'] ?? null, 'quran_current_juz_id' => $juzs[2] ?? null, 'photo_path' => $galleryPaths->get(0) ?: $heroImage, 'status' => 'active', 'joined_at' => '2025-09-01', 'notes' => 'Primary student for parent and student scoped demo logins.']),
             'Huda Hamdan' => $this->upsertStudent(['first_name' => 'Huda', 'last_name' => 'Hamdan', 'parent_id' => $parents['Hamdan Family']->id], ['birth_date' => '2012-10-11', 'gender' => 'female', 'school_name' => 'Al Amal School', 'grade_level_id' => $grades['Grade 6'] ?? null, 'quran_current_juz_id' => $juzs[3] ?? null, 'photo_path' => $galleryPaths->get(1) ?: $heroImage, 'status' => 'active', 'joined_at' => '2025-09-01', 'notes' => 'Sibling enrolled in girls tajweed circle.']),
-            'Mariam Sakr' => $this->upsertStudent(['first_name' => 'Mariam', 'last_name' => 'Sakr', 'parent_id' => $parents['Sakr Family']->id], ['birth_date' => '2015-01-08', 'gender' => 'female', 'school_name' => 'Future Scholars', 'grade_level_id' => $grades['Grade 3'] ?? null, 'quran_current_juz_id' => $juzs[1] ?? null, 'photo_path' => $galleryPaths->get(2) ?: $heroImage, 'status' => 'active', 'joined_at' => '2025-09-03', 'notes' => 'Consistent attendance and steady memorization.']),
+            'Mariam Sakr' => $this->upsertStudent(['first_name' => 'Mariam', 'last_name' => 'Sakr', 'parent_id' => $parents['Sakr Family']->id], ['birth_date' => '2015-01-08', 'gender' => 'female', 'school_name' => 'Future Scholars', 'grade_level_id' => $grades['Grade 3'] ?? null, 'quran_current_juz_id' => $juzs[1] ?? null, 'photo_path' => $galleryPaths->get(2) ?: $heroImage, 'status' => 'active', 'joined_at' => '2025-09-03', 'notes' => 'Consistent attendance and steady memorisation.']),
             'Ilyas Sakr' => $this->upsertStudent(['first_name' => 'Ilyas', 'last_name' => 'Sakr', 'parent_id' => $parents['Sakr Family']->id], ['birth_date' => '2013-05-22', 'gender' => 'male', 'school_name' => 'Future Scholars', 'grade_level_id' => $grades['Grade 5'] ?? null, 'quran_current_juz_id' => $juzs[2] ?? null, 'photo_path' => $galleryPaths->get(0) ?: $heroImage, 'status' => 'active', 'joined_at' => '2025-09-03', 'notes' => 'Shows improvement in quizzes and attendance.']),
             'Ahmad Darwish' => $this->upsertStudent(['first_name' => 'Ahmad', 'last_name' => 'Darwish', 'parent_id' => $parents['Darwish Family']->id], ['birth_date' => '2011-08-15', 'gender' => 'male', 'school_name' => 'Al Riyadah School', 'grade_level_id' => $grades['Grade 8'] ?? null, 'quran_current_juz_id' => $juzs[4] ?? null, 'photo_path' => $galleryPaths->get(1) ?: $heroImage, 'status' => 'active', 'joined_at' => '2025-09-05', 'notes' => 'Teen revision student with strong exam results.']),
             'Aya Darwish' => $this->upsertStudent(['first_name' => 'Aya', 'last_name' => 'Darwish', 'parent_id' => $parents['Darwish Family']->id], ['birth_date' => '2014-12-02', 'gender' => 'female', 'school_name' => 'Al Riyadah School', 'grade_level_id' => $grades['Grade 5'] ?? null, 'quran_current_juz_id' => $juzs[2] ?? null, 'photo_path' => $galleryPaths->get(2) ?: $heroImage, 'status' => 'active', 'joined_at' => '2025-09-05', 'notes' => 'Participates in mosque activities and tajweed class.']),
@@ -475,7 +475,7 @@ class PresentationDemoSeeder extends Seeder
                 'entry_type' => 'new',
                 'from_page' => $row['from'],
                 'to_page' => $row['to'],
-                'notes' => 'Presentation demo memorization entry.',
+                'notes' => 'Presentation demo memorisation entry.',
             ]);
         }
     }
@@ -918,7 +918,7 @@ class PresentationDemoSeeder extends Seeder
                 'enrolled_at' => $enrolledAt,
                 'status' => 'active',
                 'left_at' => null,
-                'notes' => 'Presentation demo enrollment.',
+                'notes' => 'Presentation demo enrolment.',
             ],
         );
     }

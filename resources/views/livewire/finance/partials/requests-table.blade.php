@@ -53,14 +53,6 @@
                             @if ($request->requested_reason)
                                 <div class="mt-1 max-w-xs text-xs leading-5 text-neutral-400">{{ $request->requested_reason }}</div>
                             @endif
-                            @if ($request->attachments->isNotEmpty())
-                                <div class="mt-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-neutral-500">{{ __('finance.common.attachments') }}</div>
-                                <div class="mt-1 flex flex-wrap gap-2 text-xs">
-                                    @foreach ($request->attachments as $attachment)
-                                        <a href="{{ asset('storage/'.$attachment->path) }}" target="_blank" class="text-emerald-200 underline decoration-emerald-300/40 underline-offset-4">{{ $attachment->original_name ?: 'Attachment' }}</a>
-                                    @endforeach
-                                </div>
-                            @endif
                         </td>
                         @if ($showCounterpartyColumn)
                             <td class="px-5 py-3">

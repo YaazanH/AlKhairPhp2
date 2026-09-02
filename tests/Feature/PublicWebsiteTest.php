@@ -33,7 +33,7 @@ class PublicWebsiteTest extends TestCase
         $this->get('/')
             ->assertOk()
             ->assertSee('Masjid AlKhair')
-            ->assertSee('Programs')
+            ->assertSee('Programmes')
             ->assertSee('Visit Us');
     }
 
@@ -68,6 +68,7 @@ class PublicWebsiteTest extends TestCase
     {
         $this->seed(WebsiteSeeder::class);
 
+        Storage::disk('public')->put('website/branding/logo.png', 'configured-logo');
         AppSetting::storeValue('website', 'logo_path', 'website/branding/logo.png');
 
         $logoUrl = asset('storage/website/branding/logo.png');
@@ -77,13 +78,14 @@ class PublicWebsiteTest extends TestCase
             ->assertSee('property="og:image"', false)
             ->assertSee('content="'.$logoUrl.'"', false)
             ->assertSee('name="twitter:image"', false)
-            ->assertSee('public-brand__mark public-brand__mark--image', false);
+            ->assertSee('public-brand__mark public-brand__mark--image', false)
+            ->assertSee('src="/storage/website/branding/logo.png"', false);
 
         $styles = file_get_contents(resource_path('css/app.css'));
 
         $this->assertStringContainsString('.public-brand__mark--image {', $styles);
         $this->assertStringContainsString('background: var(--site-primary);', $styles);
-        $this->assertStringContainsString('transform: scale(1.035);', $styles);
+        $this->assertStringContainsString('transform: scale(1.14);', $styles);
     }
 
     public function test_public_homepage_can_be_put_under_maintenance_without_blocking_dashboard_route(): void

@@ -16,13 +16,14 @@ The search command uses the local FTS5 database at `storage/app/private/codebase
 
 | Source files | Indexed symbols | Runtime routes |
 | ---: | ---: | ---: |
-| 657 | 4,130 | 222 |
+| 682 | 4,332 | 224 |
 
 ## Runtime routes
 
 | Methods | URI | Name | Action | Middleware |
 | --- | --- | --- | --- | --- |
 | GET | `/` | `home` | `App\Http\Controllers\WebsiteController@home` | web |
+| GET | `/_scramble/dev-tools/devtools.js` | `scramble.dev-tools.asset` | `Closure` | web, RestrictedDocsAccess |
 | GET | `/activities` | `activities.index` | `Closure` | web, auth, permission:activities.view |
 | GET | `/activities/family` | `activities.family` | `Closure` | web, auth, permission:activities.responses.view |
 | GET | `/activities/{activity}/finance` | `activities.finance` | `Closure` | web, auth, permission:activities.finance.view |
@@ -127,6 +128,7 @@ The search command uses the local FTS5 database at `storage/app/private/codebase
 | GET | `/flux/editor.css` | `—` | `Flux\AssetManager@editorCss` |  |
 | GET | `/flux/editor.js` | `—` | `Flux\AssetManager@editorJs` |  |
 | GET | `/flux/editor.min.js` | `—` | `Flux\AssetManager@editorMinJs` |  |
+| GET | `/flux/flags/{country}` | `__flux.flag` | `Flux\AssetManager@flag` |  |
 | GET | `/flux/flux.js` | `—` | `Flux\AssetManager@fluxJs` |  |
 | GET | `/flux/flux.min.js` | `—` | `Flux\AssetManager@fluxMinJs` |  |
 | GET | `/forgot-password` | `password.request` | `Closure` | web, guest |
@@ -205,12 +207,12 @@ The search command uses the local FTS5 database at `storage/app/private/codebase
 | GET | `/scanner-imports` | `barcode-actions.import` | `Closure` | web, auth, permission:barcode-scans.import |
 | GET\|POST\|PUT\|PATCH\|DELETE\|OPTIONS | `/settings` | `—` | `\Illuminate\Routing\RedirectController` | web, auth |
 | GET | `/settings/access-control` | `settings.access-control` | `Closure` | web, auth, permission:roles.manage |
-| GET | `/settings/appearance` | `settings.appearance` | `Closure` | web, auth |
+| GET\|POST\|PUT\|PATCH\|DELETE\|OPTIONS | `/settings/appearance` | `settings.appearance` | `\Illuminate\Routing\RedirectController` | web, auth |
 | GET | `/settings/course-completion` | `settings.course-completion` | `Closure` | web, auth, permission:course-completion-rules.manage |
 | GET | `/settings/curriculum-subjects` | `settings.curriculum-subjects` | `Closure` | web, auth, permission:curricula.manage |
 | GET | `/settings/finance` | `settings.finance` | `Closure` | web, auth, permission:finance.settings.manage |
 | GET | `/settings/organization` | `settings.organization` | `Closure` | web, auth, permission:settings.manage |
-| GET | `/settings/password` | `settings.password` | `Closure` | web, auth |
+| GET\|POST\|PUT\|PATCH\|DELETE\|OPTIONS | `/settings/password` | `settings.password` | `\Illuminate\Routing\RedirectController` | web, auth |
 | GET | `/settings/points` | `settings.points` | `Closure` | web, auth, permission:settings.manage |
 | GET | `/settings/profile` | `settings.profile` | `Closure` | web, auth |
 | GET | `/settings/sidebar-navigation` | `settings.sidebar-navigation` | `Closure` | web, auth, permission:sidebar-navigation.manage |
@@ -412,7 +414,7 @@ The search command uses the local FTS5 database at `storage/app/private/codebase
 
 ### Application / HTTP controllers
 
-- [`app/Http/Controllers/AdminExportController.php`](<../app/Http/Controllers/AdminExportController.php>) — 505 lines
+- [`app/Http/Controllers/AdminExportController.php`](<../app/Http/Controllers/AdminExportController.php>) — 506 lines
   - `class AdminExportController` — L26
   - `method courses` — L28
   - `method parents` — L69
@@ -421,12 +423,12 @@ The search command uses the local FTS5 database at `storage/app/private/codebase
   - `method groups` — L192
   - `method groupRoster` — L236
   - `method groupRosterPdf` — L279
-  - `method enrollments` — L319
-  - `method eligibleAwqafStudents` — L362
-  - `method users` — L417
-  - `method streamXlsx` — L460
-  - `method groupRosterPayload` — L465
-  - `method userProfileLabel` — L488
+  - `method enrollments` — L320
+  - `method eligibleAwqafStudents` — L363
+  - `method users` — L418
+  - `method streamXlsx` — L461
+  - `method groupRosterPayload` — L466
+  - `method userProfileLabel` — L489
 - [`app/Http/Controllers/Api/V1/AuthTokenController.php`](<../app/Http/Controllers/Api/V1/AuthTokenController.php>) — 87 lines
   - `class AuthTokenController` — L12
   - `method store` — L17
@@ -569,13 +571,13 @@ The search command uses the local FTS5 database at `storage/app/private/codebase
   - `method preview` — L19
 - [`app/Http/Controllers/Controller.php`](<../app/Http/Controllers/Controller.php>) — 9 lines
   - `class Controller` — L5
-- [`app/Http/Controllers/CourseEndExportController.php`](<../app/Http/Controllers/CourseEndExportController.php>) — 54 lines
+- [`app/Http/Controllers/CourseEndExportController.php`](<../app/Http/Controllers/CourseEndExportController.php>) — 55 lines
   - `class CourseEndExportController` — L15
   - `method students` — L17
   - `method finalTests` — L30
 - [`app/Http/Controllers/CoursePointMarketExportController.php`](<../app/Http/Controllers/CoursePointMarketExportController.php>) — 50 lines
-  - `class CoursePointMarketExportController` — L13
-  - `method __invoke` — L15
+  - `class CoursePointMarketExportController` — L14
+  - `method __invoke` — L16
 - [`app/Http/Controllers/CurriculumResourceDownloadController.php`](<../app/Http/Controllers/CurriculumResourceDownloadController.php>) — 26 lines
   - `class CurriculumResourceDownloadController` — L10
   - `method __invoke` — L12
@@ -588,14 +590,17 @@ The search command uses the local FTS5 database at `storage/app/private/codebase
 - [`app/Http/Controllers/FinanceInvoicePrintController.php`](<../app/Http/Controllers/FinanceInvoicePrintController.php>) — 58 lines
   - `class FinanceInvoicePrintController` — L13
   - `method __invoke` — L15
-- [`app/Http/Controllers/FinanceRequestPrintController.php`](<../app/Http/Controllers/FinanceRequestPrintController.php>) — 149 lines
-  - `class FinanceRequestPrintController` — L15
-  - `method __invoke` — L17
-  - `method defaultTemplateFor` — L60
-  - `method defaultTemplateSettingKey` — L81
-  - `method previewWithTemplate` — L91
-  - `method organizationProfile` — L125
-  - `method defaultPageSize` — L140
+- [`app/Http/Controllers/FinanceRequestPrintController.php`](<../app/Http/Controllers/FinanceRequestPrintController.php>) — 219 lines
+  - `class FinanceRequestPrintController` — L19
+  - `method __invoke` — L21
+  - `method defaultTemplateFor` — L68
+  - `method defaultTemplateSettingKey` — L89
+  - `method previewWithTemplate` — L99
+  - `method pdfWithTemplate` — L109
+  - `method renderedTemplatePayload` — L142
+  - `method pdfAssetSource` — L174
+  - `method organizationProfile` — L195
+  - `method defaultPageSize` — L210
 - [`app/Http/Controllers/IdCards/IdCardBarcodePreviewController.php`](<../app/Http/Controllers/IdCards/IdCardBarcodePreviewController.php>) — 55 lines
   - `class IdCardBarcodePreviewController` — L12
   - `method __construct` — L14
@@ -658,7 +663,7 @@ The search command uses the local FTS5 database at `storage/app/private/codebase
   - `method buildSetupView` — L280
   - `method buildPreview` — L379
   - `method hasStudentRepeatingSource` — L492
-- [`app/Http/Controllers/ReportExportController.php`](<../app/Http/Controllers/ReportExportController.php>) — 211 lines
+- [`app/Http/Controllers/ReportExportController.php`](<../app/Http/Controllers/ReportExportController.php>) — 218 lines
   - `class ReportExportController` — L18
   - `method attendance` — L23
   - `method assessments` — L35
@@ -667,14 +672,14 @@ The search command uses the local FTS5 database at `storage/app/private/codebase
   - `method studentActivitySummary` — L68
   - `method studentQuranTestSummary` — L77
   - `method financeLedger` — L86
-  - `method generatedFinanceLedger` — L136
-  - `method xlsxDownload` — L152
-  - `method ledgerPdfResponse` — L157
-  - `method validatedFilters` — L179
-- [`app/Http/Controllers/StudentAttendanceExportController.php`](<../app/Http/Controllers/StudentAttendanceExportController.php>) — 76 lines
+  - `method generatedFinanceLedger` — L143
+  - `method xlsxDownload` — L159
+  - `method ledgerPdfResponse` — L164
+  - `method validatedFilters` — L186
+- [`app/Http/Controllers/StudentAttendanceExportController.php`](<../app/Http/Controllers/StudentAttendanceExportController.php>) — 77 lines
   - `class StudentAttendanceExportController` — L18
   - `method __invoke` — L20
-- [`app/Http/Controllers/TeacherAttendanceExportController.php`](<../app/Http/Controllers/TeacherAttendanceExportController.php>) — 69 lines
+- [`app/Http/Controllers/TeacherAttendanceExportController.php`](<../app/Http/Controllers/TeacherAttendanceExportController.php>) — 70 lines
   - `class TeacherAttendanceExportController` — L16
   - `method __invoke` — L18
 - [`app/Http/Controllers/WebsiteController.php`](<../app/Http/Controllers/WebsiteController.php>) — 61 lines
@@ -908,16 +913,17 @@ The search command uses the local FTS5 database at `storage/app/private/codebase
   - `method addedBy` — L19
   - `method course` — L24
   - `method invoice` — L29
-- [`app/Models/CoursePointMarketItem.php`](<../app/Models/CoursePointMarketItem.php>) — 88 lines
-  - `class CoursePointMarketItem` — L9
-  - `method casts` — L31
-  - `method addedBy` — L42
-  - `method course` — L47
-  - `method department` — L52
-  - `method invoice` — L57
-  - `method invoiceItem` — L62
-  - `method points` — L67
-  - `method formattedAmount` — L78
+- [`app/Models/CoursePointMarketItem.php`](<../app/Models/CoursePointMarketItem.php>) — 103 lines
+  - `class CoursePointMarketItem` — L11
+  - `method casts` — L35
+  - `method addedBy` — L48
+  - `method course` — L53
+  - `method department` — L58
+  - `method invoice` — L63
+  - `method invoiceItem` — L68
+  - `method points` — L73
+  - `method scopeInInvoiceOrder` — L84
+  - `method formattedAmount` — L93
 - [`app/Models/CourseSchedule.php`](<../app/Models/CourseSchedule.php>) — 25 lines
   - `class CourseSchedule` — L9
   - `method casts` — L15
@@ -960,22 +966,23 @@ The search command uses the local FTS5 database at `storage/app/private/codebase
   - `method casts` — L15
   - `method resources` — L16
   - `method curriculumSubjects` — L17
-- [`app/Models/Enrollment.php`](<../app/Models/Enrollment.php>) — 116 lines
+- [`app/Models/Enrollment.php`](<../app/Models/Enrollment.php>) — 125 lines
   - `class Enrollment` — L12
   - `method casts` — L32
   - `method scopeCurrentActiveForStudent` — L44
-  - `method group` — L56
-  - `method activityRegistrations` — L61
-  - `method assessmentResults` — L66
-  - `method invoiceItems` — L71
-  - `method memorizationSessions` — L76
-  - `method studentNotes` — L81
-  - `method pointTransactions` — L86
-  - `method quranPartialTests` — L91
-  - `method quranFinalTests` — L96
-  - `method quranTests` — L101
-  - `method student` — L106
-  - `method studentAttendanceRecords` — L111
+  - `method belongsToFinishedCourse` — L56
+  - `method group` — L65
+  - `method activityRegistrations` — L70
+  - `method assessmentResults` — L75
+  - `method invoiceItems` — L80
+  - `method memorizationSessions` — L85
+  - `method studentNotes` — L90
+  - `method pointTransactions` — L95
+  - `method quranPartialTests` — L100
+  - `method quranFinalTests` — L105
+  - `method quranTests` — L110
+  - `method student` — L115
+  - `method studentAttendanceRecords` — L120
 - [`app/Models/ExpenseCategory.php`](<../app/Models/ExpenseCategory.php>) — 31 lines
   - `class ExpenseCategory` — L9
   - `method casts` — L19
@@ -1585,25 +1592,27 @@ The search command uses the local FTS5 database at `storage/app/private/codebase
   - `method attendanceDaysCreatedForEnrollment` — L187
   - `method isFinalAssessment` — L200
   - `method pointTransactionHasName` — L210
-- [`app/Services/CourseLifecycleService.php`](<../app/Services/CourseLifecycleService.php>) — 304 lines
-  - `class CourseLifecycleService` — L17
-  - `method finish` — L19
-  - `method reactivate` — L125
-  - `method adoptLegacyFinishedState` — L221
-  - `method archiveSummary` — L282
-  - `method changedWithLegacyCourse` — L298
-- [`app/Services/CoursePointMarketService.php`](<../app/Services/CoursePointMarketService.php>) — 246 lines
-  - `class CoursePointMarketService` — L19
-  - `method eligibleInvoiceQuery` — L21
-  - `method availableInvoices` — L41
-  - `method addInvoices` — L61
-  - `method createDepartment` — L99
-  - `method allocateItems` — L109
-  - `method pointMarketInvoiceLinks` — L199
-  - `method departments` — L213
-  - `method updatePointPrice` — L222
-  - `method courseDateRange` — L228
-  - `method localRateAtTransaction` — L238
+- [`app/Services/CourseLifecycleService.php`](<../app/Services/CourseLifecycleService.php>) — 319 lines
+  - `class CourseLifecycleService` — L20
+  - `method finish` — L22
+  - `method reactivate` — L128
+  - `method adoptLegacyFinishedState` — L224
+  - `method archiveSummary` — L285
+  - `method changedWithLegacyCourse` — L313
+- [`app/Services/CoursePointMarketService.php`](<../app/Services/CoursePointMarketService.php>) — 299 lines
+  - `class CoursePointMarketService` — L20
+  - `method eligibleInvoiceQuery` — L22
+  - `method availableInvoices` — L42
+  - `method addInvoices` — L62
+  - `method createDepartment` — L100
+  - `method allocateItems` — L110
+  - `method pointMarketInvoiceLinks` — L202
+  - `method departments` — L216
+  - `method summary` — L238
+  - `method updatePointPrice` — L264
+  - `method removeItem` — L269
+  - `method courseDateRange` — L281
+  - `method localRateAtTransaction` — L291
 - [`app/Services/CourseScheduleService.php`](<../app/Services/CourseScheduleService.php>) — 78 lines
   - `class CourseScheduleService` — L10
   - `method inherit` — L12
@@ -1616,11 +1625,11 @@ The search command uses the local FTS5 database at `storage/app/private/codebase
   - `method canView` — L17
   - `method isGroupSupervisor` — L22
   - `method groupsQuery` — L46
-- [`app/Services/CurriculumProgressService.php`](<../app/Services/CurriculumProgressService.php>) — 140 lines
+- [`app/Services/CurriculumProgressService.php`](<../app/Services/CurriculumProgressService.php>) — 143 lines
   - `class CurriculumProgressService` — L8
   - `method summary` — L10
   - `method subjects` — L45
-  - `method statusWeight` — L133
+  - `method statusWeight` — L136
 - [`app/Services/DataMatrixSvgRenderer.php`](<../app/Services/DataMatrixSvgRenderer.php>) — 298 lines
   - `class DataMatrixSvgRenderer` — L7
   - `method render` — L33
@@ -1637,48 +1646,50 @@ The search command uses the local FTS5 database at `storage/app/private/codebase
   - `method cornerThree` — L251
   - `method cornerFour` — L259
   - `method addFinderPatterns` — L267
-- [`app/Services/FinanceReportService.php`](<../app/Services/FinanceReportService.php>) — 1,009 lines
-  - `class FinanceReportService` — L24
-  - `method report` — L26
-  - `method defaultLedgerTemplate` — L97
-  - `method ledgerColumnDefinitions` — L128
-  - `method ledgerColumnLabel` — L148
-  - `method ledgerReport` — L159
-  - `method localCurrencyLedgerReport` — L220
-  - `method reportPrefix` — L281
-  - `method reportNumber` — L289
-  - `method savedReportPeriodLabel` — L300
-  - `method previewLedgerReport` — L321
-  - `method storeGeneratedLedgerReport` — L417
-  - `method generatedLedgerReport` — L447
-  - `method ensureStoredLedgerPdf` — L481
-  - `method renderLedgerPdf` — L523
-  - `method ledgerPdfFilename` — L580
-  - `method ledgerExportRows` — L594
-  - `method ledgerExportRowsFromReport` — L601
-  - `method ledgerColumnValue` — L647
-  - `method bilingual` — L687
-  - `method shapeRgbChannels` — L696
-  - `method buildLedgerReportArray` — L712
-  - `method currencySnapshot` — L768
-  - `method currentAcademicYearName` — L779
-  - `method formatMoney` — L786
-  - `method ledgerRowFromTransaction` — L800
-  - `method normalizeTemplateDateMode` — L834
-  - `method period` — L839
-  - `method quarterTotals` — L856
-  - `method resolveReportDate` — L879
-  - `method templateSnapshot` — L888
-  - `method ledgerPdfStoragePath` — L922
-  - `method ledgerPdfRendererVersion` — L934
-  - `method reportStampPdfSource` — L939
-  - `method reportStampUrl` — L948
-  - `method defaultReportLogoPdfSource` — L957
-  - `method defaultReportLogoUrl` — L962
-  - `method normalizeLedgerTemplateSnapshot` — L967
-  - `method pdfAssetSource` — L976
-  - `method fileUri` — L998
-- [`app/Services/FinanceService.php`](<../app/Services/FinanceService.php>) — 1,940 lines
+- [`app/Services/FinanceReportService.php`](<../app/Services/FinanceReportService.php>) — 1,055 lines
+  - `class FinanceReportService` — L25
+  - `method availableUnreportedLedgerPeriods` — L27
+  - `method generatedLedgerPeriodExists` — L53
+  - `method report` — L71
+  - `method defaultLedgerTemplate` — L142
+  - `method ledgerColumnDefinitions` — L173
+  - `method ledgerColumnLabel` — L193
+  - `method ledgerReport` — L204
+  - `method localCurrencyLedgerReport` — L265
+  - `method reportPrefix` — L326
+  - `method reportNumber` — L334
+  - `method savedReportPeriodLabel` — L345
+  - `method previewLedgerReport` — L366
+  - `method storeGeneratedLedgerReport` — L462
+  - `method generatedLedgerReport` — L493
+  - `method ensureStoredLedgerPdf` — L527
+  - `method renderLedgerPdf` — L569
+  - `method ledgerPdfFilename` — L626
+  - `method ledgerExportRows` — L640
+  - `method ledgerExportRowsFromReport` — L647
+  - `method ledgerColumnValue` — L693
+  - `method bilingual` — L733
+  - `method shapeRgbChannels` — L742
+  - `method buildLedgerReportArray` — L758
+  - `method currencySnapshot` — L814
+  - `method currentAcademicYearName` — L825
+  - `method formatMoney` — L832
+  - `method ledgerRowFromTransaction` — L846
+  - `method normalizeTemplateDateMode` — L880
+  - `method period` — L885
+  - `method quarterTotals` — L902
+  - `method resolveReportDate` — L925
+  - `method templateSnapshot` — L934
+  - `method ledgerPdfStoragePath` — L968
+  - `method ledgerPdfRendererVersion` — L980
+  - `method reportStampPdfSource` — L985
+  - `method reportStampUrl` — L994
+  - `method defaultReportLogoPdfSource` — L1003
+  - `method defaultReportLogoUrl` — L1008
+  - `method normalizeLedgerTemplateSnapshot` — L1013
+  - `method pdfAssetSource` — L1022
+  - `method fileUri` — L1044
+- [`app/Services/FinanceService.php`](<../app/Services/FinanceService.php>) — 1,942 lines
   - `class FinanceService` — L30
   - `method availableTransactionPeriods` — L32
   - `method financeRequestTypeLabel` — L52
@@ -1720,46 +1731,46 @@ The search command uses the local FTS5 database at `storage/app/private/codebase
   - `method updateTransaction` — L885
   - `method allowedSpecialReferencePrefixes` — L951
   - `method deleteTransactionRecord` — L970
-  - `method deleteWithdrawalRequests` — L1043
-  - `method recordActivityExpense` — L1088
-  - `method recordActivityPayment` — L1134
-  - `method recordCashBoxTransfer` — L1157
-  - `method recordCurrencyExchange` — L1196
-  - `method recordInvoicePayment` — L1269
-  - `method reverseSourceTransactions` — L1289
-  - `method syncActivityTotals` — L1333
-  - `method syncInvoiceTotals` — L1372
-  - `method updateCurrencyRate` — L1410
-  - `method preserveReferencedCurrencyQuotes` — L1426
-  - `method currencyReferenceQuoteAmount` — L1453
-  - `method currentBalance` — L1464
-  - `method createGeneratedRequestFromPull` — L1472
-  - `method defaultFinanceCategoryId` — L1496
-  - `method markGeneratedRequestPosted` — L1517
-  - `method financeRequestReference` — L1527
-  - `method expenseFinalisationMode` — L1538
-  - `method ensureCashBoxSupportsCurrency` — L1548
-  - `method ensureNonNegativeBalance` — L1559
-  - `method ensureNonNegativeReplacementBalance` — L1580
-  - `method replaceExpenseTransactionAmount` — L1607
-  - `method amountSnapshot` — L1636
-  - `method amountSnapshotAtRate` — L1641
-  - `method determineInvoiceStatus` — L1654
-  - `method formatRateNumber` — L1671
-  - `method formatRateInputNumber` — L1684
-  - `method nextTransactionNumber` — L1691
-  - `method normalizeTransactionType` — L1704
-  - `method cleanTransactionDescription` — L1719
-  - `method exchangeDescription` — L1735
-  - `method transferDescription` — L1744
-  - `method syncTransactionSource` — L1749
-  - `method syncCurrencyExchangeFromLedger` — L1799
-  - `method syncCashBoxTransferFromLedger` — L1843
-  - `method descriptionWithoutExchangeMarker` — L1893
-  - `method requestNumberPrefix` — L1901
-  - `method numberingPrefix` — L1911
-  - `method normalizeNumberPrefix` — L1922
-  - `method sequencedNumber` — L1929
+  - `method deleteWithdrawalRequest` — L1043
+  - `method recordActivityExpense` — L1090
+  - `method recordActivityPayment` — L1136
+  - `method recordCashBoxTransfer` — L1159
+  - `method recordCurrencyExchange` — L1198
+  - `method recordInvoicePayment` — L1271
+  - `method reverseSourceTransactions` — L1291
+  - `method syncActivityTotals` — L1335
+  - `method syncInvoiceTotals` — L1374
+  - `method updateCurrencyRate` — L1412
+  - `method preserveReferencedCurrencyQuotes` — L1428
+  - `method currencyReferenceQuoteAmount` — L1455
+  - `method currentBalance` — L1466
+  - `method createGeneratedRequestFromPull` — L1474
+  - `method defaultFinanceCategoryId` — L1498
+  - `method markGeneratedRequestPosted` — L1519
+  - `method financeRequestReference` — L1529
+  - `method expenseFinalisationMode` — L1540
+  - `method ensureCashBoxSupportsCurrency` — L1550
+  - `method ensureNonNegativeBalance` — L1561
+  - `method ensureNonNegativeReplacementBalance` — L1582
+  - `method replaceExpenseTransactionAmount` — L1609
+  - `method amountSnapshot` — L1638
+  - `method amountSnapshotAtRate` — L1643
+  - `method determineInvoiceStatus` — L1656
+  - `method formatRateNumber` — L1673
+  - `method formatRateInputNumber` — L1686
+  - `method nextTransactionNumber` — L1693
+  - `method normalizeTransactionType` — L1706
+  - `method cleanTransactionDescription` — L1721
+  - `method exchangeDescription` — L1737
+  - `method transferDescription` — L1746
+  - `method syncTransactionSource` — L1751
+  - `method syncCurrencyExchangeFromLedger` — L1801
+  - `method syncCashBoxTransferFromLedger` — L1845
+  - `method descriptionWithoutExchangeMarker` — L1895
+  - `method requestNumberPrefix` — L1903
+  - `method numberingPrefix` — L1913
+  - `method normalizeNumberPrefix` — L1924
+  - `method sequencedNumber` — L1931
 - [`app/Services/GroupDailySummaryService.php`](<../app/Services/GroupDailySummaryService.php>) — 267 lines
   - `class GroupDailySummaryService` — L14
   - `method openGroupCopyText` — L16
@@ -1843,18 +1854,18 @@ The search command uses the local FTS5 database at `storage/app/private/codebase
   - `method normalizeFilters` — L215
   - `method normalizeDate` — L228
   - `method normalizeNullableInteger` — L243
-- [`app/Services/MemorizationService.php`](<../app/Services/MemorizationService.php>) — 452 lines
-  - `class MemorizationService` — L16
-  - `method __construct` — L18
-  - `method saveSession` — L22
-  - `method deleteSession` — L106
-  - `method reconcileAffectedPagesAndRewards` — L123
-  - `method findDuplicatePages` — L180
-  - `method ensurePagesAreNotDuplicated` — L211
-  - `method recordNewSessionAchievementsAndPoints` — L222
-  - `method recalculateDailyReward` — L251
-  - `method rebuildStudentAchievementsAndPoints` — L314
-  - `method isLegacyImportSession` — L446
+- [`app/Services/MemorizationService.php`](<../app/Services/MemorizationService.php>) — 459 lines
+  - `class MemorizationService` — L17
+  - `method __construct` — L19
+  - `method saveSession` — L23
+  - `method deleteSession` — L107
+  - `method reconcileAffectedPagesAndRewards` — L130
+  - `method findDuplicatePages` — L187
+  - `method ensurePagesAreNotDuplicated` — L218
+  - `method recordNewSessionAchievementsAndPoints` — L229
+  - `method recalculateDailyReward` — L258
+  - `method rebuildStudentAchievementsAndPoints` — L321
+  - `method isLegacyImportSession` — L453
 - [`app/Services/ParentNumberService.php`](<../app/Services/ParentNumberService.php>) — 103 lines
   - `class ParentNumberService` — L8
   - `method prefix` — L20
@@ -1946,7 +1957,7 @@ The search command uses the local FTS5 database at `storage/app/private/codebase
   - `method statusForScore` — L33
   - `method store` — L42
   - `method storePassingGrade` — L47
-- [`app/Services/QuranFinalTestService.php`](<../app/Services/QuranFinalTestService.php>) — 245 lines
+- [`app/Services/QuranFinalTestService.php`](<../app/Services/QuranFinalTestService.php>) — 258 lines
   - `class QuranFinalTestService` — L17
   - `method create` — L19
   - `method createForExternalMemorization` — L50
@@ -1956,13 +1967,14 @@ The search command uses the local FTS5 database at `storage/app/private/codebase
   - `method recordAttempt` — L123
   - `method updateAttempt` — L164
   - `method deleteAttempt` — L201
-  - `method deleteTest` — L231
+  - `method deleteTest` — L234
+  - `method ensureCourseAllowsDeletion` — L251
 - [`app/Services/QuranPartialTestRuleService.php`](<../app/Services/QuranPartialTestRuleService.php>) — 33 lines
   - `class QuranPartialTestRuleService` — L7
   - `method failThreshold` — L13
   - `method statusForMistakeCount` — L21
   - `method store` — L28
-- [`app/Services/QuranPartialTestService.php`](<../app/Services/QuranPartialTestService.php>) — 310 lines
+- [`app/Services/QuranPartialTestService.php`](<../app/Services/QuranPartialTestService.php>) — 320 lines
   - `class QuranPartialTestService` — L18
   - `method create` — L20
   - `method createForExternalMemorization` — L50
@@ -1971,8 +1983,9 @@ The search command uses the local FTS5 database at `storage/app/private/codebase
   - `method recordAttempt` — L141
   - `method updateAttempt` — L189
   - `method deleteAttempt` — L235
-  - `method deleteTest` — L280
-  - `method ensureNoRelatedFinalTest` — L300
+  - `method deleteTest` — L281
+  - `method ensureNoRelatedFinalTest` — L303
+  - `method ensureCourseAllowsDeletion` — L313
 - [`app/Services/QuranProgressionService.php`](<../app/Services/QuranProgressionService.php>) — 115 lines
   - `class QuranProgressionService` — L13
   - `method validate` — L15
@@ -2037,10 +2050,11 @@ The search command uses the local FTS5 database at `storage/app/private/codebase
   - `method activeTeacherGroup` — L358
   - `method isValidCustomGroupKey` — L368
   - `method withdrawalRequestsEnabled` — L374
-- [`app/Services/SpTodayExchangeRateService.php`](<../app/Services/SpTodayExchangeRateService.php>) — 88 lines
-  - `class SpTodayExchangeRateService` — L10
-  - `method refreshUsdSypRate` — L14
-  - `method averageRateFromHtml` — L58
+- [`app/Services/SpTodayExchangeRateService.php`](<../app/Services/SpTodayExchangeRateService.php>) — 106 lines
+  - `class SpTodayExchangeRateService` — L13
+  - `method refreshUsdSypRateAfterResponse` — L19
+  - `method refreshUsdSypRate` — L32
+  - `method averageRateFromHtml` — L76
 - [`app/Services/StudentAttendanceDayService.php`](<../app/Services/StudentAttendanceDayService.php>) — 294 lines
   - `class StudentAttendanceDayService` — L17
   - `method createOrSyncDay` — L22
@@ -2134,15 +2148,21 @@ The search command uses the local FTS5 database at `storage/app/private/codebase
   - `method pdf` — L14
   - `method inlinePdf` — L34
   - `method asciiFallback` — L43
+- [`app/Support/NumberFormatter.php`](<../app/Support/NumberFormatter.php>) — 25 lines
+  - `class NumberFormatter` — L5
+  - `method trimmed` — L7
+  - `method withSuffix` — L17
 - [`app/Support/OperationalFeatureSettings.php`](<../app/Support/OperationalFeatureSettings.php>) — 38 lines
   - `class OperationalFeatureSettings` — L8
   - `method memorizationAndSabersEnabled` — L10
   - `method activitiesEnabled` — L15
   - `method ensureMemorizationAndSabersEnabled` — L20
   - `method ensureActivitiesEnabled` — L29
-- [`app/Support/PdfOptions.php`](<../app/Support/PdfOptions.php>) — 29 lines
+- [`app/Support/PdfOptions.php`](<../app/Support/PdfOptions.php>) — 66 lines
   - `class PdfOptions` — L8
-  - `method make` — L10
+  - `method make` — L14
+  - `method ensureMemoryCapacity` — L35
+  - `method memoryLimitInBytes` — L50
 - [`app/Support/PercentageFormatter.php`](<../app/Support/PercentageFormatter.php>) — 19 lines
   - `class PercentageFormatter` — L5
   - `method format` — L7
@@ -2794,6 +2814,20 @@ The search command uses the local FTS5 database at `storage/app/private/codebase
   - `table course_point_market_invoices` — L22
   - `table course_point_market_items` — L32
   - `method down` — L56
+- [`database/migrations/2026_08_27_030000_add_invoice_order_to_course_point_market_items.php`](<../database/migrations/2026_08_27_030000_add_invoice_order_to_course_point_market_items.php>) — 52 lines
+  - `method up` — L10
+  - `table course_point_market_items` — L12
+  - `method down` — L44
+  - `table course_point_market_items` — L46
+- [`database/migrations/2026_09_01_000000_convert_builtin_english_copy_to_uk_spelling.php`](<../database/migrations/2026_09_01_000000_convert_builtin_english_copy_to_uk_spelling.php>) — 241 lines
+  - `method up` — L9
+  - `method down` — L23
+  - `method renameBuiltInPointLabels` — L37
+  - `method translateStoredWebsiteCopy` — L58
+  - `method translateJsonColumns` — L91
+  - `method translateJson` — L129
+  - `method translateValue` — L141
+  - `method usToUk` — L175
 
 ### Database / Seeders
 
@@ -2848,92 +2882,151 @@ The search command uses the local FTS5 database at `storage/app/private/codebase
 
 ### Frontend / CSS
 
-- [`resources/css/app.css`](<../resources/css/app.css>) — 9,143 lines
+- [`resources/css/app.css`](<../resources/css/app.css>) — 11,335 lines
 
 ### Frontend / JavaScript
 
-- [`resources/js/app.js`](<../resources/js/app.js>) — 2,085 lines
+- [`resources/js/app.js`](<../resources/js/app.js>) — 3,646 lines
   - `function parseLivewireAction` — L12
   - `function adminConfirmElements` — L53
   - `function resetAdminConfirmState` — L63
   - `function closeAdminConfirm` — L70
   - `function openAdminConfirm` — L90
-  - `function confirmAdminAction` — L118
-  - `function handleLivewireConfirm` — L142
-  - `function handleFormConfirm` — L171
-  - `function registerAdminConfirmListeners` — L191
-  - `function suppressSearchableSelectOpen` — L233
-  - `function searchableSelectOpenIsSuppressed` — L240
-  - `function searchableSelectBinding` — L244
-  - `function searchableSelectPlaceholderOption` — L251
-  - `function searchableSelectPlaceholderValue` — L266
-  - `function searchableSelectHasValue` — L270
-  - `function createSearchableSelectChevron` — L276
-  - `function selectedOptionText` — L285
-  - `function searchHintValue` — L291
-  - `function closeSearchableSelect` — L305
-  - `function closeOtherSearchableSelects` — L312
-  - `function normalizeSearchableText` — L320
-  - `function buildSearchableSelectOptions` — L334
-  - `function enhanceSearchableSelect` — L416
-  - `function updateRequiredSelectionValidity` — L542
-  - `function sync` — L587
-  - `function initializeSearchableSelects` — L782
-  - `function scheduleSearchableSelectInitialization` — L788
-  - `function restoreNativeDateInput` — L865
-  - `function syncDatePlaceholderState` — L887
-  - `function initializeNativeDateInputs` — L915
-  - `function createMobileFilterIcon` — L944
-  - `function createMobileTableActionIcon` — L965
-  - `function addPath` — L968
-  - `function addCircle` — L973
-  - `function mobileTableActionKind` — L1028
-  - `function initializeMobileTableHeaderActions` — L1049
-  - `function isMobileTableFilterPopoverOpen` — L1078
-  - `function ensureMobileTableFilterBackdrop` — L1088
-  - `function lockMobileTableFilterViewport` — L1102
-  - `function unlockMobileTableFilterViewport` — L1113
-  - `function presentMobileTableFiltersInTopLayer` — L1127
-  - `function dismissMobileTableFilterTopLayer` — L1159
-  - `function initializeMobileTableFilters` — L1177
-  - `function openMobileTableFilters` — L1261
-  - `function closeMobileTableFilters` — L1278
-  - `function normalizeFinanceNumberInputValue` — L1377
-  - `function groupFinanceIntegerPart` — L1381
-  - `function formatFinanceNumberInputValue` — L1385
-  - `function formatFinanceNumberInput` — L1413
-  - `function initializeFinanceNumberInputs` — L1435
-  - `function scheduleFinanceNumberInitialization` — L1443
-  - `function initializePublicGallerySliders` — L1491
-  - `function show` — L1511
-  - `function stop` — L1523
-  - `function start` — L1530
-  - `function adminToastRegion` — L1565
-  - `function showAdminToast` — L1585
-  - `function handleQuickAttendanceScanSucceeded` — L1617
-  - `function initializeQuickAttendanceScanners` — L1629
-  - `function messageText` — L1651
-  - `function setMessage` — L1653
-  - `function component` — L1659
-  - `function stop` — L1666
-  - `function submitValue` — L1681
-  - `function decodeQrFromCanvas` — L1712
-  - `function detectCode` — L1739
-  - `function scanLoop` — L1759
-  - `function startCameraStream` — L1789
-  - `function stopQuickAttendanceScanners` — L1842
-  - `function writeAdminCopyText` — L1855
-  - `function livewireModelName` — L1902
-  - `function acceptsPdf` — L1910
-  - `function selectedFilesIncludePdf` — L1916
-  - `function pdfUploadStatus` — L1922
-  - `function pdfSaveControls` — L1960
-  - `function formHasActivePdfUpload` — L1976
-  - `function updatePdfUploadForm` — L1980
-  - `function setPdfUploadActive` — L2002
-  - `function initializePdfUploads` — L2033
+  - `function confirmAdminAction` — L121
+  - `function handleLivewireConfirm` — L145
+  - `function handleFormConfirm` — L175
+  - `function registerAdminConfirmListeners` — L196
+  - `function suppressSearchableSelectOpen` — L238
+  - `function searchableSelectOpenIsSuppressed` — L245
+  - `function searchableSelectBinding` — L249
+  - `function searchableSelectPlaceholderOption` — L256
+  - `function searchableSelectPlaceholderValue` — L271
+  - `function searchableSelectHasValue` — L275
+  - `function createSearchableSelectChevron` — L281
+  - `function restoreSearchableSelectClear` — L290
+  - `function selectedOptionText` — L308
+  - `function searchHintValue` — L314
+  - `function releaseSearchableSelectOverflow` — L330
+  - `function restoreSearchableSelectOverflow` — L372
+  - `function closeSearchableSelect` — L393
+  - `function closeOtherSearchableSelects` — L406
+  - `function normalizeSearchableText` — L414
+  - `function buildSearchableSelectOptions` — L428
+  - `function searchableSelectOptionButtons` — L517
+  - `function highlightSearchableSelectOption` — L521
+  - `function normalizedIndex` — L530
+  - `function focusNextInteractiveControl` — L542
+  - `function transferMobileTableFilterCriterion` — L563
+  - `function filterControlModel` — L572
+  - `function cleanupDuplicateMobileTableFilterControls` — L577
+  - `function enhanceSearchableSelect` — L614
+  - `function updateRequiredSelectionValidity` — L746
+  - `function sync` — L791
+  - `function openSearchableOptions` — L839
+  - `function handleSearchableSelectKeydown` — L853
+  - `function cleanupOrphanedSearchableSelects` — L1082
+  - `function initializeSearchableSelects` — L1095
+  - `function scheduleSearchableSelectInitialization` — L1102
+  - `function focusSearchableSelectById` — L1119
+  - `function focusSearchableSelect` — L1144
+  - `function assessmentQuickScoreStudentNameInput` — L1153
+  - `function focusAssessmentQuickScoreStudentName` — L1171
+  - `function scheduleAssessmentQuickScoreStudentFocus` — L1184
+  - `function measureFinancialText` — L1256
+  - `function financeKashidaPositions` — L1271
+  - `function financeTextWithKashidas` — L1291
+  - `function measureFinancialShapedLabel` — L1312
+  - `function measureFinancialNaturalShapedLabel` — L1322
+  - `function justifyFinanceLabelToWidth` — L1340
+  - `function measureFinancialSpacingContent` — L1384
+  - `function synchronizeFinancialTransactionTypography` — L1397
+  - `function scheduleFinancialTransactionTypographySync` — L1554
+  - `function formattedDateValue` — L1604
+  - `function dateInputPlaceholder` — L1610
+  - `function isDateInputLayoutClass` — L1620
+  - `function syncFormattedDateInputAppearance` — L1626
+  - `function createDatePickerIcon` — L1654
+  - `function createDateClearIcon` — L1681
+  - `function restoreFormattedDatePicker` — L1691
+  - `function closeActiveNativeDatePicker` — L1714
+  - `function openNativeDatePicker` — L1721
+  - `function enhanceDateInput` — L1746
+  - `function stopDateActionEvent` — L1803
+  - `function openPicker` — L1807
+  - `function runPickerAction` — L1811
+  - `function sync` — L1825
+  - `function cleanupOrphanedFormattedDateInputs` — L1868
+  - `function initializeFormattedDateInputs` — L1876
+  - `function scheduleFormattedDateInitialization` — L1885
+  - `function createMobileFilterIcon` — L1922
+  - `function createMobileTableActionIcon` — L1943
+  - `function addPath` — L1946
+  - `function addCircle` — L1952
+  - `function addRect` — L1960
+  - `function modalActionDescriptor` — L2071
+  - `function modalActionKind` — L2091
+  - `function initializeAdminModalActionIcons` — L2122
+  - `function startAdminModalActionObserver` — L2177
+  - `function mobileTableActionKind` — L2209
+  - `function initializeMobileTableHeaderActions` — L2230
+  - `function isMobileTableFilterPopoverOpen` — L2274
+  - `function ensureMobileTableFilterBackdrop` — L2284
+  - `function lockMobileTableFilterViewport` — L2298
+  - `function unlockMobileTableFilterViewport` — L2309
+  - `function presentMobileTableFiltersInTopLayer` — L2323
+  - `function dismissMobileTableFilterTopLayer` — L2355
+  - `function initializeMobileTableFilters` — L2373
+  - `function belongsToTableSurface` — L2378
+  - `function openMobileTableFilters` — L2485
+  - `function closeMobileTableFilters` — L2502
+  - `function submitMobileTableFilters` — L2527
+  - `function normalizeFinanceNumberInputValue` — L2611
+  - `function groupFinanceIntegerPart` — L2615
+  - `function formatFinanceNumberInputValue` — L2619
+  - `function formatFinanceNumberInput` — L2647
+  - `function initializeFinanceNumberInputs` — L2669
+  - `function scheduleFinanceNumberInitialization` — L2677
+  - `function initializePublicGallerySliders` — L2725
+  - `function show` — L2745
+  - `function stop` — L2757
+  - `function start` — L2764
+  - `function adminToastRegion` — L2799
+  - `function showAdminToast` — L2819
+  - `function handleQuickAttendanceScanSucceeded` — L2851
+  - `function initializeQuickAttendanceScanners` — L2863
+  - `function messageText` — L2885
+  - `function setMessage` — L2887
+  - `function component` — L2893
+  - `function stop` — L2900
+  - `function submitValue` — L2915
+  - `function decodeQrFromCanvas` — L2946
+  - `function detectCode` — L2973
+  - `function scanLoop` — L2993
+  - `function startCameraStream` — L3023
+  - `function stopQuickAttendanceScanners` — L3076
+  - `function writeAdminCopyText` — L3089
+  - `function livewireModelName` — L3136
+  - `function acceptsPdf` — L3144
+  - `function selectedFilesIncludePdf` — L3150
+  - `function pdfUploadStatus` — L3156
+  - `function pdfSaveControls` — L3194
+  - `function formHasActivePdfUpload` — L3210
+  - `function updatePdfUploadForm` — L3214
+  - `function lockPdfUploadInput` — L3236
+  - `function unlockPdfUploadInput` — L3246
+  - `function clearPreviousPdfUploadErrors` — L3256
+  - `function setPdfUploadActive` — L3271
+  - `function initializePdfUploads` — L3302
+  - `function synchronizeDashboardCurriculumHotbarWidths` — L3385
+  - `function scheduleDashboardCurriculumHotbarWidthSync` — L3409
+  - `function synchronizeDashboardLollipopNumberGap` — L3437
+  - `function scheduleDashboardLollipopNumberGapSync` — L3455
+  - `function synchronizeCurriculaIndexNameWidths` — L3483
+  - `function scheduleCurriculaIndexNameWidthSync` — L3507
+  - `function synchronizeCurriculumSubjectResourceColumns` — L3557
+  - `function scheduleCurriculumSubjectResourceColumnSync` — L3622
 
-### Localization
+### Localisation
 
 - [`lang/ar.json`](<../lang/ar.json>) — 40 lines
 - [`lang/ar/access.php`](<../lang/ar/access.php>) — 413 lines
@@ -2941,13 +3034,13 @@ The search command uses the local FTS5 database at `storage/app/private/codebase
 - [`lang/ar/auth.php`](<../lang/ar/auth.php>) — 9 lines
 - [`lang/ar/barcodes.php`](<../lang/ar/barcodes.php>) — 201 lines
 - [`lang/ar/community_contacts.php`](<../lang/ar/community_contacts.php>) — 68 lines
-- [`lang/ar/course_end.php`](<../lang/ar/course_end.php>) — 105 lines
-- [`lang/ar/crud.php`](<../lang/ar/crud.php>) — 831 lines
-- [`lang/ar/curricula.php`](<../lang/ar/curricula.php>) — 33 lines
-- [`lang/ar/dashboard.php`](<../lang/ar/dashboard.php>) — 246 lines
-- [`lang/ar/exports.php`](<../lang/ar/exports.php>) — 16 lines
-- [`lang/ar/finance.php`](<../lang/ar/finance.php>) — 572 lines
-- [`lang/ar/id_cards.php`](<../lang/ar/id_cards.php>) — 197 lines
+- [`lang/ar/course_end.php`](<../lang/ar/course_end.php>) — 118 lines
+- [`lang/ar/crud.php`](<../lang/ar/crud.php>) — 842 lines
+- [`lang/ar/curricula.php`](<../lang/ar/curricula.php>) — 37 lines
+- [`lang/ar/dashboard.php`](<../lang/ar/dashboard.php>) — 250 lines
+- [`lang/ar/exports.php`](<../lang/ar/exports.php>) — 17 lines
+- [`lang/ar/finance.php`](<../lang/ar/finance.php>) — 581 lines
+- [`lang/ar/id_cards.php`](<../lang/ar/id_cards.php>) — 199 lines
 - [`lang/ar/invoices.php`](<../lang/ar/invoices.php>) — 177 lines
 - [`lang/ar/media.php`](<../lang/ar/media.php>) — 62 lines
 - [`lang/ar/notes.php`](<../lang/ar/notes.php>) — 71 lines
@@ -2955,42 +3048,43 @@ The search command uses the local FTS5 database at `storage/app/private/codebase
 - [`lang/ar/passwords.php`](<../lang/ar/passwords.php>) — 10 lines
 - [`lang/ar/phone.php`](<../lang/ar/phone.php>) — 8 lines
 - [`lang/ar/print.php`](<../lang/ar/print.php>) — 88 lines
-- [`lang/ar/print_templates.php`](<../lang/ar/print_templates.php>) — 410 lines
+- [`lang/ar/print_templates.php`](<../lang/ar/print_templates.php>) — 411 lines
 - [`lang/ar/quick-tests.php`](<../lang/ar/quick-tests.php>) — 27 lines
 - [`lang/ar/reports.php`](<../lang/ar/reports.php>) — 254 lines
 - [`lang/ar/schedules.php`](<../lang/ar/schedules.php>) — 79 lines
-- [`lang/ar/settings.php`](<../lang/ar/settings.php>) — 795 lines
+- [`lang/ar/settings.php`](<../lang/ar/settings.php>) — 820 lines
 - [`lang/ar/site.php`](<../lang/ar/site.php>) — 364 lines
-- [`lang/ar/ui.php`](<../lang/ar/ui.php>) — 93 lines
+- [`lang/ar/ui.php`](<../lang/ar/ui.php>) — 95 lines
 - [`lang/ar/validation.php`](<../lang/ar/validation.php>) — 102 lines
-- [`lang/ar/workflow.php`](<../lang/ar/workflow.php>) — 1,417 lines
-- [`lang/en/access.php`](<../lang/en/access.php>) — 298 lines
+- [`lang/ar/workflow.php`](<../lang/ar/workflow.php>) — 1,423 lines
+- [`lang/en/access.php`](<../lang/en/access.php>) — 413 lines
 - [`lang/en/activities.php`](<../lang/en/activities.php>) — 242 lines
 - [`lang/en/auth.php`](<../lang/en/auth.php>) — 9 lines
 - [`lang/en/barcodes.php`](<../lang/en/barcodes.php>) — 201 lines
 - [`lang/en/community_contacts.php`](<../lang/en/community_contacts.php>) — 68 lines
-- [`lang/en/course_end.php`](<../lang/en/course_end.php>) — 105 lines
-- [`lang/en/crud.php`](<../lang/en/crud.php>) — 831 lines
-- [`lang/en/curricula.php`](<../lang/en/curricula.php>) — 33 lines
-- [`lang/en/dashboard.php`](<../lang/en/dashboard.php>) — 246 lines
-- [`lang/en/exports.php`](<../lang/en/exports.php>) — 16 lines
-- [`lang/en/finance.php`](<../lang/en/finance.php>) — 564 lines
-- [`lang/en/id_cards.php`](<../lang/en/id_cards.php>) — 197 lines
+- [`lang/en/course_end.php`](<../lang/en/course_end.php>) — 118 lines
+- [`lang/en/crud.php`](<../lang/en/crud.php>) — 842 lines
+- [`lang/en/curricula.php`](<../lang/en/curricula.php>) — 37 lines
+- [`lang/en/dashboard.php`](<../lang/en/dashboard.php>) — 250 lines
+- [`lang/en/exports.php`](<../lang/en/exports.php>) — 17 lines
+- [`lang/en/finance.php`](<../lang/en/finance.php>) — 573 lines
+- [`lang/en/id_cards.php`](<../lang/en/id_cards.php>) — 199 lines
 - [`lang/en/invoices.php`](<../lang/en/invoices.php>) — 177 lines
 - [`lang/en/media.php`](<../lang/en/media.php>) — 62 lines
 - [`lang/en/notes.php`](<../lang/en/notes.php>) — 71 lines
 - [`lang/en/pagination.php`](<../lang/en/pagination.php>) — 12 lines
+- [`lang/en/passwords.php`](<../lang/en/passwords.php>) — 10 lines
 - [`lang/en/phone.php`](<../lang/en/phone.php>) — 8 lines
 - [`lang/en/print.php`](<../lang/en/print.php>) — 88 lines
-- [`lang/en/print_templates.php`](<../lang/en/print_templates.php>) — 410 lines
+- [`lang/en/print_templates.php`](<../lang/en/print_templates.php>) — 411 lines
 - [`lang/en/quick-tests.php`](<../lang/en/quick-tests.php>) — 27 lines
 - [`lang/en/reports.php`](<../lang/en/reports.php>) — 254 lines
 - [`lang/en/schedules.php`](<../lang/en/schedules.php>) — 79 lines
-- [`lang/en/settings.php`](<../lang/en/settings.php>) — 809 lines
+- [`lang/en/settings.php`](<../lang/en/settings.php>) — 820 lines
 - [`lang/en/site.php`](<../lang/en/site.php>) — 364 lines
-- [`lang/en/ui.php`](<../lang/en/ui.php>) — 94 lines
+- [`lang/en/ui.php`](<../lang/en/ui.php>) — 95 lines
 - [`lang/en/validation.php`](<../lang/en/validation.php>) — 102 lines
-- [`lang/en/workflow.php`](<../lang/en/workflow.php>) — 1,417 lines
+- [`lang/en/workflow.php`](<../lang/en/workflow.php>) — 1,423 lines
 
 ### Project root
 
@@ -3012,7 +3106,7 @@ The search command uses the local FTS5 database at `storage/app/private/codebase
 
 ### Tests / Feature
 
-- [`tests/Feature/AssessmentWorkflowTest.php`](<../tests/Feature/AssessmentWorkflowTest.php>) — 660 lines
+- [`tests/Feature/AssessmentWorkflowTest.php`](<../tests/Feature/AssessmentWorkflowTest.php>) — 753 lines
   - `class AssessmentWorkflowTest` — L26
   - `method test_assessment_pages_require_authentication` — L30
   - `method test_manager_can_configure_bands_create_assessments_and_award_points` — L44
@@ -3021,12 +3115,13 @@ The search command uses the local FTS5 database at `storage/app/private/codebase
   - `method test_score_bands_cannot_overlap_for_the_same_assessment_type` — L150
   - `method test_score_band_table_shows_only_the_relevant_status` — L191
   - `method test_manager_can_create_one_assessment_for_multiple_groups_and_record_results` — L219
-  - `method test_assessments_are_sorted_by_date_descending_with_undated_records_last` — L393
-  - `method test_teacher_assessment_access_is_restricted_to_assigned_groups` — L420
-  - `method test_quick_result_modal_keeps_group_separate_and_zero_removes_the_result` — L515
-  - `method test_assessment_delete_is_only_available_in_edit_and_is_blocked_when_results_exist` — L554
-  - `method test_assessment_form_always_saves_assessments_as_active` — L576
-  - `method assessmentContext` — L590
+  - `method test_assessment_course_and_group_selection_cannot_be_empty` — L446
+  - `method test_assessments_are_sorted_by_date_descending_with_undated_records_last` — L463
+  - `method test_teacher_assessment_access_is_restricted_to_assigned_groups` — L490
+  - `method test_quick_result_modal_keeps_group_separate_and_zero_removes_the_result` — L585
+  - `method test_assessment_delete_is_only_available_in_edit_and_is_blocked_when_results_exist` — L647
+  - `method test_assessment_form_always_saves_assessments_as_active` — L669
+  - `method assessmentContext` — L683
 - [`tests/Feature/Auth/AuthenticationTest.php`](<../tests/Feature/Auth/AuthenticationTest.php>) — 143 lines
   - `class AuthenticationTest` — L14
   - `method test_login_screen_can_be_rendered` — L18
@@ -3076,6 +3171,9 @@ The search command uses the local FTS5 database at `storage/app/private/codebase
   - `method test_scanner_point_action_processes_without_points_when_course_points_are_disabled` — L276
   - `method makeEnrollment` — L314
   - `method makeEnrollmentInGroup` — L373
+- [`tests/Feature/BrowserFontWeightTest.php`](<../tests/Feature/BrowserFontWeightTest.php>) — 39 lines
+  - `class BrowserFontWeightTest` — L7
+  - `method test_browser_ui_maps_typography_to_the_available_dubai_faces` — L9
 - [`tests/Feature/ClearStudentDataCommandTest.php`](<../tests/Feature/ClearStudentDataCommandTest.php>) — 267 lines
   - `class ClearStudentDataCommandTest` — L19
   - `method test_command_can_clear_parent_links_and_force_active_students_inactive` — L23
@@ -3086,42 +3184,61 @@ The search command uses the local FTS5 database at `storage/app/private/codebase
 - [`tests/Feature/CodebaseIndexCommandTest.php`](<../tests/Feature/CodebaseIndexCommandTest.php>) — 40 lines
   - `class CodebaseIndexCommandTest` — L8
   - `method test_it_generates_and_searches_the_first_party_codebase_index` — L10
-- [`tests/Feature/CommunityContactPageTest.php`](<../tests/Feature/CommunityContactPageTest.php>) — 78 lines
+- [`tests/Feature/CommunityContactPageTest.php`](<../tests/Feature/CommunityContactPageTest.php>) — 84 lines
   - `class CommunityContactPageTest` — L12
   - `method test_manager_can_manage_community_contacts` — L16
-  - `method test_teacher_without_permission_cannot_view_community_contacts` — L63
-- [`tests/Feature/CoursePointMarketTest.php`](<../tests/Feature/CoursePointMarketTest.php>) — 227 lines
-  - `class CoursePointMarketTest` — L20
-  - `method setUp` — L26
-  - `method test_end_of_course_shows_the_course_scoped_point_market_workspace` — L37
-  - `method test_only_unadded_expense_invoices_within_course_dates_can_be_added` — L58
-  - `method test_invoice_items_are_snapshotted_converted_assigned_and_rounded_to_nearest_ten` — L98
-  - `method createExpenseInvoice` — L155
-- [`tests/Feature/CurriculumModuleTest.php`](<../tests/Feature/CurriculumModuleTest.php>) — 287 lines
-  - `class CurriculumModuleTest` — L25
-  - `method test_curriculum_visibility_is_limited_to_management_and_group_supervisors` — L29
-  - `method test_group_teacher_curriculum_is_shown_immediately_after_reports_in_sidebar` — L52
-  - `method test_manager_can_build_a_curriculum_and_assign_it_to_a_group` — L80
-  - `method test_standalone_books_are_managed_inline_inside_their_popup` — L174
-  - `method test_supervisor_can_record_partial_progress_and_custom_lessons` — L213
-  - `method test_lesson_topics_roll_up_completion_and_remove_the_parent_checkbox` — L253
-  - `method learningStructure` — L277
-- [`tests/Feature/DashboardTest.php`](<../tests/Feature/DashboardTest.php>) — 1,051 lines
-  - `class DashboardTest` — L27
-  - `method setUp` — L31
-  - `method test_guests_are_redirected_to_the_login_page` — L38
-  - `method test_authenticated_users_can_visit_the_dashboard` — L44
-  - `method test_manager_users_see_the_management_dashboard` — L56
-  - `method test_manager_performance_map_ranks_projected_course_end_points_but_keeps_the_original_average` — L260
-  - `method test_super_admin_users_see_the_management_dashboard` — L405
-  - `method test_custom_roles_with_manager_dashboard_permission_see_the_management_dashboard` — L424
-  - `method test_teacher_users_see_only_their_group_scope` — L446
-  - `method test_group_supervisor_teacher_sees_group_dashboard_and_assigned_course` — L496
-  - `method test_parent_users_see_only_their_students` — L615
-  - `method test_student_users_see_only_their_enrollments` — L649
-  - `method test_student_dashboard_can_show_group_card_preview_from_dashboard_settings` — L720
-  - `method test_student_dashboard_can_show_group_card_preview_from_any_active_print_template` — L857
-  - `method test_student_dashboard_cached_points_only_count_active_enrollments` — L958
+  - `method test_teacher_without_permission_cannot_view_community_contacts` — L69
+- [`tests/Feature/CoursePointMarketTest.php`](<../tests/Feature/CoursePointMarketTest.php>) — 430 lines
+  - `class CoursePointMarketTest` — L22
+  - `method setUp` — L28
+  - `method test_end_of_course_shows_the_course_scoped_point_market_workspace` — L39
+  - `method test_only_unadded_expense_invoices_within_course_dates_can_be_added` — L69
+  - `method test_invoice_items_are_snapshotted_converted_assigned_and_rounded_to_nearest_ten` — L111
+  - `method test_point_market_uses_compact_numbers_and_standard_department_labels` — L185
+  - `method test_invoice_and_department_sections_only_expand_one_record_at_a_time` — L254
+  - `method test_removed_and_readded_items_return_to_their_original_invoice_order` — L286
+  - `method test_department_shows_receipt_headers_only_when_items_come_from_multiple_receipts` — L328
+  - `method createExpenseInvoice` — L358
+- [`tests/Feature/CurriculumModuleTest.php`](<../tests/Feature/CurriculumModuleTest.php>) — 695 lines
+  - `class CurriculumModuleTest` — L26
+  - `method test_lesson_counts_use_the_requested_arabic_grammar` — L30
+  - `method test_curriculum_visibility_is_limited_to_management_and_group_supervisors` — L41
+  - `method test_group_teacher_curriculum_is_shown_immediately_after_reports_in_sidebar` — L64
+  - `method test_downloadable_books_use_the_standard_icon_button` — L92
+  - `method test_curriculum_progress_pies_are_hidden_on_mobile_and_use_five_desktop_columns` — L107
+  - `method test_subject_resource_tables_share_column_widths_and_show_book_upload_status` — L125
+  - `method test_manager_can_build_a_curriculum_and_assign_it_to_a_group` — L178
+  - `method test_curriculum_detail_uses_shared_square_edit_add_and_delete_icons` — L322
+  - `method test_curriculum_subject_books_are_edited_in_the_compact_popup` — L372
+  - `method test_curricula_table_is_numbered_and_sorted_by_grade` — L406
+  - `method test_groups_and_their_curriculum_picker_are_sorted_by_course_and_grade` — L437
+  - `method test_standalone_books_are_managed_inline_inside_their_popup` — L504
+  - `method test_supervisor_can_record_partial_progress_and_custom_lessons` — L544
+  - `method test_teacher_book_rows_hide_and_restore_taught_lessons_in_their_original_places` — L584
+  - `method test_lesson_topics_are_collapsible_and_support_parent_or_individual_completion` — L635
+  - `method learningStructure` — L685
+- [`tests/Feature/DashboardChartInteractionTest.php`](<../tests/Feature/DashboardChartInteractionTest.php>) — 44 lines
+  - `class DashboardChartInteractionTest` — L7
+  - `method test_line_chart_hover_highlights_a_point_without_transforming_it` — L9
+  - `method test_performance_map_hover_does_not_change_point_geometry` — L21
+- [`tests/Feature/DashboardTest.php`](<../tests/Feature/DashboardTest.php>) — 1,237 lines
+  - `class DashboardTest` — L33
+  - `method setUp` — L37
+  - `method test_guests_are_redirected_to_the_login_page` — L44
+  - `method test_authenticated_users_can_visit_the_dashboard` — L50
+  - `method test_dashboard_context_falls_back_to_the_active_academic_year_then_the_holiday_message` — L62
+  - `method test_manager_users_see_the_management_dashboard` — L95
+  - `method test_manager_performance_map_ranks_projected_course_end_points_but_keeps_the_original_average` — L314
+  - `method test_manager_curriculum_progress_uses_two_column_peer_relative_hotbars` — L459
+  - `method test_super_admin_users_see_the_management_dashboard` — L591
+  - `method test_custom_roles_with_manager_dashboard_permission_see_the_management_dashboard` — L610
+  - `method test_teacher_users_see_only_their_group_scope` — L632
+  - `method test_group_supervisor_teacher_sees_group_dashboard_and_assigned_course` — L682
+  - `method test_parent_users_see_only_their_students` — L801
+  - `method test_student_users_see_only_their_enrollments` — L835
+  - `method test_student_dashboard_can_show_group_card_preview_from_dashboard_settings` — L906
+  - `method test_student_dashboard_can_show_group_card_preview_from_any_active_print_template` — L1043
+  - `method test_student_dashboard_cached_points_only_count_active_enrollments` — L1144
 - [`tests/Feature/DeactivateParentsAndStudentsCommandTest.php`](<../tests/Feature/DeactivateParentsAndStudentsCommandTest.php>) — 102 lines
   - `class DeactivateParentsAndStudentsCommandTest` — L11
   - `method test_command_deactivates_parents_students_and_linked_users` — L15
@@ -3137,81 +3254,83 @@ The search command uses the local FTS5 database at `storage/app/private/codebase
   - `method test_manager_can_render_invoice_and_receipt_print_views` — L100
   - `method assertXlsxContains` — L120
   - `method reportingContext` — L139
-- [`tests/Feature/FinanceAndActivitiesTest.php`](<../tests/Feature/FinanceAndActivitiesTest.php>) — 2,945 lines
+- [`tests/Feature/FinanceAndActivitiesTest.php`](<../tests/Feature/FinanceAndActivitiesTest.php>) — 3,269 lines
   - `class FinanceAndActivitiesTest` — L50
   - `method test_activity_components_support_registrations_payments_and_expenses` — L54
   - `method test_invoice_components_support_items_and_payments` — L139
   - `method test_teacher_pull_request_terms_review_and_printing_flow` — L239
-  - `method test_finance_settings_currency_and_cash_box_rules` — L508
-  - `method test_finance_manager_can_create_teacher_pull_request_and_teacher_scope_is_limited` — L576
-  - `method test_count_pull_request_settlement_posts_remaining_income` — L656
-  - `method test_revenue_requests_support_configurable_revenue_categories` — L712
-  - `method test_revenue_requests_filter_cash_boxes_and_currencies_by_supported_assignments` — L746
-  - `method test_expense_requests_allow_empty_reason_and_edit_posted_amount_details` — L777
-  - `method test_expenses_can_use_any_active_fund_and_active_dropdown_currency` — L858
-  - `method test_finance_revenue_entries_can_be_named_edited_and_reversed` — L902
-  - `method test_invoice_pull_request_creates_invoice_and_closes_remaining_money` — L993
-  - `method test_invoice_pull_request_closing_extra_amount_appears_in_expense_grid` — L1060
-  - `method test_cash_box_cannot_go_below_zero_and_requires_supported_currency` — L1122
-  - `method test_pull_request_review_maps_insufficient_balance_to_modal_amount_field` — L1142
-  - `method test_cash_box_currency_assignment_filters_and_blocks_unsupported_currency` — L1184
-  - `method test_finance_exchange_transfer_balances_and_report_snapshots` — L1209
-  - `method test_quarter_comparison_converts_mixed_currencies_to_the_local_currency` — L1310
-  - `method test_finance_ledger_report_exports_opening_running_and_closing_balances` — L1332
-  - `method test_finance_reports_page_and_ledger_export_handle_missing_generated_report_table` — L1525
-  - `method test_finance_reports_table_paginates_every_saved_report_ten_at_a_time` — L1557
-  - `method test_financial_report_generation_requires_the_current_users_signature` — L1591
-  - `method test_finance_settings_can_import_old_reports_until_uploading_is_finished` — L1612
-  - `method test_finance_settings_accept_numeric_pre_2023_reports_and_delete_them_by_original_number` — L1641
-  - `method test_multi_fund_ledger_is_saved_and_can_be_reopened` — L1673
-  - `method test_finance_generated_report_can_only_be_deleted_from_finance_settings` — L1702
-  - `method test_finance_report_template_page_keeps_one_default_template` — L1754
-  - `method test_finance_report_template_editor_defaults_invalid_legacy_values` — L1799
-  - `method test_finance_reports_store_fixed_ledger_background_and_logo_in_modal` — L1818
-  - `method test_print_page_sizes_are_managed_from_organization_settings` — L1846
-  - `method test_parent_users_can_view_and_respond_to_targeted_activities` — L1872
-  - `method test_fund_transfers_have_the_configured_prefix_and_do_not_affect_operating_totals` — L1944
-  - `method test_exchange_ledger_rows_use_direction_markers_and_edits_sync_to_the_exchange` — L1998
-  - `method test_transaction_maintenance_finds_withdrawal_number_and_syncs_the_expense_source` — L2051
-  - `method test_historical_finance_source_repair_uses_the_ledger_as_its_base` — L2095
-  - `method test_invoice_scan_reference_fields_are_saved_and_system_number_is_protected` — L2144
-  - `method test_legacy_expenses_are_finalised_and_renumbered_with_the_configured_prefix` — L2184
-  - `method test_existing_incomes_returns_and_exchanges_are_renumbered_from_settings` — L2216
-  - `method test_finance_dashboard_limits_latest_activity_and_exposes_category_percentage` — L2326
-  - `method test_count_expense_finalisation_edits_the_original_expense_without_posting_income` — L2405
-  - `method test_editing_an_expense_category_mode_changes_the_finalisation_popup` — L2438
-  - `method test_deleted_transactions_remain_auditable_but_are_excluded_from_active_balances` — L2491
-  - `method test_deleting_an_expense_deletes_its_withdrawal_request_and_does_not_reuse_finance_numbers` — L2507
-  - `method test_one_time_withdrawal_cleanup_cascades_records_and_disappears_only_when_finished` — L2551
-  - `method test_invoice_expense_finalisation_uses_the_locked_invoice_total` — L2590
-  - `method test_withdrawal_navigation_is_available_to_teachers_but_hidden_from_finance_admins` — L2758
-  - `method test_historical_finance_transactions_are_cleaned_categorized_and_renumbered` — L2788
-  - `method financeContext` — L2880
-  - `method signIn` — L2928
-- [`tests/Feature/FinancePdfRegressionTest.php`](<../tests/Feature/FinancePdfRegressionTest.php>) — 100 lines
+  - `method test_finance_settings_currency_and_cash_box_rules` — L514
+  - `method test_finance_manager_can_create_teacher_pull_request_and_teacher_scope_is_limited` — L598
+  - `method test_count_pull_request_settlement_posts_remaining_income` — L678
+  - `method test_revenue_requests_support_configurable_revenue_categories` — L734
+  - `method test_revenue_requests_filter_cash_boxes_and_currencies_by_supported_assignments` — L768
+  - `method test_request_attachments_are_removed_from_income_and_expenses_but_remain_on_invoices` — L803
+  - `method test_expense_requests_allow_empty_reason_and_edit_posted_amount_details` — L823
+  - `method test_expenses_can_use_any_active_fund_and_active_dropdown_currency` — L908
+  - `method test_finance_revenue_entries_can_be_named_edited_and_reversed` — L952
+  - `method test_invoice_pull_request_creates_invoice_and_closes_remaining_money` — L1044
+  - `method test_invoice_pull_request_closing_extra_amount_appears_in_expense_grid` — L1111
+  - `method test_cash_box_cannot_go_below_zero_and_requires_supported_currency` — L1173
+  - `method test_pull_request_review_maps_insufficient_balance_to_modal_amount_field` — L1193
+  - `method test_cash_box_currency_assignment_filters_and_blocks_unsupported_currency` — L1235
+  - `method test_finance_exchange_transfer_balances_and_report_snapshots` — L1260
+  - `method test_quarter_comparison_converts_mixed_currencies_to_the_local_currency` — L1370
+  - `method test_finance_ledger_report_exports_opening_running_and_closing_balances` — L1392
+  - `method test_finance_reports_page_and_ledger_export_handle_missing_generated_report_table` — L1590
+  - `method test_finance_reports_table_paginates_every_saved_report_ten_at_a_time` — L1622
+  - `method test_generated_financial_report_quarters_are_hidden_and_cannot_be_generated_twice` — L1656
+  - `method test_financial_report_generation_requires_the_current_users_signature` — L1713
+  - `method test_finance_settings_can_import_old_reports_until_uploading_is_finished` — L1734
+  - `method test_finance_settings_accept_numeric_pre_2023_reports_and_delete_them_by_original_number` — L1763
+  - `method test_multi_fund_ledger_is_saved_and_can_be_reopened` — L1795
+  - `method test_finance_generated_report_can_only_be_deleted_from_finance_settings` — L1824
+  - `method test_finance_report_template_page_keeps_one_default_template` — L1876
+  - `method test_finance_report_template_editor_defaults_invalid_legacy_values` — L1921
+  - `method test_finance_reports_store_fixed_ledger_background_and_logo_in_modal` — L1940
+  - `method test_print_page_sizes_are_managed_from_organization_settings` — L1971
+  - `method test_parent_users_can_view_and_respond_to_targeted_activities` — L1997
+  - `method test_fund_transfers_have_the_configured_prefix_and_do_not_affect_operating_totals` — L2069
+  - `method test_exchange_ledger_rows_use_direction_markers_and_edits_sync_to_the_exchange` — L2123
+  - `method test_transaction_maintenance_finds_withdrawal_number_and_syncs_the_expense_source` — L2176
+  - `method test_historical_finance_source_repair_uses_the_ledger_as_its_base` — L2222
+  - `method test_invoice_scan_reference_fields_are_saved_and_system_number_is_protected` — L2271
+  - `method test_legacy_expenses_are_finalised_and_renumbered_with_the_configured_prefix` — L2311
+  - `method test_existing_incomes_returns_and_exchanges_are_renumbered_from_settings` — L2343
+  - `method test_finance_dashboard_limits_latest_activity_and_exposes_category_percentage` — L2453
+  - `method test_count_expense_finalisation_edits_the_original_expense_without_posting_income` — L2696
+  - `method test_editing_an_expense_category_mode_changes_the_finalisation_popup` — L2729
+  - `method test_deleted_transactions_remain_auditable_but_are_excluded_from_active_balances` — L2782
+  - `method test_deleting_an_expense_deletes_its_withdrawal_request_and_does_not_reuse_finance_numbers` — L2798
+  - `method test_withdrawal_cleanup_deletes_only_the_selected_request_and_handles_invalid_numbers_inline` — L2842
+  - `method test_invoice_expense_finalisation_uses_the_locked_invoice_total` — L2902
+  - `method test_withdrawal_navigation_is_available_to_teachers_but_hidden_from_finance_admins` — L3082
+  - `method test_historical_finance_transactions_are_cleaned_categorized_and_renumbered` — L3112
+  - `method financeContext` — L3204
+  - `method signIn` — L3252
+- [`tests/Feature/FinancePdfRegressionTest.php`](<../tests/Feature/FinancePdfRegressionTest.php>) — 101 lines
   - `class FinancePdfRegressionTest` — L15
   - `method a_long_finance_invoice_renders_as_a_compact_multipage_pdf` — L18
-  - `method invoice_data_matrix_svg_uses_a_transparent_background` — L90
-- [`tests/Feature/IdCardBuilderTest.php`](<../tests/Feature/IdCardBuilderTest.php>) — 1,251 lines
+  - `method invoice_data_matrix_svg_uses_a_transparent_background` — L91
+- [`tests/Feature/IdCardBuilderTest.php`](<../tests/Feature/IdCardBuilderTest.php>) — 1,275 lines
   - `class IdCardBuilderTest` — L25
   - `method test_print_template_background_uses_a_printable_image_layer` — L29
   - `method test_report_card_field_picker_includes_course_performance_metrics` — L52
   - `method test_managers_can_create_id_card_templates` — L87
   - `method test_print_preview_renders_selected_students` — L141
   - `method test_managers_can_open_print_template_edit_page` — L244
-  - `method test_generic_templates_are_printed_only_from_their_editor_with_a_locked_setup` — L313
-  - `method test_managers_can_store_static_image_elements_in_print_templates` — L392
-  - `method test_managers_can_copy_print_templates_with_their_uploaded_assets` — L436
-  - `method test_student_card_print_setup_shows_printed_filter_and_status` — L487
-  - `method test_student_card_print_record_endpoint_creates_history_rows` — L580
-  - `method test_student_card_print_clear_endpoint_removes_history_rows` — L627
-  - `method test_print_template_preview_keeps_right_alignment_on_rtl_text` — L679
-  - `method test_print_template_preview_does_not_inject_leading_whitespace_into_text_nodes` — L732
-  - `method test_print_preview_hides_layout_warnings` — L782
-  - `method test_group_name_field_uses_the_latest_active_enrollment_group` — L837
-  - `method test_print_template_sources_filter_students_and_teachers_by_activity` — L965
-  - `method test_print_template_setup_shows_student_group_and_status_filters` — L1124
-  - `method test_qr_barcode_preview_accepts_small_square_sizes` — L1229
+  - `method test_generic_templates_are_printed_only_from_their_editor_with_a_locked_setup` — L320
+  - `method test_managers_can_store_static_image_elements_in_print_templates` — L399
+  - `method test_managers_can_copy_print_templates_with_their_uploaded_assets` — L443
+  - `method test_student_card_print_setup_shows_printed_filter_and_status` — L494
+  - `method test_student_card_print_record_endpoint_creates_history_rows` — L604
+  - `method test_student_card_print_clear_endpoint_removes_history_rows` — L651
+  - `method test_print_template_preview_keeps_right_alignment_on_rtl_text` — L703
+  - `method test_print_template_preview_does_not_inject_leading_whitespace_into_text_nodes` — L756
+  - `method test_print_preview_hides_layout_warnings` — L806
+  - `method test_group_name_field_uses_the_latest_active_enrollment_group` — L861
+  - `method test_print_template_sources_filter_students_and_teachers_by_activity` — L989
+  - `method test_print_template_setup_shows_student_group_and_status_filters` — L1148
+  - `method test_qr_barcode_preview_accepts_small_square_sizes` — L1253
 - [`tests/Feature/LegacyAccessImportCommandTest.php`](<../tests/Feature/LegacyAccessImportCommandTest.php>) — 765 lines
   - `class LegacyAccessImportCommandTest` — L25
   - `method test_legacy_import_reuses_existing_parent_and_student_records` — L31
@@ -3228,78 +3347,135 @@ The search command uses the local FTS5 database at `storage/app/private/codebase
   - `method makeImportFolder` — L716
   - `method writeCsv` — L732
   - `method readCsvRecords` — L746
-- [`tests/Feature/LocalizationTest.php`](<../tests/Feature/LocalizationTest.php>) — 52 lines
-  - `class LocalizationTest` — L10
-  - `method test_guests_can_switch_to_arabic_and_receive_rtl_auth_pages` — L14
-  - `method test_authenticated_users_receive_localized_navigation_when_arabic_is_selected` — L27
-- [`tests/Feature/ManagementCrudTest.php`](<../tests/Feature/ManagementCrudTest.php>) — 2,679 lines
-  - `class ManagementCrudTest` — L45
-  - `method test_course_final_saber_pdf_keeps_a_four_millimetre_header_gap_and_aligned_metadata` — L49
-  - `method test_student_names_are_trimmed_when_saved` — L73
-  - `method test_students_with_the_same_first_and_last_names_use_the_fathers_full_name` — L86
-  - `method test_renaming_school_and_parent_work_settings_updates_linked_profiles_and_rejects_duplicates` — L97
-  - `method test_course_parent_and_teacher_components_support_crud_operations` — L141
-  - `method test_finishing_a_course_archives_related_records_and_reactivation_restores_only_changed_records` — L289
-  - `method test_legacy_finished_courses_gain_archive_markers_and_restore_rows_changed_by_the_old_lifecycle` — L516
-  - `method test_copying_a_course_copies_course_and_group_metadata_without_enrollments` — L634
-  - `method test_profile_account_credentials_can_be_updated` — L733
-  - `method test_creating_a_student_can_default_and_override_the_initial_group_assignment` — L814
-  - `method test_student_form_calculates_the_grade_and_manages_previously_memorized_juz_chips` — L938
-  - `method test_editing_parent_with_duplicate_primary_phone_uses_another_available_phone_for_the_linked_user` — L1061
-  - `method test_parent_tab_can_open_a_child_list_action_for_linked_students` — L1098
-  - `method test_student_group_and_enrollment_components_support_crud_and_delete_guards` — L1136
-  - `method test_enrollment_create_and_new_keeps_selected_group_and_ignores_exit_fields` — L1304
-  - `method test_new_enrollment_group_picker_is_searchable_sorted_and_limited_to_active_courses` — L1378
-  - `method test_group_create_modal_derives_the_current_year_and_create_and_new_preserves_course` — L1453
-  - `method test_finished_groups_release_their_name_teacher_and_assistant_for_future_groups` — L1514
-  - `method test_group_dashboard_card_template_can_be_selected_from_group_actions` — L1581
-  - `method test_group_roster_shows_extended_student_and_parent_details` — L1640
-  - `method test_group_quick_summary_shows_attendance_and_memorized_pages_for_the_selected_date` — L1788
-  - `method test_teacher_role_options_include_basic_management_roles` — L1900
-  - `method test_teacher_roles_are_multiselect_and_financial_signatures_are_managed_from_teachers_only` — L1919
-  - `method test_student_search_matches_full_name_across_first_and_last_name` — L1989
-  - `method test_student_search_normalizes_arabic_name_variants` — L2034
-  - `method test_student_search_uses_only_name_or_student_number` — L2070
-  - `method test_creating_a_student_with_the_same_name_and_birth_year_updates_the_inactive_record` — L2102
-  - `method test_creating_a_student_matching_an_active_student_shows_details_without_changing_data` — L2154
-  - `method test_student_bulk_status_can_deactivate_current_course_students_and_sync_accounts` — L2210
-  - `method test_student_bulk_activation_includes_students_without_parents` — L2351
-  - `method test_student_can_be_saved_active_without_a_parent` — L2373
-  - `method test_parent_bulk_status_can_activate_by_parent_number_range_and_sync_accounts` — L2390
-  - `method test_view_only_access_cannot_create_records` — L2428
-  - `method test_group_schedules_component_supports_crud_operations` — L2448
-  - `method test_group_show_schedule_popup_matches_the_course_schedule_workflow` — L2510
-  - `method test_course_schedule_adds_complete_rows_automatically_and_cannot_be_empty` — L2568
-  - `method test_student_media_component_supports_photo_and_file_uploads` — L2600
-  - `method signIn` — L2664
-- [`tests/Feature/ManagementPagesTest.php`](<../tests/Feature/ManagementPagesTest.php>) — 968 lines
+- [`tests/Feature/LocalizationTest.php`](<../tests/Feature/LocalizationTest.php>) — 239 lines
+  - `class LocalizationTest` — L11
+  - `method test_requested_arabic_curricula_and_enrolment_titles_are_used` — L15
+  - `method test_english_translation_catalogue_uses_uk_spelling` — L23
+  - `method test_arabic_and_english_translation_catalogues_have_matching_keys` — L54
+  - `method test_uk_spelling_migration_updates_existing_builtin_copy` — L73
+  - `method test_guests_can_switch_to_arabic_and_receive_rtl_auth_pages` — L121
+  - `method test_compact_locale_switcher_uses_short_segmented_labels_and_arabic_logo_text_has_no_tracking` — L134
+  - `method test_authenticated_users_receive_localized_navigation_when_arabic_is_selected` — L157
+  - `method flattenTranslationKeys` — L220
+- [`tests/Feature/ManagementCrudTest.php`](<../tests/Feature/ManagementCrudTest.php>) — 3,121 lines
+  - `class ManagementCrudTest` — L47
+  - `method test_course_final_saber_pdf_uses_a_measured_header_and_aligned_metadata` — L51
+  - `method test_student_names_are_trimmed_when_saved` — L74
+  - `method test_students_with_the_same_first_and_last_names_use_the_fathers_full_name` — L87
+  - `method test_renaming_school_and_parent_work_settings_updates_linked_profiles_and_rejects_duplicates` — L98
+  - `method test_course_parent_and_teacher_components_support_crud_operations` — L142
+  - `method test_finishing_a_course_archives_related_records_and_reactivation_restores_only_changed_records` — L296
+  - `method test_legacy_finished_courses_gain_archive_markers_and_restore_rows_changed_by_the_old_lifecycle` — L548
+  - `method test_copying_a_course_copies_course_and_group_metadata_without_enrollments` — L667
+  - `method test_copying_an_archived_course_targets_the_current_active_academic_year_and_opens_the_normal_copy_workflow` — L766
+  - `method test_profile_account_credentials_can_be_updated` — L859
+  - `method test_creating_a_student_can_default_and_override_the_initial_group_assignment` — L947
+  - `method test_editing_a_student_without_a_current_course_enrollment_can_enroll_him_beside_status` — L1071
+  - `method test_student_form_calculates_the_grade_and_manages_previously_memorized_juz_chips` — L1153
+  - `method test_existing_parent_editor_replaces_the_summary_and_uses_an_unlink_icon` — L1276
+  - `method test_editing_parent_with_duplicate_primary_phone_uses_another_available_phone_for_the_linked_user` — L1318
+  - `method test_parent_tab_can_open_a_child_list_action_for_linked_students` — L1355
+  - `method test_parent_table_only_offers_delete_for_profiles_without_students` — L1393
+  - `method test_student_group_and_enrollment_components_support_crud_and_delete_guards` — L1421
+  - `method test_enrollment_create_and_new_keeps_selected_group_and_ignores_exit_fields` — L1606
+  - `method test_new_enrollment_group_picker_is_searchable_sorted_and_limited_to_active_courses` — L1681
+  - `method test_group_create_modal_derives_the_current_year_and_create_and_new_preserves_course` — L1766
+  - `method test_finished_groups_release_their_name_teacher_and_assistant_for_future_groups` — L1827
+  - `method test_group_dashboard_card_template_can_be_selected_from_group_actions` — L1894
+  - `method test_group_copy_duplicates_its_setup_in_the_same_course_and_redirects_to_edit_the_copy` — L1953
+  - `method test_group_roster_shows_extended_student_and_parent_details` — L2021
+  - `method test_group_quick_summary_shows_attendance_and_memorized_pages_for_the_selected_date` — L2204
+  - `method test_teacher_role_options_include_basic_management_roles` — L2330
+  - `method test_teacher_roles_are_multiselect_and_financial_signatures_are_managed_from_teachers_only` — L2349
+  - `method test_student_search_matches_full_name_across_first_and_last_name` — L2419
+  - `method test_student_search_normalizes_arabic_name_variants` — L2464
+  - `method test_student_search_uses_only_name_or_student_number` — L2500
+  - `method test_creating_a_student_with_the_same_name_and_birth_year_updates_the_inactive_record` — L2532
+  - `method test_creating_a_student_matching_an_active_student_shows_details_without_changing_data` — L2584
+  - `method test_student_bulk_status_can_deactivate_current_course_students_and_sync_accounts` — L2640
+  - `method test_student_bulk_activation_includes_students_without_parents` — L2781
+  - `method test_student_can_be_saved_active_without_a_parent` — L2803
+  - `method test_parent_bulk_status_can_activate_by_parent_number_range_and_sync_accounts` — L2820
+  - `method test_view_only_access_cannot_create_records` — L2858
+  - `method test_group_schedules_component_supports_crud_operations` — L2878
+  - `method test_group_show_schedule_popup_matches_the_course_schedule_workflow` — L2946
+  - `method test_course_schedule_adds_complete_rows_automatically_and_cannot_be_empty` — L3010
+  - `method test_student_media_component_supports_photo_and_file_uploads` — L3042
+  - `method signIn` — L3106
+- [`tests/Feature/ManagementPagesTest.php`](<../tests/Feature/ManagementPagesTest.php>) — 2,404 lines
   - `class ManagementPagesTest` — L24
-  - `method test_attendance_day_actions_use_the_view_symbol_instead_of_visible_text` — L28
-  - `method test_mobile_table_headers_use_symbol_actions_and_single_column_filter_dialogs` — L43
-  - `method test_mobile_card_tables_are_limited_to_assessments_and_workflow_table_add_actions_are_removed` — L58
-  - `method test_sidebar_uses_the_approved_outline_icons_without_changing_reference_icons` — L83
-  - `method test_secondary_student_tools_are_buttons_in_their_parent_pages` — L184
-  - `method test_management_pages_require_authentication` — L205
-  - `method test_authenticated_users_can_open_management_pages` — L240
-  - `method test_authenticated_users_can_download_group_roster_export` — L284
-  - `method test_authenticated_users_can_download_eligible_awqaf_students_export` — L313
-  - `method test_authenticated_users_without_management_permissions_are_forbidden` — L396
-  - `method test_parent_users_can_open_their_read_only_student_enrollment_and_invoice_pages` — L448
-  - `method test_student_users_can_open_their_read_only_progress_pages` — L542
-  - `method makeRouteModels` — L607
-  - `method makeTeacherJourneyModels` — L672
-  - `method makeParentJourneyModels` — L774
-  - `method makeStudentJourneyModels` — L884
-- [`tests/Feature/MobileModalLayoutTest.php`](<../tests/Feature/MobileModalLayoutTest.php>) — 133 lines
+  - `method test_numeric_inputs_hide_native_stepper_controls_globally` — L28
+  - `method test_pdf_actions_use_the_shared_icon_without_visible_text` — L51
+  - `method test_non_pdf_export_actions_use_the_shared_export_symbol_without_visible_text` — L103
+  - `method test_saved_financial_reports_use_the_standard_open_icon` — L143
+  - `method test_report_hub_excel_exports_keep_their_visible_names` — L155
+  - `method test_add_new_launchers_use_the_shared_plus_symbol_without_visible_text` — L174
+  - `method test_back_links_are_clickable_non_selectable_navigation_targets` — L234
+  - `method test_attendance_day_controls_use_scan_lock_and_delete_symbols` — L249
+  - `method test_partial_and_final_saber_header_deletes_use_shared_square_buttons` — L284
+  - `method test_partial_saber_quarter_tables_fit_the_mobile_viewport` — L301
+  - `method test_pdf_logos_use_the_existing_header_height_as_a_fixed_resizing_boundary` — L315
+  - `method test_non_financial_pdfs_keep_exactly_four_millimetres_between_header_and_table` — L347
+  - `method test_row_open_actions_use_the_shared_open_symbol_without_visible_text` — L380
+  - `method test_course_end_card_actions_use_print_and_open_symbols_without_visible_text` — L423
+  - `method test_mobile_card_actions_are_placed_opposite_their_titles` — L445
+  - `method test_view_all_actions_use_the_expand_symbol_without_visible_text` — L463
+  - `method test_finance_dashboard_header_actions_use_the_requested_symbols_without_visible_text` — L510
+  - `method test_expense_finalise_row_action_uses_the_confirmation_symbol_without_visible_text` — L543
+  - `method test_expense_invoice_row_action_uses_the_receipt_symbol_without_visible_text` — L560
+  - `method test_invoice_details_action_uses_the_supplied_receipt_symbol_without_visible_text` — L581
+  - `method test_income_print_and_exchange_save_actions_use_symbols_without_visible_text` — L592
+  - `method test_eligible_awqaf_students_launcher_uses_the_students_check_symbol_without_visible_text` — L625
+  - `method test_awqaf_create_modal_uses_the_requested_title_and_equal_juz_and_date_heights` — L644
+  - `method test_requested_create_and_edit_fields_use_the_standard_rounded_control_shape` — L655
+  - `method test_editable_textboxes_share_the_searchable_select_background_throughout_the_program` — L679
+  - `method test_curricula_report_filters_and_zero_group_capacity_use_the_requested_compact_presentation` — L692
+  - `method test_standalone_books_launcher_uses_the_book_symbol_without_visible_text` — L719
+  - `method test_points_multiplier_save_action_uses_a_square_save_symbol_matching_the_date_fields` — L734
+  - `method test_general_settings_editor_uses_the_shared_edit_symbol_without_visible_text` — L746
+  - `method test_general_finance_settings_editor_uses_the_shared_edit_symbol_without_visible_text` — L761
+  - `method test_settings_tables_share_the_memorization_edit_icon_and_keep_delete_inside_edit_popups` — L776
+  - `method test_student_attendance_day_create_modal_uses_the_save_symbol` — L852
+  - `method test_transaction_maintenance_uses_search_save_and_receipt_symbols_matching_the_lookup_field` — L865
+  - `method test_legacy_report_import_uses_the_standard_square_add_button` — L890
+  - `method test_saved_report_maintenance_uses_a_square_delete_icon_and_localized_aligned_placeholder` — L902
+  - `method test_withdrawal_cleanup_requires_one_selected_request_number` — L921
+  - `method test_popup_action_buttons_are_enhanced_to_accessible_square_icons` — L936
+  - `method test_save_and_new_is_the_only_create_submit_action_and_uses_the_save_asterisk_icon` — L969
+  - `method test_course_user_teacher_and_parent_row_actions_use_the_requested_symbol_layout` — L1059
+  - `method test_clear_filter_actions_use_the_funnel_x_symbol_without_visible_text` — L1123
+  - `method test_table_action_headings_stay_centered_over_their_controls_in_ltr_and_rtl` — L1167
+  - `method test_mobile_table_headers_use_symbol_actions_and_single_column_filter_dialogs` — L1229
+  - `method test_table_header_symbol_buttons_match_filter_height_and_keep_a_compact_gap` — L1289
+  - `method test_id_card_selection_filters_fill_the_toolbar_and_use_square_symbol_actions` — L1359
+  - `method test_role_permissions_and_edit_actions_use_symbols_without_visible_text` — L1409
+  - `method test_mobile_card_tables_are_limited_to_assessments_and_workflow_table_add_actions_are_removed` — L1424
+  - `method test_sidebar_uses_the_approved_outline_icons_without_changing_reference_icons` — L1469
+  - `method test_secondary_student_tools_are_buttons_in_their_parent_pages` — L1571
+  - `method test_lifecycle_and_confirmation_controls_keep_the_requested_icon_layout` — L1592
+  - `method test_management_pages_require_authentication` — L1641
+  - `method test_authenticated_users_can_open_management_pages` — L1676
+  - `method test_authenticated_users_can_download_group_roster_export` — L1720
+  - `method test_authenticated_users_can_download_eligible_awqaf_students_export` — L1749
+  - `method test_authenticated_users_without_management_permissions_are_forbidden` — L1832
+  - `method test_parent_users_can_open_their_read_only_student_enrollment_and_invoice_pages` — L1884
+  - `method test_student_users_can_open_their_read_only_progress_pages` — L1978
+  - `method makeRouteModels` — L2043
+  - `method makeTeacherJourneyModels` — L2108
+  - `method makeParentJourneyModels` — L2210
+  - `method makeStudentJourneyModels` — L2320
+- [`tests/Feature/MobileModalLayoutTest.php`](<../tests/Feature/MobileModalLayoutTest.php>) — 188 lines
   - `class MobileModalLayoutTest` — L8
   - `method test_mobile_modals_clip_shell_overflow_and_stack_form_fields` — L10
-  - `method test_phone_input_marks_its_compound_control_as_a_single_field` — L25
-  - `method test_safari_date_values_are_vertically_centered_inside_the_control` — L32
-  - `method test_dubai_web_font_uses_safari_safe_woff2_faces_and_preloading` — L43
-  - `method test_dubai_font_faces_are_rendered_with_application_urls_outside_the_vite_stylesheet` — L75
-  - `method test_dubai_font_endpoint_uses_explicit_safari_safe_mime_types` — L84
-  - `method test_mobile_search_popup_uses_the_browser_top_layer_and_locks_the_viewport` — L104
-  - `method test_assessments_use_a_scrollable_table_and_finance_charts_stay_inside_the_phone` — L117
+  - `method test_searchable_dropdowns_temporarily_release_every_clipping_popup_ancestor` — L25
+  - `method test_phone_input_marks_its_compound_control_as_a_single_field` — L41
+  - `method test_safari_date_values_are_vertically_centered_inside_the_control` — L48
+  - `method test_date_controls_use_day_month_year_a_calendar_icon_and_a_localized_empty_placeholder` — L59
+  - `method test_dubai_web_font_uses_safari_safe_woff2_faces_and_preloading` — L96
+  - `method test_dubai_font_faces_are_rendered_with_application_urls_outside_the_vite_stylesheet` — L128
+  - `method test_dubai_font_endpoint_uses_explicit_safari_safe_mime_types` — L137
+  - `method test_mobile_search_popup_uses_the_browser_top_layer_and_locks_the_viewport` — L157
+  - `method test_assessments_use_a_scrollable_table_and_finance_charts_stay_inside_the_phone` — L172
 - [`tests/Feature/OperationalWriteApiTest.php`](<../tests/Feature/OperationalWriteApiTest.php>) — 774 lines
   - `class OperationalWriteApiTest` — L33
   - `method test_manager_can_manage_operational_and_finance_transactions_via_api` — L37
@@ -3318,61 +3494,65 @@ The search command uses the local FTS5 database at `storage/app/private/codebase
   - `method test_pdf_logo_uses_only_the_file_uploaded_in_main_page_settings` — L15
   - `method test_pdf_logo_does_not_fall_back_to_the_public_website_logo` — L29
   - `method test_pdf_logo_accepts_a_storage_prefixed_path` — L38
+- [`tests/Feature/PdfUploadInteractionTest.php`](<../tests/Feature/PdfUploadInteractionTest.php>) — 26 lines
+  - `class PdfUploadInteractionTest` — L7
+  - `method test_pdf_picker_locks_during_upload_and_after_success_but_unlocks_after_failure` — L9
 - [`tests/Feature/PeopleAndLearningStructureTest.php`](<../tests/Feature/PeopleAndLearningStructureTest.php>) — 115 lines
   - `class PeopleAndLearningStructureTest` — L18
   - `method test_people_and_learning_structure_records_can_be_created` — L22
-- [`tests/Feature/PhoneInputTest.php`](<../tests/Feature/PhoneInputTest.php>) — 77 lines
+- [`tests/Feature/PhoneInputTest.php`](<../tests/Feature/PhoneInputTest.php>) — 81 lines
   - `class PhoneInputTest` — L12
   - `method test_phone_input_shows_only_the_selected_code_until_the_country_menu_is_opened` — L14
-  - `method test_phone_numbers_are_normalized_and_formatted_by_country` — L58
-  - `method test_phone_model_attributes_store_e164_and_display_official_formatting` — L66
+  - `method test_phone_numbers_are_normalized_and_formatted_by_country` — L62
+  - `method test_phone_model_attributes_store_e164_and_display_official_formatting` — L70
 - [`tests/Feature/PhoneNormalizationMigrationTest.php`](<../tests/Feature/PhoneNormalizationMigrationTest.php>) — 34 lines
   - `class PhoneNormalizationMigrationTest` — L11
   - `method test_existing_local_numbers_are_backfilled_with_syria_as_the_default_country` — L15
-- [`tests/Feature/PublicWebsiteTest.php`](<../tests/Feature/PublicWebsiteTest.php>) — 209 lines
+- [`tests/Feature/PublicWebsiteTest.php`](<../tests/Feature/PublicWebsiteTest.php>) — 231 lines
   - `class PublicWebsiteTest` — L17
   - `method setUp` — L21
   - `method test_public_homepage_renders_seeded_content_and_navigation` — L29
   - `method test_public_homepage_is_localized_in_arabic` — L40
-  - `method test_public_homepage_uses_website_logo_for_social_preview` — L52
-  - `method test_public_homepage_can_be_put_under_maintenance_without_blocking_dashboard_route` — L67
-  - `method test_website_management_requires_permission_and_manager_can_customize_pages` — L83
-  - `method test_website_page_builder_can_store_and_render_image_sections` — L170
-- [`tests/Feature/QuickQuranTestEntryTest.php`](<../tests/Feature/QuickQuranTestEntryTest.php>) — 415 lines
+  - `method test_public_header_hides_language_selection_and_names_the_signed_in_course_app_action` — L52
+  - `method test_public_homepage_uses_website_logo_for_social_preview` — L67
+  - `method test_public_homepage_can_be_put_under_maintenance_without_blocking_dashboard_route` — L89
+  - `method test_website_management_requires_permission_and_manager_can_customize_pages` — L105
+  - `method test_website_page_builder_can_store_and_render_image_sections` — L192
+- [`tests/Feature/QuickQuranTestEntryTest.php`](<../tests/Feature/QuickQuranTestEntryTest.php>) — 429 lines
   - `class QuickQuranTestEntryTest` — L22
   - `method test_quick_saber_entry_shows_input_suffixes_and_replaces_the_form_when_entries_are_disabled` — L26
-  - `method test_quick_entry_requires_permission_and_is_visible_to_super_admins_without_teacher_profiles` — L51
-  - `method test_quick_entry_records_only_available_partial_quarters_and_final_attempts` — L94
-  - `method test_quick_entry_hides_the_type_selector_when_only_one_saber_type_is_allowed` — L225
-  - `method test_switching_saber_type_clears_both_entry_forms` — L252
-  - `method test_quick_entry_records_under_the_teacher_linked_to_the_logged_in_account` — L278
-  - `method test_teacher_with_quick_entry_permission_can_select_students_outside_their_groups` — L317
-  - `method context` — L355
-  - `method sidebarHasQuickEntry` — L402
-  - `method quickEntrySidebarItem` — L407
-- [`tests/Feature/QuranWorkflowTest.php`](<../tests/Feature/QuranWorkflowTest.php>) — 940 lines
+  - `method test_quick_entry_requires_permission_and_is_visible_to_super_admins_without_teacher_profiles` — L65
+  - `method test_quick_entry_records_only_available_partial_quarters_and_final_attempts` — L108
+  - `method test_quick_entry_hides_the_type_selector_when_only_one_saber_type_is_allowed` — L239
+  - `method test_switching_saber_type_clears_both_entry_forms` — L266
+  - `method test_quick_entry_records_under_the_teacher_linked_to_the_logged_in_account` — L292
+  - `method test_teacher_with_quick_entry_permission_can_select_students_outside_their_groups` — L331
+  - `method context` — L369
+  - `method sidebarHasQuickEntry` — L416
+  - `method quickEntrySidebarItem` — L421
+- [`tests/Feature/QuranWorkflowTest.php`](<../tests/Feature/QuranWorkflowTest.php>) — 949 lines
   - `class QuranWorkflowTest` — L33
   - `method test_group_attendance_creates_records_and_automatic_points` — L37
   - `method test_teacher_attendance_creates_a_whole_day_record` — L65
   - `method test_teacher_attendance_preloads_scheduled_teachers_and_allows_manual_additions` — L113
-  - `method test_teacher_attendance_preloads_unassigned_helping_teachers` — L272
-  - `method test_memorization_creates_lifetime_page_achievements_and_can_save_only_unique_pages_when_duplicates_exist` — L362
-  - `method test_memorization_point_tiers_are_calculated_per_day` — L438
-  - `method test_juz_memorized_at_another_mosque_is_treated_as_duplicate_and_cannot_earn_points` — L480
-  - `method test_adding_a_new_memorization_day_does_not_recalculate_historical_points` — L517
-  - `method test_final_test_progression_requires_a_passed_partial_cycle_and_saves_attempt_history` — L558
-  - `method test_awqaf_test_progression_blocks_until_final_cycle_passes` — L640
-  - `method test_point_ledger_allows_manual_entries_and_voiding` — L699
-  - `method test_points_follow_course_activation_state` — L739
-  - `method test_teacher_workflow_access_is_restricted_to_assigned_groups` — L781
-  - `method workflowContext` — L866
+  - `method test_teacher_attendance_preloads_unassigned_helping_teachers` — L281
+  - `method test_memorization_creates_lifetime_page_achievements_and_can_save_only_unique_pages_when_duplicates_exist` — L371
+  - `method test_memorization_point_tiers_are_calculated_per_day` — L447
+  - `method test_juz_memorized_at_another_mosque_is_treated_as_duplicate_and_cannot_earn_points` — L489
+  - `method test_adding_a_new_memorization_day_does_not_recalculate_historical_points` — L526
+  - `method test_final_test_progression_requires_a_passed_partial_cycle_and_saves_attempt_history` — L567
+  - `method test_awqaf_test_progression_blocks_until_final_cycle_passes` — L649
+  - `method test_point_ledger_allows_manual_entries_and_voiding` — L708
+  - `method test_points_follow_course_activation_state` — L748
+  - `method test_teacher_workflow_access_is_restricted_to_assigned_groups` — L790
+  - `method workflowContext` — L875
 - [`tests/Feature/ReportCardMetricsTest.php`](<../tests/Feature/ReportCardMetricsTest.php>) — 450 lines
   - `class ReportCardMetricsTest` — L33
   - `method test_empty_course_report_flow_creates_a_preconfigured_exclusive_report_card_template` — L37
   - `method test_report_card_metrics_follow_attendance_days_and_named_point_awards` — L105
   - `method test_course_end_merges_a_students_final_sabers_and_grades_the_average` — L180
   - `method test_report_card_notes_are_course_scoped_and_persisted_from_the_dedicated_preview` — L301
-- [`tests/Feature/ReportsAndApiTest.php`](<../tests/Feature/ReportsAndApiTest.php>) — 1,026 lines
+- [`tests/Feature/ReportsAndApiTest.php`](<../tests/Feature/ReportsAndApiTest.php>) — 1,028 lines
   - `class ReportsAndApiTest` — L45
   - `method setUp` — L49
   - `method test_reports_page_and_api_require_authentication` — L56
@@ -3380,133 +3560,142 @@ The search command uses the local FTS5 database at `storage/app/private/codebase
   - `method test_report_filters_tolerate_array_values_from_enhanced_selects` — L153
   - `method test_attendance_averages_use_distinct_attendance_dates_not_group_sessions` — L166
   - `method test_student_activity_summary_report_combines_pages_and_points_by_group_and_date` — L197
-  - `method test_student_activity_summary_report_headers_toggle_sort_direction` — L233
-  - `method test_student_quran_test_report_counts_partial_and_final_tests_in_the_selected_range` — L292
-  - `method test_group_memorization_ranking_page_compares_two_ranges` — L403
-  - `method test_student_memorization_ranking_page_compares_two_ranges` — L444
-  - `method test_teacher_api_read_endpoints_are_scoped` — L482
-  - `method test_manager_can_fetch_teacher_daily_summary_api` — L602
-  - `method reportingContext` — L705
-  - `method memorizationRankingContext` — L896
-- [`tests/Feature/ScopedAccessTest.php`](<../tests/Feature/ScopedAccessTest.php>) — 528 lines
+  - `method test_student_activity_summary_report_headers_toggle_sort_direction` — L235
+  - `method test_student_quran_test_report_counts_partial_and_final_tests_in_the_selected_range` — L294
+  - `method test_group_memorization_ranking_page_compares_two_ranges` — L405
+  - `method test_student_memorization_ranking_page_compares_two_ranges` — L446
+  - `method test_teacher_api_read_endpoints_are_scoped` — L484
+  - `method test_manager_can_fetch_teacher_daily_summary_api` — L604
+  - `method reportingContext` — L707
+  - `method memorizationRankingContext` — L898
+- [`tests/Feature/ScopedAccessTest.php`](<../tests/Feature/ScopedAccessTest.php>) — 535 lines
   - `class ScopedAccessTest` — L19
   - `method test_teacher_management_pages_only_show_self_and_assigned_group_records` — L23
-  - `method test_teacher_cannot_edit_records_outside_their_scope` — L123
-  - `method test_manual_group_scope_overrides_expand_teacher_visibility_without_full_access` — L217
-  - `method test_parent_permissions_are_scoped_to_their_family_records` — L329
-  - `method test_student_permissions_are_scoped_to_their_own_profile_and_enrollments` — L414
-  - `method createAcademicContext` — L490
-  - `method createTeacherUser` — L508
+  - `method test_teacher_cannot_edit_records_outside_their_scope` — L130
+  - `method test_manual_group_scope_overrides_expand_teacher_visibility_without_full_access` — L224
+  - `method test_parent_permissions_are_scoped_to_their_family_records` — L336
+  - `method test_student_permissions_are_scoped_to_their_own_profile_and_enrollments` — L421
+  - `method createAcademicContext` — L497
+  - `method createTeacherUser` — L515
 - [`tests/Feature/Settings/PasswordUpdateTest.php`](<../tests/Feature/Settings/PasswordUpdateTest.php>) — 51 lines
   - `class PasswordUpdateTest` — L11
   - `method test_password_can_be_updated` — L15
   - `method test_correct_password_must_be_provided_to_update_password` — L34
-- [`tests/Feature/Settings/ProfileUpdateTest.php`](<../tests/Feature/Settings/ProfileUpdateTest.php>) — 67 lines
+- [`tests/Feature/Settings/ProfileUpdateTest.php`](<../tests/Feature/Settings/ProfileUpdateTest.php>) — 94 lines
   - `class ProfileUpdateTest` — L10
   - `method test_profile_page_is_displayed` — L14
-  - `method test_profile_identity_is_read_only` — L21
-  - `method test_user_can_delete_their_account` — L34
-  - `method test_correct_password_must_be_provided_to_delete_account` — L52
-- [`tests/Feature/StandaloneMemorizationPageTest.php`](<../tests/Feature/StandaloneMemorizationPageTest.php>) — 461 lines
-  - `class StandaloneMemorizationPageTest` — L19
-  - `method test_quick_memorization_replaces_the_form_with_a_warning_when_entries_are_disabled` — L23
-  - `method test_teacher_workbench_uses_the_logged_in_teacher_for_new_memorization_entries` — L36
-  - `method test_teacher_workbench_automatically_uses_the_newest_active_enrollment` — L62
-  - `method test_teacher_workbench_warns_about_duplicate_pages_and_can_save_only_the_unique_pages` — L102
-  - `method test_teacher_quick_entry_warns_about_duplicate_pages_and_can_save_only_the_unique_pages` — L139
-  - `method test_teacher_quick_entry_can_record_for_active_students_outside_their_own_group_scope` — L173
-  - `method test_non_teacher_user_with_memorization_permission_can_use_quick_entry_for_any_active_student` — L238
-  - `method test_non_teacher_quick_entry_requires_group_selection_when_student_has_multiple_active_enrollments` — L269
-  - `method test_memorization_entry_student_lists_require_an_active_student_enrollment_and_course` — L325
-  - `method test_editing_memorization_preserves_historic_notes_after_the_notes_field_is_removed` — L376
-  - `method teacherMemorizationContext` — L403
-- [`tests/Feature/StandaloneWorkflowPagesTest.php`](<../tests/Feature/StandaloneWorkflowPagesTest.php>) — 1,008 lines
-  - `class StandaloneWorkflowPagesTest` — L32
-  - `method test_external_memorization_starts_partial_or_final_tests_without_entering_normal_eligibility_lists` — L36
-  - `method test_teacher_partial_test_workbench_uses_the_logged_in_teacher` — L53
-  - `method test_partial_test_workbench_warns_before_creating_another_open_cycle` — L105
-  - `method test_partial_test_workbench_can_filter_by_juz` — L165
-  - `method test_teacher_final_test_workbench_uses_the_logged_in_teacher_and_locks_after_pass` — L201
-  - `method test_partial_and_final_test_student_lists_require_an_active_student_enrollment_and_course` — L255
-  - `method test_recording_on_behalf_teacher_lists_exclude_admins_and_managers` — L275
-  - `method test_super_admin_can_edit_partial_and_final_test_attempts` — L331
-  - `method test_editing_a_final_saber_attempt_preserves_historic_notes_after_the_notes_field_is_removed` — L418
-  - `method test_partial_saber_and_quarter_attempts_cannot_be_deleted_after_a_related_final_saber_exists` — L454
-  - `method test_final_test_workbench_warns_when_same_juz_already_has_an_open_cycle` — L504
-  - `method test_final_test_workbench_can_filter_by_juz` — L549
-  - `method test_final_test_workbench_can_sort_by_last_quiz_date` — L583
-  - `method test_partial_test_workbench_shows_last_test_date_and_defaults_to_newest_record` — L640
-  - `method test_manager_point_ledger_workbench_creates_and_updates_manual_entries` — L697
-  - `method test_manager_awqaf_workbench_uses_group_teacher_and_hides_recorded_juzs` — L751
-  - `method test_awqaf_workbench_can_filter_by_juz` — L797
-  - `method test_awqaf_workbench_lists_students_eligible_for_awqaf_test` — L848
-  - `method teacherContext` — L921
-  - `method managerContext` — L946
-  - `method makeEnrollment` — L970
-- [`tests/Feature/StudentAttendanceDayModuleTest.php`](<../tests/Feature/StudentAttendanceDayModuleTest.php>) — 777 lines
+  - `method test_user_can_update_their_username_and_generated_email_together` — L29
+  - `method test_old_account_tabs_redirect_to_the_consolidated_account_page` — L53
+  - `method test_user_can_delete_their_account` — L61
+  - `method test_correct_password_must_be_provided_to_delete_account` — L79
+- [`tests/Feature/StandaloneMemorizationPageTest.php`](<../tests/Feature/StandaloneMemorizationPageTest.php>) — 503 lines
+  - `class StandaloneMemorizationPageTest` — L20
+  - `method test_quick_memorization_submit_uses_the_shared_save_symbol` — L24
+  - `method test_quick_memorization_replaces_the_form_with_a_warning_when_entries_are_disabled` — L37
+  - `method test_teacher_workbench_uses_the_logged_in_teacher_for_new_memorization_entries` — L50
+  - `method test_teacher_workbench_automatically_uses_the_newest_active_enrollment` — L76
+  - `method test_teacher_workbench_warns_about_duplicate_pages_and_can_save_only_the_unique_pages` — L116
+  - `method test_teacher_quick_entry_warns_about_duplicate_pages_and_can_save_only_the_unique_pages` — L153
+  - `method test_teacher_quick_entry_can_record_for_active_students_outside_their_own_group_scope` — L187
+  - `method test_non_teacher_user_with_memorization_permission_can_use_quick_entry_for_any_active_student` — L252
+  - `method test_non_teacher_quick_entry_requires_group_selection_when_student_has_multiple_active_enrollments` — L283
+  - `method test_memorization_entry_student_lists_require_an_active_student_enrollment_and_course` — L339
+  - `method test_editing_memorization_preserves_historic_notes_after_the_notes_field_is_removed` — L390
+  - `method test_memorization_from_a_finished_course_cannot_be_deleted` — L421
+  - `method teacherMemorizationContext` — L445
+- [`tests/Feature/StandaloneWorkflowPagesTest.php`](<../tests/Feature/StandaloneWorkflowPagesTest.php>) — 1,136 lines
+  - `class StandaloneWorkflowPagesTest` — L33
+  - `method test_external_memorization_starts_partial_or_final_tests_without_entering_normal_eligibility_lists` — L37
+  - `method test_teacher_partial_test_workbench_uses_the_logged_in_teacher` — L54
+  - `method test_partial_test_workbench_warns_before_creating_another_open_cycle` — L106
+  - `method test_partial_test_workbench_can_filter_by_juz` — L166
+  - `method test_teacher_final_test_workbench_uses_the_logged_in_teacher_and_locks_after_pass` — L202
+  - `method test_partial_and_final_test_student_lists_require_an_active_student_enrollment_and_course` — L256
+  - `method test_recording_on_behalf_teacher_lists_exclude_admins_and_managers` — L276
+  - `method test_super_admin_can_edit_partial_and_final_test_attempts` — L332
+  - `method test_editing_a_final_saber_attempt_preserves_historic_notes_after_the_notes_field_is_removed` — L444
+  - `method test_partial_saber_and_quarter_attempts_cannot_be_deleted_after_a_related_final_saber_exists` — L480
+  - `method test_sabers_from_a_finished_course_cannot_be_deleted` — L530
+  - `method test_final_test_workbench_warns_when_same_juz_already_has_an_open_cycle` — L617
+  - `method test_final_test_workbench_can_filter_by_juz` — L662
+  - `method test_final_test_workbench_can_sort_by_last_quiz_date` — L696
+  - `method test_partial_test_workbench_shows_last_test_date_and_defaults_to_newest_record` — L753
+  - `method test_manager_point_ledger_workbench_creates_and_updates_manual_entries` — L810
+  - `method test_manager_awqaf_workbench_uses_group_teacher_and_hides_recorded_juzs` — L879
+  - `method test_awqaf_workbench_can_filter_by_juz` — L925
+  - `method test_awqaf_workbench_lists_students_eligible_for_awqaf_test` — L976
+  - `method teacherContext` — L1049
+  - `method managerContext` — L1074
+  - `method makeEnrollment` — L1098
+- [`tests/Feature/StudentAttendanceDayModuleTest.php`](<../tests/Feature/StudentAttendanceDayModuleTest.php>) — 863 lines
   - `class StudentAttendanceDayModuleTest` — L27
   - `method test_manager_can_create_an_attendance_day_for_active_groups` — L31
-  - `method test_manager_can_add_extra_group_to_attendance_day_manually` — L120
-  - `method test_day_details_show_total_group_students_separately_from_present_students` — L184
-  - `method test_manager_can_toggle_student_attendance_day_status_for_all_groups` — L258
-  - `method test_group_shortcut_links_to_parent_day_and_marking_updates_records_and_points` — L317
-  - `method test_closed_student_attendance_day_blocks_group_and_quick_attendance_updates` — L362
-  - `method test_quick_attendance_marks_student_from_day_level_list_and_scan` — L420
-  - `method test_teacher_can_only_open_attendance_days_for_accessible_groups` — L471
-  - `method test_teacher_day_details_page_hides_status_toggle_without_the_separate_permission` — L501
-  - `method test_attendance_index_still_loads_after_days_exist` — L528
-  - `method test_disabling_course_points_removes_old_attendance_points_from_effective_totals` — L555
-  - `method test_manager_can_export_student_attendance_for_a_selected_course_and_period` — L601
-  - `method test_attendance_screens_replace_missing_statuses_with_the_configured_default` — L647
-  - `method teacherContext` — L703
-  - `method makeEnrollment` — L728
-  - `method scheduleGroupForDate` — L766
-- [`tests/Feature/StudentNotesTest.php`](<../tests/Feature/StudentNotesTest.php>) — 357 lines
+  - `method test_student_and_teacher_attendance_days_require_a_default_status` — L120
+  - `method test_student_and_teacher_attendance_days_require_non_clearable_dates_and_courses` — L156
+  - `method test_manager_can_add_extra_group_to_attendance_day_manually` — L200
+  - `method test_day_details_show_total_group_students_separately_from_present_students` — L264
+  - `method test_manager_can_toggle_student_attendance_day_status_for_all_groups` — L338
+  - `method test_group_shortcut_links_to_parent_day_and_marking_updates_records_and_points` — L402
+  - `method test_closed_student_attendance_day_blocks_group_and_quick_attendance_updates` — L447
+  - `method test_quick_attendance_marks_student_from_day_level_list_and_scan` — L505
+  - `method test_teacher_can_only_open_attendance_days_for_accessible_groups` — L556
+  - `method test_teacher_day_details_page_hides_status_toggle_without_the_separate_permission` — L586
+  - `method test_attendance_index_still_loads_after_days_exist` — L613
+  - `method test_disabling_course_points_removes_old_attendance_points_from_effective_totals` — L640
+  - `method test_manager_can_export_student_attendance_for_a_selected_course_and_period` — L686
+  - `method test_attendance_screens_replace_missing_statuses_with_the_configured_default` — L733
+  - `method teacherContext` — L789
+  - `method makeEnrollment` — L814
+  - `method scheduleGroupForDate` — L852
+- [`tests/Feature/StudentNotesTest.php`](<../tests/Feature/StudentNotesTest.php>) — 393 lines
   - `class StudentNotesTest` — L18
   - `method test_student_notes_page_requires_authentication` — L22
   - `method test_manager_can_create_update_and_delete_student_notes` — L27
-  - `method test_student_notes_use_the_compact_date_form_and_generic_table_without_parent_names` — L72
-  - `method test_teacher_notes_are_scoped_to_assigned_students_and_own_entries` — L124
-  - `method managerNotesContext` — L299
-- [`tests/Feature/StudentProgressPageTest.php`](<../tests/Feature/StudentProgressPageTest.php>) — 946 lines
+  - `method test_student_notes_use_the_compact_date_form_and_generic_table_without_parent_names` — L93
+  - `method test_teacher_notes_are_scoped_to_assigned_students_and_own_entries` — L160
+  - `method managerNotesContext` — L335
+- [`tests/Feature/StudentProgressPageTest.php`](<../tests/Feature/StudentProgressPageTest.php>) — 991 lines
   - `class StudentProgressPageTest` — L35
-  - `method test_parent_can_view_only_their_child_progress` — L39
-  - `method test_progress_photo_uses_the_student_default_and_stays_inside_a_fixed_square_frame` — L68
-  - `method test_manager_can_replace_a_student_photo_from_the_progress_profile` — L105
-  - `method test_student_can_view_only_their_own_progress` — L130
-  - `method test_progress_labels_external_memorization_and_shows_student_phone` — L151
-  - `method test_assessments_box_excludes_final_exam_results` — L174
-  - `method test_student_progress_limits_highlights_to_default_course_but_keeps_history_general` — L214
-  - `method test_progress_page_without_route_student_shows_selector_for_manager_scope` — L342
-  - `method test_progress_enrollments_only_show_active_and_completed_rows` — L405
-  - `method test_juz_is_only_finished_after_the_final_test_is_passed` — L458
-  - `method makeScopedProgressData` — L548
-  - `method makeStudentScopedProgressData` — L824
-- [`tests/Feature/SystemSettingsTest.php`](<../tests/Feature/SystemSettingsTest.php>) — 1,190 lines
+  - `method test_record_tables_have_number_columns_except_for_quran_juz_progress` — L39
+  - `method test_parent_can_view_only_their_child_progress` — L51
+  - `method test_progress_photo_uses_the_student_default_and_stays_inside_a_fixed_square_frame` — L80
+  - `method test_manager_can_replace_a_student_photo_from_the_progress_profile` — L117
+  - `method test_student_can_view_only_their_own_progress` — L142
+  - `method test_progress_labels_external_memorization_and_shows_student_phone` — L163
+  - `method test_assessments_box_excludes_final_exam_results` — L186
+  - `method test_student_progress_limits_highlights_to_default_course_but_keeps_history_general` — L234
+  - `method test_progress_page_without_route_student_shows_selector_for_manager_scope` — L362
+  - `method test_progress_enrollments_only_show_active_and_completed_rows` — L436
+  - `method test_juz_is_only_finished_after_the_final_test_is_passed` — L489
+  - `method makeScopedProgressData` — L593
+  - `method makeStudentScopedProgressData` — L869
+- [`tests/Feature/SystemSettingsTest.php`](<../tests/Feature/SystemSettingsTest.php>) — 1,342 lines
   - `class SystemSettingsTest` — L37
   - `method test_academic_years_are_sorted_by_start_date_and_cannot_finish_before_their_courses` — L41
-  - `method test_linked_attendance_status_can_be_deleted_without_deleting_history` — L102
-  - `method test_settings_pages_require_the_settings_permission` — L135
-  - `method test_sidebar_navigation_settings_require_the_specific_permission` — L174
-  - `method test_tracking_settings_hide_unused_awqaf_subject_management_and_include_points` — L195
-  - `method test_settings_navigation_and_saber_rules_use_the_single_table_layout` — L204
-  - `method test_operational_statuses_can_be_toggled_without_opening_the_general_settings_editor` — L221
-  - `method test_manager_can_manage_organization_settings` — L253
-  - `method test_main_page_logo_upload_is_saved_immediately_and_can_be_removed` — L442
-  - `method test_manager_can_manage_course_completion_rules_and_apply_point_adjustments` — L461
-  - `method test_course_completion_final_rule_splits_deselected_grades_into_a_new_persistent_row` — L625
-  - `method test_reselecting_a_grade_removes_its_now_empty_split_completion_rule` — L670
-  - `method test_deleting_a_secondary_completion_rule_returns_its_grades_to_the_main_rule` — L689
-  - `method test_deselecting_a_grade_from_a_secondary_completion_rule_returns_it_to_the_main_rule` — L709
-  - `method test_assessment_rules_use_a_card_selector_and_per_assessment_grade_editor` — L732
-  - `method test_authorized_user_can_save_sidebar_navigation_settings` — L780
-  - `method test_authorized_user_can_add_a_custom_sidebar_group_and_assign_pages_to_it` — L817
-  - `method test_sidebar_includes_student_progress_item_for_users_with_student_access` — L853
-  - `method test_student_promotion_action_requires_explicit_permission_to_appear` — L864
-  - `method test_authorized_user_can_promote_students_to_the_next_active_grade_level` — L881
-  - `method test_manager_can_manage_tracking_point_and_finance_settings` — L971
-  - `method test_shared_table_pagination_keeps_controls_on_one_row_and_summary_below` — L1158
-  - `method signIn` — L1173
+  - `method test_empty_active_academic_year_can_be_deleted_then_an_inactive_year_can_be_reactivated` — L123
+  - `method test_finished_academic_year_can_be_reactivated_only_when_no_year_is_active_then_its_course_records_can_be_restored` — L161
+  - `method test_linked_attendance_status_can_be_deleted_without_deleting_history` — L231
+  - `method test_settings_pages_require_the_settings_permission` — L264
+  - `method test_sidebar_navigation_settings_require_the_specific_permission` — L303
+  - `method test_tracking_settings_hide_unused_awqaf_subject_management_and_include_points` — L324
+  - `method test_settings_navigation_and_saber_rules_use_the_single_table_layout` — L333
+  - `method test_operational_statuses_can_be_toggled_without_opening_the_general_settings_editor` — L350
+  - `method test_manager_can_manage_organization_settings` — L382
+  - `method test_main_page_logo_upload_is_saved_immediately_and_can_be_removed` — L583
+  - `method test_manager_can_manage_course_completion_rules_and_apply_point_adjustments` — L602
+  - `method test_course_completion_final_rule_splits_deselected_grades_into_a_new_persistent_row` — L766
+  - `method test_reselecting_a_grade_removes_its_now_empty_split_completion_rule` — L811
+  - `method test_deleting_a_secondary_completion_rule_returns_its_grades_to_the_main_rule` — L830
+  - `method test_deselecting_a_grade_from_a_secondary_completion_rule_returns_it_to_the_main_rule` — L850
+  - `method test_assessment_rules_use_a_card_selector_and_per_assessment_grade_editor` — L873
+  - `method test_authorized_user_can_save_sidebar_navigation_settings` — L921
+  - `method test_authorized_user_can_add_a_custom_sidebar_group_and_assign_pages_to_it` — L960
+  - `method test_sidebar_includes_student_progress_item_for_users_with_student_access` — L997
+  - `method test_student_promotion_action_requires_explicit_permission_to_appear` — L1008
+  - `method test_authorized_user_can_promote_students_to_the_next_active_grade_level` — L1025
+  - `method test_manager_can_manage_tracking_point_and_finance_settings` — L1115
+  - `method test_shared_table_pagination_keeps_controls_on_one_row_and_summary_below` — L1310
+  - `method signIn` — L1325
 - [`tests/Feature/TeacherSignupRequestTest.php`](<../tests/Feature/TeacherSignupRequestTest.php>) — 181 lines
   - `class TeacherSignupRequestTest` — L16
   - `method test_public_teacher_signup_page_is_available_and_creates_pending_request` — L20
@@ -3556,6 +3745,10 @@ The search command uses the local FTS5 database at `storage/app/private/codebase
 - [`tests/Unit/GroupDailySummaryServiceTest.php`](<../tests/Unit/GroupDailySummaryServiceTest.php>) — 32 lines
   - `class GroupDailySummaryServiceTest` — L10
   - `method test_test_sections_are_separate_and_empty_sections_are_omitted` — L12
+- [`tests/Unit/PdfOptionsTest.php`](<../tests/Unit/PdfOptionsTest.php>) — 47 lines
+  - `class PdfOptionsTest` — L8
+  - `method test_pdf_generation_raises_a_small_runtime_memory_limit` — L10
+  - `method test_attendance_exports_raise_memory_before_constructing_mpdf` — L31
 - [`tests/Unit/PercentageFormatterTest.php`](<../tests/Unit/PercentageFormatterTest.php>) — 18 lines
   - `class PercentageFormatterTest` — L8
   - `method test_it_preserves_only_one_meaningful_decimal_place` — L10
@@ -3572,35 +3765,50 @@ The search command uses the local FTS5 database at `storage/app/private/codebase
 
 ### UI / Blade components
 
+- [`resources/views/components/account-menu-preferences.blade.php`](<../resources/views/components/account-menu-preferences.blade.php>) — 48 lines
 - [`resources/views/components/action-message.blade.php`](<../resources/views/components/action-message.blade.php>) — 15 lines
-- [`resources/views/components/admin/create-and-new-button.blade.php`](<../resources/views/components/admin/create-and-new-button.blade.php>) — 11 lines
-- [`resources/views/components/admin/modal.blade.php`](<../resources/views/components/admin/modal.blade.php>) — 75 lines
+- [`resources/views/components/add-action-button.blade.php`](<../resources/views/components/add-action-button.blade.php>) — 35 lines
+- [`resources/views/components/admin-action-icon.blade.php`](<../resources/views/components/admin-action-icon.blade.php>) — 245 lines
+- [`resources/views/components/admin/create-and-new-button.blade.php`](<../resources/views/components/admin/create-and-new-button.blade.php>) — 18 lines
+- [`resources/views/components/admin/modal.blade.php`](<../resources/views/components/admin/modal.blade.php>) — 81 lines
 - [`resources/views/components/admin/role-label.blade.php`](<../resources/views/components/admin/role-label.blade.php>) — 13 lines
+- [`resources/views/components/admin/save-button.blade.php`](<../resources/views/components/admin/save-button.blade.php>) — 15 lines
 - [`resources/views/components/app-logo-icon.blade.php`](<../resources/views/components/app-logo-icon.blade.php>) — 9 lines
-- [`resources/views/components/app-logo.blade.php`](<../resources/views/components/app-logo.blade.php>) — 23 lines
+- [`resources/views/components/app-logo.blade.php`](<../resources/views/components/app-logo.blade.php>) — 32 lines
 - [`resources/views/components/auth-header.blade.php`](<../resources/views/components/auth-header.blade.php>) — 12 lines
 - [`resources/views/components/auth-session-status.blade.php`](<../resources/views/components/auth-session-status.blade.php>) — 10 lines
-- [`resources/views/components/back-link.blade.php`](<../resources/views/components/back-link.blade.php>) — 14 lines
+- [`resources/views/components/back-link.blade.php`](<../resources/views/components/back-link.blade.php>) — 15 lines
+- [`resources/views/components/clear-filter-button.blade.php`](<../resources/views/components/clear-filter-button.blade.php>) — 15 lines
+- [`resources/views/components/delete-action-button.blade.php`](<../resources/views/components/delete-action-button.blade.php>) — 15 lines
+- [`resources/views/components/download-action-button.blade.php`](<../resources/views/components/download-action-button.blade.php>) — 27 lines
+- [`resources/views/components/edit-action-button.blade.php`](<../resources/views/components/edit-action-button.blade.php>) — 27 lines
+- [`resources/views/components/export-action-button.blade.php`](<../resources/views/components/export-action-button.blade.php>) — 27 lines
 - [`resources/views/components/finance/amount-input.blade.php`](<../resources/views/components/finance/amount-input.blade.php>) — 32 lines
 - [`resources/views/components/icons/trash.blade.php`](<../resources/views/components/icons/trash.blade.php>) — 4 lines
+- [`resources/views/components/id-card-print-status-icon.blade.php`](<../resources/views/components/id-card-print-status-icon.blade.php>) — 41 lines
+- [`resources/views/components/invoice-xlsx-export-icon.blade.php`](<../resources/views/components/invoice-xlsx-export-icon.blade.php>) — 21 lines
 - [`resources/views/components/layouts/app.blade.php`](<../resources/views/components/layouts/app.blade.php>) — 6 lines
-- [`resources/views/components/layouts/app/header.blade.php`](<../resources/views/components/layouts/app/header.blade.php>) — 149 lines
-- [`resources/views/components/layouts/app/sidebar.blade.php`](<../resources/views/components/layouts/app/sidebar.blade.php>) — 226 lines
+- [`resources/views/components/layouts/app/header.blade.php`](<../resources/views/components/layouts/app/header.blade.php>) — 147 lines
+- [`resources/views/components/layouts/app/sidebar.blade.php`](<../resources/views/components/layouts/app/sidebar.blade.php>) — 182 lines
 - [`resources/views/components/layouts/auth.blade.php`](<../resources/views/components/layouts/auth.blade.php>) — 4 lines
 - [`resources/views/components/layouts/auth/card.blade.php`](<../resources/views/components/layouts/auth/card.blade.php>) — 32 lines
 - [`resources/views/components/layouts/auth/simple.blade.php`](<../resources/views/components/layouts/auth/simple.blade.php>) — 29 lines
 - [`resources/views/components/layouts/auth/split.blade.php`](<../resources/views/components/layouts/auth/split.blade.php>) — 47 lines
-- [`resources/views/components/locale-switcher.blade.php`](<../resources/views/components/locale-switcher.blade.php>) — 29 lines
+- [`resources/views/components/locale-switcher.blade.php`](<../resources/views/components/locale-switcher.blade.php>) — 46 lines
+- [`resources/views/components/mobile-header-mark.blade.php`](<../resources/views/components/mobile-header-mark.blade.php>) — 35 lines
+- [`resources/views/components/open-action-button.blade.php`](<../resources/views/components/open-action-button.blade.php>) — 27 lines
+- [`resources/views/components/pdf-export-icon.blade.php`](<../resources/views/components/pdf-export-icon.blade.php>) — 19 lines
 - [`resources/views/components/phone-input.blade.php`](<../resources/views/components/phone-input.blade.php>) — 151 lines
 - [`resources/views/components/placeholder-pattern.blade.php`](<../resources/views/components/placeholder-pattern.blade.php>) — 13 lines
 - [`resources/views/components/print-template-icon.blade.php`](<../resources/views/components/print-template-icon.blade.php>) — 75 lines
 - [`resources/views/components/print/layout.blade.php`](<../resources/views/components/print/layout.blade.php>) — 165 lines
+- [`resources/views/components/quick-attendance-icon.blade.php`](<../resources/views/components/quick-attendance-icon.blade.php>) — 66 lines
 - [`resources/views/components/quick-entry-disabled.blade.php`](<../resources/views/components/quick-entry-disabled.blade.php>) — 16 lines
 - [`resources/views/components/settings/admin-nav.blade.php`](<../resources/views/components/settings/admin-nav.blade.php>) — 74 lines
 - [`resources/views/components/settings/layout.blade.php`](<../resources/views/components/settings/layout.blade.php>) — 33 lines
 - [`resources/views/components/sidebar-outline-icon.blade.php`](<../resources/views/components/sidebar-outline-icon.blade.php>) — 57 lines
 - [`resources/views/components/student-avatar.blade.php`](<../resources/views/components/student-avatar.blade.php>) — 32 lines
-- [`resources/views/components/student-progress-table.blade.php`](<../resources/views/components/student-progress-table.blade.php>) — 29 lines
+- [`resources/views/components/student-progress-table.blade.php`](<../resources/views/components/student-progress-table.blade.php>) — 36 lines
 - [`resources/views/components/teacher-avatar.blade.php`](<../resources/views/components/teacher-avatar.blade.php>) — 30 lines
 - [`resources/views/components/text-link.blade.php`](<../resources/views/components/text-link.blade.php>) — 7 lines
 - [`resources/views/components/user-avatar.blade.php`](<../resources/views/components/user-avatar.blade.php>) — 23 lines
@@ -3630,7 +3838,7 @@ The search command uses the local FTS5 database at `storage/app/private/codebase
   - `method defaultFee` — L256
   - `method resetExpenseForm` — L261
   - `method resetRegistrationForm` — L271
-- [`resources/views/livewire/activities/index.blade.php`](<../resources/views/livewire/activities/index.blade.php>) — 464 lines
+- [`resources/views/livewire/activities/index.blade.php`](<../resources/views/livewire/activities/index.blade.php>) — 462 lines
   - `method mount` — L29
   - `method with` — L37
   - `method rules` — L61
@@ -3639,7 +3847,7 @@ The search command uses the local FTS5 database at `storage/app/private/codebase
   - `method edit` — L137
   - `method cancel` — L159
   - `method delete` — L179
-- [`resources/views/livewire/assessments/bands.blade.php`](<../resources/views/livewire/assessments/bands.blade.php>) — 354 lines
+- [`resources/views/livewire/assessments/bands.blade.php`](<../resources/views/livewire/assessments/bands.blade.php>) — 358 lines
   - `method mount` — L27
   - `method with` — L33
   - `method rules` — L42
@@ -3650,29 +3858,31 @@ The search command uses the local FTS5 database at `storage/app/private/codebase
   - `method delete` — L128
   - `method effectivePoints` — L142
   - `method ensureActiveBandDoesNotOverlap` — L147
-- [`resources/views/livewire/assessments/index.blade.php`](<../resources/views/livewire/assessments/index.blade.php>) — 649 lines
-  - `method mount` — L58
-  - `method with` — L70
-  - `method updatedCourseFilter` — L120
-  - `method updatedStatusFilter` — L125
-  - `method updatedGroupCourseFilter` — L130
-  - `method updatedGroupScope` — L137
-  - `method openGroupPicker` — L145
-  - `method updatedAssessmentTypeId` — L152
-  - `method toggleGroup` — L157
-  - `method rules` — L193
-  - `method create` — L216
-  - `method save` — L229
-  - `method edit` — L287
-  - `method cancel` — L323
-  - `method closeForm` — L345
-  - `method delete` — L358
-  - `method visibleAssessmentsQuery` — L385
-  - `method syncMarksFromScoreBands` — L393
-  - `method formatDerivedMark` — L400
-  - `method selectedGroupIds` — L405
-  - `method syncAssessmentGroups` — L429
-- [`resources/views/livewire/assessments/results.blade.php`](<../resources/views/livewire/assessments/results.blade.php>) — 753 lines
+- [`resources/views/livewire/assessments/index.blade.php`](<../resources/views/livewire/assessments/index.blade.php>) — 686 lines
+  - `method mount` — L56
+  - `method with` — L68
+  - `method updatedCourseFilter` — L118
+  - `method updatedStatusFilter` — L123
+  - `method updatedGroupCourseFilter` — L128
+  - `method updatedGroupScope` — L135
+  - `method openGroupPicker` — L143
+  - `method saveGroupPicker` — L151
+  - `method updatedAssessmentTypeId` — L170
+  - `method toggleGroup` — L175
+  - `method rules` — L210
+  - `method create` — L233
+  - `method save` — L245
+  - `method edit` — L303
+  - `method cancel` — L339
+  - `method closeForm` — L361
+  - `method delete` — L374
+  - `method visibleAssessmentsQuery` — L401
+  - `method syncMarksFromScoreBands` — L409
+  - `method formatDerivedMark` — L416
+  - `method defaultGroupCourseId` — L421
+  - `method selectedGroupIds` — L438
+  - `method syncAssessmentGroups` — L462
+- [`resources/views/livewire/assessments/results.blade.php`](<../resources/views/livewire/assessments/results.blade.php>) — 770 lines
   - `method mount` — L48
   - `method with` — L69
   - `method selectGroup` — L156
@@ -3683,16 +3893,16 @@ The search command uses the local FTS5 database at `storage/app/private/codebase
   - `method openQuickResultModal` — L319
   - `method closeQuickResultModal` — L328
   - `method saveQuickResult` — L336
-  - `method loadResults` — L403
-  - `method displayStatusForEnrollment` — L413
-  - `method resultStatusClass` — L424
-  - `method assessmentGroups` — L434
-  - `method assessmentGroupIds` — L466
-  - `method assessmentPointsByEnrollment` — L482
-  - `method statusForScore` — L505
-  - `method sortedEnrollments` — L510
-  - `method sortIndicator` — L537
-  - `method authorizeScoreRecording` — L546
+  - `method loadResults` — L407
+  - `method displayStatusForEnrollment` — L417
+  - `method resultStatusClass` — L428
+  - `method assessmentGroups` — L438
+  - `method assessmentGroupIds` — L470
+  - `method assessmentPointsByEnrollment` — L486
+  - `method statusForScore` — L509
+  - `method sortedEnrollments` — L514
+  - `method sortIndicator` — L541
+  - `method authorizeScoreRecording` — L550
 - [`resources/views/livewire/auth/confirm-password.blade.php`](<../resources/views/livewire/auth/confirm-password.blade.php>) — 62 lines
   - `method confirmPassword` — L14
 - [`resources/views/livewire/auth/forgot-password.blade.php`](<../resources/views/livewire/auth/forgot-password.blade.php>) — 34 lines
@@ -3723,128 +3933,134 @@ The search command uses the local FTS5 database at `storage/app/private/codebase
   - `method saveScannerSettings` — L39
   - `method toggleAction` — L71
   - `method loadScannerSettings` — L80
-- [`resources/views/livewire/community-contacts/index.blade.php`](<../resources/views/livewire/community-contacts/index.blade.php>) — 379 lines
-  - `method mount` — L31
-  - `method with` — L36
-  - `method rules` — L82
-  - `method updatedSearch` — L97
-  - `method updatedCategoryFilter` — L102
-  - `method updatedStatusFilter` — L107
-  - `method openCreateModal` — L112
-  - `method edit` — L120
-  - `method save` — L140
-  - `method delete` — L169
-  - `method cancel` — L182
-  - `method clearFilters` — L199
+- [`resources/views/livewire/community-contacts/index.blade.php`](<../resources/views/livewire/community-contacts/index.blade.php>) — 390 lines
+  - `method mount` — L29
+  - `method with` — L34
+  - `method rules` — L80
+  - `method updatedSearch` — L95
+  - `method updatedCategoryFilter` — L100
+  - `method updatedStatusFilter` — L105
+  - `method openCreateModal` — L110
+  - `method edit` — L118
+  - `method save` — L138
+  - `method delete` — L167
+  - `method cancel` — L180
+  - `method clearFilters` — L197
 - [`resources/views/livewire/courses/end.blade.php`](<../resources/views/livewire/courses/end.blade.php>) — 165 lines
   - `method mount` — L16
   - `method with` — L22
-- [`resources/views/livewire/courses/index.blade.php`](<../resources/views/livewire/courses/index.blade.php>) — 753 lines
+- [`resources/views/livewire/courses/index.blade.php`](<../resources/views/livewire/courses/index.blade.php>) — 817 lines
   - `method mount` — L45
   - `method with` — L53
-  - `method updatedSearch` — L100
-  - `method updatedStatusFilter` — L105
-  - `method updatedAcademicYearFilter` — L110
-  - `method rules` — L115
-  - `method openCreateModal` — L137
-  - `method save` — L145
-  - `method edit` — L204
-  - `method cancel` — L231
-  - `method delete` — L240
-  - `method deactivate` — L266
-  - `method reactivate` — L277
-  - `method openArchive` — L289
-  - `method closeArchive` — L303
-  - `method duplicate` — L311
-  - `method uniqueCopyName` — L350
-  - `method openCourseSchedule` — L364
-  - `method saveScheduleRow` — L375
-  - `method updatedScheduleDay` — L396
-  - `method updatedScheduleTimeSlot` — L401
-  - `method addScheduleRowWhenComplete` — L406
-  - `method editScheduleRow` — L415
-  - `method deleteScheduleRow` — L424
-  - `method saveCourseSchedule` — L438
-  - `method closeCourseSchedule` — L453
-  - `method courseCanBeDeleted` — L462
-  - `method resetScheduleRow` — L481
-  - `method resetFormState` — L489
-- [`resources/views/livewire/courses/point-market.blade.php`](<../resources/views/livewire/courses/point-market.blade.php>) — 445 lines
-  - `method mount` — L34
-  - `method with` — L41
-  - `method openInvoiceModal` — L57
-  - `method closeInvoiceModal` — L65
-  - `method addInvoices` — L72
-  - `method openDepartmentModal` — L80
-  - `method closeDepartmentModal` — L88
-  - `method createDepartment` — L95
-  - `method toggleInvoice` — L117
-  - `method toggleDepartment` — L122
-  - `method toggleAllInvoiceItems` — L127
-  - `method openAssignmentModal` — L138
-  - `method closeAssignmentModal` — L156
-  - `method addSelectedItems` — L164
-  - `method openDepartmentSettings` — L199
-  - `method closeDepartmentSettingsModal` — L211
-  - `method saveDepartmentSettings` — L219
-  - `method availableItemIdsForInvoice` — L235
-  - `method toggleId` — L250
-  - `method authorizePointMarketUpdate` — L260
-- [`resources/views/livewire/curricula/index.blade.php`](<../resources/views/livewire/curricula/index.blade.php>) — 291 lines
-  - `method mount` — L40
-  - `method with` — L52
-  - `method openCurriculum` — L87
-  - `method saveCurriculum` — L96
-  - `method deleteCurriculum` — L110
-  - `method showGroupDetails` — L118
-  - `method openProgress` — L124
-  - `method saveProgress` — L133
-  - `method toggleLesson` — L142
-  - `method toggleTopic` — L164
-  - `method toggleCustomLesson` — L202
-  - `method openCustom` — L213
-  - `method saveCustom` — L223
-  - `method teacherGroup` — L235
-  - `method latestLessons` — L241
-- [`resources/views/livewire/curricula/show.blade.php`](<../resources/views/livewire/curricula/show.blade.php>) — 314 lines
+  - `method updatedSearch` — L106
+  - `method updatedStatusFilter` — L111
+  - `method updatedAcademicYearFilter` — L116
+  - `method rules` — L121
+  - `method openCreateModal` — L143
+  - `method save` — L151
+  - `method edit` — L210
+  - `method cancel` — L237
+  - `method delete` — L246
+  - `method deactivate` — L272
+  - `method reactivate` — L283
+  - `method openArchive` — L295
+  - `method closeArchive` — L309
+  - `method duplicate` — L317
+  - `method duplicateArchived` — L324
+  - `method duplicateCourse` — L345
+  - `method uniqueCopyName` — L396
+  - `method openCourseSchedule` — L410
+  - `method saveScheduleRow` — L421
+  - `method updatedScheduleDay` — L442
+  - `method updatedScheduleTimeSlot` — L447
+  - `method addScheduleRowWhenComplete` — L452
+  - `method editScheduleRow` — L461
+  - `method deleteScheduleRow` — L470
+  - `method saveCourseSchedule` — L484
+  - `method closeCourseSchedule` — L499
+  - `method courseCanBeDeleted` — L508
+  - `method resetScheduleRow` — L527
+  - `method resetFormState` — L535
+- [`resources/views/livewire/courses/point-market.blade.php`](<../resources/views/livewire/courses/point-market.blade.php>) — 563 lines
+  - `method mount` — L35
+  - `method with` — L42
+  - `method openInvoiceModal` — L61
+  - `method closeInvoiceModal` — L69
+  - `method addInvoices` — L76
+  - `method openDepartmentModal` — L84
+  - `method closeDepartmentModal` — L92
+  - `method createDepartment` — L99
+  - `method toggleInvoice` — L121
+  - `method toggleDepartment` — L126
+  - `method toggleAllInvoiceItems` — L131
+  - `method openAssignmentModal` — L142
+  - `method closeAssignmentModal` — L160
+  - `method addSelectedItems` — L168
+  - `method openDepartmentSettings` — L203
+  - `method closeDepartmentSettingsModal` — L215
+  - `method saveDepartmentSettings` — L223
+  - `method removeDepartmentItem` — L239
+  - `method availableItemIdsForInvoice` — L250
+  - `method authorizePointMarketUpdate` — L265
+- [`resources/views/livewire/curricula/index.blade.php`](<../resources/views/livewire/curricula/index.blade.php>) — 472 lines
+  - `method mount` — L42
+  - `method with` — L54
+  - `method openCurriculum` — L95
+  - `method saveCurriculum` — L104
+  - `method deleteCurriculum` — L118
+  - `method showGroupDetails` — L126
+  - `method openProgress` — L132
+  - `method saveProgress` — L141
+  - `method toggleLesson` — L150
+  - `method toggleTopic` — L172
+  - `method toggleLessonTopics` — L210
+  - `method toggleTopicLesson` — L254
+  - `method toggleCustomLesson` — L265
+  - `method toggleTaughtLessons` — L276
+  - `method openCustom` — L282
+  - `method saveCustom` — L292
+  - `method teacherGroup` — L304
+  - `method latestLessons` — L310
+- [`resources/views/livewire/curricula/show.blade.php`](<../resources/views/livewire/curricula/show.blade.php>) — 403 lines
   - `method mount` — L31
   - `method with` — L39
   - `method openSubject` — L52
-  - `method updatedSubjectDefinitionId` — L54
-  - `method saveSubject` — L56
-  - `method deleteSubject` — L71
-  - `method openLesson` — L76
-  - `method saveLesson` — L85
-  - `method deleteLesson` — L101
-  - `method addTopic` — L110
-  - `method saveInlineLesson` — L120
-  - `method deleteTopic` — L149
-  - `method toggleStandaloneResource` — L154
-  - `method saveCurriculum` — L160
-  - `method deleteCurriculum` — L167
-- [`resources/views/livewire/dashboard.blade.php`](<../resources/views/livewire/dashboard.blade.php>) — 1,458 lines
-  - `method with` — L31
-  - `method resolveDashboardRole` — L45
-  - `method canUseManagerDashboard` — L72
-  - `method managerData` — L79
-  - `method showManagerStudent` — L300
-  - `method closeManagerStudent` — L309
-  - `method copyTeacherTodaySummary` — L314
-  - `method teacherData` — L335
-  - `method usesGroupSupervisorDashboard` — L417
-  - `method teacherGroupData` — L439
-  - `method isFinalAssessmentResult` — L586
-  - `method openTeacherLeaderboard` — L596
-  - `method closeTeacherLeaderboard` — L603
-  - `method openTeacherMemorizations` — L608
-  - `method closeTeacherMemorizations` — L616
-  - `method dashboardCourseName` — L622
-  - `method parentData` — L628
-  - `method studentData` — L696
-  - `method studentDashboardCardPreviews` — L761
-  - `method unassignedData` — L837
-  - `method missingProfileData` — L863
-- [`resources/views/livewire/enrollments/index.blade.php`](<../resources/views/livewire/enrollments/index.blade.php>) — 632 lines
+  - `method updatedSubjectDefinitionId` — L68
+  - `method saveSubject` — L77
+  - `method deleteSubject` — L107
+  - `method openLesson` — L116
+  - `method saveLesson` — L125
+  - `method deleteLesson` — L146
+  - `method addTopic` — L159
+  - `method saveInlineLesson` — L169
+  - `method selectInlineLessonImportance` — L198
+  - `method deleteTopic` — L209
+  - `method toggleStandaloneResource` — L214
+  - `method saveCurriculum` — L220
+  - `method deleteCurriculum` — L227
+- [`resources/views/livewire/dashboard.blade.php`](<../resources/views/livewire/dashboard.blade.php>) — 1,549 lines
+  - `method with` — L34
+  - `method resolveDashboardRole` — L48
+  - `method canUseManagerDashboard` — L75
+  - `method managerData` — L82
+  - `method showManagerStudent` — L341
+  - `method closeManagerStudent` — L350
+  - `method copyTeacherTodaySummary` — L355
+  - `method teacherData` — L376
+  - `method usesGroupSupervisorDashboard` — L458
+  - `method teacherGroupData` — L480
+  - `method isFinalAssessmentResult` — L627
+  - `method openTeacherLeaderboard` — L637
+  - `method closeTeacherLeaderboard` — L644
+  - `method openTeacherMemorizations` — L649
+  - `method closeTeacherMemorizations` — L657
+  - `method dashboardCourseName` — L663
+  - `method parentData` — L682
+  - `method studentData` — L750
+  - `method studentDashboardCardPreviews` — L815
+  - `method unassignedData` — L891
+  - `method missingProfileData` — L917
+- [`resources/views/livewire/enrollments/index.blade.php`](<../resources/views/livewire/enrollments/index.blade.php>) — 626 lines
   - `method mount` — L44
   - `method with` — L50
   - `method updatedSearch` — L100
@@ -3855,14 +4071,14 @@ The search command uses the local FTS5 database at `storage/app/private/codebase
   - `method updatedGroupId` — L137
   - `method rules` — L152
   - `method openCreateModal` — L177
-  - `method save` — L185
-  - `method saveAndNew` — L257
-  - `method edit` — L280
-  - `method cancel` — L299
-  - `method delete` — L313
-  - `method availableStudentsQuery` — L328
-  - `method applyEnrollmentSort` — L346
-  - `method sortIndicator` — L392
+  - `method save` — L186
+  - `method saveAndNew` — L258
+  - `method edit` — L282
+  - `method cancel` — L301
+  - `method delete` — L315
+  - `method availableStudentsQuery` — L330
+  - `method applyEnrollmentSort` — L348
+  - `method sortIndicator` — L394
 - [`resources/views/livewire/enrollments/memorization.blade.php`](<../resources/views/livewire/enrollments/memorization.blade.php>) — 462 lines
   - `method mount` — L30
   - `method with` — L43
@@ -3904,23 +4120,25 @@ The search command uses the local FTS5 database at `storage/app/private/codebase
   - `method updatedTransferCurrencyId` — L167
   - `method transfer` — L178
   - `method financeSettingEnabled` — L209
-- [`resources/views/livewire/finance/dashboard.blade.php`](<../resources/views/livewire/finance/dashboard.blade.php>) — 446 lines
+- [`resources/views/livewire/finance/dashboard.blade.php`](<../resources/views/livewire/finance/dashboard.blade.php>) — 599 lines
   - `method mount` — L58
   - `method updatedYear` — L79
-  - `method with` — L85
-  - `method openTransferModal` — L128
-  - `method updatedTransferFromCashBoxId` — L134
-  - `method updatedTransferCurrencyId` — L144
-  - `method updatedRequestCurrencyId` — L149
-  - `method transfer` — L154
-  - `method createRequest` — L181
-  - `method openReviewModal` — L232
-  - `method acceptRequest` — L242
-  - `method declineRequest` — L264
-  - `method closeReviewModal` — L274
-  - `method resetTransactionFilters` — L280
-  - `method runningBalance` — L289
-- [`resources/views/livewire/finance/exchange.blade.php`](<../resources/views/livewire/finance/exchange.blade.php>) — 234 lines
+  - `method updatedQuarter` — L95
+  - `method with` — L105
+  - `method openTransferModal` — L153
+  - `method updatedTransferFromCashBoxId` — L159
+  - `method updatedTransferCurrencyId` — L169
+  - `method updatedRequestCurrencyId` — L174
+  - `method transfer` — L179
+  - `method createRequest` — L206
+  - `method openReviewModal` — L257
+  - `method acceptRequest` — L267
+  - `method declineRequest` — L289
+  - `method closeReviewModal` — L299
+  - `method resetTransactionFilters` — L305
+  - `method updated` — L314
+  - `method runningBalance` — L321
+- [`resources/views/livewire/finance/exchange.blade.php`](<../resources/views/livewire/finance/exchange.blade.php>) — 237 lines
   - `method mount` — L25
   - `method with` — L38
   - `method saveExchange` — L53
@@ -3929,36 +4147,35 @@ The search command uses the local FTS5 database at `storage/app/private/codebase
   - `method destinationCurrencies` — L139
   - `method syncDestinationCurrency` — L146
   - `method calculateToAmount` — L156
-- [`resources/views/livewire/finance/expense-requests.blade.php`](<../resources/views/livewire/finance/expense-requests.blade.php>) — 885 lines
-  - `method mount` — L64
-  - `method with` — L74
-  - `method submitRequest` — L118
-  - `method openCreateModal` — L192
-  - `method closeCreateModal` — L200
-  - `method accept` — L206
-  - `method decline` — L249
-  - `method storeAttachments` — L257
-  - `method resetCreateForm` — L273
-  - `method attachExpenseCurrency` — L286
-  - `method firstValidationMessage` — L297
-  - `method openFinaliseModal` — L308
-  - `method editInvoice` — L351
-  - `method closeFinaliseModal` — L375
-  - `method invoiceDraftSessionKey` — L413
-  - `method expenseFinalisationMode` — L418
-  - `method saveInvoiceItem` — L428
-  - `method editInvoiceItem` — L457
-  - `method removeInvoiceItem` — L468
-  - `method resetInvoiceItemDraft` — L481
-  - `method invoicePreviewTotals` — L489
-  - `method finaliseCountExpense` — L506
-  - `method finaliseInvoiceExpense` — L528
-  - `method saveInvoiceExpense` — L608
-  - `method financeRequestMaintenanceTypes` — L688
+- [`resources/views/livewire/finance/expense-requests.blade.php`](<../resources/views/livewire/finance/expense-requests.blade.php>) — 865 lines
+  - `method mount` — L60
+  - `method with` — L70
+  - `method submitRequest` — L114
+  - `method openCreateModal` — L184
+  - `method closeCreateModal` — L192
+  - `method accept` — L198
+  - `method decline` — L241
+  - `method resetCreateForm` — L249
+  - `method attachExpenseCurrency` — L260
+  - `method firstValidationMessage` — L271
+  - `method openFinaliseModal` — L282
+  - `method editInvoice` — L325
+  - `method closeFinaliseModal` — L349
+  - `method invoiceDraftSessionKey` — L387
+  - `method expenseFinalisationMode` — L392
+  - `method saveInvoiceItem` — L402
+  - `method editInvoiceItem` — L431
+  - `method removeInvoiceItem` — L442
+  - `method resetInvoiceItemDraft` — L455
+  - `method invoicePreviewTotals` — L463
+  - `method finaliseCountExpense` — L480
+  - `method finaliseInvoiceExpense` — L502
+  - `method saveInvoiceExpense` — L582
+  - `method financeRequestMaintenanceTypes` — L662
 - [`resources/views/livewire/finance/partials/quarter-expense-chart.blade.php`](<../resources/views/livewire/finance/partials/quarter-expense-chart.blade.php>) — 64 lines
 - [`resources/views/livewire/finance/partials/request-maintenance-modals.blade.php`](<../resources/views/livewire/finance/partials/request-maintenance-modals.blade.php>) — 102 lines
-- [`resources/views/livewire/finance/partials/requests-table.blade.php`](<../resources/views/livewire/finance/partials/requests-table.blade.php>) — 138 lines
-- [`resources/views/livewire/finance/pull-requests.blade.php`](<../resources/views/livewire/finance/pull-requests.blade.php>) — 625 lines
+- [`resources/views/livewire/finance/partials/requests-table.blade.php`](<../resources/views/livewire/finance/partials/requests-table.blade.php>) — 130 lines
+- [`resources/views/livewire/finance/pull-requests.blade.php`](<../resources/views/livewire/finance/pull-requests.blade.php>) — 624 lines
   - `method mount` — L46
   - `method with` — L51
   - `method submitRequest` — L88
@@ -3977,7 +4194,7 @@ The search command uses the local FTS5 database at `storage/app/private/codebase
   - `method closeTermsModal` — L374
   - `method firstValidationMessage` — L379
   - `method financeRequestMaintenanceTypes` — L390
-- [`resources/views/livewire/finance/reports.blade.php`](<../resources/views/livewire/finance/reports.blade.php>) — 444 lines
+- [`resources/views/livewire/finance/reports.blade.php`](<../resources/views/livewire/finance/reports.blade.php>) — 461 lines
   - `method mount` — L38
   - `method updatedLedgerCashBoxId` — L53
   - `method updatedLedgerCashBoxIds` — L58
@@ -3989,29 +4206,28 @@ The search command uses the local FTS5 database at `storage/app/private/codebase
   - `method openReportSettings` — L177
   - `method closeReportSettings` — L183
   - `method openCreateReport` — L190
-  - `method closeCreateReport` — L201
-  - `method selectDefaultLedgerCashBox` — L207
-  - `method syncLedgerQuarterDates` — L216
-  - `method selectDefaultLedgerCurrency` — L224
-  - `method ledgerCurrencies` — L241
-- [`resources/views/livewire/finance/revenue-requests.blade.php`](<../resources/views/livewire/finance/revenue-requests.blade.php>) — 345 lines
-  - `method mount` — L42
-  - `method with` — L48
-  - `method submitRequest` — L77
-  - `method openCreateModal` — L158
-  - `method closeCreateModal` — L166
-  - `method updatedCashBoxId` — L172
-  - `method updatedCurrencyId` — L179
-  - `method updatedRequestType` — L186
-  - `method updatedFinanceCategoryId` — L191
-  - `method accept` — L206
-  - `method decline` — L243
-  - `method storeAttachments` — L251
-  - `method resetCreateForm` — L267
-  - `method defaultCategoryIdForType` — L283
-  - `method financeRequestMaintenanceTypes` — L292
-  - `method firstValidationMessage` — L297
-- [`resources/views/livewire/groups/attendance.blade.php`](<../resources/views/livewire/groups/attendance.blade.php>) — 407 lines
+  - `method closeCreateReport` — L216
+  - `method selectDefaultLedgerCashBox` — L222
+  - `method syncLedgerQuarterDates` — L231
+  - `method selectDefaultLedgerCurrency` — L239
+  - `method ledgerCurrencies` — L256
+- [`resources/views/livewire/finance/revenue-requests.blade.php`](<../resources/views/livewire/finance/revenue-requests.blade.php>) — 323 lines
+  - `method mount` — L36
+  - `method with` — L42
+  - `method submitRequest` — L71
+  - `method openCreateModal` — L148
+  - `method closeCreateModal` — L156
+  - `method updatedCashBoxId` — L162
+  - `method updatedCurrencyId` — L169
+  - `method updatedRequestType` — L176
+  - `method updatedFinanceCategoryId` — L181
+  - `method accept` — L196
+  - `method decline` — L233
+  - `method resetCreateForm` — L241
+  - `method defaultCategoryIdForType` — L255
+  - `method financeRequestMaintenanceTypes` — L264
+  - `method firstValidationMessage` — L269
+- [`resources/views/livewire/groups/attendance.blade.php`](<../resources/views/livewire/groups/attendance.blade.php>) — 420 lines
   - `method mount` — L30
   - `method with` — L44
   - `method updatedAttendanceDate` — L81
@@ -4019,44 +4235,46 @@ The search command uses the local FTS5 database at `storage/app/private/codebase
   - `method saveAttendance` — L92
   - `method saveEnrollmentStatus` — L165
   - `method loadDay` — L223
-- [`resources/views/livewire/groups/index.blade.php`](<../resources/views/livewire/groups/index.blade.php>) — 1,234 lines
-  - `method mount` — L54
-  - `method with` — L62
-  - `method updatedSearch` — L139
-  - `method updatedStatusFilter` — L144
-  - `method updatedCourseFilter` — L149
-  - `method updatedCourseId` — L154
-  - `method rules` — L169
-  - `method openCreateModal` — L203
-  - `method createAndNew` — L211
-  - `method save` — L226
-  - `method edit` — L286
-  - `method cancel` — L309
-  - `method delete` — L315
-  - `method deactivate` — L337
-  - `method openRosterModal` — L348
-  - `method closeRosterModal` — L361
-  - `method openQuickSummaryModal` — L371
-  - `method closeQuickSummaryModal` — L385
-  - `method openDashboardCardTemplateModal` — L394
-  - `method closeDashboardCardTemplateModal` — L412
-  - `method saveDashboardCardTemplate` — L421
-  - `method clearDashboardCardTemplate` — L461
-  - `method copyQuickSummary` — L468
-  - `method addStudentToRoster` — L492
-  - `method removeStudentFromRoster` — L531
-  - `method availableRosterStudentsQuery` — L545
-  - `method dashboardCardTemplateMap` — L553
-  - `method defaultAcademicYearId` — L567
-  - `method academicYearIdForCourse` — L579
-  - `method resetForm` — L602
-  - `method availableTeachersQuery` — L619
-  - `method teacherIsAvailable` — L642
-  - `method deactivateGroupEnrollments` — L649
-  - `method buildQuickSummaryRows` — L660
-  - `method buildQuickSummary` — L665
-  - `method quickSummaryVisibility` — L681
-- [`resources/views/livewire/groups/schedules.blade.php`](<../resources/views/livewire/groups/schedules.blade.php>) — 242 lines
+- [`resources/views/livewire/groups/index.blade.php`](<../resources/views/livewire/groups/index.blade.php>) — 1,327 lines
+  - `method mount` — L58
+  - `method with` — L70
+  - `method updatedSearch` — L175
+  - `method updatedStatusFilter` — L180
+  - `method updatedCourseFilter` — L185
+  - `method updatedCourseId` — L190
+  - `method rules` — L205
+  - `method openCreateModal` — L239
+  - `method createAndNew` — L247
+  - `method save` — L262
+  - `method edit` — L329
+  - `method cancel` — L359
+  - `method delete` — L366
+  - `method deactivate` — L388
+  - `method openRosterModal` — L399
+  - `method closeRosterModal` — L412
+  - `method openQuickSummaryModal` — L422
+  - `method closeQuickSummaryModal` — L436
+  - `method openDashboardCardTemplateModal` — L445
+  - `method closeDashboardCardTemplateModal` — L463
+  - `method saveDashboardCardTemplate` — L472
+  - `method clearDashboardCardTemplate` — L512
+  - `method copyQuickSummary` — L519
+  - `method addStudentToRoster` — L543
+  - `method removeStudentFromRoster` — L582
+  - `method availableRosterStudentsQuery` — L596
+  - `method dashboardCardTemplateMap` — L604
+  - `method defaultAcademicYearId` — L618
+  - `method academicYearIdForCourse` — L630
+  - `method resetForm` — L653
+  - `method groupIsEditable` — L670
+  - `method availableTeachersQuery` — L678
+  - `method teacherIsAvailable` — L714
+  - `method deactivateGroupEnrollments` — L721
+  - `method buildQuickSummaryRows` — L732
+  - `method buildQuickSummary` — L737
+  - `method quickSummaryVisibility` — L755
+  - `method canUseGroupQuickSummary` — L760
+- [`resources/views/livewire/groups/schedules.blade.php`](<../resources/views/livewire/groups/schedules.blade.php>) — 250 lines
   - `method mount` — L20
   - `method with` — L31
   - `method rules` — L45
@@ -4069,34 +4287,35 @@ The search command uses the local FTS5 database at `storage/app/private/codebase
   - `method delete` — L139
   - `method dayOptions` — L164
   - `method ensureGroupIsEditable` — L177
-- [`resources/views/livewire/groups/show.blade.php`](<../resources/views/livewire/groups/show.blade.php>) — 487 lines
-  - `method mount` — L45
-  - `method with` — L54
-  - `method openEdit` — L75
-  - `method updatedCourseId` — L92
-  - `method saveGroup` — L101
-  - `method deactivate` — L132
-  - `method closeEdit` — L146
-  - `method closeSchedules` — L147
-  - `method closeAddStudent` — L148
-  - `method showEditModal` — L149
-  - `method showScheduleModal` — L150
-  - `method showAddStudentModal` — L151
-  - `method deleteGroup` — L153
-  - `method addStudent` — L166
-  - `method saveSchedule` — L185
-  - `method updatedDayOfWeek` — L201
-  - `method updatedTimeSlot` — L206
-  - `method addScheduleWhenComplete` — L211
-  - `method saveAndCloseSchedules` — L220
-  - `method editSchedule` — L239
-  - `method deleteSchedule` — L252
-  - `method resetSchedule` — L268
-  - `method copyProgress` — L270
-  - `method availableTeachersQuery` — L275
-  - `method teacherIsAvailable` — L290
-  - `method ensureGroupIsEditable` — L295
-- [`resources/views/livewire/invoices/index.blade.php`](<../resources/views/livewire/invoices/index.blade.php>) — 418 lines
+- [`resources/views/livewire/groups/show.blade.php`](<../resources/views/livewire/groups/show.blade.php>) — 643 lines
+  - `method mount` — L46
+  - `method with` — L55
+  - `method openEdit` — L90
+  - `method updatedCourseId` — L107
+  - `method saveGroup` — L124
+  - `method deactivate` — L161
+  - `method closeEdit` — L175
+  - `method closeSchedules` — L176
+  - `method closeAddStudent` — L177
+  - `method showScheduleModal` — L178
+  - `method showAddStudentModal` — L179
+  - `method duplicateGroup` — L181
+  - `method deleteGroup` — L228
+  - `method addStudent` — L241
+  - `method saveSchedule` — L260
+  - `method updatedDayOfWeek` — L276
+  - `method updatedTimeSlot` — L281
+  - `method addScheduleWhenComplete` — L286
+  - `method saveAndCloseSchedules` — L295
+  - `method editSchedule` — L314
+  - `method deleteSchedule` — L327
+  - `method resetSchedule` — L343
+  - `method copyProgress` — L345
+  - `method uniqueCopyName` — L358
+  - `method availableTeachersQuery` — L377
+  - `method teacherIsAvailable` — L400
+  - `method ensureGroupIsEditable` — L405
+- [`resources/views/livewire/invoices/index.blade.php`](<../resources/views/livewire/invoices/index.blade.php>) — 419 lines
   - `method mount` — L39
   - `method with` — L47
   - `method rules` — L74
@@ -4117,27 +4336,27 @@ The search command uses the local FTS5 database at `storage/app/private/codebase
   - `method voidPayment` — L217
   - `method settleLinkedPullRequest` — L237
   - `method cancelItem` — L250
-- [`resources/views/livewire/memorization/index.blade.php`](<../resources/views/livewire/memorization/index.blade.php>) — 739 lines
-  - `method mount` — L51
-  - `method with` — L57
-  - `method updatedSearch` — L122
-  - `method updatedEntryTypeFilter` — L127
-  - `method sortBy` — L132
-  - `method updatedSelectedStudentId` — L148
-  - `method openCreateModal` — L167
-  - `method closeFormModal` — L176
-  - `method editSession` — L182
-  - `method save` — L203
-  - `method confirmDuplicateSave` — L302
-  - `method deleteSession` — L343
-  - `method resetForm` — L362
-  - `method closeDuplicateModal` — L377
-  - `method availableEnrollmentsQuery` — L387
-  - `method currentTeacher` — L398
-  - `method applySessionSort` — L403
-  - `method sortIndicator` — L446
-  - `method resolveTeacherId` — L455
-  - `method openDuplicateModal` — L466
+- [`resources/views/livewire/memorization/index.blade.php`](<../resources/views/livewire/memorization/index.blade.php>) — 777 lines
+  - `method mount` — L53
+  - `method with` — L59
+  - `method updatedSearch` — L124
+  - `method updatedEntryTypeFilter` — L129
+  - `method sortBy` — L134
+  - `method updatedSelectedStudentId` — L150
+  - `method openCreateModal` — L169
+  - `method closeFormModal` — L178
+  - `method editSession` — L184
+  - `method save` — L207
+  - `method confirmDuplicateSave` — L316
+  - `method deleteSession` — L357
+  - `method resetForm` — L382
+  - `method closeDuplicateModal` — L399
+  - `method availableEnrollmentsQuery` — L409
+  - `method currentTeacher` — L420
+  - `method applySessionSort` — L425
+  - `method sortIndicator` — L468
+  - `method resolveTeacherId` — L477
+  - `method openDuplicateModal` — L488
 - [`resources/views/livewire/memorization/quick-entry.blade.php`](<../resources/views/livewire/memorization/quick-entry.blade.php>) — 450 lines
   - `method mount` — L28
   - `method with` — L33
@@ -4157,7 +4376,7 @@ The search command uses the local FTS5 database at `storage/app/private/codebase
   - `method resolveQuickEntryTeacher` — L281
   - `method closeDuplicateModal` — L288
   - `method openDuplicateModal` — L297
-- [`resources/views/livewire/parents/index.blade.php`](<../resources/views/livewire/parents/index.blade.php>) — 1,148 lines
+- [`resources/views/livewire/parents/index.blade.php`](<../resources/views/livewire/parents/index.blade.php>) — 1,168 lines
   - `method mount` — L61
   - `method with` — L66
   - `method updatedSearch` — L104
@@ -4189,52 +4408,52 @@ The search command uses the local FTS5 database at `storage/app/private/codebase
   - `method parentNumberRangeBounds` — L628
   - `method parseParentNumberInput` — L656
 - [`resources/views/livewire/partials/dashboard-manager-student-modal.blade.php`](<../resources/views/livewire/partials/dashboard-manager-student-modal.blade.php>) — 14 lines
-- [`resources/views/livewire/points/index.blade.php`](<../resources/views/livewire/points/index.blade.php>) — 775 lines
-  - `method mount` — L41
-  - `method with` — L47
-  - `method updatedSearch` — L108
-  - `method updatedStateFilter` — L113
-  - `method sortBy` — L118
-  - `method updatedSelectedStudentId` — L134
-  - `method openCreateModal` — L153
-  - `method closeFormModal` — L161
-  - `method editManual` — L167
-  - `method saveManual` — L189
-  - `method saveManualAndNew` — L281
-  - `method openVoidModal` — L301
-  - `method closeVoidModal` — L315
-  - `method voidSelected` — L323
-  - `method resetManualForm` — L379
-  - `method availableEnrollmentsQuery` — L388
-  - `method visiblePointTransactionsQuery` — L398
-  - `method applyPointSort` — L410
-  - `method sortIndicator` — L446
+- [`resources/views/livewire/points/index.blade.php`](<../resources/views/livewire/points/index.blade.php>) — 793 lines
+  - `method mount` — L42
+  - `method with` — L48
+  - `method updatedSearch` — L109
+  - `method updatedStateFilter` — L114
+  - `method sortBy` — L119
+  - `method updatedSelectedStudentId` — L135
+  - `method openCreateModal` — L154
+  - `method closeFormModal` — L162
+  - `method editManual` — L168
+  - `method saveManual` — L191
+  - `method saveManualAndNew` — L283
+  - `method openVoidModal` — L304
+  - `method closeVoidModal` — L318
+  - `method voidSelected` — L326
+  - `method resetManualForm` — L382
+  - `method availableEnrollmentsQuery` — L392
+  - `method visiblePointTransactionsQuery` — L402
+  - `method applyPointSort` — L414
+  - `method sortIndicator` — L450
 - [`resources/views/livewire/public/teacher-signup.blade.php`](<../resources/views/livewire/public/teacher-signup.blade.php>) — 169 lines
   - `method mount` — L22
   - `method submit` — L27
   - `method ensureSignupEnabled` — L88
-- [`resources/views/livewire/quran-final-tests/index.blade.php`](<../resources/views/livewire/quran-final-tests/index.blade.php>) — 603 lines
-  - `method mount` — L57
-  - `method with` — L63
-  - `method updatedSearch` — L130
-  - `method updatedStatusFilter` — L135
-  - `method updatedJuzFilter` — L140
-  - `method sortBy` — L145
-  - `method updatedSelectedStudentId` — L161
-  - `method openCreateModal` — L184
-  - `method closeFormModal` — L193
-  - `method closeOpenTestWarningModal` — L199
-  - `method openExistingTest` — L206
-  - `method save` — L226
-  - `method delete` — L317
-  - `method resetForm` — L340
-  - `method availableEnrollmentsQuery` — L348
-  - `method quranStudentsQuery` — L358
-  - `method quranEnrollmentsQuery` — L363
-  - `method quranFinalTestsQuery` — L368
-  - `method applyFinalTestSort` — L373
-  - `method sortIndicator` — L409
-- [`resources/views/livewire/quran-final-tests/show.blade.php`](<../resources/views/livewire/quran-final-tests/show.blade.php>) — 418 lines
+- [`resources/views/livewire/quran-final-tests/index.blade.php`](<../resources/views/livewire/quran-final-tests/index.blade.php>) — 596 lines
+  - `method mount` — L55
+  - `method with` — L61
+  - `method updatedSearch` — L128
+  - `method updatedStatusFilter` — L133
+  - `method updatedJuzFilter` — L138
+  - `method sortBy` — L143
+  - `method updatedSelectedStudentId` — L159
+  - `method openCreateModal` — L182
+  - `method closeFormModal` — L191
+  - `method closeOpenTestWarningModal` — L197
+  - `method openExistingTest` — L204
+  - `method save` — L224
+  - `method delete` — L315
+  - `method resetForm` — L334
+  - `method availableEnrollmentsQuery` — L342
+  - `method quranStudentsQuery` — L352
+  - `method quranEnrollmentsQuery` — L357
+  - `method quranFinalTestsQuery` — L362
+  - `method applyFinalTestSort` — L367
+  - `method sortIndicator` — L403
+- [`resources/views/livewire/quran-final-tests/show.blade.php`](<../resources/views/livewire/quran-final-tests/show.blade.php>) — 440 lines
   - `method mount` — L28
   - `method with` — L45
   - `method openAttemptModal` — L62
@@ -4243,38 +4462,38 @@ The search command uses the local FTS5 database at `storage/app/private/codebase
   - `method openEditAttempt` — L143
   - `method canEditAttemptForTeacher` — L157
   - `method deleteAttempt` — L168
-  - `method deleteTest` — L180
-  - `method saveCurrentJuz` — L190
-  - `method closeCurrentJuzModal` — L203
-  - `method availableRecordingTeachers` — L210
-  - `method availableCurrentJuzs` — L227
-  - `method currentTeacher` — L239
-  - `method hasRelatedAwqafTest` — L248
-- [`resources/views/livewire/quran-partial-tests/index.blade.php`](<../resources/views/livewire/quran-partial-tests/index.blade.php>) — 658 lines
-  - `method mount` — L64
-  - `method with` — L70
-  - `method updatedSearch` — L145
-  - `method updatedStatusFilter` — L150
-  - `method updatedJuzFilter` — L155
-  - `method sortBy` — L160
-  - `method updatedSelectedStudentId` — L176
-  - `method openCreateModal` — L199
-  - `method closeFormModal` — L208
-  - `method closeOpenTestWarningModal` — L214
-  - `method confirmOpenTestWarningCreate` — L219
-  - `method openExistingTest` — L241
-  - `method save` — L261
-  - `method delete` — L303
-  - `method attemptCreatePartialTest` — L332
-  - `method resetForm` — L379
-  - `method resetPendingCreateWarning` — L387
-  - `method availableEnrollmentsQuery` — L398
-  - `method quranStudentsQuery` — L408
-  - `method quranEnrollmentsQuery` — L413
-  - `method quranPartialTestsQuery` — L418
-  - `method applyPartialTestSort` — L423
-  - `method sortIndicator` — L459
-- [`resources/views/livewire/quran-partial-tests/show.blade.php`](<../resources/views/livewire/quran-partial-tests/show.blade.php>) — 402 lines
+  - `method deleteTest` — L186
+  - `method saveCurrentJuz` — L202
+  - `method closeCurrentJuzModal` — L215
+  - `method availableRecordingTeachers` — L222
+  - `method availableCurrentJuzs` — L239
+  - `method currentTeacher` — L251
+  - `method hasRelatedAwqafTest` — L260
+- [`resources/views/livewire/quran-partial-tests/index.blade.php`](<../resources/views/livewire/quran-partial-tests/index.blade.php>) — 645 lines
+  - `method mount` — L62
+  - `method with` — L68
+  - `method updatedSearch` — L143
+  - `method updatedStatusFilter` — L148
+  - `method updatedJuzFilter` — L153
+  - `method sortBy` — L158
+  - `method updatedSelectedStudentId` — L174
+  - `method openCreateModal` — L197
+  - `method closeFormModal` — L206
+  - `method closeOpenTestWarningModal` — L212
+  - `method confirmOpenTestWarningCreate` — L217
+  - `method openExistingTest` — L239
+  - `method save` — L259
+  - `method delete` — L301
+  - `method attemptCreatePartialTest` — L320
+  - `method resetForm` — L367
+  - `method resetPendingCreateWarning` — L375
+  - `method availableEnrollmentsQuery` — L386
+  - `method quranStudentsQuery` — L396
+  - `method quranEnrollmentsQuery` — L401
+  - `method quranPartialTestsQuery` — L406
+  - `method applyPartialTestSort` — L411
+  - `method sortIndicator` — L447
+- [`resources/views/livewire/quran-partial-tests/show.blade.php`](<../resources/views/livewire/quran-partial-tests/show.blade.php>) — 418 lines
   - `method mount` — L25
   - `method with` — L42
   - `method openAttemptModal` — L58
@@ -4283,39 +4502,40 @@ The search command uses the local FTS5 database at `storage/app/private/codebase
   - `method openEditAttempt` — L146
   - `method canEditAttemptForTeacher` — L162
   - `method deleteAttempt` — L173
-  - `method deleteTest` — L193
-  - `method currentTeacher` — L215
-  - `method hasRelatedFinalTest` — L224
-  - `method availableRecordingTeachers` — L232
-- [`resources/views/livewire/quran-tests/index.blade.php`](<../resources/views/livewire/quran-tests/index.blade.php>) — 771 lines
-  - `method mount` — L51
-  - `method with` — L57
-  - `method updatedSearch` — L125
-  - `method updatedStatusFilter` — L130
-  - `method updatedJuzFilter` — L135
-  - `method sortBy` — L140
-  - `method updatedSelectedStudentId` — L156
-  - `method openCreateModal` — L182
-  - `method openEligibleAwqafModal` — L191
-  - `method closeEligibleAwqafModal` — L197
-  - `method closeFormModal` — L202
-  - `method save` — L208
-  - `method delete` — L286
-  - `method resetForm` — L311
-  - `method availableEnrollmentsQuery` — L324
-  - `method eligibleJuzsForStudentId` — L333
-  - `method firstEligibleJuzIdForStudentId` — L351
-  - `method resolvedTeacherId` — L356
-  - `method currentTeacher` — L361
-  - `method eligibleAwqafStudents` — L367
-  - `method quranStudentsQuery` — L421
-  - `method quranEnrollmentsQuery` — L426
-  - `method quranFinalTestsQuery` — L431
-  - `method quranTestsQuery` — L436
-  - `method applyQuranTestSort` — L441
-  - `method sortIndicator` — L493
-  - `method authorizeAnyPermission` — L502
-  - `method canAnyPermission` — L507
+  - `method deleteTest` — L199
+  - `method currentTeacher` — L221
+  - `method hasRelatedFinalTest` — L230
+  - `method availableRecordingTeachers` — L238
+- [`resources/views/livewire/quran-tests/index.blade.php`](<../resources/views/livewire/quran-tests/index.blade.php>) — 878 lines
+  - `method mount` — L53
+  - `method with` — L59
+  - `method updatedSearch` — L140
+  - `method updatedStatusFilter` — L145
+  - `method updatedJuzFilter` — L150
+  - `method sortBy` — L155
+  - `method updatedSelectedStudentId` — L171
+  - `method openCreateModal` — L197
+  - `method openEligibleAwqafModal` — L206
+  - `method openEdit` — L212
+  - `method closeEligibleAwqafModal` — L239
+  - `method closeFormModal` — L244
+  - `method save` — L250
+  - `method delete` — L365
+  - `method resetForm` — L396
+  - `method availableEnrollmentsQuery` — L411
+  - `method eligibleJuzsForStudentId` — L420
+  - `method firstEligibleJuzIdForStudentId` — L438
+  - `method resolvedTeacherId` — L443
+  - `method currentTeacher` — L448
+  - `method eligibleAwqafStudents` — L454
+  - `method quranStudentsQuery` — L508
+  - `method quranEnrollmentsQuery` — L513
+  - `method quranFinalTestsQuery` — L518
+  - `method quranTestsQuery` — L523
+  - `method applyQuranTestSort` — L528
+  - `method sortIndicator` — L580
+  - `method authorizeAnyPermission` — L589
+  - `method canAnyPermission` — L594
 - [`resources/views/livewire/quran-tests/quick-entry.blade.php`](<../resources/views/livewire/quran-tests/quick-entry.blade.php>) — 534 lines
   - `method mount` — L36
   - `method with` — L48
@@ -4341,7 +4561,7 @@ The search command uses the local FTS5 database at `storage/app/private/codebase
   - `method availableFinalJuzs` — L345
   - `method passedFinalTest` — L363
   - `method availableCurrentJuzs` — L372
-- [`resources/views/livewire/reports/groups-ranking.blade.php`](<../resources/views/livewire/reports/groups-ranking.blade.php>) — 357 lines
+- [`resources/views/livewire/reports/groups-ranking.blade.php`](<../resources/views/livewire/reports/groups-ranking.blade.php>) — 355 lines
   - `method mount` — L18
   - `method clearFilters` — L31
   - `method with` — L43
@@ -4350,7 +4570,7 @@ The search command uses the local FTS5 database at `storage/app/private/codebase
   - `method normalizeSelectValue` — L79
   - `method currentAcademicYearId` — L94
   - `method defaultRanges` — L102
-- [`resources/views/livewire/reports/index.blade.php`](<../resources/views/livewire/reports/index.blade.php>) — 311 lines
+- [`resources/views/livewire/reports/index.blade.php`](<../resources/views/livewire/reports/index.blade.php>) — 313 lines
   - `method mount` — L21
   - `method updatedCourseId` — L27
   - `method clearFilters` — L45
@@ -4371,7 +4591,7 @@ The search command uses the local FTS5 database at `storage/app/private/codebase
   - `method filters` — L82
   - `method normalizeFilters` — L97
   - `method setDefaultRanges` — L109
-- [`resources/views/livewire/reports/student-activity-summary.blade.php`](<../resources/views/livewire/reports/student-activity-summary.blade.php>) — 349 lines
+- [`resources/views/livewire/reports/student-activity-summary.blade.php`](<../resources/views/livewire/reports/student-activity-summary.blade.php>) — 347 lines
   - `method mount` — L39
   - `method updatedCourseId` — L45
   - `method updatedGroupId` — L64
@@ -4396,7 +4616,7 @@ The search command uses the local FTS5 database at `storage/app/private/codebase
   - `method sortIndicator` — L113
   - `method normalizeFilters` — L118
   - `method normalizeSelectValue` — L128
-- [`resources/views/livewire/reports/students-ranking.blade.php`](<../resources/views/livewire/reports/students-ranking.blade.php>) — 400 lines
+- [`resources/views/livewire/reports/students-ranking.blade.php`](<../resources/views/livewire/reports/students-ranking.blade.php>) — 398 lines
   - `method mount` — L22
   - `method updatedAcademicYearId` — L35
   - `method clearFilters` — L53
@@ -4406,7 +4626,7 @@ The search command uses the local FTS5 database at `storage/app/private/codebase
   - `method normalizeSelectValue` — L112
   - `method currentAcademicYearId` — L127
   - `method defaultRanges` — L135
-- [`resources/views/livewire/settings/access-control.blade.php`](<../resources/views/livewire/settings/access-control.blade.php>) — 603 lines
+- [`resources/views/livewire/settings/access-control.blade.php`](<../resources/views/livewire/settings/access-control.blade.php>) — 608 lines
   - `method mount` — L30
   - `method updatedSelectedRole` — L39
   - `method updatedRoleSearch` — L44
@@ -4448,7 +4668,7 @@ The search command uses the local FTS5 database at `storage/app/private/codebase
   - `method finalRuleGradeIds` — L410
   - `method setFinalRuleGradeIds` — L417
   - `method finalRuleAt` — L430
-- [`resources/views/livewire/settings/curriculum-subjects.blade.php`](<../resources/views/livewire/settings/curriculum-subjects.blade.php>) — 227 lines
+- [`resources/views/livewire/settings/curriculum-subjects.blade.php`](<../resources/views/livewire/settings/curriculum-subjects.blade.php>) — 276 lines
   - `method mount` — L30
   - `method with` — L32
   - `method editSubject` — L40
@@ -4466,7 +4686,7 @@ The search command uses the local FTS5 database at `storage/app/private/codebase
   - `method displayEdition` — L176
 - [`resources/views/livewire/settings/delete-user-form.blade.php`](<../resources/views/livewire/settings/delete-user-form.blade.php>) — 59 lines
   - `method deleteUser` — L13
-- [`resources/views/livewire/settings/finance-report-templates.blade.php`](<../resources/views/livewire/settings/finance-report-templates.blade.php>) — 669 lines
+- [`resources/views/livewire/settings/finance-report-templates.blade.php`](<../resources/views/livewire/settings/finance-report-templates.blade.php>) — 673 lines
   - `method mount` — L47
   - `method with` — L52
   - `method openTemplateModal` — L87
@@ -4478,125 +4698,126 @@ The search command uses the local FTS5 database at `storage/app/private/codebase
   - `method moveColumnDown` — L149
   - `method saveTemplate` — L154
   - `method deleteTemplate` — L257
-  - `method backgroundPreviewUrl` — L285
-  - `method logoPreviewUrl` — L300
-  - `method moveColumn` — L315
-  - `method previewReport` — L332
-  - `method previewTemplate` — L341
-  - `method templateSchemaIsCurrent` — L368
-  - `method resetForm` — L386
-- [`resources/views/livewire/settings/finance.blade.php`](<../resources/views/livewire/settings/finance.blade.php>) — 1,584 lines
-  - `method mount` — L122
-  - `method openFinanceSettingsModal` — L131
-  - `method closeFinanceSettingsModal` — L139
-  - `method toggleWithdrawalRequests` — L146
-  - `method deleteCashBox` — L153
-  - `method deleteCurrency` — L171
-  - `method deleteFinanceCategory` — L194
-  - `method deletePullKind` — L211
-  - `method deletePaymentMethod` — L228
-  - `method editCashBox` — L245
-  - `method editCurrency` — L260
-  - `method editFinanceCategory` — L280
-  - `method editPullKind` — L296
-  - `method editPaymentMethod` — L310
-  - `method openCashBoxModal` — L323
-  - `method closeCashBoxModal` — L330
-  - `method openCurrencyModal` — L335
-  - `method closeCurrencyModal` — L342
-  - `method openFinanceCategoryModal` — L347
-  - `method closeFinanceCategoryModal` — L354
-  - `method openPullKindModal` — L359
-  - `method closePullKindModal` — L366
-  - `method openPaymentMethodModal` — L371
-  - `method closePaymentMethodModal` — L378
-  - `method saveCashBox` — L383
-  - `method saveCurrency` — L444
-  - `method saveFinanceCategory` — L553
-  - `method updatedFinanceCategoryType` — L582
-  - `method savePullKind` — L590
-  - `method saveFinanceSettings` — L615
-  - `method findTransaction` — L671
-  - `method saveTransactionMaintenance` — L715
-  - `method deleteTransactionMaintenance` — L754
-  - `method deleteGeneratedReport` — L765
-  - `method openLegacyReportModal` — L810
-  - `method closeLegacyReportModal` — L817
-  - `method importLegacyReport` — L827
-  - `method finishLegacyReportImport` — L884
-  - `method deleteWithdrawalRequests` — L892
-  - `method finishWithdrawalRequestCleanup` — L905
-  - `method savePaymentMethod` — L912
-  - `method with` — L935
-  - `method cancelCashBox` — L961
-  - `method cancelCurrency` — L973
-  - `method cancelFinanceCategory` — L990
-  - `method cancelPullKind` — L1003
-  - `method cancelPaymentMethod` — L1014
-  - `method loadFinanceSettings` — L1024
-  - `method normalizedFinancePrefix` — L1049
-  - `method financeRequestPrintTemplates` — L1056
-- [`resources/views/livewire/settings/organization.blade.php`](<../resources/views/livewire/settings/organization.blade.php>) — 2,012 lines
-  - `method mount` — L116
-  - `method with` — L122
-  - `method toggleBarcodeScanner` — L181
-  - `method toggleMemorizationSaberEntries` — L188
-  - `method academicYearRules` — L195
-  - `method deleteAcademicYear` — L211
+  - `method backgroundPreviewUrl` — L286
+  - `method logoPreviewUrl` — L301
+  - `method moveColumn` — L316
+  - `method previewReport` — L333
+  - `method previewTemplate` — L342
+  - `method templateSchemaIsCurrent` — L369
+  - `method resetForm` — L387
+- [`resources/views/livewire/settings/finance.blade.php`](<../resources/views/livewire/settings/finance.blade.php>) — 1,647 lines
+  - `method mount` — L123
+  - `method openFinanceSettingsModal` — L132
+  - `method closeFinanceSettingsModal` — L140
+  - `method toggleWithdrawalRequests` — L147
+  - `method deleteCashBox` — L154
+  - `method deleteCurrency` — L172
+  - `method deleteFinanceCategory` — L195
+  - `method deletePullKind` — L212
+  - `method deletePaymentMethod` — L229
+  - `method editCashBox` — L246
+  - `method editCurrency` — L261
+  - `method editFinanceCategory` — L281
+  - `method editPullKind` — L297
+  - `method editPaymentMethod` — L311
+  - `method openCashBoxModal` — L324
+  - `method closeCashBoxModal` — L331
+  - `method openCurrencyModal` — L336
+  - `method closeCurrencyModal` — L343
+  - `method openFinanceCategoryModal` — L348
+  - `method closeFinanceCategoryModal` — L355
+  - `method openPullKindModal` — L360
+  - `method closePullKindModal` — L367
+  - `method openPaymentMethodModal` — L372
+  - `method closePaymentMethodModal` — L379
+  - `method saveCashBox` — L384
+  - `method saveCurrency` — L445
+  - `method saveFinanceCategory` — L554
+  - `method updatedFinanceCategoryType` — L583
+  - `method savePullKind` — L591
+  - `method saveFinanceSettings` — L616
+  - `method findTransaction` — L672
+  - `method saveTransactionMaintenance` — L716
+  - `method deleteTransactionMaintenance` — L755
+  - `method deleteGeneratedReport` — L766
+  - `method openLegacyReportModal` — L811
+  - `method closeLegacyReportModal` — L818
+  - `method importLegacyReport` — L828
+  - `method finishLegacyReportImport` — L885
+  - `method deleteWithdrawalRequest` — L893
+  - `method finishWithdrawalRequestCleanup` — L940
+  - `method savePaymentMethod` — L947
+  - `method with` — L970
+  - `method cancelCashBox` — L996
+  - `method cancelCurrency` — L1008
+  - `method cancelFinanceCategory` — L1025
+  - `method cancelPullKind` — L1038
+  - `method cancelPaymentMethod` — L1049
+  - `method loadFinanceSettings` — L1059
+  - `method normalizedFinancePrefix` — L1084
+  - `method financeRequestPrintTemplates` — L1091
+- [`resources/views/livewire/settings/organization.blade.php`](<../resources/views/livewire/settings/organization.blade.php>) — 2,080 lines
+  - `method mount` — L117
+  - `method with` — L123
+  - `method toggleBarcodeScanner` — L183
+  - `method toggleMemorizationSaberEntries` — L190
+  - `method academicYearRules` — L197
+  - `method deleteAcademicYear` — L213
   - `method finishAcademicYear` — L245
-  - `method deleteGradeLevel` — L280
-  - `method deleteStudentGender` — L304
-  - `method openSchoolReferenceModal` — L327
-  - `method editSchoolReference` — L334
-  - `method saveSchoolReference` — L348
-  - `method deleteSchoolReference` — L381
-  - `method cancelSchoolReference` — L399
-  - `method openFatherJobModal` — L408
-  - `method editFatherJob` — L415
-  - `method saveFatherJob` — L429
-  - `method deleteFatherJob` — L462
-  - `method cancelFatherJob` — L480
-  - `method openExpenseCategoryModal` — L489
-  - `method editExpenseCategory` — L496
-  - `method saveExpenseCategory` — L509
-  - `method deleteExpenseCategory` — L532
-  - `method cancelExpenseCategory` — L549
-  - `method openOrganizationModal` — L559
-  - `method closeOrganizationModal` — L566
-  - `method updatedPdfLogoUpload` — L573
-  - `method openAcademicYearModal` — L585
-  - `method closeAcademicYearModal` — L592
-  - `method openGradeLevelModal` — L597
-  - `method closeGradeLevelModal` — L604
-  - `method openStudentGenderModal` — L609
-  - `method closeStudentGenderModal` — L616
-  - `method editAcademicYear` — L621
-  - `method editGradeLevel` — L645
-  - `method editStudentGender` — L660
-  - `method gradeLevelRules` — L677
-  - `method studentGenderRules` — L691
-  - `method saveAcademicYear` — L708
-  - `method createNextAcademicYear` — L760
-  - `method saveGradeLevel` — L782
-  - `method promoteStudentsToNextGrade` — L806
-  - `method saveStudentGender` — L827
-  - `method saveOrganizationSettings` — L867
-  - `method removePdfLogo` — L976
-  - `method persistPdfLogoUpload` — L990
-  - `method removeDefaultAvatar` — L1008
-  - `method cancelAcademicYear` — L1029
-  - `method cancelGradeLevel` — L1043
-  - `method cancelStudentGender` — L1053
-  - `method ensureDefaultStudentGender` — L1065
-  - `method openPrintPageSizeModal` — L1085
-  - `method editPrintPageSize` — L1092
-  - `method savePrintPageSize` — L1112
-  - `method deletePrintPageSize` — L1161
-  - `method cancelPrintPageSize` — L1184
-  - `method loadOrganizationSettings` — L1213
+  - `method reactivateAcademicYear` — L286
+  - `method deleteGradeLevel` — L309
+  - `method deleteStudentGender` — L333
+  - `method openSchoolReferenceModal` — L356
+  - `method editSchoolReference` — L363
+  - `method saveSchoolReference` — L377
+  - `method deleteSchoolReference` — L410
+  - `method cancelSchoolReference` — L428
+  - `method openFatherJobModal` — L437
+  - `method editFatherJob` — L444
+  - `method saveFatherJob` — L458
+  - `method deleteFatherJob` — L491
+  - `method cancelFatherJob` — L509
+  - `method openExpenseCategoryModal` — L518
+  - `method editExpenseCategory` — L525
+  - `method saveExpenseCategory` — L538
+  - `method deleteExpenseCategory` — L561
+  - `method cancelExpenseCategory` — L578
+  - `method openOrganizationModal` — L588
+  - `method closeOrganizationModal` — L595
+  - `method updatedPdfLogoUpload` — L602
+  - `method openAcademicYearModal` — L614
+  - `method closeAcademicYearModal` — L621
+  - `method openGradeLevelModal` — L630
+  - `method closeGradeLevelModal` — L637
+  - `method openStudentGenderModal` — L642
+  - `method closeStudentGenderModal` — L649
+  - `method editAcademicYear` — L654
+  - `method editGradeLevel` — L684
+  - `method editStudentGender` — L699
+  - `method gradeLevelRules` — L716
+  - `method studentGenderRules` — L730
+  - `method saveAcademicYear` — L747
+  - `method createNextAcademicYear` — L800
+  - `method saveGradeLevel` — L825
+  - `method promoteStudentsToNextGrade` — L849
+  - `method saveStudentGender` — L870
+  - `method saveOrganizationSettings` — L910
+  - `method removePdfLogo` — L1019
+  - `method persistPdfLogoUpload` — L1033
+  - `method removeDefaultAvatar` — L1051
+  - `method cancelAcademicYear` — L1072
+  - `method cancelGradeLevel` — L1087
+  - `method cancelStudentGender` — L1097
+  - `method ensureDefaultStudentGender` — L1109
+  - `method openPrintPageSizeModal` — L1129
+  - `method editPrintPageSize` — L1136
+  - `method savePrintPageSize` — L1156
+  - `method deletePrintPageSize` — L1205
+  - `method cancelPrintPageSize` — L1228
+  - `method loadOrganizationSettings` — L1257
 - [`resources/views/livewire/settings/password.blade.php`](<../resources/views/livewire/settings/password.blade.php>) — 78 lines
   - `method updatePassword` — L17
-- [`resources/views/livewire/settings/points.blade.php`](<../resources/views/livewire/settings/points.blade.php>) — 729 lines
+- [`resources/views/livewire/settings/points.blade.php`](<../resources/views/livewire/settings/points.blade.php>) — 740 lines
   - `method mount` — L87
   - `method deletePointPolicy` — L99
   - `method deletePointType` — L120
@@ -4620,9 +4841,12 @@ The search command uses the local FTS5 database at `storage/app/private/codebase
   - `method formatRuleValue` — L444
   - `method pointPolicyRuleKey` — L453
   - `method pointPolicyRuleOptions` — L460
-- [`resources/views/livewire/settings/profile.blade.php`](<../resources/views/livewire/settings/profile.blade.php>) — 72 lines
-  - `method updatedProfilePhotoUpload` — L12
-- [`resources/views/livewire/settings/sidebar-navigation.blade.php`](<../resources/views/livewire/settings/sidebar-navigation.blade.php>) — 292 lines
+- [`resources/views/livewire/settings/profile.blade.php`](<../resources/views/livewire/settings/profile.blade.php>) — 166 lines
+  - `method mount` — L26
+  - `method updatedProfilePhotoUpload` — L32
+  - `method updateUsername` — L46
+  - `method updatePassword` — L67
+- [`resources/views/livewire/settings/sidebar-navigation.blade.php`](<../resources/views/livewire/settings/sidebar-navigation.blade.php>) — 307 lines
   - `method mount` — L14
   - `method with` — L20
   - `method save` — L28
@@ -4634,7 +4858,7 @@ The search command uses the local FTS5 database at `storage/app/private/codebase
   - `method availableGroups` — L174
   - `method availableItems` — L199
   - `method nextGroupSortOrder` — L220
-- [`resources/views/livewire/settings/tracking.blade.php`](<../resources/views/livewire/settings/tracking.blade.php>) — 674 lines
+- [`resources/views/livewire/settings/tracking.blade.php`](<../resources/views/livewire/settings/tracking.blade.php>) — 686 lines
   - `method mount` — L71
   - `method attendanceStatusRules` — L78
   - `method assessmentTypeRules` — L97
@@ -4676,7 +4900,7 @@ The search command uses the local FTS5 database at `storage/app/private/codebase
   - `method deleteItem` — L200
   - `method nextSortOrder` — L212
   - `method primaryMenu` — L226
-- [`resources/views/livewire/settings/website-pages.blade.php`](<../resources/views/livewire/settings/website-pages.blade.php>) — 604 lines
+- [`resources/views/livewire/settings/website-pages.blade.php`](<../resources/views/livewire/settings/website-pages.blade.php>) — 605 lines
   - `method mount` — L32
   - `method with` — L38
   - `method createPage` — L57
@@ -4716,22 +4940,22 @@ The search command uses the local FTS5 database at `storage/app/private/codebase
   - `method blankStat` — L432
   - `method syncGalleryPaths` — L437
   - `method persistGallery` — L446
-- [`resources/views/livewire/student-attendance/index.blade.php`](<../resources/views/livewire/student-attendance/index.blade.php>) — 464 lines
+- [`resources/views/livewire/student-attendance/index.blade.php`](<../resources/views/livewire/student-attendance/index.blade.php>) — 471 lines
   - `method mount` — L51
-  - `method with` — L61
-  - `method updatedSearch` — L110
-  - `method updatedStatusFilter` — L115
-  - `method openCreateModal` — L120
-  - `method closeCreateModal` — L132
-  - `method closeExportModal` — L138
-  - `method openExportModal` — L143
-  - `method saveDay` — L148
-  - `method deleteDay` — L197
-  - `method defaultStudentAttendanceStatusId` — L234
-  - `method scheduledGroupsForDate` — L248
-  - `method availableCoursesQuery` — L272
-  - `method normalizedCourseId` — L279
-- [`resources/views/livewire/student-attendance/mark.blade.php`](<../resources/views/livewire/student-attendance/mark.blade.php>) — 342 lines
+  - `method with` — L63
+  - `method updatedSearch` — L112
+  - `method updatedStatusFilter` — L117
+  - `method openCreateModal` — L122
+  - `method closeCreateModal` — L136
+  - `method closeExportModal` — L142
+  - `method openExportModal` — L147
+  - `method saveDay` — L152
+  - `method deleteDay` — L201
+  - `method defaultStudentAttendanceStatusId` — L238
+  - `method scheduledGroupsForDate` — L252
+  - `method availableCoursesQuery` — L276
+  - `method normalizedCourseId` — L283
+- [`resources/views/livewire/student-attendance/mark.blade.php`](<../resources/views/livewire/student-attendance/mark.blade.php>) — 341 lines
   - `method mount` — L26
   - `method with` — L46
   - `method saveAttendance` — L81
@@ -4739,56 +4963,56 @@ The search command uses the local FTS5 database at `storage/app/private/codebase
   - `method saveEnrollmentStatus` — L163
   - `method loadDay` — L212
   - `method ensureParentAttendanceDay` — L230
-- [`resources/views/livewire/student-attendance/quick.blade.php`](<../resources/views/livewire/student-attendance/quick.blade.php>) — 550 lines
+- [`resources/views/livewire/student-attendance/quick.blade.php`](<../resources/views/livewire/student-attendance/quick.blade.php>) — 543 lines
   - `method mount` — L43
   - `method with` — L61
-  - `method markEnrollment` — L107
-  - `method scanStudent` — L172
-  - `method sortBy` — L224
-  - `method setScanFeedback` — L240
-  - `method sortedEnrollments` — L246
-  - `method sortIndicator` — L273
-  - `method applyQuickStudentSearch` — L282
-  - `method normalizeArabicSearch` — L303
-  - `method normalizedSqlExpression` — L329
-  - `method sqlConcatWithSpaces` — L357
-  - `method defaultStudentAttendanceStatusId` — L366
-- [`resources/views/livewire/student-attendance/show.blade.php`](<../resources/views/livewire/student-attendance/show.blade.php>) — 375 lines
+  - `method markEnrollment` — L106
+  - `method scanStudent` — L171
+  - `method sortBy` — L223
+  - `method setScanFeedback` — L239
+  - `method sortedEnrollments` — L245
+  - `method sortIndicator` — L272
+  - `method applyQuickStudentSearch` — L281
+  - `method normalizeArabicSearch` — L302
+  - `method normalizedSqlExpression` — L328
+  - `method sqlConcatWithSpaces` — L356
+  - `method defaultStudentAttendanceStatusId` — L365
+- [`resources/views/livewire/student-attendance/show.blade.php`](<../resources/views/livewire/student-attendance/show.blade.php>) — 394 lines
   - `method mount` — L25
   - `method with` — L39
   - `method toggleDayStatus` — L75
-  - `method deleteDay` — L93
-  - `method dayGroupAttendanceDaysQuery` — L126
-  - `method addManualGroup` — L148
-  - `method openManualGroupModal` — L208
-  - `method closeManualGroupModal` — L220
-  - `method defaultStudentAttendanceStatusId` — L227
-  - `method ensureDayIsEditable` — L241
-- [`resources/views/livewire/student-notes/index.blade.php`](<../resources/views/livewire/student-notes/index.blade.php>) — 540 lines
+  - `method deleteDay` — L95
+  - `method dayGroupAttendanceDaysQuery` — L128
+  - `method addManualGroup` — L150
+  - `method openManualGroupModal` — L210
+  - `method closeManualGroupModal` — L222
+  - `method defaultStudentAttendanceStatusId` — L229
+  - `method ensureDayIsEditable` — L243
+- [`resources/views/livewire/student-notes/index.blade.php`](<../resources/views/livewire/student-notes/index.blade.php>) — 553 lines
   - `method mount` — L44
   - `method with` — L51
   - `method rules` — L82
   - `method updatedStudentId` — L94
   - `method create` — L100
   - `method save` — L108
-  - `method edit` — L147
-  - `method cancel` — L166
-  - `method clearFilters` — L187
-  - `method delete` — L194
-  - `method applyRequestedContext` — L209
-  - `method authorizeExistingNoteChange` — L230
-  - `method availableEnrollmentsQuery` — L239
-  - `method availableNotesQuery` — L244
-  - `method availableStudentsQuery` — L254
-  - `method defaultSource` — L259
-  - `method defaultVisibility` — L264
-  - `method filterSourceOptions` — L269
-  - `method findAvailableEnrollment` — L279
-  - `method findAvailableNote` — L294
-  - `method findAvailableStudent` — L303
-  - `method formSourceOptions` — L312
-  - `method isTeacherRole` — L323
-  - `method visibilityOptions` — L328
+  - `method edit` — L149
+  - `method cancel` — L169
+  - `method clearFilters` — L191
+  - `method delete` — L198
+  - `method applyRequestedContext` — L213
+  - `method authorizeExistingNoteChange` — L234
+  - `method availableEnrollmentsQuery` — L243
+  - `method availableNotesQuery` — L248
+  - `method availableStudentsQuery` — L258
+  - `method defaultSource` — L263
+  - `method defaultVisibility` — L268
+  - `method filterSourceOptions` — L273
+  - `method findAvailableEnrollment` — L283
+  - `method findAvailableNote` — L298
+  - `method findAvailableStudent` — L307
+  - `method formSourceOptions` — L316
+  - `method isTeacherRole` — L327
+  - `method visibilityOptions` — L332
 - [`resources/views/livewire/students/bulk-photos.blade.php`](<../resources/views/livewire/students/bulk-photos.blade.php>) — 176 lines
   - `method mount` — L17
   - `method with` — L22
@@ -4803,103 +5027,104 @@ The search command uses the local FTS5 database at `storage/app/private/codebase
   - `method saveCapturedPhoto` — L99
   - `method uploadFile` — L138
   - `method deleteFile` — L162
-- [`resources/views/livewire/students/index.blade.php`](<../resources/views/livewire/students/index.blade.php>) — 2,398 lines
-  - `method mount` — L109
-  - `method with` — L114
-  - `method updatedSearch` — L189
-  - `method updatedStatusFilter` — L194
-  - `method sortBy` — L199
-  - `method updatedGradeLevelId` — L215
-  - `method updatedBirthDate` — L224
-  - `method addExternalMemorizedJuz` — L233
-  - `method removeExternalMemorizedJuz` — L259
-  - `method commitCurrentJuz` — L269
-  - `method clearCurrentJuz` — L297
-  - `method updatedEnrollmentGroupId` — L306
-  - `method updatedBulkScope` — L321
-  - `method updatedBulkCourseId` — L337
-  - `method openBulkStatusModal` — L352
-  - `method closeBulkStatusModal` — L375
-  - `method applyBulkStatus` — L396
-  - `method rules` — L445
-  - `method juzNumberValidationMessages` — L472
-  - `method accountRules` — L486
-  - `method openCreateModal` — L496
-  - `method save` — L505
-  - `method openQuickParentForm` — L662
-  - `method closeQuickParentForm` — L688
-  - `method removeParentRelationship` — L711
-  - `method clearSelectedParent` — L721
-  - `method saveQuickParent` — L729
-  - `method edit` — L823
-  - `method closeDuplicateStudentModal` — L856
-  - `method openAccountModal` — L862
-  - `method generateAccountPassword` — L885
-  - `method saveAccount` — L892
-  - `method closeAccountModal` — L929
-  - `method cancel` — L947
-  - `method syncDefaultEnrollmentGroup` — L989
-  - `method syncGradeLevelFromBirthYear` — L1003
-  - `method defaultEnrollmentGroupIdForGrade` — L1043
-  - `method createSchoolShortcut` — L1078
-  - `method createQuickFatherJobShortcut` — L1109
-  - `method uploadStudentPhoto` — L1140
-  - `method openExternalTestModal` — L1158
-  - `method closeExternalTestModal` — L1170
-  - `method createExternalMemorizationTest` — L1178
-  - `method defaultGenderCode` — L1213
-  - `method applyStudentSearch` — L1233
-  - `method applyStudentSort` — L1256
-  - `method sortIndicator` — L1299
-  - `method normalizeArabicSearch` — L1308
-  - `method normalizedSqlExpression` — L1334
-  - `method sqlConcatWithSpaces` — L1362
-  - `method bulkStatusPreview` — L1371
-  - `method targetStudentIdsForBulkStatus` — L1392
-  - `method bulkStatusStudentQuery` — L1403
-  - `method studentNumberRangeBounds` — L1452
-  - `method parseStudentNumberInput` — L1480
-  - `method delete` — L1485
-  - `method isValidBirthYearValue` — L1518
-  - `method normalizeBirthYearValue` — L1523
-  - `method findDuplicateStudent` — L1544
-  - `method showActiveDuplicateStudent` — L1568
-  - `method findDuplicateParent` — L1574
-  - `method linkedUserId` — L1609
-- [`resources/views/livewire/students/progress.blade.php`](<../resources/views/livewire/students/progress.blade.php>) — 738 lines
-  - `method mount` — L60
-  - `method updatedSelectedStudentId` — L77
-  - `method updatedProgressPhotoUpload` — L92
-  - `method showDetails` — L115
-  - `method closeDetails` — L123
-  - `method showMissingPages` — L128
-  - `method closeMissingPages` — L133
-  - `method openAwqafTest` — L138
-  - `method closeAwqafTest` — L161
-  - `method saveAwqafTest` — L168
-  - `method with` — L230
-  - `method setCurrentStudent` — L466
-  - `method studentOptionsQuery` — L477
-  - `method currentTeacher` — L489
-  - `method authorizeAnyPermission` — L495
-  - `method canAnyPermission` — L500
-- [`resources/views/livewire/teachers/attendance-show.blade.php`](<../resources/views/livewire/teachers/attendance-show.blade.php>) — 547 lines
+- [`resources/views/livewire/students/index.blade.php`](<../resources/views/livewire/students/index.blade.php>) — 2,419 lines
+  - `method mount` — L112
+  - `method with` — L117
+  - `method updatedSearch` — L193
+  - `method updatedStatusFilter` — L198
+  - `method sortBy` — L203
+  - `method updatedGradeLevelId` — L219
+  - `method updatedBirthDate` — L228
+  - `method addExternalMemorizedJuz` — L237
+  - `method removeExternalMemorizedJuz` — L263
+  - `method commitCurrentJuz` — L273
+  - `method clearCurrentJuz` — L301
+  - `method updatedEnrollmentGroupId` — L310
+  - `method updatedBulkScope` — L325
+  - `method updatedBulkCourseId` — L341
+  - `method openBulkStatusModal` — L356
+  - `method closeBulkStatusModal` — L379
+  - `method applyBulkStatus` — L400
+  - `method rules` — L449
+  - `method juzNumberValidationMessages` — L476
+  - `method accountRules` — L490
+  - `method openCreateModal` — L500
+  - `method save` — L509
+  - `method openQuickParentForm` — L694
+  - `method closeQuickParentForm` — L720
+  - `method removeParentRelationship` — L743
+  - `method clearSelectedParent` — L753
+  - `method saveQuickParent` — L761
+  - `method edit` — L855
+  - `method closeDuplicateStudentModal` — L898
+  - `method openAccountModal` — L904
+  - `method generateAccountPassword` — L927
+  - `method saveAccount` — L934
+  - `method closeAccountModal` — L971
+  - `method cancel` — L989
+  - `method syncDefaultEnrollmentGroup` — L1034
+  - `method syncGradeLevelFromBirthYear` — L1048
+  - `method defaultEnrollmentGroupIdForGrade` — L1088
+  - `method createSchoolShortcut` — L1124
+  - `method createQuickFatherJobShortcut` — L1155
+  - `method uploadStudentPhoto` — L1186
+  - `method openExternalTestModal` — L1204
+  - `method closeExternalTestModal` — L1216
+  - `method createExternalMemorizationTest` — L1224
+  - `method defaultGenderCode` — L1259
+  - `method applyStudentSearch` — L1279
+  - `method applyStudentSort` — L1302
+  - `method sortIndicator` — L1345
+  - `method normalizeArabicSearch` — L1354
+  - `method normalizedSqlExpression` — L1380
+  - `method sqlConcatWithSpaces` — L1408
+  - `method bulkStatusPreview` — L1417
+  - `method targetStudentIdsForBulkStatus` — L1438
+  - `method bulkStatusStudentQuery` — L1449
+  - `method studentNumberRangeBounds` — L1498
+  - `method parseStudentNumberInput` — L1526
+  - `method delete` — L1531
+  - `method isValidBirthYearValue` — L1564
+  - `method normalizeBirthYearValue` — L1569
+  - `method findDuplicateStudent` — L1590
+  - `method showActiveDuplicateStudent` — L1614
+  - `method findDuplicateParent` — L1620
+  - `method linkedUserId` — L1655
+- [`resources/views/livewire/students/progress.blade.php`](<../resources/views/livewire/students/progress.blade.php>) — 810 lines
+  - `method mount` — L62
+  - `method updatedSelectedStudentId` — L79
+  - `method updatedProgressPhotoUpload` — L95
+  - `method showDetails` — L118
+  - `method closeDetails` — L126
+  - `method showMissingPages` — L131
+  - `method closeMissingPages` — L136
+  - `method openAwqafTest` — L141
+  - `method closeAwqafTest` — L183
+  - `method closeAwqafUnavailable` — L190
+  - `method saveAwqafTest` — L195
+  - `method with` — L269
+  - `method setCurrentStudent` — L505
+  - `method studentOptionsQuery` — L517
+  - `method currentTeacher` — L529
+  - `method authorizeAnyPermission` — L535
+  - `method canAnyPermission` — L540
+- [`resources/views/livewire/teachers/attendance-show.blade.php`](<../resources/views/livewire/teachers/attendance-show.blade.php>) — 565 lines
   - `method mount` — L27
   - `method with` — L53
   - `method saveAttendance` — L99
   - `method saveDaySummary` — L158
   - `method toggleDayStatus` — L175
-  - `method saveTeacherStatus` — L184
-  - `method openManualTeacherModal` — L225
-  - `method closeManualTeacherModal` — L235
-  - `method addManualTeacher` — L242
-  - `method removeTeacher` — L282
-  - `method deleteDay` — L313
-  - `method loadDay` — L330
-  - `method defaultTeacherAttendanceStatusId` — L353
-  - `method availableTeachersScopeQuery` — L367
-  - `method scheduledTeacherIdsForDate` — L374
-- [`resources/views/livewire/teachers/attendance.blade.php`](<../resources/views/livewire/teachers/attendance.blade.php>) — 438 lines
+  - `method saveTeacherStatus` — L186
+  - `method openManualTeacherModal` — L227
+  - `method closeManualTeacherModal` — L237
+  - `method addManualTeacher` — L244
+  - `method removeTeacher` — L284
+  - `method deleteDay` — L315
+  - `method loadDay` — L332
+  - `method defaultTeacherAttendanceStatusId` — L355
+  - `method availableTeachersScopeQuery` — L369
+  - `method scheduledTeacherIdsForDate` — L376
+- [`resources/views/livewire/teachers/attendance.blade.php`](<../resources/views/livewire/teachers/attendance.blade.php>) — 433 lines
   - `method mount` — L37
   - `method with` — L48
   - `method updatedSearch` — L85
@@ -4914,7 +5139,7 @@ The search command uses the local FTS5 database at `storage/app/private/codebase
   - `method defaultTeacherAttendanceStatusId` — L198
   - `method scheduledTeachersForDate` — L212
   - `method availableCoursesQuery` — L268
-- [`resources/views/livewire/teachers/index.blade.php`](<../resources/views/livewire/teachers/index.blade.php>) — 1,277 lines
+- [`resources/views/livewire/teachers/index.blade.php`](<../resources/views/livewire/teachers/index.blade.php>) — 1,278 lines
   - `method mount` — L64
   - `method with` — L69
   - `method updatedSearch` — L125
@@ -4943,7 +5168,7 @@ The search command uses the local FTS5 database at `storage/app/private/codebase
   - `method permissionGroupLabel` — L643
   - `method permissionLabel` — L653
   - `method linkedUserId` — L662
-- [`resources/views/livewire/users/index.blade.php`](<../resources/views/livewire/users/index.blade.php>) — 856 lines
+- [`resources/views/livewire/users/index.blade.php`](<../resources/views/livewire/users/index.blade.php>) — 859 lines
   - `method mount` — L77
   - `method with` — L82
   - `method updatedSearch` — L120
@@ -4970,65 +5195,69 @@ The search command uses the local FTS5 database at `storage/app/private/codebase
 - [`resources/views/courses/report-cards/preview.blade.php`](<../resources/views/courses/report-cards/preview.blade.php>) — 41 lines
 - [`resources/views/dashboard.blade.php`](<../resources/views/dashboard.blade.php>) — 19 lines
 - [`resources/views/exports/assessment-results-pdf.blade.php`](<../resources/views/exports/assessment-results-pdf.blade.php>) — 69 lines
-- [`resources/views/exports/group-roster-pdf.blade.php`](<../resources/views/exports/group-roster-pdf.blade.php>) — 185 lines
+- [`resources/views/exports/group-roster-pdf.blade.php`](<../resources/views/exports/group-roster-pdf.blade.php>) — 176 lines
 - [`resources/views/flux/icon/achievement-star.blade.php`](<../resources/views/flux/icon/achievement-star.blade.php>) — 9 lines
+- [`resources/views/flux/icon/arrows-right-left.blade.php`](<../resources/views/flux/icon/arrows-right-left.blade.php>) — 9 lines
 - [`resources/views/flux/icon/assessment-review.blade.php`](<../resources/views/flux/icon/assessment-review.blade.php>) — 14 lines
 - [`resources/views/flux/icon/book-open-pencil.blade.php`](<../resources/views/flux/icon/book-open-pencil.blade.php>) — 12 lines
 - [`resources/views/flux/icon/book-open-text.blade.php`](<../resources/views/flux/icon/book-open-text.blade.php>) — 48 lines
-- [`resources/views/flux/icon/books-leaning.blade.php`](<../resources/views/flux/icon/books-leaning.blade.php>) — 33 lines
+- [`resources/views/flux/icon/books-leaning.blade.php`](<../resources/views/flux/icon/books-leaning.blade.php>) — 17 lines
 - [`resources/views/flux/icon/certificate-landscape.blade.php`](<../resources/views/flux/icon/certificate-landscape.blade.php>) — 15 lines
 - [`resources/views/flux/icon/chevrons-up-down.blade.php`](<../resources/views/flux/icon/chevrons-up-down.blade.php>) — 44 lines
 - [`resources/views/flux/icon/clipboard-person.blade.php`](<../resources/views/flux/icon/clipboard-person.blade.php>) — 20 lines
-- [`resources/views/flux/icon/clipboard-student.blade.php`](<../resources/views/flux/icon/clipboard-student.blade.php>) — 21 lines
+- [`resources/views/flux/icon/clipboard-student.blade.php`](<../resources/views/flux/icon/clipboard-student.blade.php>) — 31 lines
 - [`resources/views/flux/icon/enrollment-add.blade.php`](<../resources/views/flux/icon/enrollment-add.blade.php>) — 20 lines
 - [`resources/views/flux/icon/expense-receipt.blade.php`](<../resources/views/flux/icon/expense-receipt.blade.php>) — 12 lines
-- [`resources/views/flux/icon/finance-dashboard.blade.php`](<../resources/views/flux/icon/finance-dashboard.blade.php>) — 13 lines
+- [`resources/views/flux/icon/finance-dashboard.blade.php`](<../resources/views/flux/icon/finance-dashboard.blade.php>) — 21 lines
 - [`resources/views/flux/icon/finance-settings.blade.php`](<../resources/views/flux/icon/finance-settings.blade.php>) — 10 lines
 - [`resources/views/flux/icon/folder-git-2.blade.php`](<../resources/views/flux/icon/folder-git-2.blade.php>) — 46 lines
 - [`resources/views/flux/icon/income-hand.blade.php`](<../resources/views/flux/icon/income-hand.blade.php>) — 13 lines
 - [`resources/views/flux/icon/landline-phone.blade.php`](<../resources/views/flux/icon/landline-phone.blade.php>) — 9 lines
 - [`resources/views/flux/icon/layout-grid.blade.php`](<../resources/views/flux/icon/layout-grid.blade.php>) — 46 lines
-- [`resources/views/flux/icon/male-teacher.blade.php`](<../resources/views/flux/icon/male-teacher.blade.php>) — 12 lines
+- [`resources/views/flux/icon/male-teacher.blade.php`](<../resources/views/flux/icon/male-teacher.blade.php>) — 26 lines
 - [`resources/views/flux/icon/mosque.blade.php`](<../resources/views/flux/icon/mosque.blade.php>) — 20 lines
 - [`resources/views/flux/icon/note-document.blade.php`](<../resources/views/flux/icon/note-document.blade.php>) — 9 lines
 - [`resources/views/flux/icon/parents-couple.blade.php`](<../resources/views/flux/icon/parents-couple.blade.php>) — 14 lines
 - [`resources/views/flux/icon/people-circle.blade.php`](<../resources/views/flux/icon/people-circle.blade.php>) — 17 lines
 - [`resources/views/flux/icon/printing-template.blade.php`](<../resources/views/flux/icon/printing-template.blade.php>) — 19 lines
-- [`resources/views/flux/icon/quran-stand.blade.php`](<../resources/views/flux/icon/quran-stand.blade.php>) — 18 lines
+- [`resources/views/flux/icon/quran-stand.blade.php`](<../resources/views/flux/icon/quran-stand.blade.php>) — 19 lines
 - [`resources/views/flux/icon/student-graduates.blade.php`](<../resources/views/flux/icon/student-graduates.blade.php>) — 11 lines
 - [`resources/views/flux/icon/student-id-card.blade.php`](<../resources/views/flux/icon/student-id-card.blade.php>) — 10 lines
 - [`resources/views/flux/icon/withdrawal-hand.blade.php`](<../resources/views/flux/icon/withdrawal-hand.blade.php>) — 22 lines
 - [`resources/views/flux/navlist/group.blade.php`](<../resources/views/flux/navlist/group.blade.php>) — 52 lines
 - [`resources/views/id-cards/partials/card.blade.php`](<../resources/views/id-cards/partials/card.blade.php>) — 65 lines
 - [`resources/views/id-cards/print/preview.blade.php`](<../resources/views/id-cards/print/preview.blade.php>) — 43 lines
-- [`resources/views/id-cards/print/setup.blade.php`](<../resources/views/id-cards/print/setup.blade.php>) — 158 lines
+- [`resources/views/id-cards/print/setup.blade.php`](<../resources/views/id-cards/print/setup.blade.php>) — 176 lines
 - [`resources/views/id-cards/templates/form.blade.php`](<../resources/views/id-cards/templates/form.blade.php>) — 609 lines
 - [`resources/views/id-cards/templates/index.blade.php`](<../resources/views/id-cards/templates/index.blade.php>) — 96 lines
 - [`resources/views/partials/head.blade.php`](<../resources/views/partials/head.blade.php>) — 66 lines
 - [`resources/views/partials/settings-heading.blade.php`](<../resources/views/partials/settings-heading.blade.php>) — 6 lines
 - [`resources/views/print-templates/partials/item.blade.php`](<../resources/views/print-templates/partials/item.blade.php>) — 116 lines
+- [`resources/views/print-templates/print/pdf.blade.php`](<../resources/views/print-templates/print/pdf.blade.php>) — 54 lines
 - [`resources/views/print-templates/print/preview.blade.php`](<../resources/views/print-templates/print/preview.blade.php>) — 102 lines
   - `function recordStudentCardPrint` — L55
-- [`resources/views/print-templates/print/setup.blade.php`](<../resources/views/print-templates/print/setup.blade.php>) — 703 lines
-  - `function setReportCardNoteStatus` — L302
-  - `function queueReportCardNoteSave` — L312
-  - `function scheduleReportCardNoteSave` — L352
-  - `function applyTemplateLayout` — L360
-  - `function activeSources` — L377
-  - `function setSourceCardChecked` — L381
-  - `function relatedIds` — L389
-  - `function selectedSingleSources` — L401
-  - `function recordMatchesSelectedSources` — L411
-  - `function applySingleSelectFilter` — L425
-  - `function applySourceFilter` — L449
-  - `function applyAllFilters` — L477
-  - `function setPrintStatusNotice` — L484
-  - `function selectedStudentIds` — L504
-  - `function shouldClearSelectedPrints` — L510
-  - `function updatePrintStatusButton` — L518
-  - `function updateStudentPrintedState` — L523
-  - `function updateStudentUnprintedState` — L543
-  - `function updatePanels` — L561
+- [`resources/views/print-templates/print/setup.blade.php`](<../resources/views/print-templates/print/setup.blade.php>) — 756 lines
+  - `function setReportCardNoteStatus` — L311
+  - `function queueReportCardNoteSave` — L321
+  - `function scheduleReportCardNoteSave` — L361
+  - `function applyTemplateLayout` — L369
+  - `function activeSources` — L386
+  - `function setSourceCardChecked` — L390
+  - `function updateSourceSelectionButton` — L399
+  - `function relatedIds` — L415
+  - `function selectedSingleSources` — L427
+  - `function recordMatchesSelectedSources` — L437
+  - `function applySingleSelectFilter` — L451
+  - `function applySourceFilter` — L475
+  - `function applyAllFilters` — L503
+  - `function setPrintStatusNotice` — L510
+  - `function selectedStudentIds` — L530
+  - `function shouldClearSelectedPrints` — L536
+  - `function setPrintStatusButtonState` — L544
+  - `function updatePrintStatusButton` — L559
+  - `function updateStudentPrintedState` — L563
+  - `function updateStudentUnprintedState` — L583
+  - `function updatePanels` — L601
 - [`resources/views/print-templates/templates/form.blade.php`](<../resources/views/print-templates/templates/form.blade.php>) — 51 lines
 - [`resources/views/print-templates/templates/index.blade.php`](<../resources/views/print-templates/templates/index.blade.php>) — 67 lines
 - [`resources/views/print-templates/templates/partials/form-body.blade.php`](<../resources/views/print-templates/templates/partials/form-body.blade.php>) — 234 lines
@@ -5097,15 +5326,15 @@ The search command uses the local FTS5 database at `storage/app/private/codebase
 - [`resources/views/print/invoice.blade.php`](<../resources/views/print/invoice.blade.php>) — 136 lines
 - [`resources/views/print/receipt.blade.php`](<../resources/views/print/receipt.blade.php>) — 85 lines
 - [`resources/views/public/home.blade.php`](<../resources/views/public/home.blade.php>) — 209 lines
-- [`resources/views/public/layout.blade.php`](<../resources/views/public/layout.blade.php>) — 131 lines
+- [`resources/views/public/layout.blade.php`](<../resources/views/public/layout.blade.php>) — 129 lines
 - [`resources/views/public/maintenance.blade.php`](<../resources/views/public/maintenance.blade.php>) — 48 lines
 - [`resources/views/public/page.blade.php`](<../resources/views/public/page.blade.php>) — 177 lines
 - [`resources/views/reports/course-final-tests.blade.php`](<../resources/views/reports/course-final-tests.blade.php>) — 16 lines
-- [`resources/views/reports/course-point-market-department.blade.php`](<../resources/views/reports/course-point-market-department.blade.php>) — 50 lines
+- [`resources/views/reports/course-point-market-department.blade.php`](<../resources/views/reports/course-point-market-department.blade.php>) — 73 lines
 - [`resources/views/reports/finance-ledger-multi-pdf-export.blade.php`](<../resources/views/reports/finance-ledger-multi-pdf-export.blade.php>) — 4 lines
 - [`resources/views/reports/finance-ledger-pdf-export.blade.php`](<../resources/views/reports/finance-ledger-pdf-export.blade.php>) — 115 lines
 - [`resources/views/reports/finance-ledger-pdf.blade.php`](<../resources/views/reports/finance-ledger-pdf.blade.php>) — 78 lines
-- [`resources/views/reports/partials/finance-ledger-document.blade.php`](<../resources/views/reports/partials/finance-ledger-document.blade.php>) — 388 lines
+- [`resources/views/reports/partials/finance-ledger-document.blade.php`](<../resources/views/reports/partials/finance-ledger-document.blade.php>) — 387 lines
 - [`resources/views/reports/partials/finance-ledger-meta.blade.php`](<../resources/views/reports/partials/finance-ledger-meta.blade.php>) — 16 lines
 - [`resources/views/reports/student-attendance.blade.php`](<../resources/views/reports/student-attendance.blade.php>) — 47 lines
 - [`resources/views/reports/teacher-attendance.blade.php`](<../resources/views/reports/teacher-attendance.blade.php>) — 39 lines

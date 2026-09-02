@@ -54,7 +54,7 @@ class WebsiteSeeder extends Seeder
                     'ar' => 'مسجد الخير',
                 ],
                 'excerpt' => [
-                    'en' => 'A public homepage for worship, learning, and family programs.',
+                    'en' => 'A public homepage for worship, learning, and family programmes.',
                     'ar' => 'واجهة عامة للعبادة والتعلّم وبرامج العائلة.',
                 ],
                 'seo_title' => [
@@ -62,7 +62,7 @@ class WebsiteSeeder extends Seeder
                     'ar' => 'مسجد الخير',
                 ],
                 'seo_description' => [
-                    'en' => 'Discover Quran programs, community activities, and family learning at Masjid AlKhair.',
+                    'en' => 'Discover Quran programmes, community activities, and family learning at Masjid AlKhair.',
                     'ar' => 'اكتشف برامج القرآن والأنشطة المجتمعية وتعلّم الأسرة في مسجد الخير.',
                 ],
                 'sections' => [
@@ -77,11 +77,11 @@ class WebsiteSeeder extends Seeder
                             'ar' => 'واجهة مسجد حيّة، وليست مجرد شاشة دخول.',
                         ],
                         'subtitle' => [
-                            'en' => 'Share your programs, teachers, events, and values with the public while keeping the internal platform for management and learning.',
+                            'en' => 'Share your programmes, teachers, events, and values with the public while keeping the internal platform for management and learning.',
                             'ar' => 'اعرض برامجكم ومعلميكم وأنشطتكم وقيمكم للناس، مع إبقاء المنصة الداخلية للإدارة والتعلّم.',
                         ],
                         'primary_cta_label' => [
-                            'en' => 'Explore Programs',
+                            'en' => 'Explore Programmes',
                             'ar' => 'اكتشف البرامج',
                         ],
                         'primary_cta_url' => '/pages/programs',
@@ -124,7 +124,7 @@ class WebsiteSeeder extends Seeder
                             'ar' => 'بيت مسجد يجمع العبادة والتعلّم والانتماء.',
                         ],
                         'body' => [
-                            'en' => 'Masjid AlKhair welcomes students, parents, teachers, and the wider neighborhood through Quran programs, memorization support, activities, and steady pastoral care.',
+                            'en' => 'Masjid AlKhair welcomes students, parents, teachers, and the wider neighbourhood through Quran programmes, memorisation support, activities, and steady pastoral care.',
                             'ar' => 'يرحّب مسجد الخير بالطلاب وأولياء الأمور والمعلمين وأهل الحي من خلال برامج القرآن ودعم الحفظ والأنشطة والرعاية التربوية المستمرة.',
                         ],
                         'quote' => [
@@ -139,17 +139,17 @@ class WebsiteSeeder extends Seeder
                             'ar' => 'مسارات مميزة',
                         ],
                         'subtitle' => [
-                            'en' => 'Use these cards to point families toward the programs you want to highlight this season.',
+                            'en' => 'Use these cards to point families towards the programmes you want to highlight this season.',
                             'ar' => 'استخدم هذه البطاقات لتوجيه العائلات إلى البرامج التي تريد إبرازها هذا الموسم.',
                         ],
                         'cards' => [
                             [
                                 'title' => [
-                                    'en' => 'Quran Memorization',
+                                    'en' => 'Quran Memorisation',
                                     'ar' => 'حلقات الحفظ',
                                 ],
                                 'summary' => [
-                                    'en' => 'Structured memorization, revision, attendance, and teacher follow-up for every student.',
+                                    'en' => 'Structured memorisation, revision, attendance, and teacher follow-up for every student.',
                                     'ar' => 'حفظ منظم ومراجعة ودَوام ومتابعة معلم لكل طالب.',
                                 ],
                                 'link_label' => [
@@ -179,7 +179,7 @@ class WebsiteSeeder extends Seeder
                                     'ar' => 'فعاليات موسمية',
                                 ],
                                 'summary' => [
-                                    'en' => 'Community gatherings, student activities, and special programs during Ramadan and Eid.',
+                                    'en' => 'Community gatherings, student activities, and special programmes during Ramadan and Eid.',
                                     'ar' => 'لقاءات مجتمعية وأنشطة طلابية وبرامج خاصة في رمضان والعيد.',
                                 ],
                                 'link_label' => [
@@ -212,10 +212,10 @@ class WebsiteSeeder extends Seeder
             [
                 'slug' => 'programs',
                 'order' => 20,
-                'title' => ['en' => 'Programs', 'ar' => 'البرامج'],
+                'title' => ['en' => 'Programmes', 'ar' => 'البرامج'],
                 'excerpt' => ['en' => 'Show the main learning tracks and mosque services.', 'ar' => 'اعرض المسارات التعليمية الرئيسية وخدمات المسجد.'],
                 'body' => [
-                    'en' => "Create a page for Quran memorization, tajweed, revision, youth activities, and parent engagement.\n\nEach page supports English and Arabic content, public navigation, and its own hero copy.",
+                    'en' => "Create a page for Quran memorisation, tajweed, revision, youth activities, and parent engagement.\n\nEach page supports English and Arabic content, public navigation, and its own hero copy.",
                     'ar' => "أنشئ صفحة للحفظ والتجويد والمراجعة والأنشطة الشبابية ومشاركة أولياء الأمور.\n\nكل صفحة تدعم المحتوى بالإنجليزية والعربية، والظهور في التنقل العام، ونصوصها التعريفية الخاصة.",
                 ],
             ],
@@ -278,7 +278,7 @@ class WebsiteSeeder extends Seeder
             'website_menu_id' => $menu->id,
             'parent_id' => $programsItem->id,
             'label' => [
-                'en' => 'Quran Memorization',
+                'en' => 'Quran Memorisation',
                 'ar' => 'حفظ القرآن',
             ],
             'url' => '/pages/programs',

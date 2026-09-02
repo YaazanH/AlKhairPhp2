@@ -332,6 +332,15 @@ function releaseSearchableSelectOverflow(wrapper) {
         return;
     }
 
+    /* These compact menus already live in an overflow-visible hero. Releasing
+       the application scroll host here removes its scrollbar and shifts the
+       entire title panel while the menu opens. */
+    if (wrapper.closest('[data-finance-dashboard-period-filters]')) {
+        searchableSelectOverflowHosts.set(wrapper, []);
+
+        return;
+    }
+
     const hosts = [];
     let ancestor = wrapper.parentElement;
 
@@ -648,6 +657,7 @@ function enhanceSearchableSelect(select) {
     wrapper.setAttribute('wire:ignore', '');
 
     const searchInputMode = select.dataset.searchInput !== 'false';
+    const dropdownSearchEnabled = searchInputMode || select.dataset.dropdownSearch !== 'false';
     const openOnFocus = searchInputMode && select.dataset.openOnFocus !== 'false';
     const clearable = searchInputMode && select.dataset.clearable !== 'false';
     const financeCurrencyRequired = select.dataset.financeCurrencyRequired === 'true';
@@ -726,7 +736,12 @@ function enhanceSearchableSelect(select) {
 
         wrapper.append(panel);
     } else {
-        panel.append(search, list);
+        if (dropdownSearchEnabled) {
+            panel.append(search, list);
+        } else {
+            panel.append(list);
+        }
+
         wrapper.append(button, panel);
     }
     select.insertAdjacentElement('afterend', wrapper);
@@ -1040,7 +1055,10 @@ function enhanceSearchableSelect(select) {
             if (willOpen) {
                 search.value = searchHintValue(select);
                 buildSearchableSelectOptions(select, list, search.value);
-                requestAnimationFrame(() => search.focus());
+
+                if (dropdownSearchEnabled) {
+                    requestAnimationFrame(() => search.focus());
+                }
             }
         });
 
@@ -1052,6 +1070,18 @@ function enhanceSearchableSelect(select) {
 
             if (!wrapper.classList.contains('searchable-select--open')) {
                 search.value = searchHintValue(select);
+            }
+
+            if (!dropdownSearchEnabled) {
+                event.preventDefault();
+                event.stopPropagation();
+                openSearchableOptions();
+
+                const options = searchableSelectOptionButtons(list);
+                const nextOption = event.key === 'ArrowDown' ? options[0] : options[options.length - 1];
+                nextOption?.focus();
+
+                return;
             }
 
             handleSearchableSelectKeydown(event);
@@ -1140,6 +1170,40 @@ function focusSearchableSelect(event) {
 }
 
 window.addEventListener('focus-searchable-select', focusSearchableSelect);
+
+function revealSidebarNavigationGroup(event) {
+    const groupKey = String(event?.detail?.key ?? '');
+
+    if (groupKey === '') {
+        return;
+    }
+
+    const reveal = () => {
+        const group = Array.from(document.querySelectorAll('[data-sidebar-navigation-group]'))
+            .find((candidate) => candidate.dataset.sidebarNavigationGroup === groupKey);
+
+        if (!(group instanceof HTMLDetailsElement)) {
+            return false;
+        }
+
+        group.open = true;
+        group.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+        const titleInput = group.querySelector('[data-sidebar-navigation-group-title]');
+
+        if (titleInput instanceof HTMLInputElement) {
+            titleInput.focus({ preventScroll: true });
+            titleInput.select();
+        }
+
+        return true;
+    };
+
+    window.requestAnimationFrame(reveal);
+    window.setTimeout(reveal, 180);
+}
+
+window.addEventListener('sidebar-navigation-group-added', revealSidebarNavigationGroup);
 
 function assessmentQuickScoreStudentNameInput() {
     const select = document.getElementById('assessment-student-entry');
@@ -1431,7 +1495,7 @@ function synchronizeFinancialTransactionTypography() {
             targets.forEach((label) => justifyFinanceLabelToWidth(label, targetWidth));
         });
 
-        const spacingColumns = ['reference', 'fund', 'type', 'category'];
+        const spacingColumns = ['reference', 'fund', 'type'];
         const tableWidth = table.parentElement?.clientWidth || table.getBoundingClientRect().width;
         const contentWidths = spacingColumns.map((columnName) => Math.max(
             0,
@@ -1456,15 +1520,15 @@ function synchronizeFinancialTransactionTypography() {
         const equalGap = dateToReferenceGaps.length
             ? dateToReferenceGaps[Math.floor(dateToReferenceGaps.length / 2)]
             : 0;
-        const naturalSpacingWidths = contentWidths.map((width) => width + equalGap);
-        const spacingWidths = naturalSpacingWidths.map((width, index) => (
-            spacingColumns[index] === 'category' ? width * 2 : width
-        ));
-        const fixedRightWidth = tableWidth * 0.1025;
-        const leftAvailableWidth = tableWidth
-            - fixedRightWidth
-            - spacingWidths.reduce((total, width) => total + width, 0);
+        const spacingWidths = contentWidths.map((width) => width + equalGap);
         const fixedColumns = Array.from(table.querySelectorAll('[data-finance-fixed-percent]'));
+        const fixedColumnsWidth = fixedColumns.reduce(
+            (total, column) => total + tableWidth * (Number.parseFloat(column.dataset.financeFixedPercent) / 100),
+            0,
+        );
+        const leftAvailableWidth = tableWidth
+            - fixedColumnsWidth
+            - spacingWidths.reduce((total, width) => total + width, 0);
         const leftColumns = Array.from(table.querySelectorAll('[data-finance-left-column]'));
         const leftWeightTotal = leftColumns.reduce(
             (total, column) => total + Number.parseFloat(column.dataset.financeLeftWeight),
@@ -1521,6 +1585,23 @@ function synchronizeFinancialTransactionTypography() {
             leftColumns.forEach((column) => {
                 column.style.width = `${leftAvailableWidth * (Number.parseFloat(column.dataset.financeLeftWeight) / leftWeightTotal)}px`;
             });
+            table.querySelectorAll('[data-finance-width-transfer-to]').forEach((sourceColumn) => {
+                const targetColumn = table.querySelector(
+                    `[data-finance-width-transfer-target="${sourceColumn.dataset.financeWidthTransferTo}"]`,
+                );
+                const sourceWidth = Number.parseFloat(sourceColumn.style.width);
+                const targetWidth = Number.parseFloat(targetColumn?.style.width ?? '');
+                const transferPercent = Number.parseFloat(sourceColumn.dataset.financeWidthTransferPercent);
+
+                if (! targetColumn || ! Number.isFinite(sourceWidth) || ! Number.isFinite(targetWidth) || ! Number.isFinite(transferPercent)) {
+                    return;
+                }
+
+                const transferredWidth = sourceWidth * (transferPercent / 100);
+
+                sourceColumn.style.width = `${sourceWidth - transferredWidth}px`;
+                targetColumn.style.width = `${targetWidth + transferredWidth}px`;
+            });
         }
     });
 }
@@ -1547,6 +1628,104 @@ document.addEventListener('livewire:initialized', () => {
     window.Livewire?.hook('morph.added', ({ el }) => {
         if (el.matches?.('[data-financial-transactions-table]') || el.querySelector?.('[data-financial-transactions-table]')) {
             scheduleFinancialTransactionTypographySync();
+        }
+    });
+});
+
+let appLogoPeriodTypographyFrame = null;
+
+function measureAppLogoText(element) {
+    const range = document.createRange();
+
+    range.selectNodeContents(element);
+
+    return range.getBoundingClientRect().width;
+}
+
+function synchronizeAppLogoPeriodTypography() {
+    appLogoPeriodTypographyFrame = null;
+
+    document.querySelectorAll('[data-app-logo-period-lockup]').forEach((lockup) => {
+        const title = lockup.querySelector('[data-app-logo-period-title]');
+        const subtitle = lockup.querySelector('[data-app-logo-period-subtitle]');
+
+        if (! title || ! subtitle || lockup.getBoundingClientRect().width < 1) {
+            return;
+        }
+
+        const source = subtitle.dataset.appLogoPeriodSource
+            ?? subtitle.getAttribute('aria-label')
+            ?? subtitle.textContent?.replaceAll(financeKashida, '').trim()
+            ?? '';
+
+        subtitle.dataset.appLogoPeriodSource = source;
+        subtitle.textContent = source;
+        subtitle.style.removeProperty('font-size');
+        subtitle.style.removeProperty('width');
+
+        const targetWidth = measureAppLogoText(title);
+        let sourceWidth = measureAppLogoText(subtitle);
+
+        if (! source || targetWidth < 1 || sourceWidth < 1) {
+            return;
+        }
+
+        if (sourceWidth > targetWidth) {
+            const naturalFontSize = Number.parseFloat(window.getComputedStyle(subtitle).fontSize);
+            const fittedFontSize = naturalFontSize * (targetWidth / sourceWidth) * 0.965;
+
+            subtitle.style.fontSize = `${fittedFontSize}px`;
+            sourceWidth = measureAppLogoText(subtitle);
+        }
+
+        let justifiedText = source;
+        let bestDifference = Math.abs(targetWidth - sourceWidth);
+
+        for (let count = 1; count <= 96 && financeKashidaPositions(source).length; count += 1) {
+            const candidate = financeTextWithKashidas(source, count);
+
+            subtitle.textContent = candidate;
+
+            const candidateWidth = measureAppLogoText(subtitle);
+            const difference = Math.abs(targetWidth - candidateWidth);
+
+            if (difference <= bestDifference) {
+                justifiedText = candidate;
+                bestDifference = difference;
+            }
+
+            if (candidateWidth >= targetWidth) {
+                break;
+            }
+        }
+
+        subtitle.textContent = justifiedText;
+        subtitle.style.width = `${targetWidth}px`;
+    });
+}
+
+function scheduleAppLogoPeriodTypographySync() {
+    if (appLogoPeriodTypographyFrame !== null) {
+        window.cancelAnimationFrame(appLogoPeriodTypographyFrame);
+    }
+
+    appLogoPeriodTypographyFrame = window.requestAnimationFrame(synchronizeAppLogoPeriodTypography);
+}
+
+document.addEventListener('DOMContentLoaded', scheduleAppLogoPeriodTypographySync);
+document.addEventListener('livewire:navigated', scheduleAppLogoPeriodTypographySync);
+window.addEventListener('resize', scheduleAppLogoPeriodTypographySync, { passive: true });
+document.fonts?.ready.then(scheduleAppLogoPeriodTypographySync);
+document.addEventListener('livewire:initialized', () => {
+    window.Livewire?.hook('morph.updated', ({ el }) => {
+        if (el.matches?.('[data-app-logo-period-lockup]') || el.querySelector?.('[data-app-logo-period-lockup]')) {
+            scheduleAppLogoPeriodTypographySync();
+        }
+    });
+
+    window.Livewire?.hook('morph.added', ({ el }) => {
+        if (el.matches?.('[data-app-logo-period-lockup]') || el.querySelector?.('[data-app-logo-period-lockup]')) {
+            scheduleAppLogoPeriodTypographySync();
         }
     });
 });
@@ -1662,6 +1841,27 @@ function createDateClearIcon() {
     return clear;
 }
 
+function restoreFormattedDatePicker(picker) {
+    if (!(picker instanceof HTMLButtonElement) || !picker.classList.contains('formatted-date-input__picker')) return;
+
+    const hasDateIcons = picker.childElementCount === 2
+        && picker.firstElementChild?.classList.contains('formatted-date-input__calendar-icon')
+        && picker.lastElementChild?.classList.contains('formatted-date-input__clear-icon');
+
+    if (!hasDateIcons) picker.replaceChildren(createDatePickerIcon(), createDateClearIcon());
+    picker.dataset.modalActionIconIgnore = 'true';
+    picker.classList.remove(
+        'admin-icon-button',
+        'admin-modal-action-button',
+        'admin-icon-button--accent',
+        'admin-icon-button--danger',
+        'mobile-table-header-action',
+        'mobile-table-header-action--native-icon',
+    );
+    picker.removeAttribute('data-modal-action-icon');
+    picker.removeAttribute('data-mobile-table-header-action');
+}
+
 let activeNativeDateInput = null;
 
 function closeActiveNativeDatePicker() {
@@ -1699,16 +1899,20 @@ function openNativeDatePicker(input) {
 function enhanceDateInput(input) {
     if (!(input instanceof HTMLInputElement) || input.type !== 'date' || input.dataset.dateFormatNative === 'true') return;
 
+    const clearable = input.dataset.clearable !== 'false';
     const existingWrapper = input.nextElementSibling?.classList.contains('formatted-date-input')
         ? input.nextElementSibling
         : null;
 
     if (input.dataset.dateFormatBound === 'true' && existingWrapper) {
         const existingDisplay = existingWrapper.querySelector('.formatted-date-input__display');
+        const existingPicker = existingWrapper.querySelector('.formatted-date-input__picker');
 
         if (existingDisplay instanceof HTMLInputElement) {
             syncFormattedDateInputAppearance(input, existingWrapper, existingDisplay);
         }
+
+        restoreFormattedDatePicker(existingPicker);
 
         input.formattedDateSync?.();
 
@@ -1740,6 +1944,7 @@ function enhanceDateInput(input) {
     picker.type = 'button';
     picker.tabIndex = -1;
     picker.className = 'formatted-date-input__picker';
+    picker.dataset.modalActionIconIgnore = 'true';
     picker.setAttribute('aria-label', document.documentElement.lang.toLowerCase().startsWith('ar') ? 'اختيار التاريخ' : 'Choose date');
     picker.append(createDatePickerIcon(), createDateClearIcon());
 
@@ -1759,7 +1964,7 @@ function enhanceDateInput(input) {
     const runPickerAction = (event) => {
         stopDateActionEvent(event);
 
-        if (input.value === '') {
+        if (input.value === '' || !clearable) {
             openNativeDatePicker(input);
 
             return;
@@ -1780,11 +1985,11 @@ function enhanceDateInput(input) {
         display.classList.toggle('date-input--empty', isEmpty);
         display.classList.toggle('date-input--filled', !isEmpty);
         picker.disabled = input.disabled || input.readOnly;
-        picker.setAttribute('aria-label', isEmpty
+        picker.setAttribute('aria-label', isEmpty || !clearable
             ? (document.documentElement.lang.toLowerCase().startsWith('ar') ? 'اختيار التاريخ' : 'Choose date')
             : (document.documentElement.lang.toLowerCase().startsWith('ar') ? 'مسح التاريخ' : 'Clear date'));
         picker.title = picker.getAttribute('aria-label');
-        wrapper.classList.toggle('formatted-date-input--has-value', !isEmpty);
+        wrapper.classList.toggle('formatted-date-input--has-value', clearable && !isEmpty);
         wrapper.hidden = input.hidden;
     };
 
@@ -2075,6 +2280,13 @@ function initializeAdminModalActionIcons(root = document) {
     root.querySelectorAll?.(selector).forEach((action) => actions.push(action));
 
     actions.forEach((action) => {
+        if (action.closest('.formatted-date-input')) {
+            // Date fields use their own calendar / compact × state. The popup
+            // action enhancer must never turn "Clear date" into Clear filters.
+            restoreFormattedDatePicker(action);
+
+            return;
+        }
         if (action.closest('.searchable-select')) {
             // Dropdown clear controls must remain the compact native ×. An
             // earlier modal pass may already have replaced one, so restore it
@@ -3421,8 +3633,50 @@ document.addEventListener('livewire:initialized', () => {
 
 let curriculaIndexNameWidthFrame = null;
 
+function synchronizeCurriculaCourseFilterWidths() {
+    const measurer = document.createElement('span');
+
+    measurer.style.position = 'fixed';
+    measurer.style.insetInlineStart = '-10000px';
+    measurer.style.visibility = 'hidden';
+    measurer.style.pointerEvents = 'none';
+    measurer.style.whiteSpace = 'nowrap';
+    document.body.append(measurer);
+
+    document.querySelectorAll('[data-curricula-index-course-filter]').forEach((filter) => {
+        const select = filter.querySelector('select');
+        const control = filter.querySelector('.searchable-select__search--trigger, .searchable-select__button');
+
+        if (!(select instanceof HTMLSelectElement) || !(control instanceof HTMLElement)) {
+            return;
+        }
+
+        const styles = window.getComputedStyle(control);
+
+        measurer.style.fontFamily = styles.fontFamily;
+        measurer.style.fontSize = styles.fontSize;
+        measurer.style.fontStyle = styles.fontStyle;
+        measurer.style.fontWeight = styles.fontWeight;
+        measurer.style.letterSpacing = styles.letterSpacing;
+
+        const widestOption = Array.from(select.options).reduce((widest, option) => {
+            measurer.textContent = option.textContent?.trim() ?? '';
+
+            return Math.max(widest, measurer.getBoundingClientRect().width);
+        }, 0);
+
+        // Allow for the trigger's two-sided padding, chevron, and a small
+        // visual buffer beyond the widest course name.
+        filter.style.setProperty('--curricula-course-filter-width', `${Math.ceil(widestOption + 68)}px`);
+    });
+
+    measurer.remove();
+}
+
 function synchronizeCurriculaIndexNameWidths() {
     curriculaIndexNameWidthFrame = null;
+
+    synchronizeCurriculaCourseFilterWidths();
 
     document.querySelectorAll('[data-curricula-index-name-table]').forEach((table) => {
         const names = Array.from(table.querySelectorAll('[data-curricula-index-name]'));
@@ -3459,13 +3713,19 @@ window.addEventListener('resize', scheduleCurriculaIndexNameWidthSync, { passive
 document.fonts?.ready.then(scheduleCurriculaIndexNameWidthSync);
 document.addEventListener('livewire:initialized', () => {
     window.Livewire?.hook('morph.updated', ({ el }) => {
-        if (el.matches?.('[data-curricula-index-name-table]') || el.querySelector?.('[data-curricula-index-name-table]')) {
+        if (
+            el.matches?.('[data-curricula-index-name-table], [data-curricula-index-course-filter]')
+            || el.querySelector?.('[data-curricula-index-name-table], [data-curricula-index-course-filter]')
+        ) {
             scheduleCurriculaIndexNameWidthSync();
         }
     });
 
     window.Livewire?.hook('morph.added', ({ el }) => {
-        if (el.matches?.('[data-curricula-index-name-table]') || el.querySelector?.('[data-curricula-index-name-table]')) {
+        if (
+            el.matches?.('[data-curricula-index-name-table], [data-curricula-index-course-filter]')
+            || el.querySelector?.('[data-curricula-index-name-table], [data-curricula-index-course-filter]')
+        ) {
             scheduleCurriculaIndexNameWidthSync();
         }
     });

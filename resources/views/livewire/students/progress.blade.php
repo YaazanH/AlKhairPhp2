@@ -565,7 +565,7 @@ new class extends Component
         @if ($studentOptions->isEmpty())
             <div class="admin-empty-state">{{ __('workflow.student_progress.selection.no_students') }}</div>
         @else
-            <div class="admin-filter-field">
+            <div class="admin-filter-field" data-student-progress-student-selector>
                 <label for="student-progress-student" class="sr-only">{{ __('workflow.student_progress.selection.search') }}</label>
                 <select id="student-progress-student" wire:model.live="selectedStudentId" data-search-input="true" data-open-on-focus="true" data-hide-placeholder-option="true" data-search-placeholder="{{ __('workflow.student_progress.selection.search_placeholder') }}" class="w-full rounded-xl px-4 py-3 text-sm">
                     <option value="">{{ __('workflow.student_progress.selection.search_placeholder') }}</option>

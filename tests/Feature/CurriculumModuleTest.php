@@ -92,10 +92,14 @@ class CurriculumModuleTest extends TestCase
     public function test_downloadable_books_use_the_standard_icon_button(): void
     {
         $source = File::get(resource_path('views/livewire/curricula/index.blade.php'));
+        $button = File::get(resource_path('views/components/download-action-button.blade.php'));
         $icon = File::get(resource_path('views/components/admin-action-icon.blade.php'));
 
-        $this->assertStringContainsString('class="admin-icon-button" title="{{ __(\'curricula.actions.download\') }}" aria-label="{{ __(\'curricula.actions.download\') }}" data-curriculum-resource-download', $source);
-        $this->assertStringContainsString('<x-admin-action-icon name="download" />', $source);
+        $this->assertStringContainsString('<x-download-action-button :href="route(\'curriculum-resources.download\', $resource)" class="admin-icon-button--accent"', $source);
+        $this->assertStringContainsString('data-curriculum-resource-download', $source);
+        $this->assertStringContainsString("\$attributes->class('admin-icon-button')", $button);
+        $this->assertStringContainsString('data-download-action', $button);
+        $this->assertStringContainsString('<x-admin-action-icon name="download" />', $button);
         $this->assertStringNotContainsString('>⬇</a>', $source);
         $this->assertStringContainsString("@case('download')", $icon);
     }
@@ -107,6 +111,17 @@ class CurriculumModuleTest extends TestCase
 
         $this->assertStringContainsString('data-curricula-progress-card', $source);
         $this->assertStringContainsString('data-curricula-progress-grid', $source);
+        $this->assertStringNotContainsString("<h2 class=\"font-display text-2xl text-white\">{{ __('curricula.progress.title') }}</h2>", $source);
+        $this->assertStringContainsString('wire:model.live="courseId" required aria-required="true" data-clearable="false" data-search-selection-required="true" data-hide-placeholder-option="true"', $source);
+        $this->assertStringContainsString('synchronizeCurriculaCourseFilterWidths', File::get(resource_path('js/app.js')));
+        $this->assertStringContainsString(
+            '[data-curricula-index-hero]:has(.curricula-index-course-filter .searchable-select--open)',
+            $styles,
+        );
+        $this->assertMatchesRegularExpression(
+            '/\[data-curricula-index-hero\]:has\(\.curricula-index-course-filter \.searchable-select--open\)\s*\{[^}]*z-index:\s*80;[^}]*overflow:\s*visible;/s',
+            $styles,
+        );
         $this->assertMatchesRegularExpression(
             '/@media \(min-width: 1024px\)\s*\{\s*\[data-curricula-progress-grid\]\s*\{\s*grid-template-columns: repeat\(5, minmax\(0, 1fr\)\);/s',
             $styles,
@@ -116,6 +131,24 @@ class CurriculumModuleTest extends TestCase
             $styles,
         );
         $this->assertStringNotContainsString('lg:grid-cols-4 xl:grid-cols-6', $source);
+    }
+
+    public function test_manager_curricula_course_filter_cannot_be_cleared(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $manager = User::factory()->create();
+        $manager->assignRole('manager');
+        $this->actingAs($manager);
+
+        $defaultCourse = Course::create(['name' => 'Default course', 'is_default' => true, 'is_active' => true]);
+        Course::create(['name' => 'Another active course', 'is_default' => false, 'is_active' => true]);
+
+        Volt::test('curricula.index')
+            ->assertSet('courseId', (string) $defaultCourse->id)
+            ->set('courseId', '')
+            ->assertSet('courseId', (string) $defaultCourse->id)
+            ->assertSee('required aria-required="true" data-clearable="false" data-search-selection-required="true" data-hide-placeholder-option="true"', false);
     }
 
     public function test_subject_resource_tables_share_column_widths_and_show_book_upload_status(): void
@@ -628,7 +661,7 @@ class CurriculumModuleTest extends TestCase
         $this->assertSame('3', app(CurriculumProgressService::class)->subjects($group->fresh())->first()['lessons']->firstWhere('id', $third->id)['chapter_number']);
     }
 
-    public function test_lesson_topics_roll_up_completion_and_remove_the_parent_checkbox(): void
+    public function test_lesson_topics_are_collapsible_and_support_parent_or_individual_completion(): void
     {
         $this->seed(RoleSeeder::class);
         $user = User::factory()->create();
@@ -644,7 +677,33 @@ class CurriculumModuleTest extends TestCase
         $group = Group::create(['course_id' => $course->id, 'academic_year_id' => $year->id, 'teacher_id' => $teacher->id, 'grade_level_id' => $grade->id, 'curriculum_id' => $curriculum->id, 'name' => 'Topic Group', 'capacity' => 20, 'is_active' => true]);
 
         $this->actingAs($user);
-        Volt::test('curricula.index')->set('selectedGroupId', (string) $group->id)->assertSee('First topic')->call('toggleTopic', $firstTopic->id)->assertHasNoErrors();
+        $component = Volt::test('curricula.index')
+            ->set('selectedGroupId', (string) $group->id)
+            ->assertSee('Parent lesson')
+            ->assertSee('data-teacher-lesson-topics-checkbox', false)
+            ->assertSee('data-teacher-topic-toggle', false)
+            ->assertSee('aria-expanded="false"', false)
+            ->assertDontSee('data-teacher-topic-list', false)
+            ->assertDontSee('First topic')
+            ->call('toggleTopicLesson', $lesson->id)
+            ->assertSet("expandedTopicLessons.{$lesson->id}", true)
+            ->assertSee('aria-expanded="true"', false)
+            ->assertSee('data-teacher-topic-list', false)
+            ->assertSee('First topic')
+            ->assertSee('Second topic');
+
+        $component->call('toggleLessonTopics', $lesson->id)->assertHasNoErrors();
+        $this->assertDatabaseHas('group_curriculum_topic_progresses', ['group_id' => $group->id, 'curriculum_lesson_topic_id' => $firstTopic->id]);
+        $this->assertDatabaseHas('group_curriculum_topic_progresses', ['group_id' => $group->id, 'curriculum_lesson_topic_id' => $secondTopic->id]);
+        $this->assertDatabaseHas('group_curriculum_lesson_progresses', ['group_id' => $group->id, 'curriculum_lesson_id' => $lesson->id, 'status' => 'taught']);
+        $this->assertSame(100.0, app(CurriculumProgressService::class)->summary($group->fresh())['percentage']);
+
+        $component->call('toggleLessonTopics', $lesson->id)->assertHasNoErrors();
+        $this->assertDatabaseMissing('group_curriculum_topic_progresses', ['group_id' => $group->id, 'curriculum_lesson_topic_id' => $firstTopic->id]);
+        $this->assertDatabaseMissing('group_curriculum_topic_progresses', ['group_id' => $group->id, 'curriculum_lesson_topic_id' => $secondTopic->id]);
+        $this->assertDatabaseMissing('group_curriculum_lesson_progresses', ['group_id' => $group->id, 'curriculum_lesson_id' => $lesson->id]);
+
+        Volt::test('curricula.index')->set('selectedGroupId', (string) $group->id)->call('toggleTopic', $firstTopic->id)->assertHasNoErrors();
         $this->assertSame(0.0, app(CurriculumProgressService::class)->summary($group->fresh())['percentage']);
 
         Volt::test('curricula.index')->set('selectedGroupId', (string) $group->id)->call('toggleTopic', $secondTopic->id)->assertHasNoErrors();

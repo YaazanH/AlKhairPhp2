@@ -21,8 +21,8 @@ class ClearStudentDataCommand extends Command
         {--all : Target all students}
         {--student-number-from= : Start of the student number range}
         {--student-number-to= : End of the student number range}
-        {--course-id= : Target students with an active enrollment in this course}
-        {--group-id= : Target students with an active enrollment in this group}
+        {--course-id= : Target students with an active enrolment in this course}
+        {--group-id= : Target students with an active enrolment in this group}
         {--clear-parents : Remove parent links from the selected students}
         {--delete-parents : Soft delete parent profiles that become detached, and delete their linked user accounts}
         {--clear-points : Delete point transactions for the selected students}
@@ -307,7 +307,7 @@ class ClearStudentDataCommand extends Command
             ['Parent accounts to delete', $this->option('delete-parents') ? $parentAccountsToDelete : 'Skipped'],
             ['Parents kept with other students', $this->option('delete-parents') ? $parentsKept : 'Skipped'],
             ['Point transactions to delete', $this->option('clear-points') ? $pointTransactionsToDelete : 'Skipped'],
-            ['Enrollments to refresh', $this->option('clear-points') ? $enrollmentsToResync : 'Skipped'],
+            ['Enrolments to refresh', $this->option('clear-points') ? $enrollmentsToResync : 'Skipped'],
             ['Mode', $dryRun ? 'Dry run' : 'Apply changes'],
         ];
 

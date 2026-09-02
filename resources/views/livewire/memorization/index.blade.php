@@ -20,6 +20,7 @@ new class extends Component {
     use WithPagination;
 
     public ?int $editingSessionId = null;
+    public string $editingStudentName = '';
     public ?int $selectedStudentId = null;
     public ?int $selectedEnrollmentId = null;
     public ?int $teacher_id = null;
@@ -33,6 +34,7 @@ new class extends Component {
     public string $sortDirection = 'desc';
     public int $perPage = 15;
     public bool $showFormModal = false;
+    public bool $editingCourseFinished = false;
     public bool $showDuplicateModal = false;
     public array $duplicatePages = [];
     public array $uniquePages = [];
@@ -184,10 +186,12 @@ new class extends Component {
         $this->authorizePermission('memorization.record');
 
         $session = $this->scopeMemorizationSessionsQuery(
-            MemorizationSession::query()->with('enrollment.group')
+            MemorizationSession::query()->with(['enrollment.group.course', 'student'])
         )->findOrFail($sessionId);
 
         $this->editingSessionId = $session->id;
+        $this->editingCourseFinished = $session->enrollment?->belongsToFinishedCourse() ?? false;
+        $this->editingStudentName = $session->student?->full_name ?: __('crud.common.not_available');
         $this->selectedStudentId = $session->student_id;
         $this->selectedEnrollmentId = $session->enrollment_id;
         $this->teacher_id = $session->teacher_id;
@@ -221,32 +225,46 @@ new class extends Component {
             'selectedEnrollmentId' => __('workflow.memorization.workbench.form.group'),
         ]);
 
-        $student = $this->scopeStudentsQuery(Student::query()->where('status', 'active'))->findOrFail($validated['selectedStudentId']);
+        $editingSession = $this->editingSessionId
+            ? $this->scopeMemorizationSessionsQuery(
+                MemorizationSession::query()->with(['student', 'enrollment.student', 'enrollment.group.teacher'])
+            )->findOrFail($this->editingSessionId)
+            : null;
+        $student = $editingSession?->student
+            ?: $this->scopeStudentsQuery(Student::query()->where('status', 'active'))->findOrFail($validated['selectedStudentId']);
         $this->authorizeScopedStudentAccess($student);
 
-        $availableEnrollmentIds = $this->availableEnrollmentsQuery()
-            ->orderByDesc('enrolled_at')
-            ->orderByDesc('id')
-            ->pluck('id')
-            ->map(fn ($id) => (int) $id)
-            ->all();
+        if ($editingSession) {
+            abort_unless((int) $validated['selectedStudentId'] === (int) $editingSession->student_id, 403);
+            $enrollment = $editingSession->enrollment;
+            abort_unless($enrollment, 404);
+            $validated['selectedEnrollmentId'] = $enrollment->id;
+            $this->selectedEnrollmentId = $enrollment->id;
+        } else {
+            $availableEnrollmentIds = $this->availableEnrollmentsQuery()
+                ->orderByDesc('enrolled_at')
+                ->orderByDesc('id')
+                ->pluck('id')
+                ->map(fn ($id) => (int) $id)
+                ->all();
 
-        if ($availableEnrollmentIds === []) {
-            $this->addError('selectedStudentId', __('workflow.memorization.errors.no_active_enrollment'));
+            if ($availableEnrollmentIds === []) {
+                $this->addError('selectedStudentId', __('workflow.memorization.errors.no_active_enrollment'));
 
-            return;
+                return;
+            }
+
+            if (! $validated['selectedEnrollmentId']) {
+                $validated['selectedEnrollmentId'] = $availableEnrollmentIds[0];
+                $this->selectedEnrollmentId = $validated['selectedEnrollmentId'];
+            }
+
+            abort_unless(in_array((int) $validated['selectedEnrollmentId'], $availableEnrollmentIds, true), 403);
+
+            $enrollment = $this->scopeEnrollmentsQuery(
+                Enrollment::query()->with(['student', 'group.teacher'])
+            )->findOrFail((int) $validated['selectedEnrollmentId']);
         }
-
-        if (! $validated['selectedEnrollmentId']) {
-            $validated['selectedEnrollmentId'] = $availableEnrollmentIds[0];
-            $this->selectedEnrollmentId = $validated['selectedEnrollmentId'];
-        }
-
-        abort_unless(in_array((int) $validated['selectedEnrollmentId'], $availableEnrollmentIds, true), 403);
-
-        $enrollment = $this->scopeEnrollmentsQuery(
-            Enrollment::query()->with(['student', 'group.teacher'])
-        )->findOrFail((int) $validated['selectedEnrollmentId']);
 
         $teacherId = $this->resolveTeacherId($validated);
 
@@ -259,11 +277,7 @@ new class extends Component {
         $teacher = Teacher::query()->findOrFail($teacherId);
         $this->authorizeScopedTeacherAccess($teacher);
 
-        $session = $this->editingSessionId
-            ? $this->scopeMemorizationSessionsQuery(
-                MemorizationSession::query()->where('enrollment_id', $enrollment->id)
-            )->findOrFail($this->editingSessionId)
-            : null;
+        $session = $editingSession;
 
         $payload = [
             'teacher_id' => $teacherId,
@@ -350,7 +364,13 @@ new class extends Component {
 
         $student = $session->student;
 
-        app(MemorizationService::class)->deleteSession($session);
+        try {
+            app(MemorizationService::class)->deleteSession($session);
+        } catch (\LogicException $exception) {
+            $this->addError('deleteSession', $exception->getMessage());
+
+            return;
+        }
 
         if ($this->editingSessionId === $sessionId) {
             $this->closeFormModal();
@@ -362,6 +382,8 @@ new class extends Component {
     public function resetForm(): void
     {
         $this->editingSessionId = null;
+        $this->editingCourseFinished = false;
+        $this->editingStudentName = '';
         $this->selectedStudentId = null;
         $this->selectedEnrollmentId = null;
         $this->teacher_id = $this->currentTeacher()?->id;
@@ -611,12 +633,16 @@ new class extends Component {
             <div class="grid gap-4 md:grid-cols-2">
                 <div>
                     <label for="memorization-student" class="mb-1 block text-sm font-medium">{{ __('workflow.memorization.workbench.form.student') }}</label>
-                    <select id="memorization-student" wire:model.live="selectedStudentId" data-search-input="true" data-open-on-focus="true" data-hide-placeholder-option="true" data-search-placeholder="{{ __('workflow.common.student_name_placeholder') }}" class="w-full rounded-xl px-4 py-3 text-sm">
-                        <option value="">{{ __('workflow.memorization.workbench.form.select_student') }}</option>
-                        @foreach ($studentOptions as $student)
-                            <option value="{{ $student->id }}">{{ $student->full_name }}</option>
-                        @endforeach
-                    </select>
+                    @if($editingSessionId)
+                        <input id="memorization-student" type="text" value="{{ $editingStudentName }}" readonly class="w-full rounded-xl px-4 py-3 text-sm" data-memorization-student-readonly>
+                    @else
+                        <select id="memorization-student" wire:model.live="selectedStudentId" data-search-input="true" data-open-on-focus="true" data-hide-placeholder-option="true" data-search-placeholder="{{ __('workflow.common.student_name_placeholder') }}" class="w-full rounded-xl px-4 py-3 text-sm">
+                            <option value="">{{ __('workflow.memorization.workbench.form.select_student') }}</option>
+                            @foreach ($studentOptions as $student)
+                                <option value="{{ $student->id }}">{{ $student->full_name }}</option>
+                            @endforeach
+                        </select>
+                    @endif
                     @error('selectedStudentId')
                         <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                     @enderror
@@ -685,12 +711,14 @@ new class extends Component {
 
             <div class="memorization-modal-actions flex w-full flex-wrap items-center gap-3">
                 @if ($editingSessionId)
+                    @if (! $editingCourseFinished)
                     <x-delete-action-button
                         wire:click="deleteSession({{ $editingSessionId }})"
                         wire:confirm="{{ __('crud.common.confirm_delete.message') }}"
                         :label="__('crud.common.actions.delete')"
                         data-memorization-session-delete-action
                     />
+                    @endif
                     <button
                         type="submit"
                         class="admin-icon-button admin-icon-button--accent admin-modal-action-button"
@@ -703,6 +731,9 @@ new class extends Component {
                 @else
                     <x-admin.create-and-new-button />
                 @endif
+                @error('deleteSession')
+                    <div class="w-full text-sm text-red-300">{{ $message }}</div>
+                @enderror
             </div>
         </form>
     </x-admin.modal>

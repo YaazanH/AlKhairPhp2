@@ -963,6 +963,9 @@ class SystemSettingsTest extends TestCase
 
         $component = Volt::test('settings.sidebar-navigation')
             ->call('addGroup')
+            ->assertDispatched('sidebar-navigation-group-added')
+            ->assertSee('data-sidebar-navigation-group=', false)
+            ->assertSee('data-sidebar-navigation-group-title', false)
             ->assertSee('data-sidebar-group-delete-action', false);
 
         $groupSettings = $component->get('group_settings');

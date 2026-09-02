@@ -1792,7 +1792,7 @@ new class extends Component {
             <section class="rounded-3xl border border-white/10 bg-white/5 p-4" data-organization-settings-primary-box>
                 <div>
                     <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.school_name') }}</label>
-                    <input wire:model="school_name" type="text" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                    <input wire:model="school_name" type="text" class="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
                     @error('school_name') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
                 </div>
                 <div class="mt-4 grid gap-4 md:grid-cols-2">
@@ -1807,12 +1807,12 @@ new class extends Component {
                     </div>
                     <div>
                         <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.school_email') }}</label>
-                        <input wire:model="school_email" type="email" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                        <input wire:model="school_email" type="email" class="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
                         @error('school_email') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
                     </div>
                     <div>
                         <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.email_domain') }}</label>
-                        <input wire:model="email_domain" type="text" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm lowercase dark:border-neutral-700 dark:bg-neutral-900" placeholder="alkhair.org">
+                        <input wire:model="email_domain" type="text" class="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm lowercase dark:border-neutral-700 dark:bg-neutral-900" placeholder="alkhair.org">
                         @error('email_domain') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
                     </div>
                 </div>
@@ -1820,25 +1820,25 @@ new class extends Component {
                 <div class="grid gap-4 md:grid-cols-4">
                     <div>
                         <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.student_number_prefix') }}</label>
-                        <input wire:model="student_number_prefix" type="text" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm uppercase dark:border-neutral-700 dark:bg-neutral-900" placeholder="S">
+                        <input wire:model="student_number_prefix" type="text" class="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm uppercase dark:border-neutral-700 dark:bg-neutral-900" placeholder="S">
                         <p class="mt-1 text-xs text-neutral-500">{{ __('settings.organization.fields.student_number_prefix_help') }}</p>
                         @error('student_number_prefix') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
                     </div>
                     <div>
                         <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.student_number_length') }}</label>
-                        <input wire:model="student_number_length" type="number" min="0" max="12" step="1" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900" placeholder="6">
+                        <input wire:model="student_number_length" type="number" min="0" max="12" step="1" class="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900" placeholder="6">
                         <p class="mt-1 text-xs text-neutral-500">{{ __('settings.organization.fields.student_number_length_help') }}</p>
                         @error('student_number_length') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
                     </div>
                     <div>
                         <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.parent_number_prefix') }}</label>
-                        <input wire:model="parent_number_prefix" type="text" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm uppercase dark:border-neutral-700 dark:bg-neutral-900" placeholder="P">
+                        <input wire:model="parent_number_prefix" type="text" class="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm uppercase dark:border-neutral-700 dark:bg-neutral-900" placeholder="P">
                         <p class="mt-1 text-xs text-neutral-500">{{ __('settings.organization.fields.parent_number_prefix_help') }}</p>
                         @error('parent_number_prefix') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
                     </div>
                     <div>
                         <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.parent_number_length') }}</label>
-                        <input wire:model="parent_number_length" type="number" min="0" max="12" step="1" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900" placeholder="6">
+                        <input wire:model="parent_number_length" type="number" min="0" max="12" step="1" class="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900" placeholder="6">
                         <p class="mt-1 text-xs text-neutral-500">{{ __('settings.organization.fields.parent_number_length_help') }}</p>
                         @error('parent_number_length') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
                     </div>
@@ -1848,17 +1848,17 @@ new class extends Component {
                 <div class="grid items-end gap-4 md:grid-cols-[minmax(0,1.35fr)_minmax(7rem,0.6fr)_minmax(9rem,0.8fr)]">
                     <div>
                         <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.school_timezone') }}</label>
-                        <input wire:model="school_timezone" type="text" class="h-[2.625rem] w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                        <input wire:model="school_timezone" type="text" class="h-[2.625rem] w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
                         @error('school_timezone') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
                     </div>
                     <div>
                         <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.school_currency') }}</label>
-                        <input wire:model="school_currency" type="text" class="h-[2.625rem] w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm uppercase dark:border-neutral-700 dark:bg-neutral-900">
+                        <input wire:model="school_currency" type="text" class="h-[2.625rem] w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm uppercase dark:border-neutral-700 dark:bg-neutral-900">
                         @error('school_currency') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
                     </div>
                     <div>
                         <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.school_address') }}</label>
-                        <input wire:model="school_address" type="text" class="h-[2.625rem] w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                        <input wire:model="school_address" type="text" class="h-[2.625rem] w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
                         @error('school_address') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
                     </div>
                 </div>

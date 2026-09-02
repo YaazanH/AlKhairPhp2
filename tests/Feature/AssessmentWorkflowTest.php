@@ -270,9 +270,12 @@ class AssessmentWorkflowTest extends TestCase
 
         Volt::test('assessments.index')
             ->call('create')
+            ->assertSet('showForm', true)
             ->set('group_scope', 'multiple')
             ->set('groupCourseFilter', (string) $course->id)
             ->call('openGroupPicker')
+            ->assertSet('showForm', false)
+            ->assertSet('showGroupPicker', true)
             ->assertSee('Second Assessment Group')
             ->assertDontSee('Hidden Other Course Group')
             ->call('toggleGroup', $firstEnrollment->group_id)
@@ -281,6 +284,9 @@ class AssessmentWorkflowTest extends TestCase
                 (string) min($firstEnrollment->group_id, $secondGroup->id),
                 (string) max($firstEnrollment->group_id, $secondGroup->id),
             ])
+            ->call('saveGroupPicker')
+            ->assertSet('showGroupPicker', false)
+            ->assertSet('showForm', true)
             ->set('assessment_type_id', $quizType->id)
             ->assertSet('total_mark', '100')
             ->assertSet('pass_mark', '60')
@@ -308,11 +314,52 @@ class AssessmentWorkflowTest extends TestCase
             'group_id' => $secondGroup->id,
         ]);
 
+        $assessmentFormSource = file_get_contents(resource_path('views/livewire/assessments/index.blade.php'));
+        $actionIconSource = file_get_contents(resource_path('views/components/admin-action-icon.blade.php'));
+        $styles = file_get_contents(resource_path('css/app.css'));
+        $this->assertStringContainsString('data-assessment-group-picker-open', $assessmentFormSource);
+        $this->assertStringContainsString('class="admin-icon-button admin-modal-action-button"', $assessmentFormSource);
+        $this->assertStringContainsString('<x-admin-action-icon name="more" class="admin-modal-action__icon" />', $assessmentFormSource);
+        $this->assertStringContainsString('assessment-group-scope-control', $assessmentFormSource);
+        $this->assertSame(4, substr_count($assessmentFormSource, 'assessment-form__course-height-control'));
+        $this->assertStringContainsString(".assessment-form__course-height-control {\n    height: 3.125rem !important;\n    min-height: 3.125rem !important;", $styles);
+        $this->assertStringContainsString(".assessment-group-scope-control {\n    --assessment-group-control-size: 3.125rem;", $styles);
+        $this->assertStringContainsString(".assessment-group-scope-control :is(\n    .searchable-select__button,\n    .searchable-select__search--trigger\n) {\n    height: var(--assessment-group-control-size);", $styles);
+        $this->assertStringContainsString(".assessment-group-scope-control [data-assessment-group-picker-open] {\n    width: var(--assessment-group-control-size) !important;", $styles);
+        $this->assertStringContainsString("height: var(--assessment-group-control-size) !important;\n    min-height: var(--assessment-group-control-size) !important;", $styles);
+        $this->assertStringContainsString('data-assessment-group-picker-option', $assessmentFormSource);
+        $this->assertStringContainsString('data-assessment-group-picker-check', $assessmentFormSource);
+        $this->assertStringContainsString(".assessment-group-picker-option {\n    display: flex;\n    width: 100%;", $styles);
+        $this->assertStringContainsString('justify-content: space-between;', $styles);
+        $this->assertLessThan(
+            strpos($assessmentFormSource, 'data-assessment-group-picker-check'),
+            strpos($assessmentFormSource, 'assessment-group-picker-option__copy'),
+        );
+        $this->assertStringContainsString('required data-clearable="false" data-search-selection-required="true" data-hide-placeholder-option="true"', $assessmentFormSource);
+        $this->assertStringContainsString('wire:model.live="group_scope" required data-clearable="false" data-search-selection-required="true"', $assessmentFormSource);
+        $this->assertStringContainsString('<x-admin.save-button :label="$editingId ?', $assessmentFormSource);
+        $this->assertStringContainsString('data-assessment-delete-action', $assessmentFormSource);
+        $this->assertStringNotContainsString('<button type="submit" class="pill-link pill-link--accent">', $assessmentFormSource);
+        $this->assertStringNotContainsString('class="pill-link border-red-400/25 text-red-200', $assessmentFormSource);
+        $this->assertStringContainsString(':show="$showGroupPicker"', $assessmentFormSource);
+        $this->assertStringContainsString(':dismissible="false"', $assessmentFormSource);
+        $this->assertStringContainsString('wire:click="saveGroupPicker"', $assessmentFormSource);
+        $this->assertStringContainsString('data-assessment-group-picker-save', $assessmentFormSource);
+        $this->assertStringNotContainsString('wire:click="$set(\'showGroupPicker\', false)"', $assessmentFormSource);
+        $this->assertStringContainsString("@case('more')", $actionIconSource);
+
         Volt::test('assessments.index')
             ->call('edit', $assessment->id)
             ->set('returnToResults', true)
             ->assertSet('editingId', $assessment->id)
             ->assertSet('returnToResults', true)
+            ->call('openGroupPicker')
+            ->assertSet('showForm', false)
+            ->assertSet('showGroupPicker', true)
+            ->call('saveGroupPicker')
+            ->assertSet('editingId', $assessment->id)
+            ->assertSet('showGroupPicker', false)
+            ->assertSet('showForm', true)
             ->call('save')
             ->assertHasNoErrors()
             ->assertRedirect(route('assessments.results', $assessment));
@@ -394,6 +441,23 @@ class AssessmentWorkflowTest extends TestCase
             'group_id' => $secondGroup->id,
         ], absolute: false))->assertOk()->assertHeader('content-type', 'application/pdf');
         $this->assertSame(1, $pdfInspector->setSourceFile(StreamReader::createByString($groupPdfResponse->getContent())));
+    }
+
+    public function test_assessment_course_and_group_selection_cannot_be_empty(): void
+    {
+        $this->assessmentContext();
+        $courseId = Course::query()->where('name', 'Assessment Course')->value('id');
+
+        Volt::test('assessments.index')
+            ->call('create')
+            ->set('groupCourseFilter', '')
+            ->set('group_scope', 'single')
+            ->call('save')
+            ->assertHasErrors(['groupCourseFilter' => 'required', 'group_id' => 'required'])
+            ->set('groupCourseFilter', (string) $courseId)
+            ->set('group_scope', 'multiple')
+            ->call('save')
+            ->assertHasErrors(['group_ids' => 'required']);
     }
 
     public function test_assessments_are_sorted_by_date_descending_with_undated_records_last(): void
@@ -522,12 +586,21 @@ class AssessmentWorkflowTest extends TestCase
     {
         [$assessment, $enrollment] = $this->assessmentContext();
         $script = file_get_contents(resource_path('js/app.js'));
+        $styles = file_get_contents(resource_path('css/app.css'));
 
         $this->assertStringContainsString("window.addEventListener('assessment-quick-score-saved', scheduleAssessmentQuickScoreStudentFocus);", $script);
         $this->assertStringContainsString('window.scheduleAssessmentQuickScoreStudentFocus = scheduleAssessmentQuickScoreStudentFocus;', $script);
         $this->assertStringContainsString("document.getElementById('assessment-student-entry')", $script);
         $this->assertStringContainsString("wrapper.querySelector('.searchable-select__search--trigger')", $script);
         $this->assertStringContainsString('focusAssessmentQuickScoreStudentName();', $script);
+
+        $quickResultSource = file_get_contents(resource_path('views/livewire/assessments/results.blade.php'));
+        $this->assertStringContainsString('id="assessment-student-entry"', $quickResultSource);
+        $this->assertStringNotContainsString('class="searchable-select h-11 w-full rounded-xl px-4 text-sm"', $quickResultSource);
+        $this->assertStringContainsString('assessment-quick-score-identity-row', $quickResultSource);
+        $this->assertStringContainsString('assessment-quick-score-group', $quickResultSource);
+        $this->assertStringContainsString(".assessment-quick-score-identity-row :is(\n    .searchable-select__search--trigger,\n    .assessment-quick-score-group\n) {", $styles);
+        $this->assertStringContainsString("height: 2.875rem;\n    min-height: 2.875rem;", $styles);
 
         $component = Volt::test('assessments.results', ['assessment' => $assessment])
             ->assertSet('showQuickResultModal', false)

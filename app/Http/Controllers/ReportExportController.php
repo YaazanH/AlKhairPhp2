@@ -69,7 +69,7 @@ class ReportExportController extends Controller
     {
         return $this->xlsxDownload(
             'student-progress-detail-report',
-            ['Student', 'Current Juz', 'Memorized Pages', 'Latest Partial Saber', 'Passed Final Tests', 'Attended Days', 'Points', 'Group', 'Course', 'Academic Year'],
+            ['Student', 'Current Juz', 'Memorised Pages', 'Latest Partial Saber', 'Passed Final Tests', 'Attended Days', 'Points', 'Group', 'Course', 'Academic Year'],
             app(ReportingService::class)->studentActivitySummaryRows($this->validatedFilters($request)),
         );
     }

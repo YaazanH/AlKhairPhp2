@@ -12,6 +12,7 @@ use App\Models\StudentPageAchievement;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use LogicException;
 
 class MemorizationService
 {
@@ -105,6 +106,12 @@ class MemorizationService
 
     public function deleteSession(MemorizationSession $session): void
     {
+        $session->loadMissing('enrollment.group.course');
+
+        if ($session->enrollment?->belongsToFinishedCourse()) {
+            throw new LogicException(__('workflow.common.finished_course_delete_locked'));
+        }
+
         DB::transaction(function () use ($session): void {
             $session->loadMissing(['pages', 'student']);
             $student = $session->student;
