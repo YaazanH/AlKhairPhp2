@@ -152,9 +152,12 @@ class ManagementPagesTest extends TestCase
         $this->assertStringContainsString('<x-admin-action-icon name="financial-report-open" />', $reports);
         $this->assertStringNotContainsString('<x-admin-action-icon name="open" />', $reports);
         $this->assertStringNotContainsString('<x-admin-action-icon name="view-file" />', $reports);
-        $this->assertStringContainsString("'financial-report-open' => '0 0 950.04 1050.41'", $icons);
+        $this->assertStringContainsString("'financial-report-open' => '0 0 800.03 1000.08'", $icons);
+        $this->assertStringContainsString("in_array(\$name, ['financial-report-open', 'financial-report-create', 'expense-invoice-view', 'transaction-invoice-edit'], true)", $icons);
         $this->assertStringContainsString("@case('financial-report-open')", $icons);
         $this->assertStringContainsString('data-supplied-financial-report-open-icon', $icons);
+        $this->assertStringContainsString(".surface-table .admin-grid-meta .financial-report-symbol-button.financial-report-generate-button {\n    width: 2.5rem;\n    min-width: 2.5rem;\n    height: 2.5rem;", file_get_contents(resource_path('css/app.css')));
+        $this->assertStringContainsString(".surface-table .admin-grid-meta .financial-report-symbol-button.financial-report-generate-button svg {\n    width: 1.15rem;\n    height: 1.15rem;", file_get_contents(resource_path('css/app.css')));
     }
 
     public function test_new_financial_report_uses_the_supplied_optically_centred_document_icon(): void
@@ -588,7 +591,7 @@ class ManagementPagesTest extends TestCase
         $this->assertStringContainsString('<x-admin-action-icon name="expense-invoice-view" />', $expenses);
         $this->assertStringNotContainsString("pill-link pill-link--compact\">{{ __('finance.actions.view_invoice') }}", $expenses);
         $this->assertStringContainsString("'expense-invoice-view' => '0 0 513.97 658.21'", $icon);
-        $this->assertStringContainsString("in_array(\$name, ['financial-report-create', 'expense-invoice-view', 'transaction-invoice-edit'], true)", $icon);
+        $this->assertStringContainsString("in_array(\$name, ['financial-report-open', 'financial-report-create', 'expense-invoice-view', 'transaction-invoice-edit'], true)", $icon);
         $this->assertStringContainsString("@case('expense-invoice-view')", $icon);
         $this->assertStringContainsString('data-supplied-expense-invoice-view-icon', $icon);
         $this->assertStringContainsString('M133.15,658.06', $icon);

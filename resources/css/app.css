@@ -3318,12 +3318,17 @@ html:not(.dark) .admin-toolbar__title {
     white-space: nowrap;
 }
 
-.surface-table .financial-report-symbol-button.financial-report-generate-button {
-    width: 2.75rem;
-    min-width: 2.75rem;
-    height: 2.75rem;
-    min-height: 2.75rem;
-    flex-basis: 2.75rem;
+.surface-table .admin-grid-meta .financial-report-symbol-button.financial-report-generate-button {
+    width: 2.5rem;
+    min-width: 2.5rem;
+    height: 2.5rem;
+    min-height: 2.5rem;
+    flex-basis: 2.5rem;
+}
+
+.surface-table .admin-grid-meta .financial-report-symbol-button.financial-report-generate-button svg {
+    width: 1.15rem;
+    height: 1.15rem;
 }
 
 :is(.surface-table, .surface-panel:has(table)) :is(.admin-grid-meta, .admin-toolbar, .soft-keyline) :is(.admin-toolbar__controls, .admin-toolbar__actions, [data-mobile-table-filter-controls]) {

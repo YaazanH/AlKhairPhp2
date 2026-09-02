@@ -6,7 +6,8 @@
         'save' => '300 280 720 720',
         'save-new' => '250 230 760 760',
         'unlink' => '0 0 256 256',
-        'financial-report-open' => '0 0 950.04 1050.41',
+        // Centre on the document page; the magnifying glass intentionally overflows.
+        'financial-report-open' => '0 0 800.03 1000.08',
         'financial-report-create' => '0 0 458 531.2',
         'expense-invoice-view' => '0 0 513.97 658.21',
         // Centre on the receipt bounds; the pencil intentionally overflows to the right.
@@ -23,7 +24,7 @@
     stroke-width="1.8"
     aria-hidden="true"
     data-icon-name="{{ $name }}"
-    @if (in_array($name, ['financial-report-create', 'expense-invoice-view', 'transaction-invoice-edit'], true)) overflow="visible" @endif
+    @if (in_array($name, ['financial-report-open', 'financial-report-create', 'expense-invoice-view', 'transaction-invoice-edit'], true)) overflow="visible" @endif
 >
     @switch($name)
         @case('account')
