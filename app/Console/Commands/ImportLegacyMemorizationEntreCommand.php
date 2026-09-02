@@ -15,8 +15,8 @@ use App\Services\LegacyMemorizationImportService;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Throwable;
 
 class ImportLegacyMemorizationEntreCommand extends Command
@@ -449,6 +449,7 @@ class ImportLegacyMemorizationEntreCommand extends Command
                         'pages' => [$row['page_no']],
                         'source_record_nos' => [$row['record_no']],
                     ];
+
                     continue;
                 }
 
@@ -456,6 +457,7 @@ class ImportLegacyMemorizationEntreCommand extends Command
                     $current['to_page'] = $row['page_no'];
                     $current['pages'][] = $row['page_no'];
                     $current['source_record_nos'][] = $row['record_no'];
+
                     continue;
                 }
 

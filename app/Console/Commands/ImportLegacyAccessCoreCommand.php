@@ -279,7 +279,7 @@ class ImportLegacyAccessCoreCommand extends Command
             $isNewParent = ! $parent;
 
             if (! $parent) {
-                $parent = new ParentProfile();
+                $parent = new ParentProfile;
                 $this->summary['parents']++;
             }
 
@@ -327,7 +327,7 @@ class ImportLegacyAccessCoreCommand extends Command
             $isNewStudent = ! $student;
 
             if (! $student) {
-                $student = new Student();
+                $student = new Student;
                 $this->summary['students']++;
             }
 
@@ -441,6 +441,7 @@ class ImportLegacyAccessCoreCommand extends Command
 
             if (! $student) {
                 $this->warnings['missing_student_for_enrollment'][] = $fullName;
+
                 continue;
             }
 
@@ -448,6 +449,7 @@ class ImportLegacyAccessCoreCommand extends Command
 
             if (! $group) {
                 $this->warnings['missing_group_for_enrollment'][] = "{$fullName} -> {$courseName} / {$groupName}";
+
                 continue;
             }
 
@@ -755,6 +757,7 @@ class ImportLegacyAccessCoreCommand extends Command
 
         if (! is_array($headers)) {
             fclose($handle);
+
             return [];
         }
 

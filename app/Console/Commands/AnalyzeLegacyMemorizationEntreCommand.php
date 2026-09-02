@@ -3,7 +3,6 @@
 namespace App\Console\Commands;
 
 use App\Models\Enrollment;
-use App\Models\MemorizationSession;
 use App\Models\Student;
 use App\Models\StudentPageAchievement;
 use App\Models\Teacher;
@@ -400,6 +399,7 @@ class AnalyzeLegacyMemorizationEntreCommand extends Command
             foreach ($groupRows as $row) {
                 if ($current === null) {
                     $current = $this->startProposedSession($row);
+
                     continue;
                 }
 
@@ -407,6 +407,7 @@ class AnalyzeLegacyMemorizationEntreCommand extends Command
                     $current['to_page'] = $row['page_no'];
                     $current['pages_count']++;
                     $current['source_record_nos'][] = $row['record_no'];
+
                     continue;
                 }
 

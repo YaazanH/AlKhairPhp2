@@ -88,8 +88,8 @@ class MasterDataSeeder extends Seeder
             ->whereIn('scope', ['student', 'both'])
             ->orderBy('id')
             ->value('id') ?? DB::table('attendance_statuses')
-                ->where('code', 'present')
-                ->value('id');
+            ->where('code', 'present')
+            ->value('id');
 
         if ($defaultAttendanceStatusId) {
             DB::table('attendance_statuses')->update(['is_default' => false]);
