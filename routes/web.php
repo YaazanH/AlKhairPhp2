@@ -111,6 +111,8 @@ Route::middleware(['auth'])->group(function () {
     Volt::route('settings/website', 'settings.website')->middleware('permission:website.manage')->name('settings.website');
     Volt::route('settings/website/pages', 'settings.website-pages')->middleware('permission:website.manage')->name('settings.website.pages');
     Volt::route('settings/website/navigation', 'settings.website-navigation')->middleware('permission:website.manage')->name('settings.website.navigation');
+    Volt::route('data-quality', 'data-quality.index')->middleware('permission:data-quality.view')->name('data-quality.index');
+    Volt::route('data-audit', 'data-audit.index')->middleware('permission:data-audit.view')->name('data-audit.index');
     Volt::route('parents', 'parents.index')->middleware('permission:parents.view')->name('parents.index');
     Route::get('parents/export', [AdminExportController::class, 'parents'])->middleware('permission:parents.view')->name('parents.export');
     Volt::route('teacher-attendance', 'teachers.attendance')->middleware('permission:attendance.teacher.view')->name('teacher-attendance.index');

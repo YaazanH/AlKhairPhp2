@@ -82,6 +82,8 @@ return [
         'configuration' => 'Configuration',
         'dashboard_settings' => 'Settings',
         'public_website_settings' => 'Website Settings',
+        'data_quality' => 'Data Quality',
+        'data_audit' => 'Data Audit',
         'organization' => 'Organisation',
         'tracking_rules' => 'Tracking Rules',
         'points' => 'Points',

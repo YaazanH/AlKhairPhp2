@@ -6,7 +6,6 @@
     $sidebarBorderClass = $isRtl ? 'border-l' : 'border-r';
     $sidebarToggleInset = $isRtl ? 'right' : 'left';
     $mobileIdentitySpacingClass = $isRtl ? 'mr-3' : 'ml-3';
-    $sidebarGroups = app(\App\Services\SidebarNavigationService::class)->sidebarFor(auth()->user());
     $monthLabel = \App\Support\ArabicMonthFormatter::monthYearWithHijri(now());
 @endphp
 
@@ -41,23 +40,7 @@
                         </a>
                     </div>
 
-                    <flux:navlist variant="outline" class="mt-5">
-                        @foreach ($sidebarGroups as $group)
-                            <flux:navlist.group :heading="$group['title']" class="grid">
-                                @foreach ($group['items'] as $item)
-                                    <flux:navlist.item
-                                        :icon="$item['icon']"
-                                        :href="$item['href']"
-                                        :current="$item['current']"
-                                        class="{{ in_array($item['key'], ['print_templates', 'id_card_print', 'public_website_settings'], true) ? 'max-lg:hidden' : '' }}"
-                                        wire:navigate
-                                    >
-                                        {{ $item['label'] }}
-                                    </flux:navlist.item>
-                                @endforeach
-                            </flux:navlist.group>
-                        @endforeach
-                    </flux:navlist>
+                    <livewire:sidebar-navigation-menu />
                 </div>
 
                 <div

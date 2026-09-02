@@ -72,6 +72,8 @@ class SidebarNavigationService
             'dashboard_settings' => $this->item('ui.nav.dashboard_settings', 'cog-6-tooth', 'settings.organization', ['settings.organization', 'settings.tracking', 'settings.course-completion', 'settings.points', 'settings.access-control', 'settings.sidebar-navigation'], 'configuration', 10, ['settings.manage']),
             'finance_settings' => $this->item('ui.nav.finance_settings', 'finance-settings', 'settings.finance', ['settings.finance'], 'configuration', 15, ['finance.settings.manage']),
             'public_website_settings' => $this->item('ui.nav.public_website_settings', 'globe-alt', 'settings.website', ['settings.website', 'settings.website.pages', 'settings.website.navigation'], 'configuration', 20, ['website.manage']),
+            'data_quality' => $this->item('ui.nav.data_quality', 'data-quality', 'data-quality.index', ['data-quality.*'], 'configuration', 30, ['data-quality.view']),
+            'data_audit' => $this->item('ui.nav.data_audit', 'data-audit', 'data-audit.index', ['data-audit.*'], 'configuration', 40, ['data-audit.view']),
 
             'print_templates' => $this->item('ui.nav.print_templates', 'printing-template', 'print-templates.templates.index', ['print-templates.*'], 'identity_tools', 10, ['id-cards.view']),
             'id_card_print' => $this->item('ui.nav.id_card_print', 'student-id-card', 'id-cards.print.create', ['id-cards.print.*'], 'identity_tools', 20, ['id-cards.print']),

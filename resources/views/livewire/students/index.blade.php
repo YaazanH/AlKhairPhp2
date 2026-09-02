@@ -5,6 +5,7 @@ use App\Livewire\Concerns\AuthorizesTeacherAssignments;
 use App\Livewire\Concerns\SupportsCreateAndNew;
 use App\Models\AcademicYear;
 use App\Models\Course;
+use App\Models\DataQualityResolution;
 use App\Models\Enrollment;
 use App\Models\GradeLevel;
 use App\Models\FatherJob;
@@ -15,6 +16,7 @@ use App\Models\School;
 use App\Models\Student;
 use App\Models\StudentGender;
 use App\Models\User;
+use App\Services\DataQualityService;
 use App\Services\ManagedUserService;
 use App\Services\MemorizationService;
 use App\Services\QuranFinalTestService;
@@ -26,6 +28,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
+use Livewire\Attributes\Url;
 use Livewire\Volt\Component;
 use Livewire\WithFileUploads;
 use Livewire\WithPagination;
@@ -38,6 +41,10 @@ new class extends Component {
     use WithPagination;
 
     public ?int $editingId = null;
+    #[Url(as: 'edit')]
+    public ?int $editStudent = null;
+    #[Url(as: 'quality_issue')]
+    public string $qualityIssueKey = '';
     public bool $editingStudentHasEnrollments = false;
     public bool $editingStudentHasRelatedRecords = false;
     public bool $editingStudentNeedsActiveCourseEnrollment = false;
@@ -112,6 +119,12 @@ new class extends Component {
     public function mount(): void
     {
         $this->authorizePermission('students.view');
+        $this->editStudent = $this->editStudent ?: (request()->filled('edit') ? (int) request('edit') : null);
+        $this->qualityIssueKey = $this->qualityIssueKey ?: (string) request('quality_issue', '');
+
+        if ($this->editStudent) {
+            $this->edit($this->editStudent);
+        }
     }
 
     public function with(): array
@@ -509,6 +522,7 @@ new class extends Component {
     public function save(): void
     {
         $isEditing = $this->editingId !== null;
+        $qualityIssue = null;
 
         if (! $this->grade_level_id) {
             $this->syncGradeLevelFromBirthYear();
@@ -522,6 +536,7 @@ new class extends Component {
 
         if ($isEditing) {
             $this->authorizeScopedStudentAccess(Student::query()->findOrFail($this->editingId));
+            $qualityIssue = $this->duplicateQualityIssueFor('student', $this->editingId);
         }
 
         $duplicate = ! $isEditing ? $this->findDuplicateStudent([
@@ -548,7 +563,7 @@ new class extends Component {
             $this->authorizeScopedParentAccess(ParentProfile::query()->findOrFail($validated['parent_id']));
         }
 
-        if ($isEditing) {
+        if ($isEditing && ! $qualityIssue) {
             $editingDuplicate = $this->findDuplicateStudent($validated);
 
             if ($editingDuplicate) {
@@ -687,6 +702,13 @@ new class extends Component {
             'status',
             $isUpdatingExisting ? __('crud.students.messages.updated') : __('crud.students.messages.created'),
         );
+
+        if ($qualityIssue) {
+            $this->resolveDuplicateQualityIssue($qualityIssue);
+            $this->redirectRoute('data-quality.index', navigate: true);
+
+            return;
+        }
 
         $this->cancel();
     }
@@ -989,6 +1011,8 @@ new class extends Component {
     public function cancel(): void
     {
         $this->editingId = null;
+        $this->editStudent = null;
+        $this->qualityIssueKey = '';
         $this->editingStudentHasEnrollments = false;
         $this->editingStudentHasRelatedRecords = false;
         $this->editingStudentNeedsActiveCourseEnrollment = false;
@@ -1029,6 +1053,37 @@ new class extends Component {
         $this->syncing_enrollment_group_id = false;
 
         $this->resetValidation();
+    }
+
+    protected function duplicateQualityIssueFor(string $entityType, ?int $recordId): ?array
+    {
+        if (! $recordId || blank($this->qualityIssueKey) || ! $this->canPermission('data-quality.resolve')) {
+            return null;
+        }
+
+        $issue = app(DataQualityService::class)->issues()->firstWhere('key', $this->qualityIssueKey);
+
+        return $issue
+            && $issue['status'] === 'open'
+            && str_starts_with($issue['type'], 'duplicate_')
+            && $issue['entity_type'] === $entityType
+            && in_array($recordId, $issue['entity_ids'], true)
+                ? $issue
+                : null;
+    }
+
+    protected function resolveDuplicateQualityIssue(array $issue): void
+    {
+        DataQualityResolution::query()->updateOrCreate(
+            ['issue_key' => $issue['key']],
+            [
+                'issue_type' => $issue['type'],
+                'status' => 'resolved',
+                'resolved_by' => auth()->id(),
+                'notes' => null,
+                'resolved_at' => now(),
+            ],
+        );
     }
 
     protected function syncDefaultEnrollmentGroup(): void

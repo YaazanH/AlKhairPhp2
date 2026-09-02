@@ -1538,6 +1538,8 @@ class ManagementPagesTest extends TestCase
             'dashboard_settings' => 'cog-6-tooth',
             'finance_settings' => 'finance-settings',
             'public_website_settings' => 'globe-alt',
+            'data_quality' => 'data-quality',
+            'data_audit' => 'data-audit',
             'print_templates' => 'printing-template',
             'id_card_print' => 'student-id-card',
         ];
@@ -1551,6 +1553,8 @@ class ManagementPagesTest extends TestCase
             'certificate-landscape',
             'clipboard-person',
             'clipboard-student',
+            'data-quality',
+            'data-audit',
             'enrollment-add',
             'expense-receipt',
             'finance-dashboard',
@@ -1601,13 +1605,23 @@ class ManagementPagesTest extends TestCase
 
         $expenseIcon = file_get_contents(resource_path('views/flux/icon/expense-receipt.blade.php'));
         $this->assertStringContainsString('<x-sidebar-outline-icon', $expenseIcon);
-        $this->assertStringContainsString('data-expense-icon="supplied-expenses-receipt"', $expenseIcon);
-        $this->assertStringContainsString('transform="translate(0.487 0.362) scale(0.036632)"', $expenseIcon);
-        $this->assertStringContainsString('M523.8,71.2c17.9,3.6', $expenseIcon);
-        $this->assertStringContainsString('M315,299.7c-.2,0-.4,0-.6,0', $expenseIcon);
-        $this->assertStringContainsString('M194,442.1c-4.4,0-8.8-.2-11.5-.4', $expenseIcon);
+        $this->assertStringContainsString('data-expense-icon="receipt-outflow"', $expenseIcon);
+        $this->assertStringContainsString('M6.75 3.75h10.5', $expenseIcon);
+        $this->assertStringContainsString('M12 12.75v4', $expenseIcon);
         $this->assertStringNotContainsString("asset('images/sidebar/expenses.svg')", $expenseIcon);
         $this->assertFileDoesNotExist(public_path('images/sidebar/expenses.svg'));
+
+        $dataQualityIcon = file_get_contents(resource_path('views/flux/icon/data-quality.blade.php'));
+        $this->assertStringContainsString('<x-sidebar-outline-icon', $dataQualityIcon);
+        $this->assertStringContainsString('data-data-quality-icon="supplied-database-award-check"', $dataQualityIcon);
+        $this->assertStringContainsString('transform="translate(2.87 2) scale(.02599)"', $dataQualityIcon);
+        $this->assertStringContainsString('M577.77,397.57', $dataQualityIcon);
+
+        $dataAuditIcon = file_get_contents(resource_path('views/flux/icon/data-audit.blade.php'));
+        $this->assertStringContainsString('<x-sidebar-outline-icon', $dataAuditIcon);
+        $this->assertStringContainsString('data-data-audit-icon="report-search"', $dataAuditIcon);
+        $this->assertStringContainsString('m18.5 19.25 2.25 2.25', $dataAuditIcon);
+        $this->assertStringNotContainsString('M13.75 16.5l1.25 1.25 2.55-2.7', $dataAuditIcon);
     }
 
     public function test_secondary_student_tools_are_buttons_in_their_parent_pages(): void

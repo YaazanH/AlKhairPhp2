@@ -27,6 +27,29 @@ new class extends Component {
 
     public function save(): void
     {
+        $this->persistSettings(true);
+    }
+
+    public function updated(string $property): void
+    {
+        if (str_starts_with($property, 'group_settings.') || str_starts_with($property, 'item_settings.')) {
+            $this->autosave();
+        }
+    }
+
+    protected function autosave(): void
+    {
+        foreach ($this->group_settings as $group) {
+            if (($group['is_custom'] ?? false) && trim((string) ($group['title'] ?? '')) === '') {
+                return;
+            }
+        }
+
+        $this->persistSettings(false);
+    }
+
+    protected function persistSettings(bool $showMessage): void
+    {
         $this->authorizePermission('sidebar-navigation.manage');
 
         $service = app(SidebarNavigationService::class);
@@ -73,8 +96,12 @@ new class extends Component {
 
         $service->save($validated['group_settings'], $validated['item_settings']);
 
-        session()->flash('status', __('settings.sidebar_navigation.messages.saved'));
+        if ($showMessage) {
+            session()->flash('status', __('settings.sidebar_navigation.messages.saved'));
+        }
+
         $this->loadSettings();
+        $this->dispatch('sidebar-navigation-updated');
     }
 
     public function addGroup(): void
@@ -115,10 +142,13 @@ new class extends Component {
         }
 
         $this->resetValidation();
+        $this->autosave();
     }
 
     public function moveItem(string $itemKey, string $groupKey, ?string $beforeItemKey = null): void
     {
+        $this->authorizePermission('sidebar-navigation.manage');
+
         if (! isset($this->item_settings[$itemKey], $this->group_settings[$groupKey])) {
             return;
         }
@@ -135,10 +165,14 @@ new class extends Component {
         foreach ($orderedKeys as $index => $key) {
             $this->item_settings[$key]['sort_order'] = (string) (($index + 1) * 10);
         }
+
+        $this->autosave();
     }
 
     public function moveGroup(string $groupKey, string $beforeGroupKey): void
     {
+        $this->authorizePermission('sidebar-navigation.manage');
+
         if ($groupKey === $beforeGroupKey || ! isset($this->group_settings[$groupKey], $this->group_settings[$beforeGroupKey])) {
             return;
         }
@@ -149,6 +183,8 @@ new class extends Component {
         foreach ($keys as $index => $key) {
             $this->group_settings[$key]['sort_order'] = (string) (($index + 1) * 10);
         }
+
+        $this->autosave();
     }
 
     protected function loadSettings(): void
@@ -241,7 +277,7 @@ new class extends Component {
         <div class="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">{{ session('status') }}</div>
     @endif
 
-    <form wire:submit="save" class="space-y-6" x-data="{ draggedItem: null, draggedGroup: null, itemDropTarget: null, groupDropTarget: null, settledItem: null, settledGroup: null }">
+    <div class="space-y-6" x-data="{ draggedItem: null, draggedGroup: null, itemDropTarget: null, groupDropTarget: null, settledItem: null, settledGroup: null }">
         <section class="surface-panel p-5 lg:p-6">
             <div class="admin-toolbar">
                 <div></div>
@@ -253,18 +289,21 @@ new class extends Component {
             <div class="mt-5 space-y-4">
                 @foreach ($availableGroups as $group)
                     <details
+                        wire:key="sidebar-navigation-group-{{ $group['key'] }}"
                         class="nav-sort-group rounded-2xl border border-white/10 bg-white/4 p-4"
                         data-sidebar-navigation-group="{{ $group['key'] }}"
                         :class="{
                             'nav-sort-group--dragging': draggedGroup === @js($group['key']),
                             'nav-sort-group--drop-target': groupDropTarget === @js($group['key']),
+                            'nav-sort-group--item-drop-target': itemDropTarget === @js('group:'.$group['key']),
                             'nav-sort-group--settled': settledGroup === @js($group['key'])
                         }"
                         open
                         x-data="{ editing: {{ $group['is_custom'] && $group['title'] === '' ? 'true' : 'false' }} }"
-                        @dragenter.prevent="if (draggedGroup && draggedGroup !== @js($group['key'])) groupDropTarget = @js($group['key'])"
+                        data-sidebar-navigation-item-drop-zone
+                        @dragenter.prevent="if (draggedItem) { itemDropTarget = @js('group:'.$group['key']) } else if (draggedGroup && draggedGroup !== @js($group['key'])) { groupDropTarget = @js($group['key']) }"
                         @dragover.prevent
-                        @drop.prevent="if (draggedGroup && draggedGroup !== @js($group['key'])) { const movingGroup = draggedGroup; groupDropTarget = @js($group['key']); $wire.moveGroup(movingGroup, @js($group['key'])).then(() => { draggedGroup = null; groupDropTarget = null; settledGroup = movingGroup; setTimeout(() => settledGroup = null, 320) }) }"
+                        @drop.prevent="if (draggedItem) { const movingItem = draggedItem; $wire.moveItem(movingItem, @js($group['key'])).then(() => { draggedItem = null; itemDropTarget = null; settledItem = movingItem; setTimeout(() => settledItem = null, 320) }) } else if (draggedGroup && draggedGroup !== @js($group['key'])) { const movingGroup = draggedGroup; groupDropTarget = @js($group['key']); $wire.moveGroup(movingGroup, @js($group['key'])).then(() => { draggedGroup = null; groupDropTarget = null; settledGroup = movingGroup; setTimeout(() => settledGroup = null, 320) }) }"
                     >
                         <summary class="flex cursor-pointer list-none items-center gap-3">
                             <span draggable="true" @dragstart.stop="draggedGroup = @js($group['key']); groupDropTarget = null" @dragend="draggedGroup = null; groupDropTarget = null" class="nav-sort-handle" aria-hidden="true">⠿</span>
@@ -282,10 +321,11 @@ new class extends Component {
                                 />
                             @endif
                         </summary>
-                        <div x-show="editing" x-cloak class="mt-4"><input wire:model="group_settings.{{ $group['key'] }}.title" type="text" class="w-full rounded-xl px-4 py-3 text-sm" placeholder="{{ __('settings.sidebar_navigation.fields.use_default_title') }}" data-sidebar-navigation-group-title></div>
+                        <div x-show="editing" x-cloak class="mt-4"><input wire:model.live.debounce.500ms="group_settings.{{ $group['key'] }}.title" type="text" class="w-full rounded-xl px-4 py-3 text-sm" placeholder="{{ __('settings.sidebar_navigation.fields.use_default_title') }}" data-sidebar-navigation-group-title></div>
                         <div class="mt-4 space-y-2 rounded-xl border border-dashed border-white/10 p-2" @dragover.prevent @drop.prevent.stop="if(draggedItem){ const movingItem = draggedItem; $wire.moveItem(movingItem, @js($group['key'])).then(() => { draggedItem = null; itemDropTarget = null; settledItem = movingItem; setTimeout(() => settledItem = null, 320) }) }">
                             @foreach (collect($availableItems)->where('group_key', $group['key']) as $item)
                                 <div
+                                    wire:key="sidebar-navigation-item-{{ $item['key'] }}"
                                     class="nav-sort-item flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 px-4 py-3"
                                     :class="{
                                         'nav-sort-item--dragging': draggedItem === @js($item['key']),
@@ -302,8 +342,5 @@ new class extends Component {
                 @endforeach
             </div>
         </section>
-        <div class="flex justify-end">
-            <button type="submit" class="pill-link pill-link--accent">{{ __('settings.sidebar_navigation.actions.save') }}</button>
-        </div>
-    </form>
+    </div>
 </div>

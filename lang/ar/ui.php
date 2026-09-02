@@ -82,6 +82,8 @@ return [
         'configuration' => 'الإعدادات',
         'dashboard_settings' => 'الإعدادات',
         'public_website_settings' => 'إعدادات الموقع',
+        'data_quality' => 'جودة البيانات',
+        'data_audit' => 'تدقيق البيانات',
         'organization' => 'الهيكل',
         'tracking_rules' => 'قواعد المتابعة',
         'points' => 'النقاط',

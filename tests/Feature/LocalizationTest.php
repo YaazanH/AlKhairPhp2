@@ -186,6 +186,7 @@ class LocalizationTest extends TestCase
             ->assertSee('التقارير');
 
         $sidebar = file_get_contents(resource_path('views/components/layouts/app/sidebar.blade.php'));
+        $sidebarNavigationMenu = file_get_contents(resource_path('views/livewire/sidebar-navigation-menu.blade.php'));
         $this->assertStringNotContainsString('preserveScrollPosition', $sidebar);
         $this->assertStringNotContainsString('x-on:mousedown.prevent', $sidebar);
         $this->assertStringContainsString('class="app-sidebar-account-menu', $sidebar);
@@ -197,7 +198,7 @@ class LocalizationTest extends TestCase
         $this->assertStringNotContainsString("route('finance.reports.index')", $mobileUserMenu);
         $this->assertStringNotContainsString('<flux:profile', $mobileUserMenu);
         $this->assertStringContainsString('<x-mobile-header-mark class="mobile-header-mark text-neutral-200" />', $mobileUserMenu);
-        $this->assertStringContainsString("in_array(\$item['key'], ['print_templates', 'id_card_print', 'public_website_settings'], true) ? 'max-lg:hidden'", $sidebar);
+        $this->assertStringContainsString("in_array(\$item['key'], ['print_templates', 'id_card_print', 'public_website_settings', 'data_quality', 'data_audit'], true) ? 'max-lg:hidden'", $sidebarNavigationMenu);
         $this->assertStringContainsString('ArabicMonthFormatter::monthYearWithHijri(now())', $sidebar);
         $this->assertStringContainsString(':justify-subtitle-to-title="true"', $sidebar);
         $this->assertArrayHasKey('finance_reports', app(\App\Services\SidebarNavigationService::class)->defaultItems());

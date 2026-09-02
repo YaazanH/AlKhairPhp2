@@ -2663,6 +2663,7 @@ class FinanceAndActivitiesTest extends TestCase
         $this->assertStringContainsString('align-items: center;', $financeTableCss);
         $this->assertStringNotContainsString('[data-finance-generic-table] thead {', $financeTableCss);
         $this->assertStringContainsString('.admin-modal__dialog:has([data-withdrawal-history-table])', $financeTableCss);
+        $this->assertStringContainsString('data-finance-dashboard-request-history><x-admin-action-icon name="past" />', $financeDashboardSource);
         $this->assertStringContainsString('.admin-modal__dialog:has([data-financial-transactions-table])', $financeTableCss);
         $this->assertStringContainsString(".financial-transactions-table {\n    width: 100%;\n    min-width: 72rem;", $financeTableCss);
         $this->assertStringContainsString("@media (min-width: 1024px) {", $financeTableCss);

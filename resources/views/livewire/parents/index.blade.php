@@ -3,17 +3,20 @@
 use App\Livewire\Concerns\AuthorizesPermissions;
 use App\Livewire\Concerns\AuthorizesTeacherAssignments;
 use App\Livewire\Concerns\SupportsCreateAndNew;
+use App\Models\DataQualityResolution;
 use App\Models\FatherJob;
 use App\Models\ParentProfile;
 use App\Models\Student;
+use App\Services\DataQualityService;
 use App\Services\ManagedUserService;
 use App\Services\ParentNumberService;
 use App\Support\ArabicSearch;
-use App\Support\PhoneNumberFormatter;
 use App\Models\User;
+use App\Support\PhoneNumberFormatter;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Livewire\Attributes\Url;
 use Livewire\Volt\Component;
 use Livewire\WithPagination;
 
@@ -24,6 +27,10 @@ new class extends Component {
     use WithPagination;
 
     public ?int $editingId = null;
+    #[Url(as: 'edit')]
+    public ?int $editParent = null;
+    #[Url(as: 'quality_issue')]
+    public string $qualityIssueKey = '';
     public string $father_name = '';
     public string $father_work = '';
     public string $new_father_work = '';
@@ -61,6 +68,12 @@ new class extends Component {
     public function mount(): void
     {
         $this->authorizePermission('parents.view');
+        $this->editParent = $this->editParent ?: (request()->filled('edit') ? (int) request('edit') : null);
+        $this->qualityIssueKey = $this->qualityIssueKey ?: (string) request('quality_issue', '');
+
+        if ($this->editParent) {
+            $this->edit($this->editParent);
+        }
     }
 
     public function with(): array
@@ -242,9 +255,11 @@ new class extends Component {
     public function save(): void
     {
         $this->authorizePermission($this->editingId ? 'parents.update' : 'parents.create');
+        $qualityIssue = null;
 
         if ($this->editingId) {
             $this->authorizeScopedParentAccess(ParentProfile::query()->findOrFail($this->editingId));
+            $qualityIssue = $this->duplicateQualityIssueFor('parent', $this->editingId);
         }
 
         foreach (['father_phone', 'mother_phone', 'home_phone'] as $phoneField) {
@@ -252,7 +267,7 @@ new class extends Component {
         }
         $validated = $this->validate();
 
-        if ($duplicate = $this->findDuplicateParent($validated)) {
+        if (! $qualityIssue && ($duplicate = $this->findDuplicateParent($validated))) {
             $this->addError('father_name', __('crud.parents.errors.duplicate_profile', [
                 'name' => $duplicate->father_name,
                 'number' => $duplicate->parent_number ?: $duplicate->id,
@@ -293,6 +308,13 @@ new class extends Component {
             'status',
             $this->editingId ? __('crud.parents.messages.updated') : __('crud.parents.messages.created'),
         );
+
+        if ($qualityIssue) {
+            $this->resolveDuplicateQualityIssue($qualityIssue);
+            $this->redirectRoute('data-quality.index', navigate: true);
+
+            return;
+        }
 
         $this->cancel();
     }
@@ -465,6 +487,8 @@ new class extends Component {
     public function cancel(): void
     {
         $this->editingId = null;
+        $this->editParent = null;
+        $this->qualityIssueKey = '';
         $this->father_name = '';
         $this->father_work = '';
         $this->new_father_work = '';
@@ -478,6 +502,37 @@ new class extends Component {
         $this->showFormModal = false;
 
         $this->resetValidation();
+    }
+
+    protected function duplicateQualityIssueFor(string $entityType, ?int $recordId): ?array
+    {
+        if (! $recordId || blank($this->qualityIssueKey) || ! $this->canPermission('data-quality.resolve')) {
+            return null;
+        }
+
+        $issue = app(DataQualityService::class)->issues()->firstWhere('key', $this->qualityIssueKey);
+
+        return $issue
+            && $issue['status'] === 'open'
+            && str_starts_with($issue['type'], 'duplicate_')
+            && $issue['entity_type'] === $entityType
+            && in_array($recordId, $issue['entity_ids'], true)
+                ? $issue
+                : null;
+    }
+
+    protected function resolveDuplicateQualityIssue(array $issue): void
+    {
+        DataQualityResolution::query()->updateOrCreate(
+            ['issue_key' => $issue['key']],
+            [
+                'issue_type' => $issue['type'],
+                'status' => 'resolved',
+                'resolved_by' => auth()->id(),
+                'notes' => null,
+                'resolved_at' => now(),
+            ],
+        );
     }
 
     public function createFatherJobShortcut(): void
@@ -994,13 +1049,15 @@ new class extends Component {
                 </div>
             </div>
 
-            <div>
-                <label for="parent-notes" class="mb-1 block text-sm font-medium">{{ __('crud.parents.form.fields.notes') }}</label>
-                <textarea id="parent-notes" wire:model="notes" rows="4" class="w-full rounded-xl px-4 py-3 text-sm"></textarea>
-                @error('notes')
-                    <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
-                @enderror
-            </div>
+            @if (blank($qualityIssueKey))
+                <div>
+                    <label for="parent-notes" class="mb-1 block text-sm font-medium">{{ __('crud.parents.form.fields.notes') }}</label>
+                    <textarea id="parent-notes" wire:model="notes" rows="4" class="w-full rounded-xl px-4 py-3 text-sm"></textarea>
+                    @error('notes')
+                        <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
+                    @enderror
+                </div>
+            @endif
 
             <label class="flex items-center gap-3 text-sm">
                 <input wire:model="is_active" type="checkbox" class="rounded border-neutral-300 text-neutral-900">
@@ -1015,14 +1072,18 @@ new class extends Component {
                 @else
                     <x-admin.create-and-new-button />
                 @endif
-                <button type="button" wire:click="cancel" class="admin-icon-button admin-modal-action-button" title="{{ __('crud.common.actions.close') }}" aria-label="{{ __('crud.common.actions.close') }}" data-parent-form-close-action>
-                    <x-admin-action-icon name="clear-selection" class="admin-modal-action__icon" />
-                </button>
-                @if($editingId)
+                @if (blank($qualityIssueKey))
+                    <button type="button" wire:click="cancel" class="admin-icon-button admin-modal-action-button" title="{{ __('crud.common.actions.close') }}" aria-label="{{ __('crud.common.actions.close') }}" data-parent-form-close-action>
+                        <x-admin-action-icon name="clear-selection" class="admin-modal-action__icon" />
+                    </button>
+                @endif
+                @if ($editingId)
                     @can('parents.update')
-                        <button type="button" wire:click="openAccountModal({{ $editingId }})" class="admin-icon-button admin-modal-action-button" title="{{ __('access.profile_accounts.title') }}" aria-label="{{ __('access.profile_accounts.title') }}" data-parent-form-account-action>
-                            <x-admin-action-icon name="account" class="admin-modal-action__icon" />
-                        </button>
+                        @if (blank($qualityIssueKey))
+                            <button type="button" wire:click="openAccountModal({{ $editingId }})" class="admin-icon-button admin-modal-action-button" title="{{ __('access.profile_accounts.title') }}" aria-label="{{ __('access.profile_accounts.title') }}" data-parent-form-account-action>
+                                <x-admin-action-icon name="account" class="admin-modal-action__icon" />
+                            </button>
+                        @endif
                     @endcan
                     @can('parents.delete')
                         <x-delete-action-button wire:click="delete({{ $editingId }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" :label="__('crud.common.actions.delete')" class="admin-modal-action-button" data-parent-form-delete-action />
