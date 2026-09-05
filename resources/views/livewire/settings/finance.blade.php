@@ -158,7 +158,7 @@ new class extends Component {
         $cashBox = FinanceCashBox::query()->findOrFail($cashBoxId);
 
         if (FinanceTransaction::query()->where('cash_box_id', $cashBox->id)->exists()) {
-            $this->addError('cashBoxDelete', 'This fund cannot be deleted while ledger transactions use it.');
+            $this->addError('cashBoxDelete', __('finance.validation.cash_box_delete_linked'));
 
             return;
         }
@@ -176,13 +176,13 @@ new class extends Component {
         $currency = FinanceCurrency::query()->findOrFail($currencyId);
 
         if ($currency->is_local || $currency->is_base) {
-            $this->addError('currencyDelete', 'Local and base currencies cannot be deleted.');
+            $this->addError('currencyDelete', __('finance.validation.protected_currency_delete'));
 
             return;
         }
 
         if (app(FinanceService::class)->currencyIsUsed($currency)) {
-            $this->addError('currencyDelete', 'This currency is used and cannot be deleted.');
+            $this->addError('currencyDelete', __('finance.validation.currency_delete_linked'));
 
             return;
         }
@@ -199,7 +199,7 @@ new class extends Component {
         $category = FinanceCategory::query()->findOrFail($categoryId);
 
         if ($category->transactions()->exists() || $category->requests()->exists()) {
-            $this->addError('financeCategoryDelete', 'This category is used and cannot be deleted.');
+            $this->addError('financeCategoryDelete', __('finance.validation.category_delete_linked'));
 
             return;
         }
@@ -400,7 +400,7 @@ new class extends Component {
             ->groupBy('currency_id')
             ->havingRaw('ABS(SUM(signed_amount)) > 0.009')
             ->exists()) {
-            $this->addError('cash_box_is_active', 'A fund with a non-zero balance cannot be deactivated.');
+            $this->addError('cash_box_is_active', __('finance.validation.cash_box_deactivate_with_balance'));
 
             return;
         }
@@ -420,7 +420,7 @@ new class extends Component {
                     ->sum('signed_amount');
 
                 if (round($balance, 2) !== 0.0) {
-                    $this->addError('cash_box_currency_ids', 'A currency with a non-zero balance cannot be removed from this fund.');
+                    $this->addError('cash_box_currency_ids', __('finance.validation.cash_box_currency_remove_with_balance'));
 
                     return;
                 }
@@ -461,7 +461,7 @@ new class extends Component {
         ]);
 
         if ($validated['currency_is_base'] && $validated['currency_is_local']) {
-            $this->addError('currency_is_base', 'Base and local currency must be two different currencies.');
+            $this->addError('currency_is_base', __('finance.validation.base_local_currency_must_differ'));
 
             return;
         }
@@ -470,26 +470,26 @@ new class extends Component {
 
         if (! $validated['currency_is_active'] && $current) {
             if ($current->is_base || $current->is_local) {
-                $this->addError('currency_is_active', 'The local or base currency cannot be deactivated.');
+                $this->addError('currency_is_active', __('finance.validation.protected_currency_deactivate'));
 
                 return;
             }
 
             if (app(FinanceService::class)->currencyBalance($current) != 0.0) {
-                $this->addError('currency_is_active', 'A currency with a non-zero balance cannot be deactivated.');
+                $this->addError('currency_is_active', __('finance.validation.currency_deactivate_with_balance'));
 
                 return;
             }
         }
 
         if (! $validated['currency_is_base'] && $current?->is_base && ! FinanceCurrency::query()->where('is_base', true)->where('is_active', true)->whereKeyNot($current->id)->exists()) {
-            $this->addError('currency_is_base', 'Choose another active base currency before removing this one.');
+            $this->addError('currency_is_base', __('finance.validation.base_currency_replacement_required'));
 
             return;
         }
 
         if (! $validated['currency_is_local'] && $current?->is_local && ! FinanceCurrency::query()->where('is_local', true)->where('is_active', true)->whereKeyNot($current->id)->exists()) {
-            $this->addError('currency_is_local', 'Choose another active local currency before removing this one.');
+            $this->addError('currency_is_local', __('finance.validation.local_currency_replacement_required'));
 
             return;
         }
@@ -1111,7 +1111,7 @@ new class extends Component {
         <div class="flash-success px-4 py-3 text-sm">{{ session('status') }}</div>
     @endif
 
-    <section id="finance-defaults" class="surface-panel p-5 lg:p-6" data-finance-settings-summary>
+    <section id="finance-defaults" class="surface-panel settings-dark-surface p-5 lg:p-6" data-finance-settings-summary data-settings-dark-surface="finance-defaults">
         <div class="admin-toolbar">
             <div>
                 <div class="admin-toolbar__title">{{ __('finance.settings.finance_defaults') }}</div>
@@ -1397,7 +1397,7 @@ new class extends Component {
     </section>
     @endif
 
-    <section class="surface-panel p-5 lg:p-6">
+    <section class="surface-panel settings-dark-surface p-5 lg:p-6" data-settings-dark-surface="transaction-maintenance">
         <div class="admin-toolbar"><div><div class="admin-toolbar__title">{{ __('finance.settings.transaction_maintenance') }}</div><p class="admin-toolbar__subtitle">{{ __('finance.settings.transaction_maintenance_help') }}</p></div></div>
         @php($maintainingInvoice = $maintaining_transaction_id ? \App\Models\FinanceTransaction::withTrashed()->with('financeRequest.invoice')->find($maintaining_transaction_id)?->financeRequest?->invoice : null)
         @if ($maintaining_transaction_id)
@@ -1436,7 +1436,7 @@ new class extends Component {
         @endif
     </section>
 
-    <section id="finance-generated-reports" class="surface-panel p-5 lg:p-6">
+    <section id="finance-generated-reports" class="surface-panel settings-dark-surface p-5 lg:p-6" data-settings-dark-surface="generated-report-maintenance">
         <div class="admin-toolbar">
             <div>
                 <div class="admin-toolbar__title">{{ __('finance.settings.generated_report_maintenance') }}</div>
@@ -1444,7 +1444,7 @@ new class extends Component {
             </div>
         </div>
         <div class="mt-5 flex flex-col gap-3 sm:flex-row">
-            <input wire:model="report_lookup_no" placeholder="{{ __('finance.settings.generated_report_placeholder') }}" class="generated-report-lookup min-w-0 flex-1 rounded-xl px-4 py-3 {{ app()->isLocale('ar') ? 'text-right' : 'text-left' }}" dir="{{ app()->isLocale('ar') ? 'rtl' : 'ltr' }}" data-generated-report-number>
+            <input wire:model="report_lookup_no" placeholder="{{ __('finance.settings.generated_report_placeholder') }}" class="generated-report-lookup min-w-0 flex-1 rounded-xl px-4 py-3" dir="{{ app()->isLocale('ar') ? 'rtl' : 'ltr' }}" data-generated-report-number>
             <button wire:click="deleteGeneratedReport" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" type="button" class="admin-icon-button admin-icon-button--danger generated-report-maintenance-action-button" title="{{ __('finance.reports.delete_saved_report') }}" aria-label="{{ __('finance.reports.delete_saved_report') }}" data-generated-report-delete-action><x-admin-action-icon name="delete" /></button>
             @if ($legacyReportImportEnabled)<x-add-action-button wire:click="openLegacyReportModal" :label="__('finance.reports.import_legacy_report')" class="generated-report-import-action-button" data-legacy-report-import-action />@endif
         </div>

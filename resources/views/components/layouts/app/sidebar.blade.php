@@ -1,3 +1,5 @@
+@props(['title' => null])
+
 @php
     $currentLocale = app()->getLocale();
     $currentLocaleConfig = config('app.supported_locales.'.$currentLocale, []);
@@ -131,6 +133,7 @@
             class="admin-modal"
             data-default-confirm-label="{{ __('crud.common.confirm_delete.confirm') }}"
             data-default-message="{{ __('crud.common.confirm_delete.message') }}"
+            data-default-question="{{ __('crud.common.confirm_delete.continue_question') }}"
             data-default-title="{{ __('crud.common.confirm_delete.title') }}"
             hidden
             aria-hidden="true"
@@ -145,7 +148,10 @@
                     </div>
 
                     <div class="admin-modal__body">
-                        <p id="admin-confirm-message" class="admin-confirm-message leading-7 text-neutral-300">{{ __('crud.common.confirm_delete.message') }}</p>
+                        <div id="admin-confirm-message" class="admin-confirm-message leading-7 text-neutral-300">
+                            <p id="admin-confirm-statement" class="admin-confirm-statement">{{ __('crud.common.confirm_delete.statement') }}</p>
+                            <p id="admin-confirm-question" class="admin-confirm-question">{{ __('crud.common.confirm_delete.question') }}</p>
+                        </div>
                         <div class="admin-confirm-actions">
                             <button id="admin-confirm-accept" type="button" class="admin-confirm-action admin-confirm-action--accept" data-modal-action-icon-ignore aria-label="{{ __('crud.common.confirm_delete.confirm') }}" title="{{ __('crud.common.confirm_delete.confirm') }}">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m5 12.5 4.25 4.25L19 7" /></svg>

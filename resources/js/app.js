@@ -6,7 +6,9 @@ const adminConfirmState = {
     method: null,
     params: [],
     form: null,
+    submitter: null,
 };
+const confirmedAdminForms = new WeakSet();
 let adminConfirmDelegatedListenersBound = false;
 
 function parseLivewireAction(expression) {
@@ -55,8 +57,26 @@ function adminConfirmElements() {
         modal: document.getElementById('admin-confirm-modal'),
         title: document.getElementById('admin-confirm-title'),
         message: document.getElementById('admin-confirm-message'),
+        statement: document.getElementById('admin-confirm-statement'),
+        question: document.getElementById('admin-confirm-question'),
         accept: document.getElementById('admin-confirm-accept'),
         closeButtons: document.querySelectorAll('[data-admin-confirm-close]'),
+    };
+}
+
+function splitAdminConfirmMessage(value, fallbackQuestion = '') {
+    const sentences = String(value ?? '')
+        .replace(/\r\n?/g, '\n')
+        .split(/\n+/u)
+        .flatMap((paragraph) => paragraph.match(/[^.!?؟]+(?:[.!?؟]+|$)/gu) ?? [])
+        .map((sentence) => sentence.trim())
+        .filter(Boolean);
+    const questions = sentences.filter((sentence) => /[?؟]$/u.test(sentence));
+    const statements = sentences.filter((sentence) => !/[?؟]$/u.test(sentence));
+
+    return {
+        statement: statements.join(' '),
+        question: questions.join(' ') || fallbackQuestion,
     };
 }
 
@@ -65,6 +85,7 @@ function resetAdminConfirmState() {
     adminConfirmState.method = null;
     adminConfirmState.params = [];
     adminConfirmState.form = null;
+    adminConfirmState.submitter = null;
 }
 
 function closeAdminConfirm() {
@@ -88,9 +109,9 @@ function closeAdminConfirm() {
 }
 
 function openAdminConfirm(options = {}) {
-    const { modal, title, message, accept } = adminConfirmElements();
+    const { modal, title, message, statement, question, accept } = adminConfirmElements();
 
-    if (!modal || !title || !message || !accept) {
+    if (!modal || !title || !message || !statement || !question || !accept) {
         return;
     }
 
@@ -101,9 +122,17 @@ function openAdminConfirm(options = {}) {
     adminConfirmState.method = options.method ?? null;
     adminConfirmState.params = Array.isArray(options.params) ? options.params : [];
     adminConfirmState.form = options.form ?? null;
+    adminConfirmState.submitter = options.submitter ?? null;
 
     title.textContent = options.title ?? modal.dataset.defaultTitle ?? 'Confirm action';
-    message.textContent = options.message ?? modal.dataset.defaultMessage ?? '';
+    const messageParts = splitAdminConfirmMessage(
+        options.message ?? modal.dataset.defaultMessage ?? '',
+        modal.dataset.defaultQuestion ?? '',
+    );
+    statement.textContent = messageParts.statement;
+    statement.hidden = messageParts.statement === '';
+    question.textContent = messageParts.question;
+    question.hidden = messageParts.question === '';
     const confirmLabel = options.confirmLabel ?? modal.dataset.defaultConfirmLabel ?? 'Continue';
     accept.setAttribute('aria-label', confirmLabel);
     accept.setAttribute('title', confirmLabel);
@@ -119,12 +148,32 @@ function openAdminConfirm(options = {}) {
 }
 
 function confirmAdminAction() {
-    const { componentId, form, method, params } = adminConfirmState;
+    const { componentId, form, method, params, submitter } = adminConfirmState;
 
     closeAdminConfirm();
 
     if (form instanceof HTMLFormElement) {
-        form.submit();
+        const livewireConfirmMessage = form.getAttribute('wire:confirm');
+
+        confirmedAdminForms.add(form);
+
+        if (livewireConfirmMessage !== null) {
+            form.removeAttribute('wire:confirm');
+        }
+
+        if (typeof form.requestSubmit === 'function') {
+            const validSubmitter = submitter instanceof HTMLButtonElement || submitter instanceof HTMLInputElement
+                ? submitter
+                : undefined;
+
+            form.requestSubmit(validSubmitter);
+        } else {
+            form.submit();
+        }
+
+        if (livewireConfirmMessage !== null) {
+            form.setAttribute('wire:confirm', livewireConfirmMessage);
+        }
 
         return;
     }
@@ -174,10 +223,16 @@ function handleLivewireConfirm(event) {
 
 function handleFormConfirm(event) {
     const form = event.target instanceof HTMLFormElement
-        ? event.target.closest('form[data-admin-confirm-message]')
+        ? event.target.closest('form[data-admin-confirm-message], form[wire\\:confirm]')
         : null;
 
     if (!form) {
+        return;
+    }
+
+    if (confirmedAdminForms.has(form)) {
+        confirmedAdminForms.delete(form);
+
         return;
     }
 
@@ -186,8 +241,9 @@ function handleFormConfirm(event) {
 
     openAdminConfirm({
         form,
+        submitter: event.submitter,
         title: form.dataset.adminConfirmTitle,
-        message: form.dataset.adminConfirmMessage,
+        message: form.dataset.adminConfirmMessage ?? form.getAttribute('wire:confirm'),
         confirmLabel: form.dataset.adminConfirmLabel,
         actionKind: event.submitter instanceof Element ? modalActionKind(event.submitter) ?? 'approve' : 'approve',
     });
@@ -232,7 +288,9 @@ window.AdminConfirm = {
 document.addEventListener('DOMContentLoaded', registerAdminConfirmListeners);
 document.addEventListener('livewire:navigated', registerAdminConfirmListeners);
 
-const SEARCHABLE_SELECT_BINDING_VERSION = '10';
+const SEARCHABLE_SELECT_BINDING_VERSION = '14';
+const STUDENT_PROGRESS_SELECTION_MINIMUM_VISIBLE_MS = 650;
+const deferredSearchableSelectSelections = new Map();
 let searchableSelectOpenSuppressedUntil = 0;
 
 function suppressSearchableSelectOpen(duration = 400) {
@@ -327,8 +385,78 @@ function searchHintValue(select) {
 
 const searchableSelectOverflowHosts = new WeakMap();
 
+function resetOrganizationSettingsDropdownPosition(wrapper) {
+    const panel = wrapper.querySelector('.searchable-select__panel');
+    const list = wrapper.querySelector('.searchable-select__list');
+
+    ['position', 'top', 'right', 'bottom', 'left', 'width', 'max-width', 'max-height'].forEach((property) => {
+        panel?.style.removeProperty(property);
+    });
+    list?.style.removeProperty('max-height');
+    wrapper.removeAttribute('data-contained-settings-dropdown');
+}
+
+function positionOrganizationSettingsDropdown(wrapper) {
+    const select = wrapper.previousElementSibling;
+    const dialog = wrapper.closest('.admin-modal__dialog');
+    const trigger = wrapper.querySelector('.searchable-select__search--trigger, .searchable-select__button');
+    const panel = wrapper.querySelector('.searchable-select__panel');
+    const list = wrapper.querySelector('.searchable-select__list');
+
+    if (
+        !(select instanceof HTMLSelectElement)
+        || !select.matches('[data-organization-timezone-select], [data-organization-currency-select], [data-organization-gender-select]')
+        || !wrapper.closest('[data-organization-settings-form]')
+        || !(dialog instanceof HTMLElement)
+        || !(trigger instanceof HTMLElement)
+        || !(panel instanceof HTMLElement)
+        || !(list instanceof HTMLElement)
+    ) {
+        return false;
+    }
+
+    const dialogRect = dialog.getBoundingClientRect();
+    const triggerRect = trigger.getBoundingClientRect();
+    const edgeInset = 12;
+    const panelGap = 6;
+    const desiredHeight = 208;
+    const boundaryTop = Math.max(0, dialogRect.top) + edgeInset;
+    const boundaryBottom = Math.min(window.innerHeight, dialogRect.bottom) - edgeInset;
+    const availableBelow = Math.max(0, boundaryBottom - triggerRect.bottom - panelGap);
+    const availableAbove = Math.max(0, triggerRect.top - boundaryTop - panelGap);
+    const openAbove = availableBelow < desiredHeight && availableAbove > availableBelow;
+    const availableHeight = Math.max(0, Math.floor(openAbove ? availableAbove : availableBelow));
+    const panelHeight = Math.min(desiredHeight, availableHeight);
+
+    panel.style.setProperty('position', 'fixed');
+    panel.style.setProperty('left', `${Math.round(triggerRect.left)}px`);
+    panel.style.setProperty('right', 'auto');
+    panel.style.setProperty('width', `${Math.round(triggerRect.width)}px`);
+    panel.style.setProperty('max-width', `${Math.round(triggerRect.width)}px`);
+    panel.style.setProperty('max-height', `${panelHeight}px`);
+    list.style.setProperty('max-height', `${Math.max(0, panelHeight - 2)}px`);
+
+    if (openAbove) {
+        panel.style.setProperty('top', 'auto');
+        panel.style.setProperty('bottom', `${Math.round(window.innerHeight - triggerRect.top + panelGap)}px`);
+    } else {
+        panel.style.setProperty('top', `${Math.round(triggerRect.bottom + panelGap)}px`);
+        panel.style.setProperty('bottom', 'auto');
+    }
+
+    wrapper.setAttribute('data-contained-settings-dropdown', openAbove ? 'above' : 'below');
+
+    return true;
+}
+
 function releaseSearchableSelectOverflow(wrapper) {
     if (searchableSelectOverflowHosts.has(wrapper)) {
+        return;
+    }
+
+    if (positionOrganizationSettingsDropdown(wrapper)) {
+        searchableSelectOverflowHosts.set(wrapper, []);
+
         return;
     }
 
@@ -400,6 +528,7 @@ function closeSearchableSelect(wrapper) {
     wrapper.querySelectorAll('.searchable-select__option--highlighted').forEach((option) => {
         option.classList.remove('searchable-select__option--highlighted');
     });
+    resetOrganizationSettingsDropdownPosition(wrapper);
     restoreSearchableSelectOverflow(wrapper);
 }
 
@@ -423,6 +552,28 @@ function normalizeSearchableText(value) {
         .replace(/ـ/gu, '')
         .replace(/[\u064B-\u0652]/gu, '')
         .toLowerCase();
+}
+
+function removeOverflowingSearchableSelectOptions(select, list) {
+    if (select.dataset.hideOverflowingOptions !== 'true' || list.clientWidth <= 0) {
+        return 0;
+    }
+
+    let removedCount = 0;
+
+    list.querySelectorAll('.searchable-select__option--columns').forEach((item) => {
+        const name = item.querySelector('.searchable-select__option-name');
+        const isSelected = item.dataset.value === select.value;
+
+        if (!(name instanceof HTMLElement) || isSelected || name.scrollWidth <= name.clientWidth + 1) {
+            return;
+        }
+
+        item.remove();
+        removedCount += 1;
+    });
+
+    return removedCount;
 }
 
 function buildSearchableSelectOptions(select, list, query = '') {
@@ -458,6 +609,7 @@ function buildSearchableSelectOptions(select, list, query = '') {
         item.tabIndex = -1;
         item.className = 'searchable-select__option';
         item.id = `searchable-select-option-${Math.random().toString(36).slice(2)}`;
+        item.classList.toggle('searchable-select__option--bold', option.dataset.optionBold === 'true');
         if (option.dataset.optionName !== undefined || option.dataset.optionNumber !== undefined) {
             item.classList.add('searchable-select__option--columns');
 
@@ -467,7 +619,22 @@ function buildSearchableSelectOptions(select, list, query = '') {
 
             const number = document.createElement('span');
             number.className = 'searchable-select__option-number';
-            number.textContent = option.dataset.optionNumber || '';
+
+            if (option.dataset.optionPrefix !== undefined) {
+                number.classList.add('searchable-select__option-number--split');
+
+                const prefix = document.createElement('span');
+                prefix.className = 'searchable-select__option-number-prefix';
+                prefix.textContent = option.dataset.optionPrefix;
+
+                const value = document.createElement('span');
+                value.className = 'searchable-select__option-number-value';
+                value.textContent = option.dataset.optionNumber || '';
+
+                number.append(prefix, value);
+            } else {
+                number.textContent = option.dataset.optionNumber || '';
+            }
 
             item.append(name, number);
         } else {
@@ -487,8 +654,28 @@ function buildSearchableSelectOptions(select, list, query = '') {
         item.addEventListener('mousedown', (event) => event.preventDefault());
 
         item.addEventListener('click', () => {
+            const selectionChanged = select.value !== option.value;
+
             if (select.dataset.financeCurrencyRequired === 'true' || select.dataset.searchSelectionRequired === 'true') {
                 select.dataset.searchSelectionConfirmed = 'true';
+            }
+
+            if (select.dataset.deferClearAfterSelect === 'true' && selectionChanged) {
+                select.dataset.clearSearchAfterSelectPending = 'true';
+
+                if (select.id !== '') {
+                    deferredSearchableSelectSelections.set(select.id, {
+                        value: option.value,
+                        label: option.textContent.trim(),
+                        selectedAt: Date.now(),
+                    });
+                }
+            } else {
+                delete select.dataset.clearSearchAfterSelectPending;
+
+                if (select.id !== '') {
+                    deferredSearchableSelectSelections.delete(select.id);
+                }
             }
 
             select.value = option.value;
@@ -506,6 +693,8 @@ function buildSearchableSelectOptions(select, list, query = '') {
         visibleCount += 1;
     });
 
+    visibleCount -= removeOverflowingSearchableSelectOptions(select, list);
+
     if (visibleCount === 0) {
         const empty = document.createElement('div');
         empty.className = 'searchable-select__empty';
@@ -516,6 +705,29 @@ function buildSearchableSelectOptions(select, list, query = '') {
 
 function searchableSelectOptionButtons(list) {
     return Array.from(list.querySelectorAll('.searchable-select__option'));
+}
+
+function scrollSearchableSelectToSelected(select, list, search) {
+    if (select.dataset.scrollToSelected === 'false' || select.value === '') {
+        return;
+    }
+
+    const options = searchableSelectOptionButtons(list);
+    const selectedIndex = options.findIndex((option) => option.dataset.value === select.value);
+    const selected = options[selectedIndex];
+
+    if (!(selected instanceof HTMLButtonElement)) {
+        return;
+    }
+
+    highlightSearchableSelectOption(list, search, selectedIndex);
+
+    window.requestAnimationFrame(() => {
+        const centeredOffset = selected.offsetTop - ((list.clientHeight - selected.offsetHeight) / 2);
+        const maximumOffset = Math.max(0, list.scrollHeight - list.clientHeight);
+
+        list.scrollTop = Math.min(maximumOffset, Math.max(0, centeredOffset));
+    });
 }
 
 function highlightSearchableSelectOption(list, search, index) {
@@ -662,6 +874,8 @@ function enhanceSearchableSelect(select) {
     const clearable = searchInputMode && select.dataset.clearable !== 'false';
     const financeCurrencyRequired = select.dataset.financeCurrencyRequired === 'true';
     const searchSelectionRequired = financeCurrencyRequired || select.dataset.searchSelectionRequired === 'true';
+    const clearSearchAfterSelect = searchInputMode && select.dataset.clearSearchAfterSelect === 'true';
+    const deferClearAfterSelect = clearSearchAfterSelect && select.dataset.deferClearAfterSelect === 'true';
     const showChevron = select.dataset.showChevron !== 'false';
     let searchSelectionConfirmed = searchSelectionRequired && select.value !== '';
 
@@ -800,7 +1014,19 @@ function enhanceSearchableSelect(select) {
         if (searchInputMode) {
             const selectedOption = select.options[select.selectedIndex];
             const hasSelectedValue = searchableSelectHasValue(select);
-            const nextValue = hasSelectedValue ? selectedOption?.textContent.trim() || '' : '';
+            const deferredSelection = deferClearAfterSelect
+                ? deferredSearchableSelectSelections.get(select.id)
+                : null;
+            const deferredClearIsPending = deferClearAfterSelect && (
+                select.dataset.clearSearchAfterSelectPending === 'true'
+                || deferredSelection?.value === select.value
+            );
+            const displaySelectedValue = hasSelectedValue && (!clearSearchAfterSelect || deferredClearIsPending);
+            const nextValue = displaySelectedValue
+                ? (deferredSelection?.value === select.value
+                    ? deferredSelection.label
+                    : selectedOption?.textContent.trim() || '')
+                : '';
 
             if ((!hasSelectedValue || force || document.activeElement !== search) && search.value !== nextValue) {
                 search.value = nextValue;
@@ -808,11 +1034,15 @@ function enhanceSearchableSelect(select) {
 
             wrapper.classList.toggle(
                 'searchable-select--selected',
-                hasSelectedValue || search.value.trim() !== '',
+                displaySelectedValue || search.value.trim() !== '',
             );
             wrapper.classList.toggle(
                 'searchable-select--placeholder',
-                !hasSelectedValue && search.value.trim() === '',
+                !displaySelectedValue && search.value.trim() === '',
+            );
+            wrapper.classList.toggle(
+                'searchable-select--bold-selection',
+                displaySelectedValue && selectedOption?.dataset.optionBold === 'true',
             );
 
             if (searchSelectionRequired && document.activeElement !== search && select.value !== '' && search.value === nextValue) {
@@ -830,7 +1060,7 @@ function enhanceSearchableSelect(select) {
         }
 
         const nextOptionsSignature = Array.from(select.options)
-            .map((option) => `${option.value}\u0000${option.textContent}\u0000${option.dataset.search || ''}\u0000${option.dataset.optionName || ''}\u0000${option.dataset.optionNumber || ''}\u0000${option.disabled}\u0000${option.hidden}\u0000${option.selected}`)
+            .map((option) => `${option.value}\u0000${option.textContent}\u0000${option.dataset.search || ''}\u0000${option.dataset.optionName || ''}\u0000${option.dataset.optionPrefix || ''}\u0000${option.dataset.optionNumber || ''}\u0000${option.dataset.optionBold || ''}\u0000${option.disabled}\u0000${option.hidden}\u0000${option.selected}`)
             .join('\u0001');
 
         if (force || nextOptionsSignature !== optionsSignature) {
@@ -853,6 +1083,7 @@ function enhanceSearchableSelect(select) {
 
         if (!wasOpen) {
             buildSearchableSelectOptions(select, list, search.value);
+            scrollSearchableSelectToSelected(select, list, search);
         }
     };
 
@@ -962,6 +1193,7 @@ function enhanceSearchableSelect(select) {
             panel.removeAttribute('hidden');
             search.setAttribute('aria-expanded', 'true');
             buildSearchableSelectOptions(select, list, '');
+            scrollSearchableSelectToSelected(select, list, search);
             requestAnimationFrame(() => search.select());
         });
 
@@ -1055,6 +1287,7 @@ function enhanceSearchableSelect(select) {
             if (willOpen) {
                 search.value = searchHintValue(select);
                 buildSearchableSelectOptions(select, list, search.value);
+                scrollSearchableSelectToSelected(select, list, search);
 
                 if (dropdownSearchEnabled) {
                     requestAnimationFrame(() => search.focus());
@@ -1073,19 +1306,29 @@ function enhanceSearchableSelect(select) {
             }
 
             if (!dropdownSearchEnabled) {
-                event.preventDefault();
-                event.stopPropagation();
-                openSearchableOptions();
-
-                const options = searchableSelectOptionButtons(list);
-                const nextOption = event.key === 'ArrowDown' ? options[0] : options[options.length - 1];
-                nextOption?.focus();
+                handleSearchableSelectKeydown(event);
+                window.requestAnimationFrame(() => {
+                    list.querySelector('.searchable-select__option--highlighted')?.focus();
+                });
 
                 return;
             }
 
             handleSearchableSelectKeydown(event);
             window.requestAnimationFrame(() => search.focus());
+        });
+        list.addEventListener('keydown', (event) => {
+            if (dropdownSearchEnabled || !['ArrowDown', 'ArrowUp', 'Enter', 'Tab'].includes(event.key)) {
+                return;
+            }
+
+            handleSearchableSelectKeydown(event);
+
+            if (['ArrowDown', 'ArrowUp'].includes(event.key)) {
+                window.requestAnimationFrame(() => {
+                    list.querySelector('.searchable-select__option--highlighted')?.focus();
+                });
+            }
         });
     }
 
@@ -1170,6 +1413,53 @@ function focusSearchableSelect(event) {
 }
 
 window.addEventListener('focus-searchable-select', focusSearchableSelect);
+
+function clearStudentProgressSearchAfterProfileLoaded(event) {
+    const detail = Array.isArray(event) ? event[0] : event?.detail ?? event;
+    const selectId = detail?.selectId || 'student-progress-student';
+    const select = document.getElementById(selectId);
+
+    if (!(select instanceof HTMLSelectElement) || select.dataset.deferClearAfterSelect !== 'true') {
+        return;
+    }
+
+    const pendingSelection = deferredSearchableSelectSelections.get(selectId);
+    const remainingVisibleTime = pendingSelection
+        ? Math.max(0, STUDENT_PROGRESS_SELECTION_MINIMUM_VISIBLE_MS - (Date.now() - pendingSelection.selectedAt))
+        : 0;
+
+    window.setTimeout(() => {
+        window.requestAnimationFrame(() => {
+            window.requestAnimationFrame(() => {
+                const currentSelect = document.getElementById(selectId);
+                const currentPendingSelection = deferredSearchableSelectSelections.get(selectId);
+
+                if (
+                    !(currentSelect instanceof HTMLSelectElement)
+                    || currentSelect.dataset.deferClearAfterSelect !== 'true'
+                    || (pendingSelection && currentPendingSelection !== pendingSelection)
+                ) {
+                    return;
+                }
+
+                deferredSearchableSelectSelections.delete(selectId);
+                delete currentSelect.dataset.clearSearchAfterSelectPending;
+                currentSelect.searchableSelectSync?.(true);
+
+                const wrapper = currentSelect.nextElementSibling;
+                if (wrapper?.classList.contains('searchable-select')) {
+                    closeSearchableSelect(wrapper);
+                }
+            });
+        });
+    }, remainingVisibleTime);
+}
+
+window.addEventListener('student-progress-profile-loaded', clearStudentProgressSearchAfterProfileLoaded);
+
+document.addEventListener('livewire:init', () => {
+    window.Livewire?.on?.('student-progress-profile-loaded', clearStudentProgressSearchAfterProfileLoaded);
+});
 
 function revealSidebarNavigationGroup(event) {
     const groupKey = String(event?.detail?.key ?? '');

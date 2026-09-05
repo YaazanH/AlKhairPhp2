@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\ApplyApplicationTimezone;
 use App\Http\Middleware\MeasurePerformance;
 use App\Http\Middleware\PreventPageCaching;
 use App\Http\Middleware\SetLocale;
@@ -21,6 +22,10 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
+        // Keep browser and API requests on the organization timezone. Console
+        // and scheduled commands receive the same setting during provider boot.
+        $middleware->append(ApplyApplicationTimezone::class);
+
         $middleware->web(append: [
             SetLocale::class,
             MeasurePerformance::class,

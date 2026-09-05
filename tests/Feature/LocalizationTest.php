@@ -198,7 +198,9 @@ class LocalizationTest extends TestCase
         $this->assertStringNotContainsString("route('finance.reports.index')", $mobileUserMenu);
         $this->assertStringNotContainsString('<flux:profile', $mobileUserMenu);
         $this->assertStringContainsString('<x-mobile-header-mark class="mobile-header-mark text-neutral-200" />', $mobileUserMenu);
-        $this->assertStringContainsString("in_array(\$item['key'], ['print_templates', 'id_card_print', 'public_website_settings', 'data_quality', 'data_audit'], true) ? 'max-lg:hidden'", $sidebarNavigationMenu);
+        $this->assertStringContainsString('protected const MOBILE_HIDDEN_ITEM_KEYS', $sidebarNavigationMenu);
+        $this->assertStringContainsString("\$group['has_mobile_items'] ? '' : 'max-lg:hidden'", $sidebarNavigationMenu);
+        $this->assertStringContainsString('data-app-sidebar-navigation-mobile-empty', $sidebarNavigationMenu);
         $this->assertStringContainsString('ArabicMonthFormatter::monthYearWithHijri(now())', $sidebar);
         $this->assertStringContainsString(':justify-subtitle-to-title="true"', $sidebar);
         $this->assertArrayHasKey('finance_reports', app(\App\Services\SidebarNavigationService::class)->defaultItems());
@@ -214,7 +216,8 @@ class LocalizationTest extends TestCase
         $this->assertStringContainsString('scrollbar-width: none;', $styles);
         $this->assertStringContainsString('.mobile-header-mark {', $styles);
         $this->assertStringContainsString("html[dir='rtl'] .mobile-header-mark {", $styles);
-        $this->assertStringContainsString('margin-inline-end: 1.5rem;', $styles);
+        $this->assertStringContainsString('margin-inline-end: 0.375rem;', $styles);
+        $this->assertStringNotContainsString('margin-inline-end: 1.5rem;', $styles);
         $this->assertStringNotContainsString('html:not(.dark) .mobile-header-mark {', $styles);
         $this->assertStringContainsString('.app-logo-period-subtitle {', $styles);
 

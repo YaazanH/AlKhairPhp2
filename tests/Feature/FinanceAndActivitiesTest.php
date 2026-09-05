@@ -647,6 +647,10 @@ class FinanceAndActivitiesTest extends TestCase
         ]);
 
         Volt::test('finance.pull-requests')
+            ->call('openCreateModal')
+            ->assertSee('data-withdrawal-request-save', false)
+            ->assertSee('data-icon-name="save"', false)
+            ->assertDontSee('data-create-and-new-action', false)
             ->set('finance_pull_request_kind_id', FinancePullRequestKind::query()->where('mode', FinancePullRequestKind::MODE_COUNT)->firstOrFail()->id)
             ->set('requested_amount', '40')
             ->set('requested_count', '4')
@@ -1529,7 +1533,9 @@ class FinanceAndActivitiesTest extends TestCase
         $this->assertStringContainsString('Only for this ledger', $rtlExportHtml);
 
         Volt::test('finance.reports')
+            ->set('report_notes', 'Previous report note')
             ->call('openCreateReport')
+            ->assertSet('report_notes', '----')
             ->assertDontSee(__('finance.reports.ledger_export_title'))
             ->assertSee(__('finance.reports.generated_reports'))
             ->assertSee($cashBox->name)
@@ -1903,7 +1909,7 @@ class FinanceAndActivitiesTest extends TestCase
             ->assertHasNoErrors();
 
         $this->assertStringContainsString(
-            ".generated-report-lookup[dir='rtl']::placeholder {\n    direction: rtl;\n    text-align: right;",
+            "html[dir='rtl'] .generated-report-lookup[dir='rtl'],\nhtml[dir='rtl'] .generated-report-lookup[dir='rtl']::placeholder {\n    direction: rtl;\n    text-align: right !important;",
             file_get_contents(resource_path('css/app.css')),
         );
 

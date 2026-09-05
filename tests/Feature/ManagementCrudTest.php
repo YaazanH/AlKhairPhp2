@@ -32,6 +32,7 @@ use App\Models\TeacherAttendanceDay;
 use App\Models\TeacherAttendanceRecord;
 use App\Models\User;
 use App\Services\CourseLifecycleService;
+use App\Services\GroupDailySummaryService;
 use App\Services\ParentNumberService;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -707,6 +708,11 @@ class ManagementCrudTest extends TestCase
             'day_of_week' => 6,
             'time_slot' => 'morning',
         ]);
+        $course->calendarEntries()->create([
+            'date' => '2026-10-15',
+            'name' => 'Copied calendar addition',
+            'color' => '#245c46',
+        ]);
         $student = Student::create([
             'first_name' => 'Not',
             'last_name' => 'Copied',
@@ -755,6 +761,11 @@ class ManagementCrudTest extends TestCase
             'course_id' => $copy->id,
             'day_of_week' => 6,
             'time_slot' => 'morning',
+        ]);
+        $this->assertDatabaseHas('course_calendar_entries', [
+            'course_id' => $copy->id,
+            'name' => 'Copied calendar addition',
+            'color' => '#245c46',
         ]);
         $this->assertDatabaseHas('group_schedules', [
             'group_id' => $copiedGroup->id,
@@ -2315,7 +2326,7 @@ class ManagementCrudTest extends TestCase
             ['memorization_session_id' => $session->id, 'page_no' => 13],
         ]);
 
-        $copyText = app(\App\Services\GroupDailySummaryService::class)->currentCopyTextForUser(
+        $copyText = app(GroupDailySummaryService::class)->currentCopyTextForUser(
             $group,
             '2026-09-10',
             auth()->user(),
@@ -3050,6 +3061,81 @@ class ManagementCrudTest extends TestCase
             'course_id' => $course->id,
             'day_of_week' => 4,
             'time_slot' => 'between_noon_afternoon',
+        ]);
+    }
+
+    public function test_course_calendar_modal_builds_and_persists_coloured_entries(): void
+    {
+        $this->signIn();
+
+        $course = Course::create([
+            'name' => 'Calendar additions course',
+            'starts_on' => '2026-09-01',
+            'ends_on' => '2027-05-31',
+            'is_active' => true,
+        ]);
+
+        $component = Volt::test('courses.index')
+            ->assertSee('data-course-calendar-action', false)
+            ->call('openCourseCalendar', $course->id)
+            ->assertSet('showCalendarModal', true)
+            ->assertSet('calendarCourseId', $course->id)
+            ->assertSee('data-course-calendar-save', false)
+            ->assertSee('data-course-calendar-pdf-action', false)
+            ->set('calendarDate', '2026-08-31')
+            ->set('calendarName', 'Before course')
+            ->set('calendarColor', '#245c46')
+            ->call('saveCalendarRow')
+            ->assertHasErrors('calendarDate')
+            ->set('calendarDate', '2026-10-15')
+            ->set('calendarName', 'Mid-course gathering')
+            ->set('calendarColor', '#A37326')
+            ->call('saveCalendarRow')
+            ->assertHasNoErrors()
+            ->assertSee('data-course-calendar-entry-edit', false)
+            ->assertDontSee('data-course-calendar-entry-delete', false)
+            ->assertSee('data-course-calendar-entry-add-row', false)
+            ->call('editCalendarRow', 0)
+            ->assertSee('data-course-calendar-entry-update', false)
+            ->assertSee('data-course-calendar-entry-delete', false)
+            ->assertDontSee('data-course-calendar-entry-add-row', false)
+            ->call('saveCalendarRow')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseMissing('course_calendar_entries', [
+            'course_id' => $course->id,
+        ]);
+        $this->assertSame([
+            'id' => null,
+            'date' => '2026-10-15',
+            'name' => 'Mid-course gathering',
+            'color' => '#a37326',
+        ], $component->get('calendarRows')[0]);
+
+        $component
+            ->call('saveCourseCalendar')
+            ->assertHasNoErrors()
+            ->assertSet('showCalendarModal', false);
+
+        $entry = $course->calendarEntries()->firstOrFail();
+        $this->assertSame('2026-10-15', $entry->date->toDateString());
+        $this->assertSame('Mid-course gathering', $entry->name);
+        $this->assertSame('#a37326', $entry->color);
+
+        Volt::test('courses.index')
+            ->call('openCourseCalendar', $course->id)
+            ->call('editCalendarRow', 0)
+            ->set('calendarName', 'Updated gathering')
+            ->set('calendarColor', '#3F8067')
+            ->call('saveCourseCalendar')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('course_calendar_entries', [
+            'id' => $entry->id,
+            'course_id' => $course->id,
+            'date' => '2026-10-15 00:00:00',
+            'name' => 'Updated gathering',
+            'color' => '#3f8067',
         ]);
     }
 

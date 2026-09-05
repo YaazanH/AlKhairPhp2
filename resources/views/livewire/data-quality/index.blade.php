@@ -10,6 +10,7 @@ use App\Services\DataQualityService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Livewire\Volt\Component;
@@ -21,7 +22,6 @@ new class extends Component {
 
     public string $search = '';
     public string $typeFilter = 'all';
-    public string $statusFilter = 'open';
     public string $severityFilter = 'all';
     public ?string $selectedIssueKey = null;
     public string $editableType = '';
@@ -33,12 +33,22 @@ new class extends Component {
         $this->authorizePermission('data-quality.view');
     }
 
+    public function render(): mixed
+    {
+        return parent::render()->title(__('data_governance.quality.title'));
+    }
+
+    public function refreshTable(): void
+    {
+        $this->authorizePermission('data-quality.view');
+    }
+
     public function with(): array
     {
         $allIssues = app(DataQualityService::class)->issues();
-        $filtered = $allIssues
+        $activeIssues = $allIssues->where('status', 'open')->values();
+        $filtered = $activeIssues
             ->when($this->typeFilter !== 'all', fn (Collection $issues) => $issues->where('type', $this->typeFilter))
-            ->when($this->statusFilter !== 'all', fn (Collection $issues) => $issues->where('status', $this->statusFilter))
             ->when($this->severityFilter !== 'all', fn (Collection $issues) => $issues->where('severity', $this->severityFilter))
             ->when(filled($this->search), function (Collection $issues): Collection {
                 $needle = Str::lower($this->search);
@@ -61,34 +71,30 @@ new class extends Component {
         return [
             'issues' => $issues,
             'selectedIssue' => $this->selectedIssueKey
-                ? $allIssues->firstWhere('key', $this->selectedIssueKey)
+                ? $activeIssues->firstWhere('key', $this->selectedIssueKey)
                 : null,
-            'counts' => [
-                'open' => $allIssues->where('status', 'open')->count(),
-                'high' => $allIssues->where('status', 'open')->where('severity', 'high')->count(),
-                'resolved' => $allIssues->whereIn('status', ['resolved', 'not_duplicate'])->count(),
-            ],
-            'types' => $allIssues->pluck('type')->unique()->values(),
+            'highPriorityCount' => $activeIssues->where('severity', 'high')->count(),
+            'types' => $activeIssues->pluck('type')->unique()->values(),
         ];
     }
 
     public function updatedSearch(): void { $this->resetPage(); }
     public function updatedTypeFilter(): void { $this->resetPage(); }
-    public function updatedStatusFilter(): void { $this->resetPage(); }
     public function updatedSeverityFilter(): void { $this->resetPage(); }
 
     public function clearFilters(): void
     {
         $this->search = '';
         $this->typeFilter = 'all';
-        $this->statusFilter = 'open';
         $this->severityFilter = 'all';
         $this->resetPage();
     }
 
     public function review(string $issueKey): void
     {
-        $issue = app(DataQualityService::class)->issues()->firstWhere('key', $issueKey);
+        $issue = app(DataQualityService::class)->issues()
+            ->where('status', 'open')
+            ->firstWhere('key', $issueKey);
         abort_unless($issue, 404);
 
         $this->selectedIssueKey = $issueKey;
@@ -108,8 +114,8 @@ new class extends Component {
         $this->authorizePermission('data-quality.resolve');
         abort_unless(isset($this->editableRecords[$index]), 404);
 
-        DB::transaction(function (): void {
-            match ($this->editableType) {
+        $saved = DB::transaction(function (): bool {
+            return match ($this->editableType) {
                 'student' => $this->saveStudentEdits(),
                 'parent' => $this->saveParentEdits(),
                 'enrollment' => $this->saveEnrollmentEdits(),
@@ -117,6 +123,10 @@ new class extends Component {
                 default => abort(422),
             };
         });
+
+        if (! $saved) {
+            return;
+        }
 
         session()->flash('status', __('data_governance.quality.messages.edits_saved'));
         $this->closeReview();
@@ -129,8 +139,10 @@ new class extends Component {
         $issue = app(DataQualityService::class)->issues()->firstWhere('key', $this->selectedIssueKey);
         abort_unless($issue && $issue['type'] === 'missing_parent_contact' && $this->editableType === 'parent', 404);
 
-        DB::transaction(function () use ($issue): void {
-            $this->saveParentEdits();
+        $saved = DB::transaction(function () use ($issue): bool {
+            if (! $this->saveParentEdits()) {
+                return false;
+            }
 
             DataQualityResolution::query()->updateOrCreate(
                 ['issue_key' => $issue['key']],
@@ -142,7 +154,13 @@ new class extends Component {
                     'resolved_at' => now(),
                 ],
             );
+
+            return true;
         });
+
+        if (! $saved) {
+            return;
+        }
 
         session()->flash('status', __('data_governance.quality.messages.resolved'));
         $this->closeReview();
@@ -288,7 +306,7 @@ new class extends Component {
         };
     }
 
-    protected function saveStudentEdits(): void
+    protected function saveStudentEdits(): bool
     {
         $validated = $this->validate([
             'editableRecords.*.id' => ['required', 'integer', 'exists:students,id'],
@@ -300,12 +318,26 @@ new class extends Component {
             'editableRecords.*.joined_at' => ['nullable', 'date'],
         ]);
 
+        $saved = false;
+
         foreach ($validated['editableRecords'] as $record) {
-            Student::query()->findOrFail($record['id'])->update(collect($record)->except('id')->all());
+            foreach (['school_name', 'joined_at'] as $field) {
+                $record[$field] = filled($record[$field] ?? null) ? $record[$field] : null;
+            }
+
+            $student = Student::query()->findOrFail($record['id']);
+            $student->fill(collect($record)->except('id')->all());
+
+            if ($student->isDirty()) {
+                $student->save();
+                $saved = true;
+            }
         }
+
+        return $saved;
     }
 
-    protected function saveParentEdits(): void
+    protected function saveParentEdits(): bool
     {
         $validated = $this->validate([
             'editableRecords.*.id' => ['required', 'integer', 'exists:parents,id'],
@@ -320,17 +352,35 @@ new class extends Component {
             'editableRecords.*.email' => ['nullable', 'email', 'max:255'],
         ]);
 
+        $saved = false;
+
         foreach ($validated['editableRecords'] as $record) {
+            foreach (['father_work', 'father_phone', 'mother_name', 'mother_phone', 'home_phone', 'address'] as $field) {
+                $record[$field] = filled($record[$field] ?? null) ? $record[$field] : null;
+            }
+
             $parent = ParentProfile::query()->with('user')->findOrFail($record['id']);
-            $parent->update(collect($record)->only(['father_name', 'father_work', 'father_phone', 'mother_name', 'mother_phone', 'home_phone', 'address', 'is_active'])->all());
+            $parent->fill(collect($record)->only(['father_name', 'father_work', 'father_phone', 'mother_name', 'mother_phone', 'home_phone', 'address', 'is_active'])->all());
+
+            if ($parent->isDirty()) {
+                $parent->save();
+                $saved = true;
+            }
 
             if ($parent->user) {
-                $parent->user->update(['email' => filled($record['email'] ?? null) ? trim($record['email']) : null]);
+                $parent->user->fill(['email' => filled($record['email'] ?? null) ? trim($record['email']) : null]);
+
+                if ($parent->user->isDirty()) {
+                    $parent->user->save();
+                    $saved = true;
+                }
             }
         }
+
+        return $saved;
     }
 
-    protected function saveEnrollmentEdits(): void
+    protected function saveEnrollmentEdits(): bool
     {
         $validated = $this->validate([
             'editableRecords.*.id' => ['required', 'integer', 'exists:enrollments,id'],
@@ -339,17 +389,26 @@ new class extends Component {
             'editableRecords.*.left_at' => ['nullable', 'date'],
         ]);
 
+        $saved = false;
+
         foreach ($validated['editableRecords'] as $record) {
             $enrollment = Enrollment::query()->findOrFail($record['id']);
-            $enrollment->update([
+            $enrollment->fill([
                 'enrolled_at' => $record['enrolled_at'],
                 'status' => $record['status'],
                 'left_at' => $record['status'] === 'active' ? null : ($record['left_at'] ?: $enrollment->left_at ?: now()->toDateString()),
             ]);
+
+            if ($enrollment->isDirty()) {
+                $enrollment->save();
+                $saved = true;
+            }
         }
+
+        return $saved;
     }
 
-    protected function saveGroupEdits(): void
+    protected function saveGroupEdits(): bool
     {
         $validated = $this->validate([
             'editableRecords.*.id' => ['required', 'integer', 'exists:groups,id'],
@@ -361,9 +420,23 @@ new class extends Component {
             'editableRecords.*.is_active' => ['required', 'boolean'],
         ]);
 
+        $saved = false;
+
         foreach ($validated['editableRecords'] as $record) {
-            Group::query()->findOrFail($record['id'])->update(collect($record)->except('id')->all());
+            foreach (['starts_on', 'ends_on', 'monthly_fee'] as $field) {
+                $record[$field] = filled($record[$field] ?? null) ? $record[$field] : null;
+            }
+
+            $group = Group::query()->findOrFail($record['id']);
+            $group->fill(collect($record)->except('id')->all());
+
+            if ($group->isDirty()) {
+                $group->save();
+                $saved = true;
+            }
         }
+
+        return $saved;
     }
 
     protected function deleteStudentRecord(int $recordId): void
@@ -405,16 +478,37 @@ new class extends Component {
         $values = array_merge($leading, collect($model->getAttributes())->except(['deleted_at', 'notes'])->all(), $extra);
 
         return collect($values)->map(function (mixed $value, string $field): array {
+            $isDate = in_array($field, [
+                'birth_date',
+                'joined_at',
+                'enrolled_at',
+                'left_at',
+                'starts_on',
+                'ends_on',
+                'course_finished_at',
+                'course_finished_previous_left_at',
+                'created_at',
+                'updated_at',
+            ], true);
+
             if (in_array($field, ['is_active', 'course_finished_was_active'], true) && $value !== null) {
                 $value = (bool) $value
                     ? __('crud.common.status_options.active')
                     : __('crud.common.status_options.inactive');
             }
 
+            if ($isDate && filled($value)) {
+                try {
+                    $value = Carbon::parse($value)->format('d-m-Y');
+                } catch (\Throwable) {
+                    // Keep unexpected legacy values visible instead of hiding the field.
+                }
+            }
+
             return [
                 'field' => __('data_governance.quality.record_fields.'.$field),
                 'value' => filled($value) || $value === 0 ? (string) $value : '—',
-                'direction' => str_contains($field, 'phone') ? 'ltr' : 'auto',
+                'direction' => str_contains($field, 'phone') || $isDate ? 'ltr' : 'auto',
             ];
         })->values()->all();
     }
@@ -428,26 +522,19 @@ new class extends Component {
     }
 }; ?>
 
-<div class="page-stack" data-data-quality-page>
+<div class="page-stack" wire:init="refreshTable" data-data-quality-page data-data-quality-refresh-on-open>
     <section class="page-hero p-6 lg:p-8">
-        <div class="eyebrow">{{ __('data_governance.quality.eyebrow') }}</div>
-        <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('data_governance.quality.title') }}</h1>
-        <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ __('data_governance.quality.subtitle') }}</p>
-    </section>
-
-    <section class="admin-kpi-grid mobile-compact-highlights data-quality-highlights" data-data-quality-highlights>
-        <article class="stat-card">
-            <div class="kpi-label">{{ __('data_governance.quality.open') }}</div>
-            <div class="metric-value mt-3">{{ number_format($counts['open']) }}</div>
-        </article>
-        <article class="stat-card data-quality-stat--high">
-            <div class="kpi-label">{{ __('data_governance.quality.high_priority') }}</div>
-            <div class="metric-value mt-3">{{ number_format($counts['high']) }}</div>
-        </article>
-        <article class="stat-card">
-            <div class="kpi-label">{{ __('data_governance.quality.resolved') }}</div>
-            <div class="metric-value mt-3">{{ number_format($counts['resolved']) }}</div>
-        </article>
+        <div class="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
+            <div>
+                <div class="eyebrow">{{ __('data_governance.quality.eyebrow') }}</div>
+                <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('data_governance.quality.title') }}</h1>
+                <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ __('data_governance.quality.subtitle') }}</p>
+            </div>
+            <div class="shrink-0 rounded-2xl border border-red-300/30 bg-red-500/15 px-5 py-3 text-center shadow-inner" data-data-quality-high-priority>
+                <div class="text-xs text-red-700 dark:text-red-100">{{ __('data_governance.quality.high_priority') }}</div>
+                <bdi dir="ltr" class="mt-1 block text-lg font-semibold text-red-700 dark:text-red-100">{{ number_format($highPriorityCount) }}</bdi>
+            </div>
+        </div>
     </section>
 
     @if (session('status')) <div class="flash-success px-4 py-3 text-sm">{{ session('status') }}</div> @endif
@@ -467,10 +554,6 @@ new class extends Component {
                 <div class="admin-filter-field">
                     <label class="sr-only" for="data-quality-severity">{{ __('data_governance.quality.all_severities') }}</label>
                     <select id="data-quality-severity" wire:model.live="severityFilter"><option value="all">{{ __('data_governance.quality.all_severities') }}</option>@foreach (['high','medium','low'] as $severity)<option value="{{ $severity }}">{{ __('data_governance.quality.'.$severity) }}</option>@endforeach</select>
-                </div>
-                <div class="admin-filter-field">
-                    <label class="sr-only" for="data-quality-status">{{ __('data_governance.quality.all_statuses') }}</label>
-                    <select id="data-quality-status" wire:model.live="statusFilter"><option value="all">{{ __('data_governance.quality.all_statuses') }}</option>@foreach (['open','resolved','not_duplicate'] as $status)<option value="{{ $status }}">{{ __('data_governance.quality.'.$status) }}</option>@endforeach</select>
                 </div>
             </div>
         </div>

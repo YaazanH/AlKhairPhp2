@@ -516,7 +516,7 @@ new class extends Component
         <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('ui.common.settings') }}</h1>
     </section>
 
-    <x-settings.admin-nav section="dashboard" current="settings.tracking" />
+    <x-settings.admin-nav section="dashboard" current="settings.points" />
 
     @if (session('status'))
         <div class="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">{{ session('status') }}</div>

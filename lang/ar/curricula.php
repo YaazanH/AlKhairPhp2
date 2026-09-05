@@ -17,7 +17,7 @@ return [
         'mark_all_topics' => 'تحديد جميع مواضيع الدرس', 'clear_all_topics' => 'إلغاء تحديد جميع مواضيع الدرس',
     ],
     'fields' => [
-        'curriculum' => 'المنهاج', 'name' => 'الاسم', 'chapter_number' => 'رقم الفصل', 'course' => 'الدورة', 'grade' => 'الصف', 'subject' => 'المادة',
+        'curriculum' => 'المنهاج', 'name' => 'الاسم', 'chapter_number' => 'الفصل', 'course' => 'الدورة', 'grade' => 'الصف', 'subject' => 'المادة',
         'subjects' => 'المواد', 'lessons' => 'الدروس', 'lesson' => 'الدرس', 'page_count' => 'عدد الصفحات',
         'importance' => 'الأهمية', 'resources' => 'المراجع', 'book' => 'كتاب', 'book_name' => 'اسم الكتاب', 'author' => 'المؤلف',
         'publisher' => 'الناشر', 'published_on' => 'سنة النشر', 'edition_number' => 'رقم الطبعة', 'edition_and_year' => 'رقم الطبعة + السنة', 'year' => 'السنة', 'date' => 'التاريخ', 'teacher' => 'المدرس', 'status' => 'الحالة',

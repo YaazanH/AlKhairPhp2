@@ -256,9 +256,11 @@ new class extends Component {
     {
         $this->authorizePermission($this->editingId ? 'parents.update' : 'parents.create');
         $qualityIssue = null;
+        $editingParent = null;
 
         if ($this->editingId) {
-            $this->authorizeScopedParentAccess(ParentProfile::query()->findOrFail($this->editingId));
+            $editingParent = ParentProfile::query()->findOrFail($this->editingId);
+            $this->authorizeScopedParentAccess($editingParent);
             $qualityIssue = $this->duplicateQualityIssueFor('parent', $this->editingId);
         }
 
@@ -267,6 +269,10 @@ new class extends Component {
         }
         $validated = $this->validate();
 
+        foreach (['father_work', 'father_phone', 'mother_name', 'mother_phone', 'home_phone', 'address', 'notes'] as $field) {
+            $validated[$field] = filled($validated[$field] ?? null) ? $validated[$field] : null;
+        }
+
         if (! $qualityIssue && ($duplicate = $this->findDuplicateParent($validated))) {
             $this->addError('father_name', __('crud.parents.errors.duplicate_profile', [
                 'name' => $duplicate->father_name,
@@ -274,6 +280,15 @@ new class extends Component {
             ]));
 
             return;
+        }
+
+        if ($qualityIssue && $editingParent) {
+            $candidate = clone $editingParent;
+            $candidate->fill($validated);
+
+            if (! $candidate->isDirty()) {
+                return;
+            }
         }
 
         $parent = ParentProfile::query()->updateOrCreate(
@@ -1049,15 +1064,13 @@ new class extends Component {
                 </div>
             </div>
 
-            @if (blank($qualityIssueKey))
-                <div>
-                    <label for="parent-notes" class="mb-1 block text-sm font-medium">{{ __('crud.parents.form.fields.notes') }}</label>
-                    <textarea id="parent-notes" wire:model="notes" rows="4" class="w-full rounded-xl px-4 py-3 text-sm"></textarea>
-                    @error('notes')
-                        <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
-                    @enderror
-                </div>
-            @endif
+            <div>
+                <label for="parent-notes" class="mb-1 block text-sm font-medium">{{ __('crud.parents.form.fields.notes') }}</label>
+                <textarea id="parent-notes" wire:model="notes" rows="4" class="w-full rounded-xl px-4 py-3 text-sm"></textarea>
+                @error('notes')
+                    <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
+                @enderror
+            </div>
 
             <label class="flex items-center gap-3 text-sm">
                 <input wire:model="is_active" type="checkbox" class="rounded border-neutral-300 text-neutral-900">
@@ -1072,18 +1085,14 @@ new class extends Component {
                 @else
                     <x-admin.create-and-new-button />
                 @endif
-                @if (blank($qualityIssueKey))
-                    <button type="button" wire:click="cancel" class="admin-icon-button admin-modal-action-button" title="{{ __('crud.common.actions.close') }}" aria-label="{{ __('crud.common.actions.close') }}" data-parent-form-close-action>
-                        <x-admin-action-icon name="clear-selection" class="admin-modal-action__icon" />
-                    </button>
-                @endif
-                @if ($editingId)
+                <button type="button" wire:click="cancel" class="admin-icon-button admin-modal-action-button" title="{{ __('crud.common.actions.close') }}" aria-label="{{ __('crud.common.actions.close') }}" data-parent-form-close-action>
+                    <x-admin-action-icon name="clear-selection" class="admin-modal-action__icon" />
+                </button>
+                @if($editingId)
                     @can('parents.update')
-                        @if (blank($qualityIssueKey))
-                            <button type="button" wire:click="openAccountModal({{ $editingId }})" class="admin-icon-button admin-modal-action-button" title="{{ __('access.profile_accounts.title') }}" aria-label="{{ __('access.profile_accounts.title') }}" data-parent-form-account-action>
-                                <x-admin-action-icon name="account" class="admin-modal-action__icon" />
-                            </button>
-                        @endif
+                        <button type="button" wire:click="openAccountModal({{ $editingId }})" class="admin-icon-button admin-modal-action-button" title="{{ __('access.profile_accounts.title') }}" aria-label="{{ __('access.profile_accounts.title') }}" data-parent-form-account-action>
+                            <x-admin-action-icon name="account" class="admin-modal-action__icon" />
+                        </button>
                     @endcan
                     @can('parents.delete')
                         <x-delete-action-button wire:click="delete({{ $editingId }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" :label="__('crud.common.actions.delete')" class="admin-modal-action-button" data-parent-form-delete-action />

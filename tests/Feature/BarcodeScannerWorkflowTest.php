@@ -37,10 +37,17 @@ class BarcodeScannerWorkflowTest extends TestCase
         $manager = User::factory()->create(['username' => 'barcode-page-manager']);
         $manager->assignRole('manager');
 
+        $this->assertSame('/settings/barcode-actions', route('barcode-actions.index', absolute: false));
+        $this->assertSame('/settings/barcode-actions/print/preview', route('barcode-actions.print.preview', absolute: false));
+
         $this->actingAs($manager)
             ->get(route('barcode-actions.index', absolute: false))
             ->assertOk()
             ->assertSee(__('barcodes.actions.title'));
+
+        $this->actingAs($manager)
+            ->get('/barcode-actions')
+            ->assertRedirect('/settings/barcode-actions');
 
         $this->actingAs($manager)
             ->get(route('barcode-actions.import', absolute: false))

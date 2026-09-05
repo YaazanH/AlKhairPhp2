@@ -16,6 +16,7 @@ use App\Models\Student;
 use App\Models\Teacher;
 use App\Models\User;
 use App\Services\SidebarNavigationService;
+use App\Support\RoleRegistry;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Route;
@@ -533,7 +534,7 @@ class ManagementPagesTest extends TestCase
         foreach ([
             'data-finance-dashboard-move-money' => ['transfer', 'finance.dashboard.move_money'],
             'data-finance-dashboard-details' => ['chart', 'finance.actions.details'],
-            'data-finance-dashboard-request-history' => ['history', 'finance.dashboard.previous_requests'],
+            'data-finance-dashboard-request-history' => ['past', 'finance.dashboard.previous_requests'],
             'data-finance-dashboard-new-request' => ['add', 'finance.pull_requests.new'],
         ] as $marker => [$iconName, $translation]) {
             $this->assertStringContainsString($marker, $dashboard);
@@ -701,7 +702,7 @@ class ManagementPagesTest extends TestCase
         $this->assertStringContainsString(".group-form__identity-control,\n.group-form__identity-control + .searchable-select :is(", $styles);
 
         $organizationForm = str($organization)->after('id="organization-settings-form"')->before('</form>')->toString();
-        $this->assertSame(10, substr_count($organizationForm, 'rounded-xl border border-neutral-300'));
+        $this->assertSame(6, substr_count($organizationForm, 'rounded-xl border border-neutral-300'));
         $this->assertDoesNotMatchRegularExpression('/<input[^>]+rounded-lg/', $organizationForm);
     }
 
@@ -770,6 +771,15 @@ class ManagementPagesTest extends TestCase
         $this->assertStringNotContainsString("class=\"pill-link pill-link--accent\">{{ __('crud.common.actions.save') }}", $points);
         $this->assertStringContainsString('.points-multiplier-save-button {', $styles);
         $this->assertStringContainsString("width: 3rem;\n    min-width: 3rem;\n    height: 3rem;\n    min-height: 3rem;\n    flex: 0 0 3rem;\n    aspect-ratio: 1 / 1;", $styles);
+    }
+
+    public function test_course_completion_rules_use_a_right_aligned_save_icon_in_arabic(): void
+    {
+        $courseCompletion = file_get_contents(resource_path('views/livewire/settings/course-completion.blade.php'));
+
+        $this->assertStringContainsString('class="flex justify-start" data-course-completion-save-actions', $courseCompletion);
+        $this->assertStringContainsString('<x-admin.save-button :label="__(\'settings.course_completion.actions.save_rules\')" data-course-completion-save-action />', $courseCompletion);
+        $this->assertStringNotContainsString('<button type="submit" class="pill-link pill-link--accent">{{ __(\'settings.course_completion.actions.save_rules\') }}</button>', $courseCompletion);
     }
 
     public function test_general_settings_editor_uses_the_shared_edit_symbol_without_visible_text(): void
@@ -898,6 +908,8 @@ class ManagementPagesTest extends TestCase
         $styles = file_get_contents(resource_path('css/app.css'));
 
         $this->assertStringContainsString('data-transaction-maintenance-search-action', $finance);
+        $this->assertStringContainsString('data-settings-dark-surface="transaction-maintenance"', $finance);
+        $this->assertStringContainsString(':is(.surface-panel, .surface-table).settings-dark-surface {', $styles);
         $this->assertStringContainsString('<x-admin-action-icon name="search" />', $finance);
         $this->assertStringContainsString('data-transaction-maintenance-save-action', $finance);
         $this->assertStringContainsString('<x-admin-action-icon name="save" />', $finance);
@@ -910,6 +922,14 @@ class ManagementPagesTest extends TestCase
         $this->assertStringNotContainsString("class=\"pill-link pill-link--danger\">{{ __('finance.actions.delete') }}", $finance);
         $this->assertStringContainsString("@case('search')", $icon);
         $this->assertStringContainsString("@case('delete')", $icon);
+        $this->assertStringContainsString("'delete' => '-0.5 -0.5 91 91'", $icon);
+        $this->assertStringContainsString('<x-icons.trash-artwork />', $icon);
+        $trash = file_get_contents(resource_path('views/components/icons/trash.blade.php'));
+        $trashArtwork = file_get_contents(resource_path('views/components/icons/trash-artwork.blade.php'));
+        $this->assertStringContainsString('viewBox="-0.5 -0.5 91 91" fill="currentColor" stroke="none"', $trash);
+        $this->assertStringContainsString('<x-icons.trash-artwork />', $trash);
+        $this->assertStringContainsString('data-supplied-trash-icon="trash-can-10417"', $trashArtwork);
+        $this->assertSame(6, substr_count($trashArtwork, '<path'));
         $this->assertStringContainsString('.transaction-maintenance-lookup,', $styles);
         $this->assertStringContainsString("'transaction-invoice-edit' => '0 0 543.55 785.48'", $icon);
         $this->assertStringContainsString("@case('transaction-invoice-edit')", $icon);
@@ -938,14 +958,15 @@ class ManagementPagesTest extends TestCase
         $styles = file_get_contents(resource_path('css/app.css'));
 
         $this->assertStringContainsString('data-generated-report-delete-action', $finance);
+        $this->assertStringContainsString('data-settings-dark-surface="generated-report-maintenance"', $finance);
         $this->assertStringContainsString('class="admin-icon-button admin-icon-button--danger generated-report-maintenance-action-button"', $finance);
         $this->assertStringContainsString('<x-admin-action-icon name="delete" />', $finance);
         $this->assertStringNotContainsString("class=\"pill-link pill-link--danger\">{{ __('finance.reports.delete_saved_report') }}", $finance);
         $this->assertStringContainsString('data-generated-report-number', $finance);
         $this->assertStringContainsString("placeholder=\"{{ __('finance.settings.generated_report_placeholder') }}\"", $finance);
-        $this->assertStringContainsString("app()->isLocale('ar') ? 'text-right' : 'text-left'", $finance);
         $this->assertStringContainsString("app()->isLocale('ar') ? 'rtl' : 'ltr'", $finance);
         $this->assertStringContainsString('.generated-report-lookup,', $styles);
+        $this->assertStringContainsString("html[dir='rtl'] .generated-report-lookup[dir='rtl']", $styles);
         $this->assertStringContainsString('.generated-report-maintenance-action-button {', $styles);
         $this->assertSame('رقم التقرير', __('finance.settings.generated_report_placeholder', [], 'ar'));
         $this->assertSame('Report number', __('finance.settings.generated_report_placeholder', [], 'en'));
@@ -1024,7 +1045,7 @@ class ManagementPagesTest extends TestCase
             );
         }
 
-        $this->assertSame(25, $uses);
+        $this->assertSame(24, $uses);
         $this->assertStringContainsString('class="admin-icon-button admin-icon-button--accent admin-modal-action-button"', $button);
         $this->assertStringContainsString('title="{{ __(\'crud.common.actions.create_and_new\') }}"', $button);
         $this->assertStringContainsString('aria-label="{{ __(\'crud.common.actions.create_and_new\') }}"', $button);
@@ -1102,6 +1123,9 @@ class ManagementPagesTest extends TestCase
         $this->assertSame(1, substr_count($courses, 'data-course-end-action'));
         $this->assertSame(1, substr_count($courses, 'data-course-edit-action'));
         $this->assertSame(1, substr_count($courses, '<x-edit-action-button wire:click="edit({{ $course->id }})"'));
+        $this->assertSame(1, substr_count($courses, 'data-course-calendar-action'));
+        $this->assertStringContainsString('wire:click="openCourseCalendar({{ $course->id }})"', $courses);
+        $this->assertStringNotContainsString('data-course-form-calendar-action', $courses);
         $this->assertStringContainsString('data-course-form-save-action', $courses);
         $this->assertStringContainsString('<x-admin-action-icon name="save" class="admin-modal-action__icon" />', $courses);
         $this->assertStringContainsString('course-form-actions" data-course-form-actions', $courses);
@@ -1614,14 +1638,21 @@ class ManagementPagesTest extends TestCase
         $dataQualityIcon = file_get_contents(resource_path('views/flux/icon/data-quality.blade.php'));
         $this->assertStringContainsString('<x-sidebar-outline-icon', $dataQualityIcon);
         $this->assertStringContainsString('data-data-quality-icon="supplied-database-award-check"', $dataQualityIcon);
-        $this->assertStringContainsString('transform="translate(2.87 2) scale(.02599)"', $dataQualityIcon);
-        $this->assertStringContainsString('M577.77,397.57', $dataQualityIcon);
+        $this->assertStringContainsString('data-supplied-sidebar-icon="asset-2"', $dataQualityIcon);
+        $this->assertStringContainsString('transform="translate(1.89 1.8) scale(.02994)"', $dataQualityIcon);
+        $this->assertStringContainsString('fill="currentColor" stroke="currentColor" stroke-width="16"', $dataQualityIcon);
+        $this->assertStringContainsString('M31.04,531.96', $dataQualityIcon);
+        $this->assertStringContainsString('M491.77,341.69', $dataQualityIcon);
 
         $dataAuditIcon = file_get_contents(resource_path('views/flux/icon/data-audit.blade.php'));
         $this->assertStringContainsString('<x-sidebar-outline-icon', $dataAuditIcon);
-        $this->assertStringContainsString('data-data-audit-icon="report-search"', $dataAuditIcon);
-        $this->assertStringContainsString('m18.5 19.25 2.25 2.25', $dataAuditIcon);
-        $this->assertStringNotContainsString('M13.75 16.5l1.25 1.25 2.55-2.7', $dataAuditIcon);
+        $this->assertStringContainsString('data-data-audit-icon="supplied-database-movements"', $dataAuditIcon);
+        $this->assertStringContainsString('data-supplied-sidebar-icon="asset-3"', $dataAuditIcon);
+        $this->assertStringContainsString('transform="translate(1.75 1.8) scale(.029)"', $dataAuditIcon);
+        $this->assertStringContainsString('fill="currentColor" stroke="none"', $dataAuditIcon);
+        $this->assertStringContainsString('M684.63,369.49', $dataAuditIcon);
+        $this->assertStringContainsString('M506.75,516.73', $dataAuditIcon);
+        $this->assertStringNotContainsString('data-data-audit-document-outline', $dataAuditIcon);
     }
 
     public function test_secondary_student_tools_are_buttons_in_their_parent_pages(): void
@@ -1650,6 +1681,7 @@ class ManagementPagesTest extends TestCase
         $layout = file_get_contents(resource_path('views/components/layouts/app/sidebar.blade.php'));
         $confirmation = substr($layout, strpos($layout, 'id="admin-confirm-modal"'));
         $styles = file_get_contents(resource_path('css/app.css'));
+        $scripts = file_get_contents(resource_path('js/app.js'));
         $modal = file_get_contents(resource_path('views/components/admin/modal.blade.php'));
         $organization = file_get_contents(resource_path('views/livewire/settings/organization.blade.php'));
         $groupIndex = file_get_contents(resource_path('views/livewire/groups/index.blade.php'));
@@ -1661,7 +1693,15 @@ class ManagementPagesTest extends TestCase
         $this->assertStringContainsString('id="admin-confirm-deny"', $confirmation);
         $this->assertStringContainsString('admin-confirm-action--accept', $confirmation);
         $this->assertStringContainsString('admin-confirm-action--deny', $confirmation);
+        $this->assertStringContainsString('id="admin-confirm-statement"', $confirmation);
+        $this->assertStringContainsString('id="admin-confirm-question"', $confirmation);
+        $this->assertStringContainsString('data-default-question=', $confirmation);
         $this->assertStringContainsString('grid-template-columns: repeat(2, minmax(0, 1fr));', $styles);
+        $this->assertStringContainsString('#admin-confirm-modal .admin-modal__header', $styles);
+        $this->assertStringContainsString('function splitAdminConfirmMessage', $scripts);
+        $this->assertStringContainsString('form[data-admin-confirm-message], form[wire\\\\:confirm]', $scripts);
+        $this->assertSame('هل أنت متأكد أنك تريد حذف هذا السجل؟', trans('crud.common.confirm_delete.question', locale: 'ar'));
+        $this->assertSame('هل تريد المتابعة؟', trans('crud.common.confirm_delete.continue_question', locale: 'ar'));
         $this->assertStringContainsString("'dismissible' => true", $modal);
         $this->assertStringContainsString("'hideHeader' => false", $modal);
         $this->assertStringContainsString('@if ($closeMethod && $dismissible)', $modal);
@@ -1672,7 +1712,7 @@ class ManagementPagesTest extends TestCase
         $this->assertStringContainsString('data-settings-academic-year-delete-action', $organization);
         $this->assertStringContainsString("wire:confirm=\"{{ __('settings.organization.actions.finish_academic_year_confirm') }}\"", $organization);
         $this->assertStringNotContainsString('data-group-edit-action', $groupIndex);
-        $this->assertSame(['super_admin', 'admin', 'manager'], \App\Support\RoleRegistry::unrestrictedRoles());
+        $this->assertSame(['super_admin', 'admin', 'manager'], RoleRegistry::unrestrictedRoles());
         $this->assertStringNotContainsString('data-group-index-copy-summary', $groupIndex);
         $this->assertStringContainsString('RoleRegistry::unrestrictedRoles()', $groupShow);
         $this->assertStringContainsString('data-group-hero-edit-action', $groupShow);

@@ -28,7 +28,7 @@ new class extends Component {
     public $report_background_upload = null;
     public $report_logo_upload = null;
     public $report_stamp_upload = null;
-    public string $report_notes = '';
+    public string $report_notes = '----';
     public bool $remove_report_background = false;
     public bool $remove_report_logo = false;
     public bool $remove_report_stamp = false;
@@ -210,6 +210,7 @@ new class extends Component {
             }
         }
 
+        $this->report_notes = '----';
         $this->showCreateReportModal = true;
     }
 

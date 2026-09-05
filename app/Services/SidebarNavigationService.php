@@ -69,7 +69,7 @@ class SidebarNavigationService
             'finance_reports' => $this->item('ui.nav.finance_reports', 'document-chart-bar', 'finance.reports.index', ['finance.reports.*'], 'finance', 50, ['finance.reports.view']),
             'finance_pull_requests' => $this->item('ui.nav.finance_withdrawal_requests', 'withdrawal-hand', 'finance.pull-requests.index', ['finance.pull-requests.*'], 'finance', 60, ['finance.pull-requests.view'], ['finance.pull-requests.review']),
 
-            'dashboard_settings' => $this->item('ui.nav.dashboard_settings', 'cog-6-tooth', 'settings.organization', ['settings.organization', 'settings.tracking', 'settings.course-completion', 'settings.points', 'settings.access-control', 'settings.sidebar-navigation'], 'configuration', 10, ['settings.manage']),
+            'dashboard_settings' => $this->item('ui.nav.dashboard_settings', 'cog-6-tooth', 'settings.organization', ['settings.organization', 'settings.tracking', 'settings.course-completion', 'settings.points', 'settings.access-control', 'settings.sidebar-navigation', 'settings.backups'], 'configuration', 10, ['settings.manage']),
             'finance_settings' => $this->item('ui.nav.finance_settings', 'finance-settings', 'settings.finance', ['settings.finance'], 'configuration', 15, ['finance.settings.manage']),
             'public_website_settings' => $this->item('ui.nav.public_website_settings', 'globe-alt', 'settings.website', ['settings.website', 'settings.website.pages', 'settings.website.navigation'], 'configuration', 20, ['website.manage']),
             'data_quality' => $this->item('ui.nav.data_quality', 'data-quality', 'data-quality.index', ['data-quality.*'], 'configuration', 30, ['data-quality.view']),

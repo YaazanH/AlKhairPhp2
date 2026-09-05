@@ -7,39 +7,78 @@ use App\Models\Group;
 use App\Services\CourseLifecycleService;
 use App\Services\CourseScheduleService;
 use App\Support\ScheduleTimeSlots;
-use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use Livewire\Volt\Component;
 use Livewire\WithPagination;
 
-new class extends Component {
+new class extends Component
+{
     use AuthorizesPermissions;
     use WithPagination;
 
     public ?int $editingId = null;
+
     public ?int $academic_year_id = null;
+
     public string $name = '';
+
     public string $description = '';
+
     public string $starts_on = '';
+
     public string $ends_on = '';
+
     public bool $is_active = true;
+
     public bool $is_default = false;
+
     public bool $awards_points = true;
+
     public string $search = '';
+
     public string $statusFilter = 'active';
+
     public string $academicYearFilter = 'all';
+
     public int $perPage = 15;
+
     public bool $showFormModal = false;
+
     public bool $showArchiveModal = false;
+
     public ?int $archivedCourseId = null;
+
     public bool $editingAcademicYearIsActive = true;
+
     public bool $showScheduleModal = false;
+
     public ?int $schedulingCourseId = null;
+
     public array $scheduleRows = [];
+
     public string $scheduleDay = '';
+
     public string $scheduleTimeSlot = '';
+
     public ?int $editingScheduleRow = null;
+
     public bool $syncScheduleToGroups = false;
+
+    public bool $showCalendarModal = false;
+
+    public ?int $calendarCourseId = null;
+
+    public array $calendarRows = [];
+
+    public string $calendarDate = '';
+
+    public string $calendarName = '';
+
+    public string $calendarColor = '#3f8067';
+
+    public ?int $editingCalendarRow = null;
+
     public bool $copySetup = false;
 
     public function mount(): void
@@ -99,6 +138,7 @@ new class extends Component {
             'scheduleDays' => collect(range(0, 6))->mapWithKeys(fn ($day) => [$day => __('schedules.group.days.'.$day)]),
             'scheduleTimeSlots' => ScheduleTimeSlots::options(),
             'schedulingCourse' => $this->schedulingCourseId ? Course::query()->find($this->schedulingCourseId) : null,
+            'calendarCourse' => $this->calendarCourseId ? Course::query()->find($this->calendarCourseId) : null,
             'editingCourseCanBeDeleted' => $this->editingId ? $this->courseCanBeDeleted(Course::query()->findOrFail($this->editingId)) : false,
         ];
     }
@@ -348,7 +388,7 @@ new class extends Component {
         bool $restoreArchivedState = false,
     ): void {
         $source = Course::query()
-            ->with(['groups', 'schedules'])
+            ->with(['groups', 'schedules', 'calendarEntries'])
             ->findOrFail($courseId);
 
         $newCourseId = DB::transaction(function () use ($source, $targetAcademicYearId, $restoreArchivedState): int {
@@ -368,6 +408,14 @@ new class extends Component {
                 $newCourse->schedules()->create([
                     'day_of_week' => $schedule->day_of_week,
                     'time_slot' => $schedule->time_slot,
+                ]);
+            }
+
+            foreach ($source->calendarEntries as $entry) {
+                $newCourse->calendarEntries()->create([
+                    'date' => $entry->date,
+                    'name' => $entry->name,
+                    'color' => $entry->color,
                 ]);
             }
 
@@ -427,6 +475,7 @@ new class extends Component {
         $duplicate = collect($this->scheduleRows)->contains(fn ($row, $index) => $index !== $this->editingScheduleRow && (string) $row['day_of_week'] === (string) $data['scheduleDay'] && $row['time_slot'] === $data['scheduleTimeSlot']);
         if ($duplicate) {
             $this->addError('scheduleTimeSlot', __('validation.unique'));
+
             return;
         }
         $row = ['day_of_week' => (string) $data['scheduleDay'], 'time_slot' => $data['scheduleTimeSlot']];
@@ -473,6 +522,7 @@ new class extends Component {
 
         if (count($this->scheduleRows) <= 1) {
             $this->addError('scheduleRows', __('schedules.errors.required'));
+
             return;
         }
 
@@ -487,6 +537,7 @@ new class extends Component {
 
         if ($this->scheduleRows === []) {
             $this->addError('scheduleRows', __('schedules.errors.required'));
+
             return;
         }
 
@@ -505,6 +556,197 @@ new class extends Component {
         $this->resetScheduleRow();
     }
 
+    public function openCourseCalendar(int $courseId): void
+    {
+        $this->authorizePermission('courses.update');
+
+        $course = Course::query()->with('calendarEntries')->findOrFail($courseId);
+        abort_unless($course->starts_on && $course->ends_on, 422);
+
+        $this->calendarCourseId = $course->id;
+        $this->calendarRows = $course->calendarEntries
+            ->sortBy([['date', 'asc'], ['name', 'asc']])
+            ->map(fn ($entry): array => [
+                'id' => $entry->id,
+                'date' => $entry->date->toDateString(),
+                'name' => $entry->name,
+                'color' => $entry->color,
+            ])
+            ->values()
+            ->all();
+        $this->showCalendarModal = true;
+        $this->resetCalendarRow();
+        $this->resetValidation();
+    }
+
+    public function saveCalendarRow(): void
+    {
+        abort_unless($this->calendarCourseId, 404);
+
+        $course = Course::query()->findOrFail($this->calendarCourseId);
+        $data = $this->validate([
+            'calendarDate' => [
+                'required',
+                'date',
+                'after_or_equal:'.$course->starts_on->toDateString(),
+                'before_or_equal:'.$course->ends_on->toDateString(),
+            ],
+            'calendarName' => ['required', 'string', 'max:255'],
+            'calendarColor' => ['required', 'regex:/^#[0-9A-Fa-f]{6}$/'],
+        ], [
+            'calendarDate.after_or_equal' => __('course_calendar.manager.errors.date_range'),
+            'calendarDate.before_or_equal' => __('course_calendar.manager.errors.date_range'),
+        ], [
+            'calendarDate' => __('course_calendar.manager.fields.date'),
+            'calendarName' => __('course_calendar.manager.fields.name'),
+            'calendarColor' => __('course_calendar.manager.fields.color'),
+        ]);
+
+        $name = trim($data['calendarName']);
+        $duplicate = collect($this->calendarRows)->contains(
+            fn (array $row, int $index): bool => $index !== $this->editingCalendarRow
+                && $row['date'] === $data['calendarDate']
+                && mb_strtolower(trim($row['name'])) === mb_strtolower($name),
+        );
+
+        if ($duplicate) {
+            $this->addError('calendarName', __('course_calendar.manager.errors.duplicate'));
+
+            return;
+        }
+
+        $row = [
+            'id' => $this->editingCalendarRow === null
+                ? null
+                : ($this->calendarRows[$this->editingCalendarRow]['id'] ?? null),
+            'date' => $data['calendarDate'],
+            'name' => $name,
+            'color' => strtolower($data['calendarColor']),
+        ];
+
+        if ($this->editingCalendarRow === null) {
+            $this->calendarRows[] = $row;
+        } else {
+            abort_unless(isset($this->calendarRows[$this->editingCalendarRow]), 404);
+            $this->calendarRows[$this->editingCalendarRow] = $row;
+        }
+
+        usort($this->calendarRows, fn (array $left, array $right): int => [$left['date'], $left['name']] <=> [$right['date'], $right['name']]);
+        $this->resetCalendarRow();
+        $this->resetValidation(['calendarRows', 'calendarDate', 'calendarName', 'calendarColor']);
+    }
+
+    public function editCalendarRow(int $index): void
+    {
+        abort_unless(isset($this->calendarRows[$index]), 404);
+
+        $this->editingCalendarRow = $index;
+        $this->calendarDate = $this->calendarRows[$index]['date'];
+        $this->calendarName = $this->calendarRows[$index]['name'];
+        $this->calendarColor = $this->calendarRows[$index]['color'];
+        $this->resetValidation();
+    }
+
+    public function deleteCalendarRow(int $index): void
+    {
+        abort_unless(isset($this->calendarRows[$index]), 404);
+
+        array_splice($this->calendarRows, $index, 1);
+        $this->resetCalendarRow();
+        $this->resetValidation('calendarRows');
+    }
+
+    public function saveCourseCalendar(): void
+    {
+        abort_unless($this->calendarCourseId, 404);
+        $this->authorizePermission('courses.update');
+
+        if ($this->editingCalendarRow !== null || $this->calendarDate !== '' || trim($this->calendarName) !== '') {
+            $this->saveCalendarRow();
+
+            if ($this->getErrorBag()->isNotEmpty()) {
+                return;
+            }
+        }
+
+        $course = Course::query()->with('calendarEntries')->findOrFail($this->calendarCourseId);
+        $validated = $this->validate([
+            'calendarRows' => ['array'],
+            'calendarRows.*.id' => [
+                'nullable',
+                'integer',
+                Rule::exists('course_calendar_entries', 'id')->where(fn ($query) => $query->where('course_id', $course->id)),
+            ],
+            'calendarRows.*.date' => [
+                'required',
+                'date',
+                'after_or_equal:'.$course->starts_on->toDateString(),
+                'before_or_equal:'.$course->ends_on->toDateString(),
+            ],
+            'calendarRows.*.name' => ['required', 'string', 'max:255'],
+            'calendarRows.*.color' => ['required', 'regex:/^#[0-9A-Fa-f]{6}$/'],
+        ], [
+            'calendarRows.*.date.after_or_equal' => __('course_calendar.manager.errors.date_range'),
+            'calendarRows.*.date.before_or_equal' => __('course_calendar.manager.errors.date_range'),
+        ]);
+        $rows = collect($validated['calendarRows'])->map(fn (array $row): array => [
+            'id' => filled($row['id'] ?? null) ? (int) $row['id'] : null,
+            'date' => $row['date'],
+            'name' => trim($row['name']),
+            'color' => strtolower($row['color']),
+        ]);
+
+        if ($rows->contains(fn (array $row): bool => blank($row['name']))) {
+            $this->addError('calendarRows', __('validation.required', ['attribute' => __('course_calendar.manager.fields.name')]));
+
+            return;
+        }
+
+        $duplicateKeys = $rows
+            ->map(fn (array $row): string => $row['date'].'|'.mb_strtolower($row['name']))
+            ->duplicates();
+
+        if ($duplicateKeys->isNotEmpty()) {
+            $this->addError('calendarRows', __('course_calendar.manager.errors.duplicate'));
+
+            return;
+        }
+
+        $keptIds = $rows->pluck('id')->filter()->all();
+
+        DB::transaction(function () use ($course, $keptIds, $rows): void {
+            $course->calendarEntries()->when(
+                $keptIds !== [],
+                fn ($query) => $query->whereKeyNot($keptIds),
+            )->delete();
+
+            foreach ($rows as $row) {
+                $entry = filled($row['id'] ?? null)
+                    ? $course->calendarEntries()->findOrFail((int) $row['id'])
+                    : $course->calendarEntries()->make();
+
+                $entry->fill([
+                    'date' => $row['date'],
+                    'name' => trim($row['name']),
+                    'color' => strtolower($row['color']),
+                ]);
+                $entry->save();
+            }
+        });
+
+        $this->closeCourseCalendar();
+        session()->flash('status', __('course_calendar.manager.messages.saved'));
+    }
+
+    public function closeCourseCalendar(): void
+    {
+        $this->showCalendarModal = false;
+        $this->calendarCourseId = null;
+        $this->calendarRows = [];
+        $this->resetCalendarRow();
+        $this->resetValidation();
+    }
+
     public function courseCanBeDeleted(Course $course): bool
     {
         $groupIds = Group::withTrashed()->where('course_id', $course->id)->pluck('id');
@@ -521,6 +763,7 @@ new class extends Component {
                 return false;
             }
         }
+
         return true;
     }
 
@@ -530,6 +773,15 @@ new class extends Component {
         $this->scheduleDay = '';
         $this->scheduleTimeSlot = '';
         $this->resetValidation(['scheduleDay', 'scheduleTimeSlot']);
+    }
+
+    protected function resetCalendarRow(): void
+    {
+        $this->editingCalendarRow = null;
+        $this->calendarDate = '';
+        $this->calendarName = '';
+        $this->calendarColor = '#3f8067';
+        $this->resetValidation(['calendarDate', 'calendarName', 'calendarColor']);
     }
 
     protected function resetFormState(): void
@@ -661,6 +913,9 @@ new class extends Component {
                                         @can('courses.update')
                                             @if ($course->is_active && ($course->academicYear?->is_active ?? true))
                                                 <x-edit-action-button wire:click="edit({{ $course->id }})" :label="__('crud.common.actions.edit')" data-course-edit-action />
+                                                <button type="button" wire:click="openCourseCalendar({{ $course->id }})" class="admin-icon-button border-teal-300/30 bg-teal-400/10 text-teal-100" title="{{ __('crud.courses.actions.calendar') }}" aria-label="{{ __('crud.courses.actions.calendar') }}" data-course-calendar-action>
+                                                    <x-admin-action-icon name="calendar" />
+                                                </button>
                                             @elseif (! $course->is_active)
                                                 <button type="button" wire:click="openArchive({{ $course->id }})" class="admin-icon-button admin-icon-button--danger" title="{{ __('crud.courses.actions.archive') }}" aria-label="{{ __('crud.courses.actions.archive') }}" data-course-archive-action>
                                                     <x-admin-action-icon name="archive" />
@@ -754,6 +1009,108 @@ new class extends Component {
                 @endif
             </div>
         </form>
+    </x-admin.modal>
+
+    <x-admin.modal
+        :show="$showCalendarModal"
+        :title="__('course_calendar.manager.title', ['course' => $calendarCourse?->name ?? ''])"
+        max-width="3xl"
+    >
+        <x-slot:header-actions>
+            @if ($calendarCourseId)
+                <a href="{{ route('courses.calendar.pdf', $calendarCourseId) }}" target="_blank" rel="noopener" class="admin-modal__close text-teal-100" title="{{ __('course_calendar.manager.actions.open_pdf') }}" aria-label="{{ __('course_calendar.manager.actions.open_pdf') }}" data-course-calendar-pdf-action>
+                    <x-admin-action-icon name="calendar" class="size-5" />
+                </a>
+            @endif
+            <button type="button" wire:click="saveCourseCalendar" class="admin-modal__close" title="{{ __('course_calendar.manager.actions.save') }}" aria-label="{{ __('course_calendar.manager.actions.save') }}" data-course-calendar-save>
+                <span aria-hidden="true">&times;</span>
+            </button>
+        </x-slot:header-actions>
+
+        <section class="surface-table settings-record-table overflow-visible" data-course-calendar-entry-table>
+            <div class="overflow-visible">
+                <table class="w-full table-fixed text-sm">
+                    <thead>
+                        <tr>
+                            <th class="w-1/4 px-4 py-3">{{ __('course_calendar.manager.fields.date') }}</th>
+                            <th class="px-4 py-3">{{ __('course_calendar.manager.fields.name') }}</th>
+                            <th class="w-1/4 px-4 py-3">{{ __('course_calendar.manager.fields.color') }}</th>
+                            <th class="admin-actions-column w-32 px-2 py-3 text-center">{{ __('crud.common.actions.actions') }}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach($calendarRows as $index => $row)
+                            <tr wire:key="course-calendar-entry-{{ $row['id'] ?? 'new-'.$index }}-{{ $editingCalendarRow === $index ? 'edit' : 'view' }}" data-course-calendar-entry-row>
+                                @if($editingCalendarRow === $index)
+                                    <td class="px-4 py-3 align-top">
+                                        <input wire:model="calendarDate" type="date" min="{{ $calendarCourse?->starts_on?->format('Y-m-d') }}" max="{{ $calendarCourse?->ends_on?->format('Y-m-d') }}" class="h-11 w-full rounded-xl px-3" aria-label="{{ __('course_calendar.manager.fields.date') }}">
+                                        @error('calendarDate')<div class="mt-1 text-xs text-red-400">{{ $message }}</div>@enderror
+                                    </td>
+                                    <td class="px-4 py-3 align-top">
+                                        <input wire:model="calendarName" type="text" maxlength="255" class="h-11 w-full rounded-xl px-3" placeholder="{{ __('course_calendar.manager.placeholders.name') }}" aria-label="{{ __('course_calendar.manager.fields.name') }}">
+                                        @error('calendarName')<div class="mt-1 text-xs text-red-400">{{ $message }}</div>@enderror
+                                    </td>
+                                    <td class="px-4 py-3 align-top">
+                                        <input wire:model="calendarColor" type="color" class="h-11 w-full cursor-pointer rounded-xl p-1" aria-label="{{ __('course_calendar.manager.fields.color') }}">
+                                        @error('calendarColor')<div class="mt-1 text-xs text-red-400">{{ $message }}</div>@enderror
+                                    </td>
+                                    <td class="px-2 py-3 align-top">
+                                        <div class="flex flex-nowrap items-center justify-center gap-2">
+                                            <button type="button" wire:click="saveCalendarRow" class="admin-icon-button admin-icon-button--accent" title="{{ __('crud.common.actions.update') }}" aria-label="{{ __('crud.common.actions.update') }}" data-course-calendar-entry-update>
+                                                <x-admin-action-icon name="save" />
+                                            </button>
+                                            <button type="button" wire:click="deleteCalendarRow({{ $index }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="admin-icon-button admin-icon-button--danger" title="{{ __('crud.common.actions.delete') }}" aria-label="{{ __('crud.common.actions.delete') }}" data-course-calendar-entry-delete>
+                                                <x-icons.trash class="size-5" />
+                                            </button>
+                                        </div>
+                                    </td>
+                                @else
+                                    <td class="px-4 py-3"><bdi dir="ltr">{{ \Carbon\CarbonImmutable::parse($row['date'])->format('d-m-Y') }}</bdi></td>
+                                    <td class="px-4 py-3 font-medium text-white">{{ $row['name'] }}</td>
+                                    <td class="px-4 py-3">
+                                        <span class="inline-flex items-center gap-2">
+                                            <span class="size-5 rounded-full border border-white/20" style="background-color: {{ $row['color'] }}" aria-hidden="true"></span>
+                                            <bdi dir="ltr">{{ strtoupper($row['color']) }}</bdi>
+                                        </span>
+                                    </td>
+                                    <td class="px-2 py-3">
+                                        <div class="flex flex-nowrap items-center justify-center gap-2">
+                                            <button type="button" wire:click="editCalendarRow({{ $index }})" class="admin-icon-button" title="{{ __('crud.common.actions.edit') }}" aria-label="{{ __('crud.common.actions.edit') }}" data-course-calendar-entry-edit>
+                                                <x-admin-action-icon name="edit" />
+                                            </button>
+                                        </div>
+                                    </td>
+                                @endif
+                            </tr>
+                        @endforeach
+                        @if($calendarRows === [])
+                            <tr><td colspan="4" class="admin-empty-state">{{ __('course_calendar.manager.empty') }}</td></tr>
+                        @endif
+                        @if($editingCalendarRow === null)
+                        <tr class="schedule-add-row" data-course-calendar-entry-add-row>
+                            <td class="px-4 py-3 align-top">
+                                <input wire:model="calendarDate" type="date" min="{{ $calendarCourse?->starts_on?->format('Y-m-d') }}" max="{{ $calendarCourse?->ends_on?->format('Y-m-d') }}" class="h-11 w-full rounded-xl px-3" aria-label="{{ __('course_calendar.manager.fields.date') }}">
+                                @error('calendarDate')<div class="mt-1 text-xs text-red-400">{{ $message }}</div>@enderror
+                            </td>
+                            <td class="px-4 py-3 align-top">
+                                <input wire:model="calendarName" type="text" maxlength="255" class="h-11 w-full rounded-xl px-3" placeholder="{{ __('course_calendar.manager.placeholders.name') }}" aria-label="{{ __('course_calendar.manager.fields.name') }}">
+                                @error('calendarName')<div class="mt-1 text-xs text-red-400">{{ $message }}</div>@enderror
+                            </td>
+                            <td class="px-4 py-3 align-top">
+                                <input wire:model="calendarColor" type="color" class="h-11 w-full cursor-pointer rounded-xl p-1" aria-label="{{ __('course_calendar.manager.fields.color') }}">
+                                @error('calendarColor')<div class="mt-1 text-xs text-red-400">{{ $message }}</div>@enderror
+                            </td>
+                            <td class="px-2 py-3 text-center align-top">
+                                <button type="button" wire:click="saveCalendarRow" class="admin-icon-button admin-icon-button--accent" title="{{ __('course_calendar.manager.actions.add') }}" aria-label="{{ __('course_calendar.manager.actions.add') }}" data-course-calendar-entry-save>
+                                    <x-admin-action-icon name="add" />
+                                </button>
+                            </td>
+                        </tr>
+                        @endif
+                    </tbody>
+                </table>
+            </div>
+        </section>
     </x-admin.modal>
 
     <x-admin.modal :show="$showScheduleModal" :title="__('schedules.course.title', ['course' => $schedulingCourse?->name ?? ''])" max-width="3xl">

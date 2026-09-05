@@ -483,7 +483,7 @@ new class extends Component
         <div class="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">{{ session('status') }}</div>
     @endif
 
-    <section class="surface-panel p-5 lg:p-6">
+    <section class="surface-panel settings-dark-surface p-5 lg:p-6" data-settings-dark-surface="points-multiplier">
         <div class="admin-toolbar"><div class="admin-toolbar__title">{{ __('settings.points.multiplier.title') }}</div></div>
         <form wire:submit="saveAutomaticMultiplier" class="mt-5 grid gap-4 md:grid-cols-[3rem_1fr_1fr_auto] md:items-end">
             <div class="points-multiplier-field"><select wire:model="automatic_multiplier" class="points-multiplier-select h-12 w-12 rounded-xl px-0 py-0" data-clearable="false" data-search-selection-required="true" data-show-chevron="false" data-search-placeholder="" aria-label="{{ __('settings.points.multiplier.value') }}"><option value="1.5">x1.5</option><option value="2">x2</option><option value="2.5">x2.5</option><option value="3">x3</option></select></div>

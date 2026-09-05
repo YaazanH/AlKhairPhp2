@@ -30,13 +30,18 @@ use App\Models\Student;
 use App\Models\StudentAttendanceDay;
 use App\Models\StudentAttendanceRecord;
 use App\Models\StudentNote;
+use App\Models\SystemBackup;
 use App\Models\Teacher;
 use App\Models\TeacherAttendanceDay;
 use App\Models\TeacherAttendanceRecord;
 use App\Models\User;
 use App\Observers\DataAuditObserver;
+use App\Support\ApplicationTimezone;
 use App\Support\RoleRegistry;
+use App\Validation\LocalizedValidator;
+use Illuminate\Contracts\Translation\Translator;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Validator as ValidatorFacade;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -54,6 +59,12 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        app(ApplicationTimezone::class)->applyConfigured();
+
+        ValidatorFacade::resolver(static function (Translator $translator, array $data, array $rules, array $messages, array $attributes): LocalizedValidator {
+            return new LocalizedValidator($translator, $data, $rules, $messages, $attributes);
+        });
+
         Gate::before(static function (User $user, string $ability): ?bool {
             return $user->hasRole(RoleRegistry::SUPER_ADMIN) ? true : null;
         });
@@ -87,6 +98,7 @@ class AppServiceProvider extends ServiceProvider
             StudentAttendanceDay::class,
             StudentAttendanceRecord::class,
             StudentNote::class,
+            SystemBackup::class,
             Teacher::class,
             TeacherAttendanceDay::class,
             TeacherAttendanceRecord::class,

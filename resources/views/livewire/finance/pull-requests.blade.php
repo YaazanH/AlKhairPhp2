@@ -3,7 +3,6 @@
 use App\Livewire\Concerns\AuthorizesPermissions;
 use App\Livewire\Concerns\FormatsFinanceNumbers;
 use App\Livewire\Concerns\HandlesFinanceRequestMaintenance;
-use App\Livewire\Concerns\SupportsCreateAndNew;
 use App\Models\AppSetting;
 use App\Models\FinancePullRequestKind;
 use App\Models\FinanceRequest;
@@ -19,7 +18,6 @@ new class extends Component {
     use AuthorizesPermissions;
     use FormatsFinanceNumbers;
     use HandlesFinanceRequestMaintenance;
-    use SupportsCreateAndNew;
     use WithPagination;
 
     public string $requested_amount = '';
@@ -437,7 +435,7 @@ new class extends Component {
             @endif
             <div class="lg:col-span-4 flex flex-wrap justify-end gap-3">
                 <button type="button" wire:click="closeCreateModal" class="pill-link">{{ __('crud.common.actions.close') }}</button>
-                <x-admin.create-and-new-button click="saveAndNew('submitRequest', 'openCreateModal')" />
+                <x-admin.save-button data-withdrawal-request-save />
             </div>
         </form>
     </x-admin.modal>

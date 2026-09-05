@@ -71,6 +71,11 @@ class Course extends Model
         return $this->hasMany(CourseSchedule::class);
     }
 
+    public function calendarEntries(): HasMany
+    {
+        return $this->hasMany(CourseCalendarEntry::class)->orderBy('date')->orderBy('id');
+    }
+
     public function curricula(): HasMany
     {
         return $this->hasMany(Curriculum::class);

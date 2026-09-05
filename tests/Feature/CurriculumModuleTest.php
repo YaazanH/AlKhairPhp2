@@ -179,6 +179,8 @@ class CurriculumModuleTest extends TestCase
         ]);
 
         Volt::test('settings.curriculum-subjects')
+            ->assertSee('data-curriculum-settings-table', false)
+            ->assertSee('data-settings-mobile-title-action-row', false)
             ->assertSee('data-curriculum-subject-resource-grid', false)
             ->assertSee('data-curriculum-resource-column="name"', false)
             ->assertSee('curriculum-subject-resource-name', false)
@@ -189,6 +191,11 @@ class CurriculumModuleTest extends TestCase
             ->assertSee('>--</span>', false);
 
         $styles = file_get_contents(resource_path('css/app.css'));
+        $settingsSource = file_get_contents(resource_path('views/livewire/settings/curriculum-subjects.blade.php'));
+
+        $this->assertStringContainsString('class="overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700" data-settings-table data-curriculum-settings-table', $settingsSource);
+        $this->assertStringContainsString('class="admin-grid-meta admin-grid-meta--controls" data-mobile-title-action-row data-settings-mobile-title-action-row', $settingsSource);
+        $this->assertStringNotContainsString('<section class="surface-panel p-5 lg:p-6"><div class="admin-toolbar"><div class="admin-toolbar__title">{{ __(\'curricula.settings.title\') }}', $settingsSource);
 
         $this->assertStringContainsString('.curriculum-subject-resource-grid {', $styles);
         $this->assertStringContainsString('table-layout: fixed;', $styles);
@@ -598,16 +605,18 @@ class CurriculumModuleTest extends TestCase
 
         Volt::test('curricula.index')
             ->set('selectedGroupId', (string) $group->id)
+            ->call('openCustom')
+            ->assertSet('showCustomModal', true)
+            ->assertDontSee('wire:model="customPageCount"', false)
             ->set('customSubjectName', 'Community')
             ->set('customLessonName', 'Helping neighbours')
-            ->set('customPageCount', '2')
             ->set('customImportance', 1)
             ->set('customDate', '2026-08-11')
             ->set('customStatus', 'taught')
             ->call('saveCustom')
             ->assertHasNoErrors();
 
-        $this->assertDatabaseHas('group_custom_curriculum_lessons', ['group_id' => $group->id, 'subject_name' => 'Community', 'name' => 'Helping neighbours', 'status' => 'taught']);
+        $this->assertDatabaseHas('group_custom_curriculum_lessons', ['group_id' => $group->id, 'subject_name' => 'Community', 'name' => 'Helping neighbours', 'page_count' => 0, 'status' => 'taught']);
     }
 
     public function test_teacher_book_rows_hide_and_restore_taught_lessons_in_their_original_places(): void
@@ -635,6 +644,9 @@ class CurriculumModuleTest extends TestCase
             ->assertSee('data-teacher-curriculum-hero-actions', false)
             ->assertSee('wire:click="openCustom"', false)
             ->assertSee('Arabic book')
+            ->assertSeeInOrder(['data-teacher-curriculum-completion-column', 'data-teacher-curriculum-chapter-column'], false)
+            ->assertSee('data-teacher-curriculum-table', false)
+            ->assertSee('teacher-curriculum-table-scroll', false)
             ->assertSee(__('curricula.fields.chapter_number'))
             ->assertSee(__('curricula.fields.lesson'))
             ->assertSee(__('curricula.fields.importance'))
@@ -659,6 +671,13 @@ class CurriculumModuleTest extends TestCase
 
         $this->assertSame('1', app(CurriculumProgressService::class)->subjects($group->fresh())->first()['lessons']->firstWhere('id', $first->id)['chapter_number']);
         $this->assertSame('3', app(CurriculumProgressService::class)->subjects($group->fresh())->first()['lessons']->firstWhere('id', $third->id)['chapter_number']);
+        $this->assertSame('الفصل', __('curricula.fields.chapter_number', [], 'ar'));
+
+        $css = file_get_contents(resource_path('css/app.css'));
+        preg_match('/\.teacher-curriculum-lesson-title\s*\{(?<rules>[^}]*)\}/s', $css, $titleRules);
+        $this->assertStringContainsString('white-space: nowrap;', $titleRules['rules'] ?? '');
+        $this->assertStringNotContainsString('overflow: hidden;', $titleRules['rules'] ?? '');
+        $this->assertStringNotContainsString('text-overflow: ellipsis;', $titleRules['rules'] ?? '');
     }
 
     public function test_lesson_topics_are_collapsible_and_support_parent_or_individual_completion(): void
@@ -681,6 +700,9 @@ class CurriculumModuleTest extends TestCase
             ->set('selectedGroupId', (string) $group->id)
             ->assertSee('Parent lesson')
             ->assertSee('data-teacher-lesson-topics-checkbox', false)
+            ->assertSee('data-teacher-curriculum-completion-column', false)
+            ->assertSee('data-teacher-curriculum-no-chapter', false)
+            ->assertDontSee('data-teacher-curriculum-chapter-column', false)
             ->assertSee('data-teacher-topic-toggle', false)
             ->assertSee('aria-expanded="false"', false)
             ->assertDontSee('data-teacher-topic-list', false)
@@ -692,23 +714,30 @@ class CurriculumModuleTest extends TestCase
             ->assertSee('First topic')
             ->assertSee('Second topic');
 
-        $component->call('toggleLessonTopics', $lesson->id)->assertHasNoErrors();
+        $lessonGroupKey = md5($subject->id.'|general');
+        $component->set("showTaughtLessons.{$lessonGroupKey}", true)
+            ->call('toggleLessonTopics', $lesson->id)
+            ->assertHasNoErrors();
         $this->assertDatabaseHas('group_curriculum_topic_progresses', ['group_id' => $group->id, 'curriculum_lesson_topic_id' => $firstTopic->id]);
         $this->assertDatabaseHas('group_curriculum_topic_progresses', ['group_id' => $group->id, 'curriculum_lesson_topic_id' => $secondTopic->id]);
         $this->assertDatabaseHas('group_curriculum_lesson_progresses', ['group_id' => $group->id, 'curriculum_lesson_id' => $lesson->id, 'status' => 'taught']);
         $this->assertSame(100.0, app(CurriculumProgressService::class)->summary($group->fresh())['percentage']);
+        $this->assertMatchesRegularExpression('/<input(?=[^>]*data-teacher-lesson-topics-checkbox)(?=[^>]*\bchecked\b)[^>]*>/', $component->html());
+        $this->assertSame(2, preg_match_all('/<input(?=[^>]*data-teacher-topic-checkbox)(?=[^>]*\bchecked\b)[^>]*>/', $component->html()));
 
         $component->call('toggleLessonTopics', $lesson->id)->assertHasNoErrors();
         $this->assertDatabaseMissing('group_curriculum_topic_progresses', ['group_id' => $group->id, 'curriculum_lesson_topic_id' => $firstTopic->id]);
         $this->assertDatabaseMissing('group_curriculum_topic_progresses', ['group_id' => $group->id, 'curriculum_lesson_topic_id' => $secondTopic->id]);
         $this->assertDatabaseMissing('group_curriculum_lesson_progresses', ['group_id' => $group->id, 'curriculum_lesson_id' => $lesson->id]);
 
-        Volt::test('curricula.index')->set('selectedGroupId', (string) $group->id)->call('toggleTopic', $firstTopic->id)->assertHasNoErrors();
+        $component->call('toggleTopic', $firstTopic->id)->assertHasNoErrors();
         $this->assertSame(0.0, app(CurriculumProgressService::class)->summary($group->fresh())['percentage']);
+        $this->assertDoesNotMatchRegularExpression('/<input(?=[^>]*data-teacher-lesson-topics-checkbox)(?=[^>]*\bchecked\b)[^>]*>/', $component->html());
 
-        Volt::test('curricula.index')->set('selectedGroupId', (string) $group->id)->call('toggleTopic', $secondTopic->id)->assertHasNoErrors();
+        $component->call('toggleTopic', $secondTopic->id)->assertHasNoErrors();
         $this->assertSame(100.0, app(CurriculumProgressService::class)->summary($group->fresh())['percentage']);
         $this->assertDatabaseHas('group_curriculum_lesson_progresses', ['group_id' => $group->id, 'curriculum_lesson_id' => $lesson->id, 'status' => 'taught']);
+        $this->assertMatchesRegularExpression('/<input(?=[^>]*data-teacher-lesson-topics-checkbox)(?=[^>]*\bchecked\b)[^>]*>/', $component->html());
     }
 
     private function learningStructure(bool $withTeacher = true): array

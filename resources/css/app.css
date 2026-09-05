@@ -213,6 +213,32 @@
         opacity: 1;
     }
 
+    input[type='time'] {
+        display: block;
+        min-width: 0;
+        max-width: 100%;
+        box-sizing: border-box;
+        line-height: 1.25rem;
+    }
+
+    input[type='time']::-webkit-date-and-time-value {
+        display: flex;
+        align-items: center;
+        height: 100%;
+        min-width: 0;
+        margin: 0;
+        line-height: 1.25rem;
+        text-align: start;
+    }
+
+    input[type='time']::-webkit-datetime-edit,
+    input[type='time']::-webkit-datetime-edit-fields-wrapper {
+        display: flex;
+        align-items: center;
+        min-height: 100%;
+        line-height: 1.25rem;
+    }
+
     .dark body {
         background:
             radial-gradient(circle at top left, rgba(11, 143, 67, 0.18), transparent 24rem),
@@ -546,6 +572,59 @@ select:focus[data-flux-control] {
     color: var(--app-text);
 }
 
+.searchable-select__option--bold,
+[data-organization-timezone-select] + .searchable-select.searchable-select--bold-selection .searchable-select__search--trigger {
+    font-weight: 700;
+}
+
+[data-organization-timezone-select] + .searchable-select .searchable-select__search--trigger,
+[data-organization-currency-select] + .searchable-select .searchable-select__search--trigger {
+    height: 2.625rem;
+    min-height: 2.625rem;
+    direction: ltr;
+    text-align: left;
+}
+
+[data-organization-timezone-select] + .searchable-select {
+    min-width: 0;
+}
+
+[data-organization-timezone-select] + .searchable-select .searchable-select__panel {
+    inline-size: 100%;
+    max-inline-size: 100%;
+    box-sizing: border-box;
+    overflow-x: hidden;
+}
+
+[data-organization-timezone-select] + .searchable-select .searchable-select__list {
+    width: 100%;
+    max-width: 100%;
+    max-height: 13rem;
+    box-sizing: border-box;
+    overflow-x: hidden;
+}
+
+[data-organization-timezone-select] + .searchable-select .searchable-select__option,
+[data-organization-currency-select] + .searchable-select .searchable-select__option {
+    padding-block: 0.5rem;
+    direction: ltr;
+    text-align: left;
+}
+
+html[dir='rtl'] [data-organization-timezone-select] + .searchable-select .searchable-select__search--trigger,
+html[dir='rtl'] [data-organization-timezone-select] + .searchable-select .searchable-select__option,
+html[dir='rtl'] [data-organization-currency-select] + .searchable-select .searchable-select__search--trigger,
+html[dir='rtl'] [data-organization-currency-select] + .searchable-select .searchable-select__option,
+html[dir='rtl'] [data-organization-timezone-select],
+html[dir='rtl'] [data-organization-currency-select] {
+    direction: ltr;
+    text-align: right !important;
+}
+
+html[dir='rtl'] [data-organization-timezone-select] + .searchable-select .searchable-select__search--trigger {
+    direction: rtl;
+}
+
 .searchable-select__option--columns {
     display: grid;
     grid-template-columns: minmax(0, 1fr) max-content;
@@ -565,6 +644,65 @@ select:focus[data-flux-control] {
     min-width: max-content;
     text-align: end;
     font-variant-numeric: tabular-nums;
+}
+
+[data-organization-timezone-select] + .searchable-select .searchable-select__option--columns {
+    grid-template-columns: minmax(0, 1fr) 5.75rem;
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+[data-organization-timezone-select] + .searchable-select .searchable-select__option-name {
+    text-align: left;
+}
+
+[data-organization-timezone-select] + .searchable-select .searchable-select__option-number--split {
+    display: grid;
+    width: 5.75rem;
+    grid-template-columns: 3ch 6ch;
+    justify-content: start;
+    column-gap: 0;
+    direction: ltr;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.searchable-select__option-number-prefix {
+    text-align: left;
+}
+
+.searchable-select__option-number-value {
+    text-align: right;
+}
+
+[data-backup-schedule-select] + .searchable-select,
+[data-backup-weekday-select] + .searchable-select {
+    margin-top: 0.25rem;
+}
+
+[data-backup-schedule-select] + .searchable-select .searchable-select__search--trigger,
+[data-backup-weekday-select] + .searchable-select .searchable-select__search--trigger,
+[data-backup-time-input] {
+    min-height: 2.875rem;
+    height: 2.875rem;
+    box-sizing: border-box;
+}
+
+html[dir='rtl'] [data-organization-timezone-select] + .searchable-select .searchable-select__option--columns {
+    grid-template-columns: minmax(0, 1fr) 5.75rem;
+}
+
+html[dir='rtl'] [data-organization-timezone-select] + .searchable-select .searchable-select__option-name {
+    grid-column: 1;
+    grid-row: 1;
+    direction: rtl;
+    text-align: right;
+}
+
+html[dir='rtl'] [data-organization-timezone-select] + .searchable-select .searchable-select__option-number {
+    grid-column: 2;
+    grid-row: 1;
+    justify-self: end;
 }
 
 .print-template-render {
@@ -1393,6 +1531,10 @@ html:not(.dark) .settings-admin-page button[class*='border-red-300'] {
     padding-inline-end: 2.75rem !important;
 }
 
+.saber-rule-input__control--symbol {
+    padding-inline-end: 2.75rem !important;
+}
+
 .saber-rule-input__suffix {
     position: absolute;
     inset-block: 0;
@@ -1794,51 +1936,88 @@ html[dir='rtl'] .group-show-details {
     background: rgba(151, 219, 174, 0.055);
 }
 
-.teacher-curriculum-grid {
-    display: grid;
-    grid-template-columns: minmax(3.5rem, 0.55fr) minmax(0, 3fr) minmax(4.75rem, 0.8fr);
-    align-items: center;
+.teacher-curriculum-table-scroll {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
 }
 
-.teacher-curriculum-grid--header {
-    min-height: 2.75rem;
+.teacher-curriculum-table {
+    width: max-content;
+    min-width: 100%;
+    border-collapse: collapse;
+    text-align: start;
+}
+
+.teacher-curriculum-table thead {
     color: var(--app-muted);
     font-size: 0.75rem;
     font-weight: 700;
 }
 
-.teacher-curriculum-grid--header > *,
-.teacher-curriculum-lesson-row > * {
-    min-width: 0;
+.teacher-curriculum-table th,
+.teacher-curriculum-table td {
     padding: 0.65rem 0.75rem;
 }
 
-.teacher-curriculum-grid--header > :first-child,
-.teacher-curriculum-grid--header > :last-child,
-.teacher-curriculum-chapter,
-.teacher-curriculum-importance {
+.teacher-curriculum-table th {
+    min-height: 2.75rem;
+    white-space: nowrap;
+}
+
+.teacher-curriculum-completion-column {
+    width: 3.5rem;
     text-align: center;
 }
 
-.teacher-curriculum-lesson-row {
-    min-height: 3.65rem;
-    border-top: 1px solid rgba(255, 255, 255, 0.065);
-}
-
-.teacher-curriculum-lesson-row--taught {
-    background: rgba(16, 185, 129, 0.055);
-    color: var(--app-muted);
+.teacher-curriculum-chapter,
+.teacher-curriculum-importance-heading,
+.teacher-curriculum-importance-column {
+    text-align: center;
 }
 
 .teacher-curriculum-chapter {
+    width: 6rem;
     color: var(--app-muted);
     font-size: 0.82rem;
 }
 
+.teacher-curriculum-lesson-heading {
+    min-width: 22rem;
+    text-align: start;
+}
+
+.teacher-curriculum-importance-heading,
+.teacher-curriculum-importance-column {
+    width: 6.5rem;
+}
+
+.teacher-curriculum-lesson-row > td {
+    border-top: 1px solid rgba(255, 255, 255, 0.065);
+}
+
+.teacher-curriculum-lesson-row--taught > td {
+    background: rgba(16, 185, 129, 0.055);
+    color: var(--app-muted);
+}
+
+.teacher-curriculum-lesson-column {
+    min-width: 22rem;
+}
+
 .teacher-curriculum-lesson-cell {
     display: flex;
+    min-height: 2.35rem;
     align-items: flex-start;
     gap: 0.65rem;
+}
+
+.teacher-curriculum-lesson-content {
+    min-width: max-content;
+    flex: 1 0 auto;
 }
 
 .teacher-curriculum-lesson-line {
@@ -1851,12 +2030,10 @@ html[dir='rtl'] .group-show-details {
 }
 
 .teacher-curriculum-lesson-title {
-    min-width: 0;
-    overflow: hidden;
     color: var(--app-text);
     font-size: 0.875rem;
     font-weight: 500;
-    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .teacher-curriculum-topic-toggle {
@@ -2322,6 +2499,13 @@ html[dir='rtl'] .surface-table thead th > button[wire\:click^='sortBy'] {
     background: linear-gradient(180deg, rgba(35, 28, 22, 0.92), rgba(19, 16, 13, 0.96));
 }
 
+/* Reuse the warm dark record-table surface for settings forms and maintenance
+   boxes without giving those interactive panels table overflow behaviour. */
+:is(.surface-panel, .surface-table).settings-dark-surface {
+    border-color: var(--app-border);
+    background: linear-gradient(180deg, rgba(35, 28, 22, 0.92), rgba(19, 16, 13, 0.96));
+}
+
 :is(.settings-record-table, [data-student-progress-generic-table]) table {
     border-collapse: separate;
     border-spacing: 0;
@@ -2354,6 +2538,10 @@ html[dir='rtl'] .surface-table thead th > button[wire\:click^='sortBy'] {
 }
 
 html:not(.dark) .surface-table:is(.settings-record-table, [data-student-progress-generic-table]) {
+    background: linear-gradient(180deg, rgba(255, 255, 252, 0.92), rgba(244, 249, 239, 0.9));
+}
+
+html:not(.dark) :is(.surface-panel, .surface-table).settings-dark-surface {
     background: linear-gradient(180deg, rgba(255, 255, 252, 0.92), rgba(244, 249, 239, 0.9));
 }
 
@@ -2991,7 +3179,34 @@ form[data-admin-confirm-message] button[type='submit']:hover {
 }
 
 .admin-confirm-message {
+    display: grid;
+    gap: 0.55rem;
     margin-bottom: 1.25rem;
+    text-align: center;
+}
+
+.admin-confirm-statement,
+.admin-confirm-question {
+    margin: 0;
+}
+
+.admin-confirm-question {
+    color: #fff4db;
+    font-weight: 700;
+}
+
+html:not(.dark) .admin-confirm-question {
+    color: #17351f;
+}
+
+#admin-confirm-modal .admin-modal__header {
+    justify-content: center;
+    text-align: center;
+}
+
+#admin-confirm-modal .admin-modal__header > div,
+#admin-confirm-title {
+    width: 100%;
     text-align: center;
 }
 
@@ -5690,8 +5905,37 @@ html[dir='rtl'] input[type='date']::-webkit-datetime-edit-fields-wrapper {
     direction: ltr;
 }
 
+html[dir='rtl'] input[type='time'] {
+    position: relative;
+    direction: ltr !important;
+    padding-right: 1rem !important;
+    padding-left: 3rem !important;
+    text-align: right !important;
+}
+
+html[dir='rtl'] input[type='time']::-webkit-calendar-picker-indicator {
+    position: absolute;
+    right: auto !important;
+    left: 0.85rem !important;
+    margin: 0;
+}
+
+html[dir='rtl'] input[type='time']::-webkit-datetime-edit {
+    display: flex;
+    width: 100%;
+    justify-content: flex-end;
+    padding: 0;
+    text-align: right;
+}
+
+html[dir='rtl'] input[type='time']::-webkit-datetime-edit-fields-wrapper {
+    direction: ltr;
+}
+
 input[type='date'],
-input[type='date']::-webkit-calendar-picker-indicator {
+input[type='date']::-webkit-calendar-picker-indicator,
+input[type='time'],
+input[type='time']::-webkit-calendar-picker-indicator {
     cursor: pointer;
 }
 
@@ -5784,6 +6028,10 @@ html:not(.dark) .admin-modal__title {
     width: 1.45rem;
     height: 1.45rem;
     flex-basis: 1.45rem;
+}
+
+.admin-icon-button > svg[data-icon-name='database-restore'] {
+    transform: translateX(0.13rem);
 }
 
 .admin-modal__dialog--compact .admin-modal__header {
@@ -5989,6 +6237,14 @@ html:not(.dark) .admin-modal .text-emerald-100 {
     color: #14532d !important;
 }
 
+.admin-modal .data-audit-after-accent {
+    color: rgb(209 250 229) !important;
+}
+
+html:not(.dark) .admin-modal [data-data-audit-after-table] .data-audit-after-accent {
+    color: #14532d !important;
+}
+
 html:not(.dark) .admin-modal [class*='bg-white/'] {
     background-color: rgba(255, 252, 245, 0.72) !important;
 }
@@ -6000,6 +6256,23 @@ html:not(.dark) .admin-modal [class*='bg-emerald-400'] {
 
 html:not(.dark) .admin-modal [class*='border-emerald'] {
     border-color: rgba(18, 109, 59, 0.18) !important;
+}
+
+.data-audit-log-table {
+    min-width: 70rem;
+    table-layout: fixed;
+}
+
+.data-audit-log-table__number-column {
+    width: 4rem;
+}
+
+.data-audit-log-table col[data-data-audit-content-column] {
+    width: calc((100% - 11rem) / 5);
+}
+
+.data-audit-log-table__details-column {
+    width: 7rem;
 }
 
 .admin-empty-state {
@@ -6277,9 +6550,10 @@ html[dir='rtl'] .finance-amount-input__currency + .searchable-select .searchable
     box-sizing: border-box;
 }
 
-.generated-report-lookup[dir='rtl']::placeholder {
+html[dir='rtl'] .generated-report-lookup[dir='rtl'],
+html[dir='rtl'] .generated-report-lookup[dir='rtl']::placeholder {
     direction: rtl;
-    text-align: right;
+    text-align: right !important;
 }
 
 .transaction-maintenance-action-button,
@@ -6698,16 +6972,6 @@ html[dir='rtl'] .finance-amount-input__currency + .searchable-select .searchable
     height: 7rem;
     border-radius: 9999px;
     background: radial-gradient(circle, rgba(11, 143, 67, 0.18), transparent 72%);
-}
-
-.data-quality-stat--high {
-    border-color: rgba(248, 113, 113, 0.42);
-    box-shadow: 0 0 0 1px rgba(248, 113, 113, 0.07), 0 0 1.15rem rgba(239, 68, 68, 0.13);
-}
-
-html:not(.dark) .data-quality-stat--high {
-    border-color: rgba(220, 38, 38, 0.32);
-    box-shadow: 0 0 0 1px rgba(220, 38, 38, 0.05), 0 0 0.9rem rgba(220, 38, 38, 0.09);
 }
 
 html:not(.dark) .stat-card {
@@ -7569,6 +7833,15 @@ html:not(.dark) .status-chip--slate {
 
     .settings-tabs {
         grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+    }
+
+    .settings-tabs.settings-tabs--barcode-active {
+        grid-template-columns: repeat(auto-fit, minmax(6.5rem, 1fr));
+    }
+
+    .settings-tabs--barcode-active .settings-tab {
+        min-width: 0;
+        padding-inline: 0.7rem;
     }
 }
 
@@ -9695,8 +9968,8 @@ html[dir='rtl'] .id-card-layer-card__meta {
     }
 
     html[dir='rtl'] .mobile-header-mark {
-        /* 0.75rem header inset + 1.5rem margin = three times the original gap. */
-        margin-inline-end: 1.5rem;
+        /* 0.75rem header inset + 0.375rem margin = half the previous 2.25rem gap. */
+        margin-inline-end: 0.375rem;
     }
 
     .app-sidebar-shell {
@@ -11427,4 +11700,16 @@ input[type='file'][data-pdf-upload-lock-state='complete'] {
         -webkit-backdrop-filter: none !important;
         backdrop-filter: none !important;
     }
+}
+
+/* General Settings contains several dropdowns inside a scrolling form. Keep
+   that form clipped at all times so opening or closing any menu can never let
+   later sections paint through the dialog's rounded lower edge. */
+.admin-modal__dialog--contained {
+    overflow: hidden !important;
+}
+
+.admin-modal__dialog--contained .admin-modal__body {
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
 }

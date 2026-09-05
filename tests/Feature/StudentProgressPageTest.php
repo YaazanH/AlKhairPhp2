@@ -363,7 +363,7 @@ class StudentProgressPageTest extends TestCase
     {
         $this->seed(RoleSeeder::class);
 
-        $this->makeScopedProgressData();
+        [, $selectedStudent] = $this->makeScopedProgressData();
 
         $manager = User::factory()->create([
             'username' => 'student-progress-manager',
@@ -382,6 +382,9 @@ class StudentProgressPageTest extends TestCase
             ->assertSee('data-search-input="true"', false)
             ->assertSee('data-open-on-focus="true"', false)
             ->assertSee('data-hide-placeholder-option="true"', false)
+            ->assertSee('data-scroll-to-selected="false"', false)
+            ->assertSee('data-clear-search-after-select="true"', false)
+            ->assertSee('data-defer-clear-after-select="true"', false)
             ->assertSeeText('Parent Student')
             ->assertSeeText('Other Student')
             ->assertSee('data-option-name="Parent Student"', false)
@@ -397,10 +400,16 @@ class StudentProgressPageTest extends TestCase
         $this->assertStringContainsString('function createSearchableSelectChevron(inputMode = false)', $searchableSelectScript);
         $this->assertStringContainsString('stroke-linecap="round" stroke-linejoin="round"', $searchableSelectScript);
         $this->assertStringContainsString('function searchableSelectPlaceholderOption(select)', $searchableSelectScript);
-        $this->assertStringContainsString("const SEARCHABLE_SELECT_BINDING_VERSION = '10'", $searchableSelectScript);
+        $this->assertStringContainsString("const SEARCHABLE_SELECT_BINDING_VERSION = '14'", $searchableSelectScript);
+        $this->assertStringContainsString("select.dataset.scrollToSelected === 'false'", $searchableSelectScript);
+        $this->assertStringContainsString("const clearSearchAfterSelect = searchInputMode && select.dataset.clearSearchAfterSelect === 'true'", $searchableSelectScript);
+        $this->assertStringContainsString("const deferClearAfterSelect = clearSearchAfterSelect && select.dataset.deferClearAfterSelect === 'true'", $searchableSelectScript);
+        $this->assertStringContainsString('const deferredClearIsPending = deferClearAfterSelect && (', $searchableSelectScript);
+        $this->assertStringContainsString('const displaySelectedValue = hasSelectedValue && (!clearSearchAfterSelect || deferredClearIsPending);', $searchableSelectScript);
+        $this->assertStringContainsString('scrollSearchableSelectToSelected(select, list, search);', $searchableSelectScript);
         $this->assertStringContainsString("options.find((option) => option.value === 'all')", $searchableSelectScript);
         $this->assertStringContainsString("searchableSelectBinding(select).includes('filter')", $searchableSelectScript);
-        $this->assertStringContainsString("hasSelectedValue || search.value.trim() !== ''", $searchableSelectScript);
+        $this->assertStringContainsString("displaySelectedValue || search.value.trim() !== ''", $searchableSelectScript);
         $this->assertStringContainsString('select.value = searchableSelectPlaceholderValue(select)', $searchableSelectScript);
         $this->assertStringContainsString("'searchable-select--placeholder'", $searchableSelectScript);
         $this->assertStringContainsString("clear.className = 'searchable-select__clear'", $searchableSelectScript);
@@ -419,6 +428,19 @@ class StudentProgressPageTest extends TestCase
         $this->assertStringContainsString("search.addEventListener('keydown', handleSearchableSelectKeydown)", $searchableSelectScript);
         $this->assertStringContainsString("button.addEventListener('keydown'", $searchableSelectScript);
         $this->assertStringContainsString('focusNextInteractiveControl(searchInputMode ? search : button)', $searchableSelectScript);
+        $this->assertStringContainsString('const STUDENT_PROGRESS_SELECTION_MINIMUM_VISIBLE_MS = 650;', $searchableSelectScript);
+        $this->assertStringContainsString('const deferredSearchableSelectSelections = new Map();', $searchableSelectScript);
+        $this->assertStringContainsString('deferredSearchableSelectSelections.set(select.id, {', $searchableSelectScript);
+        $this->assertStringContainsString('|| deferredSelection?.value === select.value', $searchableSelectScript);
+        $this->assertStringContainsString('STUDENT_PROGRESS_SELECTION_MINIMUM_VISIBLE_MS - (Date.now() - pendingSelection.selectedAt)', $searchableSelectScript);
+        $this->assertStringContainsString('window.setTimeout(() => {', $searchableSelectScript);
+        $this->assertStringContainsString('currentPendingSelection !== pendingSelection', $searchableSelectScript);
+        $this->assertStringContainsString("window.addEventListener('student-progress-profile-loaded', clearStudentProgressSearchAfterProfileLoaded);", $searchableSelectScript);
+
+        Volt::test('students.progress', ['student' => null])
+            ->set('selectedStudentId', $selectedStudent->id)
+            ->assertSet('currentStudent.id', $selectedStudent->id)
+            ->assertDispatched('student-progress-profile-loaded', selectId: 'student-progress-student');
 
         $searchableSelectCss = file_get_contents(resource_path('css/app.css'));
         $this->assertStringContainsString("[data-student-progress-student-selector] .searchable-select__search--trigger {\n        font-size: 1rem;", $searchableSelectCss);
