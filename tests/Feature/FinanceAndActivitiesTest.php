@@ -2136,7 +2136,7 @@ class FinanceAndActivitiesTest extends TestCase
         ]);
 
         $beforeTransfer = app(FinanceReportService::class)->report((int) now()->year, (int) now()->quarter)['summary'];
-        $transfer = $service->recordCashBoxTransfer($from, $to, $currency, 25, now()->toDateString(), auth()->user(), 'Rebalance funds');
+        $transfer = $service->recordCashBoxTransfer($from, $to, $currency, 25, now()->toDateString(), auth()->user(), "Rebalance\u{2028}funds");
         $report = app(FinanceReportService::class)->report((int) now()->year, (int) now()->quarter);
 
         $this->assertSame('MOVE-000001', $transfer->transfer_no);
@@ -2252,7 +2252,7 @@ class FinanceAndActivitiesTest extends TestCase
             ->assertSet('maintaining_transaction_id', $request->posted_transaction_id)
             ->assertSee('data-transaction-maintenance-save-action', false)
             ->set('maint_amount', '25')
-            ->set('maint_description', 'Updated reason')
+            ->set('maint_description', "Updated\nreason")
             ->set('maint_special_transaction_no', 'EXP-000999')
             ->set('maint_transaction_date', '2026-08-02')
             ->call('saveTransactionMaintenance')
@@ -2337,7 +2337,7 @@ class FinanceAndActivitiesTest extends TestCase
             ->call('save')
             ->assertHasNoErrors();
 
-        $invoice = Invoice::query()->where('original_invoice_no', 'PAPER-44')->firstOrFail();
+        $invoice = Invoice::query()->where('original_invoice_no', '№ PAPER-44')->firstOrFail();
         $systemInvoiceNumber = $invoice->invoice_no;
         $this->assertNotSame('INV-CUSTOM-1', $systemInvoiceNumber);
         Storage::disk('public')->assertExists($invoice->original_image_path);
@@ -2353,7 +2353,7 @@ class FinanceAndActivitiesTest extends TestCase
 
         $invoice->refresh();
         $this->assertSame($systemInvoiceNumber, $invoice->invoice_no);
-        $this->assertSame('PAPER-45', $invoice->original_invoice_no);
+        $this->assertSame('№ PAPER-45', $invoice->original_invoice_no);
         $this->assertSame('Updated issuer', $invoice->invoicer_name);
     }
 
@@ -2672,7 +2672,7 @@ class FinanceAndActivitiesTest extends TestCase
         $this->assertStringContainsString('data-finance-dashboard-request-history><x-admin-action-icon name="past" />', $financeDashboardSource);
         $this->assertStringContainsString('.admin-modal__dialog:has([data-financial-transactions-table])', $financeTableCss);
         $this->assertStringContainsString(".financial-transactions-table {\n    width: 100%;\n    min-width: 72rem;", $financeTableCss);
-        $this->assertStringContainsString("@media (min-width: 1024px) {", $financeTableCss);
+        $this->assertStringContainsString('@media (min-width: 1024px) {', $financeTableCss);
         $this->assertStringContainsString(".financial-transactions-table {\n        min-width: 0;\n        font-size:", $financeTableCss);
         $this->assertStringContainsString('.finance-transaction-datetime {', $financeTableCss);
         $this->assertStringContainsString('width: calc(100vw - 1rem);', $financeTableCss);
@@ -2701,11 +2701,11 @@ class FinanceAndActivitiesTest extends TestCase
         $this->assertStringContainsString("element.style.maxWidth = 'none';", $financeTableJs);
         $this->assertStringContainsString('range.selectNodeContents(element);', $financeTableJs);
         $this->assertStringContainsString('const candidateWidth = measureFinancialShapedLabel(element, candidate);', $financeTableJs);
-        $this->assertStringContainsString("element.style.width = `\${targetWidth}px`;", $financeTableJs);
+        $this->assertStringContainsString('element.style.width = `${targetWidth}px`;', $financeTableJs);
         $this->assertStringContainsString("['fund', 'type', 'reference'].forEach((group)", $financeTableJs);
         $this->assertStringContainsString("const targetWidth = group === 'reference'", $financeTableJs);
         $this->assertStringContainsString("? labels.filter((label) => !label.hasAttribute('data-finance-kashida-target'))", $financeTableJs);
-        $this->assertStringContainsString(").map((label) => measureFinancialNaturalShapedLabel(", $financeTableJs);
+        $this->assertStringContainsString(').map((label) => measureFinancialNaturalShapedLabel(', $financeTableJs);
         $this->assertSame('رقم الحركة', __('finance.fields.transaction_no', locale: 'ar'));
         $this->assertStringContainsString(
             "{{ __('finance.fields.debit') }}</th><th class=\"px-3 py-3 text-left\">{{ __('finance.fields.credit') }}",
@@ -2713,7 +2713,7 @@ class FinanceAndActivitiesTest extends TestCase
         );
         $this->assertStringContainsString('data-finance-kashida-label="reference" data-finance-kashida-target', $financeDashboardSource);
         $this->assertStringContainsString('const dateToReferenceGaps = Array.from(table.tBodies[0]?.rows ?? [])', $financeTableJs);
-        $this->assertStringContainsString("? dateBounds.left - referenceBounds.right", $financeTableJs);
+        $this->assertStringContainsString('? dateBounds.left - referenceBounds.right', $financeTableJs);
         $this->assertStringContainsString('const equalGap = dateToReferenceGaps.length', $financeTableJs);
         $this->assertStringContainsString("? labels.filter((label) => label.hasAttribute('data-finance-kashida-target'))", $financeTableJs);
         $this->assertStringContainsString("const spacingColumns = ['reference', 'fund', 'type'];", $financeTableJs);
@@ -3013,17 +3013,20 @@ class FinanceAndActivitiesTest extends TestCase
             ->assertSet('invoice_items.0.item_name', 'Supplies')
             ->assertSet('invoice_items.0.unit_price', '50')
             ->assertSee('data-invoice-item-edit', false)
-            ->assertSee('data-invoice-item-delete', false)
+            ->assertDontSee('data-invoice-item-delete', false)
             ->call('editInvoiceItem', 0)
             ->assertSet('editing_invoice_item_index', 0)
             ->assertSet('invoice_item_name', 'Supplies')
             ->assertSee('data-invoice-item-edit-row', false)
+            ->assertSee('data-invoice-item-save', false)
+            ->assertSee('data-invoice-item-delete', false)
             ->assertDontSee('data-invoice-item-draft-row', false)
             ->set('invoice_item_unit_price', '55')
             ->call('saveInvoiceItem')
             ->assertDispatched('invoice-item-saved')
             ->assertSet('editing_invoice_item_index', null)
             ->assertSet('invoice_items.0.unit_price', '55')
+            ->assertDontSee('data-invoice-item-delete', false)
             ->assertSee('data-invoice-item-saved-row', false)
             ->assertSee('data-invoice-item-row-tone="odd"', false)
             ->set('original_invoice_no', 'VENDOR-10')
@@ -3040,7 +3043,7 @@ class FinanceAndActivitiesTest extends TestCase
 
         $component
             ->call('openFinaliseModal', $request->id)
-            ->assertSet('original_invoice_no', 'VENDOR-10')
+            ->assertSet('original_invoice_no', '№ VENDOR-10')
             ->assertSet('invoice_issuer', 'Vendor')
             ->assertSet('invoice_deduction', '5')
             ->assertSet('invoice_items.0.item_name', 'Supplies')
@@ -3126,7 +3129,7 @@ class FinanceAndActivitiesTest extends TestCase
             ->assertHasNoErrors();
 
         $invoice->refresh();
-        $this->assertSame('VENDOR-11', $invoice->original_invoice_no);
+        $this->assertSame('№ VENDOR-11', $invoice->original_invoice_no);
         $this->assertSame('Updated Vendor', $invoice->invoicer_name);
         $this->assertSame('38.00', $invoice->total);
         $this->assertSame('Updated notes', $invoice->notes);

@@ -706,7 +706,7 @@ new class extends Component {
         $this->maint_type_locked = in_array($transaction->source_type, [\App\Models\FinanceCurrencyExchange::class, \App\Models\FinanceCashBoxTransfer::class], true);
         $this->maint_direction = $transaction->direction;
         $this->maint_amount = $this->formatFinanceNumberForInput($transaction->amount);
-        $this->maint_description = $transaction->description ?: '';
+        $this->maint_description = (string) preg_replace('/\s+/u', ' ', $transaction->description ?? '');
         $this->maint_special_transaction_no = $transaction->special_transaction_no ?: '';
         $this->maint_entered_by = $transaction->entered_by;
         $this->maint_delete_reason = '';
@@ -1426,7 +1426,17 @@ new class extends Component {
                 <div><label class="mb-1 block text-sm">{{ __('finance.fields.direction') }}</label><select wire:model="maint_direction" class="w-full rounded-xl px-4 py-3"><option value="in">{{ __('finance.options.in') }}</option><option value="out">{{ __('finance.options.out') }}</option></select></div>
                 <div><label class="mb-1 block text-sm">{{ __('finance.fields.amount') }}</label><x-finance.amount-input amount-model="maint_amount" currency-model="maint_currency_id" :currencies="$currencies" :currency-live="false" /></div>
                 <div><label class="mb-1 block text-sm">{{ __('finance.fields.user') }}</label><select wire:model="maint_entered_by" class="w-full rounded-xl px-4 py-3"><option value="">-</option>@foreach ($users as $user)<option value="{{ $user->id }}">{{ $user->name }}</option>@endforeach</select></div>
-                <div class="md:col-span-2 xl:col-span-4"><label class="mb-1 block text-sm">{{ __('finance.common.description') }}</label><textarea wire:model="maint_description" rows="1" class="h-[3.125rem] w-full resize-none rounded-xl px-4 py-3"></textarea></div>
+                <div class="md:col-span-2 xl:col-span-4">
+                    <label for="transaction-description" class="mb-1 block text-sm">{{ __('finance.common.description') }}</label>
+                    <input id="transaction-description" wire:model="maint_description" type="text" x-data
+                        x-on:keydown.enter.prevent.stop
+                        x-on:paste.prevent="
+                            const text = ($event.clipboardData?.getData('text/plain') ?? '').replace(/\s+/g, ' ');
+                            $el.setRangeText(text, $el.selectionStart, $el.selectionEnd, 'end');
+                            $el.dispatchEvent(new Event('input', { bubbles: true }));
+                        "
+                        class="h-[3.125rem] w-full rounded-xl px-4 py-3">
+                </div>
             </form>
             @unless ($maintaining_transaction_deleted)
                 @can('finance.entries.delete')

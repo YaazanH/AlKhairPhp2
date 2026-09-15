@@ -40,7 +40,7 @@ return [
             'description' => 'الوصف',
             'student_link' => 'الطالب / الربط',
             'qty' => 'الكمية',
-            'unit_price' => 'سعر الوحدة',
+            'unit_price' => 'السعر الإفرادي',
             'amount' => 'المبلغ',
             'date' => 'التاريخ',
             'method' => 'الطريقة',

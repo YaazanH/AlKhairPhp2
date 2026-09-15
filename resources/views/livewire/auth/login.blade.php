@@ -34,7 +34,7 @@ new #[Layout('components.layouts.auth')] class extends Component {
             ->where(function ($query) use ($normalizedPhone): void {
                 $query
                     ->where('email', $this->login)
-                    ->orWhere('username', $this->login)
+                    ->orWhereRaw('LOWER(username) = ?', [Str::lower($this->login)])
                     ->when($normalizedPhone, fn ($query) => $query->orWhere('phone', $normalizedPhone));
             })
             ->first();

@@ -35,5 +35,8 @@
     "Already have an account?": "هل لديك حساب بالفعل؟",
     "Sign in": "تسجيل الدخول",
     "Back to login": "العودة إلى تسجيل الدخول",
-    "Full name": "الاسم الكامل"
+    "Full name": "الاسم الكامل",
+    "The given data was invalid.": "البيانات المدخلة غير صحيحة.",
+    "(and :count more error)": "(وخطأ آخر)",
+    "(and :count more errors)": "{2} (وخطآن آخران)|[3,10] (و:count أخطاء أخرى)|[11,*] (و:count خطأ آخر)"
 }

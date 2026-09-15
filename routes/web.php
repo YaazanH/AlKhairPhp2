@@ -210,3 +210,6 @@ Route::middleware(['auth'])->group(function () {
 });
 
 require __DIR__.'/auth.php';
+
+// Run the web session and locale middleware for unknown website/dashboard URLs.
+Route::fallback(fn () => abort(404));

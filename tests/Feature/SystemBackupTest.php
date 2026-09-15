@@ -7,6 +7,7 @@ use App\Models\SystemBackup;
 use App\Models\User;
 use App\Services\BackupEncryptionService;
 use App\Services\SystemBackupService;
+use App\Support\ApplicationTimezone;
 use Carbon\CarbonImmutable;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -18,6 +19,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Livewire\Volt\Volt;
 use PDO;
+use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use Tests\TestCase;
 use ZipArchive;
@@ -495,6 +497,74 @@ class SystemBackupTest extends TestCase
 
         $this->assertFalse($service->scheduledBackupIsDue($now));
         $this->assertSame('06-09-2026 02:00', $service->nextScheduledAt($now)?->format('d-m-Y H:i'));
+    }
+
+    public static function upcomingBackupSchedules(): array
+    {
+        return [
+            'daily before scheduled time' => ['daily', '02:00', 'UTC', '2026-09-06 01:00:00', '2026-09-06 02:00:00'],
+            'daily at scheduled time' => ['daily', '02:00', 'UTC', '2026-09-06 02:00:00', '2026-09-07 02:00:00'],
+            'daily after missed schedule' => ['daily', '02:00', 'UTC', '2026-09-06 03:00:00', '2026-09-07 02:00:00'],
+            'daily across local midnight' => ['daily', '02:00', 'Asia/Damascus', '2026-09-05 22:00:00', '2026-09-06 02:00:00'],
+            'weekly before scheduled day' => ['weekly', '00:00', 'UTC', '2026-09-03 12:00:00', '2026-09-04 00:00:00'],
+            'weekly at scheduled time' => ['weekly', '00:00', 'UTC', '2026-09-04 00:00:00', '2026-09-11 00:00:00'],
+            'weekly after missed schedule' => ['weekly', '00:00', 'Asia/Damascus', '2026-09-06 09:00:00', '2026-09-11 00:00:00'],
+            'weekly across year boundary' => ['weekly', '00:00', 'UTC', '2026-12-31 12:00:00', '2027-01-01 00:00:00'],
+            'daily after daylight saving transition' => ['daily', '02:30', 'Europe/Berlin', '2026-03-29 02:00:00', '2026-03-30 02:30:00'],
+        ];
+    }
+
+    #[DataProvider('upcomingBackupSchedules')]
+    public function test_next_backup_is_a_future_slot_in_the_configured_timezone(string $frequency, string $time, string $timezone, string $referenceTime, string $expected): void
+    {
+        AppSetting::storeValue('backups', 'frequency', $frequency);
+        AppSetting::storeValue('backups', 'time', $time);
+        AppSetting::storeValue('backups', 'weekday', 5, 'integer');
+        AppSetting::storeValue('general', 'school_timezone', $timezone);
+
+        $now = CarbonImmutable::parse($referenceTime, 'UTC');
+        $next = app(SystemBackupService::class)->nextScheduledAt($now);
+
+        $this->assertNotNull($next);
+        $this->assertTrue($next->gt($now));
+        $this->assertSame($timezone, $next->timezoneName);
+        $this->assertSame($expected, $next->format('Y-m-d H:i:s'));
+    }
+
+    public function test_manual_backup_does_not_make_the_next_schedule_display_a_missed_slot(): void
+    {
+        Storage::fake('local');
+        $this->seed(RoleSeeder::class);
+        $admin = User::factory()->create();
+        $admin->assignRole('admin');
+
+        AppSetting::storeValue('backups', 'frequency', 'weekly');
+        AppSetting::storeValue('backups', 'time', '00:00');
+        AppSetting::storeValue('backups', 'weekday', 5, 'integer');
+        AppSetting::storeValue('general', 'school_timezone', 'Asia/Damascus');
+        app(ApplicationTimezone::class)->applyConfigured();
+
+        $this->travelTo(CarbonImmutable::parse('2026-09-05 09:12:00', 'UTC'));
+        $this->usableBackup($admin);
+        $this->travelTo(CarbonImmutable::parse('2026-09-06 09:00:00', 'UTC'));
+
+        $this->actingAs($admin)->get(route('settings.backups'))
+            ->assertOk()
+            ->assertSee('05-09-2026 12:12')
+            ->assertSee('11-09-2026 00:00')
+            ->assertDontSee('04-09-2026 00:00');
+
+        // Displaying the future slot must not suppress the scheduler's catch-up run.
+        $this->assertTrue(app(SystemBackupService::class)->scheduledBackupIsDue());
+    }
+
+    public function test_disabled_backup_scheduling_has_no_next_slot_or_due_run(): void
+    {
+        AppSetting::storeValue('backups', 'frequency', 'disabled');
+
+        $service = app(SystemBackupService::class);
+        $this->assertNull($service->nextScheduledAt());
+        $this->assertFalse($service->scheduledBackupIsDue());
     }
 
     public function test_sqlite_restoration_atomically_activates_the_verified_database_artifact(): void

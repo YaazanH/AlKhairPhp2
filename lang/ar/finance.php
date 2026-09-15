@@ -1,6 +1,13 @@
 <?php
 
 return [
+    'refusal' => [
+        'reason' => 'سبب الرفض',
+        'view' => 'عرض سبب الرفض',
+        'required' => 'يجب إدخال سبب الرفض.',
+        'not_recorded' => 'لم يُسجّل سبب الرفض.',
+        'already_reviewed' => 'تمت مراجعة هذا الطلب بالفعل. حدّث الصفحة لعرض حالته الحالية.',
+    ],
     'actions' => [
         'add' => 'إضافة',
         'create' => 'إنشاء',
@@ -194,7 +201,7 @@ return [
         'state' => 'الحالة',
         'symbol' => 'الرمز الظاهر',
         'supported_currencies' => 'العملات المدعومة',
-        'unit_price' => 'سعر القطعة',
+        'unit_price' => 'السعر الإفرادي',
         'quantity' => 'الكمية',
         'subtotal' => 'المجموع الفرعي',
         'deduction' => 'الحسم',

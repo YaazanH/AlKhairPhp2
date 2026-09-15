@@ -270,7 +270,7 @@ return [
         ],
     ],
     'courses' => [
-        'actions' => ['calendar' => 'Course calendar', 'end_course' => 'End of course', 'finish' => 'Finish', 'reactivate' => 'Reactivate', 'archive' => 'Archive'],
+        'actions' => ['include_in_reports' => 'Include in report filters', 'exclude_from_reports' => 'Exclude from report filters', 'calendar' => 'Course calendar', 'end_course' => 'End of course', 'finish' => 'Finish', 'reactivate' => 'Reactivate', 'archive' => 'Archive'],
         'title' => 'Courses',
         'subtitle' => 'Manage the course catalogue used to build student groups.',
         'stats' => [

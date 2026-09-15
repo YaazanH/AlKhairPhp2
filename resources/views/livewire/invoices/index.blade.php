@@ -99,6 +99,7 @@ new class extends Component {
     {
         $this->authorizePermission($this->editingId ? 'invoices.update' : 'invoices.create');
         $this->normalizeFinanceNumberProperty('discount');
+        $this->original_invoice_no = Invoice::formatOriginalInvoiceNumber($this->original_invoice_no) ?? '';
 
         $validated = $this->validate();
         $existingInvoice = $this->editingId ? Invoice::query()->findOrFail($this->editingId) : null;

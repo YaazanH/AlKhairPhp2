@@ -1,6 +1,13 @@
 <?php
 
 return [
+    'refusal' => [
+        'reason' => 'Reason for refusal',
+        'view' => 'View refusal reason',
+        'required' => 'Enter a reason for refusal.',
+        'not_recorded' => 'No refusal reason was recorded.',
+        'already_reviewed' => 'This request has already been reviewed. Refresh the page to see its current status.',
+    ],
     'actions' => [
         'add' => 'Add',
         'create' => 'Create',

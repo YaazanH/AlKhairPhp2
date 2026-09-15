@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Services\CourseScheduleService;
 use App\Services\PointLedgerService;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -59,6 +60,15 @@ class Group extends Model
     public function academicYear(): BelongsTo
     {
         return $this->belongsTo(AcademicYear::class);
+    }
+
+    public function scopeVisibleInReportFilters(Builder $query): Builder
+    {
+        return $query
+            ->whereHas('course', fn (Builder $courses) => $courses->visibleInReportFilters())
+            ->where(fn (Builder $groups) => $groups
+                ->where('is_active', true)
+                ->orWhereHas('course', fn (Builder $courses) => $courses->where('is_active', false)));
     }
 
     public function attendanceDays(): HasMany

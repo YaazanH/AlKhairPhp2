@@ -270,7 +270,7 @@ return [
         ],
     ],
     'courses' => [
-        'actions' => ['calendar' => 'تقويم الدورة', 'end_course' => 'نهاية الدورة', 'finish' => 'إنهاء', 'reactivate' => 'إعادة التفعيل', 'archive' => 'الأرشيف'],
+        'actions' => ['include_in_reports' => 'إظهار في فلاتر التقارير', 'exclude_from_reports' => 'إخفاء من فلاتر التقارير', 'calendar' => 'تقويم الدورة', 'end_course' => 'نهاية الدورة', 'finish' => 'إنهاء', 'reactivate' => 'إعادة التفعيل', 'archive' => 'الأرشيف'],
         'title' => 'الدورات',
         'subtitle' => 'إدارة قائمة الدورات المستخدمة لبناء المجموعات الدراسية.',
         'stats' => [

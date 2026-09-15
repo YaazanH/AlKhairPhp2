@@ -4,12 +4,68 @@ namespace Tests\Feature;
 
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Validator;
 use Tests\TestCase;
 
 class ValidationLocalizationTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_all_framework_validation_messages_exist_in_each_application_language(): void
+    {
+        $framework = require base_path('vendor/laravel/framework/src/Illuminate/Translation/lang/en/validation.php');
+        unset($framework['custom'], $framework['attributes']);
+
+        foreach (['ar', 'en'] as $locale) {
+            $messages = Arr::dot(require lang_path("{$locale}/validation.php"));
+
+            foreach (Arr::dot($framework) as $key => $default) {
+                $this->assertArrayHasKey($key, $messages, "Missing {$locale} validation message: {$key}");
+                $this->assertNotEmpty($messages[$key]);
+                $withoutPlaceholders = preg_replace('/:[a-z_]+/i', '', $messages[$key]);
+                if ($locale === 'ar') {
+                    $this->assertDoesNotMatchRegularExpression('/[A-Za-z]/', $withoutPlaceholders, $key);
+                } else {
+                    $this->assertDoesNotMatchRegularExpression('/\p{Arabic}/u', $withoutPlaceholders, $key);
+                }
+            }
+        }
+    }
+
+    public function test_failed_uploads_and_additional_error_summaries_follow_the_request_language(): void
+    {
+        Route::post('/validation-language-check', function (Request $request) {
+            $request->validate(['email' => ['required'], 'password' => ['required'], 'name' => ['required']]);
+        })->middleware('web');
+
+        foreach (['ar', 'en'] as $locale) {
+            config(['app.locale' => $locale === 'ar' ? 'en' : 'ar']);
+            $response = $this->withSession(['locale' => $locale, 'locale_user_selected' => true])
+                ->postJson('/validation-language-check')
+                ->assertUnprocessable();
+
+            $this->assertSame($locale, app()->getLocale());
+            $summary = $response->json('message');
+            if ($locale === 'ar') {
+                $this->assertStringContainsString('(وخطآن آخران)', $summary);
+                $this->assertDoesNotMatchRegularExpression('/[A-Za-z]/', $summary);
+            } else {
+                $this->assertStringContainsString('(and 2 more errors)', $summary);
+                $this->assertDoesNotMatchRegularExpression('/\p{Arabic}/u', $summary);
+            }
+
+            $file = new UploadedFile(__FILE__, 'receipt.pdf', 'application/pdf', UPLOAD_ERR_PARTIAL, true);
+            $message = Validator::make(['invoice_image' => $file], ['invoice_image' => ['file']])
+                ->errors()->first('invoice_image');
+            $this->assertSame($locale === 'ar'
+                ? 'تعذّر رفع الملف. يرجى المحاولة مجدداً.'
+                : 'The file could not be uploaded. Please try again.', $message);
+        }
+    }
 
     public function test_unique_validation_messages_are_friendly_in_english_and_arabic(): void
     {

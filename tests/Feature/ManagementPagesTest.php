@@ -710,7 +710,7 @@ class ManagementPagesTest extends TestCase
     {
         $styles = file_get_contents(resource_path('css/app.css'));
 
-        $this->assertStringContainsString('--app-control-background: rgba(255, 255, 251, 0.9);', $styles);
+        $this->assertStringContainsString('--app-control-background: #fffdf7;', $styles);
         $this->assertStringContainsString('--app-control-background: rgba(31, 24, 19, 0.88);', $styles);
         $this->assertStringContainsString("input:not([type='checkbox']):not([type='radio']):not([type='file']):not([type='color']):not([type='range']):not([type='hidden']):not([type='button']):not([type='submit']):not([type='reset']):not([type='image']):not([readonly]):not(:disabled):not(.bg-transparent):not([data-print-template-background-input]):not(.admin-filter-field input)", $styles);
         $this->assertStringContainsString('textarea:not([readonly]):not(:disabled):not(.bg-transparent):not(.admin-filter-field textarea)', $styles);

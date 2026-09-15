@@ -98,8 +98,7 @@ new class extends Component
 
         $baseQuery = Course::query()
             ->with('academicYear')
-            ->withCount('groups')
-            ->orderBy('name');
+            ->withCount('groups');
 
         $filteredQuery = Course::query()
             ->with('academicYear')
@@ -113,7 +112,12 @@ new class extends Component
             })
             ->when($this->academicYearFilter !== 'all', fn ($query) => $query->where('academic_year_id', (int) $this->academicYearFilter))
             ->when(in_array($this->statusFilter, ['active', 'inactive'], true), fn ($query) => $query->where('is_active', $this->statusFilter === 'active'))
-            ->orderBy('name');
+            ->orderByDesc(AcademicYear::select('starts_on')->whereColumn('academic_years.id', 'courses.academic_year_id'))
+            ->orderByDesc(AcademicYear::select('ends_on')->whereColumn('academic_years.id', 'courses.academic_year_id'))
+            ->orderByDesc('academic_year_id')
+            ->orderByDesc('starts_on')
+            ->orderByDesc('ends_on')
+            ->orderByDesc('id');
 
         $filteredCount = (clone $filteredQuery)->count();
 
@@ -354,6 +358,16 @@ new class extends Component
         $this->resetValidation();
     }
 
+    public function toggleReportFilterVisibility(int $courseId): void
+    {
+        $this->authorizePermission('courses.update');
+
+        $course = Course::query()->findOrFail($courseId);
+        abort_if($course->is_active, 409);
+
+        $course->update(['show_in_report_filters' => ! $course->show_in_report_filters]);
+    }
+
     public function duplicate(int $courseId): void
     {
         $this->authorizePermission('courses.create');
@@ -398,6 +412,7 @@ new class extends Component
             $newCourse->finished_at = null;
             $newCourse->is_active = true;
             $newCourse->is_default = false;
+            $newCourse->show_in_report_filters = true;
             $newCourse->awards_points = $restoreArchivedState
                 ? (bool) ($source->course_finished_was_awarding_points ?? $source->awards_points)
                 : $source->awards_points;
@@ -474,7 +489,7 @@ new class extends Component
         ]);
         $duplicate = collect($this->scheduleRows)->contains(fn ($row, $index) => $index !== $this->editingScheduleRow && (string) $row['day_of_week'] === (string) $data['scheduleDay'] && $row['time_slot'] === $data['scheduleTimeSlot']);
         if ($duplicate) {
-            $this->addError('scheduleTimeSlot', __('validation.unique'));
+            $this->addError('scheduleTimeSlot', __('validation.unique', ['attribute' => __('schedules.group.form.fields.timing')]));
 
             return;
         }
@@ -1166,6 +1181,12 @@ new class extends Component
                             </button>
                         @endif
                     @endcan
+                    <button type="button" wire:click="toggleReportFilterVisibility({{ $archivedCourse->id }})" wire:loading.attr="disabled" wire:target="toggleReportFilterVisibility"
+                        class="admin-icon-button admin-modal-action-button {{ $archivedCourse->show_in_report_filters ? 'admin-icon-button--danger' : 'admin-icon-button--accent' }}"
+                        title="{{ __($archivedCourse->show_in_report_filters ? 'crud.courses.actions.exclude_from_reports' : 'crud.courses.actions.include_in_reports') }}"
+                        aria-label="{{ __('crud.courses.actions.include_in_reports') }}" aria-pressed="{{ $archivedCourse->show_in_report_filters ? 'true' : 'false' }}" data-course-report-filter-toggle>
+                        <x-admin-action-icon :name="$archivedCourse->show_in_report_filters ? 'filter-exclude' : 'filter-include'" class="admin-modal-action__icon" />
+                    </button>
                 </div>
             </div>
         @endif

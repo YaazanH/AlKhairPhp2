@@ -41,7 +41,7 @@ class AuthenticatedSessionController extends Controller
             ->where(function ($query) use ($validated, $normalizedPhone): void {
                 $query
                     ->where('email', $validated['login'])
-                    ->orWhere('username', $validated['login'])
+                    ->orWhereRaw('LOWER(username) = ?', [Str::lower($validated['login'])])
                     ->when($normalizedPhone, fn ($query) => $query->orWhere('phone', $normalizedPhone));
             })
             ->first();

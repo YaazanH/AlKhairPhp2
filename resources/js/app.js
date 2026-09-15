@@ -348,7 +348,11 @@ function createSearchableSelectChevron(inputMode = false) {
 function restoreSearchableSelectClear(clear) {
     if (!(clear instanceof HTMLButtonElement) || !clear.classList.contains('searchable-select__clear')) return;
 
-    clear.replaceChildren('×');
+    // The modal observer also runs after child changes. Only repair the clear
+    // control when necessary so it does not continuously trigger itself.
+    if (clear.textContent !== '×' || clear.childElementCount > 0) {
+        clear.replaceChildren('×');
+    }
     clear.dataset.modalActionIconIgnore = 'true';
     clear.classList.remove(
         'admin-icon-button',
@@ -3049,7 +3053,7 @@ if (document.body) {
     document.addEventListener('DOMContentLoaded', () => mobileTableFilterObserver.observe(document.body, { childList: true, subtree: true }));
 }
 
-const financeNumberInputSelector = 'input[data-thousand-separator]';
+const financeNumberInputSelector = 'input[data-thousand-separator], input[data-original-invoice-no-input]';
 
 function normalizeFinanceNumberInputValue(value) {
     return String(value ?? '').replace(/[\s,\u00a0,\u066c,\u060c]/g, '');
@@ -3089,7 +3093,10 @@ function formatFinanceNumberInputValue(value) {
 
 function formatFinanceNumberInput(input) {
     const previousValue = input.value;
-    const formattedValue = formatFinanceNumberInputValue(previousValue);
+    const isInvoiceNumber = input.hasAttribute('data-original-invoice-no-input');
+    const formattedValue = isInvoiceNumber
+        ? `№ ${previousValue.replace(/^\s*(?:№\s*)*/, '')}`
+        : formatFinanceNumberInputValue(previousValue);
 
     if (previousValue === formattedValue) {
         return;
@@ -3099,7 +3106,7 @@ function formatFinanceNumberInput(input) {
     input.value = formattedValue;
 
     if (document.activeElement === input && input.selectionStart !== null) {
-        const nextCursor = Math.max(formattedValue.length - cursorFromEnd, 0);
+        const nextCursor = Math.max(formattedValue.length - cursorFromEnd, isInvoiceNumber ? 2 : 0);
 
         try {
             input.setSelectionRange(nextCursor, nextCursor);
@@ -3743,6 +3750,14 @@ function setPdfUploadActive(input, active) {
 }
 
 function initializePdfUploads() {
+    // A successful attachment can replace its form with the receipt review popup.
+    for (const [input, form] of activePdfUploads) {
+        if (!input.isConnected) {
+            activePdfUploads.delete(input);
+            updatePdfUploadForm(form);
+        }
+    }
+
     document.querySelectorAll('input[type="file"]').forEach((input) => {
         if (acceptsPdf(input) && livewireModelName(input)) {
             pdfUploadStatus(input);

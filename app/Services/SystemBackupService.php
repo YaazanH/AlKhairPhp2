@@ -339,19 +339,23 @@ class SystemBackupService
         }
 
         $localNow = $this->localNow($now);
-        $candidate = $this->latestScheduleCandidate($settings, $localNow);
-        $attemptExists = SystemBackup::query()
-            ->where('trigger', SystemBackup::TRIGGER_SCHEDULED)
-            ->where('created_at', '>=', $candidate->utc())
-            ->exists();
+        [$hour, $minute] = array_map('intval', explode(':', $settings['time']));
+        $candidate = $localNow->startOfDay();
 
-        if ($candidate->isFuture() || ! $attemptExists) {
-            return $candidate;
+        if ($settings['frequency'] === 'weekly') {
+            $daysUntilScheduledWeekday = ($settings['weekday'] - $localNow->dayOfWeek + 7) % 7;
+            $candidate = $candidate->addDays($daysUntilScheduledWeekday);
         }
 
-        return $settings['frequency'] === 'weekly'
-            ? $candidate->addWeek()
-            : $candidate->addDay();
+        $candidate = $candidate->setTime($hour, $minute);
+
+        // Missed slots remain due for the scheduler, but this card shows the next future slot.
+        if ($candidate->lte($localNow)) {
+            $candidate = ($settings['frequency'] === 'weekly' ? $candidate->addWeek() : $candidate->addDay())
+                ->setTime($hour, $minute);
+        }
+
+        return $candidate;
     }
 
     public function runScheduled(): ?SystemBackup
@@ -817,7 +821,7 @@ class SystemBackupService
     }
 
     /**
-     * @param list<string> $expectedTables
+     * @param  list<string>  $expectedTables
      */
     private function testDatabaseArtifact(string $driver, string $path, array $expectedTables = []): void
     {
@@ -898,8 +902,8 @@ class SystemBackupService
     }
 
     /**
-     * @param list<string> $expectedTables
-     * @param array<int, mixed> $actualTables
+     * @param  list<string>  $expectedTables
+     * @param  array<int, mixed>  $actualTables
      */
     private function assertExpectedDatabaseTables(array $expectedTables, array $actualTables): void
     {
