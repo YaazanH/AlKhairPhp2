@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Support\PhoneNumberFormatter;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class AuthTokenController extends Controller
@@ -26,7 +27,7 @@ class AuthTokenController extends Controller
         $user = User::query()
             ->where(function ($query) use ($validated, $normalizedPhone) {
                 $query
-                    ->where('username', $validated['login'])
+                    ->whereRaw('LOWER(username) = ?', [Str::lower($validated['login'])])
                     ->orWhere('email', $validated['login'])
                     ->when($normalizedPhone, fn ($query) => $query->orWhere('phone', $normalizedPhone));
             })

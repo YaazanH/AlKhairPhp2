@@ -108,7 +108,7 @@ return [
                 'enrollment' => 'التسجيل',
                 'activity' => 'النشاط',
                 'quantity' => 'الكمية',
-                'unit_price' => 'سعر الوحدة',
+                'unit_price' => 'السعر الإفرادي',
             ],
             'placeholders' => [
                 'student' => 'بدون ربط طالب',
@@ -117,7 +117,7 @@ return [
             ],
             'save' => 'حفظ',
             'update' => 'تحديث',
-            'unit_price' => 'سعر الوحدة: :amount',
+            'unit_price' => 'السعر الإفرادي: :amount',
             'empty' => 'لا توجد بنود فاتورة بعد.',
             'messages' => [
                 'created' => 'تم إنشاء بند الفاتورة بنجاح.',

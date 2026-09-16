@@ -72,7 +72,10 @@ return [
         ],
         'confirm_delete' => [
             'confirm' => 'Continue',
+            'continue_question' => 'Do you want to continue?',
             'message' => 'Are you sure you want to delete this record? This action cannot be undone.',
+            'question' => 'Are you sure you want to delete this record?',
+            'statement' => 'This action cannot be undone.',
             'title' => 'Confirm action',
         ],
     ],
@@ -267,7 +270,7 @@ return [
         ],
     ],
     'courses' => [
-        'actions' => ['end_course' => 'End of course', 'finish' => 'Finish', 'reactivate' => 'Reactivate', 'archive' => 'Archive'],
+        'actions' => ['include_in_reports' => 'Include in report filters', 'exclude_from_reports' => 'Exclude from report filters', 'calendar' => 'Course calendar', 'end_course' => 'End of course', 'finish' => 'Finish', 'reactivate' => 'Reactivate', 'archive' => 'Archive'],
         'title' => 'Courses',
         'subtitle' => 'Manage the course catalogue used to build student groups.',
         'stats' => [

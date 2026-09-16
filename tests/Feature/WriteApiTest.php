@@ -5,11 +5,10 @@ namespace Tests\Feature;
 use App\Models\AcademicYear;
 use App\Models\Course;
 use App\Models\GradeLevel;
-use App\Models\Group;
 use App\Models\ParentProfile;
-use App\Models\Student;
 use App\Models\Teacher;
 use App\Models\User;
+use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -80,6 +79,34 @@ class WriteApiTest extends TestCase
         $this->assertContains('quran-final-tests.record', $response->json('abilities'));
         $this->assertContains('assessment-results.record', $response->json('abilities'));
         $this->assertNotContains('assessment-results.record-scores', $response->json('abilities'));
+    }
+
+    public function test_api_username_sign_in_ignores_case_but_passwords_do_not(): void
+    {
+        $this->seed(RoleSeeder::class);
+        $user = User::factory()->create([
+            'username' => 'Teacher.Login',
+            'password' => 'CaseSensitivePassword',
+        ]);
+        $user->assignRole('teacher');
+
+        foreach (['teacher.login', 'TEACHER.LOGIN', 'tEaChEr.LoGiN'] as $login) {
+            $this->postJson('/api/v1/auth/token', [
+                'device_name' => 'case-insensitive-login-test',
+                'login' => $login,
+                'password' => 'CaseSensitivePassword',
+            ])->assertCreated()
+                ->assertJsonPath('user.id', $user->id)
+                ->assertJsonPath('user.username', 'Teacher.Login');
+        }
+
+        $this->postJson('/api/v1/auth/token', [
+            'device_name' => 'case-insensitive-login-test',
+            'login' => 'TEACHER.LOGIN',
+            'password' => 'casesensitivepassword',
+        ])->assertUnprocessable()->assertJsonValidationErrors(['login']);
+
+        $this->assertSame(3, $user->tokens()->count());
     }
 
     public function test_manager_can_create_update_and_delete_students_groups_and_enrollments_via_api(): void

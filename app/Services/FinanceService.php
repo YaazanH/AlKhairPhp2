@@ -24,6 +24,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
@@ -557,14 +558,31 @@ class FinanceService
 
     public function declineRequest(FinanceRequest $request, ?User $reviewer = null, ?string $notes = null): FinanceRequest
     {
-        $request->update([
-            'declined_at' => now(),
-            'review_notes' => $notes,
-            'reviewed_by' => $reviewer?->id,
-            'status' => FinanceRequest::STATUS_DECLINED,
-        ]);
+        return DB::transaction(function () use ($request, $reviewer, $notes): FinanceRequest {
+            $request = FinanceRequest::query()->lockForUpdate()->findOrFail($request->id);
 
-        return $request->fresh();
+            if ($request->type === FinanceRequest::TYPE_PULL) {
+                $notes = Validator::make(
+                    ['refusal_reason' => Str::trim($notes ?? '')],
+                    ['refusal_reason' => ['required', 'string', 'max:2000']],
+                    ['refusal_reason.required' => __('finance.refusal.required')],
+                    ['refusal_reason' => __('finance.refusal.reason')],
+                )->validate()['refusal_reason'];
+
+                if ($request->status !== FinanceRequest::STATUS_PENDING) {
+                    throw ValidationException::withMessages(['refusal_reason' => __('finance.refusal.already_reviewed')]);
+                }
+            }
+
+            $request->update([
+                'declined_at' => now(),
+                'review_notes' => $notes,
+                'reviewed_by' => $reviewer?->id,
+                'status' => FinanceRequest::STATUS_DECLINED,
+            ]);
+
+            return $request->fresh();
+        });
     }
 
     public function updateFinanceRequestEntry(FinanceRequest $request, array $payload, ?User $user = null): FinanceRequest
@@ -1725,7 +1743,7 @@ class FinanceService
             $description = str_ireplace($reference, '', $description);
         }
         $description = (string) preg_replace('/\b(?:FIN|EXP|REV|RET|PUL|INV|TRSF|EXCH|EXC|TX|DBIT|CRDT|RTRN|XCHG)[-_]?\d+\b/iu', '', $description);
-        $description = trim((string) preg_replace('/\s{2,}/u', ' ', $description), " -|,.;:\t\n\r\0\x0B");
+        $description = trim((string) preg_replace('/\s+/u', ' ', $description), " -|,.;:\t\n\r\0\x0B");
 
         if ($description === '' || preg_match('/^[\p{P}\p{S}\s]+$/u', $description)) {
             return null;

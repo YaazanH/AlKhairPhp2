@@ -455,7 +455,7 @@ new class extends Component {
     @endif
 
     <div class="grid gap-6">
-        <section class="surface-panel p-5 lg:p-6">
+        <section class="surface-panel settings-dark-surface p-5 lg:p-6" data-settings-dark-surface="course-completion-rules">
             <div class="admin-toolbar"><div class="admin-toolbar__title">{{ __('settings.course_completion.sections.rules.title') }}</div></div>
 
             <form wire:submit="saveRules" class="mt-5 space-y-4">
@@ -531,8 +531,8 @@ new class extends Component {
                     </div>
                 </section>
 
-                <div class="flex justify-end">
-                    <button type="submit" class="pill-link pill-link--accent">{{ __('settings.course_completion.actions.save_rules') }}</button>
+                <div class="flex justify-start" data-course-completion-save-actions>
+                    <x-admin.save-button :label="__('settings.course_completion.actions.save_rules')" data-course-completion-save-action />
                 </div>
             </form>
         </section>

@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\ApplyApplicationTimezone;
 use App\Http\Middleware\MeasurePerformance;
 use App\Http\Middleware\PreventPageCaching;
 use App\Http\Middleware\SetLocale;
@@ -7,6 +8,7 @@ use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
+use Illuminate\Session\Middleware\StartSession;
 use Illuminate\Session\TokenMismatchException;
 use Spatie\Permission\Middleware\PermissionMiddleware;
 use Spatie\Permission\Middleware\RoleMiddleware;
@@ -21,10 +23,18 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
+        // Keep browser and API requests on the organization timezone. Console
+        // and scheduled commands receive the same setting during provider boot.
+        $middleware->append(ApplyApplicationTimezone::class);
+
         $middleware->web(append: [
             SetLocale::class,
             MeasurePerformance::class,
         ]);
+
+        // Resolve the selected language before CSRF checks, authentication,
+        // and route bindings can reject a request.
+        $middleware->appendToPriorityList(StartSession::class, SetLocale::class);
 
         $middleware->alias([
             'no-store' => PreventPageCaching::class,

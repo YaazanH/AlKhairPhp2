@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Services\PointLedgerService;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -13,6 +14,10 @@ class Course extends Model
 {
     use HasFactory;
     use SoftDeletes;
+
+    protected $attributes = [
+        'show_in_report_filters' => true,
+    ];
 
     protected static function booted(): void
     {
@@ -39,6 +44,7 @@ class Course extends Model
         'finished_at',
         'is_active',
         'is_default',
+        'show_in_report_filters',
         'awards_points',
         'course_finished_was_awarding_points',
     ];
@@ -51,6 +57,7 @@ class Course extends Model
             'finished_at' => 'datetime',
             'is_active' => 'boolean',
             'is_default' => 'boolean',
+            'show_in_report_filters' => 'boolean',
             'awards_points' => 'boolean',
             'course_finished_was_awarding_points' => 'boolean',
         ];
@@ -61,6 +68,13 @@ class Course extends Model
         return $this->belongsTo(AcademicYear::class);
     }
 
+    public function scopeVisibleInReportFilters(Builder $query): Builder
+    {
+        return $query->where(fn (Builder $courses) => $courses
+            ->where('is_active', true)
+            ->orWhere('show_in_report_filters', true));
+    }
+
     public function groups(): HasMany
     {
         return $this->hasMany(Group::class);
@@ -69,6 +83,11 @@ class Course extends Model
     public function schedules(): HasMany
     {
         return $this->hasMany(CourseSchedule::class);
+    }
+
+    public function calendarEntries(): HasMany
+    {
+        return $this->hasMany(CourseCalendarEntry::class)->orderBy('date')->orderBy('id');
     }
 
     public function curricula(): HasMany

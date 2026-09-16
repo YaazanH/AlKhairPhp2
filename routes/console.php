@@ -3,6 +3,15 @@
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Schedule;
+
+Schedule::command('backup:run --scheduled')
+    ->everyMinute()
+    ->withoutOverlapping(120);
+
+Schedule::command('backup:health')
+    ->hourly()
+    ->withoutOverlapping(30);
 
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());

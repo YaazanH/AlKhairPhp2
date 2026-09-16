@@ -26,15 +26,18 @@ class DataQualityService
             ->concat($this->missingParentContacts())
             ->map(function (array $issue) use ($resolutions): array {
                 $resolution = $resolutions->get($issue['key']);
-                $issue['status'] = $resolution?->status ?? 'open';
-                $issue['resolution_notes'] = $resolution?->notes;
-                $issue['resolved_at'] = $resolution?->resolved_at;
+                $issueIsStillDetected = $resolution?->status === 'resolved';
+                $issue['status'] = $issueIsStillDetected ? 'open' : ($resolution?->status ?? 'open');
+                $issue['resolution_notes'] = $issueIsStillDetected ? null : $resolution?->notes;
+                $issue['resolved_at'] = $issueIsStillDetected ? null : $resolution?->resolved_at;
 
                 return $issue;
             })
             ->sortBy(fn (array $issue): array => [
                 ['high' => 0, 'medium' => 1, 'low' => 2][$issue['severity']] ?? 3,
-                $issue['title'],
+                $this->normaliseName($issue['records'][0] ?? ''),
+                $this->normaliseName($issue['title']),
+                $issue['key'],
             ])
             ->values();
     }

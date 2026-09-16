@@ -9,6 +9,9 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
 use Illuminate\Session\TokenMismatchException;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\RateLimiter;
+use Livewire\Volt\Volt;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class AuthenticationTest extends TestCase
@@ -87,6 +90,70 @@ class AuthenticationTest extends TestCase
             ])
             ->assertRedirect('/login')
             ->assertSessionHasErrors(['login']);
+
+        $this->assertGuest();
+    }
+
+    public static function usernameCapitalizations(): array
+    {
+        return [
+            'lowercase' => ['teacher.login'],
+            'uppercase' => ['TEACHER.LOGIN'],
+            'mixed case' => ['tEaChEr.LoGiN'],
+        ];
+    }
+
+    #[DataProvider('usernameCapitalizations')]
+    public function test_username_sign_in_is_case_insensitive(string $login): void
+    {
+        $user = User::factory()->create(['username' => 'Teacher.Login']);
+
+        $this->post('/login', [
+            'login' => $login,
+            'password' => 'password',
+        ])->assertRedirect(route('dashboard', absolute: false));
+
+        $this->assertAuthenticatedAs($user);
+        $this->assertSame('Teacher.Login', $user->fresh()->username);
+    }
+
+    #[DataProvider('usernameCapitalizations')]
+    public function test_livewire_username_sign_in_is_case_insensitive(string $login): void
+    {
+        $user = User::factory()->create(['username' => 'Teacher.Login']);
+
+        Volt::test('auth.login')
+            ->set('login', $login)
+            ->set('password', 'password')
+            ->call('login')
+            ->assertHasNoErrors()
+            ->assertRedirect(route('dashboard', absolute: false));
+
+        $this->assertAuthenticatedAs($user);
+    }
+
+    public function test_username_capitalization_does_not_change_password_checks_or_sign_in_limits(): void
+    {
+        User::factory()->create([
+            'username' => 'Teacher.Login',
+            'password' => 'CaseSensitivePassword',
+        ]);
+
+        foreach (['teacher.login', 'TEACHER.LOGIN', 'Teacher.Login', 'tEaChEr.LoGiN', 'TEACHER.login'] as $login) {
+            $this->from('/login')->post('/login', [
+                'login' => $login,
+                'password' => 'casesensitivepassword',
+            ])->assertSessionHasErrors(['login' => __('auth.failed')]);
+
+            $this->assertGuest();
+        }
+
+        $this->assertTrue(RateLimiter::tooManyAttempts('teacher.login|127.0.0.1', 5));
+
+        $this->post('/login', [
+            'login' => 'TEACHER.LOGIN',
+            'password' => 'CaseSensitivePassword',
+        ])->assertSessionHasErrors(['login']);
 
         $this->assertGuest();
     }

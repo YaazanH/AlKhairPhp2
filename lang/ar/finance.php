@@ -1,6 +1,13 @@
 <?php
 
 return [
+    'refusal' => [
+        'reason' => 'سبب الرفض',
+        'view' => 'عرض سبب الرفض',
+        'required' => 'يجب إدخال سبب الرفض.',
+        'not_recorded' => 'لم يُسجّل سبب الرفض.',
+        'already_reviewed' => 'تمت مراجعة هذا الطلب بالفعل. حدّث الصفحة لعرض حالته الحالية.',
+    ],
     'actions' => [
         'add' => 'إضافة',
         'create' => 'إنشاء',
@@ -194,7 +201,7 @@ return [
         'state' => 'الحالة',
         'symbol' => 'الرمز الظاهر',
         'supported_currencies' => 'العملات المدعومة',
-        'unit_price' => 'سعر القطعة',
+        'unit_price' => 'السعر الإفرادي',
         'quantity' => 'الكمية',
         'subtotal' => 'المجموع الفرعي',
         'deduction' => 'الحسم',
@@ -576,5 +583,16 @@ return [
         'return_activity_finished' => 'الإرجاعات يمكن ربطها بالأنشطة المنتهية فقط.',
         'confirm_invoice_overage' => 'أكد زيادة مبلغ المصروف ليطابق إجمالي الفاتورة.',
         'transaction_not_found' => 'لم يتم العثور على حركة بهذا الرقم العام.',
+        'cash_box_delete_linked' => 'لا يمكن حذف هذا الصندوق ما دامت حركات السجل المالي تستخدمه.',
+        'protected_currency_delete' => 'لا يمكن حذف العملة المحلية أو العملة الأساسية.',
+        'currency_delete_linked' => 'هذه العملة مستخدمة ولا يمكن حذفها.',
+        'category_delete_linked' => 'هذا التصنيف مستخدم ولا يمكن حذفه.',
+        'cash_box_deactivate_with_balance' => 'لا يمكن إلغاء تفعيل صندوق رصيده غير صفري.',
+        'cash_box_currency_remove_with_balance' => 'لا يمكن إزالة عملة ذات رصيد غير صفري من هذا الصندوق.',
+        'base_local_currency_must_differ' => 'يجب أن تكون العملة الأساسية مختلفة عن العملة المحلية.',
+        'protected_currency_deactivate' => 'لا يمكن إلغاء تفعيل العملة المحلية أو العملة الأساسية.',
+        'currency_deactivate_with_balance' => 'لا يمكن إلغاء تفعيل عملة رصيدها غير صفري.',
+        'base_currency_replacement_required' => 'اختر عملة أساسية نشطة أخرى قبل إزالة هذه العملة.',
+        'local_currency_replacement_required' => 'اختر عملة محلية نشطة أخرى قبل إزالة هذه العملة.',
     ],
 ];

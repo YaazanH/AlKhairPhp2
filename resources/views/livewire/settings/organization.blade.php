@@ -2,11 +2,12 @@
 
 use App\Livewire\Concerns\AuthorizesPermissions;
 use App\Livewire\Concerns\SupportsCreateAndNew;
-use App\Models\ActivityExpense;
 use App\Models\AcademicYear;
+use App\Models\ActivityExpense;
 use App\Models\AppSetting;
 use App\Models\ExpenseCategory;
 use App\Models\FatherJob;
+use App\Models\FinanceCurrency;
 use App\Models\GradeLevel;
 use App\Models\ParentProfile;
 use App\Models\PrintPageSize;
@@ -16,102 +17,168 @@ use App\Models\StudentGender;
 use App\Services\ParentNumberService;
 use App\Services\StudentGradePromotionService;
 use App\Services\StudentNumberService;
+use App\Support\ApplicationTimezone;
 use App\Support\AvatarDefaults;
 use App\Support\PhoneNumberFormatter;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Livewire\Volt\Component;
 use Livewire\WithFileUploads;
 use Livewire\WithPagination;
 
-new class extends Component {
+new class extends Component
+{
     use AuthorizesPermissions;
     use SupportsCreateAndNew;
     use WithFileUploads;
     use WithPagination;
 
     public string $school_name = '';
+
     public string $school_phone = '';
+
     public string $school_email = '';
+
     public string $email_domain = '';
+
     public string $student_number_prefix = '';
+
     public string $student_number_length = '0';
+
     public string $parent_number_prefix = 'P';
+
     public string $parent_number_length = '6';
+
     public string $school_address = '';
+
     public string $school_timezone = '';
+
     public string $school_currency = '';
+
     public string $default_user_avatar_path = '';
+
     public string $default_student_avatar_path = '';
+
     public string $default_teacher_avatar_path = '';
+
     public string $default_parent_avatar_path = '';
+
     public string $pdf_logo_path = '';
+
     public $default_user_avatar_upload = null;
+
     public $default_student_avatar_upload = null;
+
     public $default_teacher_avatar_upload = null;
+
     public $default_parent_avatar_upload = null;
+
     public $pdf_logo_upload = null;
+
     public bool $showOrganizationModal = false;
+
     public bool $barcode_scanner_enabled = true;
+
     public bool $memorization_saber_entries_enabled = true;
+
     public bool $activity_entries_enabled = true;
 
     public ?int $academic_year_editing_id = null;
+
     public string $academic_year_name = '';
+
     public string $academic_year_starts_on = '';
+
     public string $academic_year_ends_on = '';
+
     public bool $academic_year_is_current = false;
+
     public bool $academic_year_is_active = true;
+
     public int $academic_year_courses_count = 0;
+
     public int $academic_year_unfinished_courses_count = 0;
+
     public bool $showAcademicYearModal = false;
+
     public bool $academic_year_creation_required = false;
 
     public ?int $grade_level_editing_id = null;
+
     public string $grade_level_name = '';
+
     public string $grade_level_sort_order = '0';
+
     public bool $grade_level_is_active = true;
+
     public bool $showGradeLevelModal = false;
 
     public ?int $school_reference_editing_id = null;
+
     public string $school_reference_name = '';
+
     public bool $school_reference_in_use = false;
+
     public bool $showSchoolReferenceModal = false;
 
     public ?int $father_job_editing_id = null;
+
     public string $father_job_name = '';
+
     public bool $father_job_in_use = false;
+
     public bool $showFatherJobModal = false;
 
     public ?int $expense_category_editing_id = null;
+
     public string $expense_category_name = '';
+
     public string $expense_category_code = '';
+
     public bool $expense_category_is_active = true;
+
     public bool $showExpenseCategoryModal = false;
 
     public ?int $student_gender_editing_id = null;
+
     public string $student_gender_code = '';
+
     public string $student_gender_name = '';
+
     public string $student_gender_sort_order = '0';
+
     public bool $student_gender_is_active = true;
+
     public bool $student_gender_is_default = false;
 
     public ?int $default_student_gender_id = null;
+
     public bool $showStudentGenderModal = false;
 
     public ?int $print_page_size_editing_id = null;
+
     public string $print_page_size_name = '';
+
     public string $print_page_width_mm = '210';
+
     public string $print_page_height_mm = '297';
+
     public string $print_margin_top_mm = '10';
+
     public string $print_margin_right_mm = '10';
+
     public string $print_margin_bottom_mm = '10';
+
     public string $print_margin_left_mm = '10';
+
     public string $print_gap_x_mm = '6';
+
     public string $print_gap_y_mm = '6';
+
     public bool $print_page_size_is_default = false;
+
     public bool $showPrintPageSizeModal = false;
 
     public function mount(): void
@@ -164,6 +231,13 @@ new class extends Component {
                 ->orderBy('name')
                 ->paginate(10, ['*'], 'student_genders_page'),
             'activeStudentGenders' => StudentGender::query()->where('is_active', true)->orderBy('sort_order')->orderBy('name')->get(),
+            'organizationCurrencies' => FinanceCurrency::query()
+                ->where('is_active', true)
+                ->where('show_in_dropdowns', true)
+                ->orderByDesc('is_local')
+                ->orderBy('code')
+                ->get(),
+            'timezoneOptions' => app(ApplicationTimezone::class)->options(),
             'printPageSizes' => PrintPageSize::query()
                 ->orderByDesc('is_default')
                 ->orderBy('name')
@@ -336,7 +410,7 @@ new class extends Component {
 
         $studentGender = StudentGender::query()->findOrFail($studentGenderId);
 
-        if (\App\Models\Student::query()->where('gender', $studentGender->code)->exists()) {
+        if (Student::query()->where('gender', $studentGender->code)->exists()) {
             $this->addError('studentGenderDelete', __('settings.organization.errors.student_gender_delete_linked'));
 
             return;
@@ -385,6 +459,7 @@ new class extends Component {
             ->exists();
         if ($duplicateSchool) {
             $this->addError('school_reference_name', __('validation.unique', ['attribute' => __('settings.organization.fields.school_name')]));
+
             return;
         }
 
@@ -466,6 +541,7 @@ new class extends Component {
             ->exists();
         if ($duplicateJob) {
             $this->addError('father_job_name', __('validation.unique', ['attribute' => __('crud.parents.form.fields.father_work')]));
+
             return;
         }
 
@@ -913,7 +989,13 @@ new class extends Component {
 
         $validated = $this->validate([
             'school_address' => ['nullable', 'string'],
-            'school_currency' => ['required', 'string', 'max:10'],
+            'school_currency' => [
+                'required',
+                'string',
+                'max:10',
+                Rule::exists('finance_currencies', 'code')
+                    ->where(fn ($query) => $query->where('is_active', true)->where('show_in_dropdowns', true)),
+            ],
             'school_email' => ['nullable', 'email', 'max:255'],
             'email_domain' => ['required', 'string', 'max:255', 'regex:/^(?!-)[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/'],
             'student_number_prefix' => ['nullable', 'string', 'max:20', 'regex:/^[A-Za-z0-9_-]*$/'],
@@ -922,7 +1004,7 @@ new class extends Component {
             'parent_number_length' => ['required', 'integer', 'min:0', 'max:12'],
             'school_name' => ['required', 'string', 'max:255'],
             'school_phone' => ['nullable', 'string', 'max:50'],
-            'school_timezone' => ['required', 'string', 'max:100'],
+            'school_timezone' => ['required', 'string', 'max:100', 'timezone:all_with_bc'],
             'default_user_avatar_upload' => ['nullable', 'image', 'max:'.config('uploads.image_max_kb')],
             'default_student_avatar_upload' => ['nullable', 'image', 'max:'.config('uploads.image_max_kb')],
             'default_teacher_avatar_upload' => ['nullable', 'image', 'max:'.config('uploads.image_max_kb')],
@@ -1012,22 +1094,10 @@ new class extends Component {
             app(ParentNumberService::class)->syncAll();
         }
 
+        app(ApplicationTimezone::class)->apply($validated['school_timezone']);
+
         session()->flash('status', __('settings.organization.messages.settings_saved'));
         $this->showOrganizationModal = false;
-    }
-
-    public function removePdfLogo(): void
-    {
-        $this->authorizePermission('settings.manage');
-
-        if ($this->pdf_logo_path) {
-            Storage::disk('public')->delete($this->pdf_logo_path);
-        }
-
-        $this->pdf_logo_path = '';
-        $this->reset('pdf_logo_upload');
-        AppSetting::storeValue('general', 'pdf_logo_path', null);
-        session()->flash('status', __('settings.organization.messages.logo_removed'));
     }
 
     protected function persistPdfLogoUpload(): void
@@ -1270,8 +1340,19 @@ new class extends Component {
             : ParentNumberService::DEFAULT_PREFIX;
         $this->parent_number_length = (string) ($settings['parent_number_length'] ?? ParentNumberService::DEFAULT_LENGTH);
         $this->school_address = (string) ($settings['school_address'] ?? '');
-        $this->school_timezone = (string) ($settings['school_timezone'] ?? config('app.timezone', 'UTC'));
-        $this->school_currency = (string) ($settings['school_currency'] ?? 'USD');
+        $this->school_timezone = app(ApplicationTimezone::class)->normalize(
+            (string) ($settings['school_timezone'] ?? config('app.timezone', ApplicationTimezone::DEFAULT)),
+        );
+
+        $availableCurrencies = FinanceCurrency::query()
+            ->where('is_active', true)
+            ->where('show_in_dropdowns', true);
+        $configuredCurrency = strtoupper(trim((string) ($settings['school_currency'] ?? '')));
+        $this->school_currency = (clone $availableCurrencies)->where('code', $configuredCurrency)->exists()
+            ? $configuredCurrency
+            : (string) ((clone $availableCurrencies)->where('is_local', true)->value('code')
+                ?: (clone $availableCurrencies)->orderBy('code')->value('code')
+                ?: '');
         $this->default_user_avatar_path = (string) ($media->get('default_user_avatar_path') ?? '');
         $this->default_student_avatar_path = (string) ($media->get('default_student_avatar_path') ?? '');
         $this->default_teacher_avatar_path = (string) ($media->get('default_teacher_avatar_path') ?? '');
@@ -1296,7 +1377,7 @@ new class extends Component {
         <div class="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">{{ session('status') }}</div>
     @endif
 
-    <section class="surface-panel p-5 lg:p-6">
+    <section class="surface-panel settings-dark-surface p-5 lg:p-6" data-settings-dark-surface="general-settings">
         <div class="admin-toolbar">
             <div>
                 <div class="admin-toolbar__title">{{ __('settings.organization.sections.profile.title') }}</div>
@@ -1312,7 +1393,7 @@ new class extends Component {
                     [__('settings.organization.fields.school_name'), $school_name ?: __('crud.common.not_available')],
                     [__('settings.organization.fields.school_email'), $school_email ?: __('crud.common.not_available')],
                     [__('settings.organization.fields.email_domain'), $email_domain ?: 'alkhair.local'],
-                    [__('settings.organization.fields.school_timezone'), $school_timezone ?: __('crud.common.not_available')],
+                    [__('settings.organization.fields.school_timezone'), data_get(collect($timezoneOptions)->firstWhere('value', $school_timezone), 'label', $school_timezone ?: __('crud.common.not_available'))],
                 ] as [$settingLabel, $settingValue])
                     <div class="rounded-2xl border border-white/10 bg-white/5 p-4">
                         <div class="text-xs font-semibold text-neutral-400">{{ $settingLabel }}</div>
@@ -1326,8 +1407,8 @@ new class extends Component {
                     [__('settings.organization.fields.memorization_saber_status'), $memorization_saber_entries_enabled, 'toggleMemorizationSaberEntries'],
                     [__('settings.organization.fields.barcode_status'), $barcode_scanner_enabled, 'toggleBarcodeScanner'],
                 ] as [$settingLabel, $settingEnabled, $toggleAction])
-                    <div class="rounded-2xl border border-white/10 bg-white/5 p-4">
-                        <div class="flex items-center justify-between gap-3">
+                    <div data-operational-status-card class="flex items-center rounded-2xl border border-white/10 bg-white/5 p-4">
+                        <div class="flex w-full items-center justify-between gap-3">
                             <div class="text-xs font-semibold text-neutral-400">{{ $settingLabel }}</div>
                             <button
                                 type="button"
@@ -1336,7 +1417,7 @@ new class extends Component {
                                 wire:target="{{ $toggleAction }}"
                                 aria-pressed="{{ $settingEnabled ? 'true' : 'false' }}"
                                 aria-label="{{ $settingLabel }}: {{ $settingEnabled ? __('settings.common.states.active') : __('settings.common.states.inactive') }}"
-                                class="status-chip cursor-pointer transition hover:brightness-125 disabled:cursor-wait disabled:opacity-60 {{ $settingEnabled ? 'status-chip--emerald' : 'status-chip--slate' }}"
+                                class="status-chip self-center leading-none cursor-pointer transition hover:brightness-125 disabled:cursor-wait disabled:opacity-60 {{ $settingEnabled ? 'status-chip--emerald' : 'status-chip--rose' }}"
                             >
                                 {{ $settingEnabled ? __('settings.common.states.active') : __('settings.common.states.inactive') }}
                             </button>
@@ -1772,7 +1853,7 @@ new class extends Component {
         </section>
     </div>
 
-    <x-admin.modal :show="$showOrganizationModal" :title="__('settings.organization.sections.profile.title')" close-method="closeOrganizationModal" :dismissible="false" max-width="4xl">
+    <x-admin.modal :show="$showOrganizationModal" :title="__('settings.organization.sections.profile.title')" close-method="closeOrganizationModal" :dismissible="false" :contain-body="true" max-width="4xl">
         <x-slot:header-actions>
             <button
                 type="submit"
@@ -1788,18 +1869,14 @@ new class extends Component {
                 </svg>
             </button>
         </x-slot:header-actions>
-        <form id="organization-settings-form" wire:submit="saveOrganizationSettings" class="space-y-4">
+        <form id="organization-settings-form" wire:submit="saveOrganizationSettings" class="space-y-4" data-organization-settings-form>
             <section class="rounded-3xl border border-white/10 bg-white/5 p-4" data-organization-settings-primary-box>
                 <div>
                     <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.school_name') }}</label>
                     <input wire:model="school_name" type="text" class="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
                     @error('school_name') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
                 </div>
-                <div class="mt-4 grid gap-4 md:grid-cols-2">
-                    <div>
-                        <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.default_student_gender') }}</label>
-                        <select wire:model="default_student_gender_id" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">@foreach ($activeStudentGenders as $studentGender)<option value="{{ $studentGender->id }}">{{ $studentGender->name }}</option>@endforeach</select>
-                    </div>
+                <div class="mt-4 grid items-end gap-4 md:grid-cols-3" data-organization-contact-fields>
                     <div>
                         <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.school_phone') }}</label>
                         <x-phone-input model="school_phone" :value="$school_phone" />
@@ -1807,54 +1884,8 @@ new class extends Component {
                     </div>
                     <div>
                         <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.school_email') }}</label>
-                        <input wire:model="school_email" type="email" class="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                        <input wire:model="school_email" type="email" class="h-[2.625rem] w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
                         @error('school_email') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
-                    </div>
-                    <div>
-                        <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.email_domain') }}</label>
-                        <input wire:model="email_domain" type="text" class="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm lowercase dark:border-neutral-700 dark:bg-neutral-900" placeholder="alkhair.org">
-                        @error('email_domain') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
-                    </div>
-                </div>
-                <div class="mt-4 border-t border-white/10 pt-4" data-organization-settings-numbering-group>
-                <div class="grid gap-4 md:grid-cols-4">
-                    <div>
-                        <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.student_number_prefix') }}</label>
-                        <input wire:model="student_number_prefix" type="text" class="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm uppercase dark:border-neutral-700 dark:bg-neutral-900" placeholder="S">
-                        <p class="mt-1 text-xs text-neutral-500">{{ __('settings.organization.fields.student_number_prefix_help') }}</p>
-                        @error('student_number_prefix') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
-                    </div>
-                    <div>
-                        <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.student_number_length') }}</label>
-                        <input wire:model="student_number_length" type="number" min="0" max="12" step="1" class="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900" placeholder="6">
-                        <p class="mt-1 text-xs text-neutral-500">{{ __('settings.organization.fields.student_number_length_help') }}</p>
-                        @error('student_number_length') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
-                    </div>
-                    <div>
-                        <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.parent_number_prefix') }}</label>
-                        <input wire:model="parent_number_prefix" type="text" class="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm uppercase dark:border-neutral-700 dark:bg-neutral-900" placeholder="P">
-                        <p class="mt-1 text-xs text-neutral-500">{{ __('settings.organization.fields.parent_number_prefix_help') }}</p>
-                        @error('parent_number_prefix') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
-                    </div>
-                    <div>
-                        <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.parent_number_length') }}</label>
-                        <input wire:model="parent_number_length" type="number" min="0" max="12" step="1" class="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900" placeholder="6">
-                        <p class="mt-1 text-xs text-neutral-500">{{ __('settings.organization.fields.parent_number_length_help') }}</p>
-                        @error('parent_number_length') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
-                    </div>
-                </div>
-                </div>
-                <div class="mt-4 border-t border-white/10 pt-4" data-organization-settings-locale-group>
-                <div class="grid items-end gap-4 md:grid-cols-[minmax(0,1.35fr)_minmax(7rem,0.6fr)_minmax(9rem,0.8fr)]">
-                    <div>
-                        <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.school_timezone') }}</label>
-                        <input wire:model="school_timezone" type="text" class="h-[2.625rem] w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
-                        @error('school_timezone') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
-                    </div>
-                    <div>
-                        <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.school_currency') }}</label>
-                        <input wire:model="school_currency" type="text" class="h-[2.625rem] w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm uppercase dark:border-neutral-700 dark:bg-neutral-900">
-                        @error('school_currency') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
                     </div>
                     <div>
                         <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.school_address') }}</label>
@@ -1862,6 +1893,72 @@ new class extends Component {
                         @error('school_address') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
                     </div>
                 </div>
+                <div class="mt-4 border-t border-white/10 pt-4" data-organization-settings-locale-group>
+                    <div class="grid items-end gap-4 md:grid-cols-4" data-organization-locale-fields>
+                        <div>
+                            <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.school_timezone') }}</label>
+                            <select
+                                wire:model="school_timezone"
+                                class="h-[2.625rem] w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900"
+                                data-organization-timezone-select
+                                data-search-input="true"
+                                data-open-on-focus="true"
+                                data-clearable="false"
+                                data-search-selection-required="true"
+                                data-scroll-to-selected="true"
+                                data-hide-overflowing-options="true"
+                                data-search-placeholder="{{ __('settings.organization.fields.school_timezone_search') }}"
+                                data-empty-text="{{ __('settings.organization.fields.school_timezone_empty') }}"
+                                dir="{{ app()->isLocale('ar') ? 'rtl' : 'ltr' }}"
+                            >
+                                @foreach ($timezoneOptions as $timezoneOption)
+                                    <option value="{{ $timezoneOption['value'] }}" data-search="{{ $timezoneOption['search'] }}" data-option-name="{{ $timezoneOption['location'] }}" data-option-prefix="UTC" data-option-number="{{ $timezoneOption['utc_offset'] }}" @if($timezoneOption['value'] === 'GMT') data-option-bold="true" @endif>{{ $timezoneOption['label'] }}</option>
+                                @endforeach
+                            </select>
+                            @error('school_timezone') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+                        </div>
+                        <div>
+                            <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.school_currency') }}</label>
+                            <select
+                                wire:model="school_currency"
+                                class="h-[2.625rem] w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm uppercase dark:border-neutral-700 dark:bg-neutral-900"
+                                data-organization-currency-select
+                                data-search-input="true"
+                                data-open-on-focus="true"
+                                data-clearable="false"
+                                data-search-selection-required="true"
+                                data-search-placeholder="{{ __('settings.organization.fields.school_currency_search') }}"
+                                data-empty-text="{{ __('settings.organization.fields.school_currency_empty') }}"
+                                dir="ltr"
+                            >
+                                @foreach ($organizationCurrencies as $currency)
+                                    <option value="{{ $currency->code }}" data-search="{{ $currency->name }} {{ $currency->symbol }}">{{ $currency->code }} - {{ $currency->name }}</option>
+                                @endforeach
+                            </select>
+                            @error('school_currency') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+                        </div>
+                        <div>
+                            <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.email_domain') }}</label>
+                            <div class="saber-rule-input" data-organization-email-domain-input>
+                                <input wire:model="email_domain" type="text" class="saber-rule-input__control saber-rule-input__control--symbol h-[2.625rem] w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm lowercase dark:border-neutral-700 dark:bg-neutral-900" placeholder="alkhair.org">
+                                <span class="saber-rule-input__suffix" aria-hidden="true" data-organization-email-domain-unit>@</span>
+                            </div>
+                            @error('email_domain') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+                        </div>
+                        <div>
+                            <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.default_student_gender') }}</label>
+                            <select
+                                wire:model="default_student_gender_id"
+                                class="h-[2.625rem] w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900"
+                                data-organization-gender-select
+                                data-clearable="false"
+                                data-search-selection-required="true"
+                                required
+                            >
+                                @foreach ($activeStudentGenders as $studentGender)<option value="{{ $studentGender->id }}">{{ $studentGender->name }}</option>@endforeach
+                            </select>
+                        </div>
+                    </div>
                 </div>
             </section>
             <section class="grid gap-3 rounded-2xl border border-white/10 bg-white/5 p-4 md:grid-cols-3">
@@ -1882,9 +1979,6 @@ new class extends Component {
                             <input wire:model="pdf_logo_upload" type="file" accept="image/*,.svg" class="block w-full text-sm text-neutral-300">
                             <p class="mt-1 text-xs text-neutral-400">{{ __('settings.organization.fields.main_page_logo_help') }}</p>
                             @error('pdf_logo_upload') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
-                            @if ($pdf_logo_path)
-                                <button type="button" wire:click="removePdfLogo" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link pill-link--compact pill-link--danger mt-3">{{ __('settings.organization.actions.remove_logo') }}</button>
-                            @endif
                         </div>
                     </div>
                 </div>

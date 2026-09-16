@@ -43,7 +43,7 @@ class FinancePdfRegressionTest extends TestCase
         $this->assertStringContainsString('.header { background: #dff1e2; border-bottom: 1px solid #9fc6a8; margin: 0 -10mm; padding: 4mm 10mm; }', $html);
         $this->assertStringContainsString('.meta { margin: 0 0 5mm; }', $html);
         $this->assertStringContainsString('.original-invoice-no { direction: ltr; text-align: right; unicode-bidi: embed; }', $html);
-        $this->assertStringContainsString('class="value original-invoice-no" dir="ltr">ORIGINAL-1</td>', $html);
+        $this->assertStringContainsString('class="value original-invoice-no" dir="ltr">№ ORIGINAL-1</td>', $html);
         $this->assertStringContainsString('class="continuation">متابعة</div>', $html);
         $this->assertSame(1, substr_count($html, 'class="continuation"'));
         $this->assertStringNotContainsString(__('finance.fields.invoice_kind'), $html);

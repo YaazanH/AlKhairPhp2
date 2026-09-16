@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\AcademicYear;
 use App\Models\Activity;
+use App\Models\AppSetting;
 use App\Models\Course;
 use App\Models\Enrollment;
 use App\Models\Group;
@@ -19,6 +20,7 @@ use App\Services\PrintTemplates\PrintTemplateFieldRegistry;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
@@ -605,6 +607,9 @@ class IdCardBuilderTest extends TestCase
     {
         $this->seed(RoleSeeder::class);
 
+        AppSetting::storeValue('general', 'school_timezone', 'Asia/Damascus');
+        Carbon::setTestNow(Carbon::create(2026, 9, 5, 21, 15, 0, 'UTC'));
+
         $manager = User::factory()->create();
         $manager->assignRole('manager');
 
@@ -633,19 +638,32 @@ class IdCardBuilderTest extends TestCase
             'is_student_card' => true,
         ]);
 
-        $this->actingAs($manager)
-            ->postJson(route('id-cards.print.record'), [
-                'template_id' => $template->id,
-                'student_ids' => [$student->id],
-            ])
-            ->assertOk()
-            ->assertJson(['recorded' => true]);
+        try {
+            $this->actingAs($manager)
+                ->postJson(route('id-cards.print.record'), [
+                    'template_id' => $template->id,
+                    'student_ids' => [$student->id],
+                ])
+                ->assertOk()
+                ->assertJson([
+                    'recorded' => true,
+                    'printed_at' => '2026-09-06T00:15:00+03:00',
+                    'printed_at_label' => '09-06-2026 00:15',
+                ]);
+        } finally {
+            Carbon::setTestNow();
+        }
 
         $this->assertDatabaseHas('student_card_prints', [
             'student_id' => $student->id,
             'print_template_id' => $template->id,
             'printed_by' => $manager->id,
+            'printed_at' => '2026-09-06 00:15:00',
         ]);
+
+        $printSetup = file_get_contents(resource_path('views/print-templates/print/setup.blade.php'));
+        $this->assertStringContainsString("const printedAtLabel = payload.printed_at_label || '';", $printSetup);
+        $this->assertStringNotContainsString('new Date(payload.printed_at).toLocaleString()', $printSetup);
     }
 
     public function test_student_card_print_clear_endpoint_removes_history_rows(): void

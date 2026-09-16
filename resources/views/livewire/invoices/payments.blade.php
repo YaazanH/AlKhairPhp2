@@ -122,6 +122,7 @@ new class extends Component {
     {
         $this->authorizePermission('finance.entries.update');
         $this->normalizeFinanceNumberProperty('invoice_deduction');
+        $this->original_invoice_no = Invoice::formatOriginalInvoiceNumber($this->original_invoice_no) ?? '';
         $validated = $this->validate([
             'original_invoice_no' => ['nullable', 'string', 'max:255'],
             'invoicer_name' => ['required', 'string', 'max:255'],

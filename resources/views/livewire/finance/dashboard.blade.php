@@ -2,6 +2,7 @@
 
 use App\Livewire\Concerns\AuthorizesPermissions;
 use App\Livewire\Concerns\FormatsFinanceNumbers;
+use App\Livewire\Concerns\HandlesWithdrawalRefusal;
 use App\Models\FinanceCurrency;
 use App\Models\FinancePullRequestKind;
 use App\Models\FinanceRequest;
@@ -19,6 +20,7 @@ use Livewire\WithPagination;
 new class extends Component {
     use AuthorizesPermissions;
     use FormatsFinanceNumbers;
+    use HandlesWithdrawalRefusal;
     use WithPagination;
 
     public int $year;
@@ -257,6 +259,7 @@ new class extends Component {
     public function openReviewModal(int $requestId): void
     {
         $this->authorizePermission('finance.pull-requests.review');
+        $this->closeRefusalModal();
         $request = FinanceRequest::query()->where('type', FinanceRequest::TYPE_PULL)->where('status', FinanceRequest::STATUS_PENDING)->findOrFail($requestId);
         $this->reviewingRequestId = $request->id;
         $this->review_amount = $this->formatFinanceNumberForInput($request->requested_amount);
@@ -286,18 +289,9 @@ new class extends Component {
         session()->flash('status', __('finance.messages.pull_accepted'));
     }
 
-    public function declineRequest(): void
-    {
-        $this->authorizePermission('finance.pull-requests.review');
-        $this->validate(['review_notes' => ['required', 'string', 'max:2000']]);
-        $request = FinanceRequest::query()->where('type', FinanceRequest::TYPE_PULL)->where('status', FinanceRequest::STATUS_PENDING)->findOrFail($this->reviewingRequestId);
-        app(FinanceService::class)->declineRequest($request, auth()->user(), $this->review_notes);
-        $this->closeReviewModal();
-        session()->flash('status', __('finance.messages.pull_declined'));
-    }
-
     public function closeReviewModal(): void
     {
+        $this->closeRefusalModal();
         $this->reset(['reviewingRequestId', 'review_amount', 'review_cash_box_id', 'review_notes']);
         $this->resetValidation();
     }
@@ -515,9 +509,36 @@ new class extends Component {
         </form>
     </x-admin.modal>
 
-    <x-admin.modal :show="$reviewingRequestId !== null" :title="__('finance.actions.review')" close-method="closeReviewModal" max-width="3xl">@if ($reviewRequest)<div class="mb-4 soft-callout p-4"><div class="font-semibold text-white">{{ $reviewRequest->request_no }} · {{ $reviewRequest->teacher ? trim($reviewRequest->teacher->first_name.' '.$reviewRequest->teacher->last_name) : $reviewRequest->requestedBy?->name }}</div><div class="mt-1 text-sm text-neutral-300">{{ $reviewRequest->requested_reason }}</div></div><div class="grid gap-4 md:grid-cols-2"><div><label class="mb-1 block text-sm">{{ __('finance.fields.accepted') }}</label><input wire:model="review_amount" data-thousand-separator class="w-full rounded-xl px-4 py-3">@error('review_amount')<div class="text-sm text-red-400">{{ $message }}</div>@enderror</div><div><label class="mb-1 block text-sm">{{ __('finance.fields.cash_box') }}</label><select wire:model="review_cash_box_id" class="w-full rounded-xl px-4 py-3"><option value="">-</option>@foreach ($reviewCashBoxes as $fund)<option value="{{ $fund->id }}">{{ $fund->name }}</option>@endforeach</select></div><div class="md:col-span-2"><label class="mb-1 block text-sm">{{ __('finance.common.notes') }}</label><textarea wire:model="review_notes" class="w-full rounded-xl px-4 py-3"></textarea>@error('review_notes')<div class="text-sm text-red-400">{{ $message }}</div>@enderror</div><div class="md:col-span-2 flex justify-end gap-3"><button wire:click="declineRequest" type="button" class="pill-link pill-link--danger">{{ __('finance.actions.decline') }}</button><button wire:click="acceptRequest" type="button" class="pill-link pill-link--accent">{{ __('finance.actions.accept') }}</button></div></div>@endif</x-admin.modal>
+    <x-admin.modal :show="$reviewingRequestId !== null && $refusingRequestId === null" :title="__('finance.actions.review')" close-method="closeReviewModal" max-width="3xl">
+        @if ($reviewRequest)
+            <div data-withdrawal-review>
+                <div class="mb-4 soft-callout p-4">
+                    <div class="font-semibold text-white">{{ $reviewRequest->request_no }} · {{ $reviewRequest->teacher ? trim($reviewRequest->teacher->first_name.' '.$reviewRequest->teacher->last_name) : $reviewRequest->requestedBy?->name }}</div>
+                    <div class="mt-1 text-sm text-neutral-300">{{ $reviewRequest->requested_reason }}</div>
+                </div>
+                <div class="grid gap-4 md:grid-cols-2">
+                    <div>
+                        <label class="mb-1 block text-sm">{{ __('finance.fields.accepted') }}</label>
+                        <input wire:model="review_amount" data-thousand-separator class="w-full rounded-xl px-4 py-3">
+                        @error('review_amount')<div class="text-sm text-red-400">{{ $message }}</div>@enderror
+                    </div>
+                    <div>
+                        <label class="mb-1 block text-sm">{{ __('finance.fields.cash_box') }}</label>
+                        <select wire:model="review_cash_box_id" class="w-full rounded-xl px-4 py-3"><option value="">-</option>@foreach ($reviewCashBoxes as $fund)<option value="{{ $fund->id }}">{{ $fund->name }}</option>@endforeach</select>
+                        @error('review_cash_box_id')<div class="text-sm text-red-400">{{ $message }}</div>@enderror
+                    </div>
+                    <div class="md:col-span-2 flex justify-end gap-3">
+                        <button wire:click="openRefusalModal" type="button" class="pill-link pill-link--danger" data-withdrawal-refuse>{{ __('finance.actions.decline') }}</button>
+                        <button wire:click="acceptRequest" type="button" class="pill-link pill-link--accent">{{ __('finance.actions.accept') }}</button>
+                    </div>
+                </div>
+            </div>
+        @endif
+    </x-admin.modal>
 
-    <x-admin.modal :show="$showRequestHistoryModal" :title="__('finance.dashboard.previous_requests')" close-method="$set('showRequestHistoryModal', false)" max-width="6xl" compact>
+    @include('livewire.finance.partials.withdrawal-refusal-modals')
+
+    <x-admin.modal :show="$showRequestHistoryModal && $refusalReasonRequestId === null" :title="__('finance.dashboard.previous_requests')" close-method="$set('showRequestHistoryModal', false)" max-width="6xl" compact>
         <div class="surface-table settings-record-table" data-settings-record-table data-finance-generic-table data-withdrawal-history-table>
             <div class="overflow-x-auto">
                 <table class="w-full text-sm">
@@ -532,9 +553,11 @@ new class extends Component {
                                 <td class="px-4 py-3">{{ $request->requested_reason ?: '-' }}</td>
                                 <td class="px-4 py-3"><bdi dir="ltr">{{ app(FinanceService::class)->formatCurrencyAmount($request->accepted_amount ?? $request->requested_amount, $request->accepted_amount !== null ? $request->acceptedCurrency : $request->requestedCurrency) }}</bdi></td>
                                 <td class="px-4 py-3">
-                                    <span class="status-chip withdrawal-history-status {{ $historyAccepted ? 'status-chip--emerald' : 'status-chip--rose' }}">
-                                        {{ $historyAccepted ? __('finance.common.accepted') : __('finance.common.refused') }}
-                                    </span>
+                                    @if ($historyAccepted)
+                                        <span class="status-chip withdrawal-history-status status-chip--emerald">{{ __('finance.common.accepted') }}</span>
+                                    @else
+                                        <button type="button" wire:click="openRefusalReason({{ $request->id }})" class="status-chip withdrawal-history-status status-chip--rose" title="{{ __('finance.refusal.view') }}" aria-label="{{ __('finance.common.refused') }}: {{ __('finance.refusal.view') }}" data-withdrawal-refused-status data-modal-action-icon-ignore>{{ __('finance.common.refused') }}</button>
+                                    @endif
                                 </td>
                             </tr>
                         @endforeach

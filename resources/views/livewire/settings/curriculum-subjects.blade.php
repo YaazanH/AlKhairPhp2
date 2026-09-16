@@ -186,67 +186,78 @@ new class extends Component {
         <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('ui.common.settings') }}</h1>
     </section>
     <x-settings.admin-nav section="dashboard" current="settings.curriculum-subjects" />
-    <section class="surface-panel p-5 lg:p-6"><div class="admin-toolbar"><div class="admin-toolbar__title">{{ __('curricula.settings.title') }}</div><div class="admin-toolbar__actions"><button type="button" wire:click="openStandaloneResources" class="admin-icon-button" title="{{ __('curricula.fields.standalone_books') }}" aria-label="{{ __('curricula.fields.standalone_books') }}" data-standalone-books-action><x-admin-action-icon name="book" /></button><x-add-action-button wire:click="editSubject" :label="__('curricula.actions.add_subject')" /></div></div></section>
 
     @if(session('status'))<div class="flash-success px-4 py-3 text-sm">{{ session('status') }}</div>@endif
     @error('delete')<div class="flash-error px-4 py-3 text-sm">{{ $message }}</div>@enderror
-    <section class="grid gap-4">
-        @forelse($subjects as $subject)
-            <div class="curriculum-subject-table overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700">
-                <div class="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-200 px-5 py-4 dark:border-neutral-700">
-                    <div class="font-semibold text-white">{{ $subject->name }}</div>
-                    <div class="flex gap-2"><x-add-action-button wire:click="editResource({{ $subject->id }})" :label="__('curricula.actions.add_resource')" :accent="false" /><x-edit-action-button wire:click="editSubject({{ $subject->id }})" :label="__('curricula.actions.edit')" data-curriculum-subject-edit-action /></div>
-                </div>
-                <div class="overflow-x-auto">
-                    <table data-curriculum-subject-resource-grid class="curriculum-subject-resource-grid min-w-full divide-y divide-neutral-200 text-sm dark:divide-neutral-700">
-                        <colgroup>
-                            <col data-curriculum-resource-column="index" class="curriculum-subject-resource-grid__index">
-                            <col data-curriculum-resource-column="name" class="curriculum-subject-resource-grid__name">
-                            <col data-curriculum-resource-column="author" class="curriculum-subject-resource-grid__author">
-                            <col data-curriculum-resource-column="publisher" class="curriculum-subject-resource-grid__publisher">
-                            <col data-curriculum-resource-column="edition" class="curriculum-subject-resource-grid__edition">
-                            <col data-curriculum-resource-column="year" class="curriculum-subject-resource-grid__year">
-                            <col data-curriculum-resource-column="book" class="curriculum-subject-resource-grid__book">
-                            <col data-curriculum-resource-column="actions" class="curriculum-subject-resource-grid__actions">
-                        </colgroup>
-                        <thead class="bg-neutral-50 dark:bg-neutral-900/60">
-                            <tr>
-                                <th data-curriculum-resource-index class="curriculum-resource-index px-3 py-3 text-center font-medium">#</th>
-                                <th class="curriculum-subject-resource-name px-5 py-3 text-left font-medium">{{ __('curricula.fields.book_name') }}</th>
-                                <th class="px-5 py-3 text-left font-medium">{{ __('curricula.fields.author') }}</th>
-                                <th class="px-5 py-3 text-left font-medium">{{ __('curricula.fields.publisher') }}</th>
-                                <th class="px-5 py-3 text-left font-medium">{{ __('curricula.fields.edition_number') }}</th>
-                                <th class="curriculum-subject-resource-year px-2 py-3 text-center font-medium">{{ __('curricula.fields.published_on') }}</th>
-                                <th class="px-3 py-3 text-center font-medium">{{ __('curricula.fields.book') }}</th>
-                                <th class="admin-actions-column px-5 py-3 text-center font-medium">{{ __('crud.common.actions.actions') }}</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-neutral-200 dark:divide-neutral-700">
-                            @forelse($subject->resources as $resource)
-                                <tr>
-                                    <td class="curriculum-resource-index px-3 py-3 text-center">{{ $loop->iteration }}</td>
-                                    <td class="curriculum-subject-resource-name px-5 py-3 text-white" title="{{ $resource->book_name }}">{{ $resource->book_name }}</td>
-                                    <td class="px-5 py-3">{{ $resource->author ?: '—' }}</td>
-                                    <td class="px-5 py-3">{{ $resource->publisher ?: '—' }}</td>
-                                    <td class="px-5 py-3">{{ $this->displayEdition($resource->edition_number) }}</td>
-                                    <td class="curriculum-subject-resource-year px-2 py-3 text-center">{{ $resource->published_on?->format('Y') ?: '—' }}</td>
-                                    <td class="px-3 py-3 text-center">
-                                        @if($resource->pdf_path)
-                                            <span class="curriculum-resource-book-status curriculum-resource-book-status--available" title="{{ __('curricula.fields.pdf_uploaded') }}" aria-label="{{ __('curricula.fields.pdf_uploaded') }}">✓</span>
-                                        @else
-                                            <span class="curriculum-resource-book-status" aria-label="{{ __('curricula.fields.no_pdf') }}">--</span>
-                                        @endif
-                                    </td>
-                                    <td class="px-3 py-3"><div class="flex flex-nowrap justify-end gap-2"><x-edit-action-button wire:click="editResource({{ $subject->id }}, {{ $resource->id }})" :label="__('curricula.actions.edit')" data-curriculum-resource-edit-icon /></div></td>
-                                </tr>
-                            @empty
-                                <tr><td colspan="8" class="admin-empty-state">{{ __('crud.common.not_available') }}</td></tr>
-                            @endforelse
-                        </tbody>
-                    </table>
-                </div>
+    <section class="overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700" data-settings-table data-curriculum-settings-table>
+        <div class="admin-grid-meta admin-grid-meta--controls" data-mobile-title-action-row data-settings-mobile-title-action-row>
+            <div class="admin-grid-meta__title">{{ __('curricula.settings.title') }}</div>
+            <div class="admin-toolbar__actions">
+                <button type="button" wire:click="openStandaloneResources" class="admin-icon-button" title="{{ __('curricula.fields.standalone_books') }}" aria-label="{{ __('curricula.fields.standalone_books') }}" data-standalone-books-action><x-admin-action-icon name="book" /></button>
+                <x-add-action-button wire:click="editSubject" :label="__('curricula.actions.add_subject')" />
             </div>
-        @empty<div class="admin-empty-state surface-panel">{{ __('crud.common.not_available') }}</div>@endforelse
+        </div>
+
+        <div class="grid gap-4 p-4 sm:p-5" data-curriculum-settings-subjects>
+            @forelse($subjects as $subject)
+                <div class="curriculum-subject-table overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700">
+                    <div class="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-200 px-5 py-4 dark:border-neutral-700">
+                        <div class="font-semibold text-white">{{ $subject->name }}</div>
+                        <div class="flex gap-2"><x-add-action-button wire:click="editResource({{ $subject->id }})" :label="__('curricula.actions.add_resource')" :accent="false" /><x-edit-action-button wire:click="editSubject({{ $subject->id }})" :label="__('curricula.actions.edit')" data-curriculum-subject-edit-action /></div>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table data-curriculum-subject-resource-grid class="curriculum-subject-resource-grid min-w-full divide-y divide-neutral-200 text-sm dark:divide-neutral-700">
+                            <colgroup>
+                                <col data-curriculum-resource-column="index" class="curriculum-subject-resource-grid__index">
+                                <col data-curriculum-resource-column="name" class="curriculum-subject-resource-grid__name">
+                                <col data-curriculum-resource-column="author" class="curriculum-subject-resource-grid__author">
+                                <col data-curriculum-resource-column="publisher" class="curriculum-subject-resource-grid__publisher">
+                                <col data-curriculum-resource-column="edition" class="curriculum-subject-resource-grid__edition">
+                                <col data-curriculum-resource-column="year" class="curriculum-subject-resource-grid__year">
+                                <col data-curriculum-resource-column="book" class="curriculum-subject-resource-grid__book">
+                                <col data-curriculum-resource-column="actions" class="curriculum-subject-resource-grid__actions">
+                            </colgroup>
+                            <thead class="bg-neutral-50 dark:bg-neutral-900/60">
+                                <tr>
+                                    <th data-curriculum-resource-index class="curriculum-resource-index px-3 py-3 text-center font-medium">#</th>
+                                    <th class="curriculum-subject-resource-name px-5 py-3 text-left font-medium">{{ __('curricula.fields.book_name') }}</th>
+                                    <th class="px-5 py-3 text-left font-medium">{{ __('curricula.fields.author') }}</th>
+                                    <th class="px-5 py-3 text-left font-medium">{{ __('curricula.fields.publisher') }}</th>
+                                    <th class="px-5 py-3 text-left font-medium">{{ __('curricula.fields.edition_number') }}</th>
+                                    <th class="curriculum-subject-resource-year px-2 py-3 text-center font-medium">{{ __('curricula.fields.published_on') }}</th>
+                                    <th class="px-3 py-3 text-center font-medium">{{ __('curricula.fields.book') }}</th>
+                                    <th class="admin-actions-column px-5 py-3 text-center font-medium">{{ __('crud.common.actions.actions') }}</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-neutral-200 dark:divide-neutral-700">
+                                @forelse($subject->resources as $resource)
+                                    <tr>
+                                        <td class="curriculum-resource-index px-3 py-3 text-center">{{ $loop->iteration }}</td>
+                                        <td class="curriculum-subject-resource-name px-5 py-3 text-white" title="{{ $resource->book_name }}">{{ $resource->book_name }}</td>
+                                        <td class="px-5 py-3">{{ $resource->author ?: '—' }}</td>
+                                        <td class="px-5 py-3">{{ $resource->publisher ?: '—' }}</td>
+                                        <td class="px-5 py-3">{{ $this->displayEdition($resource->edition_number) }}</td>
+                                        <td class="curriculum-subject-resource-year px-2 py-3 text-center">{{ $resource->published_on?->format('Y') ?: '—' }}</td>
+                                        <td class="px-3 py-3 text-center">
+                                            @if($resource->pdf_path)
+                                                <span class="curriculum-resource-book-status curriculum-resource-book-status--available" title="{{ __('curricula.fields.pdf_uploaded') }}" aria-label="{{ __('curricula.fields.pdf_uploaded') }}">✓</span>
+                                            @else
+                                                <span class="curriculum-resource-book-status" aria-label="{{ __('curricula.fields.no_pdf') }}">--</span>
+                                            @endif
+                                        </td>
+                                        <td class="px-3 py-3"><div class="flex flex-nowrap justify-end gap-2"><x-edit-action-button wire:click="editResource({{ $subject->id }}, {{ $resource->id }})" :label="__('curricula.actions.edit')" data-curriculum-resource-edit-icon /></div></td>
+                                    </tr>
+                                @empty
+                                    <tr><td colspan="8" class="admin-empty-state">{{ __('crud.common.not_available') }}</td></tr>
+                                @endforelse
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            @empty
+                <div class="admin-empty-state">{{ __('crud.common.not_available') }}</div>
+            @endforelse
+        </div>
     </section>
 
     <x-admin.modal :show="$showSubjectModal" :title="$editingSubjectId ? __('curricula.form.edit_subject_title') : __('curricula.form.subject_title')" close-method="$set('showSubjectModal', false)" max-width="2xl"><form wire:submit="saveSubject" class="space-y-4"><label class="block text-sm">{{ __('curricula.fields.name') }}<input wire:model="subjectName" class="mt-1 w-full rounded-xl px-4 py-3"></label>@error('subjectName')<div class="text-sm text-red-400">{{ $message }}</div>@enderror @error('delete')<div class="text-sm text-red-400">{{ $message }}</div>@enderror<div class="flex items-center gap-2"><x-admin.save-button :label="__('curricula.actions.save')" data-curriculum-subject-save-action />@if($editingSubjectId)<x-delete-action-button wire:click="deleteSubject({{ $editingSubjectId }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" :label="__('crud.common.actions.delete')" data-curriculum-subject-delete-action />@endif</div></form></x-admin.modal>

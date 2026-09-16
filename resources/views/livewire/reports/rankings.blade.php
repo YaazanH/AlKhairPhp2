@@ -72,8 +72,8 @@ new class extends Component {
         );
 
         return [
-            'courses' => Course::query()->orderByDesc('is_active')->orderByDesc('is_default')->orderByDesc('starts_on')->orderBy('name')->get(['id', 'name']),
-            'groups' => $this->scopeGroupsQuery(Group::query()->when($this->course_id, fn ($query) => $query->where('course_id', $this->course_id))->orderByDesc('is_active')->orderBy('name'))->get(['id', 'name', 'course_id']),
+            'courses' => Course::query()->visibleInReportFilters()->orderByDesc('is_active')->orderByDesc('is_default')->orderByDesc('starts_on')->orderBy('name')->get(['id', 'name']),
+            'groups' => $this->scopeGroupsQuery(Group::query()->visibleInReportFilters()->when($this->course_id, fn ($query) => $query->where('course_id', $this->course_id))->orderByDesc('is_active')->orderBy('name'))->get(['id', 'name', 'course_id']),
             'groupComparison' => $service->compareGroups($filters),
             'studentComparison' => $studentComparison,
         ];

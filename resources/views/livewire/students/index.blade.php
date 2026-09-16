@@ -534,8 +534,13 @@ new class extends Component {
 
         $this->authorizePermission($isEditing ? 'students.update' : 'students.create');
 
+        $editingStudent = null;
+
         if ($isEditing) {
-            $this->authorizeScopedStudentAccess(Student::query()->findOrFail($this->editingId));
+            $editingStudent = Student::query()
+                ->with(['user', 'externalMemorizedJuzs:id'])
+                ->findOrFail($this->editingId);
+            $this->authorizeScopedStudentAccess($editingStudent);
             $qualityIssue = $this->duplicateQualityIssueFor('student', $this->editingId);
         }
 
@@ -637,14 +642,36 @@ new class extends Component {
         unset($validated['external_memorized_juz_ids']);
         unset($validated['quran_current_juz_number']);
         $validated['birth_date'] = $this->normalizeBirthYearValue((string) $validated['birth_date']);
+
+        if (
+            $editingStudent
+            && preg_match('/^\d{4}$/', trim($this->birth_date)) === 1
+            && $editingStudent->birth_date?->format('Y') === trim($this->birth_date)
+        ) {
+            $validated['birth_date'] = $editingStudent->birth_date->toDateString();
+        }
+
         $validated['gender'] = $validated['gender'] ?: null;
         $validated['parent_id'] = $validated['parent_id'] ?: null;
         $validated['grade_level_id'] = $validated['grade_level_id'] ?: null;
         $validated['quran_current_juz_id'] = $validated['quran_current_juz_id'] ?: null;
         $validated['photo_path'] = $validated['photo_path'] ?: null;
+        $validated['school_name'] = filled($validated['school_name'] ?? null) ? $validated['school_name'] : null;
+        $validated['notes'] = filled($validated['notes'] ?? null) ? $validated['notes'] : null;
         $validated['joined_at'] = $isUpdatingExisting
             ? ($validated['joined_at'] ?: null)
             : ($validated['joined_at'] ?: now()->toDateString());
+
+        if ($qualityIssue && $editingStudent && ! $this->studentQualityEditHasChanges(
+            $editingStudent,
+            $validated,
+            $studentPhone,
+            $externalMemorizedJuzIds,
+            $selectedGroup,
+        )) {
+            return;
+        }
+
         $payload = DB::transaction(function () use ($externalMemorizedJuzIds, $isEditing, $selectedGroup, $studentPhone, $targetStudentId, $validated): array {
             $student = Student::query()->updateOrCreate(
                 ['id' => $targetStudentId],
@@ -1084,6 +1111,34 @@ new class extends Component {
                 'resolved_at' => now(),
             ],
         );
+    }
+
+    protected function studentQualityEditHasChanges(
+        Student $student,
+        array $attributes,
+        ?string $studentPhone,
+        array $externalMemorizedJuzIds,
+        ?Group $selectedGroup,
+    ): bool {
+        $candidate = clone $student;
+        $candidate->fill($attributes);
+
+        $savedJuzIds = $student->externalMemorizedJuzs
+            ->pluck('id')
+            ->map(fn ($id): int => (int) $id)
+            ->sort()
+            ->values()
+            ->all();
+        $submittedJuzIds = collect($externalMemorizedJuzIds)
+            ->map(fn ($id): int => (int) $id)
+            ->sort()
+            ->values()
+            ->all();
+
+        return $candidate->isDirty()
+            || $studentPhone !== ($student->user?->phone ?: null)
+            || $savedJuzIds !== $submittedJuzIds
+            || $selectedGroup !== null;
     }
 
     protected function syncDefaultEnrollmentGroup(): void

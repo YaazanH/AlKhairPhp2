@@ -3,6 +3,7 @@
 use App\Livewire\Concerns\AuthorizesPermissions;
 use App\Livewire\Concerns\FormatsFinanceNumbers;
 use App\Livewire\Concerns\HandlesFinanceRequestMaintenance;
+use App\Livewire\Concerns\HandlesInvoiceCapture;
 use App\Models\FinanceCashBox;
 use App\Models\FinanceCurrency;
 use App\Models\FinancePullRequestKind;
@@ -23,6 +24,7 @@ new class extends Component {
     use AuthorizesPermissions;
     use FormatsFinanceNumbers;
     use HandlesFinanceRequestMaintenance;
+    use HandlesInvoiceCapture;
     use WithFileUploads;
     use WithPagination;
 
@@ -73,7 +75,7 @@ new class extends Component {
         $cashBoxes = app(FinanceService::class)->accessibleCashBoxes(auth()->user())->get();
         $currencies = app(FinanceService::class)->currenciesForCashBox()->get();
         $finalisingRequest = $this->finalisingRequestId
-            ? FinanceRequest::query()->with(['invoice.items', 'pullRequestKind', 'category', 'acceptedCurrency'])->find($this->finalisingRequestId)
+            ? FinanceRequest::query()->with(['invoice.items', 'pullRequestKind', 'category', 'acceptedCurrency', 'requestedCurrency', 'postedTransaction.currency'])->find($this->finalisingRequestId)
             : null;
 
         return [
@@ -283,6 +285,7 @@ new class extends Component {
     {
         $this->authorizePermission('finance.expense-requests.review');
         $request = FinanceRequest::query()->with(['invoice.items', 'pullRequestKind', 'category'])->where('status', FinanceRequest::STATUS_ACCEPTED)->findOrFail($requestId);
+        $this->resetInvoiceCapture();
         $finalisingMode = $this->expenseFinalisationMode($request);
         $keepTemporaryUpload = $this->paused_invoice_draft_request_id === $request->id;
         $this->finalisingRequestId = $request->id;
@@ -294,7 +297,7 @@ new class extends Component {
             : null;
 
         if (is_array($draft)) {
-            $this->original_invoice_no = (string) ($draft['original_invoice_no'] ?? '');
+            $this->original_invoice_no = Invoice::formatOriginalInvoiceNumber($draft['original_invoice_no'] ?? null) ?? '';
             $this->invoice_issuer = (string) ($draft['invoice_issuer'] ?? '');
             $this->invoice_date = (string) ($draft['invoice_date'] ?? now()->toDateString());
             $this->invoice_deduction = (string) ($draft['invoice_deduction'] ?? '0');
@@ -327,6 +330,7 @@ new class extends Component {
         $this->authorizePermission('finance.expense-requests.review');
         $invoice = Invoice::query()->with(['items', 'financeRequest.acceptedCurrency'])->where('invoice_type', 'finance')->findOrFail($invoiceId);
         abort_unless($invoice->financeRequest, 404);
+        $this->resetInvoiceCapture();
 
         $this->editingInvoiceId = $invoice->id;
         $this->finalisingRequestId = $invoice->finance_request_id;
@@ -348,6 +352,7 @@ new class extends Component {
 
     public function closeFinaliseModal(bool $preserveInvoiceDraft = true): void
     {
+        $this->resetInvoiceCapture();
         $requestId = $this->finalisingRequestId;
         $request = $requestId && ! $this->editingInvoiceId
             ? FinanceRequest::query()->with(['pullRequestKind', 'category'])->find($requestId)
@@ -424,7 +429,7 @@ new class extends Component {
         }
 
         $this->resetInvoiceItemDraft();
-        $this->resetValidation(['invoice_items', 'invoice_item_name', 'invoice_item_quantity', 'invoice_item_unit_price']);
+        $this->resetValidation(['invoice_items', 'invoice_items.*', 'invoice_item_name', 'invoice_item_quantity', 'invoice_item_unit_price']);
         $this->dispatch('invoice-item-saved');
     }
 
@@ -444,6 +449,7 @@ new class extends Component {
         abort_unless(array_key_exists($index, $this->invoice_items), 404);
         unset($this->invoice_items[$index]);
         $this->invoice_items = array_values($this->invoice_items);
+        $this->resetValidation(['invoice_items', 'invoice_items.*']);
 
         if ($this->editing_invoice_item_index === $index) {
             $this->resetInvoiceItemDraft();
@@ -503,6 +509,7 @@ new class extends Component {
     {
         $this->authorizePermission('finance.expense-requests.review');
         $this->normalizeFinanceNumberProperty('invoice_deduction');
+        $this->original_invoice_no = Invoice::formatOriginalInvoiceNumber($this->original_invoice_no) ?? '';
         foreach ($this->invoice_items as $index => $item) {
             $this->invoice_items[$index]['quantity'] = str_replace(',', '', (string) ($item['quantity'] ?? ''));
             $this->invoice_items[$index]['unit_price'] = str_replace(',', '', (string) ($item['unit_price'] ?? ''));
@@ -589,6 +596,7 @@ new class extends Component {
 
         $this->authorizePermission('finance.expense-requests.review');
         $this->normalizeFinanceNumberProperty('invoice_deduction');
+        $this->original_invoice_no = Invoice::formatOriginalInvoiceNumber($this->original_invoice_no) ?? '';
         foreach ($this->invoice_items as $index => $item) {
             $this->invoice_items[$index]['quantity'] = str_replace(',', '', (string) ($item['quantity'] ?? ''));
             $this->invoice_items[$index]['unit_price'] = str_replace(',', '', (string) ($item['unit_price'] ?? ''));
@@ -665,7 +673,29 @@ new class extends Component {
     }
 }; ?>
 
-<div class="page-stack">
+<div class="page-stack"
+    x-data="{
+        captureUrl: null, captureMime: null, captureBusy: false,
+        captureFileChosen(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            this.clearCapturePreview();
+            if (['application/pdf', 'image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+                this.captureUrl = URL.createObjectURL(file);
+                this.captureMime = file.type;
+            }
+            this.captureBusy = true;
+        },
+        clearCapturePreview() {
+            if (this.captureUrl) URL.revokeObjectURL(this.captureUrl);
+            this.captureUrl = null;
+            this.captureMime = null;
+        },
+        destroy() { this.clearCapturePreview(); }
+    }"
+    x-on:invoice-capture-finished.window="captureBusy = false"
+    x-on:invoice-capture-reset.window="clearCapturePreview(); captureBusy = false"
+>
     <section class="page-hero p-6 lg:p-8">
         <div class="eyebrow">{{ __('ui.nav.finance') }}</div>
         <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('finance.expense_requests.title') }}</h1>
@@ -728,7 +758,10 @@ new class extends Component {
         </tbody></table></div>@if ($expenses->hasPages())<div class="border-t border-white/8 px-5 py-4">{{ $expenses->links() }}</div>@endif
     </section>
 
-    <x-admin.modal :show="$finalisingRequestId !== null" :title="$editingInvoiceId ? __('finance.actions.edit_invoice') : __('finance.actions.finalise')" close-method="closeFinaliseModal" max-width="5xl">
+    <x-admin.modal :show="$finalisingRequestId !== null && ! $invoiceCaptureReviewOpen" :title="$editingInvoiceId ? __('finance.actions.edit_invoice') : __('finance.actions.finalise')" close-method="closeFinaliseModal" max-width="5xl">
+        @if ($invoiceCaptureApplied)
+            <div class="mb-5 flash-success" role="status" data-invoice-capture-applied>{{ __('invoice_capture.applied') }}</div>
+        @endif
         @if ($finalisingRequest)
             @if ($finalisingMode === \App\Models\FinancePullRequestKind::MODE_COUNT)
                 <div class="mb-5 soft-callout p-4">
@@ -743,6 +776,9 @@ new class extends Component {
             @else
                 @php($invoiceTotals = $this->invoicePreviewTotals())
                 <form wire:submit="saveInvoiceExpense" x-on:invoice-item-saved.window="$nextTick(() => { if ($refs.invoiceItemName) $refs.invoiceItemName.focus() })" class="space-y-5" data-invoice-finalisation-form>
+                    @error('invoice_image')
+                        <div class="flash-error" role="alert" data-pdf-upload-error-for="invoice_image">{{ $message }}</div>
+                    @enderror
                     <div class="grid gap-3 sm:grid-cols-3" data-invoice-finalisation-metrics>
                         <div class="rounded-xl border border-white/8 bg-white/4 p-4"><div class="kpi-label">{{ __('finance.fields.subtotal') }}</div><bdi dir="ltr" class="mt-2 block font-semibold text-white">{{ app(FinanceService::class)->formatCurrencyAmount($invoiceTotals['subtotal'], $finalisingRequest->acceptedCurrency) }}</bdi></div>
                         <div class="rounded-xl border border-white/8 bg-white/4 p-4"><div class="kpi-label">{{ __('finance.fields.deduction') }}</div><bdi dir="ltr" class="mt-2 block font-semibold text-white">{{ app(FinanceService::class)->formatCurrencyAmount(-$invoiceTotals['deduction'], $finalisingRequest->acceptedCurrency) }}</bdi></div>
@@ -756,7 +792,16 @@ new class extends Component {
                     </div>
 
                     <div class="grid gap-4 md:grid-cols-[minmax(0,1fr)_22rem]" data-invoice-scan-fields>
-                        <div><label class="mb-1 block text-sm">{{ __('finance.fields.original_invoice_image') }}</label><input wire:model="invoice_image" type="file" accept="image/*,application/pdf" class="w-full rounded-xl px-4 py-3"></div>
+                        <div><label class="mb-1 block text-sm">{{ __('finance.fields.original_invoice_image') }}</label><input wire:key="invoice-attachment-{{ $invoiceCaptureInputVersion }}" wire:model="invoice_image" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" class="w-full rounded-xl px-4 py-3"
+                            x-on:change="captureFileChosen($event)" x-bind:disabled="captureBusy"
+                            x-on:livewire-upload-finish="captureBusy = false" x-on:livewire-upload-error="captureBusy = false" x-on:livewire-upload-cancel="captureBusy = false"
+                            data-invoice-capture-upload>
+                            @if ($editingInvoiceId)
+                                <p class="mt-2 text-sm opacity-70">{{ __('invoice_capture.attachment_help') }}</p>
+                            @endif
+                            @if ($invoice_image)
+                                <p class="mt-1 break-all text-sm" data-invoice-attachment-name>{{ $invoice_image->getClientOriginalName() }}</p>
+                            @endif</div>
                         <div><label class="mb-1 block text-sm">{{ __('finance.fields.deduction') }}</label><input wire:model.live.debounce.300ms="invoice_deduction" data-thousand-separator class="w-full rounded-xl px-4 py-3">@error('invoice_deduction')<div class="mt-1 text-sm text-red-400">{{ $message }}</div>@enderror</div>
                     </div>
 
@@ -775,23 +820,23 @@ new class extends Component {
                                                 <td class="px-3 py-3"><input wire:model="invoice_item_quantity" x-on:keydown.enter.prevent.stop="void 0" data-thousand-separator inputmode="decimal" aria-label="{{ __('finance.fields.quantity') }}" class="w-full min-w-24 rounded-lg px-3 py-2">@error('invoice_item_quantity')<div class="mt-1 text-xs text-red-400">{{ $message }}</div>@enderror</td>
                                                 <td class="px-3 py-3"><input wire:model="invoice_item_unit_price" wire:keydown.enter.prevent.stop="saveInvoiceItem" wire:keydown.tab.prevent.stop="saveInvoiceItem" data-thousand-separator inputmode="decimal" aria-label="{{ __('finance.fields.unit_price') }}" class="w-full min-w-32 rounded-lg px-3 py-2">@error('invoice_item_unit_price')<div class="mt-1 text-xs text-red-400">{{ $message }}</div>@enderror</td>
                                                 <td class="whitespace-nowrap px-3 py-3 font-semibold text-white"><bdi dir="ltr">{{ app(FinanceService::class)->formatCurrencyAmount($editingLineAmount, $finalisingRequest->acceptedCurrency) }}</bdi></td>
-                                                <td class="px-3 py-3"></td>
+                                                <td class="px-3 py-3"><div class="flex items-center justify-center gap-2">
+                                                    <button type="button" wire:click="saveInvoiceItem" class="admin-icon-button admin-icon-button--accent" title="{{ __('crud.common.actions.save') }}" aria-label="{{ __('crud.common.actions.save') }}" data-invoice-item-save data-modal-action-icon-ignore><x-admin-action-icon name="save" /></button>
+                                                    <button type="button" wire:click="removeInvoiceItem({{ $index }})" class="admin-icon-button admin-icon-button--danger" title="{{ __('crud.common.actions.delete') }}" aria-label="{{ __('crud.common.actions.delete') }}" data-invoice-item-delete data-modal-action-icon-ignore><x-admin-action-icon name="delete" /></button>
+                                                </div></td>
                                             </tr>
                                         @else
                                             <tr wire:key="invoice-expense-item-view-{{ $index }}" class="{{ $loop->even ? 'bg-white/[0.045]' : 'bg-black/[0.09]' }}" data-invoice-item-saved-row data-invoice-item-row-tone="{{ $loop->even ? 'even' : 'odd' }}">
                                                 <td class="px-3 py-3"><bdi dir="ltr">{{ $index + 1 }}</bdi></td>
-                                                <td class="px-3 py-3 font-medium text-white">{{ $item['item_name'] }}</td>
-                                                <td class="px-3 py-3"><bdi dir="ltr">{{ $item['quantity'] }}</bdi></td>
-                                                <td class="px-3 py-3"><bdi dir="ltr">{{ app(FinanceService::class)->formatCurrencyAmount((float) str_replace(',', '', (string) $item['unit_price']), $finalisingRequest->acceptedCurrency) }}</bdi></td>
-                                                <td class="whitespace-nowrap px-3 py-3 font-semibold text-white"><bdi dir="ltr">{{ app(FinanceService::class)->formatCurrencyAmount($lineAmount, $finalisingRequest->acceptedCurrency) }}</bdi></td>
-                                                <td class="px-3 py-3"><div class="flex items-center justify-end gap-2">
-                                                    <button type="button" wire:click="editInvoiceItem({{ $index }})" class="inline-flex size-9 items-center justify-center rounded-full border border-white/10 text-neutral-300 transition hover:border-emerald-300/30 hover:bg-emerald-400/10 hover:text-white" title="{{ __('crud.common.actions.edit') }}" aria-label="{{ __('crud.common.actions.edit') }}" data-invoice-item-edit>
-                                                        <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 2.651 2.651M18.75 2.999a1.875 1.875 0 0 1 2.652 2.652L8.582 18.47 3 21l2.53-5.582L18.75 2.999Z" /></svg>
+                                                <td class="px-3 py-3 font-medium text-white">{{ filled($item['item_name']) ? $item['item_name'] : '—' }}@error("invoice_items.$index.item_name")<div class="mt-1 text-xs text-red-400">{{ $message }}</div>@enderror</td>
+                                                <td class="px-3 py-3"><bdi dir="ltr">{{ filled($item['quantity']) ? $item['quantity'] : '—' }}</bdi>@error("invoice_items.$index.quantity")<div class="mt-1 text-xs text-red-400">{{ $message }}</div>@enderror</td>
+                                                <td class="px-3 py-3"><bdi dir="ltr">{{ filled($item['unit_price']) ? app(FinanceService::class)->formatCurrencyAmount((float) str_replace(',', '', (string) $item['unit_price']), $finalisingRequest->acceptedCurrency) : '—' }}</bdi>@error("invoice_items.$index.unit_price")<div class="mt-1 text-xs text-red-400">{{ $message }}</div>@enderror</td>
+                                                <td class="whitespace-nowrap px-3 py-3 font-semibold text-white"><bdi dir="ltr">{{ filled($item['quantity']) && filled($item['unit_price']) ? app(FinanceService::class)->formatCurrencyAmount($lineAmount, $finalisingRequest->acceptedCurrency) : '—' }}</bdi></td>
+                                                <td class="px-3 py-3 text-center">
+                                                    <button type="button" wire:click="editInvoiceItem({{ $index }})" class="admin-icon-button" title="{{ __('crud.common.actions.edit') }}" aria-label="{{ __('crud.common.actions.edit') }}" data-invoice-item-edit data-modal-action-icon-ignore>
+                                                        <x-admin-action-icon name="edit" />
                                                     </button>
-                                                    <button type="button" wire:click="removeInvoiceItem({{ $index }})" class="inline-flex size-9 items-center justify-center rounded-full border border-red-300/20 text-red-200 transition hover:border-red-300/40 hover:bg-red-400/10 hover:text-red-100" title="{{ __('crud.common.actions.delete') }}" aria-label="{{ __('crud.common.actions.delete') }}" data-invoice-item-delete>
-                                                        <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5m-10.5 4.5v6m4.5-6v6m-8.25-10.5.75 13.5h10.5l.75-13.5M9 6.75V4.5h6v2.25" /></svg>
-                                                    </button>
-                                                </div></td>
+                                                </td>
                                             </tr>
                                         @endif
                                     @endforeach
@@ -815,12 +860,32 @@ new class extends Component {
                     @error('confirm_invoice_overage')<div class="rounded-xl border border-amber-400/20 bg-amber-500/10 p-4 text-sm text-amber-100">{{ $message }}<label class="mt-3 flex gap-2"><input wire:model="confirm_invoice_overage" type="checkbox">{{ __('finance.messages.use_invoice_total') }}</label></div>@enderror
                     <div class="flex justify-end">
                         @if ($editingInvoiceId)
-                            <button type="submit" class="admin-icon-button admin-icon-button--accent" title="{{ __('crud.common.actions.save') }}" aria-label="{{ __('crud.common.actions.save') }}" data-invoice-expense-save-action><x-admin-action-icon name="save" /></button>
+                            <button type="submit" x-bind:disabled="captureBusy" wire:loading.attr="disabled" wire:target="invoice_image" class="admin-icon-button admin-icon-button--accent" title="{{ __('crud.common.actions.save') }}" aria-label="{{ __('crud.common.actions.save') }}" data-invoice-expense-save-action><x-admin-action-icon name="save" /></button>
                         @else
-                            <button type="submit" class="pill-link pill-link--accent">{{ __('finance.actions.finalise') }}</button>
+                            <button type="submit" x-bind:disabled="captureBusy" wire:loading.attr="disabled" wire:target="invoice_image" class="pill-link pill-link--accent">{{ __('finance.actions.finalise') }}</button>
                         @endif
                     </div>
                 </form>
+            @endif
+        @endif
+    </x-admin.modal>
+
+    <x-admin.modal :show="$invoiceCaptureReviewOpen" :title="__('invoice_capture.review')" close-method="discardInvoiceCapture" :dismissible="false" max-width="5xl">
+        <x-slot:header-actions>
+            @if ($invoiceCaptureDraft && ! $invoiceCapturePending)
+                <button type="button" wire:click="applyInvoiceCapture" wire:loading.attr="disabled" wire:target="applyInvoiceCapture,discardInvoiceCapture" class="pill-link pill-link--accent pill-link--compact" data-invoice-capture-apply data-modal-action-icon-ignore>{{ __('invoice_capture.apply') }}</button>
+                <button type="button" wire:click="discardInvoiceCapture" wire:loading.attr="disabled" wire:target="applyInvoiceCapture,discardInvoiceCapture" class="pill-link pill-link--danger pill-link--compact" data-invoice-capture-discard data-modal-action-icon-ignore>{{ __('invoice_capture.discard') }}</button>
+            @endif
+        </x-slot:header-actions>
+        @if ($invoiceCaptureReviewOpen)
+            @if ($invoiceCapturePending)
+                <div wire:init="readInvoiceCapture" class="flex min-h-64 flex-col items-center justify-center gap-4 text-center" role="status" aria-live="polite" data-invoice-capture-progress>
+                    <span class="pdf-upload-spinner" aria-hidden="true"></span>
+                    <p>{{ __('invoice_capture.reading') }}</p>
+                    <p class="max-w-md text-sm opacity-70">{{ __('invoice_capture.reading_help') }}</p>
+                </div>
+            @else
+                @include('livewire.finance.partials.invoice-capture-review')
             @endif
         @endif
     </x-admin.modal>

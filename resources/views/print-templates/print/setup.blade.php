@@ -730,7 +730,7 @@
                     if (clearPrints) {
                         updateStudentUnprintedState(studentIds);
                     } else {
-                        const printedAtLabel = payload.printed_at ? new Date(payload.printed_at).toLocaleString() : '';
+                        const printedAtLabel = payload.printed_at_label || '';
                         updateStudentPrintedState(studentIds, printedAtLabel);
                     }
                     applySourceFilter('student');

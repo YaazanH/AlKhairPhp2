@@ -8,17 +8,20 @@
     $resolvedSection = $section
         ?? (in_array($resolvedCurrent, ['settings.website', 'settings.website.pages', 'settings.website.navigation'], true) ? 'website' : 'dashboard');
     $showWebsiteSettings = $resolvedSection === 'website';
+    $showBarcodeSettings = ! $showWebsiteSettings
+        && auth()->user()?->can('barcode-actions.view')
+        && (bool) (\App\Models\AppSetting::groupValues('dashboard')->get('barcode_scanner_enabled') ?? true);
 @endphp
 
 <div class="surface-panel p-4">
     <div class="grid gap-4">
         @unless($showWebsiteSettings)
         <section aria-label="{{ __('ui.common.settings') }}">
-            <div class="settings-tabs">
+            <div class="settings-tabs {{ $showBarcodeSettings ? 'settings-tabs--barcode-active' : '' }}" data-dashboard-settings-tabs>
                 <a href="{{ route('settings.organization') }}" wire:navigate class="settings-tab {{ $resolvedCurrent === 'settings.organization' ? 'is-active' : '' }}">
                     <span class="settings-tab__title">{{ __('settings.navigation.organization.title') }}</span>
                 </a>
-                <a href="{{ route('settings.tracking') }}" wire:navigate class="settings-tab {{ $resolvedCurrent === 'settings.tracking' ? 'is-active' : '' }}">
+                <a href="{{ route('settings.points') }}" wire:navigate class="settings-tab {{ $resolvedCurrent === 'settings.points' ? 'is-active' : '' }}">
                     <span class="settings-tab__title">{{ __('settings.navigation.tracking.title') }}</span>
                 </a>
                 @can('course-completion-rules.manage')
@@ -32,7 +35,7 @@
                     </a>
                 @endcan
                 @can('barcode-actions.view')
-                @if ((bool) (\App\Models\AppSetting::groupValues('dashboard')->get('barcode_scanner_enabled') ?? true))
+                @if ($showBarcodeSettings)
                     <a href="{{ route('barcode-actions.index') }}" wire:navigate class="settings-tab {{ $resolvedCurrent === 'barcode-actions.index' ? 'is-active' : '' }}">
                         <span class="settings-tab__title">{{ __('settings.navigation.barcodes.title') }}</span>
                     </a>
@@ -46,6 +49,11 @@
                 @can('sidebar-navigation.manage')
                     <a href="{{ route('settings.sidebar-navigation') }}" wire:navigate class="settings-tab {{ $resolvedCurrent === 'settings.sidebar-navigation' ? 'is-active' : '' }}">
                         <span class="settings-tab__title">{{ __('settings.navigation.sidebar.title') }}</span>
+                    </a>
+                @endcan
+                @can('backups.manage')
+                    <a href="{{ route('settings.backups') }}" wire:navigate class="settings-tab {{ $resolvedCurrent === 'settings.backups' ? 'is-active' : '' }}">
+                        <span class="settings-tab__title">{{ __('backups.navigation_title') }}</span>
                     </a>
                 @endcan
             </div>

@@ -10,6 +10,7 @@ use App\Models\AssessmentType;
 use App\Models\AttendanceStatus;
 use App\Models\Course;
 use App\Models\Enrollment;
+use App\Models\FinanceCurrency;
 use App\Models\GradeLevel;
 use App\Models\Group;
 use App\Models\GroupAttendanceDay;
@@ -25,7 +26,10 @@ use App\Models\TeacherAttendanceDay;
 use App\Models\TeacherAttendanceRecord;
 use App\Models\User;
 use App\Services\CourseCompletionRuleService;
+use App\Services\CourseLifecycleService;
+use App\Services\QuranFinalTestRuleService;
 use App\Services\SidebarNavigationService;
+use App\Support\ApplicationTimezone;
 use App\Support\OperationalFeatureSettings;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -71,7 +75,7 @@ class SystemSettingsTest extends TestCase
             ->call('finishAcademicYear')
             ->assertHasErrors('academicYearFinish');
 
-        app(\App\Services\CourseLifecycleService::class)->finish($course);
+        app(CourseLifecycleService::class)->finish($course);
 
         $component
             ->call('editAcademicYear', $newerYear->id)
@@ -202,7 +206,7 @@ class SystemSettingsTest extends TestCase
             'status' => 'active',
         ]);
 
-        app(\App\Services\CourseLifecycleService::class)->finish($course);
+        app(CourseLifecycleService::class)->finish($course);
         $academicYear->update(['is_active' => false, 'is_current' => false]);
 
         Volt::test('settings.organization')
@@ -281,9 +285,18 @@ class SystemSettingsTest extends TestCase
 
         $this->get(route('settings.organization'))->assertRedirect(route('login'));
 
+        $this->assertSame('/settings/general', route('settings.organization', absolute: false));
+        $this->assertSame('/settings/points', route('settings.points', absolute: false));
+        $this->assertSame('/settings/course-completion', route('settings.course-completion', absolute: false));
+        $this->assertSame('/settings/subjects', route('settings.curriculum-subjects', absolute: false));
+        $this->assertSame('/settings/barcode-actions', route('barcode-actions.index', absolute: false));
+        $this->assertSame('/settings/permissions', route('settings.access-control', absolute: false));
+        $this->assertSame('/settings/navigation', route('settings.sidebar-navigation', absolute: false));
+        $this->assertSame('/settings/backups', route('settings.backups', absolute: false));
+
         $this->actingAs($manager);
         $this->get(route('settings.organization'))->assertOk();
-        $this->get(route('settings.tracking'))->assertOk();
+        $this->get(route('settings.tracking'))->assertRedirect(route('settings.points'));
         $this->get(route('settings.course-completion'))->assertOk();
         $this->get(route('settings.sidebar-navigation'))->assertOk();
         $this->get(route('settings.points'))->assertOk();
@@ -354,12 +367,19 @@ class SystemSettingsTest extends TestCase
         $component = Volt::test('settings.organization')
             ->assertSet('barcode_scanner_enabled', true)
             ->assertSet('memorization_saber_entries_enabled', true)
+            ->assertSee('data-dashboard-settings-tabs', false)
+            ->assertSee('settings-tabs--barcode-active', false)
+            ->assertSee('data-operational-status-card', false)
+            ->assertSee('status-chip self-center leading-none', false)
             ->assertSee('wire:click="toggleBarcodeScanner"', false)
             ->assertSee('wire:click="toggleMemorizationSaberEntries"', false)
             ->call('toggleBarcodeScanner')
             ->assertSet('barcode_scanner_enabled', false)
+            ->assertDontSee('settings-tabs--barcode-active', false)
+            ->assertSee('status-chip--rose', false)
             ->call('toggleMemorizationSaberEntries')
-            ->assertSet('memorization_saber_entries_enabled', false);
+            ->assertSet('memorization_saber_entries_enabled', false)
+            ->assertSeeHtml('status-chip--rose');
 
         $this->assertDatabaseHas('app_settings', [
             'group' => 'dashboard',
@@ -375,8 +395,13 @@ class SystemSettingsTest extends TestCase
         $component
             ->call('toggleBarcodeScanner')
             ->assertSet('barcode_scanner_enabled', true)
+            ->assertSee('settings-tabs--barcode-active', false)
             ->call('toggleMemorizationSaberEntries')
             ->assertSet('memorization_saber_entries_enabled', true);
+
+        $styles = file_get_contents(resource_path('css/app.css'));
+        $this->assertStringContainsString('.settings-tabs.settings-tabs--barcode-active {', $styles);
+        $this->assertStringContainsString('grid-template-columns: repeat(auto-fit, minmax(6.5rem, 1fr));', $styles);
     }
 
     public function test_manager_can_manage_organization_settings(): void
@@ -400,6 +425,7 @@ class SystemSettingsTest extends TestCase
         $this->assertSame((string) $student->id, $student->fresh()->student_number);
 
         Volt::test('settings.organization')
+            ->assertSee('data-settings-dark-surface="general-settings"', false)
             ->assertSee('data-general-prefix-value', false)
             ->assertSee('data-organization-edit-action', false)
             ->assertSee('title="'.__('settings.organization.actions.save_settings').'"', false)
@@ -410,10 +436,15 @@ class SystemSettingsTest extends TestCase
             ->assertSee('form="organization-settings-form"', false)
             ->assertDontSee('wire:click="closeOrganizationModal" class="pill-link"', false)
             ->assertSee('data-organization-settings-primary-box', false)
-            ->assertSee('data-organization-settings-numbering-group', false)
-            ->assertSee('md:grid-cols-4', false)
+            ->assertSee('data-organization-settings-form', false)
+            ->assertSee('admin-modal__dialog--contained', false)
+            ->assertDontSee('wire:click="removePdfLogo"', false)
+            ->assertDontSee('data-organization-settings-numbering-group', false)
             ->assertSee('data-organization-settings-locale-group', false)
-            ->assertSee('md:grid-cols-[minmax(0,1.35fr)_minmax(7rem,0.6fr)_minmax(9rem,0.8fr)]', false)
+            ->assertSee('class="mt-4 grid items-end gap-4 md:grid-cols-3" data-organization-contact-fields', false)
+            ->assertSee('class="grid items-end gap-4 md:grid-cols-4" data-organization-locale-fields', false)
+            ->assertSee('data-organization-email-domain-input', false)
+            ->assertSee('class="saber-rule-input__suffix" aria-hidden="true" data-organization-email-domain-unit>@</span>', false)
             ->assertSee('wire:model="school_address" type="text"', false)
             ->set('school_name', 'Alkhair Center')
             ->set('school_phone', '0944555000')
@@ -429,7 +460,8 @@ class SystemSettingsTest extends TestCase
             ->set('memorization_saber_entries_enabled', false)
             ->set('activity_entries_enabled', false)
             ->call('saveOrganizationSettings')
-            ->assertHasNoErrors();
+            ->assertHasNoErrors()
+            ->assertSee('دمشق (UTC+03:00)');
 
         $this->assertDatabaseHas('app_settings', [
             'group' => 'general',
@@ -580,7 +612,174 @@ class SystemSettingsTest extends TestCase
         $this->assertDatabaseMissing('student_genders', ['id' => $studentGender->id]);
     }
 
-    public function test_main_page_logo_upload_is_saved_immediately_and_can_be_removed(): void
+    public function test_general_settings_timezone_and_currency_are_restricted_dropdowns_and_apply_globally(): void
+    {
+        $this->signIn();
+
+        $localCurrency = FinanceCurrency::query()->where('is_local', true)->firstOrFail();
+        $hiddenCurrency = FinanceCurrency::query()->create([
+            'code' => 'HID',
+            'name' => 'Hidden Currency',
+            'rate_to_base' => 1,
+            'is_active' => true,
+            'show_in_dropdowns' => false,
+        ]);
+        $inactiveCurrency = FinanceCurrency::query()->create([
+            'code' => 'OFF',
+            'name' => 'Inactive Currency',
+            'rate_to_base' => 1,
+            'is_active' => false,
+            'show_in_dropdowns' => true,
+        ]);
+
+        AppSetting::storeValue('general', 'school_timezone', 'UTC-2');
+        AppSetting::storeValue('general', 'school_currency', $hiddenCurrency->code);
+
+        Volt::test('settings.organization')
+            ->assertSet('school_timezone', ApplicationTimezone::DEFAULT)
+            ->assertSet('school_currency', $localCurrency->code)
+            ->call('openOrganizationModal')
+            ->assertSee('data-organization-gender-select', false)
+            ->assertSee("data-organization-gender-select\n                                data-clearable=\"false\"\n                                data-search-selection-required=\"true\"\n                                required", false)
+            ->assertSee('data-organization-timezone-select', false)
+            ->assertSee('data-hide-overflowing-options="true"', false)
+            ->assertSee('data-organization-currency-select', false)
+            ->assertSee('class="grid items-end gap-4 md:grid-cols-4" data-organization-locale-fields', false)
+            ->assertSee('data-scroll-to-selected="true"', false)
+            ->assertSee('value="GMT"', false)
+            ->assertSee('value="GMT" data-search=', false)
+            ->assertSee('data-option-bold="true"', false)
+            ->assertSee('غرينيتش (UTC+00:00)')
+            ->assertDontSee('value="UTC"', false)
+            ->assertDontSee('value="Atlantic/Azores"', false)
+            ->assertDontSee('value="Africa/Accra"', false)
+            ->assertDontSee('value="Africa/Dakar"', false)
+            ->assertDontSee('value="Africa/Abidjan"', false)
+            ->assertSee('value="Asia/Damascus"', false)
+            ->assertSee('دمشق (UTC+03:00)')
+            ->assertSee('data-option-name="دمشق"', false)
+            ->assertSee('data-option-prefix="UTC"', false)
+            ->assertSee('data-option-number="+03:00"', false)
+            ->assertDontSee('Dawson Creek')
+            ->assertDontSee('Fort Nelson')
+            ->assertSee($localCurrency->code.' - '.$localCurrency->name)
+            ->assertDontSee($hiddenCurrency->code.' - '.$hiddenCurrency->name)
+            ->assertDontSee($inactiveCurrency->code.' - '.$inactiveCurrency->name)
+            ->set('school_timezone', 'UTC-2')
+            ->call('saveOrganizationSettings')
+            ->assertHasErrors('school_timezone')
+            ->set('school_timezone', 'Asia/Damascus')
+            ->set('school_currency', $hiddenCurrency->code)
+            ->call('saveOrganizationSettings')
+            ->assertHasErrors('school_currency')
+            ->set('school_currency', $localCurrency->code)
+            ->call('saveOrganizationSettings')
+            ->assertHasNoErrors();
+
+        $this->assertSame('Asia/Damascus', config('app.timezone'));
+        $this->assertSame('Asia/Damascus', date_default_timezone_get());
+        $this->assertSame('Asia/Damascus', now()->getTimezone()->getName());
+        $this->assertDatabaseHas('app_settings', [
+            'group' => 'general',
+            'key' => 'school_currency',
+            'value' => $localCurrency->code,
+        ]);
+        $this->assertDatabaseHas('app_settings', [
+            'group' => 'general',
+            'key' => 'school_timezone',
+            'value' => 'Asia/Damascus',
+        ]);
+
+        config(['app.timezone' => ApplicationTimezone::DEFAULT]);
+        date_default_timezone_set(ApplicationTimezone::DEFAULT);
+
+        $this->getJson('/api/user')->assertOk();
+
+        $this->assertSame('Asia/Damascus', config('app.timezone'));
+        $this->assertSame('Asia/Damascus', date_default_timezone_get());
+
+        config(['app.timezone' => ApplicationTimezone::DEFAULT]);
+        date_default_timezone_set(ApplicationTimezone::DEFAULT);
+
+        $this->get(route('settings.organization'))->assertOk();
+
+        $this->assertSame('Asia/Damascus', config('app.timezone'));
+        $this->assertSame('Asia/Damascus', date_default_timezone_get());
+
+        $styles = file_get_contents(resource_path('css/app.css'));
+        $this->assertStringContainsString("html[dir='rtl'] [data-organization-timezone-select] + .searchable-select .searchable-select__search--trigger", $styles);
+        $this->assertStringContainsString("html[dir='rtl'] [data-organization-timezone-select] + .searchable-select .searchable-select__search--trigger {\n    direction: rtl;", $styles);
+        $this->assertStringContainsString("html[dir='rtl'] [data-organization-currency-select] + .searchable-select .searchable-select__search--trigger", $styles);
+        $this->assertStringContainsString("html[dir='rtl'] [data-organization-currency-select] + .searchable-select .searchable-select__option", $styles);
+        $this->assertStringContainsString("html[dir='rtl'] [data-organization-timezone-select] + .searchable-select .searchable-select__option-name", $styles);
+        $this->assertStringContainsString("html[dir='rtl'] [data-organization-timezone-select] + .searchable-select .searchable-select__option--columns {\n    grid-template-columns: minmax(0, 1fr) 5.75rem;", $styles);
+        $this->assertStringContainsString("html[dir='rtl'] [data-organization-timezone-select] + .searchable-select .searchable-select__option-name {\n    grid-column: 1;", $styles);
+        $this->assertStringContainsString("html[dir='rtl'] [data-organization-timezone-select] + .searchable-select .searchable-select__option-number {\n    grid-column: 2;", $styles);
+        $this->assertStringContainsString("[data-organization-timezone-select] + .searchable-select .searchable-select__panel {\n    inline-size: 100%;\n    max-inline-size: 100%;", $styles);
+        $this->assertStringContainsString("[data-organization-timezone-select] + .searchable-select .searchable-select__list {\n    width: 100%;\n    max-width: 100%;", $styles);
+        $this->assertStringContainsString('overflow-x: hidden;', $styles);
+        $this->assertStringContainsString('column-gap: 0;', $styles);
+        $this->assertStringContainsString('text-align: right !important;', $styles);
+        $this->assertStringContainsString('.searchable-select__option--bold,', $styles);
+        $this->assertStringContainsString('.searchable-select.searchable-select--bold-selection .searchable-select__search--trigger', $styles);
+        $this->assertStringContainsString(".admin-modal__dialog--contained {\n    overflow: hidden !important;", $styles);
+        $this->assertStringContainsString(".admin-modal__dialog--contained .admin-modal__body {\n    overflow-x: hidden !important;\n    overflow-y: auto !important;", $styles);
+
+        $scripts = file_get_contents(resource_path('js/app.js'));
+        $this->assertStringContainsString('function positionOrganizationSettingsDropdown(wrapper)', $scripts);
+        $this->assertStringContainsString("item.classList.toggle('searchable-select__option--bold', option.dataset.optionBold === 'true');", $scripts);
+        $this->assertStringContainsString("displaySelectedValue && selectedOption?.dataset.optionBold === 'true'", $scripts);
+        $this->assertStringContainsString('function removeOverflowingSearchableSelectOptions(select, list)', $scripts);
+        $this->assertStringContainsString("select.dataset.hideOverflowingOptions !== 'true' || list.clientWidth <= 0", $scripts);
+        $this->assertStringContainsString('name.scrollWidth <= name.clientWidth + 1', $scripts);
+        $this->assertStringContainsString('visibleCount -= removeOverflowingSearchableSelectOptions(select, list);', $scripts);
+        $this->assertStringContainsString("select.matches('[data-organization-timezone-select], [data-organization-currency-select], [data-organization-gender-select]')", $scripts);
+        $this->assertStringContainsString("wrapper.setAttribute('data-contained-settings-dropdown', openAbove ? 'above' : 'below');", $scripts);
+        $this->assertStringContainsString("panel.style.setProperty('max-height', `\${panelHeight}px`);", $scripts);
+        $this->assertStringContainsString('if (positionOrganizationSettingsDropdown(wrapper)) {', $scripts);
+        $this->assertStringContainsString('function scrollSearchableSelectToSelected(select, list, search)', $scripts);
+        $this->assertStringContainsString("select.dataset.scrollToSelected === 'false'", $scripts);
+        $this->assertStringContainsString('const selectedIndex = options.findIndex((option) => option.dataset.value === select.value);', $scripts);
+        $this->assertStringContainsString('highlightSearchableSelectOption(list, search, selectedIndex);', $scripts);
+        $this->assertStringContainsString('list.scrollTop = Math.min(maximumOffset, Math.max(0, centeredOffset));', $scripts);
+    }
+
+    public function test_timezone_offsets_follow_summer_and_winter_rules_automatically_and_gmt_is_selectable(): void
+    {
+        $timezones = app(ApplicationTimezone::class);
+        $winterOptions = collect($timezones->options('en', new \DateTimeImmutable('2026-01-15 12:00:00 UTC')));
+        $summerOptions = collect($timezones->options('en', new \DateTimeImmutable('2026-07-15 12:00:00 UTC')));
+
+        $this->assertSame('GMT (UTC+00:00)', $winterOptions->firstWhere('value', 'GMT')['label']);
+        $this->assertSame('+00:00', $winterOptions->firstWhere('value', 'Europe/London')['utc_offset']);
+        $this->assertSame('+01:00', $summerOptions->firstWhere('value', 'Europe/London')['utc_offset']);
+        $this->assertSame('+03:00', $winterOptions->firstWhere('value', 'Asia/Damascus')['utc_offset']);
+        $this->assertSame('+03:00', $summerOptions->firstWhere('value', 'Asia/Damascus')['utc_offset']);
+        $this->assertSame('GMT', $timezones->normalize('GMT'));
+        $this->assertSame(['GMT'], $summerOptions->where('utc_offset', '+00:00')->pluck('value')->all());
+
+        $arabicGmt = collect($timezones->options('ar', new \DateTimeImmutable('2026-07-15 12:00:00 UTC')))
+            ->firstWhere('value', 'GMT');
+        $this->assertSame('غرينيتش', $arabicGmt['location']);
+        $this->assertSame('غرينيتش (UTC+00:00)', $arabicGmt['label']);
+
+        $this->signIn();
+
+        Volt::test('settings.organization')
+            ->set('school_timezone', 'GMT')
+            ->call('saveOrganizationSettings')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('app_settings', [
+            'group' => 'general',
+            'key' => 'school_timezone',
+            'value' => 'GMT',
+        ]);
+        $this->assertSame('GMT', config('app.timezone'));
+        $this->assertSame('GMT', date_default_timezone_get());
+    }
+
+    public function test_main_page_logo_upload_is_saved_immediately_without_a_removal_action(): void
     {
         Storage::fake('public');
         $this->signIn();
@@ -593,10 +792,17 @@ class SystemSettingsTest extends TestCase
         $this->assertNotSame('', $path);
         Storage::disk('public')->assertExists($path);
 
-        $component->call('removePdfLogo')->assertHasNoErrors();
+        $component
+            ->call('openOrganizationModal')
+            ->assertDontSee('wire:click="removePdfLogo"', false)
+            ->set('pdf_logo_upload', UploadedFile::fake()->image('replacement-logo.png', 320, 120))
+            ->assertHasNoErrors();
 
-        $this->assertNull(AppSetting::groupValues('general')->get('pdf_logo_path'));
+        $replacementPath = (string) AppSetting::groupValues('general')->get('pdf_logo_path');
+        $this->assertNotSame($path, $replacementPath);
         Storage::disk('public')->assertMissing($path);
+        Storage::disk('public')->assertExists($replacementPath);
+        $this->assertStringNotContainsString('function removePdfLogo()', file_get_contents(resource_path('views/livewire/settings/organization.blade.php')));
     }
 
     public function test_manager_can_manage_course_completion_rules_and_apply_point_adjustments(): void
@@ -734,6 +940,9 @@ class SystemSettingsTest extends TestCase
         ]);
 
         Volt::test('settings.course-completion')
+            ->assertSee('data-settings-dark-surface="course-completion-rules"', false)
+            ->assertSee('data-course-completion-save-actions', false)
+            ->assertSee('data-course-completion-save-action', false)
             ->set('required_passed_final_tests', '1')
             ->set('required_passed_quizzes', '1')
             ->set('retain_percentage', '50')
@@ -923,6 +1132,7 @@ class SystemSettingsTest extends TestCase
         $user = $this->signIn();
 
         Volt::test('settings.sidebar-navigation')
+            ->assertSee('data-settings-dark-surface="sidebar-navigation"', false)
             ->assertSee('data-sidebar-group-edit-action', false)
             ->assertDontSee('✎', false)
             ->assertSee('nav-sort-group--dragging', false)
@@ -1014,7 +1224,7 @@ class SystemSettingsTest extends TestCase
         $component
             ->set("group_settings.$customGroupKey.title", 'إدارة البيانات')
             ->call('moveItem', 'reports', $customGroupKey)
-            ->assertSet("item_settings.reports.group_key", $customGroupKey)
+            ->assertSet('item_settings.reports.group_key', $customGroupKey)
             ->assertSee('wire:key="sidebar-navigation-group-'.$customGroupKey.'"', false)
             ->assertSee('wire:key="sidebar-navigation-item-reports"', false)
             ->assertHasNoErrors();
@@ -1035,7 +1245,8 @@ class SystemSettingsTest extends TestCase
 
         $menu = Volt::test('sidebar-navigation-menu')
             ->assertSee('data-app-sidebar-navigation', false)
-            ->assertSee('data-app-sidebar-navigation-item="reports"', false);
+            ->assertSee('data-app-sidebar-navigation-item="reports"', false)
+            ->assertSee('data-app-sidebar-navigation-mobile-empty="identity_tools"', false);
 
         $settings = Volt::test('settings.sidebar-navigation')->call('addGroup');
         $customGroupKey = collect(array_keys($settings->get('group_settings')))
@@ -1236,6 +1447,7 @@ class SystemSettingsTest extends TestCase
 
         Volt::test('settings.points')
             ->assertSet('automatic_multiplier', '2')
+            ->assertSee('data-settings-dark-surface="points-multiplier"', false)
             ->assertSee('points-multiplier-select', false)
             ->assertSee('data-clearable="false"', false)
             ->assertSee('data-search-selection-required="true"', false)
@@ -1253,7 +1465,7 @@ class SystemSettingsTest extends TestCase
             ->call('saveSaberRules')
             ->assertHasNoErrors();
 
-        $finalRules = app(\App\Services\QuranFinalTestRuleService::class);
+        $finalRules = app(QuranFinalTestRuleService::class);
         $this->assertSame('failed', $finalRules->statusForScore(74.99));
         $this->assertSame('passed', $finalRules->statusForScore(75));
         $this->assertSame('passed', $finalRules->statusForScore(100));
@@ -1294,6 +1506,7 @@ class SystemSettingsTest extends TestCase
 
         Volt::test('settings.finance')
             ->assertSee('data-finance-settings-summary', false)
+            ->assertSee('data-settings-dark-surface="finance-defaults"', false)
             ->assertSee('data-finance-settings-edit-action', false)
             ->assertSee('title="'.__('finance.actions.edit').'"', false)
             ->assertSee('aria-label="'.__('finance.actions.edit').'"', false)

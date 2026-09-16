@@ -278,7 +278,7 @@ new class extends Component {
     @endif
 
     <div class="space-y-6" x-data="{ draggedItem: null, draggedGroup: null, itemDropTarget: null, groupDropTarget: null, settledItem: null, settledGroup: null }">
-        <section class="surface-panel p-5 lg:p-6">
+        <section class="surface-panel settings-dark-surface p-5 lg:p-6" data-settings-dark-surface="sidebar-navigation">
             <div class="admin-toolbar">
                 <div></div>
                 <div class="admin-toolbar__actions">

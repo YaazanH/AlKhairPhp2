@@ -2,11 +2,13 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Str;
 
 class Invoice extends Model
 {
@@ -43,6 +45,21 @@ class Invoice extends Model
             'total' => 'decimal:2',
             'finalised_at' => 'datetime',
         ];
+    }
+
+    public static function formatOriginalInvoiceNumber(?string $value): ?string
+    {
+        $number = Str::trim((string) preg_replace('/^(?:№\s*)+/u', '', Str::trim($value ?? '')));
+
+        return $number === '' ? null : '№ '.$number;
+    }
+
+    protected function originalInvoiceNo(): Attribute
+    {
+        return Attribute::make(
+            get: fn (?string $value): ?string => self::formatOriginalInvoiceNumber($value),
+            set: fn (?string $value): ?string => self::formatOriginalInvoiceNumber($value),
+        );
     }
 
     public function items(): HasMany

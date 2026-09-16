@@ -3,7 +3,7 @@
 use App\Livewire\Concerns\AuthorizesPermissions;
 use App\Livewire\Concerns\FormatsFinanceNumbers;
 use App\Livewire\Concerns\HandlesFinanceRequestMaintenance;
-use App\Livewire\Concerns\SupportsCreateAndNew;
+use App\Livewire\Concerns\HandlesWithdrawalRefusal;
 use App\Models\AppSetting;
 use App\Models\FinancePullRequestKind;
 use App\Models\FinanceRequest;
@@ -19,7 +19,7 @@ new class extends Component {
     use AuthorizesPermissions;
     use FormatsFinanceNumbers;
     use HandlesFinanceRequestMaintenance;
-    use SupportsCreateAndNew;
+    use HandlesWithdrawalRefusal;
     use WithPagination;
 
     public string $requested_amount = '';
@@ -174,6 +174,7 @@ new class extends Component {
     public function openReviewModal(int $requestId): void
     {
         $this->authorizePermission('finance.pull-requests.review');
+        $this->closeRefusalModal();
 
         $request = FinanceRequest::query()
             ->with('pullRequestKind')
@@ -197,6 +198,7 @@ new class extends Component {
 
     public function closeReviewModal(): void
     {
+        $this->closeRefusalModal();
         $this->reviewingRequestId = null;
         $this->resetValidation();
     }
@@ -278,17 +280,6 @@ new class extends Component {
         unset($this->review_amounts[$requestId], $this->review_counts[$requestId], $this->review_cash_boxes[$requestId], $this->review_dates[$requestId], $this->review_notes[$requestId]);
         $this->reviewingRequestId = null;
         session()->flash('status', __('finance.messages.pull_accepted'));
-    }
-
-    public function decline(int $requestId): void
-    {
-        $this->authorizePermission('finance.pull-requests.review');
-
-        $request = FinanceRequest::query()->where('type', FinanceRequest::TYPE_PULL)->findOrFail($requestId);
-        app(FinanceService::class)->declineRequest($request, auth()->user(), $this->review_notes[$requestId] ?? null);
-        unset($this->review_amounts[$requestId], $this->review_counts[$requestId], $this->review_cash_boxes[$requestId], $this->review_dates[$requestId], $this->review_notes[$requestId]);
-        $this->reviewingRequestId = null;
-        session()->flash('status', __('finance.messages.pull_declined'));
     }
 
     public function settleCount(int $requestId): void
@@ -437,7 +428,7 @@ new class extends Component {
             @endif
             <div class="lg:col-span-4 flex flex-wrap justify-end gap-3">
                 <button type="button" wire:click="closeCreateModal" class="pill-link">{{ __('crud.common.actions.close') }}</button>
-                <x-admin.create-and-new-button click="saveAndNew('submitRequest', 'openCreateModal')" />
+                <x-admin.save-button data-withdrawal-request-save />
             </div>
         </form>
     </x-admin.modal>
@@ -456,7 +447,7 @@ new class extends Component {
 
     @if ($reviewRequest)
         <x-admin.modal
-            :show="true"
+            :show="$refusingRequestId === null"
             :title="__('finance.pull_requests.review_title', ['request' => $reviewRequest->request_no])"
             :description="__('finance.pull_requests.review_subtitle')"
             close-method="closeReviewModal"
@@ -491,7 +482,7 @@ new class extends Component {
                 </div>
             @endif
 
-            <form wire:submit="accept({{ $reviewRequest->id }})" class="mt-5 grid gap-4 lg:grid-cols-4">
+            <form wire:submit="accept({{ $reviewRequest->id }})" class="mt-5 grid gap-4 lg:grid-cols-4" data-withdrawal-review>
                 <div>
                     <label class="mb-1 block text-sm font-medium">{{ __('finance.fields.accepted') }}</label>
                     <input wire:model="review_amounts.{{ $reviewRequest->id }}" type="text" inputmode="decimal" data-thousand-separator class="w-full rounded-xl px-4 py-3 text-sm">
@@ -521,18 +512,16 @@ new class extends Component {
                     </select>
                     @error("review_cash_boxes.{$reviewRequest->id}") <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
                 </div>
-                <div class="{{ $reviewIsCount ? '' : 'lg:col-span-2' }}">
-                    <label class="mb-1 block text-sm font-medium">{{ __('finance.common.notes') }}</label>
-                    <input wire:model="review_notes.{{ $reviewRequest->id }}" type="text" class="w-full rounded-xl px-4 py-3 text-sm">
-                </div>
                 <div class="lg:col-span-4 flex flex-wrap justify-end gap-3">
                     <button type="button" wire:click="closeReviewModal" class="pill-link">{{ __('crud.common.actions.close') }}</button>
-                    <button type="button" wire:click="decline({{ $reviewRequest->id }})" class="pill-link border-red-400/25 text-red-200 hover:border-red-300/35 hover:bg-red-500/12">{{ __('finance.actions.decline') }}</button>
+                    <button type="button" wire:click="openRefusalModal" class="pill-link pill-link--danger" data-withdrawal-refuse>{{ __('finance.actions.decline') }}</button>
                     <button type="submit" class="pill-link pill-link--accent">{{ __('finance.actions.accept') }}</button>
                 </div>
             </form>
         </x-admin.modal>
     @endif
+
+    @include('livewire.finance.partials.withdrawal-refusal-modals')
 
     @if ($settlementRequest)
         <x-admin.modal
@@ -599,7 +588,10 @@ new class extends Component {
                             <td class="px-5 py-3"><div>{{ $request->pullRequestKind?->name ?: '-' }}</div><div class="text-xs text-neutral-500">{{ $request->pullRequestKind ? __('finance.pull_modes.'.$request->pullRequestKind->mode) : '-' }}</div></td>
                             <td class="px-5 py-3">
                                 @if ($request->status === 'declined')
-                                    <div class="max-w-xs text-sm leading-5 text-red-200">{{ $request->review_notes ?: __('finance.statuses.declined') }}</div>
+                                    <div class="max-w-xs text-sm leading-5" data-withdrawal-refusal-reason>
+                                        <div class="mb-1 font-medium">{{ __('finance.refusal.reason') }}</div>
+                                        <div class="whitespace-pre-wrap break-words">{{ $request->review_notes ?: __('finance.refusal.not_recorded') }}</div>
+                                    </div>
                                     <div class="mt-1 text-xs text-neutral-500">{{ __('finance.fields.requested') }}: <bdi dir="ltr">{{ app(FinanceService::class)->formatCurrencyAmount($request->requested_amount, $request->requestedCurrency) }}</bdi></div>
                                 @elseif ($request->accepted_amount !== null)
                                     <div class="text-base font-semibold text-white"><bdi dir="ltr">{{ app(FinanceService::class)->formatCurrencyAmount($request->accepted_amount, $request->acceptedCurrency) }}</bdi></div>
@@ -610,7 +602,13 @@ new class extends Component {
                                 @endif
                                 @if($request->requested_count)<div class="text-xs text-neutral-500">{{ __('finance.fields.people_count') }}: {{ number_format((float) ($request->accepted_count ?: $request->requested_count)) }}</div>@endif
                             </td>
-                            <td class="px-5 py-3"><span class="status-chip {{ $request->status === 'settled' ? 'status-chip--emerald' : ($request->status === 'accepted' ? 'status-chip--blue' : ($request->status === 'declined' ? 'status-chip--rose' : 'status-chip--amber')) }}">{{ __('finance.statuses.'.$request->status) }}</span></td>
+                            <td class="px-5 py-3">
+                                @if ($request->status === FinanceRequest::STATUS_DECLINED)
+                                    <button type="button" wire:click="openRefusalReason({{ $request->id }})" class="status-chip status-chip--rose" title="{{ __('finance.refusal.view') }}" aria-label="{{ __('finance.statuses.declined') }}: {{ __('finance.refusal.view') }}" data-withdrawal-refused-status data-modal-action-icon-ignore>{{ __('finance.statuses.declined') }}</button>
+                                @else
+                                    <span class="status-chip {{ $request->status === 'settled' ? 'status-chip--emerald' : ($request->status === 'accepted' ? 'status-chip--blue' : 'status-chip--amber') }}">{{ __('finance.statuses.'.$request->status) }}</span>
+                                @endif
+                            </td>
                         </tr>
                     @empty
                         <tr><td colspan="5" class="px-5 py-10 text-center text-sm text-neutral-500">{{ __('finance.empty.no_pull_requests') }}</td></tr>

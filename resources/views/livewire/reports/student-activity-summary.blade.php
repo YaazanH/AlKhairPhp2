@@ -120,10 +120,11 @@ new class extends Component
         );
 
         return [
-            'courses' => Course::query()->orderByDesc('is_active')->orderByDesc('is_default')->orderByDesc('starts_on')->orderBy('name')->get(['id', 'name']),
+            'courses' => Course::query()->visibleInReportFilters()->orderByDesc('is_active')->orderByDesc('is_default')->orderByDesc('starts_on')->orderBy('name')->get(['id', 'name']),
             'groups' => $this->scopeGroupsQuery(
                 Group::query()
                     ->with(['course', 'academicYear'])
+                    ->visibleInReportFilters()
                     ->when($this->course_id, fn ($query) => $query->where('course_id', $this->course_id))
                     ->orderByDesc('is_active')
                     ->orderBy('name')
