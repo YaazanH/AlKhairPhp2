@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\ApplyApplicationTimezone;
+use App\Http\Middleware\DiscardInvalidRememberCookie;
 use App\Http\Middleware\MeasurePerformance;
 use App\Http\Middleware\PreventPageCaching;
 use App\Http\Middleware\RedirectToCanonicalHost;
@@ -33,6 +34,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->append(ApplyApplicationTimezone::class);
 
         $middleware->web(append: [
+            DiscardInvalidRememberCookie::class,
             SetLocale::class,
             MeasurePerformance::class,
         ]);

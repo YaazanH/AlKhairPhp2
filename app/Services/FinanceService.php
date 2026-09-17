@@ -816,9 +816,20 @@ class FinanceService
     public function nextExpenseNumber(): string
     {
         $prefix = $this->numberingPrefix('expense_request_prefix', 'EXP');
-        $last = FinanceRequest::query()->withTrashed()->where('expense_no', 'like', $prefix.'-%')->latest('id')->value('expense_no');
+        $highestSequence = FinanceRequest::query()
+            ->withTrashed()
+            ->where('expense_no', 'like', $prefix.'-%')
+            ->lockForUpdate()
+            ->pluck('expense_no')
+            ->reduce(function (int $highest, ?string $expenseNo): int {
+                if (preg_match('/(\d+)$/', (string) $expenseNo, $matches) !== 1) {
+                    return $highest;
+                }
 
-        return $this->sequencedNumber($prefix, $last, 6);
+                return max($highest, (int) $matches[1]);
+            }, 0);
+
+        return sprintf('%s-%06d', $prefix, $highestSequence + 1);
     }
 
     public function nextExchangeNumber(): string

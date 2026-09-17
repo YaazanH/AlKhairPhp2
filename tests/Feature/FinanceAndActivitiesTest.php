@@ -2899,6 +2899,53 @@ class FinanceAndActivitiesTest extends TestCase
         $this->assertNotSame($oldTransactionNumber, $newTransaction->transaction_no);
     }
 
+    public function test_expense_number_uses_the_highest_existing_sequence_instead_of_the_latest_row(): void
+    {
+        $this->signIn();
+
+        AppSetting::storeValue('finance', 'expense_request_prefix', 'DBIT', 'string');
+        $service = app(FinanceService::class);
+        $currency = $service->localCurrency();
+        $cashBox = FinanceCashBox::query()->firstOrFail();
+
+        foreach ([183, 182] as $sequence) {
+            FinanceRequest::query()->create([
+                'request_no' => sprintf('WDRQ-%06d', $sequence),
+                'expense_no' => sprintf('DBIT-%06d', $sequence),
+                'type' => FinanceRequest::TYPE_PULL,
+                'status' => FinanceRequest::STATUS_ACCEPTED,
+                'requested_currency_id' => $currency->id,
+                'requested_amount' => 10,
+                'requested_by' => auth()->id(),
+            ]);
+        }
+
+        $service->postTransaction([
+            'cash_box_id' => $cashBox->id,
+            'currency_id' => $currency->id,
+            'type' => 'opening_balance',
+            'direction' => 'in',
+            'amount' => 100,
+        ]);
+
+        $pendingRequest = FinanceRequest::query()->create([
+            'request_no' => 'WDRQ-000040',
+            'type' => FinanceRequest::TYPE_PULL,
+            'status' => FinanceRequest::STATUS_PENDING,
+            'requested_currency_id' => $currency->id,
+            'requested_amount' => 10,
+            'requested_by' => auth()->id(),
+        ]);
+
+        $acceptedRequest = $service->acceptRequest($pendingRequest, 10, $cashBox, auth()->user());
+
+        $this->assertSame('DBIT-000184', $acceptedRequest->expense_no);
+        $this->assertDatabaseHas('finance_transactions', [
+            'id' => $acceptedRequest->posted_transaction_id,
+            'special_transaction_no' => 'DBIT-000184',
+        ]);
+    }
+
     public function test_withdrawal_cleanup_deletes_only_the_selected_request_and_handles_invalid_numbers_inline(): void
     {
         $this->signIn();
