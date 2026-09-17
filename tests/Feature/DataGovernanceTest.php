@@ -14,7 +14,9 @@ use App\Models\SystemBackup;
 use App\Models\User;
 use App\Services\DataQualityService;
 use Database\Seeders\RoleSeeder;
+use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Livewire\Volt\Volt;
 use Spatie\Activitylog\Models\Activity as AuditActivity;
@@ -23,6 +25,31 @@ use Tests\TestCase;
 class DataGovernanceTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_audit_failure_does_not_abort_the_primary_database_write(): void
+    {
+        $admin = User::factory()->create();
+        $this->actingAs($admin);
+
+        Schema::drop('activity_log');
+        Schema::create('activity_log', function (Blueprint $table): void {
+            $table->id();
+        });
+
+        $setting = AppSetting::query()->create([
+            'group' => 'audit-resilience',
+            'key' => 'write-test',
+            'value' => 'created',
+            'type' => 'string',
+        ]);
+
+        $setting->update(['value' => 'updated']);
+
+        $this->assertDatabaseHas('app_settings', [
+            'id' => $setting->id,
+            'value' => 'updated',
+        ]);
+    }
 
     public function test_admin_can_open_both_data_governance_windows(): void
     {

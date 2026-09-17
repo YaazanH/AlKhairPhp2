@@ -11,9 +11,11 @@ use App\Models\Student;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Spatie\Activitylog\Models\Activity as AuditActivity;
+use Throwable;
 
 class DataAuditObserver
 {
@@ -69,34 +71,56 @@ class DataAuditObserver
 
     protected function record(Model $model, string $event, array $before, array $after): void
     {
-        if (! Auth::check() || ! Schema::hasTable('activity_log')) {
+        if (! Auth::check()) {
             return;
         }
 
-        $before = $this->sanitise($before);
-        $after = $this->sanitise($after);
-        $actor = Auth::user();
-        $entry = $this->movementEntry($model, $before, $after);
-        $properties = [
-            'before' => $before,
-            'after' => $after,
-            'entries' => $event === 'updated' ? [$entry] : [],
-            'subject_label' => $entry['subject_label'],
-            'subject_type_label' => class_basename($model),
-            'route' => request()->route()?->getName(),
-            'ip_address' => request()->ip(),
-        ];
+        try {
+            if (! Schema::hasTable('activity_log')) {
+                return;
+            }
 
-        if ($event === 'updated' && $this->mergeConsecutiveModuleUpdate($model, $actor, $entry, $properties)) {
-            return;
+            $before = $this->sanitise($before);
+            $after = $this->sanitise($after);
+            $actor = Auth::user();
+            $entry = $this->movementEntry($model, $before, $after);
+            $properties = [
+                'before' => $before,
+                'after' => $after,
+                'entries' => $event === 'updated' ? [$entry] : [],
+                'subject_label' => $entry['subject_label'],
+                'subject_type_label' => class_basename($model),
+                'route' => request()->route()?->getName(),
+                'ip_address' => request()->ip(),
+            ];
+
+            if ($event === 'updated' && $this->mergeConsecutiveModuleUpdate($model, $actor, $entry, $properties)) {
+                return;
+            }
+
+            activity('data-audit')
+                ->causedBy($actor)
+                ->performedOn($model)
+                ->event($event)
+                ->withProperties($properties)
+                ->log($event.' '.class_basename($model));
+        } catch (Throwable $exception) {
+            $this->reportAuditFailure($model, $event, $exception);
         }
+    }
 
-        activity('data-audit')
-            ->causedBy($actor)
-            ->performedOn($model)
-            ->event($event)
-            ->withProperties($properties)
-            ->log($event.' '.class_basename($model));
+    protected function reportAuditFailure(Model $model, string $event, Throwable $exception): void
+    {
+        try {
+            Log::error('Data audit logging failed; the primary database change was preserved.', [
+                'model' => $model::class,
+                'model_id' => $model->getKey(),
+                'event' => $event,
+                'exception' => $exception->getMessage(),
+            ]);
+        } catch (Throwable) {
+            // Audit reporting must never prevent the primary database operation.
+        }
     }
 
     protected function mergeConsecutiveModuleUpdate(Model $model, Model $actor, array $entry, array $properties): bool
