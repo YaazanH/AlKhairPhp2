@@ -77,6 +77,9 @@ new class extends Component {
                 ->orderBy('first_name')
                 ->orderBy('last_name')
                 ->get(['id', 'parent_id', 'first_name', 'last_name', 'student_number']),
+            'editingStudent' => $this->editingId
+                ? $this->scopeStudentsQuery(Student::query())->find($this->student_id)
+                : null,
             'groups' => $this->formGroups(),
             'filterCourses' => Course::query()->where('is_active', true)->orderBy('name')->get(['id', 'name']),
             'filterGroups' => $this->scopeGroupsQuery(
@@ -147,7 +150,15 @@ new class extends Component {
         $query = $this->scopeGroupsQuery(Group::query()->with('course'));
 
         if ($this->editingId) {
-            return $query->orderBy('name')->get(['id', 'course_id', 'name']);
+            $courseId = Enrollment::query()
+                ->join('groups', 'groups.id', '=', 'enrollments.group_id')
+                ->where('enrollments.id', $this->editingId)
+                ->value('groups.course_id');
+
+            return $query
+                ->when($courseId, fn ($groupQuery) => $groupQuery->where('course_id', $courseId), fn ($groupQuery) => $groupQuery->whereRaw('1 = 0'))
+                ->orderBy('name')
+                ->get(['id', 'course_id', 'name']);
         }
 
         $query
@@ -205,8 +216,11 @@ new class extends Component {
     {
         $this->authorizePermission($this->editingId ? 'enrollments.update' : 'enrollments.create');
 
+        $editingEnrollment = null;
         if ($this->editingId) {
-            $this->authorizeScopedEnrollmentAccess(Enrollment::query()->findOrFail($this->editingId));
+            $editingEnrollment = Enrollment::query()->with('group:id,course_id')->findOrFail($this->editingId);
+            $this->authorizeScopedEnrollmentAccess($editingEnrollment);
+            $this->student_id = $editingEnrollment->student_id;
         }
 
         $validated = $this->validate();
@@ -214,6 +228,12 @@ new class extends Component {
         $this->authorizeScopedStudentAccess($student);
         $group = Group::query()->with('course')->findOrFail($validated['group_id']);
         $this->authorizeScopedGroupAccess($group);
+
+        if ($editingEnrollment && $group->course_id !== $editingEnrollment->group?->course_id) {
+            $this->addError('group_id', __('crud.enrollments.errors.different_course'));
+
+            return;
+        }
 
         if (! $this->editingId && (! $group->is_active || ! $group->course?->is_active || $group->course?->finished_at)) {
             $this->addError('group_id', __('crud.enrollments.errors.inactive_group'));
@@ -574,14 +594,18 @@ new class extends Component {
         <form wire:submit="save" class="w-[min(28rem,calc(100vw-3rem))] space-y-3">
             <div>
                 <label for="enrollment-student" class="mb-1 block text-sm font-medium">{{ __('crud.enrollments.form.fields.student') }}</label>
-                <select id="enrollment-student" wire:model="student_id" data-search-input="true" data-open-on-focus="true" data-hide-placeholder-option="true" data-search-placeholder="{{ __('workflow.common.student_name_placeholder') }}" data-focus-next-searchable-on-tab="enrollment-group" class="w-full rounded-xl px-4 py-3 text-sm">
-                    <option value="">{{ __('crud.enrollments.form.placeholders.select_student') }}</option>
-                    @foreach ($students as $student)
-                        <option value="{{ $student->id }}">{{ $student->full_name }}</option>
-                    @endforeach
-                </select>
-                @if ($group_id && $students->isEmpty())
-                    <div class="mt-1 text-sm text-neutral-400">{{ __('crud.enrollments.form.no_available_students') }}</div>
+                @if ($editingId)
+                    <input id="enrollment-student" value="{{ $editingStudent?->full_name }}" readonly data-enrollment-student-readonly class="w-full rounded-xl px-4 py-3 text-sm">
+                @else
+                    <select id="enrollment-student" wire:model="student_id" data-search-input="true" data-open-on-focus="true" data-hide-placeholder-option="true" data-search-placeholder="{{ __('workflow.common.student_name_placeholder') }}" data-focus-next-searchable-on-tab="enrollment-group" class="w-full rounded-xl px-4 py-3 text-sm">
+                        <option value="">{{ __('crud.enrollments.form.placeholders.select_student') }}</option>
+                        @foreach ($students as $student)
+                            <option value="{{ $student->id }}">{{ $student->full_name }}</option>
+                        @endforeach
+                    </select>
+                    @if ($group_id && $students->isEmpty())
+                        <div class="mt-1 text-sm text-neutral-400">{{ __('crud.enrollments.form.no_available_students') }}</div>
+                    @endif
                 @endif
                 @error('student_id')
                     <div class="mt-1 text-sm text-red-400">{{ $message }}</div>

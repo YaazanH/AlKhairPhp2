@@ -845,6 +845,7 @@ return [
             'already_active' => 'This student already has an active enrolment. Complete or cancel it before creating another one.',
             'inactive_student' => 'Only active students can be enrolled.',
             'inactive_group' => 'A new enrolment can only be created in an active group within an active course.',
+            'different_course' => 'Choose a group from the enrolment course.',
         ],
     ],
 ];
