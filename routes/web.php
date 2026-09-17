@@ -16,10 +16,16 @@ use App\Http\Controllers\IdCards\IdCardTemplateController;
 use App\Http\Controllers\PrintController;
 use App\Http\Controllers\PrintTemplates\PrintTemplateController;
 use App\Http\Controllers\PrintTemplates\PrintTemplatePrintController;
+use App\Http\Controllers\Platform\PlatformAuthenticatedSessionController;
+use App\Http\Controllers\Platform\PlatformDashboardController;
+use App\Http\Controllers\Platform\TenantProvisioningController;
+use App\Http\Controllers\Platform\TenantManagementController;
+use App\Http\Controllers\Platform\TenantSubscriptionController;
 use App\Http\Controllers\ReportExportController;
 use App\Http\Controllers\StudentAttendanceExportController;
 use App\Http\Controllers\SystemBackupDownloadController;
 use App\Http\Controllers\TeacherAttendanceExportController;
+use App\Http\Controllers\TenantPublicMediaController;
 use App\Http\Controllers\WebsiteController;
 use App\Http\Middleware\SetLocale;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
@@ -31,7 +37,29 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
 use Livewire\Volt\Volt;
 
+Route::prefix('platform')->name('platform.')->group(function (): void {
+    Route::middleware('guest:platform')->group(function (): void {
+        Route::get('login', [PlatformAuthenticatedSessionController::class, 'create'])->name('login');
+        Route::post('login', [PlatformAuthenticatedSessionController::class, 'store'])->name('login.store');
+    });
+
+    Route::middleware('platform.auth')->group(function (): void {
+        Route::get('/', PlatformDashboardController::class)->name('dashboard');
+        Route::post('tenants', [TenantProvisioningController::class, 'store'])->name('tenants.store');
+        Route::get('tenants/create', [TenantManagementController::class, 'create'])->name('tenants.create');
+        Route::get('tenants/{tenant}/edit', [TenantManagementController::class, 'edit'])->name('tenants.edit');
+        Route::put('tenants/{tenant}', [TenantManagementController::class, 'update'])->name('tenants.update');
+        Route::patch('tenants/{tenant}/status', [TenantManagementController::class, 'setStatus'])->name('tenants.status');
+        Route::delete('tenants/{tenant}', [TenantManagementController::class, 'destroy'])->name('tenants.destroy');
+        Route::put('tenants/{tenant}/subscription', [TenantSubscriptionController::class, 'update'])->name('tenants.subscription.update');
+        Route::post('logout', [PlatformAuthenticatedSessionController::class, 'destroy'])->name('logout');
+    });
+});
+
 Route::get('/', [WebsiteController::class, 'home'])->name('home');
+Route::get('storage/{path}', TenantPublicMediaController::class)
+    ->where('path', '.*')
+    ->name('tenant.public-media');
 Route::get('web-fonts/dubai/{weight}/{format}', DubaiFontController::class)
     ->whereIn('weight', ['light', 'regular', 'medium', 'bold'])
     ->whereIn('format', ['woff2', 'ttf'])
@@ -74,26 +102,28 @@ Route::middleware(['auth'])->group(function () {
     Volt::route('users', 'users.index')->middleware('permission:users.view')->name('users.index');
     Volt::route('community-contacts', 'community-contacts.index')->middleware('permission:community-contacts.view')->name('community-contacts.index');
     Route::get('users/export', [AdminExportController::class, 'users'])->middleware('permission:users.view')->name('users.export');
-    Route::get('id-cards/templates', [IdCardTemplateController::class, 'index'])->middleware('permission:id-cards.view')->name('id-cards.templates.index');
-    Route::get('id-cards/templates/create', [IdCardTemplateController::class, 'create'])->middleware('permission:id-cards.templates.manage')->name('id-cards.templates.create');
-    Route::post('id-cards/templates', [IdCardTemplateController::class, 'store'])->middleware('permission:id-cards.templates.manage')->name('id-cards.templates.store');
-    Route::get('id-cards/templates/{template}/edit', [IdCardTemplateController::class, 'edit'])->middleware('permission:id-cards.templates.manage')->name('id-cards.templates.edit');
-    Route::put('id-cards/templates/{template}', [IdCardTemplateController::class, 'update'])->middleware('permission:id-cards.templates.manage')->name('id-cards.templates.update');
-    Route::delete('id-cards/templates/{template}', [IdCardTemplateController::class, 'destroy'])->middleware('permission:id-cards.templates.manage')->name('id-cards.templates.destroy');
-    Route::get('id-cards/barcode-preview', IdCardBarcodePreviewController::class)->middleware('permission:id-cards.view')->name('id-cards.barcode-preview');
-    Route::get('id-cards/print', [PrintTemplatePrintController::class, 'createStudentCards'])->middleware('permission:id-cards.print')->name('id-cards.print.create');
-    Route::post('id-cards/print/preview', [PrintTemplatePrintController::class, 'previewStudentCards'])->middleware('permission:id-cards.print')->name('id-cards.print.preview');
-    Route::post('id-cards/print/record', [PrintTemplatePrintController::class, 'recordStudentCardPrints'])->middleware('permission:id-cards.print')->name('id-cards.print.record');
-    Route::delete('id-cards/print/record', [PrintTemplatePrintController::class, 'clearStudentCardPrints'])->middleware('permission:id-cards.print')->name('id-cards.print.clear');
-    Route::get('print-templates', [PrintTemplateController::class, 'index'])->middleware('permission:id-cards.view')->name('print-templates.templates.index');
-    Route::get('print-templates/create', [PrintTemplateController::class, 'create'])->middleware('permission:id-cards.templates.manage')->name('print-templates.templates.create');
-    Route::post('print-templates', [PrintTemplateController::class, 'store'])->middleware('permission:id-cards.templates.manage')->name('print-templates.templates.store');
-    Route::post('print-templates/{template}/copy', [PrintTemplateController::class, 'copy'])->middleware('permission:id-cards.templates.manage')->name('print-templates.templates.copy');
-    Route::get('print-templates/{template}/edit', [PrintTemplateController::class, 'edit'])->middleware('permission:id-cards.templates.manage')->name('print-templates.templates.edit');
-    Route::put('print-templates/{template}', [PrintTemplateController::class, 'update'])->middleware('permission:id-cards.templates.manage')->name('print-templates.templates.update');
-    Route::delete('print-templates/{template}', [PrintTemplateController::class, 'destroy'])->middleware('permission:id-cards.templates.manage')->name('print-templates.templates.destroy');
-    Route::get('print-templates/print', [PrintTemplatePrintController::class, 'create'])->middleware('permission:id-cards.print')->name('print-templates.print.create');
-    Route::post('print-templates/print/preview', [PrintTemplatePrintController::class, 'preview'])->middleware('permission:id-cards.print|finance.pull-requests.print|finance.expense-requests.print|finance.revenue-requests.print')->name('print-templates.print.preview');
+    Route::middleware('tenant.feature:custom_printing')->group(function (): void {
+        Route::get('id-cards/templates', [IdCardTemplateController::class, 'index'])->middleware('permission:id-cards.view')->name('id-cards.templates.index');
+        Route::get('id-cards/templates/create', [IdCardTemplateController::class, 'create'])->middleware('permission:id-cards.templates.manage')->name('id-cards.templates.create');
+        Route::post('id-cards/templates', [IdCardTemplateController::class, 'store'])->middleware('permission:id-cards.templates.manage')->name('id-cards.templates.store');
+        Route::get('id-cards/templates/{template}/edit', [IdCardTemplateController::class, 'edit'])->middleware('permission:id-cards.templates.manage')->name('id-cards.templates.edit');
+        Route::put('id-cards/templates/{template}', [IdCardTemplateController::class, 'update'])->middleware('permission:id-cards.templates.manage')->name('id-cards.templates.update');
+        Route::delete('id-cards/templates/{template}', [IdCardTemplateController::class, 'destroy'])->middleware('permission:id-cards.templates.manage')->name('id-cards.templates.destroy');
+        Route::get('id-cards/barcode-preview', IdCardBarcodePreviewController::class)->middleware('permission:id-cards.view')->name('id-cards.barcode-preview');
+        Route::get('id-cards/print', [PrintTemplatePrintController::class, 'createStudentCards'])->middleware('permission:id-cards.print')->name('id-cards.print.create');
+        Route::post('id-cards/print/preview', [PrintTemplatePrintController::class, 'previewStudentCards'])->middleware('permission:id-cards.print')->name('id-cards.print.preview');
+        Route::post('id-cards/print/record', [PrintTemplatePrintController::class, 'recordStudentCardPrints'])->middleware('permission:id-cards.print')->name('id-cards.print.record');
+        Route::delete('id-cards/print/record', [PrintTemplatePrintController::class, 'clearStudentCardPrints'])->middleware('permission:id-cards.print')->name('id-cards.print.clear');
+        Route::get('print-templates', [PrintTemplateController::class, 'index'])->middleware('permission:id-cards.view')->name('print-templates.templates.index');
+        Route::get('print-templates/create', [PrintTemplateController::class, 'create'])->middleware('permission:id-cards.templates.manage')->name('print-templates.templates.create');
+        Route::post('print-templates', [PrintTemplateController::class, 'store'])->middleware('permission:id-cards.templates.manage')->name('print-templates.templates.store');
+        Route::post('print-templates/{template}/copy', [PrintTemplateController::class, 'copy'])->middleware('permission:id-cards.templates.manage')->name('print-templates.templates.copy');
+        Route::get('print-templates/{template}/edit', [PrintTemplateController::class, 'edit'])->middleware('permission:id-cards.templates.manage')->name('print-templates.templates.edit');
+        Route::put('print-templates/{template}', [PrintTemplateController::class, 'update'])->middleware('permission:id-cards.templates.manage')->name('print-templates.templates.update');
+        Route::delete('print-templates/{template}', [PrintTemplateController::class, 'destroy'])->middleware('permission:id-cards.templates.manage')->name('print-templates.templates.destroy');
+        Route::get('print-templates/print', [PrintTemplatePrintController::class, 'create'])->middleware('permission:id-cards.print')->name('print-templates.print.create');
+        Route::post('print-templates/print/preview', [PrintTemplatePrintController::class, 'preview'])->middleware('permission:id-cards.print|finance.pull-requests.print|finance.expense-requests.print|finance.revenue-requests.print')->name('print-templates.print.preview');
+    });
     Volt::route('settings/barcode-actions', 'barcode-actions.index')->middleware('permission:barcode-actions.view')->name('barcode-actions.index');
     Route::post('settings/barcode-actions/print/preview', [BarcodeActionPrintController::class, 'preview'])->middleware('permission:barcode-actions.view')->name('barcode-actions.print.preview');
     Route::redirect('barcode-actions', '/settings/barcode-actions')->middleware('permission:barcode-actions.view')->name('legacy.barcode-actions.index');
@@ -111,7 +141,7 @@ Route::middleware(['auth'])->group(function () {
     Volt::route('settings/course-completion', 'settings.course-completion')->middleware('permission:course-completion-rules.manage')->name('settings.course-completion');
     Volt::route('settings/navigation', 'settings.sidebar-navigation')->middleware('permission:sidebar-navigation.manage')->name('settings.sidebar-navigation');
     Route::redirect('settings/sidebar-navigation', '/settings/navigation')->middleware('permission:sidebar-navigation.manage')->name('legacy.settings.sidebar-navigation');
-    Volt::route('settings/finance', 'settings.finance')->middleware('permission:finance.settings.manage')->name('settings.finance');
+    Volt::route('settings/finance', 'settings.finance')->middleware(['tenant.feature:finance', 'permission:finance.settings.manage'])->name('settings.finance');
     Volt::route('settings/permissions', 'settings.access-control')->middleware('permission:roles.manage')->name('settings.access-control');
     Route::redirect('settings/access-control', '/settings/permissions')->middleware('permission:roles.manage')->name('legacy.settings.access-control');
     Volt::route('settings/backups', 'settings.backups')->middleware('permission:backups.manage')->name('settings.backups');
@@ -138,10 +168,10 @@ Route::middleware(['auth'])->group(function () {
     Volt::route('courses', 'courses.index')->middleware('permission:courses.view')->name('courses.index');
     Route::get('courses/{course}/calendar.pdf', CourseCalendarPdfController::class)->middleware('permission:courses.view')->name('courses.calendar.pdf');
     Volt::route('courses/{course}/end', 'courses.end')->middleware('permission:courses.view')->name('courses.end');
-    Volt::route('courses/{course}/end/point-market', 'courses.point-market')->middleware(['permission:courses.view', 'permission:finance.expense-requests.view'])->name('courses.end.point-market');
+    Volt::route('courses/{course}/end/point-market', 'courses.point-market')->middleware(['tenant.feature:finance', 'permission:courses.view', 'permission:finance.expense-requests.view'])->name('courses.end.point-market');
     Route::get('courses/{course}/end/students.xlsx', [CourseEndExportController::class, 'students'])->middleware('permission:courses.view')->name('courses.end.students.xlsx');
     Route::get('courses/{course}/end/final-tests.pdf', [CourseEndExportController::class, 'finalTests'])->middleware('permission:courses.view')->name('courses.end.final-tests.pdf');
-    Route::get('courses/{course}/end/point-market/departments/{department}/pdf', CoursePointMarketExportController::class)->middleware(['permission:courses.view', 'permission:finance.expense-requests.view'])->name('courses.end.point-market.departments.pdf');
+    Route::get('courses/{course}/end/point-market/departments/{department}/pdf', CoursePointMarketExportController::class)->middleware(['tenant.feature:finance', 'permission:courses.view', 'permission:finance.expense-requests.view'])->name('courses.end.point-market.departments.pdf');
     Route::get('courses/{course}/end/report-cards', [PrintTemplatePrintController::class, 'createCourseReportCards'])->middleware(['permission:courses.view', 'permission:id-cards.print'])->name('courses.end.report-cards.create');
     Route::post('courses/{course}/end/report-cards/preview', [PrintTemplatePrintController::class, 'previewCourseReportCards'])->middleware(['permission:courses.view', 'permission:id-cards.print'])->name('courses.end.report-cards.preview');
     Route::patch('courses/{course}/end/report-cards/notes/{enrollment}', [PrintTemplatePrintController::class, 'updateCourseReportNote'])->middleware(['permission:courses.view', 'permission:id-cards.print'])->name('courses.end.report-cards.notes.update');
@@ -184,23 +214,25 @@ Route::middleware(['auth'])->group(function () {
     Volt::route('enrollments/{enrollment}/points', 'enrollments.points')->middleware('permission:points.view')->name('enrollments.points');
     Volt::route('activities', 'activities.index')->middleware('permission:activities.view')->name('activities.index');
     Volt::route('activities/family', 'activities.family')->middleware('permission:activities.responses.view')->name('activities.family');
-    Volt::route('activities/{activity}/finance', 'activities.finance')->middleware('permission:activities.finance.view')->name('activities.finance');
-    Volt::route('finance', 'finance.dashboard')->middleware('permission:finance.reports.view')->name('finance.dashboard');
-    Volt::route('finance/reports', 'finance.reports')->middleware('permission:finance.reports.view')->name('finance.reports.index');
-    Route::get('finance/reports/ledger/export', [ReportExportController::class, 'financeLedger'])->middleware('permission:finance.reports.export')->name('finance.reports.ledger.export');
-    Route::get('finance/reports/generated/{generatedReport}', [ReportExportController::class, 'generatedFinanceLedger'])->middleware('permission:finance.reports.export')->name('finance.reports.generated.show');
-    Volt::route('finance/pull-requests', 'finance.pull-requests')->middleware('permission:finance.pull-requests.view')->name('finance.pull-requests.index');
-    Volt::route('finance/cash-box', 'finance.cash-box')->middleware('permission:finance.cash-box.view')->name('finance.cash-box.index');
-    Volt::route('finance/expense-requests', 'finance.expense-requests')->middleware('permission:finance.expense-requests.view')->name('finance.expense-requests.index');
-    Volt::route('finance/revenue-requests', 'finance.revenue-requests')->middleware('permission:finance.revenue-requests.view')->name('finance.revenue-requests.index');
-    Volt::route('finance/exchange', 'finance.exchange')->middleware('permission:finance.exchange.view')->name('finance.exchange.index');
-    Route::get('finance/requests/{financeRequest}/print', FinanceRequestPrintController::class)->name('finance.requests.print');
-    Route::get('finance/invoices/{invoice}/items.xlsx', FinanceInvoiceItemsExportController::class)->name('finance.invoices.items.xlsx');
-    Route::get('finance/invoices/{invoice}/print', FinanceInvoicePrintController::class)->name('finance.invoices.print');
-    Volt::route('invoices', 'invoices.index')->middleware('permission:invoices.view')->name('invoices.index');
-    Volt::route('invoices/{invoice}/payments', 'invoices.payments')->middleware('permission:invoices.view')->name('invoices.payments');
-    Route::get('invoices/{invoice}/print', [PrintController::class, 'invoice'])->middleware('permission:invoices.view')->name('invoices.print');
-    Route::get('payments/{payment}/receipt', [PrintController::class, 'receipt'])->middleware('permission:payments.view')->name('payments.receipt');
+    Route::middleware('tenant.feature:finance')->group(function (): void {
+        Volt::route('activities/{activity}/finance', 'activities.finance')->middleware('permission:activities.finance.view')->name('activities.finance');
+        Volt::route('finance', 'finance.dashboard')->middleware('permission:finance.reports.view')->name('finance.dashboard');
+        Volt::route('finance/reports', 'finance.reports')->middleware('permission:finance.reports.view')->name('finance.reports.index');
+        Route::get('finance/reports/ledger/export', [ReportExportController::class, 'financeLedger'])->middleware('permission:finance.reports.export')->name('finance.reports.ledger.export');
+        Route::get('finance/reports/generated/{generatedReport}', [ReportExportController::class, 'generatedFinanceLedger'])->middleware('permission:finance.reports.export')->name('finance.reports.generated.show');
+        Volt::route('finance/pull-requests', 'finance.pull-requests')->middleware('permission:finance.pull-requests.view')->name('finance.pull-requests.index');
+        Volt::route('finance/cash-box', 'finance.cash-box')->middleware('permission:finance.cash-box.view')->name('finance.cash-box.index');
+        Volt::route('finance/expense-requests', 'finance.expense-requests')->middleware('permission:finance.expense-requests.view')->name('finance.expense-requests.index');
+        Volt::route('finance/revenue-requests', 'finance.revenue-requests')->middleware('permission:finance.revenue-requests.view')->name('finance.revenue-requests.index');
+        Volt::route('finance/exchange', 'finance.exchange')->middleware('permission:finance.exchange.view')->name('finance.exchange.index');
+        Route::get('finance/requests/{financeRequest}/print', FinanceRequestPrintController::class)->name('finance.requests.print');
+        Route::get('finance/invoices/{invoice}/items.xlsx', FinanceInvoiceItemsExportController::class)->name('finance.invoices.items.xlsx');
+        Route::get('finance/invoices/{invoice}/print', FinanceInvoicePrintController::class)->name('finance.invoices.print');
+        Volt::route('invoices', 'invoices.index')->middleware('permission:invoices.view')->name('invoices.index');
+        Volt::route('invoices/{invoice}/payments', 'invoices.payments')->middleware('permission:invoices.view')->name('invoices.payments');
+        Route::get('invoices/{invoice}/print', [PrintController::class, 'invoice'])->middleware('permission:invoices.view')->name('invoices.print');
+        Route::get('payments/{payment}/receipt', [PrintController::class, 'receipt'])->middleware('permission:payments.view')->name('payments.receipt');
+    });
 
     Route::redirect('settings', 'settings/profile');
 

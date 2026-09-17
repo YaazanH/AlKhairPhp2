@@ -1,8 +1,11 @@
 <?php
 
 use App\Http\Middleware\ApplyApplicationTimezone;
+use App\Http\Middleware\AuthenticatePlatform;
+use App\Http\Middleware\EnsureTenantFeature;
 use App\Http\Middleware\MeasurePerformance;
 use App\Http\Middleware\PreventPageCaching;
+use App\Http\Middleware\ResolveTenantFromHost;
 use App\Http\Middleware\SetLocale;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -22,9 +25,13 @@ return Application::configure(basePath: dirname(__DIR__))
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
     )
+    ->withCommands([
+        __DIR__.'/../app/Console/Commands',
+    ])
     ->withMiddleware(function (Middleware $middleware) {
         // Keep browser and API requests on the organization timezone. Console
         // and scheduled commands receive the same setting during provider boot.
+        $middleware->prepend(ResolveTenantFromHost::class);
         $middleware->append(ApplyApplicationTimezone::class);
 
         $middleware->web(append: [
@@ -38,6 +45,8 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->alias([
             'no-store' => PreventPageCaching::class,
+            'platform.auth' => AuthenticatePlatform::class,
+            'tenant.feature' => EnsureTenantFeature::class,
             'role' => RoleMiddleware::class,
             'permission' => PermissionMiddleware::class,
             'role_or_permission' => RoleOrPermissionMiddleware::class,

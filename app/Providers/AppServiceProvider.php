@@ -38,6 +38,7 @@ use App\Models\User;
 use App\Observers\DataAuditObserver;
 use App\Support\ApplicationTimezone;
 use App\Support\RoleRegistry;
+use App\Services\Landlord\TenantContext;
 use App\Validation\LocalizedValidator;
 use Illuminate\Contracts\Translation\Translator;
 use Illuminate\Support\Facades\Gate;
@@ -51,7 +52,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->scoped(TenantContext::class);
     }
 
     /**

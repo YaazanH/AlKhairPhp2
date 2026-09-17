@@ -254,6 +254,16 @@ class User extends Authenticatable // implements MustVerifyEmail
         return $this->hasOne(Teacher::class);
     }
 
+    public function platformAdministratorLink(): HasOne
+    {
+        return $this->hasOne(TenantPlatformAdministratorLink::class);
+    }
+
+    public function isPlatformAdministrator(): bool
+    {
+        return $this->platformAdministratorLink()->exists();
+    }
+
     public function voidedPointTransactions(): HasMany
     {
         return $this->hasMany(PointTransaction::class, 'voided_by');
