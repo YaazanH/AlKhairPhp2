@@ -4,8 +4,11 @@ namespace Tests\Feature;
 
 use App\Models\AppSetting;
 use App\Models\DataQualityResolution;
+use App\Models\Enrollment;
+use App\Models\FinanceTransaction;
 use App\Models\MemorizationSession;
 use App\Models\ParentProfile;
+use App\Models\PointTransaction;
 use App\Models\QuranFinalTest;
 use App\Models\QuranPartialTest;
 use App\Models\QuranTest;
@@ -363,7 +366,7 @@ class DataGovernanceTest extends TestCase
         $this->assertSame(1, substr_count(strip_tags($auditComponent->html()), 'تم حذف السجل'));
     }
 
-    public function test_profile_memorisation_and_saber_creation_events_are_hidden_but_edits_remain_visible(): void
+    public function test_selected_creation_events_are_hidden_but_edits_remain_visible(): void
     {
         $this->seed(RoleSeeder::class);
         $admin = User::factory()->create();
@@ -386,6 +389,9 @@ class DataGovernanceTest extends TestCase
         $hiddenCreatedTypes = [
             Student::class,
             ParentProfile::class,
+            Enrollment::class,
+            FinanceTransaction::class,
+            PointTransaction::class,
             MemorizationSession::class,
             QuranFinalTest::class,
             QuranPartialTest::class,
@@ -405,13 +411,40 @@ class DataGovernanceTest extends TestCase
             ]);
         }
 
+        $editOnlyTypes = [
+            Enrollment::class,
+            FinanceTransaction::class,
+            PointTransaction::class,
+        ];
+
+        foreach ($editOnlyTypes as $index => $subjectType) {
+            foreach (['updated', 'deleted'] as $event) {
+                AuditActivity::query()->create([
+                    'log_name' => 'data-audit',
+                    'description' => $event.' '.class_basename($subjectType),
+                    'event' => $event,
+                    'subject_type' => $subjectType,
+                    'subject_id' => 2000 + $index,
+                    'causer_type' => User::class,
+                    'causer_id' => $admin->id,
+                    'properties' => ['before' => ['status' => 'active'], 'after' => ['status' => 'inactive']],
+                ]);
+            }
+        }
+
         $this->assertFalse(AuditActivity::query()->inLog('data-audit')->where('event', 'created')->where('subject_type', ParentProfile::class)->where('subject_id', $parent->id)->exists());
         $this->assertFalse(AuditActivity::query()->inLog('data-audit')->where('event', 'created')->where('subject_type', Student::class)->where('subject_id', $student->id)->exists());
 
         Volt::test('data-audit.index')
-            ->assertViewHas('activities', fn ($activities): bool => $activities->total() === 1
-                && $activities->first()['event'] === 'updated'
-                && $activities->first()['subject_type'] === Student::class);
+            ->assertViewHas('activities', function ($activities) use ($editOnlyTypes): bool {
+                $visibleActivities = $activities->getCollection();
+
+                return $activities->total() === 7
+                    && $visibleActivities->doesntContain(fn ($activity): bool => $activity['event'] === 'created')
+                    && collect($editOnlyTypes)->every(fn (string $subjectType): bool => collect(['updated', 'deleted'])
+                        ->every(fn (string $event): bool => $visibleActivities->contains(fn ($activity): bool => $activity['subject_type'] === $subjectType
+                            && $activity['event'] === $event)));
+            });
     }
 
     public function test_consecutive_edits_in_one_module_are_grouped_with_all_record_changes(): void

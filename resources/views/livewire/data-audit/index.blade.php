@@ -2,8 +2,11 @@
 
 use App\Livewire\Concerns\AuthorizesPermissions;
 use App\Models\AppSetting;
+use App\Models\Enrollment;
+use App\Models\FinanceTransaction;
 use App\Models\MemorizationSession;
 use App\Models\ParentProfile;
+use App\Models\PointTransaction;
 use App\Models\QuranFinalTest;
 use App\Models\QuranPartialTest;
 use App\Models\QuranTest;
@@ -129,6 +132,9 @@ new class extends Component {
                     ->orWhereNotIn('subject_type', [
                         Student::class,
                         ParentProfile::class,
+                        Enrollment::class,
+                        FinanceTransaction::class,
+                        PointTransaction::class,
                         MemorizationSession::class,
                         QuranFinalTest::class,
                         QuranPartialTest::class,

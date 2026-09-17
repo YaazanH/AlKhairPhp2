@@ -2,8 +2,11 @@
 
 namespace App\Observers;
 
+use App\Models\Enrollment;
+use App\Models\FinanceTransaction;
 use App\Models\MemorizationSession;
 use App\Models\ParentProfile;
+use App\Models\PointTransaction;
 use App\Models\QuranFinalTest;
 use App\Models\QuranPartialTest;
 use App\Models\QuranTest;
@@ -24,6 +27,9 @@ class DataAuditObserver
     private const HIDDEN_CREATED_MODELS = [
         Student::class,
         ParentProfile::class,
+        Enrollment::class,
+        FinanceTransaction::class,
+        PointTransaction::class,
         MemorizationSession::class,
         QuranFinalTest::class,
         QuranPartialTest::class,
