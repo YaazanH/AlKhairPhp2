@@ -2329,6 +2329,7 @@ function initializeFormattedDateInputs(root = document) {
 }
 
 let formattedDateInitializationTimer = null;
+let formattedDatePostCommitTimer = null;
 function scheduleFormattedDateInitialization() {
     if (formattedDateInitializationTimer) window.clearTimeout(formattedDateInitializationTimer);
     window.requestAnimationFrame(() => initializeFormattedDateInputs());
@@ -2338,10 +2339,23 @@ function scheduleFormattedDateInitialization() {
     }, 160);
 }
 
+function syncFormattedDateInputsAfterCommit() {
+    scheduleFormattedDateInitialization();
+
+    if (formattedDatePostCommitTimer) window.clearTimeout(formattedDatePostCommitTimer);
+    formattedDatePostCommitTimer = window.setTimeout(() => {
+        formattedDatePostCommitTimer = null;
+        initializeFormattedDateInputs();
+    }, 500);
+}
+
 document.addEventListener('DOMContentLoaded', () => initializeFormattedDateInputs());
 document.addEventListener('livewire:navigated', () => initializeFormattedDateInputs());
 document.addEventListener('livewire:initialized', () => {
     scheduleFormattedDateInitialization();
+    window.Livewire?.hook('commit', ({ succeed }) => {
+        succeed(() => window.setTimeout(syncFormattedDateInputsAfterCommit));
+    });
     window.Livewire?.hook('morph.updated', ({ el }) => {
         if ((el instanceof HTMLInputElement && el.type === 'date') || el.querySelector?.('input[type="date"]')) {
             scheduleFormattedDateInitialization();

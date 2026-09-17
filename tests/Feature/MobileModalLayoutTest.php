@@ -69,13 +69,15 @@ class MobileModalLayoutTest extends TestCase
         $this->assertStringContainsString("clear.classList.add('formatted-date-input__clear-icon')", $script);
         $this->assertStringContainsString("clear.textContent = '×'", $script);
         $this->assertStringContainsString('function restoreFormattedDatePicker(picker)', $script);
-        $this->assertStringContainsString("if (!hasDateIcons) picker.replaceChildren(createDatePickerIcon(), createDateClearIcon())", $script);
+        $this->assertStringContainsString('if (!hasDateIcons) picker.replaceChildren(createDatePickerIcon(), createDateClearIcon())', $script);
         $this->assertStringContainsString("picker.dataset.modalActionIconIgnore = 'true'", $script);
         $this->assertStringContainsString("if (action.closest('.formatted-date-input')) {", $script);
         $this->assertStringContainsString('restoreFormattedDatePicker(action);', $script);
         $this->assertStringContainsString("const clearable = input.dataset.clearable !== 'false';", $script);
         $this->assertStringContainsString("if (input.value === '' || !clearable)", $script);
         $this->assertStringContainsString("wrapper.classList.toggle('formatted-date-input--has-value', clearable && !isEmpty)", $script);
+        $this->assertStringContainsString("window.Livewire?.hook('commit', ({ succeed }) =>", $script);
+        $this->assertStringContainsString('succeed(() => window.setTimeout(syncFormattedDateInputsAfterCommit));', $script);
         $this->assertStringContainsString("input.dispatchEvent(new Event('change', { bubbles: true }))", $script);
         $this->assertStringContainsString("display.classList.toggle('date-input--empty', isEmpty)", $script);
         $this->assertStringContainsString("display.classList.toggle('date-input--filled', !isEmpty)", $script);
