@@ -114,6 +114,8 @@ class DataGovernanceTest extends TestCase
         $this->assertStringContainsString('public int $perPage = 15;', $auditView);
         $this->assertStringContainsString('data-data-audit-view-action', $auditView);
         $this->assertStringContainsString('<x-admin-action-icon name="search" />', $auditView);
+        $this->assertStringContainsString('admin-toolbar__controls admin-toolbar__controls--compact" wire:ignore.self', $auditView);
+        $this->assertStringContainsString('id="data-audit-search" wire:key="data-audit-search-input"', $auditView);
         $this->assertStringContainsString('data-data-audit-table', $auditView);
         $this->assertSame(5, substr_count($auditView, 'data-data-audit-content-column'));
         $this->assertStringContainsString("{{ __('data_governance.audit.module') }}</th><th class=\"px-5 py-4 text-start\">{{ __('data_governance.audit.record') }}</th><th class=\"px-5 py-4 text-center\">{{ __('data_governance.audit.event') }}", $auditView);
