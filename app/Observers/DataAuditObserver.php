@@ -2,6 +2,12 @@
 
 namespace App\Observers;
 
+use App\Models\MemorizationSession;
+use App\Models\ParentProfile;
+use App\Models\QuranFinalTest;
+use App\Models\QuranPartialTest;
+use App\Models\QuranTest;
+use App\Models\Student;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Auth;
@@ -13,8 +19,21 @@ class DataAuditObserver
 {
     private const CONSECUTIVE_MODULE_WINDOW_SECONDS = 300;
 
+    private const HIDDEN_CREATED_MODELS = [
+        Student::class,
+        ParentProfile::class,
+        MemorizationSession::class,
+        QuranFinalTest::class,
+        QuranPartialTest::class,
+        QuranTest::class,
+    ];
+
     public function created(Model $model): void
     {
+        if (in_array($model::class, self::HIDDEN_CREATED_MODELS, true)) {
+            return;
+        }
+
         $this->record($model, 'created', [], $model->getAttributes());
     }
 

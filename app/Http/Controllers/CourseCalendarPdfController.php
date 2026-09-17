@@ -15,6 +15,7 @@ class CourseCalendarPdfController extends Controller
 {
     public function __invoke(Course $course, CourseCalendarService $calendarService, PdfBrandingService $branding): Response
     {
+        abort_unless($course->awards_points, 404);
         $course->loadMissing(['schedules', 'calendarEntries']);
 
         try {

@@ -2,6 +2,12 @@
 
 use App\Livewire\Concerns\AuthorizesPermissions;
 use App\Models\AppSetting;
+use App\Models\MemorizationSession;
+use App\Models\ParentProfile;
+use App\Models\QuranFinalTest;
+use App\Models\QuranPartialTest;
+use App\Models\QuranTest;
+use App\Models\Student;
 use App\Support\ApplicationTimezone;
 use App\Services\SidebarNavigationService;
 use Illuminate\Database\Eloquent\Builder;
@@ -47,8 +53,7 @@ new class extends Component {
         $currentPage = max(1, $this->getPage());
         $pageDescriptors = array_slice($bundleDescriptors, ($currentPage - 1) * $this->perPage, $this->perPage);
         $pageActivityIds = collect($pageDescriptors)->flatMap(fn (array $bundle): array => $bundle['ids'])->all();
-        $pageActivities = AuditActivity::query()
-            ->inLog('data-audit')
+        $pageActivities = $this->visibleActivitiesQuery()
             ->with(['causer', 'subject'])
             ->whereIn('id', $pageActivityIds)
             ->get()
@@ -82,8 +87,7 @@ new class extends Component {
         );
         $selectedActivities = $this->selectedActivityIds === []
             ? collect()
-            : AuditActivity::query()
-                ->inLog('data-audit')
+            : $this->visibleActivitiesQuery()
                 ->with(['causer', 'subject'])
                 ->whereIn('id', $this->selectedActivityIds)
                 ->latest('id')
@@ -93,14 +97,13 @@ new class extends Component {
             'activities' => $activities,
             'selectedActivities' => $selectedActivities,
             'selectedActivity' => $selectedActivities->first(),
-            'modules' => AuditActivity::query()->inLog('data-audit')->whereNotNull('subject_type')->distinct()->orderBy('subject_type')->pluck('subject_type'),
+            'modules' => $this->visibleActivitiesQuery()->whereNotNull('subject_type')->distinct()->orderBy('subject_type')->pluck('subject_type'),
         ];
     }
 
     protected function filteredActivitiesQuery(): Builder
     {
-        return AuditActivity::query()
-            ->inLog('data-audit')
+        return $this->visibleActivitiesQuery()
             ->when(filled($this->search), function (Builder $query): void {
                 $query->where(function (Builder $builder): void {
                     $builder->where('description', 'like', '%'.$this->search.'%')
@@ -115,6 +118,23 @@ new class extends Component {
             ->when(filled($this->fromDate), fn (Builder $query) => $query->whereDate('created_at', '>=', $this->fromDate))
             ->when(filled($this->toDate), fn (Builder $query) => $query->whereDate('created_at', '<=', $this->toDate))
             ->latest('id');
+    }
+
+    protected function visibleActivitiesQuery(): Builder
+    {
+        return AuditActivity::query()
+            ->inLog('data-audit')
+            ->where(function (Builder $query): void {
+                $query->where('event', '!=', 'created')
+                    ->orWhereNotIn('subject_type', [
+                        Student::class,
+                        ParentProfile::class,
+                        MemorizationSession::class,
+                        QuranFinalTest::class,
+                        QuranPartialTest::class,
+                        QuranTest::class,
+                    ]);
+            });
     }
 
     public function consecutiveActivityBundles(iterable $activities): array
@@ -195,8 +215,7 @@ new class extends Component {
             ->filter(fn (int $id): bool => $id > 0)
             ->unique()
             ->values();
-        $validIds = AuditActivity::query()
-            ->inLog('data-audit')
+        $validIds = $this->visibleActivitiesQuery()
             ->whereIn('id', $activityIds)
             ->latest('id')
             ->pluck('id')

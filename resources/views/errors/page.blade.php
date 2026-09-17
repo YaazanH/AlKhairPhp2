@@ -33,6 +33,7 @@
     <body>
         <main class="error-page" aria-labelledby="error-title">
             <div class="error-page__content">
+                <p class="error-page__label" aria-hidden="true">ERROR</p>
                 <p class="error-page__code" dir="ltr" aria-label="{{ __('errors.label', ['code' => $status]) }}">{{ $status }}</p>
                 <h1 class="error-page__title" id="error-title">{{ $copy['title'] }}</h1>
                 @if ($detail !== '')

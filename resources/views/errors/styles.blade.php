@@ -71,6 +71,29 @@
         max-width: 36rem;
     }
 
+    .error-page__label {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.75rem;
+        margin: 0 0 0.5rem;
+        color: var(--error-muted);
+        font-family: Tahoma, system-ui, sans-serif;
+        font-size: 0.8125rem;
+        font-weight: 700;
+        letter-spacing: 0.38em;
+        line-height: 1;
+    }
+
+    .error-page__label::before,
+    .error-page__label::after {
+        width: 2.25rem;
+        height: 1px;
+        background: currentColor;
+        content: '';
+        opacity: 0.45;
+    }
+
     .error-page__code {
         margin: 0 0 1rem;
         font-size: clamp(7rem, 18vw, 8.5rem);

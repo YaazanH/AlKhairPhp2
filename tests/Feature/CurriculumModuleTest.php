@@ -642,7 +642,7 @@ class CurriculumModuleTest extends TestCase
         $component = Volt::test('curricula.index')
             ->set('selectedGroupId', (string) $group->id)
             ->assertSee('data-teacher-curriculum-hero-actions', false)
-            ->assertSee('wire:click="openCustom"', false)
+            ->assertDontSee('wire:click="openCustom"', false)
             ->assertSee('Arabic book')
             ->assertSeeInOrder(['data-teacher-curriculum-completion-column', 'data-teacher-curriculum-chapter-column'], false)
             ->assertSee('data-teacher-curriculum-table', false)
@@ -675,9 +675,11 @@ class CurriculumModuleTest extends TestCase
 
         $css = file_get_contents(resource_path('css/app.css'));
         preg_match('/\.teacher-curriculum-lesson-title\s*\{(?<rules>[^}]*)\}/s', $css, $titleRules);
-        $this->assertStringContainsString('white-space: nowrap;', $titleRules['rules'] ?? '');
+        $this->assertStringContainsString('white-space: normal;', $titleRules['rules'] ?? '');
+        $this->assertStringContainsString('overflow-wrap: anywhere;', $titleRules['rules'] ?? '');
         $this->assertStringNotContainsString('overflow: hidden;', $titleRules['rules'] ?? '');
         $this->assertStringNotContainsString('text-overflow: ellipsis;', $titleRules['rules'] ?? '');
+        $this->assertStringContainsString(".teacher-curriculum-table-scroll {\n    display: block;\n    width: 100%;\n    max-width: 100%;\n    overflow: visible;", $css);
     }
 
     public function test_lesson_topics_are_collapsible_and_support_parent_or_individual_completion(): void

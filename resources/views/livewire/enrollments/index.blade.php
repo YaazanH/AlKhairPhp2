@@ -77,14 +77,7 @@ new class extends Component {
                 ->orderBy('first_name')
                 ->orderBy('last_name')
                 ->get(['id', 'parent_id', 'first_name', 'last_name', 'student_number']),
-            'groups' => $this->scopeGroupsQuery(Group::query()->with('course'))
-                ->when(! $this->editingId, fn ($query) => $query
-                    ->where('is_active', true)
-                    ->whereHas('course', fn ($courseQuery) => $courseQuery
-                        ->where('is_active', true)
-                        ->whereNull('finished_at')))
-                ->orderBy('name')
-                ->get(['id', 'course_id', 'name']),
+            'groups' => $this->formGroups(),
             'filterCourses' => Course::query()->where('is_active', true)->orderBy('name')->get(['id', 'name']),
             'filterGroups' => $this->scopeGroupsQuery(
                 Group::query()
@@ -147,6 +140,31 @@ new class extends Component {
         if (! $studentStillAvailable) {
             $this->student_id = null;
         }
+    }
+
+    protected function formGroups()
+    {
+        $query = $this->scopeGroupsQuery(Group::query()->with('course'));
+
+        if ($this->editingId) {
+            return $query->orderBy('name')->get(['id', 'course_id', 'name']);
+        }
+
+        $query
+            ->where('is_active', true)
+            ->whereHas('course', fn ($courseQuery) => $courseQuery
+                ->where('is_active', true)
+                ->whereNull('finished_at'));
+
+        if ($this->courseFilter !== 'all') {
+            $filteredCourseId = (int) $this->courseFilter;
+
+            if ((clone $query)->where('course_id', $filteredCourseId)->exists()) {
+                $query->where('course_id', $filteredCourseId);
+            }
+        }
+
+        return $query->orderBy('name')->get(['id', 'course_id', 'name']);
     }
 
     public function rules(): array

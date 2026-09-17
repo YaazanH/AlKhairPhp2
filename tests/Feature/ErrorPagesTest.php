@@ -90,6 +90,7 @@ class ErrorPagesTest extends TestCase
         $this->assertSame('60', $response->headers->get('Retry-After'));
         $this->assertStringContainsString('lang="'.$locale.'" dir="'.$direction.'"', $content);
         $this->assertStringContainsString(__('errors.label', ['code' => $status]), $content);
+        $this->assertStringContainsString('<p class="error-page__label" aria-hidden="true">ERROR</p>', $content);
         $this->assertStringContainsString(__('ui.app.name'), $content);
         $this->assertStringContainsString('id="error-title"', $content);
         $this->assertStringNotContainsString('Private exception details', $content);
@@ -169,8 +170,9 @@ class ErrorPagesTest extends TestCase
         $xpath = new DOMXPath($document);
 
         $this->assertSame(1, $xpath->query('//main')->length);
-        $this->assertSame(1, $xpath->query('//body//p')->length);
-        $this->assertSame('404', trim($xpath->query('//main//p')->item(0)->textContent));
+        $this->assertSame(2, $xpath->query('//body//p')->length);
+        $this->assertSame('ERROR', trim($xpath->query('//main//p')->item(0)->textContent));
+        $this->assertSame('404', trim($xpath->query('//main//p')->item(1)->textContent));
         $this->assertSame(1, $xpath->query('//h1')->length);
         $this->assertSame(1, $xpath->query('//a')->length);
         $this->assertSame(0, $xpath->query('//header | //footer | //nav | //aside | //form | //img | //svg')->length);

@@ -83,6 +83,9 @@ new class extends Component {
     public bool $showBulkStatusModal = false;
     public bool $showDuplicateStudentModal = false;
     public bool $showExternalTestModal = false;
+    public bool $showOrphanParentDeleteModal = false;
+    public ?int $orphanedParentId = null;
+    public string $orphanedParentName = '';
     public ?int $external_test_juz_id = null;
     public string $external_test_type = 'partial';
     public ?int $duplicateStudentId = null;
@@ -168,6 +171,7 @@ new class extends Component {
             'schools' => School::query()->where('is_active', true)->orderBy('name')->get(['name']),
             'filteredCount' => $filteredCount,
             'statuses' => ['active', 'inactive', 'graduated', 'blocked'],
+            'editableStatuses' => ['active', 'inactive'],
             'bulkCourses' => Course::query()
                 ->where('is_active', true)
                 ->whereIn('id', $this->scopeGroupsQuery(
@@ -480,7 +484,7 @@ new class extends Component {
             'external_memorized_juz_ids' => ['array'],
             'external_memorized_juz_ids.*' => ['integer', 'distinct', 'exists:quran_juzs,id'],
             'photo_path' => ['nullable', 'string', 'max:255'],
-            'status' => ['required', 'in:active,inactive,graduated,blocked'],
+            'status' => ['required', Rule::in($this->editingId ? ['active', 'inactive'] : ['active', 'inactive', 'graduated', 'blocked'])],
             'joined_at' => ['nullable', 'date'],
             'notes' => ['nullable', 'string'],
         ];
@@ -543,6 +547,8 @@ new class extends Component {
             $this->authorizeScopedStudentAccess($editingStudent);
             $qualityIssue = $this->duplicateQualityIssueFor('student', $this->editingId);
         }
+
+        $previousParentId = $editingStudent?->parent_id;
 
         $duplicate = ! $isEditing ? $this->findDuplicateStudent([
             'first_name' => $this->first_name,
@@ -738,6 +744,19 @@ new class extends Component {
         }
 
         $this->cancel();
+
+        if ($previousParentId && (int) $previousParentId !== (int) ($validated['parent_id'] ?? 0) && $this->canPermission('parents.delete')) {
+            $orphanedParent = ParentProfile::query()
+                ->whereKey($previousParentId)
+                ->whereDoesntHave('students')
+                ->first();
+
+            if ($orphanedParent) {
+                $this->orphanedParentId = $orphanedParent->id;
+                $this->orphanedParentName = $orphanedParent->father_name;
+                $this->showOrphanParentDeleteModal = true;
+            }
+        }
     }
 
     public function openQuickParentForm(): void
@@ -797,6 +816,35 @@ new class extends Component {
         $this->parent_id = null;
         $this->closeQuickParentForm();
         $this->resetValidation('parent_id');
+    }
+
+    public function keepOrphanedParentProfile(): void
+    {
+        $this->showOrphanParentDeleteModal = false;
+        $this->orphanedParentId = null;
+        $this->orphanedParentName = '';
+    }
+
+    public function deleteOrphanedParentProfile(): void
+    {
+        $this->authorizePermission('parents.delete');
+        abort_unless($this->orphanedParentId, 404);
+
+        $parent = ParentProfile::query()
+            ->with('user')
+            ->whereKey($this->orphanedParentId)
+            ->whereDoesntHave('students')
+            ->firstOrFail();
+        $this->authorizeScopedParentAccess($parent);
+
+        DB::transaction(function () use ($parent): void {
+            $linkedUser = $parent->user;
+            $parent->delete();
+            $linkedUser?->delete();
+        });
+
+        $this->keepOrphanedParentProfile();
+        session()->flash('status', __('crud.parents.messages.deleted'));
     }
 
     public function clearSelectedParent(): void
@@ -934,7 +982,7 @@ new class extends Component {
         $this->external_memorized_juz_ids = $student->externalMemorizedJuzs->pluck('id')->map(fn ($id) => (int) $id)->all();
         $this->external_memorized_juz_input = '';
         $this->photo_path = $student->photo_path ?? '';
-        $this->status = $student->status;
+        $this->status = $student->status === 'active' ? 'active' : 'inactive';
         $this->joined_at = $student->joined_at?->format('Y-m-d') ?? '';
         $this->notes = $student->notes ?? '';
         $this->enrollment_group_auto = false;
@@ -2448,7 +2496,7 @@ new class extends Component {
                     <div>
                         <label for="student-status" class="mb-1 block text-sm font-medium">{{ __('crud.students.form.fields.status') }}</label>
                         <select id="student-status" wire:model="status" class="w-full rounded-xl px-4 py-3 text-sm">
-                            @foreach ($statuses as $studentStatus)
+                            @foreach ($editableStatuses as $studentStatus)
                                 <option value="{{ $studentStatus }}">{{ __('crud.common.status_options.'.$studentStatus) }}</option>
                             @endforeach
                         </select>
@@ -2504,6 +2552,29 @@ new class extends Component {
                 <button type="submit" class="pill-link pill-link--accent">{{ __('crud.students.external_tests.create') }}</button>
             </div>
         </form>
+    </x-admin.modal>
+
+    <x-admin.modal
+        :show="$showOrphanParentDeleteModal"
+        :title="__('crud.students.orphan_parent.title')"
+        close-method="keepOrphanedParentProfile"
+        max-width="md"
+    >
+        <div class="space-y-5" data-orphan-parent-delete-modal>
+            <p class="text-sm leading-7 text-neutral-300">
+                {{ __('crud.students.orphan_parent.description', ['name' => $orphanedParentName]) }}
+            </p>
+            <div class="admin-action-cluster admin-action-cluster--end">
+                <button type="button" wire:click="keepOrphanedParentProfile" class="pill-link" data-orphan-parent-keep-action>
+                    {{ __('crud.students.orphan_parent.keep') }}
+                </button>
+                <x-delete-action-button
+                    wire:click="deleteOrphanedParentProfile"
+                    :label="__('crud.students.orphan_parent.delete')"
+                    data-orphan-parent-delete-action
+                />
+            </div>
+        </div>
     </x-admin.modal>
 
     <x-admin.modal

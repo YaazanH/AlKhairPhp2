@@ -346,7 +346,7 @@ new class extends Component {
                     <p class="mt-3 max-w-3xl text-neutral-300">{{ $selectedGroup?->curriculum?->name ?: __('curricula.progress.empty') }}</p>
                 @endif
             </div>
-            @if(! $isManager && $selectedGroup)<div class="flex items-center gap-2" data-teacher-curriculum-hero-actions><button wire:click="$set('showBooksModal', true)" class="pill-link pill-link--accent">{{ __('curricula.actions.download_books') }}</button><x-add-action-button wire:click="openCustom" :label="__('curricula.actions.add_custom_lesson')" /></div>@endif
+            @if(! $isManager && $selectedGroup)<div class="flex items-center gap-2" data-teacher-curriculum-hero-actions><button wire:click="$set('showBooksModal', true)" class="pill-link pill-link--accent">{{ __('curricula.actions.download_books') }}</button></div>@endif
         </div>
     </section>
     @if(session('status'))<div class="flash-success px-4 py-3 text-sm">{{ session('status') }}</div>@endif @error('delete')<div class="flash-error px-4 py-3 text-sm">{{ $message }}</div>@enderror

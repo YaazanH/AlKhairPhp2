@@ -447,6 +447,12 @@ return [
             'final' => 'Final saber',
             'create' => 'Create test',
         ],
+        'orphan_parent' => [
+            'title' => 'Delete unlinked parent profile?',
+            'description' => 'No students are now linked to :name. Would you like to delete this parent profile?',
+            'keep' => 'Keep parent profile',
+            'delete' => 'Delete parent profile',
+        ],
         'read_only' => [
             'title' => 'Student records',
             'description' => 'You can view student records, but you do not have permission to create or edit them.',

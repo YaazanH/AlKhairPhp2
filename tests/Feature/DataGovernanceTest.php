@@ -3,14 +3,19 @@
 namespace Tests\Feature;
 
 use App\Models\AppSetting;
-use App\Models\ParentProfile;
 use App\Models\DataQualityResolution;
+use App\Models\MemorizationSession;
+use App\Models\ParentProfile;
+use App\Models\QuranFinalTest;
+use App\Models\QuranPartialTest;
+use App\Models\QuranTest;
 use App\Models\Student;
 use App\Models\SystemBackup;
 use App\Models\User;
 use App\Services\DataQualityService;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Str;
 use Livewire\Volt\Volt;
 use Spatie\Activitylog\Models\Activity as AuditActivity;
 use Tests\TestCase;
@@ -69,9 +74,9 @@ class DataGovernanceTest extends TestCase
         $this->assertStringNotContainsString('statusFilter', $qualityView);
         $this->assertStringNotContainsString('data-quality-status', $qualityView);
         $this->assertStringNotContainsString("__('data_governance.quality.all_statuses')", $qualityView);
-        $this->assertStringNotContainsString("data_governance.quality.fields.notes", $qualityView);
+        $this->assertStringNotContainsString('data_governance.quality.fields.notes', $qualityView);
         $parentEditor = file_get_contents(resource_path('views/livewire/data-quality/partials/parent-editor.blade.php'));
-        $this->assertStringNotContainsString("data_governance.quality.fields.notes", $parentEditor);
+        $this->assertStringNotContainsString('data_governance.quality.fields.notes', $parentEditor);
         $this->assertStringContainsString("except(['deleted_at', 'notes'])", $qualityView);
 
         $auditView = file_get_contents(resource_path('views/livewire/data-audit/index.blade.php'));
@@ -134,13 +139,13 @@ class DataGovernanceTest extends TestCase
         $this->assertStringContainsString("__('data_governance.audit.record_deleted')", $auditView);
         $this->assertStringContainsString('<x-admin-action-icon name="delete" class="h-10 w-10 text-red-200" data-data-audit-deleted-icon />', $auditView);
         $this->assertStringNotContainsString('rowspan="{{ count($changedFields) }}"', $auditView);
-        $this->assertStringNotContainsString("json_encode(\$value", $auditView);
+        $this->assertStringNotContainsString('json_encode($value', $auditView);
         $this->assertSame('تم حذف السجل', trans('data_governance.audit.record_deleted', locale: 'ar'));
         $this->assertSame('لا يوجد سجل', trans('data_governance.audit.no_record', locale: 'ar'));
         $this->assertStringNotContainsString('class="max-w-xs break-words', $auditView);
         $this->assertStringContainsString("{{ __('data_governance.quality.high_priority') }}", $qualityView);
         $this->assertStringContainsString('data-data-quality-high-priority', $qualityView);
-        $this->assertStringContainsString("{{ number_format(\$highPriorityCount) }}", $qualityView);
+        $this->assertStringContainsString('{{ number_format($highPriorityCount) }}', $qualityView);
         $this->assertStringNotContainsString('data-data-quality-highlights', $qualityView);
         $this->assertStringNotContainsString("\$counts['open']", $qualityView);
         $this->assertStringNotContainsString("\$counts['resolved']", $qualityView);
@@ -331,6 +336,57 @@ class DataGovernanceTest extends TestCase
         $this->assertSame(1, substr_count(strip_tags($auditComponent->html()), 'تم حذف السجل'));
     }
 
+    public function test_profile_memorisation_and_saber_creation_events_are_hidden_but_edits_remain_visible(): void
+    {
+        $this->seed(RoleSeeder::class);
+        $admin = User::factory()->create();
+        $admin->assignRole('admin');
+        $this->actingAs($admin);
+
+        $parent = ParentProfile::query()->create([
+            'father_name' => 'Audit Parent',
+            'is_active' => true,
+        ]);
+        $student = Student::query()->create([
+            'parent_id' => $parent->id,
+            'first_name' => 'Audit',
+            'last_name' => 'Student',
+            'birth_date' => '2014-01-01',
+            'status' => 'active',
+        ]);
+        $student->update(['first_name' => 'Edited Audit']);
+
+        $hiddenCreatedTypes = [
+            Student::class,
+            ParentProfile::class,
+            MemorizationSession::class,
+            QuranFinalTest::class,
+            QuranPartialTest::class,
+            QuranTest::class,
+        ];
+
+        foreach ($hiddenCreatedTypes as $index => $subjectType) {
+            AuditActivity::query()->create([
+                'log_name' => 'data-audit',
+                'description' => 'created '.class_basename($subjectType),
+                'event' => 'created',
+                'subject_type' => $subjectType,
+                'subject_id' => 1000 + $index,
+                'causer_type' => User::class,
+                'causer_id' => $admin->id,
+                'properties' => ['before' => [], 'after' => ['id' => 1000 + $index]],
+            ]);
+        }
+
+        $this->assertFalse(AuditActivity::query()->inLog('data-audit')->where('event', 'created')->where('subject_type', ParentProfile::class)->where('subject_id', $parent->id)->exists());
+        $this->assertFalse(AuditActivity::query()->inLog('data-audit')->where('event', 'created')->where('subject_type', Student::class)->where('subject_id', $student->id)->exists());
+
+        Volt::test('data-audit.index')
+            ->assertViewHas('activities', fn ($activities): bool => $activities->total() === 1
+                && $activities->first()['event'] === 'updated'
+                && $activities->first()['subject_type'] === Student::class);
+    }
+
     public function test_consecutive_edits_in_one_module_are_grouped_with_all_record_changes(): void
     {
         $this->seed(RoleSeeder::class);
@@ -514,7 +570,7 @@ class DataGovernanceTest extends TestCase
         $admin->assignRole('admin');
         $this->actingAs($admin);
 
-        $uuid = (string) \Illuminate\Support\Str::uuid();
+        $uuid = (string) Str::uuid();
         $path = 'backups/example.alkhair-backup';
         $backup = SystemBackup::query()->create([
             'uuid' => $uuid,
