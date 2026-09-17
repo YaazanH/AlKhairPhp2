@@ -3040,6 +3040,83 @@ document.addEventListener('livewire:initialized', () => {
     });
 });
 
+function livewireBoundModelName(element) {
+    return Array.from(element?.attributes || [])
+        .find((attribute) => attribute.name.startsWith('wire:model'))
+        ?.value || '';
+}
+
+function isLivewireSearchInput(element) {
+    if (!(element instanceof HTMLInputElement)) {
+        return false;
+    }
+
+    const model = livewireBoundModelName(element);
+
+    return /(^|[._-])search($|[._-])/i.test(model);
+}
+
+function findLivewireSearchInput(component, state) {
+    if (state.id) {
+        const input = document.getElementById(state.id);
+
+        if (input instanceof HTMLInputElement && component.el.contains(input)) {
+            return input;
+        }
+    }
+
+    return Array.from(component.el.querySelectorAll('input'))
+        .find((input) => livewireBoundModelName(input) === state.model) || null;
+}
+
+function restoreLivewireSearchFocus(component, state) {
+    const input = findLivewireSearchInput(component, state);
+
+    if (!(input instanceof HTMLInputElement) || document.activeElement === input) {
+        return;
+    }
+
+    // Do not steal focus when the user deliberately moved to another control
+    // while the debounced table request was in flight.
+    if (document.activeElement && document.activeElement !== document.body) {
+        return;
+    }
+
+    input.focus({ preventScroll: true });
+
+    if (state.selectionStart === null || state.selectionEnd === null) {
+        return;
+    }
+
+    try {
+        input.setSelectionRange(state.selectionStart, state.selectionEnd, state.selectionDirection || 'none');
+    } catch (_error) {
+        // Input types without text selection still keep the restored focus.
+    }
+}
+
+document.addEventListener('livewire:initialized', () => {
+    window.Livewire?.hook('commit', ({ component, succeed }) => {
+        const input = document.activeElement;
+
+        if (!isLivewireSearchInput(input) || !component.el.contains(input)) {
+            return;
+        }
+
+        const state = {
+            id: input.id,
+            model: livewireBoundModelName(input),
+            selectionStart: input.selectionStart,
+            selectionEnd: input.selectionEnd,
+            selectionDirection: input.selectionDirection,
+        };
+
+        succeed(() => {
+            window.requestAnimationFrame(() => restoreLivewireSearchFocus(component, state));
+        });
+    });
+});
+
 const mobileTableFilterObserver = new MutationObserver((mutations) => {
     const selector = '.admin-grid-meta--controls .admin-toolbar__controls, [data-mobile-table-filter-controls]';
     const shouldInitialize = mutations.some((mutation) => {

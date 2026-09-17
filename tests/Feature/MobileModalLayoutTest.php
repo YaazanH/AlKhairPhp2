@@ -38,6 +38,18 @@ class MobileModalLayoutTest extends TestCase
         $this->assertStringContainsString("closeSearchableSelect(wrapper);\n            wrapper.remove();", $script);
     }
 
+    public function test_livewire_table_search_restores_focus_after_a_debounced_update(): void
+    {
+        $script = file_get_contents(resource_path('js/app.js'));
+
+        $this->assertStringContainsString('function isLivewireSearchInput(element)', $script);
+        $this->assertStringContainsString("window.Livewire?.hook('commit', ({ component, succeed }) =>", $script);
+        $this->assertStringContainsString('window.requestAnimationFrame(() => restoreLivewireSearchFocus(component, state));', $script);
+        $this->assertStringContainsString('input.focus({ preventScroll: true });', $script);
+        $this->assertStringContainsString('input.setSelectionRange(state.selectionStart, state.selectionEnd', $script);
+        $this->assertStringContainsString('document.activeElement !== document.body', $script);
+    }
+
     public function test_phone_input_marks_its_compound_control_as_a_single_field(): void
     {
         $html = Blade::render('<x-phone-input model="phone" value="+963933333333" />');
