@@ -39,7 +39,7 @@
                 @if ($detail !== '')
                     <p class="error-page__detail">{{ $detail }}</p>
                 @endif
-                <a class="error-page__home" href="{{ url('/') }}">{{ __('errors.actions.home') }}</a>
+                <a class="error-page__home" href="{{ url('/login') }}">{{ __('errors.actions.login') }}</a>
             </div>
         </main>
     </body>

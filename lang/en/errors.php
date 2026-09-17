@@ -3,7 +3,7 @@
 return [
     'label' => 'Error :code',
     'actions' => [
-        'home' => 'Go Home',
+        'login' => 'Return to the login page',
     ],
     'pages' => [
         401 => ['title' => 'Please sign in'],
