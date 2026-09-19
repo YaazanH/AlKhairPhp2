@@ -4,7 +4,10 @@ namespace App\Services;
 
 use App\Models\AppSetting;
 use App\Models\Group;
+use App\Models\Landlord\Feature;
 use App\Models\User;
+use App\Services\Landlord\TenantContext;
+use App\Services\Landlord\TenantFeatureAccess;
 use App\Support\OperationalFeatureSettings;
 
 class SidebarNavigationService
@@ -248,11 +251,17 @@ class SidebarNavigationService
         $groups = [];
         $defaultGroups = $this->defaultGroups();
         $activeTeacherGroup = $this->activeTeacherGroup($user);
+        $tenantContext = app(TenantContext::class);
 
         foreach ($settings['groups'] as $groupKey => $groupDefinition) {
             $items = [];
 
             foreach ($this->defaultItems() as $itemKey => $itemDefinition) {
+                if ($tenantContext->hasTenant()
+                    && ($feature = $this->requiredTenantFeature($itemKey)) !== null
+                    && ! app(TenantFeatureAccess::class)->isEnabled($tenantContext->tenant(), $feature)) {
+                    continue;
+                }
                 if ($itemKey === 'finance_pull_requests' && ! $this->withdrawalRequestsEnabled()) {
                     continue;
                 }
@@ -355,6 +364,17 @@ class SidebarNavigationService
         }
 
         return false;
+    }
+
+    protected function requiredTenantFeature(string $itemKey): ?string
+    {
+        if (str_starts_with($itemKey, 'finance_') || $itemKey === 'finance_settings') {
+            return Feature::FINANCE;
+        }
+
+        return in_array($itemKey, ['print_templates', 'id_card_print'], true)
+            ? Feature::CUSTOM_PRINTING
+            : null;
     }
 
     protected function activeTeacherGroup(User $user): ?Group

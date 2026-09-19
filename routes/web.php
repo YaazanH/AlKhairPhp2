@@ -13,14 +13,15 @@ use App\Http\Controllers\FinanceInvoicePrintController;
 use App\Http\Controllers\FinanceRequestPrintController;
 use App\Http\Controllers\IdCards\IdCardBarcodePreviewController;
 use App\Http\Controllers\IdCards\IdCardTemplateController;
+use App\Http\Controllers\Platform\PlanManagementController;
+use App\Http\Controllers\Platform\PlatformAuthenticatedSessionController;
+use App\Http\Controllers\Platform\PlatformDashboardController;
+use App\Http\Controllers\Platform\TenantManagementController;
+use App\Http\Controllers\Platform\TenantProvisioningController;
+use App\Http\Controllers\Platform\TenantSubscriptionController;
 use App\Http\Controllers\PrintController;
 use App\Http\Controllers\PrintTemplates\PrintTemplateController;
 use App\Http\Controllers\PrintTemplates\PrintTemplatePrintController;
-use App\Http\Controllers\Platform\PlatformAuthenticatedSessionController;
-use App\Http\Controllers\Platform\PlatformDashboardController;
-use App\Http\Controllers\Platform\TenantProvisioningController;
-use App\Http\Controllers\Platform\TenantManagementController;
-use App\Http\Controllers\Platform\TenantSubscriptionController;
 use App\Http\Controllers\ReportExportController;
 use App\Http\Controllers\StudentAttendanceExportController;
 use App\Http\Controllers\SystemBackupDownloadController;
@@ -45,11 +46,14 @@ Route::prefix('platform')->name('platform.')->group(function (): void {
 
     Route::middleware('platform.auth')->group(function (): void {
         Route::get('/', PlatformDashboardController::class)->name('dashboard');
+        Route::get('packages', [PlanManagementController::class, 'index'])->name('plans.index');
+        Route::put('packages/{plan}', [PlanManagementController::class, 'update'])->name('plans.update');
         Route::post('tenants', [TenantProvisioningController::class, 'store'])->name('tenants.store');
         Route::get('tenants/create', [TenantManagementController::class, 'create'])->name('tenants.create');
         Route::get('tenants/{tenant}/edit', [TenantManagementController::class, 'edit'])->name('tenants.edit');
         Route::put('tenants/{tenant}', [TenantManagementController::class, 'update'])->name('tenants.update');
         Route::patch('tenants/{tenant}/status', [TenantManagementController::class, 'setStatus'])->name('tenants.status');
+        Route::put('tenants/{tenant}/administrator-password', [TenantManagementController::class, 'resetAdministratorPassword'])->name('tenants.administrator-password');
         Route::delete('tenants/{tenant}', [TenantManagementController::class, 'destroy'])->name('tenants.destroy');
         Route::put('tenants/{tenant}/subscription', [TenantSubscriptionController::class, 'update'])->name('tenants.subscription.update');
         Route::post('logout', [PlatformAuthenticatedSessionController::class, 'destroy'])->name('logout');

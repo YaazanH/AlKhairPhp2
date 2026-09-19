@@ -2,8 +2,9 @@
 
 namespace Tests\Feature;
 
-use App\Models\Landlord\PlatformAdministrator;
+use App\Models\Landlord\Feature;
 use App\Models\Landlord\Plan;
+use App\Models\Landlord\PlatformAdministrator;
 use App\Models\Landlord\Tenant;
 use Database\Seeders\LandlordCatalogSeeder;
 use Illuminate\Console\Command;
@@ -187,6 +188,33 @@ class PlatformAdministrationTest extends TestCase
             'tenant_id' => $tenant->id,
             'event' => 'tenant_subscription_updated',
         ], 'landlord');
+    }
+
+    public function test_platform_administrator_can_choose_the_features_in_a_package(): void
+    {
+        $this->seed(LandlordCatalogSeeder::class);
+        $administrator = PlatformAdministrator::query()->create([
+            'uuid' => (string) Str::uuid(),
+            'name' => 'Platform Administrator',
+            'email' => 'platform@example.test',
+            'password' => 'secret-password',
+        ]);
+        $plan = Plan::query()->where('code', 'core_finance_printing')->sole();
+
+        $this->actingAs($administrator, 'platform')
+            ->put(route('platform.plans.update', $plan), [
+                'name' => 'Finance only',
+                'features' => [Feature::FINANCE],
+                'is_active' => '1',
+            ])
+            ->assertRedirect()
+            ->assertSessionHas('status', 'Package saved successfully.');
+
+        $this->assertSame('Finance only', $plan->fresh()->name);
+        $this->assertEqualsCanonicalizing(
+            [Feature::CORE, Feature::FINANCE],
+            $plan->fresh()->features()->pluck('code')->all(),
+        );
     }
 
     public function test_platform_administrator_can_edit_and_suspend_a_tenant(): void

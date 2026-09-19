@@ -11,15 +11,22 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class TenantManagementController extends Controller
 {
-    public function create(): View { return view('platform.tenants.create'); }
+    public function create(): View
+    {
+        return view('platform.tenants.create');
+    }
 
-    public function edit(Tenant $tenant): View { return view('platform.tenants.edit', compact('tenant')); }
+    public function edit(Tenant $tenant): View
+    {
+        return view('platform.tenants.edit', compact('tenant'));
+    }
 
     public function update(Request $request, Tenant $tenant): RedirectResponse
     {
@@ -45,6 +52,31 @@ class TenantManagementController extends Controller
         $this->audit($request, $tenant, 'tenant_status_updated', ['status' => $data['status']]);
 
         return back()->with('status', __('platform.tenant.status_updated'));
+    }
+
+    public function resetAdministratorPassword(Request $request, Tenant $tenant): RedirectResponse
+    {
+        $data = $request->validate(['password' => ['required', 'string', 'min:8', 'confirmed']]);
+        abort_unless(filled($tenant->database_name), 422, 'This tenant has not been provisioned yet.');
+        $previousDatabase = config('database.connections.tenant.database');
+
+        try {
+            config()->set('database.connections.tenant.database', $tenant->database_name);
+            DB::purge('tenant');
+            $administrator = DB::connection('tenant')->table('users')
+                ->join('model_has_roles', fn ($join) => $join->on('model_has_roles.model_id', '=', 'users.id')->where('model_has_roles.model_type', 'App\\Models\\User'))
+                ->join('roles', 'roles.id', '=', 'model_has_roles.role_id')
+                ->where('roles.name', 'admin')->orderBy('users.id')->select('users.id', 'users.email')->first();
+            abort_unless($administrator, 404, 'The tenant administrator account was not found.');
+            DB::connection('tenant')->table('users')->where('id', $administrator->id)->update(['password' => Hash::make($data['password']), 'remember_token' => null, 'updated_at' => now()]);
+        } finally {
+            config()->set('database.connections.tenant.database', $previousDatabase);
+            DB::purge('tenant');
+        }
+
+        $this->audit($request, $tenant, 'tenant_administrator_password_reset', ['email' => $administrator->email]);
+
+        return back()->with('status', 'Tenant administrator password reset successfully.');
     }
 
     public function destroy(Request $request, Tenant $tenant, TenantStorage $storage): RedirectResponse
