@@ -447,6 +447,12 @@ return [
             'final' => 'Final saber',
             'create' => 'Create test',
         ],
+        'orphan_parent' => [
+            'title' => 'Delete unlinked parent profile?',
+            'description' => 'No students are now linked to :name. Would you like to delete this parent profile?',
+            'keep' => 'Keep parent profile',
+            'delete' => 'Delete parent profile',
+        ],
         'read_only' => [
             'title' => 'Student records',
             'description' => 'You can view student records, but you do not have permission to create or edit them.',
@@ -839,6 +845,7 @@ return [
             'already_active' => 'This student already has an active enrolment. Complete or cancel it before creating another one.',
             'inactive_student' => 'Only active students can be enrolled.',
             'inactive_group' => 'A new enrolment can only be created in an active group within an active course.',
+            'different_course' => 'Choose a group from the enrolment course.',
         ],
     ],
 ];

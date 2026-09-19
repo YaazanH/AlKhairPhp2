@@ -1953,14 +1953,12 @@ html[dir='rtl'] .group-show-details {
     display: block;
     width: 100%;
     max-width: 100%;
-    overflow-x: auto;
-    overflow-y: hidden;
-    overscroll-behavior-x: contain;
+    overflow: visible;
 }
 
 .teacher-curriculum-table {
-    width: max-content;
-    min-width: 100%;
+    width: 100%;
+    table-layout: fixed;
     border-collapse: collapse;
     text-align: start;
 }
@@ -1978,7 +1976,8 @@ html[dir='rtl'] .group-show-details {
 
 .teacher-curriculum-table th {
     min-height: 2.75rem;
-    white-space: nowrap;
+    overflow-wrap: anywhere;
+    white-space: normal;
 }
 
 .teacher-curriculum-completion-column {
@@ -1999,7 +1998,6 @@ html[dir='rtl'] .group-show-details {
 }
 
 .teacher-curriculum-lesson-heading {
-    min-width: 22rem;
     text-align: start;
 }
 
@@ -2018,7 +2016,7 @@ html[dir='rtl'] .group-show-details {
 }
 
 .teacher-curriculum-lesson-column {
-    min-width: 22rem;
+    min-width: 0;
 }
 
 .teacher-curriculum-lesson-cell {
@@ -2029,8 +2027,8 @@ html[dir='rtl'] .group-show-details {
 }
 
 .teacher-curriculum-lesson-content {
-    min-width: max-content;
-    flex: 1 0 auto;
+    min-width: 0;
+    flex: 1 1 auto;
 }
 
 .teacher-curriculum-lesson-line {
@@ -2039,14 +2037,15 @@ html[dir='rtl'] .group-show-details {
     align-items: baseline;
     justify-content: space-between;
     gap: 1rem;
-    white-space: nowrap;
+    flex-wrap: wrap;
 }
 
 .teacher-curriculum-lesson-title {
     color: var(--app-text);
     font-size: 0.875rem;
     font-weight: 500;
-    white-space: nowrap;
+    overflow-wrap: anywhere;
+    white-space: normal;
 }
 
 .teacher-curriculum-topic-toggle {

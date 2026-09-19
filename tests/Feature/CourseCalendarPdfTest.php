@@ -175,6 +175,25 @@ class CourseCalendarPdfTest extends TestCase
         $this->assertSame(1, preg_match_all('~/Type\s*/Page\b~', $response->getContent()));
     }
 
+    public function test_course_without_points_cannot_open_a_calendar_pdf(): void
+    {
+        $course = Course::create([
+            'name' => 'No points calendar',
+            'starts_on' => '2026-09-01',
+            'ends_on' => '2027-05-31',
+            'is_active' => true,
+            'awards_points' => false,
+        ]);
+
+        $this
+            ->withoutMiddleware([
+                Authenticate::class,
+                PermissionMiddleware::class,
+            ])
+            ->get(route('courses.calendar.pdf', $course))
+            ->assertNotFound();
+    }
+
     public function test_overlong_calendar_text_uses_an_asterisk_without_resizing_day_columns(): void
     {
         app()->setLocale('ar');
@@ -216,7 +235,7 @@ class CourseCalendarPdfTest extends TestCase
         $this->assertGreaterThan($editPosition, $calendarPosition);
         $this->assertStringNotContainsString('data-course-form-calendar-action', $source);
         $this->assertStringContainsString('wire:click="openCourseCalendar({{ $course->id }})"', $source);
-        $this->assertStringContainsString("route('courses.calendar.pdf', \$calendarCourseId)", $source);
+        $this->assertStringContainsString("route('courses.calendar.pdf', \$courseId)", $source);
         $this->assertStringContainsString("title=\"{{ __('crud.courses.actions.calendar') }}\"", $source);
         $this->assertStringContainsString("aria-label=\"{{ __('crud.courses.actions.calendar') }}\"", $source);
         $this->assertStringContainsString('<x-admin-action-icon name="calendar"', $source);
@@ -224,6 +243,11 @@ class CourseCalendarPdfTest extends TestCase
         $this->assertStringContainsString('wire:click="saveCourseCalendar" class="admin-modal__close"', $source);
         $this->assertStringContainsString('<span aria-hidden="true">&times;</span>', $source);
         $this->assertStringContainsString('data-course-calendar-pdf-action', $source);
+        $this->assertStringContainsString('wire:click="saveCourseCalendarAndOpenPdf"', $source);
+        $this->assertStringContainsString('x-on:click="beginCalendarPdf()"', $source);
+        $this->assertStringContainsString('x-on:course-calendar-saved.window="showCalendarPdf($event.detail.url)"', $source);
+        $this->assertStringContainsString('data-course-calendar-color-options', $source);
+        $this->assertStringNotContainsString('type="color"', $source);
         $this->assertStringNotContainsString('close-method="closeCourseCalendar"', $source);
         $this->assertGreaterThan(
             strpos($source, 'data-course-calendar-pdf-action'),
@@ -286,7 +310,7 @@ class CourseCalendarPdfTest extends TestCase
         $this->assertStringNotContainsString("if (\$day['in_month'] && \$day['is_end'])", $calendarTemplate);
         $this->assertStringContainsString("@if(\$day['in_month'] && \$visibleMarkerLines !== [])", $calendarTemplate);
         $this->assertStringContainsString("'background-color: rgba(%d, %d, %d, 0.24); color: %s;'", $calendarTemplate);
-        $this->assertStringContainsString("\$dayCellStyle = \$eventCellStyle(\$eventColor);", $calendarTemplate);
+        $this->assertStringContainsString('$dayCellStyle = $eventCellStyle($eventColor);', $calendarTemplate);
         $this->assertStringContainsString("\$dayCellStyle .= ' height: '.\$monthCellHeight.'mm;'", $calendarTemplate);
         $this->assertStringContainsString('hexdec(substr($color, 1, 2)) * 0.52', $calendarTemplate);
         $this->assertStringContainsString('font-size: 15px;', $calendarTemplate);

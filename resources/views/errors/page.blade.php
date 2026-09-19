@@ -33,12 +33,13 @@
     <body>
         <main class="error-page" aria-labelledby="error-title">
             <div class="error-page__content">
+                <p class="error-page__label" aria-hidden="true">ERROR</p>
                 <p class="error-page__code" dir="ltr" aria-label="{{ __('errors.label', ['code' => $status]) }}">{{ $status }}</p>
                 <h1 class="error-page__title" id="error-title">{{ $copy['title'] }}</h1>
                 @if ($detail !== '')
                     <p class="error-page__detail">{{ $detail }}</p>
                 @endif
-                <a class="error-page__home" href="{{ url('/') }}">{{ __('errors.actions.home') }}</a>
+                <a class="error-page__home" href="{{ url('/login') }}">{{ __('errors.actions.login') }}</a>
             </div>
         </main>
     </body>

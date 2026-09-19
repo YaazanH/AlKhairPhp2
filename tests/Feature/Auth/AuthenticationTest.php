@@ -27,6 +27,33 @@ class AuthenticationTest extends TestCase
             ->assertHeader('Cache-Control', 'max-age=0, must-revalidate, no-cache, no-store, private');
     }
 
+    public function test_stale_remember_cookie_is_discarded_without_breaking_the_login_screen(): void
+    {
+        $user = User::factory()->create(['remember_token' => null]);
+        $recallerName = Auth::guard()->getRecallerName();
+        $staleRecaller = implode('|', [$user->getAuthIdentifier(), 'stale-token', $user->getAuthPassword()]);
+
+        $this->withCookie($recallerName, $staleRecaller)
+            ->get('/login')
+            ->assertOk()
+            ->assertCookieExpired($recallerName);
+
+        $this->assertGuest();
+    }
+
+    public function test_valid_remember_cookie_still_authenticates_the_user(): void
+    {
+        $user = User::factory()->create(['remember_token' => 'current-remember-token']);
+        $recallerName = Auth::guard()->getRecallerName();
+        $validRecaller = implode('|', [$user->getAuthIdentifier(), 'current-remember-token', $user->getAuthPassword()]);
+
+        $this->withCookie($recallerName, $validRecaller)
+            ->get('/dashboard')
+            ->assertOk();
+
+        $this->assertAuthenticatedAs($user);
+    }
+
     public function test_users_can_authenticate_using_the_login_screen(): void
     {
         $user = User::factory()->create([

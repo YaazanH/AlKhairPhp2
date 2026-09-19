@@ -38,6 +38,18 @@ class MobileModalLayoutTest extends TestCase
         $this->assertStringContainsString("closeSearchableSelect(wrapper);\n            wrapper.remove();", $script);
     }
 
+    public function test_livewire_table_search_restores_focus_after_a_debounced_update(): void
+    {
+        $script = file_get_contents(resource_path('js/app.js'));
+
+        $this->assertStringContainsString('function isLivewireSearchInput(element)', $script);
+        $this->assertStringContainsString("window.Livewire?.hook('commit', ({ component, succeed }) =>", $script);
+        $this->assertStringContainsString('window.requestAnimationFrame(() => restoreLivewireSearchFocus(component, state));', $script);
+        $this->assertStringContainsString('input.focus({ preventScroll: true });', $script);
+        $this->assertStringContainsString('input.setSelectionRange(state.selectionStart, state.selectionEnd', $script);
+        $this->assertStringContainsString('document.activeElement !== document.body', $script);
+    }
+
     public function test_phone_input_marks_its_compound_control_as_a_single_field(): void
     {
         $html = Blade::render('<x-phone-input model="phone" value="+963933333333" />');
@@ -69,13 +81,15 @@ class MobileModalLayoutTest extends TestCase
         $this->assertStringContainsString("clear.classList.add('formatted-date-input__clear-icon')", $script);
         $this->assertStringContainsString("clear.textContent = '×'", $script);
         $this->assertStringContainsString('function restoreFormattedDatePicker(picker)', $script);
-        $this->assertStringContainsString("if (!hasDateIcons) picker.replaceChildren(createDatePickerIcon(), createDateClearIcon())", $script);
+        $this->assertStringContainsString('if (!hasDateIcons) picker.replaceChildren(createDatePickerIcon(), createDateClearIcon())', $script);
         $this->assertStringContainsString("picker.dataset.modalActionIconIgnore = 'true'", $script);
         $this->assertStringContainsString("if (action.closest('.formatted-date-input')) {", $script);
         $this->assertStringContainsString('restoreFormattedDatePicker(action);', $script);
         $this->assertStringContainsString("const clearable = input.dataset.clearable !== 'false';", $script);
         $this->assertStringContainsString("if (input.value === '' || !clearable)", $script);
         $this->assertStringContainsString("wrapper.classList.toggle('formatted-date-input--has-value', clearable && !isEmpty)", $script);
+        $this->assertStringContainsString("window.Livewire?.hook('commit', ({ succeed }) =>", $script);
+        $this->assertStringContainsString('succeed(() => window.setTimeout(syncFormattedDateInputsAfterCommit));', $script);
         $this->assertStringContainsString("input.dispatchEvent(new Event('change', { bubbles: true }))", $script);
         $this->assertStringContainsString("display.classList.toggle('date-input--empty', isEmpty)", $script);
         $this->assertStringContainsString("display.classList.toggle('date-input--filled', !isEmpty)", $script);

@@ -2,9 +2,11 @@
 
 use App\Http\Middleware\ApplyApplicationTimezone;
 use App\Http\Middleware\AuthenticatePlatform;
+use App\Http\Middleware\DiscardInvalidRememberCookie;
 use App\Http\Middleware\EnsureTenantFeature;
 use App\Http\Middleware\MeasurePerformance;
 use App\Http\Middleware\PreventPageCaching;
+use App\Http\Middleware\RedirectToCanonicalHost;
 use App\Http\Middleware\ResolveTenantFromHost;
 use App\Http\Middleware\SetLocale;
 use Illuminate\Foundation\Application;
@@ -29,12 +31,17 @@ return Application::configure(basePath: dirname(__DIR__))
         __DIR__.'/../app/Console/Commands',
     ])
     ->withMiddleware(function (Middleware $middleware) {
+        // Keep one browser-session origin in production. Serving both the www
+        // and apex hosts creates separate cookies and inconsistent auth state.
+        $middleware->prepend(RedirectToCanonicalHost::class);
+
         // Keep browser and API requests on the organization timezone. Console
         // and scheduled commands receive the same setting during provider boot.
         $middleware->prepend(ResolveTenantFromHost::class);
         $middleware->append(ApplyApplicationTimezone::class);
 
         $middleware->web(append: [
+            DiscardInvalidRememberCookie::class,
             SetLocale::class,
             MeasurePerformance::class,
         ]);

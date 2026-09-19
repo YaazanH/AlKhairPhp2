@@ -1161,6 +1161,29 @@ class ManagementCrudTest extends TestCase
             ->assertDontSee('id="student-status"', false);
     }
 
+    public function test_student_edit_status_only_offers_active_and_inactive(): void
+    {
+        $this->signIn();
+
+        $student = Student::create([
+            'first_name' => 'Legacy',
+            'last_name' => 'Blocked',
+            'birth_date' => '2014-01-01',
+            'status' => 'blocked',
+        ]);
+
+        $component = Volt::test('students.index')
+            ->call('edit', $student->id)
+            ->assertSet('status', 'inactive')
+            ->assertViewHas('editableStatuses', ['active', 'inactive']);
+
+        preg_match('/<select id="student-status".*?<\/select>/s', $component->html(), $statusSelect);
+        $this->assertStringContainsString('value="active"', $statusSelect[0] ?? '');
+        $this->assertStringContainsString('value="inactive"', $statusSelect[0] ?? '');
+        $this->assertStringNotContainsString('value="graduated"', $statusSelect[0] ?? '');
+        $this->assertStringNotContainsString('value="blocked"', $statusSelect[0] ?? '');
+    }
+
     public function test_student_form_calculates_the_grade_and_manages_previously_memorized_juz_chips(): void
     {
         $this->signIn();
@@ -1324,6 +1347,43 @@ class ManagementCrudTest extends TestCase
         $styles = file_get_contents(resource_path('css/app.css'));
         $this->assertStringContainsString("html[dir='rtl'] [data-teacher-profile-account-form] .admin-collapsible__summary::before", $styles);
         $this->assertStringContainsString("content: '‹';", $styles);
+    }
+
+    public function test_unlinking_a_students_last_parent_relationship_offers_to_delete_the_parent_profile(): void
+    {
+        $this->signIn();
+
+        $parent = ParentProfile::create([
+            'father_name' => 'Orphaned Parent',
+            'is_active' => true,
+        ]);
+        $student = Student::create([
+            'parent_id' => $parent->id,
+            'first_name' => 'Linked',
+            'last_name' => 'Student',
+            'birth_date' => '2014-01-01',
+            'status' => 'active',
+        ]);
+
+        $component = Volt::test('students.index')
+            ->call('edit', $student->id)
+            ->call('removeParentRelationship')
+            ->call('save')
+            ->assertHasNoErrors()
+            ->assertSet('showOrphanParentDeleteModal', true)
+            ->assertSet('orphanedParentId', $parent->id)
+            ->assertSee('data-orphan-parent-delete-modal', false)
+            ->assertSee('data-orphan-parent-keep-action', false)
+            ->assertSee('data-orphan-parent-delete-action', false);
+
+        $this->assertNull($student->fresh()->parent_id);
+        $this->assertDatabaseHas('parents', ['id' => $parent->id]);
+
+        $component
+            ->call('deleteOrphanedParentProfile')
+            ->assertSet('showOrphanParentDeleteModal', false);
+
+        $this->assertSoftDeleted('parents', ['id' => $parent->id]);
     }
 
     public function test_editing_parent_with_duplicate_primary_phone_uses_another_available_phone_for_the_linked_user(): void
@@ -1707,6 +1767,8 @@ class ManagementCrudTest extends TestCase
             'is_active' => true,
         ]);
         $activeCourse = Course::create(['name' => 'Active Picker Course', 'is_active' => true]);
+        $otherActiveCourse = Course::create(['name' => 'Other Active Picker Course', 'is_active' => true]);
+        $emptyActiveCourse = Course::create(['name' => 'Empty Active Picker Course', 'is_active' => true]);
         $inactiveCourse = Course::create(['name' => 'Inactive Picker Course', 'is_active' => false]);
 
         $zuluGroup = Group::create([
@@ -1733,6 +1795,14 @@ class ManagementCrudTest extends TestCase
             'capacity' => 20,
             'is_active' => false,
         ]);
+        $otherGroup = Group::create([
+            'course_id' => $otherActiveCourse->id,
+            'academic_year_id' => $year->id,
+            'teacher_id' => $teacher->id,
+            'name' => 'Other Course Group',
+            'capacity' => 20,
+            'is_active' => true,
+        ]);
         Group::create([
             'course_id' => $inactiveCourse->id,
             'academic_year_id' => $year->id,
@@ -1758,7 +1828,11 @@ class ManagementCrudTest extends TestCase
             ->call('openCreateModal')
             ->assertSet('enrolled_at', now()->toDateString())
             ->assertViewHas('students', fn ($students) => $students->pluck('id')->all() === [$student->id])
-            ->assertViewHas('groups', fn ($groups) => $groups->pluck('id')->all() === [$alphaGroup->id, $zuluGroup->id]);
+            ->assertViewHas('groups', fn ($groups) => $groups->pluck('id')->all() === [$alphaGroup->id, $otherGroup->id, $zuluGroup->id])
+            ->set('courseFilter', (string) $activeCourse->id)
+            ->assertViewHas('groups', fn ($groups) => $groups->pluck('id')->all() === [$alphaGroup->id, $zuluGroup->id])
+            ->set('courseFilter', (string) $emptyActiveCourse->id)
+            ->assertViewHas('groups', fn ($groups) => $groups->pluck('id')->all() === [$alphaGroup->id, $otherGroup->id, $zuluGroup->id]);
 
         $this->assertStringContainsString(
             'id="enrollment-group" wire:model.live="group_id" data-search-input="true" data-open-on-focus="true" data-hide-placeholder-option="true" data-search-placeholder="'.__('crud.enrollments.form.placeholders.select_group').'" data-save-and-new-on-keydown="true"',
@@ -1786,6 +1860,92 @@ class ManagementCrudTest extends TestCase
             ->set('student_id', $student->id)
             ->call('save')
             ->assertHasErrors(['group_id']);
+    }
+
+    public function test_editing_an_enrollment_locks_the_student_and_limits_groups_to_its_course(): void
+    {
+        $this->signIn();
+
+        $year = AcademicYear::create([
+            'name' => '2028/2029',
+            'starts_on' => '2028-08-01',
+            'ends_on' => '2029-07-31',
+            'is_active' => true,
+        ]);
+        $teacher = Teacher::create([
+            'first_name' => 'Enrolment',
+            'last_name' => 'Editor',
+            'phone' => '0944001120',
+            'status' => 'active',
+        ]);
+        $course = Course::create(['name' => 'Enrolment Edit Course', 'is_active' => true]);
+        $otherCourse = Course::create(['name' => 'Other Enrolment Course', 'is_active' => true]);
+        $originalGroup = Group::create([
+            'course_id' => $course->id,
+            'academic_year_id' => $year->id,
+            'teacher_id' => $teacher->id,
+            'name' => 'Original Group',
+            'is_active' => true,
+        ]);
+        $sameCourseGroup = Group::create([
+            'course_id' => $course->id,
+            'academic_year_id' => $year->id,
+            'teacher_id' => $teacher->id,
+            'name' => 'Same Course Group',
+            'is_active' => true,
+        ]);
+        $otherCourseGroup = Group::create([
+            'course_id' => $otherCourse->id,
+            'academic_year_id' => $year->id,
+            'teacher_id' => $teacher->id,
+            'name' => 'Other Course Group',
+            'is_active' => true,
+        ]);
+        $student = Student::create([
+            'first_name' => 'Locked',
+            'last_name' => 'Student',
+            'birth_date' => '2014-01-01',
+            'status' => 'active',
+        ]);
+        $otherStudent = Student::create([
+            'first_name' => 'Other',
+            'last_name' => 'Student',
+            'birth_date' => '2014-01-02',
+            'status' => 'active',
+        ]);
+        $enrollment = Enrollment::create([
+            'student_id' => $student->id,
+            'group_id' => $originalGroup->id,
+            'enrolled_at' => '2028-09-01',
+            'status' => 'active',
+        ]);
+
+        $component = Volt::test('enrollments.index')
+            ->call('edit', $enrollment->id)
+            ->assertViewHas('groups', fn ($groups) => $groups->pluck('id')->all() === [$originalGroup->id, $sameCourseGroup->id])
+            ->assertViewHas('editingStudent', fn ($editingStudent) => $editingStudent?->is($student) === true)
+            ->assertSee('data-enrollment-student-readonly', false)
+            ->assertDontSee('<select id="enrollment-student"', false);
+
+        $component
+            ->set('student_id', $otherStudent->id)
+            ->set('group_id', $sameCourseGroup->id)
+            ->call('save')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('enrollments', [
+            'id' => $enrollment->id,
+            'student_id' => $student->id,
+            'group_id' => $sameCourseGroup->id,
+        ]);
+
+        Volt::test('enrollments.index')
+            ->call('edit', $enrollment->id)
+            ->set('group_id', $otherCourseGroup->id)
+            ->call('save')
+            ->assertHasErrors(['group_id']);
+
+        $this->assertSame($sameCourseGroup->id, $enrollment->fresh()->group_id);
     }
 
     public function test_group_create_modal_derives_the_current_year_and_create_and_new_preserves_course(): void
@@ -3137,6 +3297,28 @@ class ManagementCrudTest extends TestCase
             'name' => 'Updated gathering',
             'color' => '#3f8067',
         ]);
+
+        Volt::test('courses.index')
+            ->call('openCourseCalendar', $course->id)
+            ->call('saveCourseCalendarAndOpenPdf')
+            ->assertHasNoErrors()
+            ->assertDispatched('course-calendar-saved', fn ($event, $params) => $params['url'] === route('courses.calendar.pdf', $course));
+    }
+
+    public function test_courses_without_points_do_not_offer_the_calendar(): void
+    {
+        $this->signIn();
+
+        Course::create([
+            'name' => 'No points course',
+            'starts_on' => '2026-09-01',
+            'ends_on' => '2027-05-31',
+            'is_active' => true,
+            'awards_points' => false,
+        ]);
+
+        Volt::test('courses.index')
+            ->assertDontSee('data-course-calendar-action', false);
     }
 
     public function test_student_media_component_supports_photo_and_file_uploads(): void

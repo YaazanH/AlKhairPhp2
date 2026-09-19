@@ -143,6 +143,7 @@ new class extends Component
             'scheduleTimeSlots' => ScheduleTimeSlots::options(),
             'schedulingCourse' => $this->schedulingCourseId ? Course::query()->find($this->schedulingCourseId) : null,
             'calendarCourse' => $this->calendarCourseId ? Course::query()->find($this->calendarCourseId) : null,
+            'calendarColors' => $this->calendarColors(),
             'editingCourseCanBeDeleted' => $this->editingId ? $this->courseCanBeDeleted(Course::query()->findOrFail($this->editingId)) : false,
         ];
     }
@@ -576,6 +577,7 @@ new class extends Component
         $this->authorizePermission('courses.update');
 
         $course = Course::query()->with('calendarEntries')->findOrFail($courseId);
+        abort_unless($course->awards_points, 404);
         abort_unless($course->starts_on && $course->ends_on, 422);
 
         $this->calendarCourseId = $course->id;
@@ -599,6 +601,7 @@ new class extends Component
         abort_unless($this->calendarCourseId, 404);
 
         $course = Course::query()->findOrFail($this->calendarCourseId);
+        $this->calendarColor = strtolower($this->calendarColor);
         $data = $this->validate([
             'calendarDate' => [
                 'required',
@@ -607,7 +610,7 @@ new class extends Component
                 'before_or_equal:'.$course->ends_on->toDateString(),
             ],
             'calendarName' => ['required', 'string', 'max:255'],
-            'calendarColor' => ['required', 'regex:/^#[0-9A-Fa-f]{6}$/'],
+            'calendarColor' => ['required', Rule::in($this->calendarColors())],
         ], [
             'calendarDate.after_or_equal' => __('course_calendar.manager.errors.date_range'),
             'calendarDate.before_or_equal' => __('course_calendar.manager.errors.date_range'),
@@ -699,7 +702,7 @@ new class extends Component
                 'before_or_equal:'.$course->ends_on->toDateString(),
             ],
             'calendarRows.*.name' => ['required', 'string', 'max:255'],
-            'calendarRows.*.color' => ['required', 'regex:/^#[0-9A-Fa-f]{6}$/'],
+            'calendarRows.*.color' => ['required', Rule::in($this->calendarColors())],
         ], [
             'calendarRows.*.date.after_or_equal' => __('course_calendar.manager.errors.date_range'),
             'calendarRows.*.date.before_or_equal' => __('course_calendar.manager.errors.date_range'),
@@ -753,6 +756,20 @@ new class extends Component
         session()->flash('status', __('course_calendar.manager.messages.saved'));
     }
 
+    public function saveCourseCalendarAndOpenPdf(): void
+    {
+        $courseId = $this->calendarCourseId;
+        $this->saveCourseCalendar();
+
+        if ($this->getErrorBag()->isNotEmpty() || $this->showCalendarModal || ! $courseId) {
+            $this->dispatch('course-calendar-save-failed');
+
+            return;
+        }
+
+        $this->dispatch('course-calendar-saved', url: route('courses.calendar.pdf', $courseId));
+    }
+
     public function closeCourseCalendar(): void
     {
         $this->showCalendarModal = false;
@@ -760,6 +777,25 @@ new class extends Component
         $this->calendarRows = [];
         $this->resetCalendarRow();
         $this->resetValidation();
+    }
+
+    protected function calendarColors(): array
+    {
+        return collect([
+            '#3f8067',
+            '#245c46',
+            '#a37326',
+            '#2563eb',
+            '#7c3aed',
+            '#be123c',
+            '#dc2626',
+            '#475569',
+        ])
+            ->merge(collect($this->calendarRows)->pluck('color')->map(fn (mixed $color): string => strtolower((string) $color)))
+            ->filter(fn (string $color): bool => preg_match('/^#[0-9a-f]{6}$/', $color) === 1)
+            ->unique()
+            ->values()
+            ->all();
     }
 
     public function courseCanBeDeleted(Course $course): bool
@@ -817,7 +853,30 @@ new class extends Component
     }
 }; ?>
 
-<div class="page-stack">
+<div
+    class="page-stack"
+    x-data="{
+        calendarPdfWindow: null,
+        beginCalendarPdf() {
+            this.calendarPdfWindow = window.open('about:blank', '_blank');
+            if (this.calendarPdfWindow) this.calendarPdfWindow.opener = null;
+        },
+        showCalendarPdf(url) {
+            if (this.calendarPdfWindow && ! this.calendarPdfWindow.closed) {
+                this.calendarPdfWindow.location.href = url;
+            } else {
+                window.open(url, '_blank', 'noopener');
+            }
+            this.calendarPdfWindow = null;
+        },
+        closeCalendarPdfPlaceholder() {
+            if (this.calendarPdfWindow && ! this.calendarPdfWindow.closed) this.calendarPdfWindow.close();
+            this.calendarPdfWindow = null;
+        },
+    }"
+    x-on:course-calendar-saved.window="showCalendarPdf($event.detail.url)"
+    x-on:course-calendar-save-failed.window="closeCalendarPdfPlaceholder()"
+>
     <section class="page-hero p-6 lg:p-8">
         <div class="eyebrow">{{ __('ui.nav.academics') }}</div>
         <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('crud.courses.title') }}</h1>
@@ -928,9 +987,11 @@ new class extends Component
                                         @can('courses.update')
                                             @if ($course->is_active && ($course->academicYear?->is_active ?? true))
                                                 <x-edit-action-button wire:click="edit({{ $course->id }})" :label="__('crud.common.actions.edit')" data-course-edit-action />
-                                                <button type="button" wire:click="openCourseCalendar({{ $course->id }})" class="admin-icon-button border-teal-300/30 bg-teal-400/10 text-teal-100" title="{{ __('crud.courses.actions.calendar') }}" aria-label="{{ __('crud.courses.actions.calendar') }}" data-course-calendar-action>
-                                                    <x-admin-action-icon name="calendar" />
-                                                </button>
+                                                @if ($course->awards_points)
+                                                    <button type="button" wire:click="openCourseCalendar({{ $course->id }})" class="admin-icon-button border-teal-300/30 bg-teal-400/10 text-teal-100" title="{{ __('crud.courses.actions.calendar') }}" aria-label="{{ __('crud.courses.actions.calendar') }}" data-course-calendar-action>
+                                                        <x-admin-action-icon name="calendar" />
+                                                    </button>
+                                                @endif
                                             @elseif (! $course->is_active)
                                                 <button type="button" wire:click="openArchive({{ $course->id }})" class="admin-icon-button admin-icon-button--danger" title="{{ __('crud.courses.actions.archive') }}" aria-label="{{ __('crud.courses.actions.archive') }}" data-course-archive-action>
                                                     <x-admin-action-icon name="archive" />
@@ -1033,9 +1094,9 @@ new class extends Component
     >
         <x-slot:header-actions>
             @if ($calendarCourseId)
-                <a href="{{ route('courses.calendar.pdf', $calendarCourseId) }}" target="_blank" rel="noopener" class="admin-modal__close text-teal-100" title="{{ __('course_calendar.manager.actions.open_pdf') }}" aria-label="{{ __('course_calendar.manager.actions.open_pdf') }}" data-course-calendar-pdf-action>
+                <button type="button" x-on:click="beginCalendarPdf()" wire:click="saveCourseCalendarAndOpenPdf" class="admin-modal__close text-teal-100" title="{{ __('course_calendar.manager.actions.open_pdf') }}" aria-label="{{ __('course_calendar.manager.actions.open_pdf') }}" data-course-calendar-pdf-action>
                     <x-admin-action-icon name="calendar" class="size-5" />
-                </a>
+                </button>
             @endif
             <button type="button" wire:click="saveCourseCalendar" class="admin-modal__close" title="{{ __('course_calendar.manager.actions.save') }}" aria-label="{{ __('course_calendar.manager.actions.save') }}" data-course-calendar-save>
                 <span aria-hidden="true">&times;</span>
@@ -1066,7 +1127,14 @@ new class extends Component
                                         @error('calendarName')<div class="mt-1 text-xs text-red-400">{{ $message }}</div>@enderror
                                     </td>
                                     <td class="px-4 py-3 align-top">
-                                        <input wire:model="calendarColor" type="color" class="h-11 w-full cursor-pointer rounded-xl p-1" aria-label="{{ __('course_calendar.manager.fields.color') }}">
+                                        <div class="flex min-h-11 flex-wrap items-center gap-2" role="radiogroup" aria-label="{{ __('course_calendar.manager.fields.color') }}" data-course-calendar-color-options>
+                                            @foreach ($calendarColors as $color)
+                                                <label class="relative cursor-pointer" title="{{ strtoupper($color) }}">
+                                                    <input wire:model="calendarColor" type="radio" value="{{ $color }}" class="peer sr-only">
+                                                    <span class="block size-8 rounded-full border-2 border-white/20 shadow-sm transition peer-checked:scale-110 peer-checked:border-white peer-focus-visible:ring-2 peer-focus-visible:ring-emerald-300" style="background-color: {{ $color }}"></span>
+                                                </label>
+                                            @endforeach
+                                        </div>
                                         @error('calendarColor')<div class="mt-1 text-xs text-red-400">{{ $message }}</div>@enderror
                                     </td>
                                     <td class="px-2 py-3 align-top">
@@ -1112,7 +1180,14 @@ new class extends Component
                                 @error('calendarName')<div class="mt-1 text-xs text-red-400">{{ $message }}</div>@enderror
                             </td>
                             <td class="px-4 py-3 align-top">
-                                <input wire:model="calendarColor" type="color" class="h-11 w-full cursor-pointer rounded-xl p-1" aria-label="{{ __('course_calendar.manager.fields.color') }}">
+                                <div class="flex min-h-11 flex-wrap items-center gap-2" role="radiogroup" aria-label="{{ __('course_calendar.manager.fields.color') }}" data-course-calendar-color-options>
+                                    @foreach ($calendarColors as $color)
+                                        <label class="relative cursor-pointer" title="{{ strtoupper($color) }}">
+                                            <input wire:model="calendarColor" type="radio" value="{{ $color }}" class="peer sr-only">
+                                            <span class="block size-8 rounded-full border-2 border-white/20 shadow-sm transition peer-checked:scale-110 peer-checked:border-white peer-focus-visible:ring-2 peer-focus-visible:ring-emerald-300" style="background-color: {{ $color }}"></span>
+                                        </label>
+                                    @endforeach
+                                </div>
                                 @error('calendarColor')<div class="mt-1 text-xs text-red-400">{{ $message }}</div>@enderror
                             </td>
                             <td class="px-2 py-3 text-center align-top">

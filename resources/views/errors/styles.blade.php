@@ -58,7 +58,10 @@
     }
 
     .error-page {
+        position: relative;
+        isolation: isolate;
         display: grid;
+        overflow: hidden;
         min-height: 100vh;
         min-height: 100svh;
         place-items: center;
@@ -66,13 +69,60 @@
         text-align: center;
     }
 
+    .error-page::before {
+        position: fixed;
+        z-index: -1;
+        inset: 50% auto auto 50%;
+        display: grid;
+        width: min(88vw, 42rem);
+        border: clamp(0.75rem, 2vw, 1.25rem) solid currentColor;
+        aspect-ratio: 1;
+        place-items: center;
+        border-radius: 50%;
+        color: var(--error-muted);
+        content: '!';
+        font-family: Tahoma, system-ui, sans-serif;
+        font-size: clamp(18rem, 62vw, 36rem);
+        font-weight: 700;
+        line-height: 0.8;
+        opacity: 0.035;
+        pointer-events: none;
+        transform: translate(-50%, -50%) rotate(12deg);
+    }
+
     .error-page__content {
+        position: relative;
+        z-index: 1;
         width: 100%;
         max-width: 36rem;
     }
 
+    .error-page__label {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.75rem;
+        margin: 0 0 0.5rem;
+        color: var(--error-muted);
+        font-family: Tahoma, system-ui, sans-serif;
+        font-size: 0.8125rem;
+        font-weight: 700;
+        letter-spacing: 0.38em;
+        line-height: 1;
+    }
+
+    .error-page__label::before,
+    .error-page__label::after {
+        width: 2.25rem;
+        height: 1px;
+        background: currentColor;
+        content: '';
+        opacity: 0.45;
+    }
+
     .error-page__code {
-        margin: 0 0 1rem;
+        width: min(72vw, 22rem);
+        margin: 0 auto 1rem;
         font-size: clamp(7rem, 18vw, 8.5rem);
         font-weight: 700;
         line-height: 1;
@@ -98,11 +148,13 @@
     }
 
     .error-page__home {
-        display: inline-flex;
+        display: flex;
+        width: min(72vw, 22rem);
         min-height: 2.75rem;
         align-items: center;
         justify-content: center;
-        padding: 0.5rem 1.125rem;
+        margin: 0 auto;
+        padding: 0.625rem 1.125rem;
         border-radius: 0.625rem;
         background: linear-gradient(135deg, #14723e, #0b4f2a);
         color: #fff;

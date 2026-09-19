@@ -90,6 +90,7 @@ class ErrorPagesTest extends TestCase
         $this->assertSame('60', $response->headers->get('Retry-After'));
         $this->assertStringContainsString('lang="'.$locale.'" dir="'.$direction.'"', $content);
         $this->assertStringContainsString(__('errors.label', ['code' => $status]), $content);
+        $this->assertStringContainsString('<p class="error-page__label" aria-hidden="true">ERROR</p>', $content);
         $this->assertStringContainsString(__('ui.app.name'), $content);
         $this->assertStringContainsString('id="error-title"', $content);
         $this->assertStringNotContainsString('Private exception details', $content);
@@ -101,7 +102,7 @@ class ErrorPagesTest extends TestCase
         $this->get('/this-page-does-not-exist')
             ->assertNotFound()
             ->assertSee(__('errors.pages.404.title'))
-            ->assertSee('href="'.url('/').'"', false);
+            ->assertSee('href="'.url('/login').'"', false);
     }
 
     public function test_a_server_failure_can_render_without_database_settings_or_built_assets(): void
@@ -115,11 +116,11 @@ class ErrorPagesTest extends TestCase
 
         $this->assertSame(500, $response->getStatusCode());
         $this->assertStringContainsString(__('errors.pages.500.title'), $response->getContent());
-        $this->assertStringContainsString('href="'.url('/').'"', $response->getContent());
+        $this->assertStringContainsString('href="'.url('/login').'"', $response->getContent());
         $this->assertStringNotContainsString('Database unavailable', $response->getContent());
     }
 
-    public function test_get_post_and_session_errors_offer_one_safe_home_link(): void
+    public function test_get_post_and_session_errors_offer_one_safe_login_link(): void
     {
         // Register only test routes, so the template sees the actual request method and URL.
         Route::get('/error-retry', fn () => abort(503));
@@ -128,18 +129,18 @@ class ErrorPagesTest extends TestCase
 
         $this->get('/error-retry?filter=active')
             ->assertStatus(503)
-            ->assertSee('href="'.url('/').'"', false)
+            ->assertSee('href="'.url('/login').'"', false)
             ->assertDontSee('href="'.url('/error-retry').'?filter=active"', false);
 
         $this->post('/error-submit')
             ->assertStatus(503)
-            ->assertSee('href="'.url('/').'"', false)
+            ->assertSee('href="'.url('/login').'"', false)
             ->assertDontSee('<form', false);
 
         $this->post('/error-session')
             ->assertStatus(419)
-            ->assertSee('href="'.url('/').'"', false)
-            ->assertSee(__('errors.actions.home'));
+            ->assertSee('href="'.url('/login').'"', false)
+            ->assertSee(__('errors.actions.login'));
     }
 
     public function test_json_errors_keep_their_json_response(): void
@@ -161,7 +162,7 @@ class ErrorPagesTest extends TestCase
         $this->assertStringNotContainsString('<script>alert("test")</script>', $response->getContent());
     }
 
-    public function test_error_pages_show_only_the_code_title_and_home_link(): void
+    public function test_error_pages_show_only_the_code_title_and_login_link(): void
     {
         $response = $this->get('/missing-page')->assertNotFound();
         $document = new DOMDocument;
@@ -169,8 +170,9 @@ class ErrorPagesTest extends TestCase
         $xpath = new DOMXPath($document);
 
         $this->assertSame(1, $xpath->query('//main')->length);
-        $this->assertSame(1, $xpath->query('//body//p')->length);
-        $this->assertSame('404', trim($xpath->query('//main//p')->item(0)->textContent));
+        $this->assertSame(2, $xpath->query('//body//p')->length);
+        $this->assertSame('ERROR', trim($xpath->query('//main//p')->item(0)->textContent));
+        $this->assertSame('404', trim($xpath->query('//main//p')->item(1)->textContent));
         $this->assertSame(1, $xpath->query('//h1')->length);
         $this->assertSame(1, $xpath->query('//a')->length);
         $this->assertSame(0, $xpath->query('//header | //footer | //nav | //aside | //form | //img | //svg')->length);
@@ -183,7 +185,7 @@ class ErrorPagesTest extends TestCase
         $this->actingAs($user)->get('/missing-dashboard-page')
             ->assertNotFound()
             ->assertSee(__('errors.pages.404.title'))
-            ->assertSee('href="'.url('/').'"', false)
+            ->assertSee('href="'.url('/login').'"', false)
             ->assertDontSee($user->name)
             ->assertDontSee('app-sidebar-shell', false);
     }
@@ -193,7 +195,7 @@ class ErrorPagesTest extends TestCase
         $this->actingAs(User::factory()->create())->get('/pages/missing-page')
             ->assertNotFound()
             ->assertSee(__('errors.pages.404.title'))
-            ->assertSee('href="'.url('/').'"', false)
+            ->assertSee('href="'.url('/login').'"', false)
             ->assertDontSee('public-header', false)
             ->assertDontSee('app-sidebar-shell', false);
     }
@@ -213,7 +215,7 @@ class ErrorPagesTest extends TestCase
 
         $this->get('/missing-page')
             ->assertNotFound()
-            ->assertSee('href="'.url('/').'"', false)
+            ->assertSee('href="'.url('/login').'"', false)
             ->assertSee(__('errors.pages.404.title'));
     }
 }
