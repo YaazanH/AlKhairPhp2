@@ -29,7 +29,7 @@ class ResolveTenantFromHost
         }
 
         if (! str_ends_with($host, '.'.$baseDomain)) {
-            abort(404);
+            return $next($request);
         }
 
         $domain = TenantDomain::query()
