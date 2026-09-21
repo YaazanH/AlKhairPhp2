@@ -2,14 +2,15 @@
 
 namespace App\Models;
 
+use App\Services\Landlord\CurrentModuleAccess;
 use App\Services\StudentNumberService;
 use App\Support\AvatarDefaults;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
-use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Student extends Model
@@ -63,7 +64,7 @@ class Student extends Model
             ->where('last_name', $this->last_name)
             ->exists();
 
-        if ($hasNamesake) {
+        if ($hasNamesake && app(CurrentModuleAccess::class)->enabled('parents')) {
             $fatherName = $this->relationLoaded('parentProfile')
                 ? $this->parentProfile?->father_name
                 : $this->parentProfile()->value('father_name');

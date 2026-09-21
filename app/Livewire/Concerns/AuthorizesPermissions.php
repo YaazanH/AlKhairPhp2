@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Concerns;
 
+use App\Services\Landlord\CurrentModuleAccess;
 use Illuminate\Support\Facades\Auth;
 
 trait AuthorizesPermissions
@@ -13,6 +14,7 @@ trait AuthorizesPermissions
 
     protected function canPermission(string $permission): bool
     {
-        return Auth::user()?->can($permission) ?? false;
+        return app(CurrentModuleAccess::class)->permissionAvailable($permission)
+            && (Auth::user()?->can($permission) ?? false);
     }
 }

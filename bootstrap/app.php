@@ -4,6 +4,7 @@ use App\Http\Middleware\ApplyApplicationTimezone;
 use App\Http\Middleware\AuthenticatePlatform;
 use App\Http\Middleware\DiscardInvalidRememberCookie;
 use App\Http\Middleware\EnsureTenantFeature;
+use App\Http\Middleware\EnsureTenantModules;
 use App\Http\Middleware\MeasurePerformance;
 use App\Http\Middleware\PreventPageCaching;
 use App\Http\Middleware\RedirectToCanonicalHost;
@@ -42,9 +43,12 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->web(append: [
             DiscardInvalidRememberCookie::class,
+            EnsureTenantModules::class,
             SetLocale::class,
             MeasurePerformance::class,
         ]);
+
+        $middleware->api(append: [EnsureTenantModules::class]);
 
         // Resolve the selected language before CSRF checks, authentication,
         // and route bindings can reject a request.

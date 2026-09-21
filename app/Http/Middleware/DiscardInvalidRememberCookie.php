@@ -20,7 +20,10 @@ class DiscardInvalidRememberCookie
             return $next($request);
         }
 
-        $guard = Auth::guard();
+        // This middleware only runs in the browser stack. Use the session
+        // guard explicitly so an earlier Sanctum/API request cannot leave the
+        // auth manager pointed at a token guard without remember-cookie APIs.
+        $guard = Auth::guard('web');
         $cookieName = $guard->getRecallerName();
         $cookieValue = $request->cookies->get($cookieName);
 

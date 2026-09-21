@@ -598,6 +598,7 @@ return [
                 'select_course' => 'اختر الدورة',
                 'select_academic_year' => 'اختر السنة الأكاديمية',
                 'select_teacher' => 'اختر المعلم',
+                'no_teacher_yet' => 'بدون معلم حالياً',
                 'no_assistant' => 'بدون مساعد',
                 'all_grade_levels' => 'كل المراحل الدراسية',
             ],

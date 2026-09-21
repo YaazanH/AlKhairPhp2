@@ -10,7 +10,7 @@ class LandlordCatalogSeeder extends Seeder
 {
     public function run(): void
     {
-        $core = Feature::query()->updateOrCreate(
+        $core = Feature::query()->firstOrCreate(
             ['code' => Feature::CORE],
             [
                 'name' => 'Core',
@@ -20,7 +20,7 @@ class LandlordCatalogSeeder extends Seeder
             ],
         );
 
-        $finance = Feature::query()->updateOrCreate(
+        $finance = Feature::query()->firstOrCreate(
             ['code' => Feature::FINANCE],
             [
                 'name' => 'Finance',
@@ -30,7 +30,7 @@ class LandlordCatalogSeeder extends Seeder
             ],
         );
 
-        $customPrinting = Feature::query()->updateOrCreate(
+        $customPrinting = Feature::query()->firstOrCreate(
             ['code' => Feature::CUSTOM_PRINTING],
             [
                 'name' => 'Custom Printing',
@@ -47,7 +47,7 @@ class LandlordCatalogSeeder extends Seeder
         ];
 
         foreach ($plans as $definition) {
-            $plan = Plan::query()->updateOrCreate(
+            $plan = Plan::query()->firstOrCreate(
                 ['code' => $definition['code']],
                 [
                     'name' => $definition['name'],
@@ -55,7 +55,9 @@ class LandlordCatalogSeeder extends Seeder
                 ],
             );
 
-            $plan->features()->sync(collect($definition['features'])->pluck('id')->all());
+            if ($plan->wasRecentlyCreated) {
+                $plan->features()->sync(collect($definition['features'])->pluck('id')->all());
+            }
         }
     }
 }

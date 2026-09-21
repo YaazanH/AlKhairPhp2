@@ -207,7 +207,7 @@ new class extends Component {
         return [
             'course_id' => ['required', 'exists:courses,id'],
             'academic_year_id' => ['required', 'exists:academic_years,id'],
-            'teacher_id' => ['required', 'exists:teachers,id'],
+            'teacher_id' => ['nullable', 'exists:teachers,id'],
             'assistant_teacher_id' => ['nullable', 'exists:teachers,id', 'different:teacher_id'],
             'grade_level_id' => ['nullable', 'exists:grade_levels,id'],
             'curriculum_id' => ['nullable', Rule::exists('curricula', 'id')->where(fn ($query) => $query
@@ -279,13 +279,15 @@ new class extends Component {
         $validated = $this->validate();
         $dashboardCardTemplateId = $validated['dashboard_card_template_id'] ?? null;
         unset($validated['dashboard_card_template_id']);
-        $this->authorizeScopedTeacherAccess(Teacher::query()->findOrFail($validated['teacher_id']));
+        if ($validated['teacher_id']) {
+            $this->authorizeScopedTeacherAccess(Teacher::query()->findOrFail($validated['teacher_id']));
+        }
 
         if ($validated['assistant_teacher_id']) {
             $this->authorizeScopedTeacherAccess(Teacher::query()->findOrFail($validated['assistant_teacher_id']));
         }
 
-        if (! $this->teacherIsAvailable((int) $validated['teacher_id'])) {
+        if ($validated['teacher_id'] && ! $this->teacherIsAvailable((int) $validated['teacher_id'])) {
             $this->addError('teacher_id', __('crud.groups.errors.teacher_unavailable'));
 
             return;
@@ -297,6 +299,7 @@ new class extends Component {
             return;
         }
 
+        $validated['teacher_id'] = $validated['teacher_id'] ?: null;
         $validated['assistant_teacher_id'] = $validated['assistant_teacher_id'] ?: null;
         $validated['grade_level_id'] = $validated['grade_level_id'] ?: null;
         $validated['curriculum_id'] = $validated['curriculum_id'] ?: null;
@@ -933,7 +936,7 @@ new class extends Component {
                 <div>
                     <label for="group-teacher" class="mb-1 block text-sm font-medium">{{ __('crud.groups.form.fields.teacher') }}</label>
                     <select id="group-teacher" wire:model="teacher_id" class="w-full rounded-xl px-4 py-3 text-sm">
-                        <option value="">{{ __('crud.groups.form.placeholders.select_teacher') }}</option>
+                        <option value="">{{ __('crud.groups.form.placeholders.no_teacher_yet') }}</option>
                         @foreach ($teachers as $teacher)
                             <option value="{{ $teacher->id }}">{{ $teacher->first_name }} {{ $teacher->last_name }}</option>
                         @endforeach

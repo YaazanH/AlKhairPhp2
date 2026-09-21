@@ -61,7 +61,7 @@ new class extends Component {
             return 'teacher';
         }
 
-        if ($user->parentProfile || $user->can('dashboard.parent.view')) {
+        if (app(\App\Services\Landlord\CurrentModuleAccess::class)->enabled('parent_portal') && ($user->parentProfile || $user->can('dashboard.parent.view'))) {
             return 'parent';
         }
 
@@ -720,9 +720,9 @@ new class extends Component {
             'profileMeta' => $parent->father_phone ?: ($parent->mother_phone ?: __('dashboard.parent.profile_meta_no_phone')),
             'stats' => [
                 ['label' => __('dashboard.parent.stats.students.label'), 'value' => $students->count(), 'hint' => __('dashboard.parent.stats.students.hint')],
-                ['label' => __('dashboard.parent.stats.active_enrollments.label'), 'value' => $activeEnrollmentCount, 'hint' => __('dashboard.parent.stats.active_enrollments.hint')],
-                ['label' => __('dashboard.parent.stats.cached_points.label'), 'value' => $activeEnrollmentPoints, 'hint' => __('dashboard.parent.stats.cached_points.hint')],
-                ['label' => __('dashboard.parent.stats.memorized_pages.label'), 'value' => $activeEnrollmentPages, 'hint' => __('dashboard.parent.stats.memorized_pages.hint')],
+                ...(app(\App\Services\Landlord\CurrentModuleAccess::class)->enabled('classes') ? [['label' => __('dashboard.parent.stats.active_enrollments.label'), 'value' => $activeEnrollmentCount, 'hint' => __('dashboard.parent.stats.active_enrollments.hint')]] : []),
+                ...(app(\App\Services\Landlord\CurrentModuleAccess::class)->enabled('points_rewards') ? [['label' => __('dashboard.parent.stats.cached_points.label'), 'value' => $activeEnrollmentPoints, 'hint' => __('dashboard.parent.stats.cached_points.hint')]] : []),
+                ...(app(\App\Services\Landlord\CurrentModuleAccess::class)->enabled('memorization') ? [['label' => __('dashboard.parent.stats.memorized_pages.label'), 'value' => $activeEnrollmentPages, 'hint' => __('dashboard.parent.stats.memorized_pages.hint')]] : []),
             ],
             'cards' => [
                 [
@@ -742,7 +742,7 @@ new class extends Component {
             'records' => $students->map(fn (Student $student) => [
                 'title' => $student->full_name,
                 'subtitle' => trim(($student->gradeLevel?->name ?: __('dashboard.common.no_grade')).' | '.($student->school_name ?: __('dashboard.common.no_school'))),
-                'meta' => __('dashboard.common.active_enrollments', ['count' => $student->enrollments_count]),
+                'meta' => app(\App\Services\Landlord\CurrentModuleAccess::class)->enabled('classes') ? __('dashboard.common.active_enrollments', ['count' => $student->enrollments_count]) : '',
             ]),
         ];
     }

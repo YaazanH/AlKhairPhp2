@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\Enrollment;
 use App\Models\Group;
 use App\Models\Student;
+use App\Services\AccessScopeService;
+use App\Services\Landlord\CurrentModuleAccess;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
@@ -29,6 +31,7 @@ class WriteRecordsController extends Controller
     public function updateStudent(Request $request, Student $student)
     {
         $this->authorizePermission($request, 'students.update');
+        abort_unless(app(AccessScopeService::class)->canAccessStudent($request->user(), $student), 403);
 
         $student->update($this->validatedStudentData($request, $student));
 
@@ -41,6 +44,7 @@ class WriteRecordsController extends Controller
     public function destroyStudent(Request $request, Student $student)
     {
         $this->authorizePermission($request, 'students.delete');
+        abort_unless(app(AccessScopeService::class)->canAccessStudent($request->user(), $student), 403);
 
         if ($student->enrollments()->count() > 0) {
             return response()->json([
@@ -133,6 +137,7 @@ class WriteRecordsController extends Controller
 
     protected function authorizePermission(Request $request, string $permission): void
     {
+        abort_unless(app(CurrentModuleAccess::class)->permissionAvailable($permission), 403);
         abort_unless($request->user()?->can($permission), 403);
     }
 
@@ -249,7 +254,7 @@ class WriteRecordsController extends Controller
                     ->ignore($group?->id),
             ],
             'starts_on' => ['nullable', 'date'],
-            'teacher_id' => ['required', 'integer', Rule::exists('teachers', 'id')->whereNull('deleted_at')],
+            'teacher_id' => ['nullable', 'integer', Rule::exists('teachers', 'id')->whereNull('deleted_at')],
         ]);
 
         $validated['assistant_teacher_id'] = $validated['assistant_teacher_id'] ?? null;
@@ -258,6 +263,7 @@ class WriteRecordsController extends Controller
         $validated['is_active'] = $validated['is_active'] ?? true;
         $validated['monthly_fee'] = $validated['monthly_fee'] ?? null;
         $validated['starts_on'] = $validated['starts_on'] ?? null;
+        $validated['teacher_id'] = $validated['teacher_id'] ?? null;
 
         return $validated;
     }
@@ -272,13 +278,16 @@ class WriteRecordsController extends Controller
             'joined_at' => ['nullable', 'date'],
             'last_name' => ['required', 'string', 'max:255'],
             'notes' => ['nullable', 'string'],
-            'parent_id' => ['required', 'integer', Rule::exists('parents', 'id')->whereNull('deleted_at')],
+            'parent_id' => app(CurrentModuleAccess::class)->enabled('parents') ? ['nullable', 'integer', Rule::exists('parents', 'id')->whereNull('deleted_at')] : ['prohibited'],
             'photo_path' => ['nullable', 'string', 'max:255'],
             'quran_current_juz_id' => ['nullable', 'integer', Rule::exists('quran_juzs', 'id')],
             'school_name' => ['nullable', 'string', 'max:255'],
             'status' => ['required', Rule::in(['active', 'inactive', 'graduated', 'blocked'])],
         ]);
 
+        if (! app(CurrentModuleAccess::class)->enabled('parents')) {
+            unset($validated['parent_id']);
+        }
         $validated['gender'] = $validated['gender'] ?? null;
         $validated['grade_level_id'] = $validated['grade_level_id'] ?? null;
         $validated['joined_at'] = $validated['joined_at'] ?? null;

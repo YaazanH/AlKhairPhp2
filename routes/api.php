@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\V1\AuthTokenController;
+use App\Http\Controllers\Api\V1\CapabilitiesController;
 use App\Http\Controllers\Api\V1\FinanceWriteController;
 use App\Http\Controllers\Api\V1\OperationalWriteController;
 use App\Http\Controllers\Api\V1\ParentMobileController;
@@ -22,6 +23,7 @@ Route::get('/user', function (Request $request) {
 Route::post('/v1/auth/token', [AuthTokenController::class, 'store']);
 
 Route::middleware('auth:sanctum')->prefix('v1')->group(function () {
+    Route::get('capabilities', CapabilitiesController::class);
     Route::delete('auth/token', [AuthTokenController::class, 'destroy']);
     Route::get('reports/overview', ReportOverviewController::class);
     Route::get('reports/teachers/daily-summary', TeacherDailySummaryController::class);

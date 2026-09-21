@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Http\Middleware\EnsureTenantModules;
 use App\Models\AcademicYear;
 use App\Models\Activity;
 use App\Models\AppSetting;
@@ -36,14 +37,17 @@ use App\Models\TeacherAttendanceDay;
 use App\Models\TeacherAttendanceRecord;
 use App\Models\User;
 use App\Observers\DataAuditObserver;
+use App\Services\Landlord\CurrentModuleAccess;
+use App\Services\Landlord\TenantContext;
 use App\Support\ApplicationTimezone;
 use App\Support\RoleRegistry;
-use App\Services\Landlord\TenantContext;
 use App\Validation\LocalizedValidator;
 use Illuminate\Contracts\Translation\Translator;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Validator as ValidatorFacade;
 use Illuminate\Support\ServiceProvider;
+use Livewire\Livewire;
+use Spatie\Permission\PermissionRegistrar;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -53,6 +57,7 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->scoped(TenantContext::class);
+        $this->app->scoped(CurrentModuleAccess::class);
     }
 
     /**
@@ -60,6 +65,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        Livewire::addPersistentMiddleware([EnsureTenantModules::class]);
         app(ApplicationTimezone::class)->applyConfigured();
 
         ValidatorFacade::resolver(static function (Translator $translator, array $data, array $rules, array $messages, array $attributes): LocalizedValidator {
@@ -67,8 +73,13 @@ class AppServiceProvider extends ServiceProvider
         });
 
         Gate::before(static function (User $user, string $ability): ?bool {
+            if (! app(CurrentModuleAccess::class)->permissionAvailable($ability)) {
+                return false;
+            }
+
             return $user->hasRole(RoleRegistry::SUPER_ADMIN) ? true : null;
         });
+        app(PermissionRegistrar::class)->registerPermissions(Gate::getFacadeRoot());
 
         foreach ([
             AcademicYear::class,

@@ -16,6 +16,7 @@ class StudentAttendanceDay extends Model
     protected $fillable = [
         'attendance_date',
         'course_id',
+        'scope',
         'status',
         'course_finished_at',
         'course_finished_was_open',
@@ -52,5 +53,10 @@ class StudentAttendanceDay extends Model
     public function groupAttendanceDays(): HasMany
     {
         return $this->hasMany(GroupAttendanceDay::class);
+    }
+
+    public function centerRecords(): HasMany
+    {
+        return $this->hasMany(StudentAttendanceRecord::class);
     }
 }

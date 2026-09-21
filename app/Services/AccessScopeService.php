@@ -2,33 +2,20 @@
 
 namespace App\Services;
 
-use App\Models\Activity;
-use App\Models\ActivityExpense;
-use App\Models\ActivityPayment;
-use App\Models\ActivityRegistration;
 use App\Models\Assessment;
-use App\Models\AssessmentResult;
 use App\Models\Enrollment;
 use App\Models\Group;
 use App\Models\GroupAttendanceDay;
 use App\Models\Invoice;
-use App\Models\InvoiceItem;
-use App\Models\MemorizationSession;
 use App\Models\ParentProfile;
-use App\Models\Payment;
-use App\Models\PointTransaction;
 use App\Models\Student;
-use App\Models\StudentAttendanceRecord;
 use App\Models\StudentAttendanceDay;
-use App\Models\StudentNote;
 use App\Models\Teacher;
 use App\Models\TeacherAttendanceDay;
-use App\Models\TeacherAttendanceRecord;
 use App\Models\User;
 use App\Models\UserScopeOverride;
 use App\Support\RoleRegistry;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\Relation;
 
 class AccessScopeService
@@ -161,6 +148,10 @@ class AccessScopeService
     {
         if ($this->isUnrestricted($user)) {
             return true;
+        }
+
+        if ($studentAttendanceDay->scope === 'center') {
+            return $user?->can('attendance.student.view') || $user?->can('attendance.student.take');
         }
 
         $groupIds = $this->accessibleGroupIds($user);
@@ -594,7 +585,18 @@ class AccessScopeService
             return $query;
         }
 
-        return $this->applyScopedIds($query, 'enrollment_id', $this->accessibleEnrollmentIds($user));
+        $enrollmentIds = $this->accessibleEnrollmentIds($user);
+
+        if ($user?->can('attendance.student.view') || $user?->can('attendance.student.take')) {
+            return $query->where(function (Builder $builder) use ($enrollmentIds): void {
+                $builder->whereNotNull('student_attendance_day_id');
+                if ($enrollmentIds !== []) {
+                    $builder->orWhereIn('enrollment_id', $enrollmentIds);
+                }
+            });
+        }
+
+        return $this->applyScopedIds($query, 'enrollment_id', $enrollmentIds);
     }
 
     public function scopeStudentAttendanceDays(Builder $query, ?User $user): Builder
@@ -605,11 +607,16 @@ class AccessScopeService
 
         $groupIds = $this->accessibleGroupIds($user);
 
-        if ($groupIds === []) {
-            return $query->whereRaw('1 = 0');
+        if ($user?->can('attendance.student.view') || $user?->can('attendance.student.take')) {
+            return $query->where(function (Builder $builder) use ($groupIds): void {
+                $builder->where('scope', 'center');
+                if ($groupIds !== []) {
+                    $builder->orWhereHas('groupAttendanceDays', fn (Builder $groupBuilder) => $groupBuilder->whereIn('group_id', $groupIds));
+                }
+            });
         }
 
-        return $query->whereHas('groupAttendanceDays', fn (Builder $builder) => $builder->whereIn('group_id', $groupIds));
+        return $query->whereRaw('1 = 0');
     }
 
     public function scopeStudentNotes(Builder $query, ?User $user): Builder

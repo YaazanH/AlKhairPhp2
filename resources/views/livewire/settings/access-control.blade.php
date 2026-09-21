@@ -48,7 +48,7 @@ new class extends Component {
 
     public function with(): array
     {
-        $permissions = Permission::query()->orderBy('name')->get();
+        $permissions = Permission::query()->orderBy('name')->get()->filter(fn ($permission) => app(\App\Services\Landlord\CurrentModuleAccess::class)->permissionAvailable($permission->name));
         $rolesQuery = $this->rolesQuery();
 
         if (filled($this->permission_search)) {
@@ -198,7 +198,7 @@ new class extends Component {
 
             if (filled($validated['clone_role'] ?? null)) {
                 $cloneRole = Role::findByName($validated['clone_role'], 'web');
-                $role->syncPermissions($cloneRole->permissions->pluck('name')->all());
+                $role->syncPermissions($cloneRole->permissions->pluck('name')->filter(fn ($name) => app(\App\Services\Landlord\CurrentModuleAccess::class)->permissionAvailable($name))->all());
             }
 
             $orderedRoles = RoleRegistry::sortCollection(
@@ -294,7 +294,12 @@ new class extends Component {
         }
 
         $role = Role::findByName($this->selected_role, 'web');
-        $role->syncPermissions($this->selected_permissions);
+        $moduleAccess = app(\App\Services\Landlord\CurrentModuleAccess::class);
+        foreach ($this->selected_permissions as $permission) {
+            abort_unless(is_string($permission) && $moduleAccess->permissionAvailable($permission), 403);
+        }
+        $dormant = $role->permissions->pluck('name')->reject(fn ($name) => $moduleAccess->permissionAvailable($name))->all();
+        $role->syncPermissions(array_values(array_unique(array_merge($dormant, $this->selected_permissions))));
 
         session()->flash('status', __('access.roles.messages.saved'));
 
@@ -312,7 +317,7 @@ new class extends Component {
             ? Role::query()->where('name', $this->selected_role)->first()
             : null;
 
-        $this->selected_permissions = $role?->permissions()->pluck('name')->values()->all() ?? [];
+        $this->selected_permissions = $role?->permissions()->pluck('name')->filter(fn ($name) => app(\App\Services\Landlord\CurrentModuleAccess::class)->permissionAvailable($name))->values()->all() ?? [];
     }
 
     protected function permissionGroupLabel(string $permissionName): string

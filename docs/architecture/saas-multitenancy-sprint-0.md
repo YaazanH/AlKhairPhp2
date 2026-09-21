@@ -1,5 +1,8 @@
 # SaaS Multitenancy - Sprint 0 Baseline
 
+> Module packaging follow-up (2026-09-20): see [Modular tenancy Sprint 0](modular-tenancy-sprint-0.md).
+> Its selectable modules and additive tenant extras supersede the fixed Core/Finance/Custom Printing packaging below. The original hosting and tenancy boundaries remain applicable.
+
 ## Purpose
 
 This document fixes the architectural decisions that must stay stable while the

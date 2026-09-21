@@ -6,6 +6,7 @@ use App\Models\AttendanceStatus;
 use App\Models\Enrollment;
 use App\Models\Group;
 use App\Models\GroupAttendanceDay;
+use App\Models\Student;
 use App\Models\StudentAttendanceDay;
 use App\Models\StudentAttendanceRecord;
 use App\Models\User;
@@ -28,12 +29,14 @@ class StudentAttendanceDayService
             $day = StudentAttendanceDay::query()
                 ->whereDate('attendance_date', $attendanceDate)
                 ->where('course_id', $courseId)
+                ->where('scope', 'groups')
                 ->first();
 
             if ($day) {
                 $day->fill([
                     'attendance_date' => $attendanceDate,
                     'course_id' => $courseId,
+                    'scope' => 'groups',
                     'notes' => $notes ?: null,
                     'created_by' => $day->created_by ?? $actor?->id,
                 ])->save();
@@ -82,6 +85,71 @@ class StudentAttendanceDayService
 
             return $this->syncAggregateStatus($day);
         });
+    }
+
+    public function createOrSyncCenterDay(string $attendanceDate, ?User $actor = null, ?string $notes = null, string $status = 'open', ?int $defaultAttendanceStatusId = null): StudentAttendanceDay
+    {
+        return DB::transaction(function () use ($attendanceDate, $actor, $notes, $status, $defaultAttendanceStatusId): StudentAttendanceDay {
+            $attendanceDate = Carbon::parse($attendanceDate)->toDateString();
+            $day = StudentAttendanceDay::query()->firstOrNew([
+                'attendance_date' => $attendanceDate,
+                'scope' => 'center',
+            ]);
+
+            if (! $day->exists) {
+                $day->status = $status;
+            }
+            $day->course_id = null;
+            $day->notes = $notes ?: null;
+            $day->created_by ??= $actor?->id;
+            $day->save();
+
+            if ($defaultAttendanceStatusId) {
+                $this->applyDefaultCenterStatus($day, $defaultAttendanceStatusId);
+            }
+
+            return $day->fresh(['centerRecords.status', 'centerRecords.student']);
+        });
+    }
+
+    public function recordStudentStatus(StudentAttendanceDay $day, Student $student, AttendanceStatus $status, ?string $notes = null): StudentAttendanceRecord
+    {
+        if ($day->scope !== 'center') {
+            throw new InvalidArgumentException('Direct student attendance requires a center attendance day.');
+        }
+        if ($day->fresh()->status === 'closed') {
+            throw new InvalidArgumentException(__('workflow.student_attendance.messages.closed_day_locked'));
+        }
+
+        return StudentAttendanceRecord::query()->updateOrCreate(
+            [
+                'student_attendance_day_id' => $day->id,
+                'student_id' => $student->id,
+            ],
+            [
+                'group_attendance_day_id' => null,
+                'enrollment_id' => null,
+                'attendance_status_id' => $status->id,
+                'notes' => $notes,
+            ],
+        )->fresh(['status', 'student']);
+    }
+
+    protected function applyDefaultCenterStatus(StudentAttendanceDay $day, int $attendanceStatusId): void
+    {
+        $status = AttendanceStatus::query()
+            ->whereKey($attendanceStatusId)
+            ->where('is_active', true)
+            ->whereIn('scope', ['student', 'both'])
+            ->first();
+
+        if (! $status) {
+            return;
+        }
+
+        Student::query()->where('status', 'active')->orderBy('id')->eachById(
+            fn (Student $student) => $this->recordStudentStatus($day, $student, $status),
+        );
     }
 
     /**
@@ -207,6 +275,12 @@ class StudentAttendanceDayService
 
         if (! $statusId) {
             return $day;
+        }
+
+        if ($day->scope === 'center') {
+            $this->applyDefaultCenterStatus($day, (int) $statusId);
+
+            return $day->fresh(['centerRecords.status', 'centerRecords.student']);
         }
 
         $groups = Group::query()

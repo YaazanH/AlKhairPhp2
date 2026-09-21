@@ -4,10 +4,9 @@ namespace App\Services;
 
 use App\Models\AppSetting;
 use App\Models\Group;
-use App\Models\Landlord\Feature;
 use App\Models\User;
+use App\Services\Landlord\CurrentModuleAccess;
 use App\Services\Landlord\TenantContext;
-use App\Services\Landlord\TenantFeatureAccess;
 use App\Support\OperationalFeatureSettings;
 
 class SidebarNavigationService
@@ -258,8 +257,8 @@ class SidebarNavigationService
 
             foreach ($this->defaultItems() as $itemKey => $itemDefinition) {
                 if ($tenantContext->hasTenant()
-                    && ($feature = $this->requiredTenantFeature($itemKey)) !== null
-                    && ! app(TenantFeatureAccess::class)->isEnabled($tenantContext->tenant(), $feature)) {
+                    && collect($this->requiredTenantModules($itemKey))
+                        ->contains(fn (string $module) => ! app(CurrentModuleAccess::class)->enabled($module))) {
                     continue;
                 }
                 if ($itemKey === 'finance_pull_requests' && ! $this->withdrawalRequestsEnabled()) {
@@ -366,15 +365,45 @@ class SidebarNavigationService
         return false;
     }
 
-    protected function requiredTenantFeature(string $itemKey): ?string
+    /** @return array<int, string> */
+    protected function requiredTenantModules(string $itemKey): array
     {
-        if (str_starts_with($itemKey, 'finance_') || $itemKey === 'finance_settings') {
-            return Feature::FINANCE;
+        $modules = [
+            'parents' => ['parents'],
+            'teachers' => ['teachers'],
+            'students' => ['students'],
+            'student_progress' => ['students'],
+            'student_notes' => ['students'],
+            'courses' => ['classes'],
+            'groups' => ['classes'],
+            'enrollments' => ['classes'],
+            'curricula' => ['curriculum'],
+            'student_attendance' => ['student_attendance'],
+            'teacher_attendance' => ['teacher_attendance'],
+            'memorization' => ['memorization'],
+            'enter_memorize' => ['memorization'],
+            'quran_tests_quick_entry' => ['quran_tests'],
+            'quran_partial_tests' => ['quran_tests'],
+            'quran_final_tests' => ['quran_tests'],
+            'quran_tests' => ['quran_tests'],
+            'assessments' => ['assessments'],
+            'point_ledger' => ['points_rewards'],
+            'activities' => ['activities'],
+            'family_activities' => ['parent_portal', 'activities'],
+            'public_website_settings' => ['public_website'],
+            'print_templates' => ['custom_templates'],
+            'id_card_print' => ['id_cards'],
+        ];
+
+        if (isset($modules[$itemKey])) {
+            return $modules[$itemKey];
         }
 
-        return in_array($itemKey, ['print_templates', 'id_card_print'], true)
-            ? Feature::CUSTOM_PRINTING
-            : null;
+        if (str_starts_with($itemKey, 'finance_') || $itemKey === 'finance_settings') {
+            return ['finance'];
+        }
+
+        return [];
     }
 
     protected function activeTeacherGroup(User $user): ?Group

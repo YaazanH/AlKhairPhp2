@@ -7,8 +7,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class TenantSubscription extends LandlordModel
 {
     public const STATUS_TRIAL = 'trial';
+
     public const STATUS_ACTIVE = 'active';
+
     public const STATUS_SUSPENDED = 'suspended';
+
     public const STATUS_EXPIRED = 'expired';
 
     protected $fillable = [
@@ -46,6 +49,7 @@ class TenantSubscription extends LandlordModel
     public function isCurrent(): bool
     {
         return in_array($this->status, [self::STATUS_TRIAL, self::STATUS_ACTIVE], true)
+            && ($this->starts_at === null || $this->starts_at->lessThanOrEqualTo(now()))
             && ($this->ends_at === null || $this->ends_at->isFuture());
     }
 }

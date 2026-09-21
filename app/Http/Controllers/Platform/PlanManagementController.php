@@ -7,6 +7,7 @@ use App\Models\Landlord\Feature;
 use App\Models\Landlord\Plan;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 
 class PlanManagementController extends Controller
@@ -29,8 +30,11 @@ class PlanManagementController extends Controller
         ]);
         $codes = collect($data['features'] ?? [])->push(Feature::CORE)->unique()->all();
         $featureIds = Feature::query()->whereIn('code', $codes)->pluck('id')->all();
-        $plan->update(['name' => $data['name'], 'is_active' => (bool) ($data['is_active'] ?? false)]);
-        $plan->features()->sync($featureIds);
+        DB::connection('landlord')->transaction(function () use ($plan, $data, $featureIds): void {
+            $lockedPlan = Plan::query()->lockForUpdate()->findOrFail($plan->id);
+            $lockedPlan->update(['name' => $data['name'], 'is_active' => (bool) ($data['is_active'] ?? false)]);
+            $lockedPlan->features()->sync($featureIds);
+        });
 
         return back()->with('status', 'Package saved successfully.');
     }
