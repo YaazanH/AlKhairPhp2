@@ -58,7 +58,7 @@ new class extends Component {
     public function openAttemptModal(int $partId): void
     {
         $this->authorizePermission('quran-partial-tests.record');
-        \App\Support\OperationalFeatureSettings::ensureMemorizationAndSabersEnabled();
+        \App\Support\OperationalFeatureSettings::ensureQuranTestsEnabled();
 
         $part = $this->partialTest->parts()->findOrFail($partId);
 
@@ -97,7 +97,7 @@ new class extends Component {
         }
 
         if (! $this->editingAttemptId) {
-            \App\Support\OperationalFeatureSettings::ensureMemorizationAndSabersEnabled();
+            \App\Support\OperationalFeatureSettings::ensureQuranTestsEnabled();
         }
 
         $validated = $this->validate([

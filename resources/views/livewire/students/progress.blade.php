@@ -19,6 +19,7 @@ use App\Models\StudentPageAchievement;
 use App\Models\Teacher;
 use App\Services\PointLedgerService;
 use App\Services\QuranProgressionService;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -398,12 +399,14 @@ new class extends Component
             )->get()
             : collect();
 
-        $pointTransactions = auth()->user()->can('points.view') && $highlightEnrollmentIds !== []
+        $pointTransactions = auth()->user()->can('points.view')
             ? $this->scopePointTransactionsQuery(
                 PointTransaction::query()
                     ->with(['pointType'])
                     ->where('student_id', $studentRecord->id)
-                    ->whereIn('enrollment_id', $highlightEnrollmentIds)
+                    ->where(fn (Builder $query) => $query
+                        ->whereNull('enrollment_id')
+                        ->when($highlightEnrollmentIds !== [], fn (Builder $enrollmentQuery) => $enrollmentQuery->orWhereIn('enrollment_id', $highlightEnrollmentIds)))
             )->latest('entered_at')->latest('id')->get()->filter(fn (PointTransaction $transaction) => $transaction->isEffectivelyActive())->values()
             : collect();
 
@@ -501,7 +504,8 @@ new class extends Component
                 'memorized_pages' => $highlightPages->count(),
                 'quran_partial_tests' => $partialTests->whereIn('enrollment_id', $highlightEnrollmentIds)->count(),
                 'quran_final_tests' => $finalTests->whereIn('enrollment_id', $highlightEnrollmentIds)->count(),
-                'points' => (int) $highlightEnrollments->sum('final_points_cached'),
+                'points' => (int) $highlightEnrollments->sum('final_points_cached')
+                    + (int) $pointTransactions->whereNull('enrollment_id')->sum('points'),
             ],
         ];
     }

@@ -84,7 +84,8 @@ class ParentMobileController extends Controller
                 'children' => $studentIds->count(),
                 'active_enrollments' => $activeEnrollments->count(),
                 'memorized_pages' => (int) $activeEnrollments->sum('memorized_pages_cached'),
-                'points' => (int) $activeEnrollments->sum('final_points_cached'),
+                'points' => (int) $activeEnrollments->sum('final_points_cached')
+                    + (int) PointTransaction::query()->whereIn('student_id', $studentIds)->whereNull('enrollment_id')->notVoided()->sum('points'),
                 'invoice_total' => round($invoiceTotals['total'], 2),
                 'paid_total' => round($invoiceTotals['paid'], 2),
                 'balance' => round($invoiceTotals['total'] - $invoiceTotals['paid'], 2),
@@ -476,7 +477,8 @@ class ParentMobileController extends Controller
             'school_name' => $student->school_name,
             'joined_at' => $this->date($student->joined_at),
             'memorized_pages' => (int) $activeEnrollments->sum('memorized_pages_cached'),
-            'points' => (int) $activeEnrollments->sum('final_points_cached'),
+            'points' => (int) $activeEnrollments->sum('final_points_cached')
+                + (int) PointTransaction::query()->where('student_id', $student->id)->whereNull('enrollment_id')->notVoided()->sum('points'),
             'active_enrollments' => $activeEnrollments
                 ->map(fn (Enrollment $enrollment): array => $this->enrollmentSummary($enrollment))
                 ->values(),

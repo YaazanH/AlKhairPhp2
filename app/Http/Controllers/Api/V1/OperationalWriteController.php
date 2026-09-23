@@ -656,6 +656,61 @@ class OperationalWriteController extends Controller
     }
 
     /**
+     * Record an enrollment-independent manual point transaction for a registered student.
+     */
+    public function storeStudentManualPoint(Request $request, Student $student)
+    {
+        $this->authorizePermission($request, 'points.create-manual');
+        abort_unless(app(AccessScopeService::class)->canAccessStudent($request->user(), $student), 403);
+
+        $request->merge([
+            'idempotency_key' => $request->header('Idempotency-Key', $request->input('idempotency_key')),
+        ]);
+        $validated = $request->validate([
+            'idempotency_key' => ['required', 'string', 'max:100'],
+            'notes' => ['required', 'string', 'max:500'],
+            'point_type_id' => ['required', 'integer', Rule::exists('point_types', 'id')->where('is_active', true)],
+            'points' => ['required', 'integer', 'not_in:0'],
+        ]);
+
+        $pointType = PointType::query()->findOrFail($validated['point_type_id']);
+        if (! $pointType->allow_manual_entry) {
+            return response()->json(['message' => 'This point type cannot be entered manually.'], 422);
+        }
+        if (! $pointType->allow_negative && (int) $validated['points'] < 0) {
+            return response()->json(['message' => 'This point type does not allow negative values.'], 422);
+        }
+
+        $existing = PointTransaction::query()->where('idempotency_key', $validated['idempotency_key'])->first();
+        if ($existing) {
+            if (
+                $existing->student_id !== $student->id
+                || $existing->point_type_id !== $pointType->id
+                || $existing->points !== (int) $validated['points']
+                || $existing->notes !== trim($validated['notes'])
+                || $existing->source_type !== 'manual'
+            ) {
+                return response()->json(['message' => 'The idempotency key was already used for a different point transaction.'], 409);
+            }
+
+            return response()->json($this->pointTransactionPayload($existing->load('pointType')));
+        }
+
+        $transaction = app(PointLedgerService::class)->recordManualStudentPoints(
+            $student,
+            $pointType,
+            (int) $validated['points'],
+            trim($validated['notes']),
+            $request->user()->id,
+            $validated['idempotency_key'],
+        );
+
+        abort_unless($transaction, 422, 'Unable to record this point transaction.');
+
+        return response()->json($this->pointTransactionPayload($transaction->fresh(['pointType'])), 201);
+    }
+
+    /**
      * Void one point transaction while preserving its history.
      */
     public function voidPoint(Request $request, PointTransaction $pointTransaction)
@@ -663,9 +718,12 @@ class OperationalWriteController extends Controller
         $this->authorizePermission($request, 'points.void');
 
         $enrollment = $pointTransaction->enrollment()->with('group', 'student')->first();
-        abort_unless($enrollment, 404);
-
-        $this->authorizeTeacherEnrollmentScope($request, $enrollment);
+        if ($enrollment) {
+            $this->authorizeTeacherEnrollmentScope($request, $enrollment);
+        } else {
+            $student = $pointTransaction->student()->firstOrFail();
+            abort_unless(app(AccessScopeService::class)->canAccessStudent($request->user(), $student), 403);
+        }
 
         if (! $pointTransaction->voided_at) {
             $pointTransaction->update([
@@ -674,7 +732,9 @@ class OperationalWriteController extends Controller
                 'voided_by' => $request->user()->id,
             ]);
 
-            app(PointLedgerService::class)->syncEnrollmentCaches($enrollment->fresh(['student']));
+            if ($enrollment) {
+                app(PointLedgerService::class)->syncEnrollmentCaches($enrollment->fresh(['student']));
+            }
         }
 
         return response()->json($this->pointTransactionPayload($pointTransaction->fresh(['pointType', 'voidedBy'])));
@@ -832,6 +892,7 @@ class OperationalWriteController extends Controller
             'entered_at' => $transaction->entered_at?->toIso8601String(),
             'enrollment_id' => $transaction->enrollment_id,
             'id' => $transaction->id,
+            'idempotency_key' => $transaction->idempotency_key,
             'notes' => $transaction->notes,
             'point_type_id' => $transaction->point_type_id,
             'point_type_name' => $transaction->pointType?->name,

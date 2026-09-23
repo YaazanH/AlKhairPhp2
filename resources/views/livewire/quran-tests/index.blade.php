@@ -197,7 +197,7 @@ new class extends Component {
     public function openCreateModal(): void
     {
         $this->authorizeAnyPermission(['quran-awqaf-tests.record', 'quran-tests.record']);
-        \App\Support\OperationalFeatureSettings::ensureMemorizationAndSabersEnabled();
+        \App\Support\OperationalFeatureSettings::ensureQuranTestsEnabled();
 
         $this->resetForm();
         $this->showFormModal = true;
@@ -252,7 +252,7 @@ new class extends Component {
         $this->authorizeAnyPermission(['quran-awqaf-tests.record', 'quran-tests.record']);
 
         if (! $this->editingTestId) {
-            \App\Support\OperationalFeatureSettings::ensureMemorizationAndSabersEnabled();
+            \App\Support\OperationalFeatureSettings::ensureQuranTestsEnabled();
         }
 
         $validated = $this->validate([

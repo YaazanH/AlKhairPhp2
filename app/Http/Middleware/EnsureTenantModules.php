@@ -52,6 +52,12 @@ class EnsureTenantModules
             'enrollments.' => 'classes',
             'student-attendance.' => 'student_attendance',
             'teacher-attendance.' => 'teacher_attendance',
+            'memorization.' => 'memorization',
+            'quran-partial-tests.' => 'quran_tests',
+            'quran-final-tests.' => 'quran_tests',
+            'quran-tests.' => 'quran_tests',
+            'assessments.' => 'assessments',
+            'points.' => 'points_rewards',
             'curricula.' => 'curriculum',
             'curriculum-resources.' => 'curriculum',
             'settings.curriculum-subjects' => 'curriculum',
@@ -72,9 +78,25 @@ class EnsureTenantModules
         if ($route === 'teacher-attendance.export') {
             $modules[] = 'teacher_attendance';
         }
+        $exactRouteModules = [
+            'saber-entry.index' => 'quran_tests',
+            'enrollments.memorization' => 'memorization',
+            'enrollments.quran-tests' => 'quran_tests',
+            'enrollments.points' => 'points_rewards',
+            'reports.exports.memorization' => 'memorization',
+            'reports.exports.student-quran-tests' => 'quran_tests',
+            'reports.exports.assessments' => 'assessments',
+            'reports.exports.points' => 'points_rewards',
+        ];
+        if (isset($exactRouteModules[$route])) {
+            $modules[] = $exactRouteModules[$route];
+        }
 
         if (preg_match('#^api/v1/students(?:/|$)#', $path)) {
             $modules[] = 'students';
+        }
+        if (preg_match('#^api/v1/students/[^/]+/points/manual$#', $path)) {
+            $modules[] = 'points_rewards';
         }
         if (preg_match('#^api/v1/(groups|enrollments)(?:/|$)#', $path)) {
             $modules[] = 'classes';

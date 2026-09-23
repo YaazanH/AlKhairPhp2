@@ -14,7 +14,6 @@ return [
         'memorization' => ['name' => 'Memorization', 'requires' => ['classes']],
         'quran_tests' => ['name' => 'Quran Tests', 'requires' => ['classes']],
         'assessments' => ['name' => 'General Assessments', 'requires' => ['classes']],
-        // Enrollment-independent manual points remains a later business decision.
         'points_rewards' => ['name' => 'Points and Rewards', 'requires' => ['students']],
         'activities' => ['name' => 'Activities', 'requires' => ['students']],
         'finance' => ['name' => 'Income and Expenses', 'requires' => []],

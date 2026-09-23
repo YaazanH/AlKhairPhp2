@@ -10,12 +10,13 @@ use App\Models\Group;
 use App\Models\PointPolicy;
 use App\Models\PointTransaction;
 use App\Models\PointType;
-use App\Models\QuranJuz;
 use App\Models\QuranFinalTest;
+use App\Models\QuranJuz;
 use App\Models\QuranPartialTest;
 use App\Models\QuranPartialTestPart;
 use App\Models\QuranTest;
 use App\Models\Student;
+use App\Services\Landlord\CurrentModuleAccess;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 
@@ -25,6 +26,10 @@ class PointLedgerService
 
     public function resolvePolicy(string $sourceType, string $triggerKey, ?int $gradeLevelId = null, ?float $value = null, ?string $eventDate = null): ?PointPolicy
     {
+        if (! app(CurrentModuleAccess::class)->enabled('points_rewards')) {
+            return null;
+        }
+
         $eventDate ??= now()->toDateString();
 
         return PointPolicy::query()
@@ -59,11 +64,21 @@ class PointLedgerService
 
     public function recordAutomaticPoints(Enrollment $enrollment, string $sourceType, int $sourceId, PointType $pointType, ?PointPolicy $policy, int $points, ?string $notes = null): ?PointTransaction
     {
-        if ($points === 0 || ! $this->enrollmentAwardsPoints($enrollment)) {
+        if (! app(CurrentModuleAccess::class)->enabled('points_rewards') || $points === 0 || ! $this->enrollmentAwardsPoints($enrollment)) {
             return null;
         }
 
         $points = $this->multipliedAutomaticPoints($points);
+
+        $existing = PointTransaction::query()
+            ->where('source_type', $sourceType)
+            ->where('source_id', $sourceId)
+            ->whereNull('voided_at')
+            ->first();
+
+        if ($existing) {
+            return $existing;
+        }
 
         return PointTransaction::query()->create([
             'student_id' => $enrollment->student_id,
@@ -138,6 +153,35 @@ class PointLedgerService
         ]);
     }
 
+    public function recordManualStudentPoints(Student $student, PointType $pointType, int $points, string $reason, ?int $enteredBy = null, ?string $idempotencyKey = null): ?PointTransaction
+    {
+        if (! app(CurrentModuleAccess::class)->enabled('points_rewards') || $points === 0) {
+            return null;
+        }
+
+        $attributes = [
+            'student_id' => $student->id,
+            'enrollment_id' => null,
+            'point_type_id' => $pointType->id,
+            'policy_id' => null,
+            'source_type' => 'manual',
+            'source_id' => null,
+            'points' => $points,
+            'entered_by' => $enteredBy ?? auth()->id(),
+            'entered_at' => now(),
+            'notes' => $reason,
+        ];
+
+        if (filled($idempotencyKey)) {
+            return PointTransaction::query()->firstOrCreate(
+                ['idempotency_key' => $idempotencyKey],
+                $attributes,
+            );
+        }
+
+        return PointTransaction::query()->create($attributes);
+    }
+
     public function enrollmentAwardsPoints(Enrollment $enrollment): bool
     {
         $enrollment->loadMissing('group.course');
@@ -147,6 +191,10 @@ class PointLedgerService
 
     public function voidSourceTransactions(string $sourceType, int $sourceId, ?string $reason = null): void
     {
+        if (! app(CurrentModuleAccess::class)->enabled('points_rewards')) {
+            return;
+        }
+
         PointTransaction::query()
             ->where('source_type', $sourceType)
             ->where('source_id', $sourceId)

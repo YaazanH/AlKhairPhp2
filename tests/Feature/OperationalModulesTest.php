@@ -10,10 +10,15 @@ use App\Models\Group;
 use App\Models\Landlord\Feature;
 use App\Models\Landlord\Plan;
 use App\Models\Landlord\Tenant;
+use App\Models\PointTransaction;
+use App\Models\PointType;
+use App\Models\QuranJuz;
 use App\Models\Student;
 use App\Models\Teacher;
 use App\Models\User;
 use App\Services\Landlord\TenantContext;
+use App\Services\PointLedgerService;
+use App\Services\QuranPartialTestService;
 use App\Services\SidebarNavigationService;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -85,6 +90,10 @@ class OperationalModulesTest extends TestCase
         $this->get('/student-attendance')->assertForbidden();
         $this->get('/teacher-attendance')->assertForbidden();
         $this->get('/curricula')->assertForbidden();
+        $this->get('/memorization')->assertForbidden();
+        $this->get('/quran-tests')->assertForbidden();
+        $this->get('/assessments')->assertForbidden();
+        $this->get('/points')->assertForbidden();
 
         $keys = collect(app(SidebarNavigationService::class)->sidebarFor(auth()->user()))
             ->flatMap(fn (array $group) => collect($group['items'])->pluck('key'))
@@ -95,6 +104,10 @@ class OperationalModulesTest extends TestCase
         $this->assertNotContains('student_attendance', $keys);
         $this->assertNotContains('teacher_attendance', $keys);
         $this->assertNotContains('curricula', $keys);
+        $this->assertNotContains('memorization', $keys);
+        $this->assertNotContains('quran_tests', $keys);
+        $this->assertNotContains('assessments', $keys);
+        $this->assertNotContains('point_ledger', $keys);
     }
 
     public function test_center_student_attendance_works_without_classes(): void
@@ -153,6 +166,100 @@ class OperationalModulesTest extends TestCase
         $this->postJson('/api/v1/enrollments/'.$enrollment->id.'/memorization', [])
             ->assertStatus(422)
             ->assertJsonPath('message', __('modules.errors.teacher_required'));
+    }
+
+    public function test_manual_points_can_be_awarded_to_an_unenrolled_student_and_api_retries_are_idempotent(): void
+    {
+        $this->modules(['points_rewards']);
+        $this->admin();
+        $student = Student::create(['first_name' => 'Independent', 'last_name' => 'Student', 'birth_date' => '2015-01-01', 'status' => 'active']);
+        $pointType = PointType::create([
+            'name' => 'Participation',
+            'code' => 'participation',
+            'category' => 'manual',
+            'default_points' => 5,
+            'allow_manual_entry' => true,
+            'allow_negative' => false,
+            'is_active' => true,
+        ]);
+        $payload = ['point_type_id' => $pointType->id, 'points' => 5, 'notes' => 'Helped another student'];
+
+        $this->withHeader('Idempotency-Key', 'manual-student-award-1')
+            ->postJson('/api/v1/students/'.$student->id.'/points/manual', $payload)
+            ->assertCreated()
+            ->assertJsonPath('enrollment_id', null);
+        $this->withHeader('Idempotency-Key', 'manual-student-award-1')
+            ->postJson('/api/v1/students/'.$student->id.'/points/manual', $payload)
+            ->assertOk();
+
+        $this->assertSame(1, PointTransaction::query()->count());
+        $this->assertSame(5, (int) PointTransaction::query()->effectiveActive()->sum('points'));
+        $this->assertDatabaseHas('point_transactions', [
+            'student_id' => $student->id,
+            'enrollment_id' => null,
+            'idempotency_key' => 'manual-student-award-1',
+            'notes' => 'Helped another student',
+        ]);
+    }
+
+    public function test_quran_partial_testing_does_not_require_memorization_history_when_module_is_absent(): void
+    {
+        $this->modules(['quran_tests']);
+        $this->admin();
+        $year = AcademicYear::create(['name' => '2026', 'starts_on' => '2026-01-01', 'ends_on' => '2026-12-31', 'is_active' => true]);
+        $course = Course::create(['name' => 'Quran tests', 'is_active' => true]);
+        $teacher = Teacher::create(['first_name' => 'Test', 'last_name' => 'Teacher', 'phone' => '200', 'status' => 'active']);
+        $group = Group::create(['academic_year_id' => $year->id, 'course_id' => $course->id, 'teacher_id' => $teacher->id, 'name' => 'Tests', 'capacity' => 10, 'is_active' => true]);
+        $student = Student::create(['first_name' => 'No', 'last_name' => 'History', 'birth_date' => '2015-01-01', 'status' => 'active']);
+        $enrollment = Enrollment::create(['student_id' => $student->id, 'group_id' => $group->id, 'enrolled_at' => '2026-09-21', 'status' => 'active']);
+        $juz = QuranJuz::create(['juz_number' => 1, 'from_page' => 1, 'to_page' => 21]);
+
+        $test = app(QuranPartialTestService::class)->create($enrollment, $juz);
+
+        $this->assertSame($student->id, $test->student_id);
+        $this->assertSame(0, $student->pageAchievements()->count());
+        $this->get('/quran-partial-tests')->assertOk();
+        $this->get('/memorization')->assertForbidden();
+    }
+
+    public function test_automatic_points_are_skipped_when_points_module_is_disabled(): void
+    {
+        $this->modules(['classes']);
+        $this->admin();
+        $year = AcademicYear::create(['name' => '2026', 'starts_on' => '2026-01-01', 'ends_on' => '2026-12-31', 'is_active' => true]);
+        $course = Course::create(['name' => 'No rewards', 'is_active' => true, 'awards_points' => true]);
+        $teacher = Teacher::create(['first_name' => 'Course', 'last_name' => 'Teacher', 'phone' => '300', 'status' => 'active']);
+        $group = Group::create(['academic_year_id' => $year->id, 'course_id' => $course->id, 'teacher_id' => $teacher->id, 'name' => 'Class', 'capacity' => 10, 'is_active' => true]);
+        $student = Student::create(['first_name' => 'Source', 'last_name' => 'Student', 'birth_date' => '2015-01-01', 'status' => 'active']);
+        $enrollment = Enrollment::create(['student_id' => $student->id, 'group_id' => $group->id, 'enrolled_at' => '2026-09-21', 'status' => 'active']);
+        $pointType = PointType::create(['name' => 'Automatic', 'code' => 'automatic', 'category' => 'automatic', 'default_points' => 3, 'allow_manual_entry' => false, 'allow_negative' => false, 'is_active' => true]);
+
+        $transaction = app(PointLedgerService::class)->recordAutomaticPoints($enrollment, 'assessment_result', 99, $pointType, null, 3);
+
+        $this->assertNull($transaction);
+        $this->assertDatabaseCount('point_transactions', 0);
+        $this->get('/points')->assertForbidden();
+    }
+
+    public function test_automatic_point_retries_do_not_duplicate_or_reprice_history(): void
+    {
+        $this->modules(['classes', 'points_rewards']);
+        $this->admin();
+        $year = AcademicYear::create(['name' => '2026', 'starts_on' => '2026-01-01', 'ends_on' => '2026-12-31', 'is_active' => true]);
+        $course = Course::create(['name' => 'Rewards', 'is_active' => true, 'awards_points' => true]);
+        $teacher = Teacher::create(['first_name' => 'Reward', 'last_name' => 'Teacher', 'phone' => '400', 'status' => 'active']);
+        $group = Group::create(['academic_year_id' => $year->id, 'course_id' => $course->id, 'teacher_id' => $teacher->id, 'name' => 'Rewards', 'capacity' => 10, 'is_active' => true]);
+        $student = Student::create(['first_name' => 'Reward', 'last_name' => 'Student', 'birth_date' => '2015-01-01', 'status' => 'active']);
+        $enrollment = Enrollment::create(['student_id' => $student->id, 'group_id' => $group->id, 'enrolled_at' => '2026-09-21', 'status' => 'active']);
+        $pointType = PointType::create(['name' => 'Automatic', 'code' => 'automatic-retry', 'category' => 'automatic', 'default_points' => 3, 'allow_manual_entry' => false, 'allow_negative' => false, 'is_active' => true]);
+        $ledger = app(PointLedgerService::class);
+
+        $first = $ledger->recordAutomaticPoints($enrollment, 'assessment_result', 101, $pointType, null, 3);
+        $retryAfterRuleChange = $ledger->recordAutomaticPoints($enrollment, 'assessment_result', 101, $pointType, null, 9);
+
+        $this->assertSame($first?->id, $retryAfterRuleChange?->id);
+        $this->assertDatabaseCount('point_transactions', 1);
+        $this->assertSame(3, (int) PointTransaction::query()->sum('points'));
     }
 
     private function modules(array $codes): void

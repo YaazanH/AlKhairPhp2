@@ -69,7 +69,7 @@ Paths below are repository-relative and were inspected for this planning pass. T
 | `2026_05_31_010000_make_students_parent_id_nullable.php` and student web form already allow null parent; `WriteRecordsController.php` still requires one | Align API/web validation, serialization and parent shortcuts. Preserve an existing hidden parent link on unrelated student edits. Audit name formatting, numbering, reports and import behavior for parent assumptions. |
 | Group web form and `WriteRecordsController.php` require `teacher_id`; initial people/learning migration makes it non-null | Add a new migration if current schema still requires it, align API/web validation, and guard teacher-led operations. Check summaries, scope filters, notifications and model hooks for null teacher assumptions. |
 | `Invoice.php` has parent ownership; invoice items carry optional student IDs; `FinanceService.php` also uses invoices for expense documents | Introduce student ownership for student billing only. Do not require students on supplier/expense documents. Update payment, print, reporting and parent access paths. Historical mixed-student invoices require explicit classification, not guessing. |
-| `PointLedgerService.php` manual/automatic methods require Enrollment; `PointTransaction.php` effective totals depend on active course enrollment | Points independent of Classes needs student-level awards and revised effective-total rules, not just a new permission. Preserve existing course point semantics for enrollment-linked awards. See D1. |
+| `PointLedgerService.php` manual/automatic methods originally required Enrollment; `PointTransaction.php` effective totals depended on active course enrollment | M4 adds student-level manual awards while preserving existing course semantics for enrollment-linked awards. See resolved D1. |
 | `OperationalFeatureSettings.php` couples memorization and saber entries; Quran test services call the point ledger and enrollment logic | Separate availability from tenant settings, make points optional, and decouple memorization eligibility from test progression requirements. Keep mandatory test-internal sequencing intact. |
 | `routes/api.php` mixes records, finance, parent summaries and operational writes; activity registration lives in `FinanceWriteController` | Apply per-operation ownership, not controller-name gating. Free activity registration must work without Finance. Filter nested response fields and aggregate summaries as well as endpoints. |
 | `PrintTemplates/*`, `IdCards/*`, print controllers and shared `id-cards.*` permissions | Split designer and printing permissions/access without losing standard printing; gate template data sources and field resolution. |
@@ -147,9 +147,9 @@ Exercise each applicable scenario through web routes, Livewire actions and API r
 
 ## 9. Remaining decisions and bounded uncertainties
 
-### D1: Manual points without class enrollment (business decision)
+### D1: Manual points without class enrollment (resolved)
 
-Confirmed: manual points must work without Memorization and Assessments. Not yet explicitly decided: whether a student must still belong to a class. Current point totals and manual awards require enrollment and an active point-awarding course. Recommended: permit student-level manual awards without Classes, while retaining course-linked semantics for existing awards. This is a meaningful ledger change and needs the user's choice before M4; it does not block M1/M2.
+Manual points may be awarded directly to any registered student without Classes, Memorization or Assessments. New standalone awards retain actor, reason and date; API retries use an idempotency key. Existing enrollment-linked awards retain active point-awarding course semantics.
 
 ### D2: Historical mixed-student invoices (conditional migration decision)
 

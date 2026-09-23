@@ -576,7 +576,25 @@ class AccessScopeService
             return $query;
         }
 
-        return $this->applyScopedIds($query, 'enrollment_id', $this->accessibleEnrollmentIds($user));
+        $enrollmentIds = $this->accessibleEnrollmentIds($user);
+        $studentIds = $this->accessibleStudentIds($user);
+
+        if ($enrollmentIds === [] && $studentIds === []) {
+            return $query->whereRaw('1 = 0');
+        }
+
+        return $query->where(function (Builder $builder) use ($enrollmentIds, $studentIds): void {
+            if ($enrollmentIds !== []) {
+                $builder->whereIn('enrollment_id', $enrollmentIds);
+            }
+
+            if ($studentIds !== []) {
+                $method = $enrollmentIds === [] ? 'where' : 'orWhere';
+                $builder->{$method}(fn (Builder $studentBuilder) => $studentBuilder
+                    ->whereNull('enrollment_id')
+                    ->whereIn('student_id', $studentIds));
+            }
+        });
     }
 
     public function scopeStudentAttendanceRecords(Builder $query, ?User $user): Builder

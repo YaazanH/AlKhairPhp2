@@ -197,7 +197,7 @@ new class extends Component
     public function openCreateModal(): void
     {
         $this->authorizePermission('quran-partial-tests.record');
-        \App\Support\OperationalFeatureSettings::ensureMemorizationAndSabersEnabled();
+        \App\Support\OperationalFeatureSettings::ensureQuranTestsEnabled();
 
         $this->resetForm();
         $this->showFormModal = true;
@@ -217,7 +217,7 @@ new class extends Component
     public function confirmOpenTestWarningCreate(): void
     {
         $this->authorizePermission('quran-partial-tests.record');
-        \App\Support\OperationalFeatureSettings::ensureMemorizationAndSabersEnabled();
+        \App\Support\OperationalFeatureSettings::ensureQuranTestsEnabled();
 
         if (! $this->pendingCreateStudentId || ! $this->pendingCreateEnrollmentId || ! $this->pendingCreateJuzId) {
             $this->resetPendingCreateWarning();
@@ -259,7 +259,7 @@ new class extends Component
     public function save(): void
     {
         $this->authorizePermission('quran-partial-tests.record');
-        \App\Support\OperationalFeatureSettings::ensureMemorizationAndSabersEnabled();
+        \App\Support\OperationalFeatureSettings::ensureQuranTestsEnabled();
 
         $validated = $this->validate([
             'selectedStudentId' => ['required', 'exists:students,id'],

@@ -73,6 +73,7 @@ Route::middleware('auth:sanctum')->prefix('v1')->group(function () {
         Route::post('enrollments/{enrollment}/memorization', 'storeMemorization');
         Route::post('enrollments/{enrollment}/quran-tests', 'storeQuranTest');
         Route::post('enrollments/{enrollment}/points/manual', 'storeManualPoint');
+        Route::post('students/{student}/points/manual', 'storeStudentManualPoint');
         Route::post('points/{pointTransaction}/void', 'voidPoint');
         Route::post('assessments/{assessment}/results', 'storeAssessmentResults');
     });
