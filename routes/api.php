@@ -87,6 +87,7 @@ Route::middleware('auth:sanctum')->prefix('v1')->group(function () {
         Route::match(['put', 'patch'], 'activities/{activity}/expenses/{activityExpense}', 'updateActivityExpense');
         Route::delete('activities/{activity}/expenses/{activityExpense}', 'destroyActivityExpense');
 
+        Route::post('invoices', 'storeStudentInvoice');
         Route::post('invoices/{invoice}/items', 'storeInvoiceItem');
         Route::match(['put', 'patch'], 'invoices/{invoice}/items/{invoiceItem}', 'updateInvoiceItem');
         Route::delete('invoices/{invoice}/items/{invoiceItem}', 'destroyInvoiceItem');

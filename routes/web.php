@@ -219,6 +219,7 @@ Route::middleware(['auth'])->group(function () {
     Volt::route('enrollments/{enrollment}/points', 'enrollments.points')->middleware('permission:points.view')->name('enrollments.points');
     Volt::route('activities', 'activities.index')->middleware('permission:activities.view')->name('activities.index');
     Volt::route('activities/family', 'activities.family')->middleware('permission:activities.responses.view')->name('activities.family');
+    Volt::route('student-billing', 'student-billing.index')->middleware('permission:invoices.view')->name('student-billing.index');
     Route::middleware('tenant.feature:finance')->group(function (): void {
         Volt::route('activities/{activity}/finance', 'activities.finance')->middleware('permission:activities.finance.view')->name('activities.finance');
         Volt::route('finance', 'finance.dashboard')->middleware('permission:finance.reports.view')->name('finance.dashboard');
@@ -233,9 +234,9 @@ Route::middleware(['auth'])->group(function () {
         Route::get('finance/requests/{financeRequest}/print', FinanceRequestPrintController::class)->name('finance.requests.print');
         Route::get('finance/invoices/{invoice}/items.xlsx', FinanceInvoiceItemsExportController::class)->name('finance.invoices.items.xlsx');
         Route::get('finance/invoices/{invoice}/print', FinanceInvoicePrintController::class)->name('finance.invoices.print');
-        Volt::route('invoices', 'invoices.index')->middleware('permission:invoices.view')->name('invoices.index');
-        Volt::route('invoices/{invoice}/payments', 'invoices.payments')->middleware('permission:invoices.view')->name('invoices.payments');
-        Route::get('invoices/{invoice}/print', [PrintController::class, 'invoice'])->middleware('permission:invoices.view')->name('invoices.print');
+        Volt::route('invoices', 'invoices.index')->middleware('permission:finance.expense-requests.view')->name('invoices.index');
+        Volt::route('invoices/{invoice}/payments', 'invoices.payments')->middleware('permission:finance.expense-requests.view|invoices.view')->name('invoices.payments');
+        Route::get('invoices/{invoice}/print', [PrintController::class, 'invoice'])->middleware('permission:finance.expense-requests.view|invoices.view')->name('invoices.print');
         Route::get('payments/{payment}/receipt', [PrintController::class, 'receipt'])->middleware('permission:payments.view')->name('payments.receipt');
     });
 

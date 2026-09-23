@@ -321,7 +321,7 @@ new class extends Component {
                     'links' => collect([
                         ['label' => __('ui.nav.reports'), 'route' => auth()->user()->can('reports.view') ? route('reports.index') : null],
                         ['label' => __('ui.nav.assessments'), 'route' => auth()->user()->can('assessments.view') ? route('assessments.index') : null],
-                        ['label' => __('ui.nav.invoices'), 'route' => auth()->user()->can('invoices.view') ? route('invoices.index') : null],
+                        ['label' => __('ui.nav.student_billing'), 'route' => auth()->user()->can('invoices.view') ? route('student-billing.index') : null],
                     ])->filter(fn (array $link) => $link['route']),
                 ],
             ],
@@ -733,7 +733,7 @@ new class extends Component {
                         ['label' => __('ui.nav.students'), 'route' => auth()->user()->can('students.view') ? route('students.index') : null],
                         ['label' => __('ui.nav.enrollments'), 'route' => auth()->user()->can('enrollments.view') ? route('enrollments.index') : null],
                         ['label' => __('ui.nav.family_activities'), 'route' => auth()->user()->can('activities.responses.view') ? route('activities.family') : null],
-                        ['label' => __('ui.nav.invoices'), 'route' => auth()->user()->can('invoices.view') ? route('invoices.index') : null],
+                        ['label' => __('ui.nav.student_billing'), 'route' => auth()->user()->can('invoices.view') ? route('student-billing.index') : null],
                     ])->filter(fn (array $link) => $link['route']),
                 ],
             ],

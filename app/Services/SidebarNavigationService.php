@@ -70,6 +70,7 @@ class SidebarNavigationService
             'finance_exchange' => $this->item('ui.nav.finance_exchange', 'arrows-right-left', 'finance.exchange.index', ['finance.exchange.*'], 'finance', 40, ['finance.exchange.view']),
             'finance_reports' => $this->item('ui.nav.finance_reports', 'document-chart-bar', 'finance.reports.index', ['finance.reports.*'], 'finance', 50, ['finance.reports.view']),
             'finance_pull_requests' => $this->item('ui.nav.finance_withdrawal_requests', 'withdrawal-hand', 'finance.pull-requests.index', ['finance.pull-requests.*'], 'finance', 60, ['finance.pull-requests.view'], ['finance.pull-requests.review']),
+            'student_billing' => $this->item('ui.nav.student_billing', 'receipt-percent', 'student-billing.index', ['student-billing.*'], 'finance', 70, ['invoices.view']),
 
             'dashboard_settings' => $this->item('ui.nav.dashboard_settings', 'cog-6-tooth', 'settings.organization', ['settings.organization', 'settings.tracking', 'settings.course-completion', 'settings.points', 'settings.access-control', 'settings.sidebar-navigation', 'settings.backups'], 'configuration', 10, ['settings.manage']),
             'finance_settings' => $this->item('ui.nav.finance_settings', 'finance-settings', 'settings.finance', ['settings.finance'], 'configuration', 15, ['finance.settings.manage']),
@@ -390,6 +391,7 @@ class SidebarNavigationService
             'point_ledger' => ['points_rewards'],
             'activities' => ['activities'],
             'family_activities' => ['parent_portal', 'activities'],
+            'student_billing' => ['student_billing'],
             'public_website_settings' => ['public_website'],
             'print_templates' => ['custom_templates'],
             'id_card_print' => ['id_cards'],

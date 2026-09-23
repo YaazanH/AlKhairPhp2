@@ -2,6 +2,9 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\Invoice;
+use App\Models\Payment;
+use App\Services\InvoiceOwnershipService;
 use App\Services\Landlord\CurrentModuleAccess;
 use Closure;
 use Illuminate\Http\JsonResponse;
@@ -61,6 +64,9 @@ class EnsureTenantModules
             'curricula.' => 'curriculum',
             'curriculum-resources.' => 'curriculum',
             'settings.curriculum-subjects' => 'curriculum',
+            'activities.' => 'activities',
+            'finance.' => 'finance',
+            'student-billing.' => 'student_billing',
         ];
 
         foreach ($routeModules as $prefix => $module) {
@@ -77,6 +83,23 @@ class EnsureTenantModules
         }
         if ($route === 'teacher-attendance.export') {
             $modules[] = 'teacher_attendance';
+        }
+        if ($route === 'activities.finance') {
+            $modules[] = 'finance';
+        }
+        if (in_array($route, ['invoices.index', 'finance.invoices.items.xlsx', 'finance.invoices.print'], true)) {
+            $modules[] = 'finance';
+        }
+        if (in_array($route, ['invoices.payments', 'invoices.print'], true)) {
+            $invoice = $request->route('invoice');
+            if ($invoice instanceof Invoice) {
+                $modules[] = app(InvoiceOwnershipService::class)->isStudentBilling($invoice) ? 'student_billing' : 'finance';
+            }
+        }
+        if ($route === 'payments.receipt') {
+            $payment = $request->route('payment');
+            $invoice = $payment instanceof Payment ? $payment->invoice : null;
+            $modules[] = $invoice && app(InvoiceOwnershipService::class)->isStudentBilling($invoice) ? 'student_billing' : 'finance';
         }
         $exactRouteModules = [
             'saber-entry.index' => 'quran_tests',
@@ -124,6 +147,15 @@ class EnsureTenantModules
         }
         if ($path === 'api/v1/reports/teachers/daily-summary') {
             $modules[] = 'teachers';
+        }
+        if (preg_match('#^api/v1/activities(?:/|$)#', $path)) {
+            $modules[] = 'activities';
+        }
+        if (preg_match('#^api/v1/activities/[^/]+/(payments|expenses)(?:/|$)#', $path)) {
+            $modules[] = 'finance';
+        }
+        if (preg_match('#^api/v1/invoices(?:/|$)#', $path)) {
+            $modules[] = 'student_billing';
         }
 
         if ($request->is('api/v1/parent/*') || $route === 'activities.family') {

@@ -117,6 +117,10 @@ class AccessScopeService
             return false;
         }
 
+        if ($invoice->student_id && in_array((int) $invoice->student_id, $studentIds, true)) {
+            return true;
+        }
+
         return $invoice->items()
             ->where(function (Builder $query) use ($studentIds) {
                 $query
@@ -504,13 +508,17 @@ class AccessScopeService
             }
 
             if ($studentIds !== []) {
-                $method = $parentIds !== [] ? 'orWhereHas' : 'whereHas';
-                $builder->{$method}('items', function (Builder $query) use ($studentIds) {
-                    $query->where(function (Builder $itemQuery) use ($studentIds) {
-                        $itemQuery
-                            ->whereIn('student_id', $studentIds)
-                            ->orWhereHas('enrollment', fn (Builder $builder) => $builder->whereIn('student_id', $studentIds));
-                    });
+                $method = $parentIds !== [] ? 'orWhere' : 'where';
+                $builder->{$method}(function (Builder $studentQuery) use ($studentIds) {
+                    $studentQuery
+                        ->whereIn('student_id', $studentIds)
+                        ->orWhereHas('items', function (Builder $query) use ($studentIds) {
+                            $query->where(function (Builder $itemQuery) use ($studentIds) {
+                                $itemQuery
+                                    ->whereIn('student_id', $studentIds)
+                                    ->orWhereHas('enrollment', fn (Builder $builder) => $builder->whereIn('student_id', $studentIds));
+                            });
+                        });
                 });
             }
         });

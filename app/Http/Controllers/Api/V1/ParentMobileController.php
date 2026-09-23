@@ -20,6 +20,7 @@ use App\Models\StudentAttendanceRecord;
 use App\Models\StudentNote;
 use App\Services\ActivityAudienceService;
 use App\Services\FinanceService;
+use App\Services\Landlord\CurrentModuleAccess;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
@@ -72,7 +73,13 @@ class ParentMobileController extends Controller
 
         $invoiceTotals = Invoice::query()
             ->with(['payments' => fn ($query) => $query->whereNull('voided_at')])
-            ->where('parent_id', $parent->id)
+            ->where(function (Builder $query) use ($parent, $studentIds): void {
+                $query->whereIn('student_id', $studentIds)
+                    ->orWhere(function (Builder $legacy) use ($parent): void {
+                        $legacy->whereNull('student_id')->where('parent_id', $parent->id);
+                    });
+            })
+            ->where('invoice_type', '!=', 'finance')
             ->get()
             ->reduce(fn (array $carry, Invoice $invoice): array => [
                 'total' => $carry['total'] + (float) $invoice->total,
@@ -321,13 +328,20 @@ class ParentMobileController extends Controller
     public function invoices(Request $request): JsonResponse
     {
         $parent = $this->parentProfile($request);
+        $studentIds = $this->childrenQuery($parent)->pluck('id');
         $filters = $this->dateFilters($request, [
             'status' => ['nullable', 'string', 'max:30'],
         ]);
 
         $invoices = Invoice::query()
             ->with(['payments' => fn ($query) => $query->whereNull('voided_at')])
-            ->where('parent_id', $parent->id)
+            ->where(function (Builder $query) use ($parent, $studentIds): void {
+                $query->whereIn('student_id', $studentIds)
+                    ->orWhere(function (Builder $legacy) use ($parent): void {
+                        $legacy->whereNull('student_id')->where('parent_id', $parent->id);
+                    });
+            })
+            ->where('invoice_type', '!=', 'finance')
             ->when($filters['status'] ?? null, fn (Builder $query, string $status) => $query->where('status', $status))
             ->when($filters['date_from'] ?? null, fn (Builder $query, string $date) => $query->whereDate('issue_date', '>=', $date))
             ->when($filters['date_to'] ?? null, fn (Builder $query, string $date) => $query->whereDate('issue_date', '<=', $date))
@@ -341,8 +355,14 @@ class ParentMobileController extends Controller
     public function invoice(Request $request, Invoice $invoice): JsonResponse
     {
         $parent = $this->parentProfile($request);
+        $studentIds = $this->childrenQuery($parent)->pluck('id')->map(fn ($id) => (int) $id)->all();
 
-        abort_unless((int) $invoice->parent_id === (int) $parent->id, 404);
+        abort_unless(
+            ($invoice->student_id && in_array((int) $invoice->student_id, $studentIds, true))
+            || (! $invoice->student_id && (int) $invoice->parent_id === (int) $parent->id),
+            404,
+        );
+        abort_if($invoice->invoice_type === 'finance', 404);
 
         $invoice->load([
             'items.activity',
@@ -402,7 +422,9 @@ class ParentMobileController extends Controller
 
         $registration->fill([
             'enrollment_id' => $enrollment->id,
-            'fee_amount' => $registration->exists ? $registration->fee_amount : ($activity->fee_amount ?? 0),
+            'fee_amount' => app(CurrentModuleAccess::class)->enabled('finance')
+                ? ($registration->exists ? $registration->fee_amount : ($activity->fee_amount ?? 0))
+                : 0,
             'status' => $validated['response'],
             'notes' => $registration->notes,
         ])->save();
@@ -536,6 +558,7 @@ class ParentMobileController extends Controller
             'id' => $invoice->id,
             'invoice_no' => $invoice->invoice_no,
             'invoice_type' => $invoice->invoice_type,
+            'student_id' => $invoice->student_id,
             'issue_date' => $this->date($invoice->issue_date),
             'due_date' => $this->date($invoice->due_date),
             'status' => $invoice->status,
