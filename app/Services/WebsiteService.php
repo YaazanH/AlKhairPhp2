@@ -265,6 +265,40 @@ class WebsiteService
         return asset('storage/'.ltrim($path, '/'));
     }
 
+    /** @return array<int, string> */
+    public function publicMediaPaths(): array
+    {
+        $website = AppSetting::groupValues('website');
+        $paths = collect([
+            'website/branding/logo.jpeg',
+            $website->get('logo_path'),
+            $website->get('hero_image_path'),
+            $website->get('featured_video_path'),
+            $website->get('maintenance_image_path'),
+        ]);
+
+        $paths = $paths
+            ->merge(collect($website->get('gallery_paths') ?: []))
+            ->merge(collect($website->get('gallery_items') ?: [])->pluck('path'));
+
+        WebsitePage::query()->published()->get(['hero_media_path', 'sections'])->each(
+            function (WebsitePage $page) use (&$paths): void {
+                $paths->push($page->hero_media_path);
+                $paths = $paths->merge(
+                    collect($page->sections ?? [])->pluck('image_path')
+                );
+            }
+        );
+
+        return $paths
+            ->filter(fn (mixed $path): bool => is_string($path) && filled($path))
+            ->map(fn (string $path): string => ltrim($path, '/'))
+            ->filter(fn (string $path): bool => ! Str::startsWith($path, ['http://', 'https://']) && ! str_contains($path, '..'))
+            ->unique()
+            ->values()
+            ->all();
+    }
+
     protected function fallbackNavigationMenu(): array
     {
         return $this->navigationPages()

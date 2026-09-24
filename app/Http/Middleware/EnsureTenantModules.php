@@ -67,6 +67,9 @@ class EnsureTenantModules
             'activities.' => 'activities',
             'finance.' => 'finance',
             'student-billing.' => 'student_billing',
+            'print-templates.' => 'custom_templates',
+            'id-cards.' => 'id_cards',
+            'settings.website' => 'public_website',
         ];
 
         foreach ($routeModules as $prefix => $module) {
@@ -83,6 +86,15 @@ class EnsureTenantModules
         }
         if ($route === 'teacher-attendance.export') {
             $modules[] = 'teacher_attendance';
+        }
+        if (str_starts_with($route, 'id-cards.templates.')) {
+            $modules[] = 'custom_templates';
+        }
+        if (str_starts_with($route, 'id-cards.print.')) {
+            $modules[] = 'students';
+        }
+        if (str_starts_with($route, 'courses.end.report-cards.')) {
+            $modules[] = 'custom_templates';
         }
         if ($route === 'activities.finance') {
             $modules[] = 'finance';

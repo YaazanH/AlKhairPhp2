@@ -78,7 +78,7 @@ class SidebarNavigationService
             'data_quality' => $this->item('ui.nav.data_quality', 'data-quality', 'data-quality.index', ['data-quality.*'], 'configuration', 30, ['data-quality.view']),
             'data_audit' => $this->item('ui.nav.data_audit', 'data-audit', 'data-audit.index', ['data-audit.*'], 'configuration', 40, ['data-audit.view']),
 
-            'print_templates' => $this->item('ui.nav.print_templates', 'printing-template', 'print-templates.templates.index', ['print-templates.*'], 'identity_tools', 10, ['id-cards.view']),
+            'print_templates' => $this->item('ui.nav.print_templates', 'printing-template', 'print-templates.templates.index', ['print-templates.*'], 'identity_tools', 10, ['print-templates.view']),
             'id_card_print' => $this->item('ui.nav.id_card_print', 'student-id-card', 'id-cards.print.create', ['id-cards.print.*'], 'identity_tools', 20, ['id-cards.print']),
         ];
     }
@@ -394,7 +394,7 @@ class SidebarNavigationService
             'student_billing' => ['student_billing'],
             'public_website_settings' => ['public_website'],
             'print_templates' => ['custom_templates'],
-            'id_card_print' => ['id_cards'],
+            'id_card_print' => ['id_cards', 'students'],
         ];
 
         if (isset($modules[$itemKey])) {

@@ -20,7 +20,8 @@ return [
         'student_billing' => ['name' => 'Student Billing', 'requires' => ['students', 'finance']],
         'curriculum' => ['name' => 'Curriculum Management', 'requires' => ['classes']],
         'custom_templates' => ['name' => 'Custom Templates', 'requires' => []],
-        'id_cards' => ['name' => 'ID Cards', 'requires' => [], 'requires_any' => ['students', 'teachers', 'parents']],
+        // Version 1 ships a standard student card. More card subjects can be added later.
+        'id_cards' => ['name' => 'ID Cards', 'requires' => ['students']],
         'public_website' => ['name' => 'Public Website', 'requires' => []],
     ],
     'legacy_core' => ['students', 'parents', 'parent_portal', 'teachers', 'classes', 'student_attendance', 'teacher_attendance', 'memorization', 'quran_tests', 'assessments', 'points_rewards', 'activities', 'curriculum', 'public_website'],
@@ -38,5 +39,8 @@ return [
         'invoices.view' => ['student_billing'],
         'id_cards.students.print' => ['id_cards', 'students'],
         'id_cards.students.design' => ['id_cards', 'students', 'custom_templates'],
+        'id_cards.students.standard_print' => ['id_cards', 'students'],
+        'custom_templates.manage' => ['custom_templates'],
+        'public_website.manage' => ['public_website'],
     ],
 ];

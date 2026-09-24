@@ -53,12 +53,18 @@ class CurrentModuleAccess
             'invoices', 'payments' => 'student_billing',
             'curricula' => 'curriculum',
             'website' => 'public_website',
+            'id-cards' => 'id_cards',
+            'print-templates' => 'custom_templates',
             default => null,
         };
         if (str_starts_with($permission, 'attendance.student.')) {
             $module = 'student_attendance';
         } elseif (str_starts_with($permission, 'attendance.teacher.')) {
             $module = 'teacher_attendance';
+        }
+
+        if (str_starts_with($permission, 'id-cards.templates.')) {
+            return $this->enabled('id_cards') && $this->enabled('custom_templates');
         }
 
         return $module === null || $this->enabled($module);

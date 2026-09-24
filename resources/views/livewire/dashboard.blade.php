@@ -16,6 +16,7 @@ use App\Services\AccessScopeService;
 use App\Services\CourseEndService;
 use App\Services\CurriculumProgressService;
 use App\Services\GroupDailySummaryService;
+use App\Services\Landlord\CurrentModuleAccess;
 use App\Services\PrintTemplates\PrintTemplateRenderService;
 use App\Services\ReportingService;
 use Illuminate\Support\Carbon;
@@ -814,6 +815,10 @@ new class extends Component {
 
     protected function studentDashboardCardPreviews(Student $student, $user)
     {
+        if (! app(CurrentModuleAccess::class)->enabled('custom_templates')) {
+            return collect();
+        }
+
         $templateMap = AppSetting::groupValues('general')->get('student_dashboard_card_templates');
 
         if (! is_array($templateMap) || $templateMap === []) {
