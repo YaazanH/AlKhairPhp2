@@ -10,6 +10,22 @@ class LandlordCatalogSeeder extends Seeder
 {
     public function run(): void
     {
+        foreach (config('modules.definitions', []) as $code => $definition) {
+            if ($code === 'foundation') {
+                continue;
+            }
+
+            Feature::query()->firstOrCreate(
+                ['code' => $code],
+                [
+                    'name' => $definition['name'],
+                    'description' => null,
+                    'is_core' => false,
+                    'is_active' => true,
+                ],
+            );
+        }
+
         $core = Feature::query()->firstOrCreate(
             ['code' => Feature::CORE],
             [

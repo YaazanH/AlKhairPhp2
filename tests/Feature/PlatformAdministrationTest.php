@@ -6,6 +6,7 @@ use App\Models\Landlord\Feature;
 use App\Models\Landlord\Plan;
 use App\Models\Landlord\PlatformAdministrator;
 use App\Models\Landlord\Tenant;
+use App\Services\Landlord\TenantModuleAccess;
 use Database\Seeders\LandlordCatalogSeeder;
 use Illuminate\Console\Command;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -242,5 +243,113 @@ class PlatformAdministrationTest extends TestCase
             ->assertRedirect();
 
         $this->assertDatabaseHas('tenants', ['id' => $tenant->id, 'status' => Tenant::STATUS_SUSPENDED], 'landlord');
+    }
+
+    public function test_platform_administrator_can_create_duplicate_deactivate_and_delete_modular_packages(): void
+    {
+        $this->seed(LandlordCatalogSeeder::class);
+        $administrator = PlatformAdministrator::query()->create([
+            'uuid' => (string) Str::uuid(), 'name' => 'Platform Administrator',
+            'email' => 'platform@example.test', 'password' => 'secret-password',
+        ]);
+
+        $this->actingAs($administrator, 'platform')
+            ->post(route('platform.plans.store'), [
+                'code' => 'family_learning', 'name' => 'Family Learning', 'description' => 'Students and families',
+                'modules' => ['parent_portal'], 'is_active' => '1',
+            ])->assertRedirect();
+
+        $plan = Plan::query()->where('code', 'family_learning')->sole();
+        $this->assertSame(['parent_portal'], $plan->features()->pluck('code')->all());
+        $this->actingAs($administrator, 'platform')->get(route('platform.plans.index'))
+            ->assertOk()->assertSee('Family Learning')->assertSee('Parent Portal');
+        $this->assertDatabaseHas('platform_audit_events', ['event' => 'plan_created'], 'landlord');
+
+        $this->actingAs($administrator, 'platform')
+            ->post(route('platform.plans.duplicate', $plan), ['name' => 'Family Learning Plus'])
+            ->assertRedirect();
+        $copy = Plan::query()->where('name', 'Family Learning Plus')->sole();
+        $this->assertSame(['parent_portal'], $copy->features()->pluck('code')->all());
+
+        $this->actingAs($administrator, 'platform')
+            ->patch(route('platform.plans.status', $copy), ['is_active' => '0'])
+            ->assertRedirect();
+        $this->assertFalse($copy->fresh()->is_active);
+
+        $this->actingAs($administrator, 'platform')
+            ->delete(route('platform.plans.destroy', $copy))
+            ->assertRedirect(route('platform.plans.index'));
+        $this->assertDatabaseMissing('plans', ['id' => $copy->id], 'landlord');
+    }
+
+    public function test_assigned_package_requires_preview_confirmation_and_shows_each_affected_tenant(): void
+    {
+        $this->seed(LandlordCatalogSeeder::class);
+        $administrator = PlatformAdministrator::query()->create([
+            'uuid' => (string) Str::uuid(), 'name' => 'Platform Administrator',
+            'email' => 'platform@example.test', 'password' => 'secret-password',
+        ]);
+        $plan = Plan::query()->create(['code' => 'students_only', 'name' => 'Students only', 'is_active' => true]);
+        $plan->features()->sync([Feature::query()->where('code', 'students')->sole()->id]);
+        $tenant = Tenant::query()->create([
+            'uuid' => (string) Str::uuid(), 'name' => 'Affected Centre', 'slug' => 'affected', 'status' => Tenant::STATUS_ACTIVE,
+        ]);
+        $tenant->subscription()->create(['plan_id' => $plan->id, 'status' => 'active', 'starts_at' => now()->subDay()]);
+
+        $payload = ['name' => 'Finance package', 'description' => '', 'modules' => ['finance'], 'is_active' => '1'];
+        $this->actingAs($administrator, 'platform')->put(route('platform.plans.update', $plan), $payload)
+            ->assertSessionHasErrors('confirm_impact');
+        $this->assertSame(['students'], $plan->features()->pluck('code')->all());
+
+        $this->actingAs($administrator, 'platform')->put(route('platform.plans.preview', $plan), $payload)
+            ->assertOk()->assertSee('Affected Centre')->assertSee('Finance')->assertSee('Students');
+
+        $this->actingAs($administrator, 'platform')->put(route('platform.plans.update', $plan), $payload + ['confirm_impact' => '1'])
+            ->assertRedirect(route('platform.plans.edit', $plan));
+        $this->assertSame(['finance'], $plan->features()->pluck('code')->all());
+        $this->assertDatabaseHas('platform_audit_events', ['event' => 'plan_updated'], 'landlord');
+    }
+
+    public function test_tenant_extras_are_previewed_audited_and_do_not_remove_package_modules(): void
+    {
+        $this->seed(LandlordCatalogSeeder::class);
+        $administrator = PlatformAdministrator::query()->create([
+            'uuid' => (string) Str::uuid(), 'name' => 'Platform Administrator',
+            'email' => 'platform@example.test', 'password' => 'secret-password',
+        ]);
+        $plan = Plan::query()->create(['code' => 'finance_modular', 'name' => 'Finance', 'is_active' => true]);
+        $plan->features()->sync([Feature::query()->where('code', 'finance')->sole()->id]);
+        $tenant = Tenant::query()->create(['uuid' => (string) Str::uuid(), 'name' => 'One Centre', 'slug' => 'one', 'status' => Tenant::STATUS_ACTIVE]);
+        $other = Tenant::query()->create(['uuid' => (string) Str::uuid(), 'name' => 'Other Centre', 'slug' => 'other', 'status' => Tenant::STATUS_ACTIVE]);
+        foreach ([$tenant, $other] as $record) {
+            $record->subscription()->create(['plan_id' => $plan->id, 'status' => 'active', 'starts_at' => now()->subDay()]);
+        }
+        $access = app(TenantModuleAccess::class);
+        $version = $access->snapshot($tenant)['version'];
+
+        $this->actingAs($administrator, 'platform')->get(route('platform.tenants.edit', $tenant))
+            ->assertOk()->assertSee('Tenant-specific extras')->assertSee('Already included by package');
+
+        $this->actingAs($administrator, 'platform')->put(route('platform.tenants.extras.preview', $tenant), [
+            'modules' => ['parent_portal'], 'expected_version' => $version,
+        ])->assertRedirect()->assertSessionHas('module_preview');
+
+        $this->actingAs($administrator, 'platform')->put(route('platform.tenants.extras.update', $tenant), [
+            'modules' => ['parent_portal'], 'expected_version' => $version, 'confirm_extras' => '1',
+        ])->assertRedirect(route('platform.tenants.edit', $tenant));
+        $snapshot = $access->snapshot($tenant);
+        $this->assertContains('finance', $snapshot['enabled']);
+        $this->assertContains('parent_portal', $snapshot['enabled']);
+        $this->assertSame([], $access->snapshot($other)['extras']);
+        $this->assertDatabaseHas('platform_audit_events', ['tenant_id' => $tenant->id, 'event' => 'tenant_module_extras_updated'], 'landlord');
+
+        $this->actingAs($administrator, 'platform')->put(route('platform.tenants.extras.preview', $tenant), [
+            'modules' => [], 'expected_version' => $snapshot['version'],
+        ])->assertRedirect()->assertSessionHas('module_preview');
+        $this->actingAs($administrator, 'platform')->put(route('platform.tenants.extras.update', $tenant), [
+            'modules' => [], 'expected_version' => $snapshot['version'], 'confirm_extras' => '1',
+        ])->assertRedirect();
+        $this->assertContains('finance', $access->snapshot($tenant)['enabled']);
+        $this->assertSame([], $access->snapshot($tenant)['extras']);
     }
 }

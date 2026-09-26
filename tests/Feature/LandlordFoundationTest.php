@@ -2,19 +2,20 @@
 
 namespace Tests\Feature;
 
+use App\Http\Middleware\EnsureTenantFeature;
 use App\Models\Landlord\Feature;
 use App\Models\Landlord\Plan;
 use App\Models\Landlord\PlatformAdministrator;
 use App\Models\Landlord\Tenant;
 use App\Models\Landlord\TenantFeatureOverride;
 use App\Models\Landlord\TenantSubscription;
-use App\Http\Middleware\EnsureTenantFeature;
 use App\Services\Landlord\TenantContext;
 use App\Services\Landlord\TenantFeatureAccess;
 use Database\Seeders\LandlordCatalogSeeder;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 use Tests\TestCase;
 
 class LandlordFoundationTest extends TestCase
@@ -78,7 +79,7 @@ class LandlordFoundationTest extends TestCase
     {
         $this->seed(LandlordCatalogSeeder::class);
 
-        $this->assertSame(3, Feature::query()->count());
+        $this->assertSame(count(config('modules.definitions')) - 1 + 2, Feature::query()->count());
         $this->assertSame(3, Plan::query()->count());
         $this->assertTrue(Feature::query()->where('code', Feature::CORE)->value('is_core'));
 
@@ -161,7 +162,7 @@ class LandlordFoundationTest extends TestCase
         $response = app(EnsureTenantFeature::class)->handle(request(), fn () => response()->noContent(), Feature::FINANCE);
         $this->assertSame(204, $response->getStatusCode());
 
-        $this->expectException(\Symfony\Component\HttpKernel\Exception\HttpException::class);
+        $this->expectException(HttpException::class);
         app(EnsureTenantFeature::class)->handle(request(), fn () => response()->noContent(), Feature::CUSTOM_PRINTING);
     }
 }

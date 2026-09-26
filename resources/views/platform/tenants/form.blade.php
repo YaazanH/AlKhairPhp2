@@ -1,28 +1,58 @@
-<!DOCTYPE html>
-<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">@vite(['resources/css/app.css','resources/js/app.js'])</head>
-<body class="bg-zinc-50"><main class="mx-auto max-w-4xl space-y-6 p-6 md:p-10">
-<div class="flex items-center justify-between gap-4"><a href="{{ route('platform.dashboard') }}" class="text-sm text-emerald-700">Back to tenants</a><a href="{{ route('platform.plans.index') }}" class="text-sm text-emerald-700">Manage packages</a></div>
-<header><p class="text-sm text-emerald-700">Platform administration</p><h1 class="text-3xl font-bold">{{ $tenant ? 'Manage '.$tenant->name : 'Create tenant' }}</h1></header>
-@if ($errors->any())<div class="rounded-xl bg-red-50 p-4 text-red-800">@foreach ($errors->all() as $error)<p>{{ $error }}</p>@endforeach</div>@endif
-@if (session('status'))<div class="rounded-xl bg-emerald-50 p-4 text-emerald-800">{{ session('status') }}</div>@endif
-<section class="rounded-2xl border bg-white p-6 shadow-sm"><h2 class="text-lg font-semibold">Tenant details</h2>
-<form method="POST" action="{{ $tenant ? route('platform.tenants.update', $tenant) : route('platform.tenants.store') }}" class="mt-5 grid gap-4 md:grid-cols-2">
-@csrf
-@if ($tenant)
-@method('PUT')
-@endif
-<label class="grid gap-1 text-sm font-medium">Organisation name<input name="name" value="{{ old('name', $tenant?->name) }}" required class="rounded-xl border p-3 font-normal"></label>
-<label class="grid gap-1 text-sm font-medium">Subdomain<input name="slug" value="{{ old('slug', $tenant?->slug) }}" required class="rounded-xl border p-3 font-normal"></label>
-<label class="grid gap-1 text-sm font-medium">Timezone<select name="timezone" class="rounded-xl border p-3 font-normal"><option value="">Default timezone</option><option value="Asia/Damascus" @selected(old('timezone', $tenant?->timezone) === 'Asia/Damascus')>Asia/Damascus</option><option value="UTC" @selected(old('timezone', $tenant?->timezone) === 'UTC')>UTC</option></select></label>
-<label class="grid gap-1 text-sm font-medium">Default language<select name="locale" class="rounded-xl border p-3 font-normal"><option value="">Default language</option><option value="ar" @selected(old('locale', $tenant?->locale) === 'ar')>Arabic</option><option value="en" @selected(old('locale', $tenant?->locale) === 'en')>English</option></select></label>
-@unless ($tenant)
-<label class="grid gap-1 text-sm font-medium">Tenant administrator name<input name="owner_name" required class="rounded-xl border p-3 font-normal"></label><label class="grid gap-1 text-sm font-medium">Tenant administrator email<input name="owner_email" type="email" required class="rounded-xl border p-3 font-normal"></label><label class="grid gap-1 text-sm font-medium">Temporary password<input name="owner_password" type="password" required class="rounded-xl border p-3 font-normal"></label>
-<label class="grid gap-1 text-sm font-medium">Initial package<select name="plan" class="rounded-xl border p-3 font-normal">@foreach ($plans as $plan)<option value="{{ $plan->code }}">{{ $plan->name }}</option>@endforeach</select></label>
-@endunless
-<button class="rounded-xl bg-emerald-700 px-4 py-3 font-medium text-white md:col-span-2">{{ $tenant ? 'Save changes' : 'Create tenant' }}</button></form></section>
-@if ($tenant)
-<section class="grid gap-6 md:grid-cols-2"><div class="rounded-2xl border bg-white p-6 shadow-sm"><div class="flex items-center justify-between gap-3"><h2 class="font-semibold">Package</h2><a href="{{ route('platform.plans.index') }}" class="text-sm text-emerald-700">Configure packages</a></div><form class="mt-4 flex gap-2" method="POST" action="{{ route('platform.tenants.subscription.update', $tenant) }}">@csrf @method('PUT')<select name="plan" class="min-w-0 flex-1 rounded-xl border p-3">@foreach ($plans as $plan)<option value="{{ $plan->code }}" @selected($tenant->subscription?->plan?->code === $plan->code)>{{ $plan->name }}</option>@endforeach</select><button class="rounded-xl border px-4">Save</button></form></div><div class="rounded-2xl border bg-white p-6 shadow-sm"><h2 class="font-semibold">Lifecycle</h2><form class="mt-4" method="POST" action="{{ route('platform.tenants.status', $tenant) }}">@csrf @method('PATCH')<input type="hidden" name="status" value="{{ $tenant->status === 'suspended' ? 'active' : 'suspended' }}"><button class="rounded-xl bg-amber-500 px-4 py-3 text-white">{{ $tenant->status === 'suspended' ? 'Activate' : 'Suspend' }}</button></form></div></section>
-<section class="rounded-2xl border bg-white p-6 shadow-sm"><h2 class="font-semibold">Reset tenant administrator password</h2><p class="mt-1 text-sm text-zinc-500">Use this when the tenant administrator has forgotten their password.</p>@if (filled($tenant->database_name))<form method="POST" action="{{ route('platform.tenants.administrator-password', $tenant) }}" class="mt-4 grid max-w-xl gap-3 md:grid-cols-2">@csrf @method('PUT')<label class="grid gap-1 text-sm font-medium">New password<input name="password" type="password" required class="rounded-xl border p-3 font-normal"></label><label class="grid gap-1 text-sm font-medium">Confirm new password<input name="password_confirmation" type="password" required class="rounded-xl border p-3 font-normal"></label><button class="rounded-xl border px-4 py-3 md:col-span-2">Reset password</button></form>@else<p class="mt-3 text-sm text-amber-700">Password reset becomes available after the tenant is provisioned.</p>@endif</section>
-<section class="rounded-2xl border border-red-200 bg-red-50 p-6"><h2 class="font-semibold text-red-900">Delete tenant</h2><p class="mt-1 text-sm text-red-800">Permanently removes its database and files. Type <strong>{{ $tenant->slug }}</strong> to confirm.</p><form method="POST" action="{{ route('platform.tenants.destroy', $tenant) }}" class="mt-4 flex max-w-lg gap-2" onsubmit="return confirm('Permanently delete this tenant?')">@csrf @method('DELETE')<input name="confirm_slug" placeholder="{{ $tenant->slug }}" class="min-w-0 flex-1 rounded-xl border border-red-300 p-3"><button class="rounded-xl bg-red-700 px-4 py-3 text-white">Delete</button></form></section>
-@endif
-</main>@fluxScripts</body></html>
+@php
+    $editing = (bool) $tenant;
+    $moduleNames = collect($moduleCatalog)->mapWithKeys(fn ($module) => [$module['code'] => $module['name']]);
+    $selectedExtras = old('modules', $editing ? $moduleSnapshot['extras'] : []);
+    $modulePreview = session('module_preview');
+@endphp
+<x-platform-layout :title="$editing ? 'Manage tenant' : 'Create tenant'">
+    <header class="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+        <div><a href="{{ route('platform.dashboard') }}" class="text-sm font-medium text-emerald-700">← Back to tenants</a><h1 class="mt-3 text-3xl font-bold">{{ $editing ? 'Manage '.$tenant->name : 'Create tenant' }}</h1><p class="mt-1 text-zinc-500">{{ $editing ? $tenant->slug.'.'.config('tenancy.base_domain') : 'Provision an isolated tenant and its first administrator.' }}</p></div>
+        @if($editing)<span class="rounded-full bg-zinc-100 px-3 py-1 text-xs font-medium">{{ str($tenant->status)->replace('_', ' ')->title() }}</span>@endif
+    </header>
+
+    <section class="rounded-3xl border bg-white p-6 shadow-sm"><h2 class="text-lg font-semibold">Tenant details</h2>
+        <form method="POST" action="{{ $editing ? route('platform.tenants.update', $tenant) : route('platform.tenants.store') }}" class="mt-5 grid gap-4 md:grid-cols-2">
+            @csrf @if($editing) @method('PUT') @endif
+            <label class="grid gap-1 text-sm font-medium">Organisation name<input name="name" value="{{ old('name', $tenant?->name) }}" required class="rounded-xl border p-3 font-normal"></label>
+            <label class="grid gap-1 text-sm font-medium">Subdomain<input name="slug" value="{{ old('slug', $tenant?->slug) }}" required class="rounded-xl border p-3 font-normal"></label>
+            <label class="grid gap-1 text-sm font-medium">Timezone<select name="timezone" class="rounded-xl border p-3 font-normal"><option value="">Default timezone</option><option value="Asia/Damascus" @selected(old('timezone', $tenant?->timezone) === 'Asia/Damascus')>Asia/Damascus</option><option value="UTC" @selected(old('timezone', $tenant?->timezone) === 'UTC')>UTC</option></select></label>
+            <label class="grid gap-1 text-sm font-medium">Default language<select name="locale" class="rounded-xl border p-3 font-normal"><option value="">Default language</option><option value="ar" @selected(old('locale', $tenant?->locale) === 'ar')>Arabic</option><option value="en" @selected(old('locale', $tenant?->locale) === 'en')>English</option></select></label>
+            @unless($editing)
+                <label class="grid gap-1 text-sm font-medium">Tenant administrator name<input name="owner_name" value="{{ old('owner_name') }}" required class="rounded-xl border p-3 font-normal"></label>
+                <label class="grid gap-1 text-sm font-medium">Tenant administrator email<input name="owner_email" value="{{ old('owner_email') }}" type="email" required class="rounded-xl border p-3 font-normal"></label>
+                <label class="grid gap-1 text-sm font-medium">Temporary password<input name="owner_password" type="password" required class="rounded-xl border p-3 font-normal"></label>
+                <label class="grid gap-1 text-sm font-medium">Initial package<select name="plan" class="rounded-xl border p-3 font-normal">@foreach($plans as $plan)<option value="{{ $plan->code }}" @selected(old('plan') === $plan->code)>{{ $plan->name }}</option>@endforeach</select></label>
+            @endunless
+            <button class="rounded-xl bg-emerald-700 px-4 py-3 font-medium text-white md:col-span-2">{{ $editing ? 'Save tenant details' : 'Create tenant' }}</button>
+        </form>
+    </section>
+
+    @if($editing)
+        <section class="grid gap-5 md:grid-cols-2">
+            <div class="rounded-3xl border bg-white p-6 shadow-sm"><div class="flex items-center justify-between gap-3"><h2 class="font-semibold">Package</h2><a href="{{ route('platform.plans.index') }}" class="text-sm text-emerald-700">Manage packages</a></div><form class="mt-4 flex flex-col gap-3 sm:flex-row" method="POST" action="{{ route('platform.tenants.subscription.update', $tenant) }}">@csrf @method('PUT')<select name="plan" class="min-w-0 flex-1 rounded-xl border p-3">@foreach($plans as $plan)<option value="{{ $plan->code }}" @selected($tenant->subscription?->plan?->code === $plan->code)>{{ $plan->name }}{{ $plan->is_active ? '' : ' (inactive)' }}</option>@endforeach</select><button class="rounded-xl border px-4 py-3">Save package</button></form></div>
+            <div class="rounded-3xl border bg-white p-6 shadow-sm"><h2 class="font-semibold">Lifecycle</h2><p class="mt-1 text-sm text-zinc-500">Suspension blocks tenant business access without deleting data.</p><form class="mt-4" method="POST" action="{{ route('platform.tenants.status', $tenant) }}">@csrf @method('PATCH')<input type="hidden" name="status" value="{{ $tenant->status === 'suspended' ? 'active' : 'suspended' }}"><button class="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-amber-900">{{ $tenant->status === 'suspended' ? 'Activate tenant' : 'Suspend tenant' }}</button></form></div>
+        </section>
+
+        <section class="rounded-3xl border bg-white p-6 shadow-sm">
+            <div><p class="text-xs font-semibold uppercase tracking-wider text-emerald-700">Additive only</p><h2 class="mt-1 text-lg font-semibold">Tenant-specific extras</h2><p class="mt-1 text-sm text-zinc-500">Checked items are explicit additions for this tenant. Package modules remain enabled even when their extra checkbox is cleared.</p></div>
+            <form method="POST" action="{{ route('platform.tenants.extras.update', $tenant) }}" class="mt-5 space-y-5">@csrf @method('PUT')<input type="hidden" name="expected_version" value="{{ $moduleSnapshot['version'] }}">
+                <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                    @foreach($moduleCatalog as $module)
+                        @php($fromPackage = in_array($module['code'], $packageModules, true))
+                        <label class="rounded-2xl border p-4 has-[:checked]:border-emerald-500 has-[:checked]:bg-emerald-50 {{ $module['is_available'] ? 'cursor-pointer' : 'cursor-not-allowed opacity-55' }}">
+                            <span class="flex items-start gap-3"><input type="checkbox" name="modules[]" value="{{ $module['code'] }}" class="mt-1" @checked(in_array($module['code'], $selectedExtras, true)) @disabled(! $module['is_available'])><span><span class="block font-semibold">{{ $module['name'] }}</span><span class="mt-1 block text-xs {{ $fromPackage ? 'text-emerald-700' : 'text-zinc-500' }}">{{ $fromPackage ? 'Already included by package' : 'Optional tenant extra' }}</span></span></span>
+                        </label>
+                    @endforeach
+                </div>
+                @if($modulePreview)<div class="rounded-2xl border border-emerald-200 bg-emerald-50 p-4"><h3 class="font-semibold text-emerald-900">Preview ready</h3><div class="mt-2 flex flex-wrap gap-2 text-xs">@foreach($modulePreview['added'] as $code)<span class="rounded-full bg-white px-2 py-1 text-emerald-800">+ {{ $moduleNames[$code] ?? $code }}</span>@endforeach @foreach($modulePreview['removed'] as $code)<span class="rounded-full bg-white px-2 py-1 text-red-700">− {{ $moduleNames[$code] ?? $code }}</span>@endforeach @if(!$modulePreview['added'] && !$modulePreview['removed'])<span class="text-emerald-800">No effective module change. You may still be changing explicit provenance.</span>@endif</div></div>@endif
+                <label class="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm"><input type="checkbox" name="confirm_extras" value="1" class="mt-1"><span>I reviewed this tenant-only change. It does not modify the shared package.</span></label>
+                <div class="flex flex-col gap-3 sm:flex-row sm:justify-end"><button formaction="{{ route('platform.tenants.extras.preview', $tenant) }}" class="rounded-xl border px-4 py-3">Preview changes</button><button class="rounded-xl bg-emerald-700 px-4 py-3 font-semibold text-white">Save tenant extras</button></div>
+            </form>
+        </section>
+
+        @if($moduleAuditEvents->isNotEmpty())<section class="rounded-3xl border bg-white p-6 shadow-sm"><h2 class="font-semibold">Recent module changes</h2><div class="mt-4 divide-y">@foreach($moduleAuditEvents as $event)<div class="py-3 text-sm"><div class="flex flex-wrap justify-between gap-2"><span class="font-medium">Extras updated</span><time class="text-zinc-500">{{ $event->created_at->format('Y-m-d H:i') }}</time></div><p class="mt-1 text-zinc-500">{{ count($event->properties['after'] ?? []) }} explicit extras after this change.</p></div>@endforeach</div></section>@endif
+
+        <section class="rounded-3xl border bg-white p-6 shadow-sm"><h2 class="font-semibold">Reset tenant administrator password</h2><p class="mt-1 text-sm text-zinc-500">Use this when the tenant administrator has forgotten their password.</p>@if(filled($tenant->database_name))<form method="POST" action="{{ route('platform.tenants.administrator-password', $tenant) }}" class="mt-4 grid max-w-xl gap-3 md:grid-cols-2">@csrf @method('PUT')<label class="grid gap-1 text-sm font-medium">New password<input name="password" type="password" required class="rounded-xl border p-3 font-normal"></label><label class="grid gap-1 text-sm font-medium">Confirm new password<input name="password_confirmation" type="password" required class="rounded-xl border p-3 font-normal"></label><button class="rounded-xl border px-4 py-3 md:col-span-2">Reset password</button></form>@else<p class="mt-3 text-sm text-amber-700">Password reset becomes available after the tenant is provisioned.</p>@endif</section>
+        <section class="rounded-3xl border border-red-200 bg-red-50 p-6"><h2 class="font-semibold text-red-900">Delete tenant</h2><p class="mt-1 text-sm text-red-800">Permanently removes its database and files. Type <strong>{{ $tenant->slug }}</strong> to confirm.</p><form method="POST" action="{{ route('platform.tenants.destroy', $tenant) }}" class="mt-4 flex max-w-lg flex-col gap-2 sm:flex-row" onsubmit="return confirm('Permanently delete this tenant?')">@csrf @method('DELETE')<input name="confirm_slug" placeholder="{{ $tenant->slug }}" class="min-w-0 flex-1 rounded-xl border border-red-300 p-3"><button class="rounded-xl bg-red-700 px-4 py-3 text-white">Delete</button></form></section>
+    @endif
+</x-platform-layout>

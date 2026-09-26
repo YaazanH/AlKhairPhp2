@@ -3,9 +3,12 @@
 namespace App\Http\Controllers\Platform;
 
 use App\Http\Controllers\Controller;
+use App\Models\Landlord\Plan;
 use App\Models\Landlord\PlatformAuditEvent;
 use App\Models\Landlord\Tenant;
 use App\Models\Landlord\TenantDomain;
+use App\Services\Landlord\PlanModuleManager;
+use App\Services\Landlord\TenantModuleAccess;
 use App\Services\Landlord\TenantStorage;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -18,14 +21,36 @@ use Illuminate\View\View;
 
 class TenantManagementController extends Controller
 {
-    public function create(): View
+    public function create(PlanModuleManager $planModules): View
     {
-        return view('platform.tenants.create');
+        return view('platform.tenants.create', [
+            'plans' => Plan::query()->where('is_active', true)->orderBy('name')->get(),
+            'moduleCatalog' => $planModules->catalog(),
+        ]);
     }
 
-    public function edit(Tenant $tenant): View
+    public function edit(Tenant $tenant, PlanModuleManager $planModules, TenantModuleAccess $moduleAccess): View
     {
-        return view('platform.tenants.edit', compact('tenant'));
+        $snapshot = $moduleAccess->snapshot($tenant);
+        $packageModules = $tenant->subscription?->plan
+            ? $planModules->preview(null, $planModules->selectedCodes($tenant->subscription->plan))['effective']
+            : ['foundation'];
+
+        return view('platform.tenants.edit', [
+            'tenant' => $tenant->load('subscription.plan.features'),
+            'plans' => Plan::query()
+                ->where(function ($query) use ($tenant): void {
+                    $query->where('is_active', true);
+                    if ($tenant->subscription?->plan_id) {
+                        $query->orWhere('id', $tenant->subscription->plan_id);
+                    }
+                })
+                ->orderBy('name')->get(),
+            'moduleCatalog' => $planModules->catalog(),
+            'moduleSnapshot' => $snapshot,
+            'packageModules' => $packageModules,
+            'moduleAuditEvents' => PlatformAuditEvent::query()->where('tenant_id', $tenant->id)->where('event', 'tenant_module_extras_updated')->latest()->limit(8)->get(),
+        ]);
     }
 
     public function update(Request $request, Tenant $tenant): RedirectResponse

@@ -64,7 +64,7 @@ class TenantModuleEngineTest extends TestCase
     public function test_invalid_graphs_and_unavailable_dependencies_fail_closed(): void
     {
         $registry = app(ModuleRegistry::class);
-        foreach ([[['unknown'], []], [['parents'], ['students']], [['id_cards'], []]] as [$roots, $unavailable]) {
+        foreach ([[['unknown'], []], [['parents'], ['students']]] as [$roots, $unavailable]) {
             try {
                 $registry->resolve($roots, [], $unavailable);
                 $this->fail('Invalid module selection was accepted.');
@@ -72,7 +72,9 @@ class TenantModuleEngineTest extends TestCase
                 $this->assertNotEmpty($exception->getMessage());
             }
         }
-        $this->assertArrayHasKey('id_cards', $registry->resolve(['id_cards', 'teachers']));
+        $idCards = $registry->resolve(['id_cards']);
+        $this->assertArrayHasKey('id_cards', $idCards);
+        $this->assertArrayHasKey('students', $idCards);
         config()->set('modules.definitions.students.requires', ['parents']);
         $this->expectException(DomainException::class);
         $registry->resolve(['parents']);
@@ -202,7 +204,7 @@ class TenantModuleEngineTest extends TestCase
     public function test_unavailable_dependency_prevents_extra_write_and_audit(): void
     {
         $tenant = $this->tenant();
-        Feature::create(['code' => 'students', 'name' => 'Students', 'is_active' => false]);
+        Feature::query()->where('code', 'students')->update(['is_active' => false]);
         $before = app(TenantModuleAccess::class)->snapshot($tenant);
         try {
             app(TenantModuleExtras::class)->replace($tenant, ['parent_portal'], $this->actor(), $before['version']);
